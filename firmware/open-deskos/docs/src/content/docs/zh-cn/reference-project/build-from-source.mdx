@@ -1,6 +1,6 @@
 ---
 title: 从源码编译与烧录
-description: 从源码编译与烧录 ESP-Claw。
+description: 从源码编译与烧录 Open DeskOS。
 ---
 
 import { Steps, Aside, Badge } from '@astrojs/starlight/components';
@@ -26,37 +26,20 @@ import LinkToSource from '@/components/LinkToSource.astro';
    pip install esp-bmgr-assist
    ```
 
-   <Aside title="需要适配新的开发板？" type="tip">
-    ESP-Claw 使用 ESP Board Manager 适配多种开发板。
-
-    如需添加其他开发板，请参考 [ESP Board Manager 文档](https://docs.espressif.com/projects/esp-board-manager/zh_CN/latest/create-board/index.html)，
-    将开发板适配文件存放到 <LinkToSource relativePath="application/edge_agent/boards/" />
-
-    欢迎将开发板适配代码通过 Pull Request 提交到 ESP-Claw 仓库。
-   </Aside>
+   Open DeskOS 固件目前只支持 Guition JC4880P443C。
+   生产板级定义位于 <LinkToSource relativePath="application/open_deskos/boards/guition/jc4880p443c/" />。
 
 2. **获取 ESP-Claw 源码**
 
    ```bash
-   git clone https://github.com/espressif/esp-claw.git
-   cd esp-claw/application/edge_agent
+   cd firmware/open-deskos/application/open_deskos
    ```
 
-3. **选择开发板**
+3. **选择 Guition JC4880P443C 开发板**
 
    ```bash
-   idf.py bmgr -c ./boards -b <board_name>
-   # 例如: idf.py bmgr -c ./boards -b esp32_S3_DevKitC_1
+   idf.py bmgr -c ./boards -b jc4880p443c
    ```
-
-   <Aside type="tip" title="支持的开发板列表">
-      你可以通过以下命令列出支持的开发板列表：
-      ```bash
-      idf.py bmgr -c ./boards -l
-      ```
-
-      也可以在 <LinkToSource relativePath="application/edge_agent/boards/" /> 下查阅支持的开发板列表。
-   </Aside>
 
    <Aside type="note" title="为什么不需要 set-target">
       ESP Board Manager 会自动根据开发板选择合适的芯片型号，因此不需要 `idf.py set-target`。

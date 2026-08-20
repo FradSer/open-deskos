@@ -65,7 +65,7 @@ router -> tools: "send_message 绑定"
 
 ## 启动与可见性
 
-应用启动时会按启用的平台分别准备凭证和附件配置，再注册对应的运行时 Group。`edge_agent` 会把 Event Router 的出站 channel，例如 `qq`、`feishu`、`telegram`、`wechat`、`web`，绑定到对应发送工具。
+应用启动时会按启用的平台分别准备凭证和附件配置，再注册对应的运行时 Group。`open_deskos` 会把 Event Router 的出站 channel，例如 `qq`、`feishu`、`telegram`、`wechat`、`web`，绑定到对应发送工具。
 
 统一 IM Skill 在 `cap_groups` 中声明四个平台的运行时 Group。激活该 Skill 后，模型会同时获得平台专属工具和通道选择说明，避免跨平台误发或重复回复。
 

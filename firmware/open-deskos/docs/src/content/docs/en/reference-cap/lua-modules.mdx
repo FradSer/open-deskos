@@ -63,7 +63,7 @@ Pure Lua modules may provide only managed resources such as `lib/`, `test/`, and
 | `arg_schema` | `lua_module_system` | Pure-Lua argument normalization helper |
 
 <Aside type="note" title="Module conditional compilation">
-    In `edge_agent`, every module is controlled by Kconfig. When the firmware is not built with a module's component, Lua scripts cannot use that module.
+    In `open_deskos`, every module is controlled by Kconfig. When the firmware is not built with a module's component, Lua scripts cannot use that module.
 </Aside>
 
 ## Registration flow
@@ -249,7 +249,7 @@ Just like `cap_*` modules, **each `lua_module_*` / `lua_driver_*` should ship a 
 ## Build sync rules
 
 The build system collects managed `lua_module_*` resources and syncs them into the application filesystem image.
-Output roots are application-specific; in `edge_agent`, built-in Lua resources usually go to `/fatfs/scripts/builtin`.
+Output roots are application-specific; in `open_deskos`, built-in Lua resources usually go to `/fatfs/scripts/builtin`.
 Module docs go to `/fatfs/scripts/docs`.
 
 | Source path | Sync output |

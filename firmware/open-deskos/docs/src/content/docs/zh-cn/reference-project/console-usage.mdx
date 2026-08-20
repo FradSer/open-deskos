@@ -6,7 +6,7 @@ description: 串口 REPL：会话、问答、cap、技能与自动化调试命�
 import { Aside } from '@astrojs/starlight/components';
 import { LinkCard } from 'starlight-theme-nova/components'
 
-将开发板通过 USB 连到电脑，使用 `idf.py monitor`、`minicom` 或[在线烧录工具](@lang/flash)自带的 Console，进入 `edge_agent` 的交互提示符（默认 `app> `）。
+将开发板通过 USB 连到电脑，使用 `idf.py monitor`、`minicom` 或[在线烧录工具](@lang/flash)自带的 Console，进入 `open_deskos` 的交互提示符（默认 `app> `）。
 
 <Aside type="tip">
   能看到日志但敲不了命令？
@@ -70,7 +70,7 @@ cap unload <group_id>
 ## 技能 skill
 
 <Aside type="note" title="skill console 命令 默认未注册">
-  `edge_agent` 默认**未**调用 `register_cap_skill()`，即串口中不会出现 `skill` 命令。如需在串口使用 `skill` 命令，请在 `components/common/app_claw/app_claw_cli.c` 的 `app_claw_cli_start` 中手动调用 `register_cap_skill()` 并重新编译。
+  `open_deskos` 默认**未**调用 `register_cap_skill()`，即串口中不会出现 `skill` 命令。如需在串口使用 `skill` 命令，请在 `components/common/app_claw/app_claw_cli.c` 的 `app_claw_cli_start` 中手动调用 `register_cap_skill()` 并重新编译。
 
   作为替代方案，可通过 `cap call activate_skill '{"skill_id":"your_skill"}'` 在串口直接操作 Skill。
 </Aside>
@@ -103,7 +103,7 @@ auto last
 
 ## 其它已注册的 cap 命令
 
-`edge_agent` 中通过各 Capability Group 注册了 `help`、`cap`、`auto`、`time`、`web_search`、`mcp_client`、`mcp_server`、`llm_inspect`、`event_router` 等命令。
+`open_deskos` 中通过各 Capability Group 注册了 `help`、`cap`、`auto`、`time`、`web_search`、`mcp_client`、`mcp_server`、`llm_inspect`、`event_router` 等命令。
 在 Console 中输入 `help` 可浏览所有命令。
 
 `cap` 命令除常规子命令（`list`、`call`、`groups`、`enable`、`disable`、`unload`）外，还支持 `cap load qq`（动态注册由 `cap_im_platform` 实现的 `cap_im_qq` 组）。

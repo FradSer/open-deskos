@@ -16,14 +16,12 @@ ESP32-P4 固件提供 LVGL/Lua 桌面外壳、Widget、应用、语音 UI 和 US
 
 ### Native SDL 模拟器
 
-`firmware/open-deskos/sim/native_sdl/` 可以在桌面环境运行固件的 Lua/LVGL UI，不需要 ESP-IDF 或 Emscripten。它用于检查 launcher、Widget、布局和生成式 UI；它使用 IO/PARTIAL 渲染路径，不能验证 P4 的 MIPI-DSI adapter 路径。
+`firmware/open-deskos/sim/native_sdl/` 可以在桌面环境运行 Guition JC4880P443C 固件的 Lua/LVGL UI，不需要 ESP-IDF 或 Emscripten。macOS 直接运行 `./run.sh` 会打开 SDL Cocoa 交互窗口，不需要设置 `DISPLAY` 或 `WAYLAND_DISPLAY`；Linux 需要 X11 或 Wayland 会话。无界面检查时设置 `ODK_SIM_SHOT`，也可以通过 `ODK_SIM_TAP` 注入触摸。它使用 IO/PARTIAL 渲染路径，不能验证 P4 的 MIPI-DSI adapter 路径。详见 [`firmware/open-deskos/sim/native_sdl/README.md`](firmware/open-deskos/sim/native_sdl/README.md)。
 
 ```bash
 cd firmware/open-deskos/sim/native_sdl
-cmake -S . -B build
-cmake --build build -j
-cp ../../components/lua_modules/lua_module_lvgl/lib/{launcher,aiodi}.lua lib/
-./build/cerberus_sim
+./run.sh
+# 无界面：ODK_SIM_SHOT=/tmp/opendeskos-sim.bmp ODK_SIM_SHOT_FRAMES=30 ./run.sh
 ```
 
 ### Apple 客户端
@@ -51,10 +49,10 @@ P4 显示路径要求 ESP-IDF 6.0.1 或更高版本。使用 [`eim`](https://git
 # 一次性安装 ESP-IDF 和 ESP32-P4 工具。
 eim install -i v6.0.1 -t esp32p4
 
-cd firmware/open-deskos/application/edge_agent
+cd firmware/open-deskos/application/open_deskos
 
 # 为 Guition JC4880P443C 生成 board-manager 配置。
-eim run "idf.py bmgr -c ./boards -b guition_jc4880" v6.0.1
+eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 
 # 编译应用以及 system/storage 镜像。
 eim run "idf.py build" v6.0.1
@@ -65,7 +63,7 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 
 在 macOS 上，端口通常是 `/dev/cu.usbmodem*`；在 Linux 上通常是 `/dev/ttyACM0`。如果设备没有自动进入下载模式，按住 BOOT 的同时重置开发板，然后重新运行烧录命令。使用 `Ctrl-C` 退出监视器。
 
-上面的 board ID 对应 `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`。生产固件不要选择其他 board ID。具体板级配置、分区布局和烧录流程维护在 `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/`。
+上面的 board ID 对应 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml`。生产固件不要选择其他 board ID。具体板级配置、分区布局和烧录流程维护在 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/`。
 
 ## 测试
 

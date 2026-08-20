@@ -51,7 +51,7 @@ Event Router 的 `run_agent` 动作会同时设置前两个标志，实现异步
 - `CLAW_CORE_CONTEXT_KIND_MESSAGES`
 - `CLAW_CORE_CONTEXT_KIND_TOOLS`
 
-`edge_agent` 在 `app_claw_start` 里按固定顺序挂了多个 provider：
+`open_deskos` 在 `app_claw_start` 里按固定顺序挂了多个 provider：
 
 1. 可编辑人设与画像：`claw_memory_profile_provider`
 2. 长期记忆：`claw_memory_long_term_provider`（完整模式）或 `claw_memory_long_term_lightweight_provider`（轻量模式）
@@ -62,7 +62,7 @@ Event Router 的 `run_agent` 动作会同时设置前两个标志，实现异步
 因此：大语言模型最终接收的工具列表，不仅取决于注册了哪些 Capability，还取决于 `claw_cap_set_llm_visible_groups`。
 
 <Aside type="tip">
-    `edge_agent` 默认对大语言模型暴露 `cap_files`、`cap_scheduler`、`cap_lua`、`cap_skill`、`cap_llm_inspect`、`cap_http_request`、`cap_web_search`、`cap_router_mgr`（完整结构化记忆模式还包含 `claw_memory`）。其余能力通常需要先激活对应 Skill，模型才能同时获得「工具可见性 + 使用说明」——详见 [claw_cap](./claw-cap) 与 [cap_skill](@lang/reference-cap/cap-skill)
+    `open_deskos` 默认对大语言模型暴露 `cap_files`、`cap_scheduler`、`cap_lua`、`cap_skill`、`cap_llm_inspect`、`cap_http_request`、`cap_web_search`、`cap_router_mgr`（完整结构化记忆模式还包含 `claw_memory`）。其余能力通常需要先激活对应 Skill，模型才能同时获得「工具可见性 + 使用说明」——详见 [claw_cap](./claw-cap) 与 [cap_skill](@lang/reference-cap/cap-skill)
 </Aside>
 
 ## 缓存命中率优化设计
@@ -87,7 +87,7 @@ LLM API（如 Anthropic、OpenAI）的缓存基于前缀匹配。因此，ESP-Cl
 
 `claw_core` 通过回调处理大语言模型发出的工具调用请求。
 
-`edge_agent` 的 `call_cap` 回调指向 `claw_cap_call_from_core`，该函数由 `claw_cap` 提供。
+`open_deskos` 的 `call_cap` 回调指向 `claw_cap_call_from_core`，该函数由 `claw_cap` 提供。
 `claw_core` 只基于「能力名 + JSON 参数 + 当前请求上下文」接受调用工具的指令，但不负责查找对应的 Capability 实现与执行。
 Capability 的解析与执行工作由 `claw_cap` 负责。
 
@@ -97,7 +97,7 @@ Capability 的解析与执行工作由 `claw_cap` 负责。
 
 `claw_core` 通过 typed record batch 回调持久化可回放的上下文记录。
 
-`edge_agent` 中，`persist_context` 设为 `claw_memory_persist_context_callback`，该函数由 `claw_memory` 提供。
+`open_deskos` 中，`persist_context` 设为 `claw_memory_persist_context_callback`，该函数由 `claw_memory` 提供。
 `claw_core` 会在普通轮次、中间工具轮、最终助手记录和失败说明等时机触发回调，将按 `session_id` 分区的上下文记录交由 `claw_memory` 处理。
 
 ## 请求取消

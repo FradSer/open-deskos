@@ -1,7 +1,7 @@
 # Guition JC4880P443 — LVGL 60 FPS 优化过程与踩坑
 
 > **板卡**：Guition JC4880P443C（ESP32-P4 + C6），ST7701S 480×800 MIPI-DSI，GT911 触摸  
-> **固件**：`firmware/open-deskos/application/edge_agent`（Voice UI / Lua LVGL）  
+> **固件**：`firmware/open-deskos/application/open_deskos`（Voice UI / Lua LVGL）
 > **IDF**：`~/.espressif/v6.0.1/esp-idf`  
 > **日期**：2026-07-12  
 > **硬件对照**：[GUITION-JC4880P443.md](GUITION-JC4880P443.md)（引脚 / DPI 时钟 / 缓冲策略）
@@ -123,7 +123,7 @@ flush：`esp_lcd_panel_draw_bitmap(area, …)`，并用 `on_color_trans_done` �
 2. Managed 组件 `espressif__mcp-c-sdk`：`strncpy` → `snprintf`。  
    `managed_components/` **被 gitignore**，手改会丢 → 用：
 
-   - `application/edge_agent/tools/patch_mcp_c_sdk_perf.py`  
+   - `application/open_deskos/tools/patch_mcp_c_sdk_perf.py`
    - `CMakeLists.txt` 在 `project()` 前 `execute_process` 幂等重放
 
 **实测**：PERF 后峰值约 **56 FPS**，未单独把帧率推到 60；仍需换渲染路径。
@@ -261,7 +261,7 @@ lvgl.init(PANEL, nil, WIDTH, HEIGHT, PANEL_IF,
 1. 编译刷写：
 
    ```bash
-   cd firmware/open-deskos/application/edge_agent
+   cd firmware/open-deskos/application/open_deskos
    idf.py -p /dev/cu.usbmodem2101 build flash
    ```
 

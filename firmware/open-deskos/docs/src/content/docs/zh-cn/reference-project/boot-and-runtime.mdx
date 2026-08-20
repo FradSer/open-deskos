@@ -7,16 +7,16 @@ import { Steps, FileTree } from '@astrojs/starlight/components';
 import { LinkCard } from 'starlight-theme-nova/components'
 import LinkToSource from '@/components/LinkToSource.astro';
 
-下文以示例应用 `application/edge_agent` 为例，介绍入口 <LinkToSource relativePath="application/edge_agent/main/main.c" /> 与装配逻辑 <LinkToSource relativePath="components/common/app_claw/app_claw.c" />。
+下文以示例应用 `application/open_deskos` 为例，介绍入口 <LinkToSource relativePath="application/open_deskos/main/main.c" /> 与装配逻辑 <LinkToSource relativePath="components/common/app_claw/app_claw.c" />。
 
 ## `main.c` 入口程序
 
-<LinkToSource relativePath="application/edge_agent/main/main.c" /> 会初始化系统必要组件及所需外设，为 ESP-Claw Agent 的运行做好准备。
+<LinkToSource relativePath="application/open_deskos/main/main.c" /> 会初始化系统必要组件及所需外设，为 ESP-Claw Agent 的运行做好准备。
 
 <Steps>
 1. **初始化 NVS 并载入配置**
 
-    上电后，`edge_agent` 会先尝试初始化 NVS 分区（`nvs_flash_init`）。
+    上电后，`open_deskos` 会先尝试初始化 NVS 分区（`nvs_flash_init`）。
     随后，通过 `app_config_init` + `app_config_load`，将Wi‑Fi、LLM、IM、搜索、时区等读入内存，完成基本配置初始化。
 
 2. **初始化 Board Manager 与可选 Emote**
@@ -64,7 +64,7 @@ import LinkToSource from '@/components/LinkToSource.astro';
 
 3. **初始化 Memory**
 
-    调用 `claw_memory_init`，设置会话历史目录（`/fatfs/sessions/`）、长期记忆目录（`/fatfs/memory`）及单条消息最大字符数等参数（`edge_agent` 默认 1024 字符/条）。
+    调用 `claw_memory_init`，设置会话历史目录（`/fatfs/sessions/`）、长期记忆目录（`/fatfs/memory`）及单条消息最大字符数等参数（`open_deskos` 默认 1024 字符/条）。
     如果记录结构所需文件不存在，则会自动创建。
 
 4. **初始化 Skills**

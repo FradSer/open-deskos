@@ -22,7 +22,7 @@ Do not add board-specific assumptions to generic Lua modules. Put board-specific
 
 ## Respect filesystem layering
 
-Shared build-time FATFS defaults live in `application/edge_agent/fatfs_image/` with one subdirectory per partition. The SYSTEM source tree (`fatfs_image/system/`) is staged into `build/system_fs_image/`, then the selected board's `fatfs_image/` overlay is copied into that SYSTEM staging directory if present. Component skills and built-in Lua scripts/docs are then synced into the SYSTEM staging directory. Board overlay content does not target writable DATA storage, and hidden board folders are not considered.
+Shared build-time FATFS defaults live in `application/open_deskos/fatfs_image/` with one subdirectory per partition. The SYSTEM source tree (`fatfs_image/system/`) is staged into `build/system_fs_image/`, then the selected board's `fatfs_image/` overlay is copied into that SYSTEM staging directory if present. Component skills and built-in Lua scripts/docs are then synced into the SYSTEM staging directory. Board overlay content does not target writable DATA storage, and hidden board folders are not considered.
 
 The writable DATA root is selected at boot: `/fatfs` for flash storage, or the board-manager SD card mount point when an SD card is available. Runtime code must resolve writable paths through `claw_paths` in C or the Lua `storage` module instead of hard-coding `/fatfs`.
 

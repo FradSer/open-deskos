@@ -63,7 +63,7 @@ import { LinkCard } from 'starlight-theme-nova/components'
 | `arg_schema` | `lua_module_system` | 纯 Lua 参数归一化辅助库 |
 
 <Aside type="note" title="模块条件编译">
-    每个模块在 `edge_agent` 中受 Kconfig 条件编译控制，当固件中没有编译包含该模块的组件时，Lua 脚本中不允许使用该模块。
+    每个模块在 `open_deskos` 中受 Kconfig 条件编译控制，当固件中没有编译包含该模块的组件时，Lua 脚本中不允许使用该模块。
 </Aside>
 
 ## 注册机制
@@ -249,7 +249,7 @@ myled.set(false)  -- 熄灭
 ## 构建同步规则
 
 构建系统会收集 `lua_module_*` 的受管资源并同步到应用文件系统镜像。
-输出根目录由应用配置决定；在 `edge_agent` 中，内置 Lua 资源通常进入 `/fatfs/scripts/builtin`。
+输出根目录由应用配置决定；在 `open_deskos` 中，内置 Lua 资源通常进入 `/fatfs/scripts/builtin`。
 模块文档进入 `/fatfs/scripts/docs`。
 
 | 源路径 | 同步输出 |

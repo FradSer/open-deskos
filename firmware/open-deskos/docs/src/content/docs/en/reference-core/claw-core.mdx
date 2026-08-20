@@ -51,7 +51,7 @@ When assembling the **current-turn user prompt** sent to the LLM, `claw_core` al
 - `CLAW_CORE_CONTEXT_KIND_MESSAGES`
 - `CLAW_CORE_CONTEXT_KIND_TOOLS`
 
-`edge_agent` registers multiple providers in fixed order inside `app_claw_start`:
+`open_deskos` registers multiple providers in fixed order inside `app_claw_start`:
 
 1. Editable profile/persona: `claw_memory_profile_provider`
 2. Long-term memory: `claw_memory_long_term_provider` (full mode) or `claw_memory_long_term_lightweight_provider` (lightweight mode)
@@ -62,7 +62,7 @@ When assembling the **current-turn user prompt** sent to the LLM, `claw_core` al
 So the final tool list depends both on registered capabilities and on `claw_cap_set_llm_visible_groups`.
 
 <Aside type="tip">
-    `edge_agent` exposes `cap_files`, `cap_scheduler`, `cap_lua`, `cap_skill`, `cap_llm_inspect`, `cap_http_request`, `cap_web_search`, and `cap_router_mgr` to the LLM by default (full structured-memory mode also includes `claw_memory`). Other capabilities typically require activating the corresponding Skill first, so the model gets both "tool visibility + usage guidance" together. See [claw_cap](./claw-cap) and [cap_skill](@lang/reference-cap/cap-skill)
+    `open_deskos` exposes `cap_files`, `cap_scheduler`, `cap_lua`, `cap_skill`, `cap_llm_inspect`, `cap_http_request`, `cap_web_search`, and `cap_router_mgr` to the LLM by default (full structured-memory mode also includes `claw_memory`). Other capabilities typically require activating the corresponding Skill first, so the model gets both "tool visibility + usage guidance" together. See [claw_cap](./claw-cap) and [cap_skill](@lang/reference-cap/cap-skill)
 </Aside>
 
 ## Cache Hit-Rate Optimization Design
@@ -87,7 +87,7 @@ The current design removes that provider and instead injects Skill documents int
 
 `claw_core` handles LLM tool calls through callbacks.
 
-In `edge_agent`, the `call_cap` callback targets `claw_cap_call_from_core` from `claw_cap`.
+In `open_deskos`, the `call_cap` callback targets `claw_cap_call_from_core` from `claw_cap`.
 `claw_core` only accepts “cap name + JSON args + current request context”; it does not resolve or execute the underlying capability implementation.
 Resolution and execution live in `claw_cap`.
 
@@ -97,7 +97,7 @@ Per-turn tool rounds are capped by `max_tool_iterations`.
 
 `claw_core` persists replayable context records through a typed record batch callback.
 
-In `edge_agent`, `persist_context` is `claw_memory_persist_context_callback` from `claw_memory`.
+In `open_deskos`, `persist_context` is `claw_memory_persist_context_callback` from `claw_memory`.
 `claw_core` invokes it for plain turns, intermediate tool rounds, final assistant records, and failure notes so context records scoped by `session_id` are persisted through `claw_memory`.
 
 ## Request cancellation

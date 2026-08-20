@@ -9,11 +9,11 @@ import LinkToSource from '@/components/LinkToSource.astro';
 
 ## System overview
 
-The repo follows an **“example app + shared components”** layout: `application/edge_agent` is a buildable ESP-IDF sample that wires Wi-Fi, the config UI, Lua modules, and capabilities into a full device; `components` holds reusable runtime core, capability plugins, and hardware/script extensions for other boards and scenarios.
+The repo follows an **“example app + shared components”** layout: `application/open_deskos` is a buildable ESP-IDF sample that wires Wi-Fi, the config UI, Lua modules, and capabilities into a full device; `components` holds reusable runtime core, capability plugins, and hardware/script extensions for other boards and scenarios.
 
 Today the code falls into four areas:
 
-- **App assembly:** <LinkToSource relativePath="application/edge_agent/main/" /> and <LinkToSource relativePath="components/common/" /> — boot, networking, settings, the HTTP provisioning UI, and app-level module registration.
+- **App assembly:** <LinkToSource relativePath="application/open_deskos/main/" /> and <LinkToSource relativePath="components/common/" /> — boot, networking, settings, the HTTP provisioning UI, and app-level module registration.
 - **Capabilities:** <LinkToSource relativePath="components/claw_capabilities/" /> — outward-facing capabilities such as IM, MCP client/server, Lua runtime, scheduling, files, time, web search, and more.
 - **Runtime core:** <LinkToSource relativePath="components/claw_modules/" /> — Agent infrastructure: core context, capability registration, event routing, memory, and skills.
 - **Device & script extensions:** <LinkToSource relativePath="components/lua_modules/" /> — exposes displays, cameras, audio, buttons, GPIO, PWM, storage, and other peripherals to Lua and the Agent.
@@ -21,7 +21,7 @@ Today the code falls into four areas:
 ## Project directory layout
 
 <FileTree>
-- application/edge_agent/ **Demo app** — wires the framework and caps into flashable firmware
+- application/open_deskos/ **Demo app** — wires the framework and caps into flashable firmware
   - main/ Boot entry (`app_main`)
     - main.c Firmware entry
   - components/ App-level components

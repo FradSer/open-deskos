@@ -12,11 +12,11 @@ export const ApiBaseUrlExample = `https://api.openai.com/v1/chat/completions
 https://api.anthropic.com/v1/messages
 https://api.deepseek.com`;
 
-`edge_agent` 在 Wi‑Fi 栈就绪后会启动 Web 控制台，提供聊天、查看状态与修改配置功能。
-Web 控制台的实现位于 <LinkToSource relativePath="application/edge_agent/components/http_server/" />。
+`open_deskos` 在 Wi‑Fi 栈就绪后会启动 Web 控制台，提供聊天、查看状态与修改配置功能。
+Web 控制台的实现位于 <LinkToSource relativePath="application/open_deskos/components/http_server/" />。
 
 <Aside type="caution" title="安全提示">
-  **`edge_agent` 不是为生产环境准备的。`edge_agent` 的 Web 控制台假定你在可信的环境中运行，并且会返回几乎所有信息。**
+  **`open_deskos` 不是为生产环境准备的。`open_deskos` 的 Web 控制台假定你在可信的环境中运行，并且会返回几乎所有信息。**
 
   - **不要把 Web 配置页端口暴露到公网。**
   - **SoftAP 保留的控制台也有完整权限，请注意配置密码或启用自动关闭 SoftAP 功能。**
@@ -29,7 +29,7 @@ Web 控制台的实现位于 <LinkToSource relativePath="application/edge_agent/
 
 ## 打开 Web 控制台
 
-电脑或手机需与开发板在 **同一局域网**，或连接至**开发板提供的 SoftAP 热点**（`edge_agent` 中默认的 SSID 为 `esp-claw-XXXXXX`，`XXXXXX` 为设备 MAC 地址）。
+电脑或手机需与开发板在 **同一局域网**，或连接至**开发板提供的 SoftAP 热点**（`open_deskos` 中默认的 SSID 为 `esp-claw-XXXXXX`，`XXXXXX` 为设备 MAC 地址）。
 
 在浏览器访问：
 [http://esp-claw.local/](http://esp-claw.local/)

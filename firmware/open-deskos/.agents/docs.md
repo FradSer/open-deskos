@@ -27,7 +27,7 @@ Before editing docs, search both code and docs to find the current source of tru
 - If there are existing docs on a similar topic, review their structure first and reuse the same section shape when it fits.
 - Prefer matching established patterns for headings, intro depth, tables, admonitions, examples, and source-reference placement.
 - Search implementation when wording is unclear:
-  - `rg -n "<feature-name>" components application/edge_agent`
+  - `rg -n "<feature-name>" components application/open_deskos`
 - Prefer updating an existing page over creating a new one if the topic already has a natural home.
 
 ## Capability Documentation Policy

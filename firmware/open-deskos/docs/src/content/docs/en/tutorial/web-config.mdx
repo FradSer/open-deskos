@@ -12,11 +12,11 @@ export const ApiBaseUrlExample = `https://api.openai.com/v1/chat/completions
 https://api.anthropic.com/v1/messages
 https://api.deepseek.com`;
 
-`edge_agent` starts the Web Console after the Wi-Fi stack is ready, providing chat, status view, and configuration features.
-The Web Console implementation is located at <LinkToSource relativePath="application/edge_agent/components/http_server/" />.
+`open_deskos` starts the Web Console after the Wi-Fi stack is ready, providing chat, status view, and configuration features.
+The Web Console implementation is located at <LinkToSource relativePath="application/open_deskos/components/http_server/" />.
 
 <Aside type="caution" title="Security notice">
-  **`edge_agent` is not intended for production use. The `edge_agent` Web Console assumes a trusted environment and returns almost all information.**
+  **`open_deskos` is not intended for production use. The `open_deskos` Web Console assumes a trusted environment and returns almost all information.**
 
   - **Do not expose the Web configuration page port to the public Internet.**
   - **The retained SoftAP console also has full privileges. Set a password or enable auto-disable SoftAP when possible.**
@@ -29,7 +29,7 @@ The Web Console implementation is located at <LinkToSource relativePath="applica
 
 ## Open the Web Console
 
-Your computer or phone must be on the **same LAN** as the board, or connected to the **SoftAP hotspot provided by the board** (default SSID in `edge_agent` is `esp-claw-XXXXXX`, where `XXXXXX` is the device MAC address).
+Your computer or phone must be on the **same LAN** as the board, or connected to the **SoftAP hotspot provided by the board** (default SSID in `open_deskos` is `esp-claw-XXXXXX`, where `XXXXXX` is the device MAC address).
 
 Open in browser:
 [http://esp-claw.local/](http://esp-claw.local/)

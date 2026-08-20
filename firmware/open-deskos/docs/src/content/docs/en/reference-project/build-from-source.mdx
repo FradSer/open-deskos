@@ -1,6 +1,6 @@
 ---
 title: Build from source and flash
-description: Build and flash ESP-Claw from source.
+description: Build and flash Open DeskOS from source.
 ---
 
 import { Steps, Aside, Badge } from '@astrojs/starlight/components';
@@ -26,37 +26,20 @@ import LinkToSource from '@/components/LinkToSource.astro';
    pip install esp-bmgr-assist
    ```
 
-   <Aside title="Need to adapt a new development board?" type="tip">
-    ESP-Claw uses ESP Board Manager to support multiple development boards.
-
-    To add other boards, see the [ESP Board Manager component](https://docs.espressif.com/projects/esp-board-manager/en/latest/create-board/index.html),
-    and put the board adaptation files in <LinkToSource relativePath="application/edge_agent/boards/" />.
-
-    Welcome to submit the board adaptation code to the ESP-Claw repository via Pull Request.
-   </Aside>
+   Open DeskOS firmware currently supports only the Guition JC4880P443C board.
+   The production board definition is <LinkToSource relativePath="application/open_deskos/boards/guition/jc4880p443c/" />.
 
 2. **Get the ESP-Claw source**
 
    ```bash
-   git clone https://github.com/espressif/esp-claw.git
-   cd esp-claw/application/edge_agent
+   cd firmware/open-deskos/application/open_deskos
    ```
 
-3. **Select a development board**
+3. **Select the Guition JC4880P443C board**
 
    ```bash
-   idf.py bmgr -c ./boards -b <board_name>
-   # e.g.: idf.py bmgr -c ./boards -b esp32_S3_DevKitC_1
+   idf.py bmgr -c ./boards -b jc4880p443c
    ```
-
-   <Aside type="tip" title="Supported boards">
-      You can list supported boards with:
-      ```bash
-      idf.py bmgr -c ./boards -l
-      ```
-
-      Or check <LinkToSource relativePath="application/edge_agent/boards/" />.
-   </Aside>
 
    <Aside type="note" title="Why set-target is not needed">
       ESP Board Manager automatically selects the chip target based on the board, so `idf.py set-target` is not required.

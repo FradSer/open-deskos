@@ -7,11 +7,11 @@ import { Aside } from '@astrojs/starlight/components';
 import { LinkCard } from 'starlight-theme-nova/components';
 import LinkToSource from '@/components/LinkToSource.astro';
 
-ESP-Claw `edge_agent` 使用 menuconfig (sdkconfig) 保存初始化默认配置，使用 NVS 持久化运行时修改的配置。
+ESP-Claw `open_deskos` 使用 menuconfig (sdkconfig) 保存初始化默认配置，使用 NVS 持久化运行时修改的配置。
 
-`edge_agent` 会将配置储存在 NVS 命名空间 `app` 里。
+`open_deskos` 会将配置储存在 NVS 命名空间 `app` 里。
 上电后，程序会读取 menuconfig 中的默认配置，再使用 NVS 中储存的键（如有）覆盖。
-字段列表与读写逻辑位于 <LinkToSource relativePath="application/edge_agent/components/app_config/app_config.c" />。
+字段列表与读写逻辑位于 <LinkToSource relativePath="application/open_deskos/components/app_config/app_config.c" />。
 
 <Aside title="优先级如何理解">
   **当前运行使用的值 = NVS 里有的用 NVS，没有的用编译默认值。**
@@ -19,7 +19,7 @@ ESP-Claw `edge_agent` 使用 menuconfig (sdkconfig) 保存初始化默认配置�
   因此：第一次在 Web 或串口工具里保存过后，就会以 NVS 为准；想「恢复出厂默认」需要清除对应 NVS 键。
 </Aside>
 
-## edge_agent 配置字段
+## open_deskos 配置字段
 
 ESP-Claw 不建议通过 menuconfig 修改配置，因为它们可能会被 NVS 内容覆盖。
 有关这部分配置的详细说明，请参考 Web 配置文档的说明。

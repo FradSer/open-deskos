@@ -71,12 +71,12 @@ export interface HomeContent {
 }
 
 const en: HomeContent = {
-  metaTitle: "ESP-Claw — Chat-as-Coding Edge Agent Framework for IoT | by Espressif",
+  metaTitle: "ESP-Claw — Chat-as-Coding Open DeskOS Framework for IoT | by Espressif",
   metaDescription:
-    "ESP-Claw, Espressif's \"Chat-as-Coding\" Edge Agent Framework for IoT.",
+    "ESP-Claw, Espressif's \"Chat-as-Coding\" Open DeskOS Framework for IoT.",
   terminalTitle: "ESP-Claw — interactive demo",
   asciinemaLabel: "Asciinema Player Demo",
-  heroBadge: "Local · Chat Coding · Edge Agent",
+  heroBadge: "Local · Chat Coding · Open DeskOS",
   heroDescription: "<b>Chat Coding</b> Edge AI Agent Framework for <b>IoT</b>",
   heroEspressifPrefix: "by",
   flashOnline: "Flash Online",

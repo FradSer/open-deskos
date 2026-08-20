@@ -34,10 +34,10 @@
 
 | 链路 | 当前观察 | 相关本地文件 |
 |---|---|---|
-| 显示 | MIPI/RGB 使用手写 `FULL` 路径，取得 2 个 DPI frame buffer；DPI 时钟配置为 34 MHz | [`lua_lvgl_runtime.c`](../../firmware/open-deskos/components/lua_modules/lua_module_lvgl/src/lua_lvgl_runtime.c)、[`odk_display_bringup.c`](../../firmware/open-deskos/application/edge_agent/main/odk_display_bringup.c) |
+| 显示 | MIPI/RGB 使用手写 `FULL` 路径，取得 2 个 DPI frame buffer；DPI 时钟配置为 34 MHz | [`lua_lvgl_runtime.c`](../../firmware/open-deskos/components/lua_modules/lua_module_lvgl/src/lua_lvgl_runtime.c)、[`odk_display_bringup.c`](../../firmware/open-deskos/application/open_deskos/main/odk_display_bringup.c) |
 | 输入 | `esp_lcd_touch_read_data()` 在 LVGL indev read callback 中同步调用，再取得触摸数据；读取 timer 为 8 ms；scroll throw 为 20、scroll limit 为 4 | [`lua_lvgl_indev.c`](../../firmware/open-deskos/components/lua_modules/lua_module_lvgl/src/lua_lvgl_indev.c) |
 | 分页 | 预渲染快照、横向 `snap_x=center`、momentum、`scroll_one`，吸附动画约 160 ms | [`launcher.lua`](../../firmware/open-deskos/components/lua_modules/lua_module_lvgl/lib/launcher.lua) |
-| 交互入口 | voice UI 显式要求 full render，tick/task 周期配置比 input read timer 更密 | [`odk_voice_ui.c`](../../firmware/open-deskos/application/edge_agent/main/odk_voice_ui.c) |
+| 交互入口 | voice UI 显式要求 full render，tick/task 周期配置比 input read timer 更密 | [`odk_voice_ui.c`](../../firmware/open-deskos/application/open_deskos/main/odk_voice_ui.c) |
 
 本地历史记录 [`guition-lvgl-60fps-path.md`](guition-lvgl-60fps-path.md) 已说明：提高刷新频率、DMA2D、PPA 和双缓冲曾改善数字 FPS，但 Direct/全屏路径也曾出现 tearing、underrun 或主题脏区放大的问题。因此下一步要把“输入延迟、渲染时间、flush 等待、面板呈现”拆开测。
 

@@ -65,7 +65,7 @@ router -> tools: "send_message binding"
 
 ## Startup and visibility
 
-Application startup prepares credentials and attachment settings per enabled platform, then registers the matching runtime groups. The `edge_agent` app binds outbound Event Router channels such as `qq`, `feishu`, `telegram`, `wechat`, and `web` to the corresponding send tools.
+Application startup prepares credentials and attachment settings per enabled platform, then registers the matching runtime groups. The `open_deskos` app binds outbound Event Router channels such as `qq`, `feishu`, `telegram`, `wechat`, and `web` to the corresponding send tools.
 
 The unified Skill declares all four IM runtime groups in `cap_groups`. Activating the Skill gives the model the platform-specific tools together with the guidance for choosing the current channel and avoiding duplicate replies.
 

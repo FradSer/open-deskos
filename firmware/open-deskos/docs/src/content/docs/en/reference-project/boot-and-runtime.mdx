@@ -7,16 +7,16 @@ import { Steps, FileTree } from '@astrojs/starlight/components';
 import { LinkCard } from 'starlight-theme-nova/components'
 import LinkToSource from '@/components/LinkToSource.astro';
 
-This walkthrough uses sample app `application/edge_agent`, covering entry <LinkToSource relativePath="application/edge_agent/main/main.c" /> and wiring in <LinkToSource relativePath="components/common/app_claw/app_claw.c" />.
+This walkthrough uses sample app `application/open_deskos`, covering entry <LinkToSource relativePath="application/open_deskos/main/main.c" /> and wiring in <LinkToSource relativePath="components/common/app_claw/app_claw.c" />.
 
 ## `main.c` entry
 
-<LinkToSource relativePath="application/edge_agent/main/main.c" /> initializes required system pieces and peripherals so the ESP-Claw Agent can run.
+<LinkToSource relativePath="application/open_deskos/main/main.c" /> initializes required system pieces and peripherals so the ESP-Claw Agent can run.
 
 <Steps>
 1. **Init NVS and load settings**
 
-    On boot, `edge_agent` initializes the NVS partition (`nvs_flash_init`).
+    On boot, `open_deskos` initializes the NVS partition (`nvs_flash_init`).
     Then `app_config_init` + `app_config_load` pull Wi‑Fi, LLM, IM, search, time zone, etc. into RAM.
 
 2. **Init Board Manager and optional Emote**
@@ -64,7 +64,7 @@ This walkthrough uses sample app `application/edge_agent`, covering entry <LinkT
 
 3. **Init Memory**
 
-    `claw_memory_init` sets session history root (`/fatfs/sessions/`), long-term memory directory (`/fatfs/memory`), and per-message limits (`edge_agent` defaults to 4096 chars per message).
+    `claw_memory_init` sets session history root (`/fatfs/sessions/`), long-term memory directory (`/fatfs/memory`), and per-message limits (`open_deskos` defaults to 4096 chars per message).
     If required structured-memory files are missing, they are created automatically.
 
 4. **Init Skills**

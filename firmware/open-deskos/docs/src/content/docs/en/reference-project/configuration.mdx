@@ -7,11 +7,11 @@ import { Aside } from '@astrojs/starlight/components';
 import { LinkCard } from 'starlight-theme-nova/components';
 import LinkToSource from '@/components/LinkToSource.astro';
 
-ESP-Claw `edge_agent` uses menuconfig (`sdkconfig`) for initial default settings, and uses NVS to persist runtime configuration changes.
+ESP-Claw `open_deskos` uses menuconfig (`sdkconfig`) for initial default settings, and uses NVS to persist runtime configuration changes.
 
-`edge_agent` stores configuration in the NVS namespace `app`.
+`open_deskos` stores configuration in the NVS namespace `app`.
 At boot, it loads default values from menuconfig first, then overrides them with keys stored in NVS (if present).
-The field list and read/write logic are in <LinkToSource relativePath="application/edge_agent/components/app_config/app_config.c" />.
+The field list and read/write logic are in <LinkToSource relativePath="application/open_deskos/components/app_config/app_config.c" />.
 
 <Aside title="How to understand precedence">
   **Effective runtime value = use NVS value if present; otherwise use compile-time default.**
@@ -19,7 +19,7 @@ The field list and read/write logic are in <LinkToSource relativePath="applicati
   So: once you save from Web or serial tools for the first time, NVS takes precedence; to “restore factory defaults”, clear the related NVS keys.
 </Aside>
 
-## edge_agent configuration fields
+## open_deskos configuration fields
 
 ESP-Claw does not recommend changing these settings via menuconfig, because they may be overridden by NVS values.
 For detailed explanations of these fields, see the Web configuration documentation.

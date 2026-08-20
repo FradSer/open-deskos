@@ -13,7 +13,7 @@ import { LinkCard } from 'starlight-theme-nova/components'
 
 `claw_memory_config_t` 的常见字段：
 
-| 字段 | 说明 | `edge_agent` 默认值 |
+| 字段 | 说明 | `open_deskos` 默认值 |
 |------|------|------|
 | `session_root_dir` | 会话历史文件的根目录 | `/fatfs/sessions` |
 | `memory_root_dir` | 长期记忆目录路径（`claw_memory` 在此目录下管理 `MEMORY.md` 及结构化记忆文件） | `/fatfs/memory` |
@@ -41,7 +41,7 @@ Session history 现在使用 append-only 数据文件和同名 `.idx` 索引文�
 
 ## 长期记忆文件布局
 
-`edge_agent` 会通过 `claw_memory_init` 在 `/fatfs/memory/` 目录下创建记忆功能所需的文件：
+`open_deskos` 会通过 `claw_memory_init` 在 `/fatfs/memory/` 目录下创建记忆功能所需的文件：
 
 <FileTree>
 - fatfs/

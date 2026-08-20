@@ -45,7 +45,7 @@ ESP-Claw runs Lua via `cap_lua_runtime_*` helpers. The runtime initializes in `c
 
 ### Script path management
 
-Writable `cap_lua` runtime scripts must live under the Script Base Dir. In `edge_agent`, the default Script Base Dir is `/fatfs/scripts/` (apps can override it via `cap_lua_set_base_dir`). Read-only scripts bundled with Skills may run from `/fatfs/skills/<skill_id>/scripts/...`.
+Writable `cap_lua` runtime scripts must live under the Script Base Dir. In `open_deskos`, the default Script Base Dir is `/fatfs/scripts/` (apps can override it via `cap_lua_set_base_dir`). Read-only scripts bundled with Skills may run from `/fatfs/skills/<skill_id>/scripts/...`.
 
 - `path` must target a `.lua` file.
 - `path` supports two forms:

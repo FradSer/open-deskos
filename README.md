@@ -16,14 +16,12 @@ The current product direction and hardware boundaries are documented in [docs/op
 
 ### Native SDL simulator
 
-`firmware/open-deskos/sim/native_sdl/` runs the firmware Lua/LVGL UI on a desktop without ESP-IDF or Emscripten. It is useful for launcher, widget, layout, and generated-UI checks. Its IO/PARTIAL rendering path does not validate the P4 MIPI-DSI adapter path.
+`firmware/open-deskos/sim/native_sdl/` runs the Guition JC4880P443C firmware Lua/LVGL UI on a desktop without ESP-IDF or Emscripten. On macOS, `./run.sh` opens an interactive Cocoa window without requiring `DISPLAY` or `WAYLAND_DISPLAY`; on Linux, use an X11 or Wayland session. For headless checks, set `ODK_SIM_SHOT` and optionally `ODK_SIM_TAP`. Its IO/PARTIAL rendering path does not validate the P4 MIPI-DSI adapter path. See [`firmware/open-deskos/sim/native_sdl/README.md`](firmware/open-deskos/sim/native_sdl/README.md) for details.
 
 ```bash
 cd firmware/open-deskos/sim/native_sdl
-cmake -S . -B build
-cmake --build build -j
-cp ../../components/lua_modules/lua_module_lvgl/lib/{launcher,aiodi}.lua lib/
-./build/cerberus_sim
+./run.sh
+# Headless: ODK_SIM_SHOT=/tmp/opendeskos-sim.bmp ODK_SIM_SHOT_FRAMES=30 ./run.sh
 ```
 
 ### Apple clients
@@ -51,10 +49,10 @@ The P4 display path requires ESP-IDF 6.0.1 or newer. Install the toolchain with 
 # Install ESP-IDF and the ESP32-P4 tools once.
 eim install -i v6.0.1 -t esp32p4
 
-cd firmware/open-deskos/application/edge_agent
+cd firmware/open-deskos/application/open_deskos
 
 # Generate the board-manager configuration for the Guition JC4880P443C.
-eim run "idf.py bmgr -c ./boards -b guition_jc4880" v6.0.1
+eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 
 # Build the application and its system/storage images.
 eim run "idf.py build" v6.0.1
@@ -65,7 +63,7 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 
 On macOS, the port is commonly `/dev/cu.usbmodem*`; on Linux, it is commonly `/dev/ttyACM0`. If automatic download mode does not start, hold BOOT while resetting the board, then rerun the flash command. Stop the monitor with `Ctrl-C`.
 
-The board ID above matches `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`. Do not select another board ID for production firmware. The exact Guition board configuration, partition layout, and flashing workflow are maintained under `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/`.
+The board ID above matches `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml`. Do not select another board ID for production firmware. The exact Guition board configuration, partition layout, and flashing workflow are maintained under `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/`.
 
 ## Testing
 

@@ -45,7 +45,7 @@ ESP-Claw 使用 Lua 解释器，通过 `cap_lua_runtime_*` 系列函数初始化
 
 ### 脚本路径管理
 
-`cap_lua` 的可写运行时脚本需位于 Script 基目录（Script Base Dir）下。`edge_agent` 中 Script Base Dir 默认为 `/fatfs/scripts/`（应用可通过 `cap_lua_set_base_dir` 修改）。Skill 自带脚本是只读资源，允许以 `/fatfs/skills/<skill_id>/scripts/...` 形式执行。
+`cap_lua` 的可写运行时脚本需位于 Script 基目录（Script Base Dir）下。`open_deskos` 中 Script Base Dir 默认为 `/fatfs/scripts/`（应用可通过 `cap_lua_set_base_dir` 修改）。Skill 自带脚本是只读资源，允许以 `/fatfs/skills/<skill_id>/scripts/...` 形式执行。
 
 - `path` 必须是 `.lua` 文件。
 - `path` 可用两种形式：
