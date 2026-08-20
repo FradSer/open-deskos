@@ -1,0 +1,45 @@
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -19,6 +19,10 @@ set(COMPONENT_SRCS
+ 	"slave_ext_coex.c"
+ 	"slave_control.c"
+ )
++
++if(CONFIG_CERB_C6_ESPNOW_BRIDGE)
++	list(APPEND COMPONENT_SRCS "cerb_c6_espnow_bridge.c")
++endif()
+ 
+ if(CONFIG_SOC_BT_SUPPORTED)
+ 	list(APPEND COMPONENT_SRCS "slave_bt.c")
+*** Update File: main/esp_hosted_coprocessor.c
+@@
+-#ifdef CONFIG_EXAMPLE_PEER_DATA_TRANSFER
+-#include "example_peer_data_transfer.h"
+-#endif
++#ifdef CONFIG_CERB_C6_ESPNOW_BRIDGE
++#include "cerb_c6_espnow_bridge.h"
++#endif
+@@
+-#ifdef CONFIG_EXAMPLE_PEER_DATA_TRANSFER
+-	example_peer_data_transfer_init();
+-#endif
++#ifdef CONFIG_CERB_C6_ESPNOW_BRIDGE
++	ESP_ERROR_CHECK(cerb_c6_espnow_bridge_init());
++#endif
+*** Update File: main/Kconfig.projbuild
+@@
+ 	config ESP_HOSTED_CP_WIFI
+ 		depends on SOC_WIFI_SUPPORTED
+ 		bool "Enable Wi-Fi on Co-processor"
+@@
+ 			Disable if you do not need Wi-Fi support on the co-processor
++
++	config CERB_C6_ESPNOW_BRIDGE
++		bool "CERBERUS ESP-NOW custom-data bridge"
++		depends on ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER
++		default y
++		help
++			Receive Hydra ESP-NOW frames on the C6 and forward the original payload
++			to the P4 over ESP-Hosted custom data.
+*** End Patch

@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "wifi_manager.c"
+    INCLUDE_DIRS
+        "include"
+    PRIV_INCLUDE_DIRS
+        "${CMAKE_CURRENT_LIST_DIR}/../../../application/edge_agent/managed_components/espressif__esp_hosted/host"
+    REQUIRES
+        esp_event
+        esp_netif
+        esp_timer
+        esp_wifi
+        freertos
+)

@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "src/app_runtime.c"
+        "src/port_idf/source_vfs.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_app_manager
+        odk_sandbox
+)

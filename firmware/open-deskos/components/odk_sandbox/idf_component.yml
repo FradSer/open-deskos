@@ -1,0 +1,7 @@
+## IDF Component Manager Manifest File
+# odk_sandbox's Lua VM dependency. Same constraint as cap_lua so the component
+# manager resolves the identical georgik__lua version whether or not cap_lua is
+# in the build (the headless board does not pull cap_lua). Host tests never read
+# this file — they vendor Lua from tests/host/vendor/lua.
+dependencies:
+  georgik/lua: "^5.5.0~7"

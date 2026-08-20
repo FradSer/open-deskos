@@ -1,0 +1,16 @@
+idf_component_register(
+    SRCS
+        "src/svc_llm.c"
+        "src/port_idf/kv_nvs.c"
+        "src/port_idf/clock_rtc.c"
+        "src/port_idf/llm_http_idf.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_domain
+        esp_http_client
+        cjson
+        nvs_flash
+        esp_timer
+        mbedtls
+)

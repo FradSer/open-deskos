@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "src/installer.c"
+        "src/port_idf/storage_vfs.c"
+        "src/port_idf/checksum_mbedtls.c"
+        "src/port_idf/consent_serial.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_domain
+        fatfs
+        esp_timer
+)
