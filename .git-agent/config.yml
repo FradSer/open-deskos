@@ -1,0 +1,5 @@
+scopes:
+    - name: app
+      description: macOS OpenDeskOS application, CLI, plugins, health agents, and tests in app/; does not cover embedded device firmware.
+    - name: firmware
+      description: ESP-IDF device software, board support, display drivers, and CO6300 bring-up in firmware/; does not cover the macOS application.
