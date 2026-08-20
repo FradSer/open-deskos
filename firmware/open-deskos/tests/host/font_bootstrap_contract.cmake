@@ -1,6 +1,6 @@
-set(VOICE_UI_SOURCE "${ODK_ROOT}/application/edge_agent/main/odk_voice_ui.c")
+set(VOICE_UI_SOURCE "${ODK_ROOT}/application/open_deskos/main/odk_voice_ui.c")
 set(LVGL_HEADER "${ODK_ROOT}/components/lua_modules/lua_module_lvgl/src/lua_module_lvgl.h")
-set(FONT_ROOT "${ODK_ROOT}/application/edge_agent/fatfs_image/storage/fonts")
+set(FONT_ROOT "${ODK_ROOT}/application/open_deskos/fatfs_image/storage/fonts")
 
 foreach(path IN ITEMS "${VOICE_UI_SOURCE}" "${LVGL_HEADER}")
     if(NOT EXISTS "${path}")

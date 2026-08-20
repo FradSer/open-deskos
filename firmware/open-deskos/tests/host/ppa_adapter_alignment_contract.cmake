@@ -1,11 +1,11 @@
-set(EDGE_AGENT_ROOT "${ODK_ROOT}/application/edge_agent")
-set(PATCH_SOURCE "${EDGE_AGENT_ROOT}/tools/patch_esp_lvgl_adapter_ppa_alignment.py")
-set(NATIVE_PATCH_SOURCE "${EDGE_AGENT_ROOT}/tools/patch_lvgl_ppa_cache_unaligned.py")
-set(CMAKE_SOURCE "${EDGE_AGENT_ROOT}/CMakeLists.txt")
+set(OPEN_DESKOS_ROOT "${ODK_ROOT}/application/open_deskos")
+set(PATCH_SOURCE "${OPEN_DESKOS_ROOT}/tools/patch_esp_lvgl_adapter_ppa_alignment.py")
+set(NATIVE_PATCH_SOURCE "${OPEN_DESKOS_ROOT}/tools/patch_lvgl_ppa_cache_unaligned.py")
+set(CMAKE_SOURCE "${OPEN_DESKOS_ROOT}/CMakeLists.txt")
 set(LVGL_COMPONENT_CMAKE "${ODK_ROOT}/components/lua_modules/lua_module_lvgl/CMakeLists.txt")
-set(ADAPTER_SOURCE "${EDGE_AGENT_ROOT}/managed_components/espressif__esp_lvgl_adapter/src/display/bridge/v9/lvgl_ppa_accel_v9.c")
-set(LVGL_PPA_SOURCE "${EDGE_AGENT_ROOT}/managed_components/lvgl__lvgl/src/draw/espressif/ppa/lv_draw_ppa.c")
-set(LVGL_PPA_IMAGE_SOURCE "${EDGE_AGENT_ROOT}/managed_components/lvgl__lvgl/src/draw/espressif/ppa/lv_draw_ppa_img.c")
+set(ADAPTER_SOURCE "${OPEN_DESKOS_ROOT}/managed_components/espressif__esp_lvgl_adapter/src/display/bridge/v9/lvgl_ppa_accel_v9.c")
+set(LVGL_PPA_SOURCE "${OPEN_DESKOS_ROOT}/managed_components/lvgl__lvgl/src/draw/espressif/ppa/lv_draw_ppa.c")
+set(LVGL_PPA_IMAGE_SOURCE "${OPEN_DESKOS_ROOT}/managed_components/lvgl__lvgl/src/draw/espressif/ppa/lv_draw_ppa_img.c")
 
 foreach(path IN ITEMS "${PATCH_SOURCE}" "${NATIVE_PATCH_SOURCE}" "${CMAKE_SOURCE}" "${LVGL_COMPONENT_CMAKE}" "${ADAPTER_SOURCE}" "${LVGL_PPA_SOURCE}" "${LVGL_PPA_IMAGE_SOURCE}")
     if(NOT EXISTS "${path}")
@@ -21,7 +21,7 @@ file(READ "${LVGL_COMPONENT_CMAKE}" lvgl_component_cmake)
 find_program(HOST_PYTHON NAMES python3 python REQUIRED)
 execute_process(
     COMMAND "${HOST_PYTHON}" "${PATCH_SOURCE}"
-    WORKING_DIRECTORY "${EDGE_AGENT_ROOT}"
+    WORKING_DIRECTORY "${OPEN_DESKOS_ROOT}"
     RESULT_VARIABLE patch_result
 )
 if(NOT patch_result EQUAL 0)
@@ -29,7 +29,7 @@ if(NOT patch_result EQUAL 0)
 endif()
 execute_process(
     COMMAND "${HOST_PYTHON}" "${NATIVE_PATCH_SOURCE}"
-    WORKING_DIRECTORY "${EDGE_AGENT_ROOT}"
+    WORKING_DIRECTORY "${OPEN_DESKOS_ROOT}"
     RESULT_VARIABLE native_patch_result
 )
 if(NOT native_patch_result EQUAL 0)
