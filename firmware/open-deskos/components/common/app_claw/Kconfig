@@ -104,7 +104,7 @@ menu "App Claw Config"
             select APP_CLAW_CAP_EVENT_ROUTER
             default y
             help
-                Register cap_im_local for in-process IM (e.g. edge_agent Web IM). Requires session manager for session_command.
+                Register cap_im_local for in-process IM (e.g. open_deskos Web IM). Requires session manager for session_command.
 
         config APP_CLAW_CAP_SCHEDULER
             bool "Enable scheduler capability"

@@ -4,7 +4,7 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     PRIV_INCLUDE_DIRS
-        "${CMAKE_CURRENT_LIST_DIR}/../../../application/edge_agent/managed_components/espressif__esp_hosted/host"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../application/open_deskos/managed_components/espressif__esp_hosted/host"
     REQUIRES
         esp_event
         esp_netif

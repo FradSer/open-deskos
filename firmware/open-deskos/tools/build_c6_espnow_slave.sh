@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-slave="$root/application/edge_agent/managed_components/espressif__esp_hosted/slave"
+slave="$root/application/open_deskos/managed_components/espressif__esp_hosted/slave"
 tracked="$root/application/c6_espnow_bridge"
 
 if [[ ! -d "$slave" ]]; then
@@ -41,5 +41,5 @@ PY
 cd "$slave"
 idf.py set-target esp32c6
 idf.py build
-cp build/network_adapter.bin "$root/application/edge_agent/main/network_adapter.bin"
+cp build/network_adapter.bin "$root/application/open_deskos/main/network_adapter.bin"
 echo "Built C6 ESP-NOW bridge and embedded network_adapter.bin"

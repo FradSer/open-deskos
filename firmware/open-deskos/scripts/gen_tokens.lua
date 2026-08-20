@@ -8,7 +8,7 @@
 --   * components/lua_modules/lua_module_lvgl/src/aiodi_tokens.h
 --       C macros (palette prompt fragment + linter palette) consumed byte-identically
 --       by odk_voice_ui.c (device) and sim_voice_ui.c (sim).
---   * application/edge_agent/components/http_server/frontend_source/src/aiodi_tokens.css
+--   * application/open_deskos/components/http_server/frontend_source/src/aiodi_tokens.css
 --       CSS custom properties for the SolidJS settings UI (base tokens only; the web
 --       keeps its intentional overrides in index.css).
 --
@@ -123,7 +123,7 @@ local function build_css()
 end
 
 local OUT_H   = "components/lua_modules/lua_module_lvgl/src/aiodi_tokens.h"
-local OUT_CSS = "application/edge_agent/components/http_server/frontend_source/src/aiodi_tokens.css"
+local OUT_CSS = "application/open_deskos/components/http_server/frontend_source/src/aiodi_tokens.css"
 
 local function write(path, content)
     local f = assert(io.open(path, "w"))

@@ -204,7 +204,7 @@ end
 
 local function check()
     local c_files = {
-        { name = "odk_voice_ui.c", path = ROOT .. "/application/edge_agent/main/odk_voice_ui.c" },
+        { name = "odk_voice_ui.c", path = ROOT .. "/application/open_deskos/main/odk_voice_ui.c" },
         { name = "sim_voice_ui.c", path = ROOT .. "/sim/native_sdl/sim_voice_ui.c" },
     }
     local want_linter = linter_palette()
@@ -240,7 +240,7 @@ local function check()
 
     -- Web @theme: Phase 5 reconciles it; for now only report whether the AIODI
     -- accent is present (informational, not a hard drift).
-    local css = read_file(ROOT .. "/application/edge_agent/components/http_server/frontend_source/src/index.css")
+    local css = read_file(ROOT .. "/application/open_deskos/components/http_server/frontend_source/src/index.css")
     if css and css:find("#eb5757", 1, true) then
         print("  web @theme: AIODI accent #eb5757 present (ok)")
     elseif css then
@@ -287,7 +287,7 @@ local function write_c_file(path)
 end
 
 local function write_()
-    write_c_file(ROOT .. "/application/edge_agent/main/odk_voice_ui.c")
+    write_c_file(ROOT .. "/application/open_deskos/main/odk_voice_ui.c")
     write_c_file(ROOT .. "/sim/native_sdl/sim_voice_ui.c")
     print("aiodi_tokens: consumers rewritten. Rebuild sim + IDF to pick up.")
 end
