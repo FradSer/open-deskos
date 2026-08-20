@@ -12,7 +12,7 @@ Requires SDL2 and CMake (`brew install sdl2 cmake` on macOS).
 ```sh
 cmake -S firmware/open-deskos/sim/native_sdl -B firmware/open-deskos/sim/native_sdl/build
 cmake --build firmware/open-deskos/sim/native_sdl/build -j
-cd firmware/open-deskos/sim/native_sdl && ./build/open_deskos_sim
+cd firmware/open-deskos/sim/native_sdl && ./build/open-deskos_sim
 ```
 
 Or run the complete setup, build, and launch flow from any directory:
@@ -21,16 +21,48 @@ Or run the complete setup, build, and launch flow from any directory:
 firmware/open-deskos/sim/native_sdl/run.sh
 ```
 
-Arguments are passed to the simulator. Environment variables such as
-`ODK_SIM_SHOT`, `ODK_SIM_SHOT_FRAMES`, and `ODK_SIM_TAP` can be used for
-headless screenshots and scripted taps. The default adaptive daily-plan
-fixture uses 99-count placeholders. Set `ODK_SIM_DASHBOARD_VALUES=small` or
-`extreme` to render the small-count or unbreakable-text planner fixtures;
-these switches have no device-side effect.
+`run.sh` copies the current firmware Lua modules and fonts into the simulator,
+configures CMake, builds `open-deskos_sim`, and launches it. The simulator
+uses the same Guition JC4880P443C 480×800 UI sources; its host display path is
+SDL2 IO/PARTIAL rather than the device's MIPI-DSI path.
 
-A 480x800 portrait window opens running the AIODI launcher (home icon grid,
-big-numeral clock, dark theme). Mouse acts as the touch panel; tapping a tile
-navigates to its app screen; Back returns home. Close the window to exit.
+### Interactive mode
+
+On macOS, run `./run.sh` directly. SDL uses the native Cocoa window backend,
+so `DISPLAY` and `WAYLAND_DISPLAY` are not required. On Linux, an X11 or
+Wayland display session is required. A 480×800 portrait window opens running
+the AIODI launcher (home icon grid, big-numeral clock, dark theme). Mouse acts
+as the touch panel; tapping a tile navigates to its app screen; Back returns
+home. Close the window to exit.
+
+### Headless and scripted mode
+
+Set `ODK_SIM_SHOT` to run without a window and save a BMP screenshot:
+
+```sh
+ODK_SIM_SHOT=/tmp/opendeskos-sim.bmp \
+ODK_SIM_SHOT_FRAMES=30 \
+./run.sh
+```
+
+`ODK_SIM_TAP` injects scripted touch events in `x,y@frame` form. Multiple
+events are separated with semicolons:
+
+```sh
+ODK_SIM_SHOT=/tmp/opendeskos-sim.bmp \
+ODK_SIM_SHOT_FRAMES=120 \
+ODK_SIM_TAP="72,280@30;408,616@70;92,51@100" \
+./run.sh
+```
+
+`ODK_SIM_DASHBOARD_VALUES=small` or `extreme` selects the corresponding
+layout fixture; these switches have no device-side effect. When
+`ODK_SIM_SHOT` is set, `run.sh` selects SDL's dummy video driver automatically.
+
+The launcher sources are copied from
+`components/lua_modules/lua_module_lvgl/lib/`, including the `apps/` directory.
+The build target is `open-deskos_sim`; older references to `cerberus_sim` or
+`open_deskos_sim` are obsolete.
 
 ## Fonts at runtime
 
@@ -40,9 +72,9 @@ navigates to its app screen; Back returns home. Close the window to exit.
 `<cwd>/fonts/...`. Copy both fonts into the run directory before launching:
 
 ```sh
-cp application/edge_agent/fatfs_image/storage/fonts/NotoSansSC-Regular.ttf \
+cp application/open_deskos/fatfs_image/storage/fonts/NotoSansSC-Regular.ttf \
    firmware/open-deskos/sim/native_sdl/fonts/
-cp application/edge_agent/fatfs_image/storage/fonts/Montserrat-Bold.ttf \
+cp application/open_deskos/fatfs_image/storage/fonts/Montserrat-Bold.ttf \
    firmware/open-deskos/sim/native_sdl/fonts/
 ```
 

@@ -5,7 +5,7 @@ set -euo pipefail
 readonly SIM_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly ODK_ROOT="$(CDPATH= cd -- "${SIM_DIR}/../.." && pwd -P)"
 readonly BUILD_DIR="${SIM_DIR}/build"
-readonly FONT_DIR="${ODK_ROOT}/application/edge_agent/fatfs_image/storage/fonts"
+readonly FONT_DIR="${ODK_ROOT}/application/open_deskos/fatfs_image/storage/fonts"
 readonly LUA_SOURCE="${ODK_ROOT}/components/lua_modules/lua_module_lvgl/lib"
 
 if ! command -v cmake >/dev/null 2>&1; then

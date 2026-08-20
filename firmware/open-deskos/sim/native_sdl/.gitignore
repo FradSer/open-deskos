@@ -3,7 +3,7 @@ build/
 _deps/
 
 # Runtime-copied assets (not source — copied at run time, see README):
-#   fonts/NotoSansSC-Regular.ttf   <- application/edge_agent/fatfs_image/storage/fonts/
+#   fonts/NotoSansSC-Regular.ttf   <- application/open_deskos/fatfs_image/storage/fonts/
 #   lib/launcher.lua, lib/aiodi.lua, lib/apps/ <- components/lua_modules/lua_module_lvgl/lib/
 fonts/
 icons/*.svg
