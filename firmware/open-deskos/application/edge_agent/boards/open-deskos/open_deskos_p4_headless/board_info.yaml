@@ -1,5 +1,0 @@
-board: open_deskos_p4_headless
-chip: esp32p4
-version: 1.0.0
-description: "Open DeskOS P4 headless board (LUMINA-P4 module, no display) — DSI panel deferred per HG-1"
-manufacturer: "Open DeskOS"

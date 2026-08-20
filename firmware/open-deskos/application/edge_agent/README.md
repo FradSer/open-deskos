@@ -50,10 +50,10 @@ To make `esp-board-manager` easier to use, first install the helper package with
 
 ```bash
 cd application/edge_agent
-idf.py bmgr -c ./boards -b esp32_S3_DevKitC_1
+idf.py bmgr -c ./boards -b guition_jc4880
 ```
 
-> `idf.py bmgr -c ./boards -b <board_name>` generates the configuration for the specified board. Available board names can be found in the `boards` directory.
+> Production firmware supports only `guition_jc4880`, which generates the configuration for the Guition JC4880P443C board.
 
 2. Configure Wi-Fi, LLM, IM, search engine, and related parameters:
 

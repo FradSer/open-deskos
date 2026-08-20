@@ -20,7 +20,7 @@ for font in NotoSansSC-Regular.ttf Montserrat-Bold.ttf CJKalmanac.ttf fa-icons.t
     fi
 done
 
-if [[ ! -f "${LUA_SOURCE}/launcher.lua" || ! -d "${LUA_SOURCE}/apps" ]]; then
+if [[ ! -f "${LUA_SOURCE}/launcher.lua" ]]; then
     echo "error: simulator Lua assets not found: ${LUA_SOURCE}" >&2
     exit 1
 fi
@@ -67,8 +67,8 @@ else
             echo "  Set ODK_SIM_SHOT=<path> for headless screenshot mode." >&2
             exit 1
         fi
-    elif [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        # No DISPLAY and no Wayland → no display server at all.
+    elif [ "$(uname -s)" != "Darwin" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        # Linux needs X11 or Wayland; macOS uses SDL's native Cocoa backend.
         echo "warning: no display server found (DISPLAY unset), simulator cannot open a window" >&2
         echo "  Set ODK_SIM_SHOT=<path> for headless screenshot mode." >&2
         echo "  Set DISPLAY=:0 or run in a desktop session for interactive mode." >&2
@@ -76,4 +76,4 @@ else
     fi
 fi
 
-exec "${BUILD_DIR}/cerberus_sim" "$@"
+exec "${BUILD_DIR}/open-deskos_sim" "$@"
