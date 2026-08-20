@@ -1,0 +1,21 @@
+[   206][W][esp32-hal-psram.c:71] psramInit(): PSRAM init failed!
+[   738][I][M5GFX.cpp:806] init_impl(): [M5GFX] [Autodetect] load from NVS : board:26
+[   747][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=47 scl=48 freq=100000
+[   758][I][M5GFX.cpp:2461] autodetect(): [M5GFX] [Autodetect] board_M5StickS3
+[  1132][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=47 scl=48 freq=100000
+[  1169][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=47 scl=48 freq=100000
+[  1180][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=47 scl=48 freq=100000
+[WiFi] Connecting to CMCC_IOTR....[  3945][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+....[  6378][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 .- NO_AP_FOUND
+.....[  8811][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 11244][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 13675][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 16107][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.
+[WiFi] Timeout
+[WiFi] Connecting to CMCC_IOTR....[ 18955][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 21386][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 23818][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 26249][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+.....[ 28681][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 201 - NO_AP_FOUND
+...

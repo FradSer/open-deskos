@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "src/odk_sub.c"
+        "src/port_idf/sub_nvs.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_domain
+        nvs_flash
+)

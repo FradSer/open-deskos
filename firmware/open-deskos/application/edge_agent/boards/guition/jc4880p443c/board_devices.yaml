@@ -1,0 +1,14 @@
+version: 1.0.0
+# Guition JC4880P443C devices — display driven directly by
+# odk_display_bringup.c (pulse-esp verified sequence), NOT via board_manager.
+# board_manager declares no display_lcd/lcd_touch/lcd_brightness here so it
+# does not touch the DSI panel (avoids double-init / startup entanglement).
+devices:
+  - name: buttons
+    chip: gpio_button
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      button_boot_gpio: 0
+      active_level: 0

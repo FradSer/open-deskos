@@ -1,0 +1,98 @@
+# Guition JC4880P443C_I_W/Y — ESP32-P4, 16MB flash, 32MB PSRAM, ST7701 DSI.
+#
+# Mirrors pulse-esp's verified sdkconfig.defaults.esp32p4 (same board, display
+# confirmed lit). pulse-esp does NOT use the on-board C6/Wi-Fi — the panel +
+# touch work on the P4 alone. esp-hosted/C6 transport is therefore left
+# DISABLED here to avoid the bootloop caused by esp_hosted_reconfigure
+# blocking when no C6 slave responds. The fork's app_main wifi_manager_init
+# and app_claw_start are soft-failed (logged) in main.c, so the headless
+# app platform (cerb console + packages partition) comes up without Wi-Fi.
+
+# --- Board Manager device support (display_lcd dsi + lcd_touch i2c) ---
+# setup_device.c (compiled by gen_bmgr_codes) needs dev_display_lcd.h, so the
+# device-support symbols stay on. main.c still hard-codes ODK_SKIP_BOARD_
+# MANAGER=1 (board_manager init skipped — peripheral pins disturb the panel);
+# the headers only need to exist for compilation.
+CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT=y
+CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT=y
+CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT=y
+
+# emote must stay OFF: app_claw_ui_start() calls emote_start() when this is on,
+# which fails at boot (esp_err 0x7fffd -> ESP_ERROR_CHECK abort -> reset loop).
+# The Open DeskOS launcher does not use emote (facial-animation assets); display
+# is driven by odk_display_bringup.
+# CONFIG_APP_CLAW_ENABLE_EMOTE is not set
+
+# --- esp-hosted / C6 ---
+# main's odk_c6_slave_ota.c unconditionally #includes esp_hosted.h and
+# PRIV_REQUIRES espressif__esp_hosted, so the component must be COMPILED in
+# even though no C6 slave is attached at bring-up (boot probes it async and
+# soft-fails). ESP_HOSTED_ENABLED defaults to y when ESP_WIFI_REMOTE_LIBRARY_
+# HOSTED is on; keep it on so the headers resolve.
+CONFIG_ESP_HOSTED_ENABLED=y
+
+# --- Flash / PSRAM (pulse-esp verified: QIO 80M 16MB, HEX 200M, rev<v3) ---
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_HEX=y
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+
+# --- Open DeskOS app platform: packages partition + console ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_odk_16MB.csv"
+# Console on USB-Serial/JTAG (the /dev/cu.usbmodem* the Mac sees). With
+# CONSOLE_UART the app switches logs + the esp_console REPL to UART0
+# (GPIO37/38) right after the early boot, leaving the USB port silent — which
+# reads exactly like a boot stall and hides every panic dump.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# --- FreeRTOS tuning (display + touch stack depth) ---
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=8192
+CONFIG_FREERTOS_HZ=1000
+
+# --- Compiler optimization / XIP: keep the project defaults (DEBUG opt,
+# sdkconfig.defaults' SPIRAM_XIP_FROM_PSRAM=y). This is the exact combination
+# that demonstrably reaches app_main on this board; switching to SIZE opt,
+# disabling assertions, or turning XIP off each made boot stall deterministically
+# in cpu_start before "main_task: Started on CPU0". Do not change these without
+# a serial-capture verification.
+
+# --- LVGL fonts ---
+# ICONS.* glyphs exist only in the built-in Montserrat (status bar / peek).
+# 1:1 launcher tiles use aiodi.svg_icon (SVG Tiny → lvgl.image) instead.
+# Keep in step with sim/native_sdl/lv_conf.h.
+CONFIG_LV_FONT_MONTSERRAT_28=y
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=y
+
+# --- LVGL SVG icons ---
+# aiodi.svg_icon generates SVG Tiny and renders via lv_image. Needs ThorVG
+# as the SW vector backend (see LV_USE_VECTOR_GRAPHIC docs). LV_USE_THORVG
+# (parent) must be on for its choice sub-option LV_USE_THORVG_INTERNAL to take
+# effect; without it lv_draw_vector.c #errors out under -Werror.
+CONFIG_LV_USE_FLOAT=y
+CONFIG_LV_USE_MATRIX=y
+CONFIG_LV_USE_VECTOR_GRAPHIC=y
+CONFIG_LV_USE_THORVG=y
+CONFIG_LV_USE_THORVG_INTERNAL=y
+CONFIG_LV_USE_SVG=y
+
+# --- LVGL 60 FPS path (对照 cerberus_p4_headless 板,跳过 PERF 编译红线) ---
+# 面板 DPI 34MHz ≈ 60Hz(见 docs/reference/guition-lvgl-60fps-path.md)。默认
+# REFR_PERIOD=33ms 把 LVGL 重绘顶在 ~30FPS —— 主页滑动 / hero 动画卡顿的第一
+# 大根因。这里只调 LVGL 配置项与 cache,不碰 COMPILER_OPTIMIZATION / XIP /
+# assertions(见上文红线:PERF 编译会 cpu_start boot stall)。
+CONFIG_LV_DEF_REFR_PERIOD=16
+CONFIG_LV_DRAW_BUF_ALIGN=128
+CONFIG_LV_OBJ_STYLE_CACHE=y
+CONFIG_LV_USE_PPA=y
+CONFIG_LV_PPA_BURST_LENGTH=64
+CONFIG_LV_CACHE_DEF_SIZE=16
+CONFIG_LCD_DSI_ISR_CACHE_SAFE=y       # DSI ISR 走 cache-safe 路径
+# CONFIG_LV_THEME_DEFAULT_GROW is not set   # 按下脏区膨胀+recolor+80ms transition,DSI 多 FB 上像闪烁
+# 测量用(基线期加,调完删):
+CONFIG_LV_USE_SYSMON=y
+CONFIG_LV_USE_PERF_MONITOR=y
+CONFIG_LV_PERF_MONITOR_ALIGN_TOP_LEFT=y

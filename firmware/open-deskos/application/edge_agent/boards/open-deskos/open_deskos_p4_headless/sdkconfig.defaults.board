@@ -1,0 +1,93 @@
+#
+# Flash / PSRAM — mirrors espressif/esp32_p4_function_ev's baseline. Osptek
+# module flash capacity is unconfirmed; 16MB is the placeholder until a
+# flash-time esptool probe confirms it (task-001 open question #2).
+#
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_HEX=y
+CONFIG_SPIRAM_SPEED_200M=y
+
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+
+#
+# Partition table — CERBERUS 16MB layout with a dedicated 2M `packages` FAT
+# partition (FR-16) carved from the headless-dead `emote` SPIFFS. The app
+# package store lives at /packages, isolated from the claw DATA root.
+#
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_open-deskos_16MB.csv"
+
+#
+# Console on USB-Serial-JTAG (native USB on the P4). The board's USB-C port is
+# the USB-Serial-JTAG peripheral, not a UART bridge — UART0 (GPIO37/38) is not
+# broken out to it, so a UART console is invisible over the USB cable (only ROM
+# output + esp_rom_printf reach it). Route both ESP_LOG and the `cerb` REPL to
+# USB-Serial-JTAG so one USB cable carries logs and the interactive console.
+# Matches pulse-esp hw_test_p4 (verified lit on this exact P4 module).
+#
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+#
+# ESP-Hosted SDIO — Guition JC4880P443C (JC-ESP32P4-M3-C6).
+# Authoritative pin map (strict):
+#   https://github.com/csvke/esp32_p4_jc4880p433c_bsp/blob/main/WIFI_ARCHITECTURE.md
+# CLK18 / CMD19 / D0-14 / D1-15 / D2-16 / D3-17 / RESET=GPIO54 (C6_CHIP_PU).
+# Bus: SDIO slot 1, 4-bit, 40 MHz. Do NOT use LUMINA-P4 pins (CLK14/CMD15).
+#
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_1=18
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_1=19
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_1=14
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_1=15
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_1=16
+CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_1=17
+CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=54
+# ESPHome Guition esp32_hosted.active_high: true (GPIO54 = C6_CHIP_PU).
+CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH=y
+
+#
+# LVGL @2x on Guition 480x800 (4.3"): default Montserrat 14 + DPI 130 looks
+# tiny. Double the design density so Voice UI / Lua LVGL reads at phone-like
+# retina scale without per-widget hacks.
+#
+CONFIG_LV_DPI_DEF=260
+CONFIG_LV_FONT_MONTSERRAT_28=y
+CONFIG_LV_FONT_MONTSERRAT_36=y
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=y
+
+# On-screen FPS / CPU% overlay (LVGL sysmon). Top-left avoids the demo
+# Refresh button at bottom-mid.
+CONFIG_LV_USE_SYSMON=y
+CONFIG_LV_USE_PERF_MONITOR=y
+CONFIG_LV_PERF_MONITOR_ALIGN_TOP_LEFT=y
+
+#
+# LVGL 60 FPS path (panel DPI already ~60Hz at 34MHz). Default REFR 33ms
+# caps LVGL at ~30 FPS — set 16ms. Also: PERF compile, dual SW draw units,
+# 64B draw-buf align for DMA2D/PPA, IRAM for hot paths, larger L2 cache.
+#
+CONFIG_LV_DEF_REFR_PERIOD=8
+CONFIG_LV_DRAW_BUF_ALIGN=64
+# Style cache cuts property lookup during heavy invalidate (list scroll).
+CONFIG_LV_OBJ_STYLE_CACHE=y
+# PPA fill/blend (~30% draw-time on fill/image). Burst 64 avoids DSI underrun
+# when sharing DMA2D with panel copy; raise to 128 only if underrun-free.
+CONFIG_LV_USE_PPA=y
+CONFIG_LV_PPA_BURST_LENGTH=64
+# Dual SW draw units need LV_USE_OS; keep single unit with PPA.
+# IRAM fast-mem conflicts with -Werror=attributes on this LVGL build — leave off.
+# 128KB L2 frees ~128KB internal RAM; 64B line matches PPA cache-line require.
+CONFIG_CACHE_L2_CACHE_128KB=y
+# CONFIG_CACHE_L2_CACHE_256KB is not set
+CONFIG_CACHE_L2_CACHE_LINE_64B=y
+# CONFIG_CACHE_L2_CACHE_LINE_128B is not set
+CONFIG_LCD_DSI_ISR_CACHE_SAFE=y
+# Press grow expands the widget and invalidates neighbors — looks like
+# flicker on DSI direct mode. Keep pressed size stable.
+# CONFIG_LV_THEME_DEFAULT_GROW is not set
+# LVGL tips: PERF (-O2) can add ~30% render speed. Truncation Werrors in
+# our tree + mcp-c-sdk are fixed at the call sites (not -Wno-error).
+CONFIG_COMPILER_OPTIMIZATION_PERF=y

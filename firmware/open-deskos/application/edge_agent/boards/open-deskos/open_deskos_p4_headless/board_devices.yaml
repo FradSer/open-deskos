@@ -1,0 +1,29 @@
+version: 1.0.0
+# Devices for the Open DeskOS P4 headless board.
+#
+# By design this board declares NO display_lcd and NO lcd_touch device: the
+# CO6300 DSI panel is an unresolved hardware hard-gate (HG-1) owned by a
+# separate swimlane, so the board manager never walks a DSI panel init path.
+# The AMOLED variant lands later as open-deskos_p4_amoled; see
+# docs/plans/2026-07-04-open-deskos-app-center-redesign-design/architecture.md §3.1.
+#
+# Audio devices (CS43131 DAC / TAS5825M amp / AK5572 ADC) are intentionally
+# not declared here: esp_board_manager ships no chip driver for these ICs
+# (only es8311 exists across this fork's board set), and inventing a driver
+# binding would misrepresent the hardware. The i2c/i2s/gpio resources those
+# chips need are already declared in board_peripherals.yaml from
+# firmware/main/lumina_p4_pins.h; wiring in real drivers is later hardware
+# bring-up work, tracked outside this bootstrap task.
+devices:
+  # Voice key / user button. init_skip -> the board manager performs no
+  # runtime init and pulls in no driver dependency, so this stays valid on
+  # the display-less bring-up without hardware present.
+  # lumina_p4_pins.h: LP4_VOICE_KEY=1 (misc interrupt/control group).
+  - name: buttons
+    chip: gpio_button
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      button_boot_gpio: 1
+      active_level: 0

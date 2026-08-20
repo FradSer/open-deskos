@@ -1,0 +1,46 @@
+version: 1.0.0
+# Guition JC4880P443C_I_W/Y peripherals.
+#
+# Authoritative BSP: https://github.com/csvke/esp32_p4_jc4880p433c_bsp
+# Display: ST7701S MIPI-DSI 2-lane @ 500 Mbps (BSP), LDO_VO3 @ 2500mV,
+# LCD RST GPIO5, backlight GPIO23 (LEDC). DPI 34 MHz on IDF 6.0.1.
+# Touch: GT911 on I2C (SDA=7, SCL=8); BSP polls (RST/INT NC).
+# C6 Wi-Fi: SDIO CLK18/CMD19/D0-14..D3-17, RESET=GPIO54 (C6_CHIP_PU).
+# See WIFI_ARCHITECTURE.md in the csvke BSP — do not use LUMINA SDIO pins.
+peripherals:
+  - name: i2c_port1
+    type: i2c
+    role: master
+    config:
+      port: 1
+      pins:
+        sda: 7
+        scl: 8
+
+  - name: ldo_mipi
+    type: ldo
+    config:
+      chan_id: 3        # LDO_VO3 -> VDD_MIPI_DPHY
+      voltage_mv: 2500
+      adjustable: 1
+      owned_by_hw: 0
+
+  - name: dsi_display
+    type: dsi
+    config:
+      bus_id: 0
+      data_lanes: 2
+      phy_clk_src: 0
+      lane_bit_rate_mbps: 500   # pulse-esp verified: 500 Mbps lights this panel
+
+  - name: ledc_backlight
+    type: ledc
+    version: default
+    config:
+      gpio_num: 23
+      speed_mode: LEDC_LOW_SPEED_MODE
+      channel: 1
+      timer_sel: 1
+      duty: 0
+      duty_resolution: LEDC_TIMER_10_BIT
+      freq_hz: 20000

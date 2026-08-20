@@ -1,0 +1,9 @@
+{
+  "template": "app_v2",
+  "slots": {
+    "name": { "type": "string", "max_len": 32 },
+    "tick_body": { "type": "string", "max_len": 2048 },
+    "capabilities": { "type": "array", "item_type": "string", "max_items": 4 }
+  },
+  "allowed_capabilities": ["display", "storage:own"]
+}

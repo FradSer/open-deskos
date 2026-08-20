@@ -1,0 +1,20 @@
+# CERBERUS 16MB layout — derived from partitions_16MB.csv (FR-16).
+# The `emote` SPIFFS (facial-animation / display assets) must hold the current
+# esp_emote_assets build (~2426K), so it is 2432K here (was 3M originally,
+# trimmed to 1M in an earlier headless-only layout that no longer fits the
+# display board). `storage` (the claw DATA root, /fatfs) holds the 2.3M CJK
+# font seed so it cannot shrink below ~2.4M; it is 2560K here. OTA app slots
+# are 4608K to fit the DEBUG edge_agent.bin (~4.6M with ThorVG + display);
+# `packages` (installed app packages) takes the remaining ~1M. CERBERUS does
+# not use `emote` (facial-animation assets), so it is shrunk to 64K and the
+# reclaimed space goes to `system` (Lua scripts + skills), which outgrew 1M.
+# Name,    Type, SubType, Offset,   Size
+nvs,       data, nvs,     0xA000,   0x6000
+otadata,   data, ota,     0x10000,  0x2000
+phy_init,  data, phy,     0x12000,  0x1000
+ota_0,     app,  ota_0,         ,   4608K
+ota_1,     app,  ota_1,         ,   4608K
+emote,     data, spiffs,        ,   64K
+system,    data, fat,           ,   3392K
+storage,   data, fat,           ,   2560K
+packages,  data, fat,           ,   1024K

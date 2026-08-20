@@ -1,0 +1,267 @@
+@import 'tailwindcss';
+@import './aiodi_tokens.css';
+
+@theme {
+  /* AIODI base tokens come from aiodi_tokens.css (generated from aiodi.lua by
+     scripts/gen_tokens.lua). Web-only deviations stay literal: base lifted one
+     step off pure black for ambient comfort, text-secondary = stroke_focus grey,
+     and the soft/dim rgba derivatives. */
+  --color-bg-base: #0a0a0a;
+  --color-bg-surface: var(--aiodi-color-surface);
+  --color-bg-card: var(--aiodi-color-elevated);
+  --color-bg-card-hover: #262626;
+  --color-bg-input: #0d0d0d;
+
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-strong: var(--aiodi-color-stroke);
+  --color-border-accent: rgba(235, 87, 87, 0.18);
+
+  --color-text-primary: var(--aiodi-color-primary);
+  --color-text-secondary: #b5b5b5;
+  --color-text-muted: var(--aiodi-color-secondary);
+  --color-text-on-accent: var(--aiodi-color-primary);
+
+  --color-accent: var(--aiodi-color-red);
+  --color-accent-soft: #c44a4a;
+  --color-accent-dim: rgba(235, 87, 87, 0.1);
+
+  --color-green: var(--aiodi-color-green);
+  --color-green-dim: rgba(52, 199, 89, 0.15);
+  --color-info: var(--aiodi-color-blue);
+  --color-info-dim: rgba(2, 91, 194, 0.15);
+  --color-orange: #f6ad55;
+  --color-danger: var(--aiodi-color-red);
+
+  --radius-sm: var(--aiodi-radius-sm);
+  --radius-md: var(--aiodi-radius-md);
+  --radius-lg: var(--aiodi-radius-lg);
+
+  --font-sans: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Consolas, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  body {
+    min-height: 100vh;
+    background: #07080a;
+    overflow-x: hidden;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  input,
+  select,
+  textarea {
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-primary);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.85rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: rgba(235, 87, 87, 0.4);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  select option {
+    background: #1c2028;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+  }
+}
+
+@layer utilities {
+  .bg-panel {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-lg);
+  }
+
+  .pulse-dot {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+  }
+}
+
+@layer components {
+  .webim-markdown {
+    overflow-wrap: anywhere;
+  }
+
+  .webim-markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .webim-markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .webim-markdown p,
+  .webim-markdown h1,
+  .webim-markdown h2,
+  .webim-markdown h3,
+  .webim-markdown ul,
+  .webim-markdown ol,
+  .webim-markdown blockquote,
+  .webim-markdown pre,
+  .webim-markdown table {
+    margin: 0.45rem 0;
+  }
+
+  .webim-markdown h1,
+  .webim-markdown h2,
+  .webim-markdown h3 {
+    color: var(--color-text-primary);
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .webim-markdown h1 {
+    font-size: 1.08rem;
+  }
+
+  .webim-markdown h2 {
+    font-size: 1rem;
+  }
+
+  .webim-markdown h3 {
+    font-size: 0.94rem;
+  }
+
+  .webim-markdown ul,
+  .webim-markdown ol {
+    padding-left: 1.25rem;
+  }
+
+  .webim-markdown ul {
+    list-style: disc;
+  }
+
+  .webim-markdown ol {
+    list-style: decimal;
+  }
+
+  .webim-markdown li + li {
+    margin-top: 0.18rem;
+  }
+
+  .webim-markdown a {
+    color: var(--color-accent-soft);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .webim-markdown blockquote {
+    border-left: 2px solid var(--color-border-strong);
+    color: var(--color-text-secondary);
+    padding-left: 0.75rem;
+  }
+
+  .webim-markdown code {
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    padding: 0.1rem 0.28rem;
+  }
+
+  .webim-markdown pre {
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .webim-markdown pre code {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    display: block;
+    font-size: 0.8rem;
+    padding: 0;
+    white-space: pre;
+  }
+
+  .webim-markdown table {
+    border-collapse: collapse;
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .webim-markdown th,
+  .webim-markdown td {
+    border: 1px solid var(--color-border-subtle);
+    padding: 0.35rem 0.5rem;
+  }
+
+  .webim-markdown th {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .webim-markdown hr {
+    border: 0;
+    border-top: 1px solid var(--color-border-subtle);
+    margin: 0.65rem 0;
+  }
+}

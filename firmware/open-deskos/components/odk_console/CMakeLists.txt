@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "src/console.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_gen
+        odk_installer
+        odk_app_manager
+        odk_svc_llm
+        odk_sub
+        odk_domain
+        nvs_flash
+)

@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "src/semver.c"
+        "src/path.c"
+        "src/manifest.c"
+        "src/tick_gate.c"
+        "src/odk_espnow_protocol.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        cjson
+)

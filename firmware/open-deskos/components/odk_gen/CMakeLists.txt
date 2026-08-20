@@ -1,0 +1,16 @@
+idf_component_register(
+    SRCS
+        "src/gen.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        odk_svc_llm
+        odk_sandbox
+        odk_installer
+        odk_domain
+        cjson
+    EMBED_FILES
+        "templates/app_v2/manifest.json.tpl"
+        "templates/app_v2/main.lua.tpl"
+        "templates/app_v2/slots.schema.json"
+)
