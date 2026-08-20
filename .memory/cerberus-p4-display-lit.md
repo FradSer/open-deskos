@@ -20,4 +20,6 @@ Guition JC4880P443C 的权威硬件参考是 csvke BSP；不要把其他 P4 carr
 
 **How to apply:** 查 Guition 硬件先看 csvke BSP 与 `application/edge_agent/boards/guition/jc4880p443c/`；新板先确认 USB 调试通道、电源、复位、背光、DSI lane 和 timing，再接 LVGL/触摸/应用层。
 
+**基线审计（2026-08-20）：** 已验证的 `/Users/FradSer/Developer/FradSer/cerberus` P4 固件基线要求 IDF 6.0.1、L2 cache 256KB/128B line、`LV_DRAW_BUF_ALIGN=128`、PPA、PPA image、snapshot 和 TRIPLE_FULL。Open DeskOS 不应为了规避猜测性的 Cache error 改成 64B、禁用 PPA/DMA2D 或删减这些 sdkconfig；这种漂移会破坏 widget snapshot 路径。无 Mac companion 时，Quota 页必须使用 `Connect Mac` 空状态，而不是伪造订阅数据。
+
 **Related:** [[idf-toolchain-activate]] [[cerberus-firmware-host-vs-idf-build]] [[cerberus-p4-c6-esp-hosted-up]] [[p4-module-schematic-pins]]

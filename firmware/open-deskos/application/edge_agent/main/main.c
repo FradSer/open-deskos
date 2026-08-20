@@ -70,17 +70,13 @@ esp_err_t app_claw_cli_start(void);
  * it until a correct Guition peripheral map exists. */
 #define ODK_SKIP_BOARD_MANAGER (1)
 
-/* When 1, probe the ESP32-C6 esp-hosted transport in a separate task AFTER the
- * platform is up. wifi_manager_init() drives esp_wifi_init() -> the esp-hosted
- * SDIO handshake with the C6; running it off the app_main path means a stalled
- * or failing handshake can never block/regress the display+platform boot (which
- * is why the inline calls stay skipped). Watch the esp-hosted (H_API/rpc/
- * transport) logs for the slave firmware version = C6 link is up. */
-#define ODK_TRY_WIFI (1)
+/* The C6 is optional for the P4 launcher. A failed or absent ESP-Hosted
+ * handshake must not restart the P4 or keep retrying indefinitely. */
+#define ODK_TRY_WIFI (0)
 
 /* When 1, force STA credentials below (bring-up / lab network). Overrides NVS
  * Wi-Fi SSID/password after app_config_load. Set to 0 for portal/NVS-only. */
-#define ODK_WIFI_DEBUG_MODE (1)
+#define ODK_WIFI_DEBUG_MODE (0)
 #if ODK_WIFI_DEBUG_MODE
 #define ODK_WIFI_DEBUG_SSID     "Vault 8"
 #define ODK_WIFI_DEBUG_PASSWORD "123456790"

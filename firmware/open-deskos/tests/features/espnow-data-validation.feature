@@ -59,6 +59,12 @@ Feature: ESP-NOW data validation through the C6 custom-data bridge
     And it does not start a Wi-Fi access point or station connection
     And it does not crash when a sensor node is absent
 
+  Scenario: Missing C6 transport cannot reboot the P4
+    Given the C6 slave is absent or fails the ESP-Hosted handshake
+    When the asynchronous transport probe reports a failure
+    Then the P4 keeps the launcher running
+    And the host transport does not restart the P4
+
   Scenario: A manually selected channel is applied to the C6
     Given the validator is running on channel 1
     When the console command "cerb now channel 6" is received

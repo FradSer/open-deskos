@@ -33,6 +33,13 @@ Feature: OpenCode Go subscription data on the launcher
     Then the tile shows a "connect Mac" placeholder instead of percentages
     And the host bridge is still invited to refresh
 
+  Scenario: Opening Homepage #2 without the Mac companion does not crash
+    Given no subscription snapshot is stored
+    And the Mac companion process is not running
+    When the launcher opens Homepage #2
+    Then the quota page remains visible with the "Connect Mac" empty state
+    And the device does not reboot or raise a Lua error
+
   Scenario: A newly pushed snapshot updates the empty-state reset label
     Given the quota tile previously showed "Connect Mac"
     And a host snapshot arrives without a primaryResetMin field
