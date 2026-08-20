@@ -77,9 +77,17 @@ function M.create_widget(grid_parent, item, host_ctx)
     local col = item.col or 1
     local row = item.row or 1
     local size_str = item.widget or "1x1"
+    if g.small_screen and item.compact_widget then
+        size_str = item.compact_widget
+    end
     local c_span, r_span = M.parse_size(size_str)
     c_span = item.col_span or c_span
     r_span = item.row_span or r_span
+
+    if col < 1 or row < 1 or col + c_span - 1 > g.cols or row + r_span - 1 > g.rows then
+        print("[widget_engine] widget exceeds board grid: " .. tostring(item.plugin))
+        return nil
+    end
 
     local rect = M.calculate_rect(g, col, row, c_span, r_span)
     local plugin_id = item.plugin

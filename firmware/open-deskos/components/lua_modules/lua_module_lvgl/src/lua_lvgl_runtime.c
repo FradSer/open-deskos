@@ -5,7 +5,9 @@
  */
 #include "lua_lvgl_private.h"
 
+#if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_lcd_mipi_dsi.h"
+#endif
 #include "esp_lv_adapter.h"
 #include "esp_memory_utils.h"
 
@@ -128,6 +130,7 @@ static IRAM_ATTR bool lua_lvgl_flush_done_cb(esp_lcd_panel_io_handle_t panel_io,
 }
 
 /* DPI/MIPI: color copy done (PARTIAL DMA2D into panel FB). */
+#if CONFIG_IDF_TARGET_ESP32P4
 static IRAM_ATTR bool lua_lvgl_dpi_color_trans_done(esp_lcd_panel_handle_t panel,
                                                     esp_lcd_dpi_panel_event_data_t *edata,
                                                     void *user_ctx)
@@ -147,6 +150,8 @@ static IRAM_ATTR bool lua_lvgl_dpi_refresh_done(esp_lcd_panel_handle_t panel,
     return lua_lvgl_flush_done_cb(NULL, NULL, user_ctx);
 }
 
+#endif
+
 static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
 {
     if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
@@ -163,6 +168,7 @@ static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
         return err;
     }
 
+#if CONFIG_IDF_TARGET_ESP32P4
     if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI ||
         s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_RGB) {
         esp_lcd_dpi_panel_event_callbacks_t cbs = {0};
@@ -181,6 +187,9 @@ static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
         return err;
     }
     return ESP_OK;
+#else
+    return ESP_OK;
+#endif
 }
 
 static esp_err_t lua_lvgl_clear_flush_callbacks_locked(void)
@@ -199,6 +208,7 @@ static esp_err_t lua_lvgl_clear_flush_callbacks_locked(void)
         }
         return err;
     }
+#if CONFIG_IDF_TARGET_ESP32P4
     if ((s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI ||
          s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_RGB) &&
         s_lvgl.panel) {
@@ -211,6 +221,10 @@ static esp_err_t lua_lvgl_clear_flush_callbacks_locked(void)
     }
     s_lvgl.flush_callbacks_registered = false;
     return ESP_OK;
+#else
+    s_lvgl.flush_callbacks_registered = false;
+    return ESP_OK;
+#endif
 }
 
 static void lua_lvgl_wait_flush_done(void)
@@ -737,6 +751,7 @@ static int lua_lvgl_init(lua_State *L)
     /* Default DPI/MIPI render mode: FULL (1) ensures every frame is drawn
      * completely into the inactive back buffer before VSYNC swap, eliminating
      * partial-dirty tearing during screen animations across multi-buffer displays. */
+#if CONFIG_IDF_TARGET_ESP32P4
     if (render_pref < 0 &&
         (panel_if == LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI ||
          panel_if == LUA_MODULE_LVGL_PANEL_IF_RGB)) {
@@ -768,6 +783,7 @@ static int lua_lvgl_init(lua_State *L)
             render_pref = 2;
         }
     }
+#endif
 
     if (!use_fb_swap) {
         /* Prefer fewer, taller strips on DSI: less DMA round-trips while scrolling. */

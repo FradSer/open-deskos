@@ -25,6 +25,7 @@
 #include "odk_c6_slave_ota.h"
 #include "odk_svc_llm_ports_idf.h"
 #include "odk_display_bringup.h"
+#include "odk_s3_display_bringup.h"
 #include "odk_touch_bringup.h"
 #include "odk_voice_ui.h"
 
@@ -505,10 +506,17 @@ void app_main(void)
      * fill, no diagnostic cycle) so it does not block app_main long enough to
      * trip the Task Watchdog, and runs synchronously to avoid concurrent
      * SPI-flash access against the fork's init chain. */
+#if CONFIG_IDF_TARGET_ESP32S3
+    ESP_ERROR_CHECK(odk_s3_display_bringup());
+    if (odk_s3_touch_bringup() != ESP_OK) {
+        ESP_LOGW(TAG, "Open DeskOS: CST328 touch bring-up failed — UI will be display-only");
+    }
+#else
     odk_display_bringup();
     if (odk_touch_bringup() != ESP_OK) {
         ESP_LOGW(TAG, "Open DeskOS: GT911 touch bring-up failed — UI will be display-only");
     }
+#endif
 
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
     esp_log_level_set("http_reuse", ESP_LOG_WARN);

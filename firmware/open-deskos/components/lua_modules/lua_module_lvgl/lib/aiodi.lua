@@ -319,11 +319,13 @@ function M.grid_metrics(w, h)
             radius = math.floor(M.ref.radius * fit + 0.5),
             stroke = math.max(1, math.floor(M.ref.stroke * fit + 0.5)),
             orientation = "landscape",
+            small_screen = false,
         }
         if not w and not h then metrics_cache = m end
         return m
     end
-    local cols, rows = 3, 4
+    local small_screen = pw <= 320 or ph <= 320
+    local cols, rows = small_screen and 2 or 3, small_screen and 2 or 4
     local fit = math.min(pw / M.ref.w, ph / M.ref.h)
     local gutter = math.floor(M.ref.gutter * fit + 0.5)
     -- Status bar hugs the top edge: bar height = icon glyph + breathing room
@@ -363,6 +365,7 @@ function M.grid_metrics(w, h)
         peek_y = status_h + gh + peek_gap,
         radius = math.floor(M.ref.radius * fit + 0.5),
         stroke = math.max(1, math.floor(M.ref.stroke * fit + 0.5)),
+        small_screen = small_screen,
     }
     if not w and not h then
         metrics_cache = m
@@ -863,10 +866,11 @@ function M.grid(parent, g)
         bg_opa = 0, border_width = 0, pad = 0,
         pad_row = g.gutter, pad_column = g.gutter,
     })
-    grid:set_grid({
-        cols = { g.cell, g.cell, g.cell },
-        rows = { g.cell, g.cell, g.cell, g.cell },
-    })
+    local cols = {}
+    local rows = {}
+    for _ = 1, g.cols do cols[#cols + 1] = g.cell end
+    for _ = 1, g.rows do rows[#rows + 1] = g.cell end
+    grid:set_grid({ cols = cols, rows = rows })
     grid:set_scroll({ dir = "none", scrollbar = "off" })
     return grid
 end

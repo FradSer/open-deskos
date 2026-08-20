@@ -91,12 +91,12 @@ function M.render_page(parent, g, host_ctx)
 
     local date_day = aiodi.title(header, {
         text = day_str,
-        font = aiodi.font_bold(aiodi.px(32), { cache_size = 16 }),
+        font = aiodi.font_bold(aiodi.px(metrics.compact and 20 or 32), { cache_size = 16 }),
         text_color = DASH_TEXT_MAIN,
     })
     local date_val = aiodi.caption(header, {
         text = date_str,
-        font = aiodi.font(aiodi.text.body),
+        font = aiodi.font(aiodi.px(metrics.compact and 14 or aiodi.text.body)),
         text_color = DASH_TEXT_SUB,
     })
 

@@ -108,6 +108,7 @@ Plugin.widgets = {
         })
 
         local last_tick_sec = 0
+        local face_value = pomo_mmss(pomo_sync(st))
 
         return {
             root = tile,
@@ -115,8 +116,11 @@ Plugin.widgets = {
                 local now = os.time()
                 if now == last_tick_sec then return end
                 last_tick_sec = now
-                local cur_rem = pomo_sync(st, now)
-                mmss_lbl:set_text(pomo_mmss(cur_rem))
+                local next_face_value = pomo_mmss(pomo_sync(st, now))
+                if next_face_value ~= face_value then
+                    face_value = next_face_value
+                    mmss_lbl:set_text(face_value)
+                end
             end,
         }
     end,
@@ -142,21 +146,20 @@ Plugin.widgets = {
 
         local last_deg = -1
         local last_tick_sec = 0
+        local face_value = pomo_mmss(pomo_sync(st))
+        local button_label = "Start"
+        local button_accent = aiodi.colors.green
         local ctrl_btn
         local function update_ctrl()
             local left = pomo_sync(st, os.time())
-            if st.deadline then
-                ctrl_btn:set_text("Pause")
-                ctrl_btn:set_style({ bg_color = aiodi.colors.button })
-            elseif left > 0 and left < (st.session or 25*60) then
-                ctrl_btn:set_text("Resume")
-                ctrl_btn:set_style({ bg_color = aiodi.colors.green })
-            elseif left == 0 then
-                ctrl_btn:set_text("Reset")
-                ctrl_btn:set_style({ bg_color = aiodi.colors.button })
-            else
-                ctrl_btn:set_text("Start")
-                ctrl_btn:set_style({ bg_color = aiodi.colors.green })
+            local next_label, next_accent = pomo_control(st)
+            if next_label ~= button_label then
+                button_label = next_label
+                ctrl_btn:set_text(button_label)
+            end
+            if next_accent ~= button_accent then
+                button_accent = next_accent
+                ctrl_btn:set_style({ bg_color = button_accent })
             end
         end
         local function update_arc(now)
@@ -173,10 +176,12 @@ Plugin.widgets = {
             update_ctrl()
         end
 
-        local btn_h = math.max(28, rm.arc_w + 8)
+        local face_w = spec.w - 2 * rm.inset
+        local face_h = math.max(28, rm.arc_w + 8)
+        local btn_h = face_h
         ctrl_btn = aiodi.button(tile, {
             text = "Start", accent = aiodi.colors.green,
-            w = spec.w - 2 * rm.inset, h = btn_h,
+            w = face_w, h = face_h,
         })
         ctrl_btn:set_pos(rm.inset, spec.h - btn_h - rm.inset)
         update_ctrl()

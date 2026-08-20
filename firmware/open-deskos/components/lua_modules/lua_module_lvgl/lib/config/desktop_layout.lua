@@ -17,30 +17,31 @@ return {
         title = "Home",
         items = {
             -- Row 1: Date Tile (1x1, White bg, Red/Black text) + Clock Tile (2x1, Pure Black bg, 52px Bold)
-            { plugin = "almanac",   widget = "1x1", col = 1, row = 1 },
-            { plugin = "clock",     widget = "2x1", col = 2, row = 1 },
+            { plugin = "almanac",   widget = "1x1", compact_widget = "1x1", col = 1, row = 1 },
+            { plugin = "clock",     widget = "2x1", compact_widget = "1x1", col = 2, row = 1 },
 
             -- Row 2: Chat Tile (1x1, Surface bg, Mail icon)
-            { plugin = "chat",      widget = "1x1", col = 1, row = 2 },
+            { plugin = "chat",      widget = "1x1", compact_widget = "1x1", col = 1, row = 2 },
 
             -- Row 2 & 3: Pomodoro Hero Ring (2x2, Surface bg, Red Progress Arc)
-            { plugin = "pomodoro",  widget = "2x2", col = 2, row = 2 },
+            { plugin = "pomodoro",  widget = "2x2", compact_widget = "1x1", col = 2, row = 2 },
 
             -- Row 3: Calendar Tile (1x1, Blue bg, Calendar icon)
-            { plugin = "calendar",  widget = "1x1", col = 1, row = 3 },
+            { plugin = "calendar",  widget = "1x1", compact_widget = "1x1", col = 1, row = 3 },
 
             -- Row 4: Year Progress Meter (2x1, Surface bg, Green fill) + Settings Tile (1x1, Focus border)
-            { plugin = "year",      widget = "2x1", col = 1, row = 4 },
-            { plugin = "settings",  widget = "1x1", col = 3, row = 4 },
+            { plugin = "year",      widget = "2x1", compact_widget = "1x1", col = 1, row = 4 },
+            { plugin = "settings",  widget = "1x1", compact_widget = "1x1", col = 2, row = 4 },
         },
     },
 
-    -- Page 3: OpenCode Go Agent Quota Card (Homepage / #2 Full 3x4 Grid Card)
+    -- Page 3: OpenCode Go Agent Quota Card. The widget engine rejects 3x4 on
+    -- compact S3 panels; the plugin provides a 2x2 compact rendering.
     {
         type = "grid",
         title = "Quota",
         items = {
-            { plugin = "quota",     widget = "3x4", col = 1, row = 1 },
+            { plugin = "quota",     widget = "3x4", compact_widget = "2x2", col = 1, row = 1 },
         },
     },
 }

@@ -1,0 +1,5 @@
+board: esp32_s3_touch_lcd_2_8
+chip: esp32s3
+version: 1.0.0
+description: "Waveshare ESP32-S3 Touch LCD 2.8: 240x320 ST7789 SPI display with CST328 capacitive touch and USB Serial/JTAG."
+manufacturer: "WAVESHARE"

@@ -255,6 +255,17 @@ function module.on_start(ctx)
     verify_rendered_plan(root, metrics, extreme, "extreme")
 
     layout.validate(metrics)
+
+    local compact_metrics = layout.build_metrics(aiodi, 240, 320)
+    assert(compact_metrics.compact and compact_metrics.text_size == layout.compact_text_size,
+        "240x320 Dashboard must use compact metrics")
+    local compact_plan = layout.plan(compact_metrics, layout.runtime_values)
+    for _, line in ipairs(compact_plan.rows) do
+        if line.fonts.size ~= compact_metrics.text_size or line.width > compact_metrics.canvas_w then
+            fail("compact Dashboard row does not fit")
+        end
+    end
+    layout.validate(compact_metrics)
 end
 
 return module

@@ -1,5 +1,27 @@
 #include "odk_espnow_validator_idf.h"
 
+#if CONFIG_IDF_TARGET_ESP32S3
+esp_err_t odk_espnow_validator_init(void)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t odk_espnow_validator_start(void)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t odk_espnow_validator_send_channel(uint8_t channel)
+{
+    (void)channel;
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+void odk_espnow_validator_log_stats(void)
+{
+}
+#else
+
 #include "esp_hosted.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -96,3 +118,4 @@ void odk_espnow_validator_log_stats(void)
              (unsigned long)stats.malformed, (unsigned long)stats.dropped,
              (unsigned long)stats.duplicates);
 }
+#endif

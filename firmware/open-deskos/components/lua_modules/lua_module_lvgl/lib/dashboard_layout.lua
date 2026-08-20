@@ -3,6 +3,11 @@ local M = {}
 -- Every Dashboard narrative row uses one shared display scale. Overflow is
 -- resolved through declared semantic reflow, never smaller mixed-size text.
 M.preferred_text_size = 26
+M.compact_text_size = 16
+M.compact_width_threshold = 320
+M.compact_height_threshold = 320
+-- Compact S3 metrics apply only to a genuinely small canvas; the P4 keeps
+-- the reference 3x4-sized Dashboard geometry.
 -- Inline symbols intentionally sit below the prose scale: actual glyph-width
 -- measurement keeps calendar and habit visible without stealing an entire
 -- semantic line from their adjacent text.
@@ -167,7 +172,17 @@ end
 function M.build_metrics(aiodi, canvas_w, canvas_h)
     local resolved_w = canvas_w or _G.WIDTH or 480
     local resolved_h = canvas_h or _G.HEIGHT or 800
-    local icon_font, icons = build_icon_metrics(aiodi)
+    local compact = resolved_w <= M.compact_width_threshold
+        and resolved_h <= M.compact_height_threshold
+    local icon_size = compact and 16 or M.icon_size
+    local icon_font = aiodi.icon_font(px(aiodi, icon_size), { cache_size = 8 })
+    if not icon_font then
+        fail("Dashboard icon font is unavailable")
+    end
+    local icons = {}
+    for name, glyph in pairs(M.glyphs) do
+        icons[name] = glyph_bounds(icon_font, glyph, name)
+    end
     local icon_base_line = icons.events.base_line
     for name, icon in pairs(icons) do
         if icon.base_line ~= icon_base_line then
@@ -183,13 +198,17 @@ function M.build_metrics(aiodi, canvas_w, canvas_h)
         icon_line_height = icon_font:line_height(),
         icon_base_line = icon_base_line,
         icons = icons,
-        icon_size = px(aiodi, M.icon_size),
-        icon_gap = px(aiodi, M.icon_gap),
+        compact = compact,
+        text_size = compact and M.compact_text_size or M.preferred_text_size,
+        icon_size = px(aiodi, icon_size),
+        icon_gap = px(aiodi, compact and 1 or M.icon_gap),
         icon_optical_offset_y = px(aiodi, M.icon_optical_offset_y),
-        row_gap = aiodi.space.md,
-        header_h = px(aiodi, M.header_h),
+        row_gap = compact and 0 or aiodi.space.md,
+        header_h = px(aiodi, compact and 32 or M.header_h),
         font_cache = {},
-        narrative_h = resolved_h - px(aiodi, M.header_h) - aiodi.space.md,
+        narrative_h = resolved_h - px(aiodi, compact and 32 or M.header_h)
+            - (compact and 0 or aiodi.space.md),
+        grid_layout = compact and "2x2" or "3x4",
     }
 end
 
@@ -379,7 +398,7 @@ local function abbreviate_text(font, text, max_width)
 end
 
 local function fit_or_abbreviate_parts(metrics, parts)
-    local fonts = M.font_metrics(metrics, M.preferred_text_size)
+    local fonts = M.font_metrics(metrics, metrics.text_size)
     local width = M.line_width(metrics, fonts, parts)
     if width <= metrics.canvas_w then
         return { parts = parts, fonts = fonts, width = width, abbreviated = false }
@@ -428,7 +447,7 @@ local function flush_line(plan, parts, group_ids, abbreviated)
     if #parts == 0 then
         return
     end
-    local fonts = M.font_metrics(plan.metrics, M.preferred_text_size)
+    local fonts = M.font_metrics(plan.metrics, plan.metrics.text_size)
     local width = M.line_width(plan.metrics, fonts, parts)
     plan.rows[#plan.rows + 1] = {
         template_id = table.concat(group_ids, "+"),
@@ -457,7 +476,7 @@ function M.plan(metrics, values)
         if #parts > 0 then
             local candidate = copy_range(line_parts, 1, #line_parts)
             append_parts(candidate, parts)
-            local fonts = M.font_metrics(metrics, M.preferred_text_size)
+            local fonts = M.font_metrics(metrics, metrics.text_size)
             if #line_parts > 0 and M.line_width(metrics, fonts, candidate) > metrics.canvas_w then
                 flush_line(plan, line_parts, line_group_ids, line_abbreviated)
                 line_parts, line_group_ids, line_abbreviated = {}, {}, false
@@ -539,9 +558,9 @@ function M.validate(metrics)
     for label, plan in pairs(plans) do
         local height = 0
         for index, line in ipairs(plan.rows) do
-            if line.fonts.size ~= M.preferred_text_size then
+            if line.fonts.size ~= metrics.text_size then
                 fail(string.format("%s line %d changed Dashboard type scale: %d/%d",
-                    label, index, line.fonts.size, M.preferred_text_size))
+                    label, index, line.fonts.size, metrics.text_size))
             end
             validate_line(metrics, line, label, index)
             height = height + line.fonts.row_h

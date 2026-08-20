@@ -6,7 +6,7 @@
 #   esp_app_format  -> esp_app_desc.h (open_deskos_version.c)
 #   cmd_wifi        -> cmd_wifi.h (main.c CLI registration)
 #   esp_lcd_st7701  -> esp_lcd_st7701.h (odk_display_bringup.c)
-#   esp_lcd         -> esp_lcd_panel_*.h / esp_lcd_mipi_dsi.h
+#   esp_lcd         -> esp_lcd_panel_*.h / esp_lcd_mipi_dsi.h / SPI panel drivers
 #   esp_driver_ledc -> driver/ledc.h (backlight PWM)
 #   esp_lcd_touch_gt911 / esp_lcd_touch -> GT911 (odk_touch_bringup.c)
 #   espressif__esp_hosted -> esp_hosted_ota.h (odk_c6_slave_ota.c)
@@ -25,11 +25,24 @@ if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/network_adapter.bin")
         "main/network_adapter.bin missing. Build the C6 slave and copy it here.")
 endif()
 
+file(GLOB ODK_MAIN_SRCS "*.c")
+if(CONFIG_IDF_TARGET_ESP32S3)
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_display_bringup\\.c$")
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_touch_bringup\\.c$")
+else()
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_s3_display_bringup\\.c$")
+endif()
+
 idf_component_register(
-    SRC_DIRS "."
+    SRCS ${ODK_MAIN_SRCS}
     INCLUDE_DIRS "."
+    PRIV_INCLUDE_DIRS
+        "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_hosted/host"
+        "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_hosted/host/api/include"
+        "${IDF_PATH}/components/esp_lcd/dsi/include"
     PRIV_REQUIRES esp_app_format cmd_wifi esp_lcd_st7701 esp_lcd esp_driver_ledc
                   esp_lcd_touch esp_lcd_touch_gt911 espressif__esp_hosted
+                  esp_driver_spi esp_driver_i2c
                   esp_driver_usb_serial_jtag
                   odk_espnow_validator
                   lua_module_lvgl

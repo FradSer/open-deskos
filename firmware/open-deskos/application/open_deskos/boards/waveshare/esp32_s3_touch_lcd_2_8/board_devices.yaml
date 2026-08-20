@@ -1,0 +1,12 @@
+# Waveshare ESP32-S3 Touch LCD 2.8 device map.
+# Display and CST328 touch are initialized by the Open DeskOS S3 bring-up
+# path because the current IDF dependency graph has no CST328 component.
+devices:
+  - name: buttons
+    chip: gpio_button
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      button_boot_gpio: 0
+      active_level: 0

@@ -15,19 +15,29 @@ endif()
 
 file(GLOB BOARD_DIRS LIST_DIRECTORIES true "${BOARDS_ROOT}/*/*")
 list(LENGTH BOARD_DIRS BOARD_COUNT)
-if(NOT BOARD_COUNT EQUAL 1)
-    message(FATAL_ERROR "expected exactly one production board, found ${BOARD_COUNT}")
+if(NOT BOARD_COUNT EQUAL 2)
+    message(FATAL_ERROR "expected exactly two production boards, found ${BOARD_COUNT}")
 endif()
 
-list(GET BOARD_DIRS 0 ONLY_BOARD)
-if(NOT ONLY_BOARD STREQUAL "${BOARDS_ROOT}/guition/jc4880p443c")
-    message(FATAL_ERROR "unexpected production board: ${ONLY_BOARD}")
+foreach(required_board IN ITEMS
+        "${BOARDS_ROOT}/guition/jc4880p443c"
+        "${BOARDS_ROOT}/waveshare/esp32_s3_touch_lcd_2_8")
+    list(FIND BOARD_DIRS "${required_board}" BOARD_INDEX)
+    if(BOARD_INDEX EQUAL -1)
+        message(FATAL_ERROR "required production board is missing: ${required_board}")
+    endif()
+endforeach()
+
+file(READ "${BOARDS_ROOT}/guition/jc4880p443c/board_info.yaml" P4_INFO)
+string(FIND "${P4_INFO}" "board: jc4880p443c" P4_ID_OFFSET)
+if(P4_ID_OFFSET EQUAL -1)
+    message(FATAL_ERROR "production P4 board ID must be jc4880p443c")
 endif()
 
-file(READ "${ONLY_BOARD}/board_info.yaml" BOARD_INFO)
-string(FIND "${BOARD_INFO}" "board: jc4880p443c" BOARD_ID_OFFSET)
-if(BOARD_ID_OFFSET EQUAL -1)
-    message(FATAL_ERROR "production board ID must be jc4880p443c")
+file(READ "${BOARDS_ROOT}/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml" S3_INFO)
+string(FIND "${S3_INFO}" "board: esp32_s3_touch_lcd_2_8" S3_ID_OFFSET)
+if(S3_ID_OFFSET EQUAL -1)
+    message(FATAL_ERROR "production S3 board ID is missing")
 endif()
 
 file(READ "${OPEN_DESKOS_ROOT}/CMakeLists.txt" CMAKE_SOURCE)

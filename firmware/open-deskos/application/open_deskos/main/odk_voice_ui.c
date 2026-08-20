@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Voice-UI Runner: LLM emits a canonical App module; the Runner injects the
- * live ST7701 panel handle, owns the common frame, and drives lifecycle
+ * live panel handle, owns the common frame, and drives lifecycle
  * callbacks from one Shell task.
  */
 #include "odk_voice_ui.h"
@@ -23,6 +23,7 @@
 #include "lualib.h"
 
 #include "odk_display_bringup.h"
+#include "odk_s3_display_bringup.h"
 #include "driver/usb_serial_jtag.h"
 #include "odk_sub.h"
 #include "odk_touch_bringup.h"
@@ -40,7 +41,11 @@
 static const char *TAG = "odk_voice_ui";
 
 static const char *s_system_prompt =
+#if CONFIG_IDF_TARGET_ESP32S3
+    "You generate Lua UI for the Open DeskOS OS shell: a 240x320 portrait touch panel.\n"
+#else
     "You generate Lua UI for the Open DeskOS OS shell: a 480x800 portrait touch panel.\n"
+#endif
     "The user message is a VOICE TRANSCRIPT (a spoken request to build a UI).\n"
     "Output ONLY the complete Lua source: no markdown fences, never empty.\n"
     "\n"
@@ -95,7 +100,11 @@ static const char *s_system_prompt =
     "NEVER emoji or Unicode pictographs. See the name list above.\n"
     "For anything not in that list use ASCII words (Sunny, Rain).\n"
     "\n"
+#if CONFIG_IDF_TARGET_ESP32S3
+    "Globals: PANEL, PANEL_IF, WIDTH=240, HEIGHT=320, ICONS, UI_SCALE.\n"
+#else
     "Globals: PANEL, PANEL_IF, WIDTH=480, HEIGHT=800, ICONS, UI_SCALE.\n"
+#endif
     "App contract -- return a module table. `on_start(ctx)` is required;\n"
     "`on_pause(ctx)`, `on_resume(ctx)`, `on_tick(ctx)`, and `on_stop(ctx)` are\n"
     "optional. The runner owns LVGL, the common frame, screen load, and event\n"
@@ -344,7 +353,11 @@ static int call_global(lua_State *L, const char *name)
 
 static void voice_ui_register_touch(lua_State *L)
 {
+#if CONFIG_IDF_TARGET_ESP32S3
+    esp_lcd_touch_handle_t tp = odk_s3_touch_get_handle();
+#else
     esp_lcd_touch_handle_t tp = odk_touch_get_handle();
+#endif
     if (tp == NULL || L == NULL) {
         return;
     }
@@ -375,9 +388,9 @@ static void voice_ui_task(void *arg)
     static const char *wrapper =
         "local lvgl = require('lvgl')\n"
         "local aiodi = require('aiodi')\n"
-        /* Use ESP32-P4 recommended PARTIAL mode with internal SRAM DMA buffers + DMA2D.
-         * Eliminates multi-buffer swap flickering and partial-dirty tearing. */
-        "lvgl.init(PANEL, nil, WIDTH, HEIGHT, PANEL_IF, {tick_ms=2, task_period_ms=2})\n"
+        /* The runtime selects the adapter for P4 MIPI and the SPI partial path
+         * for S3; both use the same Lua lifecycle. */
+        "lvgl.init(PANEL, IO, WIDTH, HEIGHT, PANEL_IF, {tick_ms=2, task_period_ms=2})\n"
         "local screen, root\n"
         "if __odk_mode == 'app' then\n"
         "  screen, root = aiodi.app({ title = __odk_title })\n"
@@ -478,14 +491,20 @@ static void voice_ui_add_lib_path(lua_State *L)
 static odk_err_t load_and_start(const char *lua_src, const char *mode,
                                  const char *app_id, const char *title)
 {
+#if CONFIG_IDF_TARGET_ESP32S3
+    esp_lcd_panel_handle_t panel = NULL;
+#else
     esp_lcd_panel_handle_t panel = odk_display_get_panel();
+#endif
     const char *data_root = claw_paths_get(CLAW_PATH_DATA);
     esp_err_t data_root_err;
 
+#if !CONFIG_IDF_TARGET_ESP32S3
     if (panel == NULL) {
         ESP_LOGE(TAG, "display panel not ready");
         return ODK_ERR_NOT_FOUND;
     }
+#endif
     if (data_root == NULL || data_root[0] == '\0') {
         ESP_LOGE(TAG, "LVGL DATA root is not configured");
         return ODK_ERR_STORAGE;
@@ -539,13 +558,32 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     voice_ui_add_lib_path(L);
 
     int w = 0, h = 0;
+#if CONFIG_IDF_TARGET_ESP32S3
+    esp_lcd_panel_handle_t active_panel = odk_s3_display_get_panel();
+    esp_lcd_panel_io_handle_t active_io = odk_s3_display_get_io();
+    esp_lcd_touch_handle_t active_touch = odk_s3_touch_get_handle();
+    odk_s3_display_get_size(&w, &h);
+#else
+    esp_lcd_panel_handle_t active_panel = panel;
+    esp_lcd_panel_io_handle_t active_io = NULL;
+    esp_lcd_touch_handle_t active_touch = odk_touch_get_handle();
     odk_display_get_size(&w, &h);
-    lua_pushlightuserdata(L, panel);
+#endif
+#if CONFIG_IDF_TARGET_ESP32S3
+    (void)panel;
+#else
+    panel = active_panel;
+#endif
+    lua_pushlightuserdata(L, active_panel);
     lua_setglobal(L, "PANEL");
-    lua_pushnil(L);
+    if (active_io != NULL) {
+        lua_pushlightuserdata(L, active_io);
+    } else {
+        lua_pushnil(L);
+    }
     lua_setglobal(L, "IO");
     {
-        esp_lcd_touch_handle_t tp = odk_touch_get_handle();
+        esp_lcd_touch_handle_t tp = active_touch;
         if (tp != NULL) {
             lua_pushlightuserdata(L, tp);
         } else {
@@ -557,14 +595,22 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     lua_setglobal(L, "WIDTH");
     lua_pushinteger(L, h);
     lua_setglobal(L, "HEIGHT");
+#if CONFIG_IDF_TARGET_ESP32S3
+    lua_pushnumber(L, 0.5);
+#else
     lua_pushinteger(L, 2);
+#endif
     lua_setglobal(L, "UI_SCALE");
     /* aiodi.ensure_svg_file: absolute write path for icon SVGs (device only;
      * sim leaves DATA_ROOT nil and keeps its cwd-relative icons/ dir). */
     lua_pushstring(L, data_root);
     lua_setglobal(L, "DATA_ROOT");
     lua_getglobal(L, "lvgl");
+#if CONFIG_IDF_TARGET_ESP32S3
+    lua_getfield(L, -1, "PANEL_IF_IO");
+#else
     lua_getfield(L, -1, "PANEL_IF_MIPI_DSI");
+#endif
     lua_setglobal(L, "PANEL_IF");
     lua_getfield(L, -1, "SYMBOL"); /* lvgl still on stack */
     lua_setglobal(L, "ICONS");

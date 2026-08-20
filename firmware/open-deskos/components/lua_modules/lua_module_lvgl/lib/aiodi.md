@@ -92,7 +92,9 @@ constant.
   panel never overflows; used by `px()` for fonts/splash/ring. The home grid
   does **not** use this for layout — see `grid_metrics`.
 - `aiodi.px(v, w, h)` — scale one reference number to device px.
-- `aiodi.grid_metrics(w, h)` — the whole grid geometry: `cols`/`rows` (3x4),
+- `aiodi.grid_metrics(w, h)` — the whole grid geometry. The standard portrait
+  panel uses `cols`/`rows` 3x4; compact panels at or below 320px on either axis
+  use 2x2 and reject layouts that require larger spans.
   `cell` (always 1:1), `gutter` (identical on both axes), `status_h` (top
   bar), `peek_h` / `peek_pad` / `peek_inset` (bottom fullscreen-app peek
   strip + in-card margin), `w`, `h`, `radius`, `stroke`, and `x`/`y` (grid
@@ -153,9 +155,11 @@ All `opts` are optional and override the AIODI defaults. Layout is done with an
   `opts.on_click` to make it tappable (it then becomes a button: the binding
   cannot clear `LV_OBJ_FLAG_CLICKABLE`, so a container's clickability is not
   worth betting navigation on). Requires a parent with `set_grid`.
-- `aiodi.grid(parent, metrics)` — fixed 3×4 home grid using the supplied
+- `aiodi.grid(parent, metrics)` — home grid using the supplied
   `grid_metrics()` result. Use this for every grid-based home page so spans,
-  gutters, and overflow behavior stay identical to Homepage/#1.
+  and let the board-sized metrics select the compact 2x2 geometry on S3.
+  gutters, and overflow behavior stay identical to Homepage/#1. The supplied
+  metrics are 3x4 on the P4 and 2x2 on the compact S3 panel.
 - `aiodi.statusbar(parent, opts)` — transparent row, `space_between` / center by
   default; for a top/bottom dock of icons + time in secondary text.
 - `aiodi.clock(parent, opts)` — big-numeral label (`primary`, default text

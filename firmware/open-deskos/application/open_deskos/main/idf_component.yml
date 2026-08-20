@@ -19,17 +19,8 @@ dependencies:
   claw_utils:
     path: ../../../components/claw_modules/claw_utils
 
-  # emote (facial-animation assets) pulls esp_emote_expression ->
-  # esp_emote_assets, whose 0.1.2 build now exceeds the 1M `emote` partition in
-  # partitions_open-deskos_16MB.csv. The launcher (Open DeskOS shell) does not use
-  # emote, and the display is driven directly by odk_display_bringup, so gate
-  # it on APP_CLAW_ENABLE_EMOTE (default off) instead of the board's display
-  # symbol — which setup_device.c also needs for its device headers.
-  emote:
-    path: ../../../components/common/emote
-    rules:
-    - if: $CONFIG{APP_CLAW_ENABLE_EMOTE} == True
-
+  # The Open DeskOS launcher does not use the emote asset stack. The shared
+  # app_claw dependency keeps its optional declaration for other applications.
   http_reuse:
     path: ../../../components/common/http_reuse
 

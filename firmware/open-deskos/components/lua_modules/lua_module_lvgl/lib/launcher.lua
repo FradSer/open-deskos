@@ -10,6 +10,7 @@ local lvgl = require("lvgl")
 local state_store = require("state_store")
 
 local plugin_registry = require("core.plugin_registry")
+local dashboard_layout = require("dashboard_layout")
 local widget_engine = require("core.widget_engine")
 local pager = require("core.pager")
 local dashboard_engine = require("core.dashboard_engine")
@@ -218,11 +219,43 @@ local function build_home()
     }
     composer = desktop_composer.compose(pages_slots, desktop_layout, host_ctx)
 
+    local dashboard_contract = dashboard_layout
+    local dashboard_fixture = function()
+        return dashboard_layout.runtime_values
+    end
+    local dashboard_metrics = dashboard_layout.build_metrics(aiodi, g.w, g.h)
+    local metrics = dashboard_metrics
+    dashboard_layout.validate(metrics)
+    local values = dashboard_fixture()
+    local plan = dashboard_layout.plan(metrics, values)
+    local plan_box = home_scr
+    plan_box:clean()
+    local fonts = dashboard_layout.font_metrics(metrics, metrics.text_size)
+    local metric_width = dashboard_layout.metric_measure(metrics, fonts, part.key, part.text)
+    local icon_frame = dashboard_layout.inline_icon_frame(metrics, fonts, part.key)
+    if part.key == "focus" then
+        icon_frame = icon_frame
+    end
+    local dashboard_signature = dashboard_layout.values_signature(values)
+    local dashboard_w = g.w
+    local dashboard_canvas = { w = dashboard_w, h = metrics.narrative_h }
+    local dashboard_flex = { main = "start", cross = "start" }
+
     -- 4. Build Bottom Peek
     build_peek(home_scr, g)
 
     -- 5. Pre-render initial page snapshots & arm native C scroll hook
     pager.prepare_page_snapshots()
+
+    local home_page = 1
+    local start = 1
+    if os.getenv then
+        start = tonumber(os.getenv("ODK_SIM_HOME_PAGE")) or 1
+    end
+    start = math.max(1, math.min(page_count, start))
+    home_page = start
+    pager.go_page(home_page, false)
+    painted.was_in_app = false
 
     return home_scr
 end

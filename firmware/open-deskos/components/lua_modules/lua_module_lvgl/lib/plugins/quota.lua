@@ -35,6 +35,29 @@ local function sub_has_data()
 end
 
 Plugin.widgets = {
+    -- Compact S3 page: keep all quota data inside one 2x2 tile.
+    ["2x2"] = function(parent, spec, ctx)
+        local g = ctx.grid_metrics or aiodi.grid_metrics()
+        local tile = aiodi.tile(parent, {
+            col = spec.col, row = spec.row, col_span = 2, row_span = 2,
+            bg_color = aiodi.colors.surface, pad = g.gutter,
+            flex = { flow = "column", main = "space_between", cross = "start" },
+        })
+        local pct = tonumber(get_sub("primaryPct", nil))
+        aiodi.caption(tile, { text = "OPENCODE GO", font = aiodi.font(aiodi.px(12)) })
+        aiodi.clock(tile, {
+            text = pct and (pct .. "%") or "--",
+            font = aiodi.font_bold(aiodi.px(42)),
+            text_color = aiodi.colors.primary,
+        })
+        aiodi.caption(tile, {
+            text = pct and "Rolling usage" or "Connect Mac",
+            font = aiodi.font(aiodi.px(12)),
+            text_color = aiodi.colors.secondary,
+        })
+        return { root = tile }
+    end,
+
     -- 2x1 Widget: Large percent number + reset time
     ["2x1"] = function(parent, spec, ctx)
         local tile = aiodi.tile(parent, {

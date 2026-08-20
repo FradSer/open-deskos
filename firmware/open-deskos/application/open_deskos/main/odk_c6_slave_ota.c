@@ -10,6 +10,14 @@
  */
 #include "odk_c6_slave_ota.h"
 
+#if CONFIG_IDF_TARGET_ESP32S3
+volatile bool g_odk_c6_restart_allowed = false;
+esp_err_t odk_c6_slave_ota_if_needed(void)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+#else
+
 #include <string.h>
 #include <inttypes.h>
 
@@ -113,3 +121,4 @@ esp_err_t odk_c6_slave_ota_if_needed(void)
 
 // Global flag: main.c checks this before restarting C6
 volatile bool g_odk_c6_restart_allowed = false;
+#endif

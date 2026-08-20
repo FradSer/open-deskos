@@ -1,5 +1,6 @@
 Feature: Open DeskOS firmware scope
-  The repository exposes one product firmware for the Guition JC4880P443C board.
+  The repository exposes the Open DeskOS product firmware for the Guition
+  JC4880P443C P4 board and the compact Waveshare ESP32-S3 board.
 
   Scenario: The product firmware has a product-specific application identity
     Given the Open DeskOS firmware source tree
@@ -8,9 +9,10 @@ Feature: Open DeskOS firmware scope
     And its ESP-IDF project identity is open_deskos
     And the legacy upstream application path is absent
 
-  Scenario: Only the Guition production board remains
+  Scenario: The production board catalog contains the supported targets
     Given the Open DeskOS production firmware application
     When board-manager definitions are enumerated
-    Then exactly one board definition is available
-    And that board is guition/jc4880p443c with board ID jc4880p443c
+    Then exactly two board definitions are available
+    And guition/jc4880p443c has board ID jc4880p443c
+    And waveshare/esp32_s3_touch_lcd_2_8 has board ID esp32_s3_touch_lcd_2_8
     And no upstream sample firmware application remains

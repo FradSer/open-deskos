@@ -1,0 +1,11 @@
+# Open DeskOS ESP32-S3 layout: enough system/storage space for the Lua shell.
+# Name,    Type, SubType, Offset,   Size
+nvs,       data, nvs,     0xA000,   0x6000
+otadata,   data, ota,     0x10000,  0x2000
+phy_init,  data, phy,     0x12000,  0x1000
+ota_0,     app, ota_0,         ,   4608K
+ota_1,     app, ota_1,         ,   4608K
+emote,     data, spiffs,        ,   64K
+system,    data, fat,           ,   3392K
+storage,   data, fat,           ,   2560K
+packages,  data, fat,           ,   1024K

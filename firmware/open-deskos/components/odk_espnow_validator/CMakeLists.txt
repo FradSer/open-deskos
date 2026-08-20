@@ -16,6 +16,9 @@ if(ESP_PLATFORM)
         REQUIRES
             odk_domain
             espressif__esp_hosted
+        PRIV_INCLUDE_DIRS
+            "${CMAKE_CURRENT_LIST_DIR}/../../application/open_deskos/managed_components/espressif__esp_hosted/host"
+            "${CMAKE_CURRENT_LIST_DIR}/../../application/open_deskos/managed_components/espressif__esp_hosted/host/api/include"
     )
 else()
     add_library(odk_espnow_validator STATIC ${ODK_ESPNOW_VALIDATOR_SRCS})

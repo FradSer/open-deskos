@@ -25,7 +25,11 @@ if(NOT OPEN_DESKOS_ADAPTER_PATCH_RC EQUAL 0)
     message(WARNING "[open_deskos] esp_lvgl_adapter internal-ctx patch failed (rc=${OPEN_DESKOS_ADAPTER_PATCH_RC})")
 endif()
 
+# The production board catalog includes the P4 and compact S3 targets. The S3
+# uses the SPI path and must not run P4-only adapter patching assumptions.
+
 # P4's PPA validates output buffers against the external-DMA cache alignment.
+if(NOT IDF_TARGET STREQUAL "esp32s3")
 # Snapshot layers can legitimately use a different backing alignment, so make
 # the adapter fall back to LVGL's software blender instead of aborting the UI.
 execute_process(
@@ -76,6 +80,8 @@ execute_process(
 )
 if(NOT OPEN_DESKOS_BMGR_REQ_PATCH_RC EQUAL 0)
     message(WARNING "[open_deskos] gen_bmgr REQUIRES patch failed (rc=${OPEN_DESKOS_BMGR_REQ_PATCH_RC})")
+endif()
+
 endif()
 
 # ThorVG (LVGL's SW vector backend for aiodi.svg_icon) compares a plain char
