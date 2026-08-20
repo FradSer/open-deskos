@@ -1,18 +1,21 @@
 # Open DeskOS ![](https://img.shields.io/badge/status-active_development-orange)
 
-[![硬件](https://img.shields.io/badge/hardware-ESP32--P4%20%2B%20ESP32--C6-blue)](docs/open-deskos/OPEN-DESKOS.md) [![固件](https://img.shields.io/badge/firmware-ESP--IDF-green)](firmware/open-deskos/)
+[![硬件](https://img.shields.io/badge/hardware-ESP32--P4%20%2B%20ESP32--C6%20%7C%20ESP32--S3-blue)](docs/open-deskos/OPEN-DESKOS.md) [![固件](https://img.shields.io/badge/firmware-ESP--IDF-green)](firmware/open-deskos/)
 
 [English](README.md) | **简体中文**
 
-Open DeskOS 是一套桌面伴侣操作系统，运行在 ESP32-P4 显示设备和 ESP32-C6 网络协处理器上，并配套 Apple 平台客户端。
+Open DeskOS 是一套桌面伴侣操作系统，运行在 ESP32-P4 显示设备、ESP32-C6 网络协处理器、紧凑型 ESP32-S3 变体上，并配套 Apple 平台客户端。
 
 ## 仓库内容
 
 ### 固件
 
-ESP32-P4 固件提供 LVGL/Lua 桌面外壳、Widget、应用、语音 UI 和 USB 集成；ESP32-C6 通过 hosted 链路处理 Wi-Fi 与 ESP-NOW 连接。
+生产固件位于 `firmware/open-deskos/application/open_deskos/`（ESP-IDF 工程名 `open_deskos`），支持两块开发板：
 
-当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。**固件硬件范围：**生产固件只支持 Guition JC4880P443C（ESP32-P4 + ESP32-C6，480x800）。CM5/S31 以及其他所有开发板仅是研究或迁移资料，不是受支持的生产目标。
+- **Guition JC4880P443C**（`guition/jc4880p443c`，ESP32-P4 + ESP32-C6，480x800 ST7701S MIPI-DSI，GT911 触摸）——主桌面设备。
+- **Waveshare ESP32-S3 Touch LCD 2.8**（`waveshare/esp32_s3_touch_lcd_2_8`，ESP32-S3，240x320 ST7789 SPI，CST328 触摸）——紧凑型变体，布局与服务按目标条件编译。
+
+两块板共同构成 `firmware-scope.feature` 约束的产品范围。唯一受支持的应用路径是 `application/open_deskos`，旧的 `edge_agent` 路径和其他厂商板级目录不在产品构建范围内。当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。
 
 ### Native SDL 模拟器
 
@@ -26,7 +29,7 @@ cd firmware/open-deskos/sim/native_sdl
 
 ### Apple 客户端
 
-`app/apple/` 包含 SwiftUI 客户端和仅 macOS 使用的 `OpenDeskOSCLI` target。CLI 负责 Wispr Flow 健康检查，并把 OpenCode Go 订阅快照桥接到设备。
+`app/apple/` 包含 SwiftUI 客户端和仅 macOS 使用的 `OpenDeskOSCLI` target（产物 `odkctl`）。CLI 负责 Wispr Flow 健康检查，并把 OpenCode Go 订阅快照桥接到设备。
 
 ```bash
 xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
@@ -38,36 +41,48 @@ xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
 
 - [产品规格](docs/open-deskos/OPEN-DESKOS.md)
 - [固件 README](firmware/open-deskos/README.md)
+- [Waveshare S3 板级说明](firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/README.md)
 - [Apple 客户端说明](app/README.md)
 - [BDD 场景](firmware/open-deskos/tests/features/)
 
 ## 编译和烧录固件
 
-P4 显示路径要求 ESP-IDF 6.0.1 或更高版本。使用 [`eim`](https://github.com/espressif/idf-im-ui) 安装工具链，并通过指定版本运行每条 ESP-IDF 命令：
+P4 显示路径要求 ESP-IDF 6.0.1 或更高版本，S3 变体同样使用 ESP-IDF 6.0.1 构建。使用 [`eim`](https://github.com/espressif/idf-im-ui) 安装工具链，并通过指定版本运行每条 ESP-IDF 命令：
 
 ```bash
-# 一次性安装 ESP-IDF 和 ESP32-P4 工具。
+# 一次性安装 ESP-IDF 和目标工具。
 eim install -i v6.0.1 -t esp32p4
+eim install -i v6.0.1 -t esp32s3
 
 cd firmware/open-deskos/application/open_deskos
 
-# 为 Guition JC4880P443C 生成 board-manager 配置。
+# Guition JC4880P443C（P4 + C6，480x800）
 eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
-
-# 编译应用以及 system/storage 镜像。
 eim run "idf.py build" v6.0.1
-
-# 将 PORT 替换为设备的 USB Serial/JTAG 端口，然后烧录并打开监视器。
 eim run "idf.py -p PORT flash monitor" v6.0.1
+
+# Waveshare ESP32-S3 Touch LCD 2.8（S3，240x320）——独立构建目录
+eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
+eim run "idf.py -B build-s3 build" v6.0.1
+eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
 ```
 
 在 macOS 上，端口通常是 `/dev/cu.usbmodem*`；在 Linux 上通常是 `/dev/ttyACM0`。如果设备没有自动进入下载模式，按住 BOOT 的同时重置开发板，然后重新运行烧录命令。使用 `Ctrl-C` 退出监视器。
 
-上面的 board ID 对应 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml`。生产固件不要选择其他 board ID。具体板级配置、分区布局和烧录流程维护在 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/`。
+上面的 board ID 对应 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml` 和 `firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml`。生产固件不要选择其他 board ID。
 
 ## 测试
 
-Host 测试和 BDD 相关 harness 位于 `firmware/open-deskos/tests/`。Native simulator 与 host 构建覆盖不同路径，因此模拟器通过不代表 ESP-IDF 构建也能通过。
+Host 测试和 BDD 相关 harness 位于 `firmware/open-deskos/tests/`，关键场景包括 `firmware-scope.feature`（双板生产范围）和 `s3-small-board.feature`（240x320 布局与目标门控）。
+
+```bash
+cd firmware/open-deskos
+cmake -S tests/host -B /tmp/open-deskos-host-build
+cmake --build /tmp/open-deskos-host-build -j
+ctest --test-dir /tmp/open-deskos-host-build --output-on-failure
+```
+
+Native simulator 与 host 构建覆盖不同路径，因此模拟器通过不代表 ESP-IDF 构建也能通过。
 
 ## 参与开发
 
@@ -75,4 +90,4 @@ Host 测试和 BDD 相关 harness 位于 `firmware/open-deskos/tests/`。Native 
 
 ## 许可证
 
-当前仓库根目录没有包含 license 文件。
+当前仓库根目录没有包含 license 文件，固件子目录自带 `firmware/open-deskos/LICENSE`。
