@@ -12,7 +12,7 @@ Open DeskOS is a desktop companion operating system for an ESP32-P4 display devi
 
 The ESP32-P4 firmware provides the LVGL/Lua desktop shell, widgets, apps, voice UI, USB integration, and the device-side runtime. The ESP32-C6 firmware handles Wi-Fi and ESP-NOW connectivity through the hosted link.
 
-The current product direction and hardware boundaries are documented in [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md). The Guition JC4880P443C 480x800 board is the primary display target; CM5/S31 is a separate migration candidate.
+The current product direction and hardware boundaries are documented in [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md). **Firmware hardware scope:** production firmware supports only the Guition JC4880P443C (ESP32-P4 + ESP32-C6, 480x800). CM5/S31 and every other board are research or migration references only and are not supported production targets.
 
 ### Native SDL simulator
 
@@ -65,7 +65,7 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 
 On macOS, the port is commonly `/dev/cu.usbmodem*`; on Linux, it is commonly `/dev/ttyACM0`. If automatic download mode does not start, hold BOOT while resetting the board, then rerun the flash command. Stop the monitor with `Ctrl-C`.
 
-The board ID above matches `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`. Other board IDs are listed under `firmware/open-deskos/application/edge_agent/boards/`. The exact board configuration, partition layout, and flashing workflow are maintained under that directory.
+The board ID above matches `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`. Do not select another board ID for production firmware. The exact Guition board configuration, partition layout, and flashing workflow are maintained under `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/`.
 
 ## Testing
 

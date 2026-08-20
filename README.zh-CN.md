@@ -12,7 +12,7 @@ Open DeskOS 是一套桌面伴侣操作系统，运行在 ESP32-P4 显示设备�
 
 ESP32-P4 固件提供 LVGL/Lua 桌面外壳、Widget、应用、语音 UI 和 USB 集成；ESP32-C6 通过 hosted 链路处理 Wi-Fi 与 ESP-NOW 连接。
 
-当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。当前主要显示目标是 Guition JC4880P443C 480x800；CM5/S31 是独立的迁移候选方案。
+当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。**固件硬件范围：**生产固件只支持 Guition JC4880P443C（ESP32-P4 + ESP32-C6，480x800）。CM5/S31 以及其他所有开发板仅是研究或迁移资料，不是受支持的生产目标。
 
 ### Native SDL 模拟器
 
@@ -65,7 +65,7 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 
 在 macOS 上，端口通常是 `/dev/cu.usbmodem*`；在 Linux 上通常是 `/dev/ttyACM0`。如果设备没有自动进入下载模式，按住 BOOT 的同时重置开发板，然后重新运行烧录命令。使用 `Ctrl-C` 退出监视器。
 
-上面的 board ID 对应 `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`。其他 board ID 可在 `firmware/open-deskos/application/edge_agent/boards/` 下查看。具体板级配置、分区布局和烧录流程也维护在该目录中。
+上面的 board ID 对应 `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/board_info.yaml`。生产固件不要选择其他 board ID。具体板级配置、分区布局和烧录流程维护在 `firmware/open-deskos/application/edge_agent/boards/guition/jc4880p443c/`。
 
 ## 测试
 

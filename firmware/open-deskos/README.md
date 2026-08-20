@@ -138,7 +138,7 @@ Traditional IoT usually stops at connectivity: devices can connect to the networ
   <img src="docs/src/assets/images/claw-breadboard-photo.jpg" width="80%" alt="ESP-Claw on ESP32-S3 Breadboard" />
 </div>
 
-ESP-Claw now supports a wide range of development boards based on ESP32-S3, ESP32-P4, ESP32-C5, and ESP32-S31, including breadboards, M5Stack CoreS3, and many others. Supported boards in [`./application/edge_agent/boards/`](./application/edge_agent/boards/) can be flashed online directly: configuration and flashing are done entirely in the browser, with no need to compile firmware locally or install a development environment first.
+Open DeskOS firmware currently supports one production board: **Guition JC4880P443C** (ESP32-P4 + ESP32-C6, 480×800). The board configuration in [`./application/edge_agent/boards/guition/jc4880p443c/`](./application/edge_agent/boards/guition/jc4880p443c/) is the only supported firmware target.
 
 <div align="center">
   <a href="https://esp-claw.com/en/flash/">

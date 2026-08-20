@@ -6,7 +6,7 @@
 
 adaptive
 
-Open DeskOS ships one product across platforms that each own their native design language: on-device LVGL/Lua UI (AIODI design system, 480×800 portrait panel today; 928×262 landscape bar when HG-1 lights), SwiftUI client apps (`app/apple/`), a planned Rust macOS menu-bar companion (OPEN-DESKOS.md §10), and web surfaces (docs site, embedded SolidJS settings UI).
+Open DeskOS ships one product across platforms that each own their native design language: on-device LVGL/Lua UI (AIODI design system) on the **Guition JC4880P443C 480×800 portrait panel only**, SwiftUI client apps (`app/apple/`), a planned Rust macOS menu-bar companion (OPEN-DESKOS.md §10), and web surfaces (docs site, embedded SolidJS settings UI). Other boards and the 928×262 landscape bar are future research/form-factor references, not supported firmware targets.
 
 ## Users
 
@@ -14,7 +14,7 @@ Personal developers and knowledge workers at a Mac keyboard. The device sits bes
 
 ## Product Purpose
 
-Open DeskOS is a desktop companion operating system on ESP32-P4 + ESP32-C6: voice-to-cursor input, a modular widget home screen, an extensible plugin runtime, a small built-in app suite, and an ESP-NOW hub for nearby desk peripherals. Success on the panel means glanceable status, physical page/app navigation, and zero trapdoors (Back always works). The current on-device canvas that actually ships UI is the Guition JC4880P443C 480×800 portrait panel under the AIODI design system; the 928×262 landscape bar remains the long-term form factor when HG-1 lights.
+Open DeskOS is a desktop companion operating system on ESP32-P4 + ESP32-C6: voice-to-cursor input, a modular widget home screen, an extensible plugin runtime, a small built-in app suite, and an ESP-NOW hub for nearby desk peripherals. Success on the panel means glanceable status, physical page/app navigation, and zero trapdoors (Back always works). The only supported firmware canvas is the Guition JC4880P443C 480×800 portrait panel under the AIODI design system. The 928×262 landscape bar and alternate boards remain non-production research references.
 
 ## Positioning
 
@@ -22,7 +22,7 @@ A desk-side OS device, not a keyboard peripheral: the user speaks to the device 
 
 ## Operating Context
 
-Desk beside a Mac keyboard, connected over USB-C (composite HID + vendor channel). Device holds its own Wi-Fi via ESP32-C6 (esp-hosted SDIO), so widgets keep refreshing while the Mac sleeps. The macOS companion is the host-side half of the product — Chinese text injection, calendar/usage data push, package sideloading all flow through it. Long-term form factor is a 928×262 landscape touch bar; today all shipped UI targets the Guition 480×800 portrait panel.
+Desk beside a Mac keyboard, connected over USB-C (composite HID + vendor channel). Device holds its own Wi-Fi via ESP32-C6 (esp-hosted SDIO), so widgets keep refreshing while the Mac sleeps. The macOS companion is the host-side half of the product — Chinese text injection, calendar/usage data push, package sideloading all flow through it. All shipped firmware targets the Guition JC4880P443C 480×800 portrait panel. Alternate form factors, including the 928×262 landscape bar, are not supported production hardware.
 
 ## Capabilities and Constraints
 
