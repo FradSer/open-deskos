@@ -52,11 +52,8 @@ upload_firmware:
       when: on_success
     - when: never
   needs:
-    - job: build_application_edge_agent
+    - job: build_application_open_deskos
       artifacts: true
-    - job: build_application_mcp_server_point
-      artifacts: true
-      optional: true
   variables:
     FIRMWARE_API_URL: $FIRMWARE_API_URL
     FIRMWARE_API_KEY: $FIRMWARE_API_KEY

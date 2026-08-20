@@ -8,7 +8,7 @@
 #include "odk_composition.h"
 #include "claw_version.h"
 #include "claw_paths.h"
-#include "edge_agent_version.h"
+#include "open_deskos_version.h"
 #include <string.h>
 #include <sys/time.h>
 #include <stdlib.h>
@@ -515,7 +515,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP-Claw version: %s", claw_get_version());
     ESP_LOGI(TAG, "ESP-Claw git version: %s", claw_get_git_version());
-    ESP_LOGI(TAG, "Edge Agent version: %s", edge_agent_get_version());
+    ESP_LOGI(TAG, "Open DeskOS version: %s", open_deskos_get_version());
     ESP_ERROR_CHECK(app_allocate_runtime_state());
     ESP_ERROR_CHECK(init_nvs());
     ESP_ERROR_CHECK(app_config_init());

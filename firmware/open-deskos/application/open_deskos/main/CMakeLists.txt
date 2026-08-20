@@ -3,7 +3,7 @@
 # which the component manager turns into this component's REQUIRES. The headers
 # below are not reachable through those transitive includes, so declare them
 # explicitly here:
-#   esp_app_format  -> esp_app_desc.h (edge_agent_version.c)
+#   esp_app_format  -> esp_app_desc.h (open_deskos_version.c)
 #   cmd_wifi        -> cmd_wifi.h (main.c CLI registration)
 #   esp_lcd_st7701  -> esp_lcd_st7701.h (odk_display_bringup.c)
 #   esp_lcd         -> esp_lcd_panel_*.h / esp_lcd_mipi_dsi.h

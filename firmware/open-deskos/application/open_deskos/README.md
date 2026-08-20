@@ -1,4 +1,4 @@
-# Edge Agent Guide
+# Open DeskOS Guide
 
 ## FATFS Image Layout
 
@@ -6,7 +6,7 @@ Source content for all FAT partitions lives under a single tree, with one
 subdirectory per partition:
 
 ```text
-application/edge_agent/fatfs_image/
+application/open_deskos/fatfs_image/
 ├── storage/   # → storage partition (writable, mounted at /fatfs)
 └── system/    # → system partition (read-only seed, mounted at /system)
 ```
@@ -14,17 +14,17 @@ application/edge_agent/fatfs_image/
 Each subdirectory is copied into its own build-time staging directory:
 
 ```text
-application/edge_agent/build/fatfs_image/        # storage staging
-application/edge_agent/build/system_fs_image/    # system staging
+application/open_deskos/build/fatfs_image/        # storage staging
+application/open_deskos/build/system_fs_image/    # system staging
 ```
 
 Each board can also provide optional board-specific FATFS content under its own board directory. This content is overlaid onto the `system` partition:
 
 ```text
-application/edge_agent/boards/<vendor>/<board>/fatfs_image/
+application/open_deskos/boards/<vendor>/<board>/fatfs_image/
 ```
 
-During the build, `application/edge_agent/CMakeLists.txt` first copies the base `fatfs_image/system/` directory into the system staging dir, then copies the selected board's `fatfs_image/` directory if it exists. The selected board path comes from the generated `components/gen_bmgr_codes/CMakeLists.txt`, which is produced by `idf.py bmgr`.
+During the build, `application/open_deskos/CMakeLists.txt` first copies the base `fatfs_image/system/` directory into the system staging dir, then copies the selected board's `fatfs_image/` directory if it exists. The selected board path comes from the generated `components/gen_bmgr_codes/CMakeLists.txt`, which is produced by `idf.py bmgr`.
 
 If a board-specific file has the same relative path as a base system file, the board-specific file overwrites the base file in `build/system_fs_image/`. This lets a board replace firmware-baked defaults such as skills, scripts, and static assets without changing the shared base image. Board `fatfs_image/` content targets the SYSTEM image only; hidden board folders are not considered.
 
@@ -49,11 +49,11 @@ To make `esp-board-manager` easier to use, first install the helper package with
 1. Generate board support files:
 
 ```bash
-cd application/edge_agent
-idf.py bmgr -c ./boards -b guition_jc4880
+cd application/open_deskos
+idf.py bmgr -c ./boards -b jc4880p443c
 ```
 
-> Production firmware supports only `guition_jc4880`, which generates the configuration for the Guition JC4880P443C board.
+> Production firmware supports only `jc4880p443c`, which generates the configuration for the Guition JC4880P443C board.
 
 2. Configure Wi-Fi, LLM, IM, search engine, and related parameters:
 

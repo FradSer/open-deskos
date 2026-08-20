@@ -7,7 +7,7 @@ build_doc:
   extends:
     - .rules:build:doc
   needs:
-    - job: build_application_edge_agent
+    - job: build_application_open_deskos
       artifacts: true
       optional: true
   script:

@@ -4,7 +4,7 @@
 # trimmed to 1M in an earlier headless-only layout that no longer fits the
 # display board). `storage` (the claw DATA root, /fatfs) holds the 2.3M CJK
 # font seed so it cannot shrink below ~2.4M; it is 2560K here. OTA app slots
-# are 4608K to fit the DEBUG edge_agent.bin (~4.6M with ThorVG + display);
+# are 4608K to fit the DEBUG open_deskos.bin (~4.6M with ThorVG + display);
 # `packages` (installed app packages) takes the remaining ~1M. CERBERUS does
 # not use `emote` (facial-animation assets), so it is shrunk to 64K and the
 # reclaimed space goes to `system` (Lua scripts + skills), which outgrew 1M.

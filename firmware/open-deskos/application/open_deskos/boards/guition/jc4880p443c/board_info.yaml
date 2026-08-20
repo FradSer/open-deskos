@@ -1,4 +1,4 @@
-board: guition_jc4880
+board: jc4880p443c
 chip: esp32p4
 version: 1.0.0
 description: "Guition JC4880P443C_I_W/Y 4.3-inch ESP32-P4 module (JC-ESP32P4-M3-C6): ST7701S MIPI-DSI 480x800, Goodix GT911 capacitive touch, on-board ESP32-C6 Wi-Fi co-processor over esp-hosted SDIO, 32MB PSRAM, 16MB flash."
