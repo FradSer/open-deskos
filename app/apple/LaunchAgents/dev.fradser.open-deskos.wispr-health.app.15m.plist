@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.fradser.open-deskos.wispr-health.app.15m</string>
+    <key>BundleProgram</key>
+    <string>Contents/Resources/OpenDeskOS</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>OpenDeskOS</string>
+        <string>plugin</string>
+        <string>health</string>
+        <string>--daemon</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>FLOW_API_PORT</key>
+        <string>8787</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>900</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>
