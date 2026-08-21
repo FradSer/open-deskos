@@ -1,4 +1,4 @@
-# OpenDeskOS Agent Guidelines
+# Repository Guidelines
 
 ## CRITICAL: Git Commits
 
@@ -7,6 +7,35 @@ NEVER use raw `git add`/`git commit` via Bash. When asked to commit, ALWAYS use 
 ## CRITICAL: Asking the User
 
 ALWAYS interact with the user via user input prompts or confirmation UI when clarification is needed.
+
+## Project Structure
+
+- `firmware/open-deskos/` — 设备固件（ESP-IDF，Guition JC4880P443C 板）
+- `app/apple/` — macOS/iOS SwiftUI 客户端（Xcode 工程 + CLI target）
+- `docs/open-deskos/` — 产品规格（`OPEN-DESKOS.md` 是顶层权威）
+- `docs/reference/` — 现役板硬件参考资料
+
+## Build & Test Commands
+
+```sh
+# Host tests (no ESP-IDF required)
+cmake -S firmware/open-deskos/tests/host -B build/host
+cmake --build build/host -j && ctest --test-dir build/host --output-on-failure
+
+# Native SDL2 simulator (no ESP-IDF)
+cd firmware/open-deskos/sim/native_sdl && ./run.sh
+
+# Device build (IDF 6.0.1+ required for the P4 MIPI-DSI path)
+cd firmware/open-deskos/application/open_deskos
+eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
+eim run "idf.py build" v6.0.1
+
+# macOS CLI target (product name: odkctl)
+xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
+  -configuration Release -destination 'generic/platform=macOS' build
+```
+
+Host tests passing does not imply `idf.py build` passes — verify both independently.
 
 ## Core Principles
 
@@ -33,21 +62,21 @@ ALWAYS interact with the user via user input prompts or confirmation UI when cla
 ## Testing
 
 - Formal tests in `tests/`, `__tests__/`, or `spec/`
+- Firmware BDD scenarios: `firmware/open-deskos/tests/features/*.feature`; macOS specs: `app/apple/tests/features/`
 - Run quick validations with bash
 
 ## Style
 
 - MUST NOT use emojis unless explicitly requested
-- Biome with 2-space indentation for JS/TS
-- ESP-IDF C conventions for firmware (4-space, `snake_case`)
+- 2-space indentation for JS/TS; ESP-IDF C conventions for firmware (4-space, `snake_case`)
 - Standard Swift naming for macOS client
+- On-device UI follows the AIODI design system (`firmware/open-deskos/components/lua_modules/lua_module_lvgl/lib/aiodi.lua`); do not hand-roll off-palette colors
 
-## Project Structure
+## Commit & Pull Request Guidelines
 
-- `firmware/open-deskos/` — 设备固件（ESP-IDF）
-- `app/apple/` — macOS SwiftUI 客户端
-- `docs/open-deskos/` — 产品规格（`OPEN-DESKOS.md` 是顶层权威）
-- `docs/reference/` — 硬件参考资料
+- Conventional Commits: `type(scope): summary`, e.g. `feat(firmware):`, `fix(firmware):`, `docs(firmware):` — scope matches the subtree under change
+- Keep each commit scoped to one concern; deletion and reference repair belong together when one depends on the other
+- No PR templates or CI config exist in this repo; commits are the review unit
 
 ## Firmware Subtree
 
