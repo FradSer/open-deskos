@@ -44,7 +44,7 @@ Every change Open DeskOS makes to the fork is appended here.
   (`board_info.yaml`, `board_peripherals.yaml`, `board_devices.yaml`,
   `sdkconfig.defaults.board`, `setup_device.c`). Targets `esp32p4`. Declares no
   `display_lcd` / `lcd_touch` and provides no DSI panel factory entry, so the
-  build carries no Open DeskOS DSI panel init path (HG-1 avoidance). Mirrors
+  build carries no Open DeskOS DSI panel init path. Mirrors
   `espressif/esp32_p4_function_ev`'s non-display peripherals (I2C, I2S audio,
   PA control GPIO) and its P4+C6 esp-hosted/esp_wifi_remote transport, all
   adapted to real LUMINA-P4 module pins from `firmware/main/lumina_p4_pins.h`:

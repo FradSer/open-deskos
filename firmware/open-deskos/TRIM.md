@@ -9,6 +9,13 @@ configuration remain in this firmware tree.
 - The standalone upstream MCP sample application.
 - All non-Guition board definitions from the production application.
 - The upstream application identity, renamed to `open_deskos`.
+- The upstream Astro documentation site (`docs/`), web simulator page
+  (`pages/simulator/`), emsdk web simulator (`tools/lua_lvgl_web_sim/`),
+  and the GitLab CI configuration — this repo is GitHub-hosted and the
+  native SDL simulator (`sim/native_sdl/`) replaced the web path.
+- The standalone CO6300 AMOLED panel bring-up archive (was
+  `firmware/co6300-mipi-bringup/`, paused branch; conclusions are
+  preserved in the product spec history).
 
 ## Explicitly RETAINED (do not trim)
 
