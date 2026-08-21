@@ -29,6 +29,7 @@
 - [Open DeskOS Top Spec](open-deskos-top-spec.md) — OPEN-DESKOS.md 是产品权威；P4+C6 主线、Guition 480x800 优先板与 CM5/S31 独立迁移候选
 - [Subscription Data Architecture](cerberus-real-subscription-data-p4.md) — P4 OpenCode Go 订阅数据架构：cerb_sub、console sub、Mac SubBridge 与屏幕数据绑定
 - [PocketJS 评估结论](pocketjs-esp32-p4-eval.md) — PocketJS 评估结论：不替换现役 P4 LVGL+Lua，缺乏 LVGL 后端与真机证据
+- [CM5 Linux Electron 外壳](open-deskos-linux-electron-shell.md) — app/linux Electron 切片：568×1232 触摸外壳、AIODI token 对齐测试与 smoke 模式陷阱
 
 ## Workflow & Harness Preferences
 - [git-agent 提交工作流](git-agent-commit-workflow.md) — Git 提交必须经过 git-agent commit skill；裸 git add/commit 会被拦截
