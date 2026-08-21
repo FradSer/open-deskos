@@ -1,0 +1,62 @@
+# Open DeskOS Linux Shell (CM5 / Electron)
+
+Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
+[Electron](https://www.electronjs.org/),目标面板为 **568×1232 竖屏触摸**。
+
+这是迁移评估([CM5-S31-INTEGRATION](../../docs/open-deskos/CM5-S31-INTEGRATION.md))中
+"CM5 应用链路"的第一步实现。P4+C6 固件仍是生产权威;本切片不替换它。
+
+## 功能范围(第一片)
+
+- 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
+- AIODI 设计系统 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制)
+- 状态栏:实时时钟、日期、网络占位点(如实显示未连接状态,不伪造数据)
+- 主屏两页横向触摸滑动 + 页点指示;年份进度条
+- App 磁贴点按进入全屏视图,返回按钮始终可用
+
+## 目录结构
+
+```
+src/main.js            Electron 主进程(窗口/kiosk/smoke 检查)
+src/renderer/          外壳 UI(纯 DOM,index.html + shell.css + shell.js)
+tests/features/        BDD 场景(中文 Gherkin)
+tests/smoke.sh         可执行检查:两种分辨率启动 + DESIGN.md token 对齐
+scripts/cm5-install.sh CM5 设备端安装器(依赖/arm64 模块/kiosk 自启)
+```
+
+## 本机开发(macOS/Linux 均可)
+
+```sh
+cd app/linux
+pnpm install          # 或 npm install
+./run.sh              # 窗口模式,默认 568x1232
+ODESK_SHELL_KIOSK=1 ./run.sh --kiosk   # kiosk 全屏
+bash tests/smoke.sh   # 可执行检查
+```
+
+环境变量:`ODESK_SHELL_WIDTH` / `ODESK_SHELL_HEIGHT`(默认 568/1232)、
+`ODESK_SHELL_KIOSK=1`;命令行 `--kiosk` 等价。Wayland 会话追加
+`--ozone-platform-hint=auto`。
+
+## 部署到 CM5
+
+```sh
+# 从 Mac 同步(排除 node_modules,设备端按 arm64 重装)
+rsync -a --delete --exclude node_modules --exclude pnpm-lock.yaml \
+  app/linux/ cm5:/opt/open-deskos-shell/
+
+# 在 CM5 上执行
+ssh cm5
+cd /opt/open-deskos-shell && bash scripts/cm5-install.sh
+sudo reboot   # 重启后进入 kiosk 外壳
+```
+
+触摸输入经显示服务器(X11/Wayland)的 evdev 栈直达 Chromium,无需额外驱动;
+如需校准用 `xinput` 触发。Electron 的 linux-arm64 官方构建由设备端
+`pnpm/npm install` 自动拉取。
+
+## 验证状态
+
+- 已验证:宿主机 smoke(窗口尺寸两种场景 + AIODI token 对齐),macOS arm64。
+- 未验证:CM5 真机(GPU 合成、触摸事件、自启)。首次上机时按 README 排查,
+  不要把宿主机绿当作设备绿。

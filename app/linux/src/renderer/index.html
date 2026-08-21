@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=568, initial-scale=1, user-scalable=no" />
+  <title>Open DeskOS</title>
+  <link rel="stylesheet" href="shell.css" />
+</head>
+<body>
+  <header id="status-bar">
+    <span class="sb-time">--:--</span>
+    <span class="sb-date"></span>
+    <span class="sb-right">
+      <span class="sb-net" id="sb-net"></span>
+      <span class="sb-label">CM5</span>
+    </span>
+  </header>
+
+  <main id="pages-viewport">
+    <div id="pages-track">
+      <section class="page" data-page="0">
+        <div class="card hero-card">
+          <div class="hero-time">--:--</div>
+          <div class="hero-date"></div>
+          <div class="hero-year"><div class="hero-year-fill" id="year-fill"></div></div>
+          <div class="hero-year-label">YEAR</div>
+        </div>
+        <div class="card conn-card">
+          <div class="conn-title">Mac 连接</div>
+          <div class="conn-state off">未连接</div>
+        </div>
+      </section>
+
+      <section class="page" data-page="1">
+        <div class="tile-grid">
+          <button class="tile" data-app="番茄钟">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 3h6"/></svg>
+            <span>番茄钟</span>
+          </button>
+          <button class="tile" data-app="日历">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+            <span>日历</span>
+          </button>
+          <button class="tile" data-app="用量">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V12M12 20V6M19 20v-5"/></svg>
+            <span>用量</span>
+          </button>
+          <button class="tile" data-app="设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2.4M12 17.6V20M4 12h2.4M17.6 12H20M6.3 6.3l1.7 1.7M16 16l1.7 1.7M17.7 6.3L16 8M8 16l-1.7 1.7"/></svg>
+            <span>设置</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <nav id="dots" aria-label="页面指示"></nav>
+
+  <div id="app-view" hidden>
+    <header class="app-header">
+      <button id="app-back" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
+      </button>
+      <h1 id="app-title"></h1>
+    </header>
+    <div class="app-body">
+      <p class="app-empty">此平台尚未实现该 App。</p>
+    </div>
+  </div>
+
+  <script src="shell.js"></script>
+</body>
+</html>
