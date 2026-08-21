@@ -1,36 +1,33 @@
-# Agents.md
+# Repository Guidelines
 
-This file provides guidance to agents when working with code in this repository.
+This file provides guidance to agents when working with code in this directory.
 
 ## Project Overview
 
-ESP-Claw is an ESP-IDF firmware project for running an AI agent framework on Espressif IoT devices. The main application is `application/open_deskos/`; reusable firmware components live under `components/`. The repo also contains board definitions, build-time FATFS content, documentation, and the embedded device settings UI.
+Open DeskOS production firmware for the **Guition JC4880P443C** board: ESP32-P4 application processor, ESP32-C6 Wi-Fi/ESP-NOW co-processor, ST7701S MIPI-DSI 480×800 display, GT911 touch. Derived from the upstream ESP-Claw agent framework, so `claw_*` component names persist under `components/`. The main application is `application/open_deskos/`; the only board-manager definition is `application/open_deskos/boards/guition/jc4880p443c/`. See [`README.md`](README.md) for the authoritative hardware/build baseline and [`TRIM.md`](TRIM.md) for the upstream-trimming boundary.
 
 ## Development Commands
 
-Export ESP-IDF before firmware work:
-
-```bash
-. $IDF_PATH/export.sh
-```
-
-Generate board manager files and build from the app directory:
+Use ESP-IDF **6.0.1 or newer** via eim — older IDF versions break the P4 MIPI-DSI display path:
 
 ```bash
 cd application/open_deskos
-idf.py bmgr -c ./boards -b esp32_S3_DevKitC_1
-idf.py build
-idf.py flash monitor
+eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
+eim run "idf.py build" v6.0.1
+eim run "idf.py -p PORT flash monitor" v6.0.1
 ```
 
-Docs site:
+The board-manager step generates `components/gen_bmgr_codes/`; rerun it after removing the build directory or changing the board definition.
+
+Host tests (no ESP-IDF required):
 
 ```bash
-cd docs
-pnpm install
-pnpm build
-pnpm dev
+cmake -S tests/host -B /tmp/open-deskos-host-build
+cmake --build /tmp/open-deskos-host-build -j
+ctest --test-dir /tmp/open-deskos-host-build --output-on-failure
 ```
+
+Native SDL2 simulator (no ESP-IDF): `sim/native_sdl/run.sh`. It uses an SDL2 IO/PARTIAL render path — a passing simulator run does not validate the production P4 MIPI-DSI adapter path; run `idf.py build` before flashing hardware.
 
 Embedded settings UI:
 
@@ -83,7 +80,6 @@ The firmware uses two logical filesystem roots, configured at boot through `claw
 ## Project-Specific Notes
 
 - Architecture constraints: [`design.md`](.agents/design.md)
-- docs guide: [`docs.md`](.agents/docs.md)
 - Common gotchas: [`gotchas.md`](.agents/gotchas.md)
 - Specs (`.agents/spec/`):
   - lua module spec: [lua-module-spec.md](.agents/spec/lua-module-spec.md)
@@ -125,7 +121,7 @@ The firmware uses two logical filesystem roots, configured at boot through `claw
 
 ## Testing
 
-- Firmware changes should at minimum run `idf.py build` for the affected board configuration after exporting ESP-IDF and generating board manager config.
+- Firmware changes should at minimum run `eim run "idf.py build" v6.0.1` for the production board after generating board manager config; host CTest suites under `tests/host/` cover the rest without ESP-IDF.
 - Component test apps live under `components/claw_modules/*/test_apps/`.
 - Lua module tests live beside modules under `components/lua_modules/<module>/test/` with descriptive names such as `json_roundtrip.lua`.
 - Embedded frontend changes should run `cd application/open_deskos/components/http_server/frontend_source && pnpm build` and `pnpm typecheck`.
@@ -136,15 +132,7 @@ The firmware uses two logical filesystem roots, configured at boot through `claw
 - Capability registration: `components/common/app_claw/app_capabilities.c`
 - Lua module registration: `components/common/app_claw/app_lua_modules.c`
 - App config schema/storage: `application/open_deskos/components/app_config/`
-- Board definitions: `application/open_deskos/boards/`
+- Board definitions in use: `application/open_deskos/boards/guition/jc4880p443c/`
 - Guition LVGL FPS path (Direct/PPA + next hop `esp_lvgl_adapter` DOUBLE_DIRECT/TRIPLE_PARTIAL): repo-root `docs/reference/guition-lvgl-60fps-path.md`
+- Firmware testing rules and host-test contracts: `tests/host/`, BDD scenarios in `tests/features/*.feature`
 
-## AGENTS.md Best-Practice Notes
-
-Use this file as a compact router, not an encyclopedia.
-
-- Keep instructions specific to this repository and this documentation workflow.
-- Prefer exact file paths and commands over broad principles.
-- Point agents to the right source files instead of duplicating long architecture explanations here.
-- Document boundaries and exceptions explicitly, especially when "do not create a page by default" is the expected behavior.
-- Update this guide when the docs workflow changes; stale agent docs are worse than missing prose.
