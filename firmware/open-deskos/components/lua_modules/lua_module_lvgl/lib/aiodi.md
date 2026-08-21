@@ -101,8 +101,8 @@ constant.
   origin under the status bar). Leftover height goes into the peek strip.
   Memoized for the default panel size. In landscape (`w > h`, e.g. 928×262
   touch bar) returns a provisional 4-slot row with a 28px status bar
-  (`orientation = "landscape"`); portrait is the only live path today (HG-1
-  panel NEVER LIT, sim dual-target NT-2 pending).
+  (`orientation = "landscape"`); portrait is the only live path today
+  (landscape panel not yet available, sim dual-target NT-2 pending).
 
 At 480x800 this yields cell ~131, gutter 24, status_h 72, peek_h 108,
 peek_pad 24. At 320x480 it collapses to 1:1 with the Figma board.

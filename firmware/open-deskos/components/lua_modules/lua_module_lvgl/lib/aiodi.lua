@@ -292,9 +292,9 @@ function M.grid_metrics(w, h)
     end
     local pw = w or _G.WIDTH or M.ref.w
     local ph = h or _G.HEIGHT or M.ref.h
-    -- Landscape touch bar (e.g. 928×262 CO6300, spec §5/§7): 28px status bar,
+    -- Landscape touch bar (e.g. 928×262 landscape bar, spec §5/§7): 28px status bar,
     -- 928×234 content, 4 1:1 slots in a row. PROVISIONAL - S/M/L slot sizing is
-    -- pending spec detail; gated on HG-1 (panel NEVER LIT) + NT-2 (sim
+    -- pending spec detail; gated on landscape panel availability + NT-2 (sim
     -- dual-target). Portrait is the only live path today; this branch is the
     -- forward-compat hook so AIODI reflows rather than rewrites when it lights.
     if pw > ph then
