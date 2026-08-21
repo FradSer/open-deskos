@@ -12,7 +12,7 @@ Open DeskOS 实现了完全解耦、组件化、声明式编排的插件操作�
 - `core/hero_navigator.lua`：负责 Widget 绝对坐标到全屏 App 的几何插值与平滑转场动画，解耦 App Runtime。
 - `core/pager.lua`：多页面横向容器、状态栏 Page Dots 同步与 RGB565 预渲染快照（保持 60 FPS 滚动）。
 - `core/dashboard_engine.lua`：向已注册插件收集叙述流数据，驱动 `dashboard_layout.lua` 的自然语言左对齐流式排版。
-- `core/desktop_composer.lua`：解析 `config/desktop_layout.lua` 声明式配置，装配 Dashboard 与 Grid 页面（App Center 概念已归档至 docs/archive/app-center/ 待后续重构）。
+- `core/desktop_composer.lua`：解析 `config/desktop_layout.lua` 声明式配置，装配 Dashboard 与 Grid 页面（App Center 概念已移出仓库，待基于插件体系重构）。
 - `launcher.lua`：精简为 ~300 行的 Shell Composition Root。
 
 **AI 生成友好规范：**

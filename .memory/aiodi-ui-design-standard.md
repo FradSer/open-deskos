@@ -14,6 +14,6 @@ type: project
 
 **Why:** UI 生成由设备端和 native simulator 两条路径共同执行；token 或 linter 漂移会造成模拟器通过、设备端生成不一致。
 
-**How to apply:** 改 UI token 或 builder 时同步四个实现文件，运行 simulator/linter 和布局验证；保持 Guition 480×800 与 CO6300 262×928 分支的硬件假设分离。
+**How to apply:** 改 UI token 或 builder 时同步四个实现文件，运行 simulator/linter 和布局验证；保持 Guition 480×800 竖屏与 262×928 横置分支的硬件假设分离。
 
 **Related:** [[cerberus-native-sdl-sim]] [[open-deskos-top-spec]] [[cerberus-p4-display-lit]]

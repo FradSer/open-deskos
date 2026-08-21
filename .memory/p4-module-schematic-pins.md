@@ -16,7 +16,7 @@ AUTHORITATIVE GPIO map for the user's ESP32-P4 dev/carrier board (from its schem
 | TP_INT | 21 | 触控中断, P4 输入 |
 | GPIO22 | 22 | FREE (未连接) |
 
-**FFC 插座:** P4 模块两个 15-pin FFC 插座 — **LEFT (靠近 USB-C) = CSI 勿用, RIGHT (J6) = MIPI-DSI 接口**。反插短路 3V3→GND 发热即断电。15-pin 单独点不亮面板, 需要转接板；CO6300 分支的电源/FFC 闸口见 `firmware/co6300-mipi-bringup/README.md`。
+**FFC 插座:** P4 模块两个 15-pin FFC 插座 — **LEFT (靠近 USB-C) = CSI 勿用, RIGHT (J6) = MIPI-DSI 接口**。反插短路 3V3→GND 发热即断电。15-pin 单独点不亮面板, 需要转接板。
 
 **三块板 map 不要混:** Guition JC4880P443C / P4 模块 / LUMINA-P4 各有一份不同的 GPIO 分配。csvke BSP 是 Guition 的权威参考(见 [[cerberus-p4-display-lit]])。
 

@@ -8,7 +8,7 @@ type: project
 
 **当前架构：**
 - P4+C6 仍是 Open DeskOS 主线：P4 负责 UI、USB、应用编排，C6 负责 esp-hosted 网络和 ESP-NOW 桥接。
-- 优先硬件是 Guition JC4880P443C 的 ST7701S MIPI-DSI 480×800 竖屏，已在固件中点亮；262×928 CO6300 AMOLED 仍是暂停分支。
+- 优先硬件是 Guition JC4880P443C 的 ST7701S MIPI-DSI 480×800 竖屏，已在固件中点亮；262×928 CO6300 AMOLED 分支已从仓库移除（暂停）。
 - Widgets 采用声明式 LVGL/Lua 视图和数据快照，保持单一 LVGL owner。
 - Orange Pi CM5/RK3588S + ESP32-S31 只是独立迁移候选，不替换 P4+C6，也不作为运行时回退。详见 [[cerberus-rpi-migration-eval]]。
 

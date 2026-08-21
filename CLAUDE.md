@@ -6,8 +6,7 @@
 
 - **`firmware/open-deskos/`** — 设备固件（esp-claw fork）。顶层权威是 `@docs/open-deskos/OPEN-DESKOS.md`。
 - **`app/apple/`** — macOS SwiftUI 客户端（plugin-hosted sidecars）。
-- **`docs/`** — 产品规格、计划、回顾、参考资料。`docs/README.md` 是索引。
-- **`co6300.pdf`** — AMOLED 面板数据手册。
+- **`docs/`** — 产品规格与现役板硬件参考（Guition JC4880P443）。`docs/README.md` 是索引。
 
 ## 开发命令
 
