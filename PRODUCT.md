@@ -26,7 +26,7 @@ Desk beside a Mac keyboard, connected over USB-C (composite HID + vendor channel
 
 ## Capabilities and Constraints
 
-Five product pillars (OPEN-DESKOS.md §1): voice input (typeless-style dictation with polish/translate), extensible plugin runtime (esp-claw base; Lua sandbox; App Center archived for refactor), widget home screen, built-in app suite (pomodoro, calendar, AI chatbot, AI usage), ESP-NOW peripheral hub. Hard constraints: HG-1 through HG-4 gate all UI visibility (HG-1 panel NEVER LIT as of 2026-07); M1 "typewriter" runs without a display. Firmware is the esp-claw fork; runtime LLM is first-class but quota-gated.
+Five product pillars (OPEN-DESKOS.md §1): voice input (typeless-style dictation with polish/translate), extensible plugin runtime (esp-claw base; Lua sandbox; App Center archived for refactor), widget home screen, built-in app suite (pomodoro, calendar, AI chatbot, AI usage), ESP-NOW peripheral hub. Hard constraints: hardware gates HG-2–HG-4 (esp-hosted SDIO concurrency, audio chain bring-up, landscape rendering) remain open; M1 "typewriter" runs without a display. Firmware is the esp-claw fork; runtime LLM is first-class but quota-gated.
 
 ## Brand Commitments
 

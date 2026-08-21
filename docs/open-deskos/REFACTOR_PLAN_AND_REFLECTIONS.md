@@ -14,7 +14,7 @@
 2. **Dashboard 流式叙述文本生成与布局**（Dashboard Page Builder）
 3. **主屏 3×4 静态网格绘制**（Hardcoded Home Grid Builder）
 4. **Agent Quota 监控屏绘制**（Agent Quota Page Builder）
-5. **应用中心与商店界面整合**（App Center Integrator，已归档至 docs/archive/app-center/）
+5. **应用中心与商店界面整合**（App Center Integrator，相关实现已从仓库移除）
 6. **Hero 转场动画与生命周期调度**（Hero Animation Engine）
 7. **Pomodoro 等特例业务逻辑内联**（Inline App Logic & State Sync）
 

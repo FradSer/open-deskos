@@ -9,7 +9,7 @@
 > **本文与总纲的偏差(以 OPEN-DESKOS.md §2 修订 1–3 为准)**:
 > 1. §四"显示内容"清单已被 Open DeskOS §5 的 OS 外壳(widget 主屏 + app 全屏)取代——原清单每一项(语音/连接/外设/now-playing/宏/系统状态)映射为 widget 或内置 app,不再是固定状态页。
 > 2. §五/§十九"触摸确认后才上屏"从强制改为**可配置**:默认"直出模式"(段级流式注入),确认模式为可选开关(原行为)。§十九验收行据此修订为"段 final ≤2s 上屏"。
-> 3. §四触摸 IC 型号本文写 CST3530,但在手实物 bring-up 实测为 **ZT2628**(I2C 0x18/0x58,工作正常,见 [firmware/co6300-mipi-bringup/README](../../firmware/co6300-mipi-bringup/README.md));两者同为 I2C 电容触控,实施 021 任务时以实测定型。
+> 3. §四触摸 IC 型号本文写 CST3530;现役 Guition JC4880P443C 板为 Goodix **GT911**,固件已按 GT911 落地(见 OPEN-DESKOS.md §2 修订 3)。
 
 ---
 

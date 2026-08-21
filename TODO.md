@@ -47,8 +47,6 @@
 
 ## 已知未竟事项(来自规格,非本计划)
 
-- [ ] HG-1:P4 AMOLED(928×262)面板 NEVER LIT —— 仓库最高优先级单项,
-      当前阻塞在 cmd_ack 验证(Open DeskOS §4)。
 - [ ] BLE 配网(原 PROJECT-OPEN-DESKOS 顺延列表,Open DeskOS)。
 - [ ] 包签名 Ed25519:解冻条件 = 出现第三方目录(NFR-9)。
 - [ ] LUMINA-P4:`firmware/` 的 TAS5825M PPC3 DSP cfg 导出 + post-I2S 接线
