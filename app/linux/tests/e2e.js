@@ -1,0 +1,101 @@
+const { app, BrowserWindow } = require('electron')
+const path = require('node:path')
+
+const APP_ROOT = path.resolve(__dirname, '..')
+const OVERALL_TIMEOUT_MS = 20000
+
+const DRIVER_SCRIPT = `
+(async () => {
+  const $ = (selector) => document.querySelector(selector)
+  const out = {}
+  const viewport = $('#pages-viewport')
+  const track = $('#pages-track')
+
+  await new Promise((resolve) => setTimeout(resolve, 1200))
+
+  out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
+  out.dateFormatted = /^\\d{1,2}\\/\\d{1,2}$/.test($('.sb-date').textContent)
+  out.pageCount = document.querySelectorAll('#pages-track .page').length
+  out.dotCount = document.querySelectorAll('#dots .dot').length
+
+  const rect = viewport.getBoundingClientRect()
+  const y = rect.top + rect.height / 2
+  const x0 = rect.left + rect.width * 0.8
+  const x1 = rect.left + rect.width * 0.2
+  const pointerEvent = (type, x) =>
+    new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: y, buttons: 1 })
+  viewport.dispatchEvent(pointerEvent('pointerdown', x0))
+  viewport.dispatchEvent(pointerEvent('pointermove', (x0 + x1) / 2))
+  viewport.dispatchEvent(pointerEvent('pointermove', x1))
+  viewport.dispatchEvent(pointerEvent('pointerup', x1))
+  await new Promise((resolve) => setTimeout(resolve, 350))
+
+  out.viewportWidth = viewport.clientWidth
+  out.transformAfterSwipe = track.style.transform
+  out.secondDotActive = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+
+  document.querySelector('.tile').click()
+  out.appVisibleAfterTileTap = !$('#app-view').hidden
+  out.appTitle = $('#app-title').textContent
+  $('#app-back').click()
+  out.appClosedAfterBack = $('#app-view').hidden
+  out.stillSecondPageAfterBack = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+
+  return out
+})()
+`
+
+function check(results) {
+  const checks = [
+    ['clock HH:MM', results.clockFormatted],
+    ['date M/D', results.dateFormatted],
+    ['two pages', results.pageCount === 2],
+    ['two dots', results.dotCount === 2],
+    [
+      'swipe moves to page 2',
+      results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`,
+    ],
+    ['second dot active', results.secondDotActive],
+    ['tile opens app view', results.appVisibleAfterTileTap],
+    ['app title set', typeof results.appTitle === 'string' && results.appTitle.length > 0],
+    ['back closes app view', results.appClosedAfterBack],
+    ['page preserved after back', results.stillSecondPageAfterBack],
+  ]
+  let failures = 0
+  for (const [name, ok] of checks) {
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
+    if (!ok) failures += 1
+  }
+  return failures
+}
+
+async function main() {
+  const win = new BrowserWindow({
+    width: 568,
+    height: 1232,
+    useContentSize: true,
+    frame: false,
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+
+  const timeout = setTimeout(() => {
+    console.error('FAIL  e2e timed out')
+    app.exit(1)
+  }, OVERALL_TIMEOUT_MS)
+
+  await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
+  const results = await win.webContents.executeJavaScript(DRIVER_SCRIPT, true)
+  clearTimeout(timeout)
+
+  console.log(JSON.stringify(results))
+  process.exitCode = check(results) === 0 ? 0 : 1
+  app.exit(process.exitCode)
+}
+
+app.whenReady().then(main)

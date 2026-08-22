@@ -20,6 +20,7 @@ Repository-wide rules live in the root `AGENTS.md`.
 pnpm install                 # or npm install; pins linux-arm64 Electron on device
 ./run.sh                     # windowed dev run
 bash tests/smoke.sh          # boots twice (default + overridden size) and checks tokens
+pnpm run e2e                 # drives real scenarios: clock, swipe paging, tile/back
 ```
 
 Smoke checks must pass before committing renderer changes. A host-passing run

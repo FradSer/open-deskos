@@ -6,7 +6,8 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "smoke": "electron . --smoke"
+    "smoke": "electron . --smoke",
+    "e2e": "electron tests/e2e.js"
   },
   "devDependencies": {
     "electron": "^43.4.1"

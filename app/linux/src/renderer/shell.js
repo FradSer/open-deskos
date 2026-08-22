@@ -74,7 +74,11 @@ function createPager(viewport, track) {
     dx = 0
     dragged = false
     track.classList.add('dragging')
-    viewport.setPointerCapture(event.pointerId)
+    try {
+      viewport.setPointerCapture(event.pointerId)
+    } catch {
+      /* synthetic pointers (tests) cannot be captured */
+    }
   })
 
   viewport.addEventListener('pointermove', (event) => {
