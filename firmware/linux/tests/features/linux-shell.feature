@@ -27,6 +27,12 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When 渲染完成
     Then 状态栏时钟为 HH:MM 格式的当前时间
 
+  Scenario: Dashboard 叙述流对齐 AIODI 参考
+    Given 外壳已启动
+    Then 首页头部为左侧英文星期缩写加红点、右侧月日与年份两行右对齐
+    And 叙述流由不可拆分的语义组构成，含内联图标与白色加粗强调值，其余为灰色基色
+    And 底部统计行包含 steps 与 hours 两项且图标着色
+
   Scenario: 横向滑动切换页面并同步状态栏页点
     Given 主屏有至少两个页面
     When 在页面上向左滑动超过阈值

@@ -33,21 +33,26 @@ function pad2(value) {
 }
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
 
 function startClock() {
-  const timeNodes = document.querySelectorAll('.sb-time, .hero-time, .w-clock-time')
-  const dateNodes = document.querySelectorAll('.hero-date')
+  const timeNodes = document.querySelectorAll('.sb-time, .w-clock-time')
   const yearFills = document.querySelectorAll('.meter-fill')
 
   function tick() {
     const now = new Date()
     const hhmm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
     for (const node of timeNodes) node.textContent = hhmm
-    for (const node of dateNodes) node.textContent = `${now.getMonth() + 1}/${now.getDate()}`
-    const startOfYear = new Date(now.getFullYear(), 0, 1)
-    const endOfYear = new Date(now.getFullYear() + 1, 0, 1)
-    const ratio = (now - startOfYear) / (endOfYear - startOfYear)
-    for (const fill of yearFills) fill.style.width = `${(ratio * 100).toFixed(2)}%`
+    for (const fill of yearFills) fill.style.width = `${(yearRatio(now) * 100).toFixed(2)}%`
+  }
+
+  function tickDashboard() {
+    const now = new Date()
+    document.getElementById('dash-wd').textContent = WEEKDAYS_EN[now.getDay()]
+    document.getElementById('dash-md').textContent = `${MONTHS_EN[now.getMonth()]} ${now.getDate()}`
+    document.getElementById('dash-y').textContent = String(now.getFullYear())
   }
 
   function tickAlmanac() {
@@ -57,8 +62,15 @@ function startClock() {
     document.querySelector('.al-month').textContent = `${now.getMonth() + 1} 月`
   }
 
+  function yearRatio(now) {
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    const endOfYear = new Date(now.getFullYear() + 1, 0, 1)
+    return (now - startOfYear) / (endOfYear - startOfYear)
+  }
+
   tick()
   tickAlmanac()
+  tickDashboard()
   setInterval(tick, 1000)
 }
 

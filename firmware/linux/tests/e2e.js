@@ -36,7 +36,11 @@ const DRIVER_SCRIPT = `
   out.dotCount = document.querySelectorAll('#dots .dot').length
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
-  out.dateFormatted = /^\\d{1,2}\\/\\d{1,2}$/.test($('.hero-date').textContent)
+  out.dashWeekday = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/.test($('#dash-wd').textContent)
+  out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test($('#dash-md').textContent)
+  out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
+  out.narrativeGroups = document.querySelectorAll('.dash-narrative .grp').length
+  out.statItems = document.querySelectorAll('.dash-stats .stat').length
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -136,7 +140,11 @@ function check(results) {
     ['three pages', results.pageCount === 3],
     ['three dots', results.dotCount === 3],
     ['clock HH:MM', results.clockFormatted],
-    ['date M/D', results.dateFormatted],
+    ['dashboard weekday header', results.dashWeekday],
+    ['dashboard month-day format', results.dashDateFormatted],
+    ['dashboard year is current', results.dashYearCurrent],
+    ['narrative groups rendered', results.narrativeGroups >= 7],
+    ['stats row has two items', results.statItems === 2],
     ['grid has 3 columns', results.gridColumns === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
