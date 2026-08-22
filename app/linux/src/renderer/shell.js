@@ -1,52 +1,46 @@
 const SWIPE_THRESHOLD_RATIO = 0.18
 const DRAG_SUPPRESS_PX = 10
 
-/* AIODI reference canvas (firmware aiodi.lua M.ref) */
-const REF = {
-  w: 320,
-  h: 480,
-  gutter: 16,
-  radius: 20,
-  stroke: 2,
-  barIcon: 20,
-}
-
-function gridMetrics(width, height) {
-  const fit = Math.min(width / REF.w, height / REF.h)
-  const px = (value) => Math.floor(value * fit + 0.5)
-  const gutter = px(REF.gutter)
-  const statusH = Math.max(40, px(REF.barIcon + 12))
-  const cols = 3
-  const cellW = Math.floor((width - (cols - 1) * gutter) / cols)
-  return {
-    fit,
-    gutter,
-    statusH,
-    cellW,
-    gridW: cols * cellW + (cols - 1) * gutter,
-    radius: px(REF.radius),
-    stroke: Math.max(1, px(REF.stroke)),
-    peekInset: px(REF.gutter),
-  }
-}
-
 function applyGeometry() {
-  const m = gridMetrics(window.innerWidth, window.innerHeight)
+  const m = odkLayout.compute(window.innerWidth, window.innerHeight)
   const root = document.documentElement.style
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
   root.setProperty('--cell-w', `${m.cellW}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
+  root.setProperty('--peek-h', `${m.peekH}px`)
   root.setProperty('--peek-inset', `${m.peekInset}px`)
-  root.setProperty('--bar-icon', `${px32(m.fit)}px`)
+  root.setProperty('--bar-icon', `${Math.floor(20 * m.fit + 0.5)}px`)
   window.__odkGrid = m
   return m
 }
 
-function px32(fit) {
-  return Math.floor(20 * fit + 0.5)
+let geometryRaf = 0
+let pagerRef = null
+
+function applyGeometry() {
+  const m = odkLayout.compute(window.innerWidth, window.innerHeight)
+  const root = document.documentElement.style
+  root.setProperty('--status-h', `${m.statusH}px`)
+  root.setProperty('--gutter', `${m.gutter}px`)
+  root.setProperty('--cell-w', `${m.cellW}px`)
+  root.setProperty('--radius', `${m.radius}px`)
+  root.setProperty('--stroke-w', `${m.stroke}px`)
+  root.setProperty('--peek-h', `${m.peekH}px`)
+  root.setProperty('--peek-inset', `${m.peekInset}px`)
+  root.setProperty('--bar-icon', `${Math.floor(20 * m.fit + 0.5)}px`)
+  window.__odkGrid = m
+  return m
 }
+
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(geometryRaf)
+  geometryRaf = requestAnimationFrame(() => {
+    applyGeometry()
+    if (pagerRef) pagerRef.refresh()
+  })
+})
 
 function pad2(value) {
   return String(value).padStart(2, '0')
@@ -100,6 +94,10 @@ function createPager(viewport, track) {
     index = Math.max(0, Math.min(pageCount() - 1, next))
     track.style.transform = `translateX(${-index * pageWidth()}px)`
     renderDots()
+  }
+
+  function refresh() {
+    setIndex(index)
   }
 
   function renderDots() {
@@ -164,7 +162,7 @@ function createPager(viewport, track) {
     true,
   )
 
-  return { setIndex, buildDots }
+  return { setIndex, buildDots, refresh }
 }
 
 function main() {
@@ -176,6 +174,7 @@ function main() {
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
   const pager = createPager(viewport, track)
+  pagerRef = pager
   pager.buildDots(document.getElementById('dots'))
 
   const appView = document.getElementById('app-view')

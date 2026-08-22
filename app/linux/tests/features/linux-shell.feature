@@ -37,3 +37,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 进入该 App 的全屏视图且返回按钮可见
     When 点按返回按钮
     Then 回到主屏且原页面保持当前页
+
+  Scenario: 窗口尺寸偏离目标比例时网格重算且不裁切
+    Given 外壳以 636×1087 启动(宽高比异于 568×1232)
+    When 几何重算完成
+    Then 所有 widget 磁贴完整落在主区视口内且不与 peek 重叠

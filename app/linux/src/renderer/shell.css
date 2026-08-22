@@ -147,7 +147,7 @@ body.kiosk {
 }
 
 .hero-time {
-  font-size: 118px;
+  font-size: min(118px, calc((100vw - 2 * var(--gutter)) * 0.23));
   font-weight: 200;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -218,18 +218,19 @@ body.kiosk {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: calc(var(--cell-w) * 0.08);
   border: var(--stroke-w) solid var(--odk-stroke);
   border-radius: var(--radius);
   background: var(--odk-surface);
   color: var(--odk-primary);
   font-family: inherit;
-  font-size: 26px;
+  font-size: calc(var(--cell-w) * 0.15);
+  overflow: hidden;
 }
 
 .widget svg {
-  width: 52px;
-  height: 52px;
+  width: calc(var(--cell-w) * 0.3);
+  height: calc(var(--cell-w) * 0.3);
   fill: none;
   stroke: var(--odk-secondary);
   stroke-width: 1.6;
@@ -250,19 +251,19 @@ body.kiosk {
 }
 
 .al-weekday {
-  font-size: 24px;
+  font-size: calc(var(--cell-w) * 0.14);
   font-weight: 600;
   color: var(--odk-accent-red);
 }
 
 .al-day {
-  font-size: 76px;
+  font-size: calc(var(--cell-w) * 0.45);
   font-weight: 600;
   line-height: 1;
 }
 
 .al-month {
-  font-size: 22px;
+  font-size: calc(var(--cell-w) * 0.13);
   color: var(--odk-secondary);
 }
 
@@ -271,15 +272,19 @@ body.kiosk {
 }
 
 .w-clock-time {
-  font-size: 88px;
+  font-size: calc(var(--cell-w) * 2 * 0.26);
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
+.w-pomodoro {
+  position: relative;
+}
+
 .w-pomodoro svg {
-  width: 190px;
-  height: 190px;
+  width: calc((var(--cell-w) * 2 + var(--gutter)) * 0.52);
+  height: calc((var(--cell-w) * 2 + var(--gutter)) * 0.52);
   transform: rotate(-90deg);
 }
 
@@ -299,8 +304,11 @@ body.kiosk {
 }
 
 .ring-mmss {
-  margin-top: -136px;
-  font-size: 44px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -58%);
+  font-size: calc(var(--cell-w) * 0.26);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

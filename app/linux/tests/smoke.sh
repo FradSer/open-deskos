@@ -27,5 +27,6 @@ echo "== scenario: env override =="
 run_smoke 480 854 ODESK_SHELL_WIDTH=480 ODESK_SHELL_HEIGHT=854
 
 node tests/check_tokens.mjs
+node tests/layout-harness.mjs
 
 echo "ALL SMOKE CHECKS PASSED"

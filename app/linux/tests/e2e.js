@@ -2,7 +2,11 @@ const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
-const OVERALL_TIMEOUT_MS = 20000
+const OVERALL_TIMEOUT_MS = 30000
+const EXTRA_SIZES = [
+  ['user window', 636, 1087],
+  ['small dev', 480, 854],
+]
 
 const DRIVER_SCRIPT = `
 (async () => {
@@ -80,6 +84,43 @@ const DRIVER_SCRIPT = `
 })()
 `
 
+const GEOMETRY_PROBE = `
+  (() => {
+    const $ = (selector) => document.querySelector(selector)
+    const m = window.__odkGrid
+    const viewport = $('#pages-viewport').getBoundingClientRect()
+    const peek = $('#peek').getBoundingClientRect()
+    let widgetsInside = 0
+    let peekOverlaps = 0
+    const widgets = [...document.querySelectorAll('.widget')]
+    for (const el of widgets) {
+      const r = el.getBoundingClientRect()
+      if (
+        r.top >= viewport.top - 2 &&
+        r.bottom <= viewport.bottom + 2 &&
+        r.left >= viewport.left - 2 &&
+        r.right <= viewport.right + 2
+      ) { widgetsInside += 1 }
+      const separated = r.bottom < peek.top || r.top > peek.bottom || r.right < peek.left || r.left > peek.right
+      if (!separated) { peekOverlaps += 1 }
+    }
+    let textsFit = true
+    for (const el of document.querySelectorAll('.w-clock-time, .al-day, .ring-mmss, .hero-time')) {
+      const box = el.closest('.card, .widget').getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
+    }
+    return {
+      cellW: m.cellW,
+      peekH: m.peekH,
+      widgetsTotal: widgets.length,
+      widgetsInside,
+      peekOverlaps,
+      textsFit,
+    }
+  })()
+`
+
 function check(results) {
   const checks = [
     ['grid metrics exposed', results.metricsExposed],
@@ -112,6 +153,28 @@ function check(results) {
   return failures
 }
 
+async function runGeometrySweep(win) {
+  const layout = require('../src/renderer/layout.js')
+  let failures = 0
+  for (const [label, width, height] of EXTRA_SIZES) {
+    win.setContentSize(width, height)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
+    const expectedCell = layout.compute(width, height).cellW
+    const checks = [
+      ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal],
+      ['no widget overlaps peek', probe.peekOverlaps === 0],
+      ['widget text fits tiles', probe.textsFit],
+      ['runtime metrics match layout module', probe.cellW === expectedCell],
+    ]
+    for (const [name, ok] of checks) {
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${label} ${width}x${height} — ${name}`)
+      if (!ok) failures += 1
+    }
+  }
+  return failures
+}
+
 async function main() {
   const win = new BrowserWindow({
     width: 568,
@@ -134,10 +197,11 @@ async function main() {
 
   await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
   const results = await win.webContents.executeJavaScript(DRIVER_SCRIPT, true)
+  const driverFailures = check(results)
+  const sweepFailures = await runGeometrySweep(win)
   clearTimeout(timeout)
 
-  console.log(JSON.stringify(results))
-  process.exitCode = check(results) === 0 ? 0 : 1
+  process.exitCode = driverFailures + sweepFailures === 0 ? 0 : 1
   app.exit(process.exitCode)
 }
 
