@@ -49,3 +49,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Given 外壳以 636×1087 启动(宽高比异于 568×1232)
     When 几何重算完成
     Then 所有 widget 磁贴完整落在主区视口内且不与 peek 重叠
+
+  Scenario: 图标统一使用 Tabler 集合
+    Given 外壳已启动
+    Then 全部图标元素携带 data-tabler 标识且覆盖所需集合(bolt/calendar/checkbox/circle-dot/mail/walk/moon-stars/settings/chevron-left)

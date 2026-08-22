@@ -60,14 +60,11 @@ body.kiosk {
 #sb-net {
   width: var(--bar-icon);
   height: var(--bar-icon);
-  fill: none;
-  stroke: var(--odk-secondary);
-  stroke-width: 1.8;
-  stroke-linejoin: round;
+  color: var(--odk-secondary);
 }
 
 #sb-net.on {
-  stroke: var(--odk-primary);
+  color: var(--odk-primary);
 }
 
 #dots {
@@ -204,11 +201,6 @@ body.kiosk {
   height: 0.92em;
   width: auto;
   vertical-align: -0.12em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
   margin-right: 0.14em;
 }
 
@@ -234,18 +226,14 @@ body.kiosk {
   width: 1.05em;
   height: 1.05em;
   margin-right: 0.32em;
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .ic-walk {
-  stroke: var(--odk-accent-blue);
+  color: var(--odk-accent-blue);
 }
 
 .ic-moon {
-  stroke: var(--odk-secondary);
+  color: var(--odk-secondary);
 }
 
 .card {
@@ -306,11 +294,6 @@ body.kiosk {
 .widget svg {
   width: calc(var(--cell-w) * 0.3);
   height: calc(var(--cell-w) * 0.3);
-  fill: none;
-  stroke: var(--odk-secondary);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .widget:active {
@@ -419,7 +402,7 @@ body.kiosk {
 }
 
 .w-calendar svg {
-  stroke: var(--odk-primary);
+  color: var(--odk-primary);
 }
 
 .w-settings {
@@ -478,11 +461,7 @@ body.kiosk {
 #app-back svg {
   width: 26px;
   height: 26px;
-  fill: none;
-  stroke: var(--odk-primary);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  color: var(--odk-primary);
 }
 
 #app-title {

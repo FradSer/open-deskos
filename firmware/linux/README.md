@@ -58,6 +58,13 @@ sudo reboot   # 重启后进入 kiosk 外壳
 如需校准用 `xinput` 触发。Electron 的 linux-arm64 官方构建由设备端
 `pnpm/npm install` 自动拉取。
 
+## 图标
+
+全部图标来自 [Tabler Icons](https://github.com/tabler/tabler-icons)
+(outline,MIT),以 `@tabler/icons` v3.46.0 的官方路径数据内联到
+`src/renderer/index.html`,每个图标带 `data-tabler="名称"` 标识,e2e 校验集合完整性。
+升级时从 `node_modules/@tabler/icons/icons/outline/` 复制对应 svg 内部路径即可。
+
 ## 验证状态
 
 - 已验证:宿主机 smoke(窗口尺寸两种场景 + AIODI token 对齐),macOS arm64。

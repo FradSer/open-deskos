@@ -10,6 +10,7 @@
     "e2e": "electron tests/e2e.js"
   },
   "devDependencies": {
+    "@tabler/icons": "^3.46.0",
     "electron": "^43.4.1"
   }
 }

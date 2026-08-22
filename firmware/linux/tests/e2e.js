@@ -41,6 +41,10 @@ const DRIVER_SCRIPT = `
   out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
   out.narrativeGroups = document.querySelectorAll('.dash-narrative .grp').length
   out.statItems = document.querySelectorAll('.dash-stats .stat').length
+  const requiredIcons = ['bolt', 'calendar', 'checkbox', 'circle-dot', 'mail', 'walk', 'moon-stars', 'settings', 'chevron-left']
+  const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
+  out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
+  out.tablerCount = presentIcons.length
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -145,6 +149,8 @@ function check(results) {
     ['dashboard year is current', results.dashYearCurrent],
     ['narrative groups rendered', results.narrativeGroups >= 7],
     ['stats row has two items', results.statItems === 2],
+    ['tabler icon set complete', results.tablerSetComplete],
+    ['tabler icons count >= 10', results.tablerCount >= 10],
     ['grid has 3 columns', results.gridColumns === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
