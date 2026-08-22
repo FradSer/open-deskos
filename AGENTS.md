@@ -10,7 +10,8 @@ ALWAYS interact with the user via user input prompts or confirmation UI when cla
 
 ## Project Structure
 
-- `firmware/open-deskos/` — 设备固件（ESP-IDF，Guition JC4880P443C 板）
+- `firmware/open-deskos/` — ESP32-P4 设备固件（ESP-IDF，Guition JC4880P443C 板）
+- `firmware/linux/` — CM5(RK3588S) Linux 设备外壳（Electron，与 P4 固件并行）
 - `app/apple/` — macOS/iOS SwiftUI 客户端（Xcode 工程 + CLI target）
 - `docs/open-deskos/` — 产品规格（`OPEN-DESKOS.md` 是顶层权威）
 - `docs/reference/` — 现役板硬件参考资料
@@ -29,6 +30,9 @@ cd firmware/open-deskos/sim/native_sdl && ./run.sh
 cd firmware/open-deskos/application/open_deskos
 eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 eim run "idf.py build" v6.0.1
+
+# CM5 Linux shell (Electron)
+cd firmware/linux && ./run.sh
 
 # macOS CLI target (product name: odkctl)
 xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \

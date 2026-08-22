@@ -7,7 +7,6 @@ Open DeskOS 各平台客户端的 monorepo 分类目录。按**平台/运行时*
 | 目录 | 平台 | 说明 |
 |---|---|---|
 | [apple/](apple/) | Apple 生态原生(SwiftUI,iOS/iPadOS/macOS) | 跨端原生客户端 |
-| [linux/](linux/) | Linux(Electron,Orange Pi CM5/RK3588S) | 568×1232 竖屏触摸外壳切片(迁移评估第一步) |
 
 > 待补:`web/` 等。
 
