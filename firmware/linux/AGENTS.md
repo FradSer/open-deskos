@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-Scope: the Electron shell for the Orange Pi CM5 Linux panel in `app/linux/`.
+Scope: the Electron shell for the Orange Pi CM5 Linux panel in `firmware/linux/`.
 Repository-wide rules live in the root `AGENTS.md`.
 
 ## Project Structure & Module Organization

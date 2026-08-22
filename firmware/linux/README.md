@@ -3,7 +3,7 @@
 Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 [Electron](https://www.electronjs.org/),目标面板为 **568×1232 竖屏触摸**。
 
-这是迁移评估([CM5-S31-INTEGRATION](../../docs/open-deskos/CM5-S31-INTEGRATION.md))中
+这是迁移评估([CM5-S31-INTEGRATION](../../../docs/open-deskos/CM5-S31-INTEGRATION.md))中
 "CM5 应用链路"的第一步实现。P4+C6 固件仍是生产权威;本切片不替换它。
 
 ## 功能范围(第一片)
@@ -30,7 +30,7 @@ scripts/cm5-install.sh CM5 设备端安装器(依赖/arm64 模块/kiosk 自启)
 ## 本机开发(macOS/Linux 均可)
 
 ```sh
-cd app/linux
+cd firmware/linux
 pnpm install          # 或 npm install
 ./run.sh              # 窗口模式,默认 568x1232
 ODESK_SHELL_KIOSK=1 ./run.sh --kiosk   # kiosk 全屏
@@ -46,7 +46,7 @@ bash tests/smoke.sh   # 可执行检查
 ```sh
 # 从 Mac 同步(排除 node_modules,设备端按 arm64 重装)
 rsync -a --delete --exclude node_modules --exclude pnpm-lock.yaml \
-  app/linux/ cm5:/opt/open-deskos-shell/
+  firmware/linux/ cm5:/opt/open-deskos-shell/
 
 # 在 CM5 上执行
 ssh cm5

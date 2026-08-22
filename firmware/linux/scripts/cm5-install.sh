@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run ON the CM5 (Debian/Ubuntu, arm64) inside the synced app/linux directory.
+# Run ON the CM5 (Debian/Ubuntu, arm64) inside the synced firmware/linux directory.
 # Installs Electron runtime dependencies, installs node modules for arm64,
 # and registers a kiosk autostart entry.
 set -euo pipefail
