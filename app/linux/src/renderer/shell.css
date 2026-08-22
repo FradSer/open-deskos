@@ -248,6 +248,10 @@ body.kiosk {
   flex-direction: column;
 }
 
+#app-view[hidden] {
+  display: none;
+}
+
 .app-header {
   height: var(--status-bar-h);
   display: flex;

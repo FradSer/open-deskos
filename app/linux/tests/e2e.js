@@ -13,6 +13,7 @@ const DRIVER_SCRIPT = `
 
   await new Promise((resolve) => setTimeout(resolve, 1200))
 
+  out.appViewDisplayOnLoad = getComputedStyle($('#app-view')).display
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
   out.dateFormatted = /^\\d{1,2}\\/\\d{1,2}$/.test($('.sb-date').textContent)
   out.pageCount = document.querySelectorAll('#pages-track .page').length
@@ -47,6 +48,7 @@ const DRIVER_SCRIPT = `
 
 function check(results) {
   const checks = [
+    ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['clock HH:MM', results.clockFormatted],
     ['date M/D', results.dateFormatted],
     ['two pages', results.pageCount === 2],
