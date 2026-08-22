@@ -14,7 +14,7 @@ const SIZES = [
 ]
 
 // Golden values pinning the target-panel geometry against accidental drift.
-const GOLDEN = { '568x1232': { cellW: 170, gutter: 28, statusH: 57 } }
+const GOLDEN = { '568x1232': { cellW: 170, cellH: 170, gutter: 28, statusH: 57 } }
 
 let failures = 0
 function check(name, ok, detail = '') {
@@ -30,15 +30,15 @@ for (const [label, width, height] of SIZES) {
 
   const cols = 3
   const rows = 4
-  const cellByWidth = Math.floor((width - (cols - 1) * m.gutter) / cols)
-  const cellByHeight = Math.floor(
+  const colW = (width - (cols - 1) * m.gutter) / cols
+  const cellHByHeight = Math.floor(
     (height - m.statusH - m.peekH - 4 * m.gutter - (rows - 1) * m.gutter) / rows,
   )
-  check(`${tag}: cell respects width bound`, m.cellW <= cellByWidth, `cell=${m.cellW} bound=${cellByWidth}`)
-  check(`${tag}: cell respects height bound`, m.cellW <= cellByHeight, `cell=${m.cellW} bound=${cellByHeight}`)
-  check(`${tag}: cell above floor`, m.cellW >= 24, `cell=${m.cellW}`)
+  check(`${tag}: row height respects column squareness`, m.cellH <= Math.floor(colW), `cellH=${m.cellH} colW=${colW}`)
+  check(`${tag}: row height respects height bound`, m.cellH <= cellHByHeight, `cellH=${m.cellH} bound=${cellHByHeight}`)
+  check(`${tag}: row height above floor`, m.cellH >= 24, `cellH=${m.cellH}`)
 
-  check(`${tag}: grid fits width`, m.gridW <= width, `gridW=${m.gridW}`)
+  check(`${tag}: grid flush to both edges`, m.gridW === width, `gridW=${m.gridW}`)
 
   // Canonical vertical budget mirrored by the stylesheet: status bar, page
   // padding top/bottom, grid, breathing gap above peek, peek, bottom inset.

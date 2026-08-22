@@ -18,7 +18,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: 三段式布局与状态栏构成对齐 P4
     Given 外壳已启动
     Then 状态栏位于顶部且包含左侧连接指示、居中页点容器与右侧 HH:MM 时钟
-    And 主区 widget 网格为 3 列,磁贴按声明跨列跨行(clock 与 year 为 2 列宽,pomodoro 为 2×2)
+    And 主区 widget 网格为 3 列且左右贴合屏幕边缘(无侧向间距)
+    And 磁贴按声明跨列跨行(clock 与 year 为 2 列宽,pomodoro 为 2×2)
     And 底部存在左右内缩的 peek 条,当前内容为空
 
   Scenario: 状态栏显示当前时间与日期

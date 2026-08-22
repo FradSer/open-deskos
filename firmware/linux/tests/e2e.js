@@ -39,15 +39,20 @@ const DRIVER_SCRIPT = `
   out.dateFormatted = /^\\d{1,2}\\/\\d{1,2}$/.test($('.hero-date').textContent)
 
   const grid = $('.widget-grid')
+  const gridRect = grid.getBoundingClientRect()
+  const gridPageRect = grid.closest('.page').getBoundingClientRect()
   out.gridColumns = getComputedStyle(grid).gridTemplateColumns.split(' ').length
+  out.gridFlushEdges =
+    Math.abs(gridRect.left - gridPageRect.left) <= 2 &&
+    Math.abs(gridPageRect.right - gridRect.right) <= 2
 
   const clockRect = $('.w-clock').getBoundingClientRect()
-  out.clockSpansTwoColumns = approx(clockRect.width, 2 * metrics.cellW + metrics.gutter)
+  out.clockSpansTwoColumns = approx(clockRect.width, 2 * metrics.colW + metrics.gutter)
 
   const pomodoroRect = $('.w-pomodoro').getBoundingClientRect()
   out.pomodoroSpansTwoByTwo =
-    approx(pomodoroRect.width, 2 * metrics.cellW + metrics.gutter) &&
-    approx(pomodoroRect.height, 2 * metrics.cellW + metrics.gutter)
+    approx(pomodoroRect.width, 2 * metrics.colW + metrics.gutter) &&
+    approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
   const peekRect = $('#peek').getBoundingClientRect()
   const expectedPeekWidth = window.innerWidth - 2 * metrics.peekInset
@@ -133,6 +138,7 @@ function check(results) {
     ['clock HH:MM', results.clockFormatted],
     ['date M/D', results.dateFormatted],
     ['grid has 3 columns', results.gridColumns === 3],
+    ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
     ['pomodoro widget spans 2x2', results.pomodoroSpansTwoByTwo],
     ['peek present and empty', results.peekPresentAndEmpty],

@@ -30,20 +30,17 @@
     const statusH = Math.max(40, px(REF.barIcon + 12))
     const peekH = Math.min(PEEK_MAX, Math.max(PEEK_MIN, px(REF.stripMin)))
 
-    // Vertical budget (all gaps are one gutter, same rhythm as tile spacing):
-    //   statusH + pagePadTop + gridH + pagePadBottom + breathingAbovePeek
-    //   + peekH + bottomInset <= height
-    // Cells take the smaller of the width-derived square (P4 rule: grid is
-    // flush to the side edges) and the height-derived ceiling, so panels
-    // proportionally shorter than the 320x480 reference shrink cells instead
-    // of clipping the last row.
+    // P4 rule: the grid touches both side edges — column tracks are 1fr in
+    // CSS and never leave side margins. The height budget only bounds ROW
+    // HEIGHT: panels proportionally shorter than the 320x480 reference get
+    // flatter rows instead of clipped last-row tiles or side gaps.
     const reservedV = statusH + peekH + 4 * gutter
-    const cellByHeight = Math.floor((height - reservedV - (ROWS - 1) * gutter) / ROWS)
-    const cellByWidth = Math.floor((width - (COLS - 1) * gutter) / COLS)
-    const cell = Math.max(CELL_FLOOR, Math.min(cellByWidth, cellByHeight))
+    const colW = (width - (COLS - 1) * gutter) / COLS
+    const cellHByHeight = Math.floor((height - reservedV - (ROWS - 1) * gutter) / ROWS)
+    const cellH = Math.max(CELL_FLOOR, Math.min(Math.floor(colW), cellHByHeight))
 
-    const gridW = COLS * cell + (COLS - 1) * gutter
-    const gridH = ROWS * cell + (ROWS - 1) * gutter
+    const gridW = width
+    const gridH = ROWS * cellH + (ROWS - 1) * gutter
 
     return {
       width,
@@ -53,8 +50,9 @@
       statusH,
       cols: COLS,
       rows: ROWS,
-      cellW: cell,
-      cellH: cell,
+      colW,
+      cellW: Math.floor(colW),
+      cellH,
       radius: px(REF.radius),
       stroke: Math.max(1, px(REF.stroke)),
       peekH,

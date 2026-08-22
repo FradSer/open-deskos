@@ -1,21 +1,6 @@
 const SWIPE_THRESHOLD_RATIO = 0.18
 const DRAG_SUPPRESS_PX = 10
 
-function applyGeometry() {
-  const m = odkLayout.compute(window.innerWidth, window.innerHeight)
-  const root = document.documentElement.style
-  root.setProperty('--status-h', `${m.statusH}px`)
-  root.setProperty('--gutter', `${m.gutter}px`)
-  root.setProperty('--cell-w', `${m.cellW}px`)
-  root.setProperty('--radius', `${m.radius}px`)
-  root.setProperty('--stroke-w', `${m.stroke}px`)
-  root.setProperty('--peek-h', `${m.peekH}px`)
-  root.setProperty('--peek-inset', `${m.peekInset}px`)
-  root.setProperty('--bar-icon', `${Math.floor(20 * m.fit + 0.5)}px`)
-  window.__odkGrid = m
-  return m
-}
-
 let geometryRaf = 0
 let pagerRef = null
 
@@ -25,6 +10,7 @@ function applyGeometry() {
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
   root.setProperty('--cell-w', `${m.cellW}px`)
+  root.setProperty('--cell-h', `${m.cellH}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
   root.setProperty('--peek-h', `${m.peekH}px`)
