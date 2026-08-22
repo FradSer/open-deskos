@@ -9,10 +9,13 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 ## 功能范围(第一片)
 
 - 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
-- AIODI 设计系统 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制)
-- 状态栏:实时时钟、日期、网络占位点(如实显示未连接状态,不伪造数据)
-- 主屏两页横向触摸滑动 + 页点指示;年份进度条
-- App 磁贴点按进入全屏视图,返回按钮始终可用
+- **三段式布局对齐 ESP32-P4 launcher**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
+  中部 3 列 widget 网格(按 `desktop_layout.lua` 声明的跨列跨行磁贴)、底部内缩 peek 条
+  (当前为空,预留灵动岛式扩展)
+- AIODI 设计系统 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何移植
+  固件 `aiodi.grid_metrics()` portrait 算法(fit = min(w/320, h/480))
+- 三页横向触摸滑动:Dashboard 流 / Home 网格 / Quota 页;年份进度条
+- 点按 widget 进入全屏视图,返回按钮始终可用;连接/用量状态如实显示未连接
 
 ## 目录结构
 

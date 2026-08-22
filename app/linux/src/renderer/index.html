@@ -8,12 +8,9 @@
 </head>
 <body>
   <header id="status-bar">
+    <svg id="sb-net" viewBox="0 0 24 24" aria-label="连接状态"><path d="M13 2L5 13h5l-1 9 8-11h-5l1-9z"/></svg>
+    <nav id="dots" aria-label="页面指示"></nav>
     <span class="sb-time">--:--</span>
-    <span class="sb-date"></span>
-    <span class="sb-right">
-      <span class="sb-net" id="sb-net"></span>
-      <span class="sb-label">CM5</span>
-    </span>
   </header>
 
   <main id="pages-viewport">
@@ -22,39 +19,62 @@
         <div class="card hero-card">
           <div class="hero-time">--:--</div>
           <div class="hero-date"></div>
-          <div class="hero-year"><div class="hero-year-fill" id="year-fill"></div></div>
-          <div class="hero-year-label">YEAR</div>
+          <div class="meter"><div class="meter-fill" id="year-fill"></div></div>
+          <div class="meter-label">YEAR</div>
         </div>
         <div class="card conn-card">
           <div class="conn-title">Mac 连接</div>
-          <div class="conn-state off">未连接</div>
+          <div class="conn-state">未连接 · 打开后经 USB 同步</div>
         </div>
       </section>
 
       <section class="page" data-page="1">
-        <div class="tile-grid">
-          <button class="tile" data-app="番茄钟">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 3h6"/></svg>
-            <span>番茄钟</span>
+        <div class="widget-grid">
+          <button class="widget w-almanac" data-app="日历" style="grid-column:1;grid-row:1">
+            <span class="al-weekday"></span>
+            <span class="al-day"></span>
+            <span class="al-month"></span>
           </button>
-          <button class="tile" data-app="日历">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
-            <span>日历</span>
+          <button class="widget w-clock" data-app="时钟" style="grid-column:2/4;grid-row:1">
+            <span class="w-clock-time">--:--</span>
           </button>
-          <button class="tile" data-app="用量">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V12M12 20V6M19 20v-5"/></svg>
-            <span>用量</span>
+          <button class="widget w-chat" data-app="Chatbot" style="grid-column:1;grid-row:2">
+            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+            <span class="w-name">Chatbot</span>
           </button>
-          <button class="tile" data-app="设置">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2.4M12 17.6V20M4 12h2.4M17.6 12H20M6.3 6.3l1.7 1.7M16 16l1.7 1.7M17.7 6.3L16 8M8 16l-1.7 1.7"/></svg>
-            <span>设置</span>
+          <button class="widget w-pomodoro" data-app="番茄钟" style="grid-column:2/4;grid-row:2/4">
+            <svg viewBox="0 0 120 120">
+              <circle class="ring-track" cx="60" cy="60" r="50"/>
+              <circle class="ring-arc" cx="60" cy="60" r="50"/>
+            </svg>
+            <span class="ring-mmss">25:00</span>
+            <span class="w-name">番茄钟</span>
           </button>
+          <button class="widget w-calendar" data-app="日历" style="grid-column:1;grid-row:3">
+            <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+            <span class="w-name">日历</span>
+          </button>
+          <button class="widget w-year" data-app="年度进度" style="grid-column:1/3;grid-row:4">
+            <div class="meter"><div class="meter-fill" id="year-fill-grid"></div></div>
+            <span class="w-name">YEAR</span>
+          </button>
+          <button class="widget w-settings" data-app="设置" style="grid-column:3;grid-row:4">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2.4M12 17.6V20M4 12h2.4M17.6 12H20M6.3 6.3l1.7 1.7M16 16l1.7 1.7M17.7 6.3L16 8M8 16l-1.7 1.7"/></svg>
+            <span class="w-name">设置</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="page" data-page="2">
+        <div class="card quota-card">
+          <div class="quota-title">OpenCode Go 用量</div>
+          <div class="quota-state">未连接 Mac · 连接后经 USB 推送真实订阅用量</div>
         </div>
       </section>
     </div>
   </main>
 
-  <nav id="dots" aria-label="页面指示"></nav>
+  <div id="peek" aria-label="peek"></div>
 
   <div id="app-view" hidden>
     <header class="app-header">

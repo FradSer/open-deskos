@@ -1,30 +1,84 @@
 const SWIPE_THRESHOLD_RATIO = 0.18
 const DRAG_SUPPRESS_PX = 10
 
+/* AIODI reference canvas (firmware aiodi.lua M.ref) */
+const REF = {
+  w: 320,
+  h: 480,
+  gutter: 16,
+  radius: 20,
+  stroke: 2,
+  barIcon: 20,
+}
+
+function gridMetrics(width, height) {
+  const fit = Math.min(width / REF.w, height / REF.h)
+  const px = (value) => Math.floor(value * fit + 0.5)
+  const gutter = px(REF.gutter)
+  const statusH = Math.max(40, px(REF.barIcon + 12))
+  const cols = 3
+  const cellW = Math.floor((width - (cols - 1) * gutter) / cols)
+  return {
+    fit,
+    gutter,
+    statusH,
+    cellW,
+    gridW: cols * cellW + (cols - 1) * gutter,
+    radius: px(REF.radius),
+    stroke: Math.max(1, px(REF.stroke)),
+    peekInset: px(REF.gutter),
+  }
+}
+
+function applyGeometry() {
+  const m = gridMetrics(window.innerWidth, window.innerHeight)
+  const root = document.documentElement.style
+  root.setProperty('--status-h', `${m.statusH}px`)
+  root.setProperty('--gutter', `${m.gutter}px`)
+  root.setProperty('--cell-w', `${m.cellW}px`)
+  root.setProperty('--radius', `${m.radius}px`)
+  root.setProperty('--stroke-w', `${m.stroke}px`)
+  root.setProperty('--peek-inset', `${m.peekInset}px`)
+  root.setProperty('--bar-icon', `${px32(m.fit)}px`)
+  window.__odkGrid = m
+  return m
+}
+
+function px32(fit) {
+  return Math.floor(20 * fit + 0.5)
+}
+
 function pad2(value) {
   return String(value).padStart(2, '0')
 }
 
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
 function startClock() {
-  const timeNodes = document.querySelectorAll('.sb-time, .hero-time')
-  const dateNodes = document.querySelectorAll('.sb-date, .hero-date')
-  const yearFill = document.getElementById('year-fill')
+  const timeNodes = document.querySelectorAll('.sb-time, .hero-time, .w-clock-time')
+  const dateNodes = document.querySelectorAll('.hero-date')
+  const yearFills = document.querySelectorAll('.meter-fill')
 
   function tick() {
     const now = new Date()
     const hhmm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-    const date = `${now.getMonth() + 1}/${now.getDate()}`
     for (const node of timeNodes) node.textContent = hhmm
-    for (const node of dateNodes) node.textContent = date
-    if (yearFill) {
-      const startOfYear = new Date(now.getFullYear(), 0, 1)
-      const endOfYear = new Date(now.getFullYear() + 1, 0, 1)
-      const ratio = (now - startOfYear) / (endOfYear - startOfYear)
-      yearFill.style.width = `${(ratio * 100).toFixed(2)}%`
-    }
+    for (const node of dateNodes) node.textContent = `${now.getMonth() + 1}/${now.getDate()}`
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    const endOfYear = new Date(now.getFullYear() + 1, 0, 1)
+    const ratio = (now - startOfYear) / (endOfYear - startOfYear)
+    for (const fill of yearFills) fill.style.width = `${(ratio * 100).toFixed(2)}%`
+  }
+
+  function tickAlmanac() {
+    const now = new Date()
+    document.querySelector('.al-weekday').textContent = WEEKDAYS[now.getDay()]
+    document.querySelector('.al-day').textContent = now.getDate()
+    document.querySelector('.al-month').textContent = `${now.getMonth() + 1} 月`
   }
 
   tick()
+  tickAlmanac()
   setInterval(tick, 1000)
 }
 
@@ -42,20 +96,16 @@ function createPager(viewport, track) {
     return viewport.clientWidth
   }
 
-  function dots() {
-    return document.querySelectorAll('#dots .dot')
-  }
-
-  function renderDots() {
-    for (const [i, dot] of [...dots()].entries()) {
-      dot.classList.toggle('active', i === index)
-    }
-  }
-
   function setIndex(next) {
     index = Math.max(0, Math.min(pageCount() - 1, next))
     track.style.transform = `translateX(${-index * pageWidth()}px)`
     renderDots()
+  }
+
+  function renderDots() {
+    for (const [i, dot] of [...document.querySelectorAll('#dots .dot')].entries()) {
+      dot.classList.toggle('active', i === index)
+    }
   }
 
   function buildDots(container) {
@@ -117,14 +167,11 @@ function createPager(viewport, track) {
   return { setIndex, buildDots }
 }
 
-function openAppView(title, view, appTitleNode) {
-  appTitleNode.textContent = title
-  view.hidden = false
-}
-
 function main() {
   const params = new URLSearchParams(window.location.search)
   if (params.get('kiosk') === '1') document.body.classList.add('kiosk')
+
+  applyGeometry()
 
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
@@ -133,12 +180,14 @@ function main() {
 
   const appView = document.getElementById('app-view')
   const appTitle = document.getElementById('app-title')
-  const back = document.getElementById('app-back')
 
-  for (const tile of document.querySelectorAll('.tile')) {
-    tile.addEventListener('click', () => openAppView(tile.dataset.app, appView, appTitle))
+  for (const tile of document.querySelectorAll('.widget')) {
+    tile.addEventListener('click', () => {
+      appTitle.textContent = tile.dataset.app
+      appView.hidden = false
+    })
   }
-  back.addEventListener('click', () => { appView.hidden = true })
+  document.getElementById('app-back').addEventListener('click', () => { appView.hidden = true })
 
   startClock()
 }
