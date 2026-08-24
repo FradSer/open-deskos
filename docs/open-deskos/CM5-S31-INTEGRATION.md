@@ -89,4 +89,25 @@ ESP32-S31 官方规格包含 Bluetooth 5.4（LE + BR/EDR）和 ESP-NOW 所需的
 
 **结论：**可以买 S31 开发板做验证，但第一目标应是验证 S31 无线/蓝牙/ESP-NOW，以及 CM5 通过 UART 控制它；CM5 直接上网仍应先用 USB Wi‑Fi dongle。S31 作为 CM5 的 Wi‑Fi 协处理器是第二阶段工程，不是开发板的即插即用功能。
 
+## 8. CM5 应用链路首片与首次上机记录（2026-08-23）
+
+`firmware/linux/`（Electron 外壳切片）已在真机 CM5（aarch64，Debian 12 bookworm，16GB RAM）完成无屏首次上机。设备无物理面板，显示层用 Xvfb 模拟。
+
+**验证通过：**
+
+- `scripts/cm5-install.sh` 全流程：apt 依赖、npm 装 arm64 Electron v43.4.1、自启项注册（Exec 指向 `scripts/start-kiosk.sh`）。
+- smoke 两种分辨率（568×1232、480×854）、AIODI token 对齐、布局 7 尺寸、架构契约（骨架纯净/核心无专名）全绿。
+- e2e 81 项交互/可访问性/几何/插件契约全绿（exit 0）。
+- 验收脚本：arch/os-release/electron/smoke-run/shared-libs 全过；失败项均为无屏实况（无触摸设备、无桌面会话、无自启会话）。
+
+**真机发现并已修复：**
+
+1. root 会话下 Chromium 拒绝启动（需 `--no-sandbox`）；`run.sh` 检测 root 自动附加。
+2. Xvfb 默认屏幕小于窗口时高度被钳制；无屏测试需 `-screen 0 568x1232x24`。
+3. 无 GPU 时隐藏窗口不产帧，CSS 过渡时间线冻结，`getBoundingClientRect` 停在过渡起点；e2e 窗口改为可见。
+4. `check_tokens.mjs` 兼容独立部署形态（切片根 DESIGN.md）；部署同步需包含仓库根 DESIGN.md。
+5. 安装器版本打印在 root 下需带 `--no-sandbox`。
+
+**待接屏验证：**GPU 合成上屏、真实 evdev 触摸、桌面会话自启恢复。接屏后重跑 `scripts/cm5-acceptance.sh` 留存证据。
+
 **Related:** [[open-deskos-rpi-migration-eval]] [[open-deskos-top-spec]] [[open-deskos-p4-c6-esp-hosted-up]]
