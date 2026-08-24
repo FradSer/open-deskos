@@ -3,111 +3,71 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=568, initial-scale=1, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'" />
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="shell.css" />
 </head>
 <body>
-  <!-- All icons: Tabler Icons v3.46.0 (outline, MIT) — https://github.com/tabler/tabler-icons -->
+  <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
+       and core plugin hosts from src/renderer/plugins/*.js registrations:
+       pages/tiles via config/desktop_layout.js, status-bar and peek via
+       kind="status"/"peek" plugins, fullscreen apps via a tile's app surface. -->
   <header id="status-bar">
-    <svg id="sb-net" data-tabler="bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="连接状态"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" /></svg>
+    <span data-slot="status-left"></span>
+    <span id="page-context" aria-live="polite" aria-atomic="true">概览 · 1/3</span>
     <nav id="dots" aria-label="页面指示"></nav>
-    <span class="sb-time">--:--</span>
+    <span data-slot="status-right"></span>
   </header>
 
   <main id="pages-viewport">
-    <div id="pages-track">
-      <section class="page" data-page="0">
-        <div class="dash">
-          <header class="dash-head">
-            <div class="dash-wd"><span id="dash-wd"></span><span class="dash-dot"></span></div>
-            <div class="dash-date">
-              <span id="dash-md"></span>
-              <span id="dash-y"></span>
-            </div>
-          </header>
-          <p class="dash-narrative">
-            <span class="grp">You have</span>
-            <span class="grp"><svg class="grp-icon" data-tabler="calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /><path d="M11 15h1" /><path d="M12 15v3" /></svg><b>3 meetings</b><i>,</i></span>
-            <span class="grp"><svg class="grp-icon" data-tabler="checkbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 11l3 3l8 -8" /><path d="M20 12v6a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h9" /></svg><b>2 tasks</b><i> and</i></span>
-            <span class="grp"><svg class="grp-icon" data-tabler="circle-dot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /></svg><b>1 habit</b></span>
-            <span class="grp">today. You’re</span>
-            <span class="grp"><b>mostly free</b></span>
-            <span class="grp">after 4 pm.</span>
-          </p>
-          <footer class="dash-stats">
-            <span class="stat">
-              <svg class="stat-icon ic-walk" data-tabler="walk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 4a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M7 21l3 -4" /><path d="M16 21l-2 -4l-3 -3l1 -6" /><path d="M6 12l2 -3l4 -1l3 3l3 1" /></svg>
-              <b>4.7K</b>&nbsp;steps
-            </span>
-            <span class="stat">
-              <svg class="stat-icon ic-moon" data-tabler="moon-stars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
-              <b>7.3</b>&nbsp;hours
-            </span>
-          </footer>
-        </div>
-      </section>
-
-      <section class="page" data-page="1">
-        <div class="widget-grid">
-          <button class="widget w-almanac" data-app="日历" style="grid-column:1;grid-row:1">
-            <span class="al-weekday"></span>
-            <span class="al-day"></span>
-            <span class="al-month"></span>
-          </button>
-          <button class="widget w-clock" data-app="时钟" style="grid-column:2/4;grid-row:1">
-            <span class="w-clock-time">--:--</span>
-          </button>
-          <button class="widget w-chat" data-app="Chatbot" style="grid-column:1;grid-row:2">
-            <svg data-tabler="mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10" /><path d="M3 7l9 6l9 -6" /></svg>
-            <span class="w-name">Chatbot</span>
-          </button>
-          <button class="widget w-pomodoro" data-app="番茄钟" style="grid-column:2/4;grid-row:2/4">
-            <svg viewBox="0 0 120 120">
-              <circle class="ring-track" cx="60" cy="60" r="50"/>
-              <circle class="ring-arc" cx="60" cy="60" r="50"/>
-            </svg>
-            <span class="ring-mmss">25:00</span>
-            <span class="w-name">番茄钟</span>
-          </button>
-          <button class="widget w-calendar" data-app="日历" style="grid-column:1;grid-row:3">
-            <svg data-tabler="calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /><path d="M11 15h1" /><path d="M12 15v3" /></svg>
-            <span class="w-name">日历</span>
-          </button>
-          <button class="widget w-year" data-app="年度进度" style="grid-column:1/3;grid-row:4">
-            <div class="meter"><div class="meter-fill" id="year-fill-grid"></div></div>
-            <span class="w-name">YEAR</span>
-          </button>
-          <button class="widget w-settings" data-app="设置" style="grid-column:3;grid-row:4">
-            <svg data-tabler="settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg>
-            <span class="w-name">设置</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="page" data-page="2">
-        <div class="card quota-card">
-          <div class="quota-title">OpenCode Go 用量</div>
-          <div class="quota-state">未连接 Mac · 连接后经 USB 推送真实订阅用量</div>
-        </div>
-      </section>
-    </div>
+    <div id="pages-track"></div>
   </main>
 
-  <div id="peek" aria-label="peek"></div>
+  <button id="peek" type="button" aria-label="Mac 桥接与网络状态">
+    <span data-slot="peek"></span>
+  </button>
 
-  <div id="app-view" hidden>
+  <div id="app-view" role="dialog" aria-modal="true" aria-labelledby="app-title" hidden>
     <header class="app-header">
       <button id="app-back" aria-label="返回">
-        <svg data-tabler="chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 6l-6 6l6 6" /></svg>
+        <svg data-tabler="chevron-left" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 6l-6 6l6 6" /></svg>
       </button>
       <h1 id="app-title"></h1>
     </header>
     <div class="app-body">
-      <p class="app-empty">此平台尚未实现该 App。</p>
+      <div id="app-content" hidden></div>
+      <p class="app-empty" id="app-empty"></p>
+      <p class="app-help" id="app-help" hidden>滑动切换页面；点击页点直接跳转；左右键或 Home/End 键可分页；Back 或 Escape 返回；点击 peek 查看连接状态。</p>
+      <p class="app-empty-sub" id="app-empty-sub"></p>
+      <ol class="app-steps" id="app-steps" hidden>
+        <li>用 USB 线连接 Mac 与设备。</li>
+        <li>启动 Mac companion。</li>
+        <li>等待状态变为已同步。</li>
+      </ol>
+      <ul class="app-troubleshooting" id="app-troubleshooting" hidden>
+        <li>确认 USB 线支持数据传输。</li>
+        <li>确认 Mac companion 正在运行。</li>
+        <li>重新连接后等待状态刷新。</li>
+      </ul>
     </div>
   </div>
 
   <script src="layout.js"></script>
+  <script src="core/registry.js"></script>
+  <script src="core/services.js"></script>
+  <script src="core/composer.js"></script>
+  <script src="plugins/dashboard-page.js"></script>
+  <script src="plugins/almanac.js"></script>
+  <script src="plugins/clock.js"></script>
+  <script src="plugins/chat.js"></script>
+  <script src="plugins/pomodoro.js"></script>
+  <script src="plugins/settings.js"></script>
+  <script src="plugins/year.js"></script>
+  <script src="plugins/quota-page.js"></script>
+  <script src="plugins/status-connection.js"></script>
+  <script src="plugins/status-clock.js"></script>
+  <script src="plugins/peek-bridge.js"></script>
+  <script src="config/desktop_layout.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

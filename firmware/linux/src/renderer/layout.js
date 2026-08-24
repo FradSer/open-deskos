@@ -59,7 +59,6 @@
       peekInset: gutter,
       gridW,
       gridH,
-      budgetUsed: statusH + gutter + gridH + gutter + gutter + peekH + gutter,
     }
   }
 

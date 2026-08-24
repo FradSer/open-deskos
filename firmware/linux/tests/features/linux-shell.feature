@@ -1,9 +1,9 @@
 Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   CM5(RK3588S)上的 Electron 外壳,目标面板分辨率 568×1232 竖屏触摸。
-  交互结构与 ESP32-P4 launcher 对齐:顶部状态栏(左连接指示/中页点/右时钟),
-  中部 3×N widget 网格(桌面布局按列行声明),底部内缩 peek 条(当前为空,
-  预留灵动岛式扩展)。
+  交互结构与 ESP32-P4 launcher 对齐:顶部状态栏(左网络指示/中页名与页点/右时钟),
+  中部 3×N widget 网格(桌面布局按列行声明),底部内缩 peek 条显示真实连接状态。
+  外壳只陈述真实状态:未连接即显示未连接,不伪造任何活动、订阅或健康数据。
 
   Scenario: 以 568×1232 窗口启动并可通过环境变量覆盖
     Given 未设置任何 ODESK_SHELL_ 环境变量
@@ -17,33 +17,103 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: 三段式布局与状态栏构成对齐 P4
     Given 外壳已启动
-    Then 状态栏位于顶部且包含左侧连接指示、居中页点容器与右侧 HH:MM 时钟
+    Then 状态栏位于顶部且包含左侧网络指示、居中页名/页点容器与右侧 HH:MM 时钟
     And 主区 widget 网格为 3 列且左右贴合屏幕边缘(无侧向间距)
-    And 磁贴按声明跨列跨行(clock 与 year 为 2 列宽,pomodoro 为 2×2)
-    And 底部存在左右内缩的 peek 条,当前内容为空
+    And 磁贴按声明跨列跨行(clock 与 pomodoro 跨 2 列,pomodoro 另跨 2 行,year 整行铺满底行)
+    And 不存在指向同一 App 的重复磁贴
+    And 底部 peek 条显示 Mac 桥接状态与网络状态,而不是空白占位
 
   Scenario: 状态栏显示当前时间与日期
     Given 外壳已启动
     When 渲染完成
     Then 状态栏时钟为 HH:MM 格式的当前时间
 
-  Scenario: Dashboard 叙述流对齐 AIODI 参考
+  Scenario: Dashboard 只陈述真实状态
     Given 外壳已启动
     Then 首页头部为左侧英文星期缩写加红点、右侧月日与年份两行右对齐
-    And 叙述流由不可拆分的语义组构成，含内联图标与白色加粗强调值，其余为灰色基色
-    And 底部统计行包含 steps 与 hours 两项且图标着色
+    And 叙述流使用中文说明正在等待 Mac 连接,不含会议/任务/习惯计数,也不含步数或睡眠数值
+    And 叙述流正文中不出现任何数字
+    And Dashboard 底部没有统计行
+
+  Scenario: 连接状态区分网络与 Mac 桥接
+    Given 外壳已启动
+    Then 左侧闪电 aria 标签只描述网络在线状态
+    And quota 页面明确显示 Mac 桥接未配置而不是网络已连接
+    And peek 条同时显示 Mac 桥接状态与网络状态
+    And quota 页面提供查看 USB 连接说明的入口
+    And quota 页面提供重新检查状态的入口
+    And quota 页面提供操作说明入口
+    When 点按操作说明
+    Then 全屏视图说明滑动、页点、键盘、Back/Escape 与 peek 状态
+    When 点按返回按钮
+    Then 回到 quota 页面
+    When 点按重新检查状态
+    Then 网络与 Mac bridge 状态文字重新读取且不伪造已同步
+    When 触发 offline 事件
+    Then 网络指示变灰且状态文字更新为网络未连接
+    When 触发 online 事件
+    Then 网络指示变亮且状态文字更新为网络已连接
 
   Scenario: 横向滑动切换页面并同步状态栏页点
     Given 主屏有至少两个页面
     When 在页面上向左滑动超过阈值
     Then 页面容器平移到下一页且第二个页点变为激活态
+    When 在磁贴上拖动但位移小于换页阈值
+    Then 页面保持原页且不进入 App 全屏视图
+    When 拖动被系统中断(pointercancel)
+    Then 抑制不会驻留,后续点按照常打开 App
+
+  Scenario: 页点是带名称的按钮并可直接跳转
+    Given 主屏有至少两个页面
+    Then 当前页名与页数以"名称 · N/3"形式可见
+    And 每个页点都是 button 且携带"第 N 页,名称"形式的 aria 标签
+    When 点按第三个页点
+    Then 页面容器平移到第三页且第三个页点变为激活态
+    And 当前页名更新为"用量 · 3/3"
+    When 按下 ArrowLeft
+    Then 页面回到"应用 · 2/3"
+    When 按下 End
+    Then 页面跳到"用量 · 3/3"
+    When 按下 Home
+    Then 页面回到"概览 · 1/3"
+
+  Scenario: 磁贴明确显示实时、未启动或待接入状态
+    Given 外壳已启动
+    Then 每个 widget 磁贴都显示可理解的状态文字
+    And 番茄钟显示未启动而不是暗示正在运行
+    And 磁贴状态文案使用中文或明确的产品专有名词
+    And 待接入 App 磁贴显示待接入状态
+
+  Scenario: 字体与 AIODI 状态文字在 CM5 上确定可用
+    Given 外壳已启动
+    When 渲染完成
+    Then Noto Sans SC 与 Montserrat 字体均已加载
+    And 状态文字使用高对比度 token
 
   Scenario: 点按磁贴进入 App 全屏视图且返回可用
     Given 网格页存在可点按的 widget 磁贴
     When 点按任一磁贴
     Then 进入该 App 的全屏视图且返回按钮可见
-    When 点按返回按钮
+    And 全屏视图具有 dialog 语义并将焦点移到返回按钮
+    And 全屏视图打开时后台页面不可聚焦且对辅助技术隐藏
+    And Tab 与 Shift+Tab 焦点循环保持在全屏视图内
+    And 正文提示该 App 尚未在此平台实现且包含磁贴名称
+    And 正文提供返回桌面的下一步
+    When 关闭全屏视图
+    Then 焦点回到原磁贴
+    When 按下 Escape
     Then 回到主屏且原页面保持当前页
+
+  Scenario: 连接说明页面提供明确恢复路径
+    Given quota 页面显示 Mac 桥接未配置
+    When 点按 USB 连接说明
+    Then 全屏视图说明通过 USB 连接 Mac companion
+    And 全屏视图列出三步连接与同步指引
+    And 全屏视图提供无法同步时的三项排查
+    And 全屏视图说明当前 CM5 切片尚未配置桥接
+    And 全屏视图说明当前切片不含 Mac companion 安装器
+    When 点按返回按钮
+    Then 回到 quota 页面
 
   Scenario: 窗口尺寸偏离目标比例时网格重算且不裁切
     Given 外壳以 636×1087 启动(宽高比异于 568×1232)
@@ -52,4 +122,106 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: 图标统一使用 Tabler 集合
     Given 外壳已启动
-    Then 全部图标元素携带 data-tabler 标识且覆盖所需集合(bolt/calendar/checkbox/circle-dot/mail/walk/moon-stars/settings/chevron-left)
+    Then 全部 Tabler 图标元素携带 data-tabler 标识且覆盖所需集合(bolt/mail/settings/chevron-left)
+
+  Scenario: 外壳元素以插件方式组织
+    Given 外壳已启动
+    Then 页面与磁贴均由 odkPlugins 注册的插件构建,index.html 只是空骨架不含任何页面/磁贴内容
+    And 重复注册同一插件 id 或缺失依赖时立即抛错而不是静默降级
+    And 页面构成与磁贴摆放全部来自 config/desktop_layout.js 的声明式配置
+    And 外壳核心(shell.js 与 core/)不引用任何具体页面或磁贴的专有名词
+    When 新增一个插件文件并在配置中声明位置
+    Then 无需修改外壳核心即可出现在对应页面
+
+  Scenario: 状态栏与 peek 由内置插件提供
+    Given 外壳已启动
+    Then 状态栏左槽为连接指示插件、右槽为时钟插件,骨架只留空槽位
+    And peek 内容与 USB 连接说明文案由 peek 插件提供,核心不含其文案
+    And quota 页的 USB 说明入口经服务委托到同一 peek 插件,文案单一来源
+    When 新增一个 status 插件并声明槽位
+    Then 无需修改核心即可出现在状态栏
+
+  Scenario: 磁贴可声明全屏 App 插件面
+    Given clock 磁贴声明了 app 挂载面
+    When 点按 clock 磁贴
+    Then 全屏视图挂载该 App 的实时内容(大号 HH:MM 与英文日期)而非静态对话框
+    When 返回桌面
+    Then App 内容被卸载且其 tick 订阅被释放
+
+  Scenario: Wayland 会话自动选择 ozone 后端
+    Given WAYLAND_DISPLAY 已设置且用户参数未包含 --ozone-platform-hint
+    When 通过 run.sh 启动外壳
+    Then Electron 参数被自动追加 --ozone-platform-hint=auto
+    Given 用户参数已显式携带 --ozone-platform-hint
+    When 通过 run.sh 启动外壳
+    Then 不重复追加该参数
+    Given WAYLAND_DISPLAY 未设置
+    When 通过 run.sh 启动外壳
+    Then 启动参数保持原样,不追加任何 ozone 参数
+
+  Scenario: root 会话自动附加 no-sandbox
+    Given 以 root 身份运行 run.sh
+    When 启动外壳
+    Then Electron 参数自动附加 --no-sandbox
+    Given 用户参数已显式携带 --no-sandbox
+    When 通过 run.sh 启动外壳
+    Then 不重复追加该参数
+
+  Scenario: kiosk 自启动经独立包装器运行并在崩溃后自动重启
+    Given 安装器已注册 open-deskos-shell.desktop 自启项
+    Then Exec 直接指向 scripts/start-kiosk.sh 而不是内联 shell 命令
+    And 包装器导出 ODESK_SHELL_KIOSK=1 并以 --kiosk 运行外壳
+    When 外壳进程退出(含崩溃)
+    Then 包装器在 3 秒后自动重启外壳并把全部输出追加到 launcher.log
+
+  Scenario: 设备安装器支持非 root 执行并锁定依赖版本
+    Given 非 root 且具备 sudo 的 CM5 用户执行安装器
+    Then apt 依赖安装经由 sudo 提权执行
+    And 无 root 且无 sudo 时安装器立即失败并给出明确提示
+    When 使用 pnpm 安装 node 模块
+    Then 以 --frozen-lockfile 安装,保证与仓库锁文件一致
+    And 安装完成时打印 Electron 版本与当前架构
+
+  Scenario: 主进程拒绝导航、弹窗与权限请求
+    Given 外壳已加载本地页面
+    When 页面尝试导航到任意 URL 或打开新窗口
+    Then 主进程阻止该行为
+    When 页面请求任何 Web 权限(摄像头/通知等)
+    Then 主进程一律拒绝
+    When 渲染进程意外退出
+    Then 主进程记录原因并以非零码退出,交由 start-kiosk.sh 重启
+
+  Scenario: CM5 验收脚本输出结构化 JSON 报告
+    Given 在 CM5 会话中执行 scripts/cm5-acceptance.sh
+    Then 输出单个 JSON 文档,包含 arch/os/session/display/touch/gpu/electron/smoke/autostart/memory 检查项
+    And 包含 Electron 共享库完整性检查(ldd 无 not found)
+    And 任一关键检查未通过时进程以非零码退出
+
+  Scenario: 网格摆放由声明式配置驱动
+    Given 外壳已启动
+    Then index.html 不含任何内联样式,磁贴改用 data-widget 标识
+    And shell.js 从 config/desktop_layout.js 读声明，跨列跨行与 desktop_layout.lua 一致(clock 跨 2 列、pomodoro 跨 2×2、year 铺满整行)
+    And 每个 data-widget 配置项都有对应磁贴,缺失时启动立即失败
+    And 计算后的 gridColumn/gridRow 与物理几何检查(clock 宽等于 2 列加 gutter,pomodoro 等)保持一致
+
+  Scenario: 页点触摸目标不小于 44px 且布局不变
+    Given 外壳已启动
+    Then 页点可见胶囊尺寸不变,点击热区经不可见扩展达到至少 44×44
+    And 在页点中心上方 16px 处做命中测试仍返回该页点按钮
+    And 状态栏内页点容器矩形不变,bolt 在左、时钟在右的关系保持
+    And 页点的 scaleX 动画只作用于视觉伪元素,不再缩放按钮本身的热区
+
+  Scenario: 可信键盘输入可激活磁贴并返回
+    Given 焦点位于任一磁贴
+    When 通过可信输入发送 Enter 按下与抬起
+    Then 该 App 全屏视图打开
+    When 通过可信输入发送 Escape
+    Then 全屏视图关闭回到主屏
+    When 焦点位于另一磁贴并发送 Space 按下与抬起
+    Then 全屏视图打开
+
+  Scenario: 系统 prefers-reduced-motion 生效
+    Given 模拟 prefers-reduced-motion 为 reduce
+    Then pages-track 的过渡时长为 0s
+    When 恢复为 no-preference
+    Then 过渡时长恢复为非零

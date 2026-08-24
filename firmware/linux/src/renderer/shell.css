@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("./fonts/NotoSansSC-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("./fonts/Montserrat-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}
+
 :root {
   --odk-bg: #000000;
   --odk-surface: #171717;
@@ -7,14 +23,15 @@
   --odk-stroke-focus: #b5b5b5;
   --odk-primary: #ffffff;
   --odk-secondary: #706f70;
+  --odk-secondary-strong: var(--odk-stroke-focus);
   --odk-accent-red: #eb5757;
   --odk-accent-green: #34c759;
   --odk-accent-blue: #025bc2;
 
-  /* Geometry is recomputed by shell.js from the AIODI grid_metrics port. */
   --status-h: 57px;
   --gutter: 28px;
   --cell-w: 170px;
+  --cell-h: 170px;
   --radius: 36px;
   --stroke-w: 4px;
   --peek-h: 160px;
@@ -40,11 +57,15 @@ body {
   -webkit-user-select: none;
 }
 
+button {
+  font: inherit;
+}
+
 body.kiosk {
   cursor: none;
 }
 
-/* ---- Status bar: bolt left, page dots center, clock right (P4 layout) ---- */
+/* ---- Status bar: network, current page, dots, clock ---- */
 
 #status-bar {
   position: absolute;
@@ -57,6 +78,10 @@ body.kiosk {
   z-index: 10;
 }
 
+[data-slot] {
+  display: contents;
+}
+
 #sb-net {
   width: var(--bar-icon);
   height: var(--bar-icon);
@@ -67,8 +92,20 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
+#page-context {
+  position: absolute;
+  top: calc(var(--status-h) * 0.05);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--odk-secondary-strong);
+  font-size: clamp(11px, calc(var(--bar-icon) * 0.42), 16px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 #dots {
   position: absolute;
+  top: calc(var(--status-h) * 0.56);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -77,23 +114,55 @@ body.kiosk {
 }
 
 .dot {
-  width: calc(var(--gutter) * 12 / 16);
+  appearance: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  width: calc(var(--gutter) * 28 / 16);
   height: calc(var(--gutter) * 12 / 16);
   border-radius: 999px;
-  background: var(--odk-button);
-  transition: width 200ms ease, background 200ms ease;
+  background: none;
 }
 
-.dot.active {
-  width: calc(var(--gutter) * 28 / 16);
+/* Visual pill lives on ::before so scaleX never shrinks the button's hit area. */
+.dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--odk-button);
+  transform: scaleX(0.43);
+  transition: transform 200ms ease, background 200ms ease;
+}
+
+.dot.active::before {
+  transform: scaleX(1);
   background: var(--odk-primary);
+}
+
+/* Invisible extended hit area: >=44px around the pill for touch. */
+.dot::after {
+  content: "";
+  position: absolute;
+  inset: -16px -10px;
 }
 
 .sb-time {
   margin-left: auto;
-  font-size: 34px;
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: calc(var(--bar-icon) * 0.95);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.dot:focus-visible,
+.widget:focus-visible,
+#app-back:focus-visible,
+.button-pill:focus-visible,
+#peek:focus-visible {
+  outline: 3px solid var(--odk-stroke-focus);
+  outline-offset: 3px;
 }
 
 /* ---- Pager viewport between status bar and peek ---- */
@@ -128,13 +197,12 @@ body.kiosk {
   gap: var(--gutter);
 }
 
-/* ---- Dashboard narrative stream (AIODI Homepage #0 reference) ---- */
+/* ---- Dashboard narrative stream ---- */
 
 .dash {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   padding: calc(var(--gutter) * 0.6) var(--gutter);
 }
 
@@ -144,6 +212,7 @@ body.kiosk {
 }
 
 .dash-wd {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: min(64px, 11vw);
   font-weight: 700;
   line-height: 1;
@@ -162,7 +231,7 @@ body.kiosk {
 .dash-date {
   margin-left: auto;
   text-align: right;
-  color: var(--odk-secondary);
+  color: var(--odk-secondary-strong);
   font-size: min(26px, 4.6vw);
   line-height: 1.3;
 }
@@ -172,10 +241,12 @@ body.kiosk {
 }
 
 .dash-narrative {
+  margin-block: auto;
+  max-width: 24ch;
   font-size: min(42px, 7vw);
   font-weight: 500;
   line-height: 1.34;
-  color: var(--odk-secondary);
+  color: var(--odk-secondary-strong);
 }
 
 .grp {
@@ -193,49 +264,6 @@ body.kiosk {
   font-weight: 600;
 }
 
-.grp i {
-  font-style: normal;
-}
-
-.grp-icon {
-  height: 0.92em;
-  width: auto;
-  vertical-align: -0.12em;
-  margin-right: 0.14em;
-}
-
-.dash-stats {
-  display: flex;
-  align-items: center;
-  gap: 1.4em;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  font-size: min(36px, 6vw);
-  color: var(--odk-secondary);
-}
-
-.stat b {
-  color: var(--odk-primary);
-  font-weight: 600;
-}
-
-.stat-icon {
-  width: 1.05em;
-  height: 1.05em;
-  margin-right: 0.32em;
-}
-
-.ic-walk {
-  color: var(--odk-accent-blue);
-}
-
-.ic-moon {
-  color: var(--odk-secondary);
-}
-
 .card {
   background: var(--odk-surface);
   border: var(--stroke-w) solid var(--odk-stroke);
@@ -244,29 +272,48 @@ body.kiosk {
   margin: 0 var(--gutter);
 }
 
-.conn-card,
 .quota-card {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--gutter) * 0.55);
+}
+
+.quota-title {
+  font-size: clamp(22px, calc(var(--cell-w) * 0.17), 32px);
+}
+
+.quota-state {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(16px, calc(var(--cell-w) * 0.12), 22px);
+}
+
+.button-pill {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: var(--odk-button);
+  color: var(--odk-primary);
+  cursor: pointer;
+  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+}
+
+.quota-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
-.conn-title,
-.quota-title {
-  font-size: 28px;
+.button-pill:active {
+  background: var(--odk-elevated);
 }
 
-.conn-state,
-.quota-state {
-  font-size: 22px;
-  color: var(--odk-secondary);
+.button-secondary {
+  color: var(--odk-secondary-strong);
 }
 
-/* ---- Widget grid: 3 columns, declarative spans from desktop_layout ---- */
-
-.page-grid {
-  justify-content: center;
-}
+/* ---- Widget grid: 3 columns, declarative spans ---- */
 
 .widget-grid {
   display: grid;
@@ -281,7 +328,7 @@ body.kiosk {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--cell-w) * 0.08);
+  gap: calc(var(--cell-w) * 0.05);
   border: var(--stroke-w) solid var(--odk-stroke);
   border-radius: var(--radius);
   background: var(--odk-surface);
@@ -289,6 +336,7 @@ body.kiosk {
   font-family: inherit;
   font-size: calc(var(--cell-w) * 0.15);
   overflow: hidden;
+  cursor: pointer;
 }
 
 .widget svg {
@@ -301,27 +349,41 @@ body.kiosk {
   border-color: var(--odk-stroke-focus);
 }
 
+.w-state {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(12px, calc(var(--cell-w) * 0.095), 16px);
+  line-height: 1;
+}
+
 .w-almanac {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: var(--odk-primary);
+  border-color: var(--odk-primary);
   color: var(--odk-bg);
-  gap: 6px;
+  gap: 4px;
+}
+
+.w-almanac .w-state {
+  color: var(--odk-secondary);
 }
 
 .al-weekday {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: calc(var(--cell-w) * 0.14);
   font-weight: 600;
+  line-height: 1;
   color: var(--odk-accent-red);
 }
 
 .al-day {
-  font-size: calc(var(--cell-w) * 0.45);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: calc(var(--cell-w) * 0.42);
   font-weight: 600;
   line-height: 1;
 }
 
 .al-month {
   font-size: calc(var(--cell-w) * 0.13);
+  line-height: 1;
   color: var(--odk-secondary);
 }
 
@@ -330,8 +392,9 @@ body.kiosk {
 }
 
 .w-clock-time {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: calc(var(--cell-w) * 2 * 0.26);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -354,11 +417,11 @@ body.kiosk {
 
 .ring-arc {
   fill: none;
-  stroke: var(--odk-accent-red);
+  stroke: var(--odk-button);
   stroke-width: 10;
   stroke-linecap: round;
   stroke-dasharray: 314;
-  stroke-dashoffset: 236;
+  stroke-dashoffset: 314;
 }
 
 .ring-mmss {
@@ -366,8 +429,10 @@ body.kiosk {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -58%);
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: calc(var(--cell-w) * 0.26);
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -379,7 +444,7 @@ body.kiosk {
 .meter {
   height: 8px;
   background: var(--odk-button);
-  border-radius: 4px;
+  border-radius: 999px;
   overflow: hidden;
 }
 
@@ -387,29 +452,14 @@ body.kiosk {
   height: 100%;
   width: 0;
   background: var(--odk-accent-green);
-  border-radius: 4px;
-}
-
-.meter-label {
-  font-size: calc(var(--cell-w) * 0.14);
-  letter-spacing: 3px;
-  color: var(--odk-secondary);
-}
-
-.w-calendar {
-  background: var(--odk-accent-blue);
-  border-color: var(--odk-accent-blue);
-}
-
-.w-calendar svg {
-  color: var(--odk-primary);
+  border-radius: 999px;
 }
 
 .w-settings {
   border-color: var(--odk-stroke-focus);
 }
 
-/* ---- Peek strip: empty island placeholder at the bottom ---- */
+/* ---- Peek strip: live bridge/network status ---- */
 
 #peek {
   position: absolute;
@@ -417,10 +467,28 @@ body.kiosk {
   left: var(--peek-inset);
   right: var(--peek-inset);
   height: var(--peek-h);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 calc(var(--gutter) * 0.8);
   background: var(--odk-surface);
   border: var(--stroke-w) solid var(--odk-stroke);
   border-radius: var(--radius);
+  color: var(--odk-primary);
+  text-align: left;
+  cursor: pointer;
   z-index: 10;
+}
+
+.peek-primary {
+  font-size: clamp(18px, calc(var(--cell-w) * 0.14), 26px);
+}
+
+.peek-secondary {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
 }
 
 /* ---- Fullscreen app view ---- */
@@ -444,39 +512,100 @@ body.kiosk {
   align-items: center;
   gap: 16px;
   padding: 0 20px;
-  border-bottom: 1px solid var(--odk-stroke);
+  border-bottom: var(--stroke-w) solid var(--odk-stroke);
 }
 
 #app-back {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--odk-button);
   border: none;
-  border-radius: 14px;
+  border-radius: var(--radius);
+  color: var(--odk-primary);
+  cursor: pointer;
 }
 
 #app-back svg {
   width: 26px;
   height: 26px;
-  color: var(--odk-primary);
 }
 
 #app-title {
-  font-size: 26px;
+  font-size: clamp(22px, calc(var(--cell-w) * 0.16), 30px);
   font-weight: 500;
 }
 
 .app-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
+  padding: var(--gutter);
+  text-align: center;
 }
 
 .app-empty {
-  font-size: 22px;
+  max-width: 24ch;
+  font-size: clamp(20px, calc(var(--cell-w) * 0.15), 28px);
+}
+
+.app-clock {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--gutter) * 0.75);
+}
+
+.app-clock-time {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: calc(var(--cell-w) * 0.9);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.app-clock-date {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: calc(var(--cell-w) * 0.14);
   color: var(--odk-secondary);
+}
+
+.app-empty-sub {
+  max-width: 32ch;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+}
+
+.app-help {
+  max-width: 34ch;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(16px, calc(var(--cell-w) * 0.12), 22px);
+  line-height: 1.6;
+}
+
+.app-steps,
+.app-troubleshooting {
+  width: min(100%, 34ch);
+  padding-left: 1.4em;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+  line-height: 1.6;
+  text-align: left;
+}
+
+.app-troubleshooting {
+  color: var(--odk-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pages-track,
+  .dot::before {
+    transition: none;
+  }
 }

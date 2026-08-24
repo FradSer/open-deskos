@@ -17,11 +17,33 @@ const DRIVER_SCRIPT = `
   const approx = (a, b, tol = 4) => Math.abs(a - b) <= tol
 
   await new Promise((resolve) => setTimeout(resolve, 1200))
+  await document.fonts.ready
 
   const metrics = window.__odkGrid
   out.metricsExposed = Boolean(metrics && metrics.cellW)
 
   out.appViewDisplayOnLoad = getComputedStyle($('#app-view')).display
+
+  out.pluginIds = window.odkPlugins ? [...window.odkPlugins.ids()].sort() : []
+  let dupThrown = false
+  try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
+  out.duplicateRegistrationRejected = dupThrown
+  out.layoutValidated = (() => {
+    try { return odkComposer.validate(window.DESKTOP_LAYOUT) === true } catch { return false }
+  })()
+  let ghostThrown = false
+  try {
+    odkComposer.validate({ pages: [{ id: 'ghost', name: 'ghost', kind: 'grid', widgets: [{ id: 'nope' }] }] })
+  } catch { ghostThrown = true }
+  out.unknownPluginRejected = ghostThrown
+  out.pagesBuiltByComposer = [...document.querySelectorAll('#pages-track .page')]
+    .every((page) => page.dataset.builtBy === 'composer')
+  out.statusSlotsMounted =
+    document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
+    document.querySelector('[data-slot="status-right"] .sb-time') !== null
+  out.peekSlotMounted =
+    document.querySelector('[data-slot="peek"] #peek-bridge') !== null &&
+    document.querySelector('[data-slot="peek"] #peek-network') !== null
 
   const statusBarRect = $('#status-bar').getBoundingClientRect()
   const dotsRect = $('#dots').getBoundingClientRect()
@@ -34,17 +56,45 @@ const DRIVER_SCRIPT = `
 
   out.pageCount = document.querySelectorAll('#pages-track .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
+  out.pageContext = $('#page-context').textContent
+  out.fontsLoaded = document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"')
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
   out.dashWeekday = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/.test($('#dash-wd').textContent)
   out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test($('#dash-md').textContent)
   out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
   out.narrativeGroups = document.querySelectorAll('.dash-narrative .grp').length
-  out.statItems = document.querySelectorAll('.dash-stats .stat').length
-  const requiredIcons = ['bolt', 'calendar', 'checkbox', 'circle-dot', 'mail', 'walk', 'moon-stars', 'settings', 'chevron-left']
+  out.narrativeText = document.querySelector('.dash-narrative').textContent
+  out.statRowRemoved = !document.querySelector('.dash-stats')
+  const requiredIcons = ['bolt', 'mail', 'settings', 'chevron-left']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
+  const apps = [...document.querySelectorAll('.widget')].map((w) => w.dataset.app)
+  out.widgetCount = apps.length
+  out.uniqueApps = new Set(apps).size === apps.length
+  out.widgetsDeclaredViaDataAttr =
+    document.querySelectorAll('.widget[data-widget]').length === 6
+  const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
+  out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
+  const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
+  out.pomodoroPlacementFromConfig =
+    pomodoroPlacement.gridRowStart === '2' && pomodoroPlacement.gridRowEnd === '4'
+  const dots = [...document.querySelectorAll('#dots .dot')]
+  out.dotsAreButtons = dots.length > 0 && dots.every((d) => d.tagName === 'BUTTON')
+  out.dotLabelsPresent = dots.every((d) => (d.getAttribute('aria-label') ?? '').length > 0)
+  const firstDotRect = dots[0].getBoundingClientRect()
+  out.dotHitAreaAbovePill =
+    document.elementFromPoint(firstDotRect.left + firstDotRect.width / 2, Math.max(1, firstDotRect.top - 16)) === dots[0]
+  const dotTransform = getComputedStyle(dots[0]).transform
+  out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
+  const widgets = [...document.querySelectorAll('.widget')]
+  out.widgetsHaveState = widgets.every((widget) => widget.querySelector('.w-state')?.textContent.trim())
+  out.pomodoroNotRunning = $('.ring-mmss').textContent === '--:--' && $('.w-pomodoro .w-state').textContent === '未启动'
+  window.dispatchEvent(new Event('offline'))
+  out.boltGreyOffline = !$('#sb-net').classList.contains('on')
+  window.dispatchEvent(new Event('online'))
+  out.boltLitOnline = $('#sb-net').classList.contains('on')
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -64,18 +114,18 @@ const DRIVER_SCRIPT = `
 
   const peekRect = $('#peek').getBoundingClientRect()
   const expectedPeekWidth = window.innerWidth - 2 * metrics.peekInset
-  out.peekPresentAndEmpty = $('#peek').textContent.trim() === ''
+  out.peekHasStatus = $('#peek').textContent.includes('Mac bridge') && $('#peek').textContent.includes('网络')
   out.peekWidthMatchesInset = approx(peekRect.width, expectedPeekWidth)
   out.peekBottomInsetSymmetric = approx(
     window.innerHeight - peekRect.bottom,
     peekRect.left,
   )
 
-  const y = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
+  const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
   const x0 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.8
   const x1 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.2
-  const pointerEvent = (type, x) =>
-    new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: y, buttons: 1 })
+  const pointerEvent = (type, x, py) =>
+    new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: py ?? midY, buttons: 1 })
   viewport.dispatchEvent(pointerEvent('pointerdown', x0))
   viewport.dispatchEvent(pointerEvent('pointermove', (x0 + x1) / 2))
   viewport.dispatchEvent(pointerEvent('pointermove', x1))
@@ -86,12 +136,77 @@ const DRIVER_SCRIPT = `
   out.transformAfterSwipe = track.style.transform
   out.secondDotActive = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
+  const tileRect = document.querySelector('.widget').getBoundingClientRect()
+  const tileX = tileRect.left + tileRect.width / 2
+  const tileY = tileRect.top + tileRect.height / 2
+  viewport.dispatchEvent(pointerEvent('pointerdown', tileX, tileY))
+  viewport.dispatchEvent(pointerEvent('pointermove', tileX + 70, tileY))
+  viewport.dispatchEvent(pointerEvent('pointerup', tileX + 70, tileY))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  // Browsers emit a compatibility click after a real pointer release; synthetic
+  // PointerEvents do not, so emit it explicitly to mirror device behavior.
+  viewport.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  out.transformAfterTileDrag = track.style.transform
+  out.appHiddenAfterTileDrag = $('#app-view').hidden
+
   document.querySelector('.widget').click()
   out.appVisibleAfterTileTap = !$('#app-view').hidden
   out.appTitle = $('#app-title').textContent
+  out.appEmptyNamesApp = $('#app-empty').textContent.includes(out.appTitle)
   $('#app-back').click()
   out.appClosedAfterBack = $('#app-view').hidden
   out.stillSecondPageAfterBack = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+
+  viewport.dispatchEvent(pointerEvent('pointerdown', x0, midY))
+  viewport.dispatchEvent(pointerEvent('pointermove', x0 - 60, midY))
+  viewport.dispatchEvent(pointerEvent('pointercancel', x0 - 60, midY))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  document.querySelector('.widget').click()
+  out.appOpensAfterCancelledDrag = !$('#app-view').hidden
+  $('#app-back').click()
+
+  document.querySelectorAll('#dots .dot')[2].click()
+  await new Promise((resolve) => setTimeout(resolve, 350))
+  out.transformAfterDotJump = track.style.transform
+  out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
+  out.thirdPageContext = $('#page-context').textContent === '用量 · 3/3'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+  out.arrowLeftReturnsToGrid = $('#page-context').textContent === '应用 · 2/3'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
+  out.endJumpsToQuota = $('#page-context').textContent === '用量 · 3/3'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+  out.homeJumpsToOverview = $('#page-context').textContent === '概览 · 1/3'
+  document.querySelectorAll('#dots .dot')[2].click()
+  out.quotaStateSeparatesBridge = $('#quota-state').textContent.includes('Mac bridge 未配置') && $('#quota-state').textContent.includes('网络')
+  out.quotaConnectLabel = $('#quota-connect').textContent === '查看 USB 连接说明'
+  out.quotaRefreshLabel = $('#quota-refresh').textContent === '重新检查状态'
+  out.quotaHelpLabel = $('#quota-help').textContent === '操作说明'
+  $('#quota-help').click()
+  out.helpViewVisible = !$('#app-view').hidden && $('#app-help').textContent.includes('滑动')
+  out.helpBackgroundHidden = $('#pages-viewport').getAttribute('aria-hidden') === 'true' && $('#pages-viewport').inert
+  $('#app-back').click()
+  $('#quota-refresh').click()
+  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Mac bridge 未配置')
+  $('#quota-connect').click()
+  out.bridgeInfoVisible = !$('#app-view').hidden && $('#app-title').textContent === 'Mac companion' && $('#app-empty').textContent.includes('USB')
+  out.bridgeInfoHasDialogSemantics = $('#app-view').getAttribute('role') === 'dialog' && $('#app-view').getAttribute('aria-modal') === 'true'
+  out.bridgeInfoFocusBack = document.activeElement?.id === 'app-back'
+  document.getElementById('app-back').focus()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+  out.tabFromBackStaysInDialog = document.activeElement?.id === 'quota-connect' || document.activeElement?.id === 'quota-refresh' || document.activeElement?.id === 'app-back'
+  document.getElementById('app-back').focus()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+  out.shiftTabFromBackStaysInDialog = document.activeElement?.id === 'quota-connect' || document.activeElement?.id === 'quota-refresh' || document.activeElement?.id === 'app-back'
+  out.bridgeInfoHasSteps = !$('#app-steps').hidden && $('#app-steps').querySelectorAll('li').length === 3
+  out.bridgeInfoHasTroubleshooting = !$('#app-troubleshooting').hidden && $('#app-troubleshooting').querySelectorAll('li').length === 3
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  out.escapeClosesBridgeInfo = $('#app-view').hidden
+  out.quotaPageAfterEscape = $('#dots .dot[aria-current="page"]')?.getAttribute('aria-label') === '第 3 页，用量'
+
+  // Return to the grid page so the geometry sweep measures on-screen rects.
+  document.querySelectorAll('#dots .dot')[1].click()
+  await new Promise((resolve) => setTimeout(resolve, 350))
 
   return out
 })()
@@ -118,7 +233,7 @@ const GEOMETRY_PROBE = `
       if (!separated) { peekOverlaps += 1 }
     }
     let textsFit = true
-    for (const el of document.querySelectorAll('.w-clock-time, .al-day, .ring-mmss, .hero-time')) {
+    for (const el of document.querySelectorAll('.w-clock-time, .al-day, .ring-mmss')) {
       const box = el.closest('.card, .widget').getBoundingClientRect()
       const r = el.getBoundingClientRect()
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
@@ -138,32 +253,80 @@ function check(results) {
   const checks = [
     ['grid metrics exposed', results.metricsExposed],
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
+    ['plugin registry holds all 11 plugins',
+      JSON.stringify(results.pluginIds) === JSON.stringify(
+        ['almanac', 'chat', 'clock', 'dashboard-page', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-clock', 'status-connection', 'year'],
+      )],
+    ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
+    ['desktop layout validates against registry', results.layoutValidated],
+    ['unknown plugin rejected by composer', results.unknownPluginRejected],
+    ['all pages built by composer', results.pagesBuiltByComposer],
+    ['status bar slots mounted by plugins', results.statusSlotsMounted],
+    ['peek slot mounted by plugin', results.peekSlotMounted],
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
     ['three pages', results.pageCount === 3],
     ['three dots', results.dotCount === 3],
+    ['page context is visible', results.pageContext === '概览 · 1/3'],
+    ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
     ['dashboard month-day format', results.dashDateFormatted],
     ['dashboard year is current', results.dashYearCurrent],
-    ['narrative groups rendered', results.narrativeGroups >= 7],
-    ['stats row has two items', results.statItems === 2],
+    ['narrative waits for mac without fabricated counts',
+      results.narrativeGroups >= 2 &&
+      !/\d/.test(results.narrativeText) &&
+      /mac/i.test(results.narrativeText)],
+    ['stats row removed', results.statRowRemoved],
     ['tabler icon set complete', results.tablerSetComplete],
-    ['tabler icons count >= 10', results.tablerCount >= 10],
+    ['tabler icons count >= 4', results.tablerCount >= 4],
+    ['six widgets with unique app targets', results.widgetCount === 6 && results.uniqueApps],
+    ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
+    ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
+    ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
+    ['dots are labeled buttons', results.dotsAreButtons && results.dotLabelsPresent],
+    ['dot hit area extends above the pill', results.dotHitAreaAbovePill],
+    ['dot button itself is not transformed', results.dotButtonNotTransformed],
+    ['widgets expose honest state labels', results.widgetsHaveState],
+    ['pomodoro is visibly not running', results.pomodoroNotRunning],
+    ['bolt greys on offline event', results.boltGreyOffline],
+    ['bolt lights on online event', results.boltLitOnline],
     ['grid has 3 columns', results.gridColumns === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
     ['pomodoro widget spans 2x2', results.pomodoroSpansTwoByTwo],
-    ['peek present and empty', results.peekPresentAndEmpty],
+    ['peek shows bridge and network status', results.peekHasStatus],
     ['peek width matches inset', results.peekWidthMatchesInset],
     ['peek bottom inset symmetric', results.peekBottomInsetSymmetric],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
+    ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
+    ['small drag on tile does not open app', results.appHiddenAfterTileDrag],
     ['tile opens app view', results.appVisibleAfterTileTap],
     ['app title set', typeof results.appTitle === 'string' && results.appTitle.length > 0],
+    ['unavailable copy names the app', results.appEmptyNamesApp === true],
     ['back closes app view', results.appClosedAfterBack],
     ['page preserved after back', results.stillSecondPageAfterBack],
+    ['cancelled drag does not suppress next tap', results.appOpensAfterCancelledDrag === true],
+    ['dot click jumps to last page', results.transformAfterDotJump === `translateX(-${results.viewportWidth * 2}px)`],
+    ['third dot active after jump', results.thirdDotActive],
+    ['third page context is visible', results.thirdPageContext],
+    ['ArrowLeft returns to grid', results.arrowLeftReturnsToGrid],
+    ['End jumps to quota', results.endJumpsToQuota],
+    ['Home jumps to overview', results.homeJumpsToOverview],
+    ['quota separates bridge and network state', results.quotaStateSeparatesBridge],
+    ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],
+    ['dialog hides background from assistive tech', results.helpBackgroundHidden],
+    ['quota has USB connection action', results.quotaConnectLabel],
+    ['quota has status refresh action', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth],
+    ['USB connection info opens', results.bridgeInfoVisible],
+    ['USB connection info has dialog semantics', results.bridgeInfoHasDialogSemantics && results.bridgeInfoFocusBack],
+    ['dialog Tab focus stays contained', results.tabFromBackStaysInDialog && results.shiftTabFromBackStaysInDialog],
+    ['USB connection info has three steps', results.bridgeInfoHasSteps],
+    ['USB connection info has troubleshooting', results.bridgeInfoHasTroubleshooting],
+    ['Escape closes connection info', results.escapeClosesBridgeInfo],
+    ['Escape preserves quota page', results.quotaPageAfterEscape],
   ]
   let failures = 0
   for (const [name, ok] of checks) {
@@ -195,13 +358,96 @@ async function runGeometrySweep(win) {
   return failures
 }
 
+async function runInputChecks(win) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  const js = (code) => win.webContents.executeJavaScript(code, true)
+  const key = (keyCode, type) => win.webContents.sendInputEvent({ type, keyCode })
+  const press = async (keyCode) => {
+    key(keyCode, 'keyDown')
+    // Chromium synthesizes button clicks from Enter only when the key produces
+    // a character input; '\r' is that char event.
+    if (keyCode === 'Enter') key('\r', 'char')
+    key(keyCode, 'keyUp')
+  }
+
+  await win.webContents.debugger.attach('1.3')
+  try {
+    // Trusted keyboard input: buttons only synthesize clicks from real input.
+    await js("document.querySelector('.widget').focus()")
+    await press('Enter')
+    await sleep(200)
+    const enterOpens = !(await js("document.querySelector('#app-view').hidden"))
+    await press('Escape')
+    await sleep(200)
+    const escapeCloses = await js("document.querySelector('#app-view').hidden")
+
+    await js("document.querySelectorAll('.widget')[1].focus()")
+    await press('Space')
+    await sleep(200)
+    const spaceOpens = !(await js("document.querySelector('#app-view').hidden"))
+    await press('Escape')
+    await sleep(100)
+
+    // Clock tile declares an appView surface: real app content, not a dialog.
+    await js("document.querySelector('[data-widget=\"clock\"]').click()")
+    await sleep(200)
+    const clockApp = await js(`({
+      viewOpen: !document.querySelector('#app-view').hidden,
+      contentVisible: !document.querySelector('#app-content').hidden,
+      dialogHidden: document.querySelector('#app-empty').hidden,
+      heroTime: /^\\d{2}:\\d{2}$/.test(document.querySelector('.app-clock-time').textContent),
+      heroDate: document.querySelector('.app-clock-date').textContent.length > 0,
+    })`)
+    await press('Escape')
+    await sleep(200)
+    const clockAppClosed = await js(`({
+      viewHidden: document.querySelector('#app-view').hidden,
+      contentUnmounted: document.querySelector('#app-content').children.length === 0,
+    })`)
+
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    })
+    const reduced = await js(
+      "getComputedStyle(document.getElementById('pages-track')).transitionDuration",
+    )
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+    })
+    const restored = await js(
+      "getComputedStyle(document.getElementById('pages-track')).transitionDuration",
+    )
+
+    const checks = [
+      ['Enter opens app view', enterOpens],
+      ['Escape closes app view', escapeCloses],
+      ['Space opens app view', spaceOpens],
+      ['clock tile mounts its appView surface', clockApp.viewOpen && clockApp.contentVisible && clockApp.dialogHidden],
+      ['clock app shows live hero time and date', clockApp.heroTime && clockApp.heroDate],
+      ['clock app unmounts content on close', clockAppClosed.viewHidden && clockAppClosed.contentUnmounted],
+      ['reduced motion zeroes pager transitions', reduced === '0s'],
+      ['motion restored when preference is no-preference', restored !== '0s'],
+    ]
+    let failures = 0
+    for (const [name, ok] of checks) {
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
+      if (!ok) failures += 1
+    }
+    return failures
+  } finally {
+    await win.webContents.debugger.detach()
+  }
+}
+
 async function main() {
   const win = new BrowserWindow({
     width: 568,
     height: 1232,
     useContentSize: true,
     frame: false,
-    show: false,
+    // Visible on purpose: hidden windows do not paint frames on headless Linux
+    // (GPU-less Xvfb), which freezes CSS transitions and lies to rect probes.
+    show: true,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -215,13 +461,26 @@ async function main() {
     app.exit(1)
   }, OVERALL_TIMEOUT_MS)
 
+  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) console.error(`renderer[${sourceId}:${line}] ${message}`)
+  })
+
   await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
-  const results = await win.webContents.executeJavaScript(DRIVER_SCRIPT, true)
+  let results
+  try {
+    results = await win.webContents.executeJavaScript(DRIVER_SCRIPT, true)
+  } catch (error) {
+    clearTimeout(timeout)
+    console.error(`FAIL  driver script threw: ${error}`)
+    app.exit(1)
+    return
+  }
   const driverFailures = check(results)
+  const inputFailures = await runInputChecks(win)
   const sweepFailures = await runGeometrySweep(win)
   clearTimeout(timeout)
 
-  process.exitCode = driverFailures + sweepFailures === 0 ? 0 : 1
+  process.exitCode = driverFailures + inputFailures + sweepFailures === 0 ? 0 : 1
   app.exit(process.exitCode)
 }
 
