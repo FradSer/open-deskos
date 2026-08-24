@@ -8,12 +8,26 @@ import AppKit
 struct OpenDeskOSApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var host = PluginHost()
+#if os(macOS)
+    @State private var companionStatusServer: CompanionStatusServer?
+#endif
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(host)
-                .task { host.load() }
+                .task {
+                    host.load()
+#if os(macOS)
+                    startCompanionStatusServer()
+                    companionStatusServer?.update(sidecar: Self.sidecarLabel(for: host.healthCheckState))
+#endif
+                }
+#if os(macOS)
+                .onChange(of: host.healthCheckState) { _, state in
+                    companionStatusServer?.update(sidecar: Self.sidecarLabel(for: state))
+                }
+#endif
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .active:
@@ -28,6 +42,28 @@ struct OpenDeskOSApp: App {
                 }
         }
     }
+
+#if os(macOS)
+    private func startCompanionStatusServer() {
+        guard companionStatusServer == nil else { return }
+        do {
+            let server = try CompanionStatusServer()
+            server.start()
+            companionStatusServer = server
+        } catch {
+            NSLog("OpenDeskOS companion status server unavailable: \(error.localizedDescription)")
+        }
+    }
+
+    private static func sidecarLabel(for state: WisprFlowHealthState) -> String {
+        switch state {
+        case .notChecked: "Not checked"
+        case .checking: "Checking"
+        case .healthy: "Healthy"
+        case .unavailable: "Unavailable"
+        }
+    }
+#endif
 }
 
 struct ContentView: View {

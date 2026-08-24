@@ -1,5 +1,11 @@
 import Foundation
 
+struct OpenDeskOSCompanionStatus: Codable, Equatable {
+    let service: String
+    let ready: Bool
+    let sidecar: String
+}
+
 struct WisprFlowHealthReport: Equatable {
     let statusCode: Int
     let responseMilliseconds: Int

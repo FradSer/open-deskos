@@ -52,6 +52,13 @@ Feature: macOS plugin management console
     Then it unregisters the bundled health check instead of leaving it on port 8787
     And it offers the standalone CLI command for the configured endpoint
 
+  Scenario: Serve companion status to the Linux shell over the local network
+    Given the macOS companion process is running
+    When the Linux shell requests the companion health endpoint at the Mac network address
+    Then the companion returns HTTP 200 with an OpenDeskOS service identity
+    And the status endpoint reports whether the Mac companion is ready
+    And the response contains no session cookie or bearer token
+
   Scenario: Check a token-protected sidecar without copying its secret
     Given the local sidecar is configured with FLOW_API_TOKEN
     When the app-managed background agent runs its bundled health check
