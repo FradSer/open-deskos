@@ -1,7 +1,8 @@
-const { app, BrowserWindow, session } = require('electron')
+const { app, BrowserWindow, ipcMain, session } = require('electron')
 
 const DEFAULT_WIDTH = 568
 const DEFAULT_HEIGHT = 1232
+const { resolveCompanionHealthUrl } = require('./companion-endpoint')
 
 function resolveLaunchOptions(argv, env) {
   const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
@@ -28,6 +29,7 @@ function createWindow(options) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: require('node:path').join(__dirname, 'preload.js'),
     },
   })
 
@@ -45,7 +47,8 @@ function createWindow(options) {
     })
   }
 
-  const query = options.kiosk ? '?kiosk=1' : ''
+  const companionHealth = encodeURIComponent(resolveCompanionHealthUrl())
+  const query = `?${options.kiosk ? 'kiosk=1&' : ''}companion=${companionHealth}`
   win.loadFile('src/renderer/index.html', { search: query })
   return win
 }
@@ -66,6 +69,10 @@ function runSmokeCheck(win, expected) {
 
 function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+  ipcMain.handle('odk-companion-health', async (_event, endpoint) => {
+    const { checkCompanionHealth } = require('./companion-health')
+    return checkCompanionHealth(endpoint)
+  })
 
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)

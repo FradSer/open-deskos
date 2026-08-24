@@ -34,13 +34,46 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 叙述流使用中文说明正在等待 Mac 连接,不含会议/任务/习惯计数,也不含步数或睡眠数值
     And 叙述流正文中不出现任何数字
     And Dashboard 底部没有统计行
+    And Dashboard 提供唯一的连接 Mac 主操作
+    And 连接 Mac 主操作的辅助文字说明连接后会显示真实日程与用量
+
+  Scenario: 首次使用从 Dashboard 可以开始连接
+    Given Dashboard 显示 Mac 尚未连接
+    When 点按连接 Mac
+    Then 打开 Mac companion 的网络连接说明
+    And 说明页提供三步连接指引与重新检查状态入口
+    When 点按返回按钮
+    Then 回到概览页面
+
+  Scenario: Mac companion 进程启动后显示已连接
+    Given Mac companion health endpoint 可用
+    When 外壳启动并完成 Mac 状态检查
+    Then Dashboard 显示 Mac 已连接
+    And quota 页面显示 Mac 已连接
+    And peek 条显示 Mac 已连接
+    When Mac companion health endpoint 不可用并重新检查
+    Then Dashboard 显示 Mac 尚未连接
+    And 页面显示本次检查时间
+
+  Scenario: 只有 OpenDeskOS companion 身份才算已连接
+    Given 本机 2xx 服务返回的不是 OpenDeskOS companion 身份
+    When 外壳完成 Mac 状态检查
+    Then 所有界面仍显示 Mac 尚未连接
+
+  Scenario: CM5 通过网络访问 Mac companion
+    Given macOS companion 在 Mac 的网络地址提供 8788 health endpoint
+    And CM5 配置 ODK_COMPANION_HOST 指向 Mac
+    When Linux 外壳完成 Mac 状态检查
+    Then Dashboard、quota 与 peek 都显示 Mac 已连接
+    And 检查请求不依赖 127.0.0.1
 
   Scenario: 连接状态区分网络与 Mac 桥接
     Given 外壳已启动
     Then 左侧闪电 aria 标签只描述网络在线状态
-    And quota 页面明确显示 Mac 桥接未配置而不是网络已连接
-    And peek 条同时显示 Mac 桥接状态与网络状态
-    And quota 页面提供查看 USB 连接说明的入口
+    And quota 页面明确显示 Mac 尚未连接而不是网络已连接
+    And quota 页面提供连接 Mac 主操作
+    And peek 条同时显示 Mac 尚未连接与网络状态
+    And 网络变化会通过辅助技术状态播报
     And quota 页面提供重新检查状态的入口
     And quota 页面提供操作说明入口
     When 点按操作说明
@@ -48,7 +81,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When 点按返回按钮
     Then 回到 quota 页面
     When 点按重新检查状态
-    Then 网络与 Mac bridge 状态文字重新读取且不伪造已同步
+    Then 网络与 Mac 尚未连接状态文字重新读取且不伪造已同步
+    And 页面显示本次检查时间
     When 触发 offline 事件
     Then 网络指示变灰且状态文字更新为网络未连接
     When 触发 online 事件
@@ -81,8 +115,10 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Given 外壳已启动
     Then 每个 widget 磁贴都显示可理解的状态文字
     And 番茄钟显示未启动而不是暗示正在运行
+    And 时钟磁贴显示可查看而不是待接入
     And 磁贴状态文案使用中文或明确的产品专有名词
     And 待接入 App 磁贴显示待接入状态
+    And 待接入磁贴的全屏说明提供具体的接入状态而不是只提示返回
 
   Scenario: 字体与 AIODI 状态文字在 CM5 上确定可用
     Given 外壳已启动
@@ -106,11 +142,11 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: 连接说明页面提供明确恢复路径
     Given quota 页面显示 Mac 桥接未配置
-    When 点按 USB 连接说明
-    Then 全屏视图说明通过 USB 连接 Mac companion
+    When 点按网络连接说明
+    Then 全屏视图说明通过网络访问 Mac companion
     And 全屏视图列出三步连接与同步指引
     And 全屏视图提供无法同步时的三项排查
-    And 全屏视图说明当前 CM5 切片尚未配置桥接
+    And 全屏视图说明当前 CM5 切片使用配置的 companion endpoint
     And 全屏视图说明当前切片不含 Mac companion 安装器
     When 点按返回按钮
     Then 回到 quota 页面
@@ -136,8 +172,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: 状态栏与 peek 由内置插件提供
     Given 外壳已启动
     Then 状态栏左槽为连接指示插件、右槽为时钟插件,骨架只留空槽位
-    And peek 内容与 USB 连接说明文案由 peek 插件提供,核心不含其文案
-    And quota 页的 USB 说明入口经服务委托到同一 peek 插件,文案单一来源
+    And peek 内容与网络连接说明文案由 peek 插件提供,核心不含其文案
+    And quota 页的网络说明入口经服务委托到同一 peek 插件,文案单一来源
     When 新增一个 status 插件并声明槽位
     Then 无需修改核心即可出现在状态栏
 

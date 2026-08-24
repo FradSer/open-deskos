@@ -14,7 +14,7 @@
     id: 'clock',
     kind: 'tile',
     app: '时钟',
-    state: '待接入',
+    state: '可查看',
     mount(el, ctx) {
       el.innerHTML = `
         <span class="w-clock-time">--:--</span>

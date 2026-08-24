@@ -123,8 +123,10 @@ function createPager(viewport, track, pageNames, onIndexChange) {
 function main() {
   const params = new URLSearchParams(window.location.search)
   if (params.get('kiosk') === '1') document.body.classList.add('kiosk')
+  if (params.get('companion')) window.__ODK_COMPANION_HEALTH_URL = params.get('companion')
 
   applyGeometry()
+  odkServices.connection.refresh()
 
   const appView = document.getElementById('app-view')
   const appTitle = document.getElementById('app-title')
@@ -133,6 +135,8 @@ function main() {
   const appEmptySub = document.getElementById('app-empty-sub')
   const appSteps = document.getElementById('app-steps')
   const appTroubleshooting = document.getElementById('app-troubleshooting')
+  const appAction = document.getElementById('app-action')
+  const appActionStatus = document.getElementById('app-action-status')
   const appContent = document.getElementById('app-content')
   let lastFocusedElement = null
   let appDisposers = []
@@ -145,7 +149,7 @@ function main() {
     }
   }
 
-  function openInfoView(title, message, detail, showSteps = false) {
+  function openInfoView(title, message, detail, showSteps = false, action = null) {
     lastFocusedElement = document.activeElement
     appTitle.textContent = title
     appContent.hidden = true
@@ -155,6 +159,16 @@ function main() {
     appEmptySub.textContent = detail
     appSteps.hidden = !showSteps
     appTroubleshooting.hidden = !showSteps
+    appAction.hidden = !action
+    appActionStatus.hidden = !action
+    appActionStatus.textContent = action ? odkServices.connection.lastCheck() : ''
+    appAction.onclick = action
+      ? async () => {
+          await action.onClick()
+          appActionStatus.textContent = odkServices.connection.lastCheck()
+        }
+      : null
+    if (action) appAction.textContent = action.label
     appView.hidden = false
     setBackgroundInert(true)
     document.getElementById('app-back').focus()
@@ -163,7 +177,7 @@ function main() {
   function openAppView(title, app) {
     lastFocusedElement = document.activeElement
     appTitle.textContent = title
-    for (const element of [appEmpty, appHelp, appEmptySub, appSteps, appTroubleshooting]) element.hidden = true
+    for (const element of [appEmpty, appHelp, appEmptySub, appSteps, appTroubleshooting, appAction, appActionStatus]) element.hidden = true
     appContent.replaceChildren()
     appContent.hidden = false
     const disposer = app.mount(appContent, uiCtx)
@@ -178,6 +192,8 @@ function main() {
     for (const dispose of appDisposers) dispose()
     appDisposers = []
     appContent.replaceChildren()
+    appAction.onclick = null
+    appActionStatus.textContent = ''
     setBackgroundInert(false)
     if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus()
     lastFocusedElement = null
@@ -206,7 +222,7 @@ function main() {
   // Services handed to every plugin: dialogs owned by the shell frame,
   // plus the shared tick/connection stores.
   const uiCtx = {
-    BRIDGE_STATUS: odkServices.BRIDGE_STATUS,
+    BRIDGE_LABELS: odkServices.BRIDGE_LABELS,
     NETWORK_LABELS: odkServices.NETWORK_LABELS,
     connection: odkServices.connection,
     onTick: odkServices.onTick,
@@ -220,13 +236,16 @@ function main() {
 
   // Status-bar and peek plugins own everything visible outside the pages;
   // the skeleton only provides empty slots.
+  window.addEventListener('odk-connection-announcement', (event) => {
+    document.getElementById('status-announcement').textContent = event.detail
+  })
   for (const def of odkPlugins.byKind('status')) {
     def.mount(document.querySelector(`[data-slot="status-${def.slot}"]`), uiCtx)
   }
   const peekDef = odkPlugins.byKind('peek')[0]
   if (peekDef) {
     peekDef.mount(document.querySelector('[data-slot="peek"]'), uiCtx)
-    uiCtx.openUsbGuide = () => peekDef.activate(uiCtx)
+    uiCtx.openCompanionGuide = () => peekDef.activate(uiCtx)
   }
 
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
@@ -238,7 +257,7 @@ function main() {
       return
     }
     if (typeof plugin.activate === 'function' && plugin.activate(uiCtx)) return
-    openInfoView(plugin.app, `「${plugin.app}」尚未在此平台实现。`, '当前 CM5 切片尚未配置 Mac bridge；返回桌面继续浏览。')
+    openInfoView(plugin.app, `「${plugin.app}」当前尚未接入。`, '此功能将在后续平台版本提供；当前可以返回桌面使用已开放的功能。')
   }
 
   for (const tile of document.querySelectorAll('.widget')) {
@@ -246,7 +265,7 @@ function main() {
   }
 
   document.getElementById('app-back').addEventListener('click', closeInfoView)
-  if (peekDef) document.getElementById('peek').addEventListener('click', () => uiCtx.openUsbGuide())
+  if (peekDef) document.getElementById('peek').addEventListener('click', () => uiCtx.openCompanionGuide())
 
   const pageNames = window.DESKTOP_LAYOUT.pages.map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')

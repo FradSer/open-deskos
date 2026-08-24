@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=568, initial-scale=1, user-scalable=no" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src http://127.0.0.1:8788" />
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="shell.css" />
 </head>
@@ -17,13 +17,14 @@
     <span id="page-context" aria-live="polite" aria-atomic="true">概览 · 1/3</span>
     <nav id="dots" aria-label="页面指示"></nav>
     <span data-slot="status-right"></span>
+    <span id="status-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
   </header>
 
   <main id="pages-viewport">
     <div id="pages-track"></div>
   </main>
 
-  <button id="peek" type="button" aria-label="Mac 桥接与网络状态">
+  <button id="peek" type="button" aria-label="Mac 与网络状态">
     <span data-slot="peek"></span>
   </button>
 
@@ -39,15 +40,17 @@
       <p class="app-empty" id="app-empty"></p>
       <p class="app-help" id="app-help" hidden>滑动切换页面；点击页点直接跳转；左右键或 Home/End 键可分页；Back 或 Escape 返回；点击 peek 查看连接状态。</p>
       <p class="app-empty-sub" id="app-empty-sub"></p>
+      <button class="button-pill app-action" id="app-action" type="button" hidden>重新检查状态</button>
+      <p class="app-action-status" id="app-action-status" aria-live="polite" hidden></p>
       <ol class="app-steps" id="app-steps" hidden>
-        <li>用 USB 线连接 Mac 与设备。</li>
-        <li>启动 Mac companion。</li>
-        <li>等待状态变为已同步。</li>
+        <li>让 CM5 与 Mac 连接到同一网络。</li>
+        <li>启动 Mac companion 并保持运行。</li>
+        <li>等待状态变为 Mac 已连接。</li>
       </ol>
       <ul class="app-troubleshooting" id="app-troubleshooting" hidden>
-        <li>确认 USB 线支持数据传输。</li>
+        <li>确认 Mac 与 CM5 在同一网络。</li>
         <li>确认 Mac companion 正在运行。</li>
-        <li>重新连接后等待状态刷新。</li>
+        <li>确认 endpoint 地址正确后重新检查。</li>
       </ul>
     </div>
   </div>

@@ -1,8 +1,10 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
+const http = require('node:http')
 const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
-const OVERALL_TIMEOUT_MS = 30000
+const { resolveCompanionHealthUrl } = require('../src/companion-endpoint')
+const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 1087],
   ['small dev', 480, 854],
@@ -65,6 +67,9 @@ const DRIVER_SCRIPT = `
   out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
   out.narrativeGroups = document.querySelectorAll('.dash-narrative .grp').length
   out.narrativeText = document.querySelector('.dash-narrative').textContent
+  out.dashConnectLabel = $('#dash-connect')?.textContent.trim() === '连接 Mac'
+  out.dashSupportText = $('.dash-support')?.textContent.includes('真实日程与用量')
+  out.dashInitialBridgeStatus = $('#dash-narrative').textContent.includes('Mac')
   out.statRowRemoved = !document.querySelector('.dash-stats')
   const requiredIcons = ['bolt', 'mail', 'settings', 'chevron-left']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
@@ -90,11 +95,14 @@ const DRIVER_SCRIPT = `
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector('.w-state')?.textContent.trim())
+  out.clockIsAvailable = $('.w-clock .w-state').textContent === '可查看'
   out.pomodoroNotRunning = $('.ring-mmss').textContent === '--:--' && $('.w-pomodoro .w-state').textContent === '未启动'
   window.dispatchEvent(new Event('offline'))
   out.boltGreyOffline = !$('#sb-net').classList.contains('on')
+  out.offlineAnnounced = $('#status-announcement').textContent.includes('网络未连接')
   window.dispatchEvent(new Event('online'))
   out.boltLitOnline = $('#sb-net').classList.contains('on')
+  out.onlineAnnounced = $('#status-announcement').textContent.includes('网络已连接')
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -114,7 +122,9 @@ const DRIVER_SCRIPT = `
 
   const peekRect = $('#peek').getBoundingClientRect()
   const expectedPeekWidth = window.innerWidth - 2 * metrics.peekInset
-  out.peekHasStatus = $('#peek').textContent.includes('Mac bridge') && $('#peek').textContent.includes('网络')
+  out.peekHasStatus = $('#peek').textContent.includes('Mac 尚未连接') && $('#peek').textContent.includes('网络')
+  out.bridgeHealthUrl = window.__ODK_COMPANION_HEALTH_URL
+  out.bridgeInitialStatus = $('#peek-bridge').textContent === 'Mac 尚未连接'
   out.peekWidthMatchesInset = approx(peekRect.width, expectedPeekWidth)
   out.peekBottomInsetSymmetric = approx(
     window.innerHeight - peekRect.bottom,
@@ -178,28 +188,34 @@ const DRIVER_SCRIPT = `
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
   out.homeJumpsToOverview = $('#page-context').textContent === '概览 · 1/3'
   document.querySelectorAll('#dots .dot')[2].click()
-  out.quotaStateSeparatesBridge = $('#quota-state').textContent.includes('Mac bridge 未配置') && $('#quota-state').textContent.includes('网络')
-  out.quotaConnectLabel = $('#quota-connect').textContent === '查看 USB 连接说明'
+  out.quotaStateSeparatesBridge = $('#quota-state').textContent.includes('Mac 尚未连接') && $('#quota-state').textContent.includes('网络')
+  out.quotaConnectLabel = $('#quota-connect').textContent === '连接 Mac'
   out.quotaRefreshLabel = $('#quota-refresh').textContent === '重新检查状态'
   out.quotaHelpLabel = $('#quota-help').textContent === '操作说明'
+  out.quotaCheckedVisible = $('#quota-checked').textContent.includes('最近检查')
   $('#quota-help').click()
   out.helpViewVisible = !$('#app-view').hidden && $('#app-help').textContent.includes('滑动')
   out.helpBackgroundHidden = $('#pages-viewport').getAttribute('aria-hidden') === 'true' && $('#pages-viewport').inert
   $('#app-back').click()
   $('#quota-refresh').click()
-  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Mac bridge 未配置')
+  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Mac 尚未连接')
+  out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('最近检查')
   $('#quota-connect').click()
-  out.bridgeInfoVisible = !$('#app-view').hidden && $('#app-title').textContent === 'Mac companion' && $('#app-empty').textContent.includes('USB')
+  out.bridgeInfoVisible = !$('#app-view').hidden && $('#app-title').textContent === '连接 Mac' && $('#app-empty').textContent.includes('网络')
   out.bridgeInfoHasDialogSemantics = $('#app-view').getAttribute('role') === 'dialog' && $('#app-view').getAttribute('aria-modal') === 'true'
   out.bridgeInfoFocusBack = document.activeElement?.id === 'app-back'
   document.getElementById('app-back').focus()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
-  out.tabFromBackStaysInDialog = document.activeElement?.id === 'quota-connect' || document.activeElement?.id === 'quota-refresh' || document.activeElement?.id === 'app-back'
+  out.tabFromBackStaysInDialog = ['app-back', 'app-action'].includes(document.activeElement?.id)
   document.getElementById('app-back').focus()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
-  out.shiftTabFromBackStaysInDialog = document.activeElement?.id === 'quota-connect' || document.activeElement?.id === 'quota-refresh' || document.activeElement?.id === 'app-back'
+  out.shiftTabFromBackStaysInDialog = ['app-back', 'app-action'].includes(document.activeElement?.id)
   out.bridgeInfoHasSteps = !$('#app-steps').hidden && $('#app-steps').querySelectorAll('li').length === 3
   out.bridgeInfoHasTroubleshooting = !$('#app-troubleshooting').hidden && $('#app-troubleshooting').querySelectorAll('li').length === 3
+  out.bridgeInfoHasRefresh = !$('#app-action').hidden && $('#app-action').textContent === '重新检查状态'
+  $('#app-action').click()
+  out.bridgeInfoRefreshStatus = $('#app-action-status').textContent.includes('最近检查')
+  out.bridgeHealthCanRefresh = window.__ODK_COMPANION_HEALTH_URL?.includes('127.0.0.1')
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   out.escapeClosesBridgeInfo = $('#app-view').hidden
   out.quotaPageAfterEscape = $('#dots .dot[aria-current="page"]')?.getAttribute('aria-label') === '第 3 页，用量'
@@ -278,6 +294,9 @@ function check(results) {
       results.narrativeGroups >= 2 &&
       !/\d/.test(results.narrativeText) &&
       /mac/i.test(results.narrativeText)],
+    ['dashboard has one connection action', results.dashConnectLabel && results.dashSupportText],
+    ['companion health endpoint is configured', results.bridgeHealthUrl?.includes('127.0.0.1')],
+    ['companion initial status is honest', results.bridgeInitialStatus],
     ['stats row removed', results.statRowRemoved],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 4', results.tablerCount >= 4],
@@ -289,9 +308,12 @@ function check(results) {
     ['dot hit area extends above the pill', results.dotHitAreaAbovePill],
     ['dot button itself is not transformed', results.dotButtonNotTransformed],
     ['widgets expose honest state labels', results.widgetsHaveState],
+    ['clock widget is visibly available', results.clockIsAvailable],
     ['pomodoro is visibly not running', results.pomodoroNotRunning],
     ['bolt greys on offline event', results.boltGreyOffline],
+    ['offline status is announced', results.offlineAnnounced],
     ['bolt lights on online event', results.boltLitOnline],
+    ['online status is announced', results.onlineAnnounced],
     ['grid has 3 columns', results.gridColumns === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
@@ -316,15 +338,18 @@ function check(results) {
     ['End jumps to quota', results.endJumpsToQuota],
     ['Home jumps to overview', results.homeJumpsToOverview],
     ['quota separates bridge and network state', results.quotaStateSeparatesBridge],
+    ['quota has primary connection action', results.quotaConnectLabel],
+    ['quota exposes check state', results.quotaCheckedVisible],
     ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],
     ['dialog hides background from assistive tech', results.helpBackgroundHidden],
-    ['quota has USB connection action', results.quotaConnectLabel],
-    ['quota has status refresh action', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth],
-    ['USB connection info opens', results.bridgeInfoVisible],
-    ['USB connection info has dialog semantics', results.bridgeInfoHasDialogSemantics && results.bridgeInfoFocusBack],
+    ['quota has network connection action', results.quotaConnectLabel],
+    ['quota has status refresh action', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
+    ['network connection info opens', results.bridgeInfoVisible],
+    ['network connection info has dialog semantics', results.bridgeInfoHasDialogSemantics && results.bridgeInfoFocusBack],
     ['dialog Tab focus stays contained', results.tabFromBackStaysInDialog && results.shiftTabFromBackStaysInDialog],
-    ['USB connection info has three steps', results.bridgeInfoHasSteps],
-    ['USB connection info has troubleshooting', results.bridgeInfoHasTroubleshooting],
+    ['network connection info has three steps', results.bridgeInfoHasSteps],
+    ['network connection info has troubleshooting', results.bridgeInfoHasTroubleshooting],
+    ['network connection info has refresh action', results.bridgeInfoHasRefresh && results.bridgeInfoRefreshStatus && results.bridgeHealthCanRefresh],
     ['Escape closes connection info', results.escapeClosesBridgeInfo],
     ['Escape preserves quota page', results.quotaPageAfterEscape],
   ]
@@ -439,7 +464,130 @@ async function runInputChecks(win) {
   }
 }
 
+const COMPANION_CONNECTED_SCRIPT = `
+  (async () => {
+    const $ = (selector) => document.querySelector(selector)
+    const out = {}
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    out.dashConnected = $('#dash-narrative').textContent.includes('Mac 已连接')
+    out.peekConnected = $('#peek-bridge').textContent.includes('Mac 已连接')
+    ;[...document.querySelectorAll('#dots .dot')][2].click()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    out.quotaConnected = $('#quota-state').textContent.includes('Mac 已连接')
+    out.quotaChecked = $('#quota-checked').textContent.includes('最近检查')
+    return out
+  })()
+`
+
+function startCompanionMock() {
+  let payload = { status: 200, body: {} }
+  const server = http.createServer((request, response) => {
+    response.writeHead(payload.status, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(payload.body))
+  })
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        port: server.address().port,
+        setPayload(next) { payload = next },
+        close: () => new Promise((done) => server.close(done)),
+      })
+    })
+  })
+}
+
+async function runCompanionChecks() {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  const js = (win, code) => win.webContents.executeJavaScript(code, true)
+  const mock = await startCompanionMock()
+  const companionOk = {
+    status: 200,
+    body: { service: 'OpenDeskOS companion', ready: true, sidecar: 'Healthy' },
+  }
+  mock.setPayload(companionOk)
+
+  let win
+  try {
+    win = new BrowserWindow({
+      width: 568,
+      height: 1232,
+      useContentSize: true,
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        preload: path.join(APP_ROOT, 'src', 'preload.js'),
+      },
+    })
+    await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), {
+      search: `?companion=${encodeURIComponent(`http://127.0.0.1:${mock.port}/health`)}`,
+    })
+
+    const connected = await js(win, COMPANION_CONNECTED_SCRIPT)
+
+    // A non-OpenDeskOS 200 (e.g. the Wispr sidecar alone) must stay disconnected.
+    mock.setPayload({ status: 200, body: { ok: true } })
+    await js(win, "document.querySelector('#quota-refresh').click()")
+    await sleep(800)
+    const identityRejected = await js(
+      win,
+      "document.querySelector('#quota-state').textContent.includes('Mac 尚未连接')",
+    )
+
+    // Restoring the OpenDeskOS identity reconnects on the next manual check.
+    mock.setPayload(companionOk)
+    await js(win, "document.querySelector('#quota-refresh').click()")
+    await sleep(800)
+    const reconnects = await js(
+      win,
+      "document.querySelector('#quota-state').textContent.includes('Mac 已连接')",
+    )
+
+    const checks = [
+      ['dashboard shows Mac connected', connected.dashConnected],
+      ['peek shows Mac connected', connected.peekConnected],
+      ['quota shows Mac connected after startup check', connected.quotaConnected],
+      ['quota shows last check time when connected', connected.quotaChecked],
+      ['non-companion HTTP 200 stays disconnected', identityRejected],
+      ['recheck reconnects once identity returns', reconnects],
+    ]
+    let failures = 0
+    for (const [name, ok] of checks) {
+      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
+      if (!ok) failures += 1
+    }
+    return failures
+  } finally {
+    if (win) win.destroy()
+    await mock.close()
+  }
+}
+
+function runEndpointChecks() {
+  const checks = [
+    ['default companion endpoint uses loopback', resolveCompanionHealthUrl({}) === 'http://127.0.0.1:8788/health'],
+    ['companion host builds a network endpoint', resolveCompanionHealthUrl({ ODK_COMPANION_HOST: '192.168.1.20' }) === 'http://192.168.1.20:8788/health'],
+    ['explicit companion URL takes precedence', resolveCompanionHealthUrl({
+      ODK_COMPANION_HOST: '192.168.1.20',
+      ODK_COMPANION_HEALTH_URL: 'http://mac.local:9000/status',
+    }) === 'http://mac.local:9000/status'],
+  ]
+  let failures = 0
+  for (const [name, ok] of checks) {
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
+    if (!ok) failures += 1
+  }
+  return failures
+}
+
 async function main() {
+  ipcMain.handle('odk-companion-health', async (_event, endpoint) => {
+    const { checkCompanionHealth } = require('../src/companion-health')
+    return checkCompanionHealth(endpoint)
+  })
+
   const win = new BrowserWindow({
     width: 568,
     height: 1232,
@@ -475,12 +623,14 @@ async function main() {
     app.exit(1)
     return
   }
+  const endpointFailures = runEndpointChecks()
   const driverFailures = check(results)
   const inputFailures = await runInputChecks(win)
   const sweepFailures = await runGeometrySweep(win)
+  const companionFailures = await runCompanionChecks()
   clearTimeout(timeout)
 
-  process.exitCode = driverFailures + inputFailures + sweepFailures === 0 ? 0 : 1
+  process.exitCode = endpointFailures + driverFailures + inputFailures + sweepFailures + companionFailures === 0 ? 0 : 1
   app.exit(process.exitCode)
 }
 
