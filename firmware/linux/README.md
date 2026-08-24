@@ -11,12 +11,12 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 - 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
 - **三段式布局对齐 ESP32-P4 launcher**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
   中部 3 列 widget 网格(按 `desktop_layout.lua` 声明的跨列跨行磁贴)、底部内缩 peek 条
-  (显示 Mac bridge 与网络状态,点击进入 USB 连接说明)
+  (显示 Mac 连接与网络状态,点击进入网络连接说明)
 - AIODI 设计系统 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何移植
   固件 `aiodi.grid_metrics()` portrait 算法(fit = min(w/320, h/480))
 - 三页横向触摸滑动:Dashboard 流 / Home 网格 / Quota 页;当前页名与 N/3 可见,年份进度条
 - 点按 widget 进入全屏视图,返回按钮与 Escape 始终可用;未接入 App 明确显示待接入状态
-- quota 与 peek 分离显示网络在线和 Mac bridge 未配置状态,提供 USB 连接说明入口
+- quota 与 peek 分离显示 Mac companion 健康状态和网络在线状态,提供网络连接说明与重新检查入口
 
 ## 目录结构
 
@@ -57,6 +57,11 @@ bash tests/smoke.sh   # 可执行检查
 环境变量:`ODESK_SHELL_WIDTH` / `ODESK_SHELL_HEIGHT`(默认 568/1232)、
 `ODESK_SHELL_KIOSK=1`;命令行 `--kiosk` 等价。Wayland 会话(`WAYLAND_DISPLAY`
 已设置)由 `run.sh` 自动追加 `--ozone-platform-hint=auto`,用户显式传入时不重复。
+
+Mac companion 通过网络提供状态服务。默认检查 `http://127.0.0.1:8788/health`;
+部署到 CM5 时用 `ODK_COMPANION_HOST=<Mac 的局域网地址>` 和可选
+`ODK_COMPANION_PORT=<端口>` 指向 Mac。`ODK_COMPANION_HEALTH_URL` 仍可直接覆盖完整 URL。
+Mac 与 CM5 必须位于同一可达网络；不要把 `127.0.0.1` 用作跨设备地址。
 
 ## 部署到 CM5
 
@@ -109,12 +114,16 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 800x1400x24" \
 ## 验证状态
 
 - 已验证:宿主机 smoke(窗口尺寸两种场景 + AIODI token 对齐),macOS arm64。
-- 已验证:本地字体加载、网络/bridge 状态文案、USB 说明入口、Escape 返回、宿主机 smoke/e2e。
+- Mac companion 状态检查经 Electron 主进程调用 `http://127.0.0.1:8788/health`(macOS App 内置的
+  CompanionStatusServer,默认监听 Mac 的网络接口,返回 `service: "OpenDeskOS companion"` 身份标识;
+  非 OpenDeskOS 身份的 2xx 响应一律视为未连接)。可用时显示 Mac 已连接,不可用时显示 Mac 尚未连接。
+  检查地址可用 `ODK_COMPANION_HOST` / `ODK_COMPANION_PORT` 或 `ODK_COMPANION_HEALTH_URL` 覆盖。Dashboard 叙述流随连接状态切换,已连接时隐藏连接 CTA。
+- 已验证:本地字体加载、网络/bridge 状态文案、网络连接说明入口、Escape 返回、宿主机 smoke/e2e。
 - 已验证(CM5 真机,2026-08-23,无屏 Xvfb):smoke 两种分辨率 + token + 布局
-  全绿;e2e 81/81 全绿;arm64 Electron v43.4.1 依赖完整。root 会话由 run.sh
+  全绿;e2e 含 100+ 项交互、连接与几何检查全绿;arm64 Electron v43.4.1 依赖完整。root 会话由 run.sh
   自动附加 --no-sandbox。无头环境下隐藏窗口不产帧、CSS 过渡冻结,测试窗口
   必须 show(e2e 已改)。
 - 未验证:真实面板(GPU 合成上屏、真实 evdev 触摸、桌面会话自启)。
   接屏后用 `scripts/cm5-acceptance.sh` 留存证据。
-- 网络闪电反映的是接口级在线状态(`navigator.onLine`);Internet 与服务健康度
-  属于 Mac bridge 接入后的能力,当前不伪造。
+- 网络闪电反映的是接口级在线状态(`navigator.onLine`);Mac companion 状态来自实际
+  `/health` 请求。Internet 在线不等于 Mac 已连接；跨设备部署必须配置 Mac 的局域网地址。

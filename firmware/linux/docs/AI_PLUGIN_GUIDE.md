@@ -96,7 +96,7 @@ root.odkPlugins.register({
 | `ctx.connection.refresh()` | 手动重读 |
 | `ctx.BRIDGE_STATUS` / `ctx.NETWORK_LABELS` | 统一状态文案,禁止自造 |
 | `ctx.openDialog(title, message, sub, showSteps?)` | 打开外壳全屏对话框 |
-| `ctx.openNavigationHelp()` / `ctx.openUsbGuide()` | 内置两个标准视图(USB 指南文案由 peek 插件提供) |
+| `ctx.openNavigationHelp()` / `ctx.openCompanionGuide()` | 内置两个标准视图(网络连接指南文案由 peek 插件提供) |
 
 ## 布局声明
 

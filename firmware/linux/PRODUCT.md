@@ -34,7 +34,7 @@ Confirmed capabilities:
 - 568×1232 default kiosk window; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
 - Three-page horizontal touch pager with threshold-based swipe, visible page context (`名称 · N/3`), and status-bar dot sync: Dashboard narrative stream / Home widget grid / Quota honesty card.
 - Home grid: 3 columns with declarative column/row spans in `src/renderer/config/desktop_layout.js`, mirroring `desktop_layout.lua` (clock and pomodoro 2-wide, pomodoro 2×2, year meter full-width); every tile exposes a truthful state label. All pages, tiles, status-bar indicators, peek content, and fullscreen app surfaces are self-contained plugins assembled by `core/composer.js`; extending the shell means adding a plugin file plus one config line (see `docs/AI_PLUGIN_GUIDE.md`), never core edits — enforced by smoke greps.
-- Network and Mac bridge states are separate: the bolt reports network reachability, while quota and peek explicitly report `Mac bridge 未配置` and offer USB connection guidance.
+- Network and Mac companion states are separate: the bolt reports network reachability, while dashboard, quota and peek check the Mac companion status server (macOS app, default `127.0.0.1:8788`, configurable host/port) and report `Mac 已连接` or `Mac 尚未连接`, with network guidance and retry. Only responses identifying as `OpenDeskOS companion` count as connected.
 - Tap any widget to open a fullscreen app view; Back and Escape always return to the exact page left.
 - Runtime geometry: `layout.js` ports the firmware `aiodi.grid_metrics()` portrait algorithm (`fit = min(w/320, h/480)`) into CSS custom properties; the shell re-flows on any aspect ratio without cropping.
 - Noto Sans SC Regular and Montserrat Bold are bundled locally under `src/renderer/fonts/` so CM5 rendering does not depend on host-installed fonts.
@@ -47,7 +47,7 @@ Hard constraints:
 
 Deliberately undecided:
 - Whether CM5 becomes a supported Open DeskOS line at all — this slice feeds the migration evaluation and commits to nothing.
-- CM5 real-device validation (GPU, touch, autostart) is pending; do not treat host-green as device-green.
+- CM5 real-device validation (GPU, touch, autostart) remains a separate acceptance gate; do not treat host-green as device-green.
 
 ## Brand Commitments
 
