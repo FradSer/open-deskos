@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -24,7 +24,12 @@ function parseCssVars(css) {
   return vars
 }
 
-const designRoot = path.resolve(root, '../../DESIGN.md')
+const designRoot = [path.resolve(root, '../../DESIGN.md'), path.resolve(root, 'DESIGN.md')]
+  .find((candidate) => existsSync(candidate))
+if (!designRoot) {
+  console.error('FAIL: DESIGN.md not found (repo root or deployed slice root)')
+  process.exit(1)
+}
 const design = parseDesignTokens(readFileSync(designRoot, 'utf8'))
 const cssVars = parseCssVars(readFileSync(path.join(root, 'src/renderer/shell.css'), 'utf8'))
 
@@ -40,7 +45,7 @@ for (const [name, hex] of Object.entries(design)) {
   if (actual !== undefined && actual !== hex) {
     console.error(`FAIL: --odk-${varName} is ${actual}, DESIGN.md says ${hex}`)
     failures += 1
-  } else if (actual === undefined && !['typography'].includes(name)) {
+  } else if (actual === undefined) {
     console.error(`FAIL: token ${name} (${hex}) has no matching --odk-${varName} in shell.css`)
     failures += 1
   }

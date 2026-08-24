@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, session } = require('electron')
 
 const DEFAULT_WIDTH = 568
 const DEFAULT_HEIGHT = 1232
@@ -31,6 +31,20 @@ function createWindow(options) {
     },
   })
 
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error(`renderer gone (${details.reason}); exiting for restart`)
+    app.exit(1)
+  })
+  if (options.kiosk) {
+    win.webContents.on('before-input-event', (event, input) => {
+      const devtoolsKey = input.key === 'F12'
+        || (input.control && input.shift && input.key.toLowerCase() === 'i')
+      if (devtoolsKey) event.preventDefault()
+    })
+  }
+
   const query = options.kiosk ? '?kiosk=1' : ''
   win.loadFile('src/renderer/index.html', { search: query })
   return win
@@ -51,13 +65,31 @@ function runSmokeCheck(win, expected) {
 }
 
 function main() {
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    if (!options.smoke) win.show()
+  })
 }
 
-app.whenReady().then(main)
+app.on('child-process-gone', (_event, details) => {
+  console.error(`child process gone: ${details.type} (${details.reason})`)
+})
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const [win] = BrowserWindow.getAllWindows()
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  })
+  app.whenReady().then(main)
+}
 
 app.on('window-all-closed', () => {
   app.quit()

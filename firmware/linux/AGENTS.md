@@ -5,14 +5,28 @@ Repository-wide rules live in the root `AGENTS.md`.
 
 ## Project Structure & Module Organization
 
-- `src/main.js` — Electron main process: window creation (default 568×1232),
+- `src/main.js` — Electron 主进程: window creation (default 568×1232),
   kiosk mode, env overrides (`ODESK_SHELL_WIDTH`, `ODESK_SHELL_HEIGHT`,
   `ODESK_SHELL_KIOSK` or `--kiosk`), and `--smoke` size verification.
-- `src/renderer/` — shell UI as plain DOM (`index.html`, `shell.css`,
-  `shell.js`). No frameworks.
+  Also hardens the shell: single-instance lock, navigation/window-open/permission
+  denial, renderer-crash exit, DevTools shortcut block in kiosk.
+- `src/renderer/` — shell UI as plain DOM (`index.html` skeleton,
+  `shell.css`, `shell.js` composition root). No frameworks.
+- `src/renderer/core/` — plugin registry (`odkPlugins`), shared services
+  (tick/connection, `odkServices`), desktop composer (`odkComposer`).
+- `src/renderer/plugins/` — every visible element is one self-contained plugin
+  (pages, grid tiles, status-bar indicators, peek content, fullscreen app
+  surfaces via a tile's `appView`); placement lives in
+  `src/renderer/config/desktop_layout.js`. Adding a feature means a new plugin
+  file plus one config line — never edit core; `tests/smoke.sh` greps enforce
+  this. See `docs/AI_PLUGIN_GUIDE.md`.
 - `tests/features/` — Chinese-Gherkin BDD scenarios (repo convention).
 - `tests/smoke.sh`, `tests/check_tokens.mjs` — executable checks.
+- `scripts/start-kiosk.sh` — kiosk launcher used by autostart; restarts on exit
+  and logs to `~/.local/state/open-deskos-shell/launcher.log`.
 - `scripts/cm5-install.sh` — device-side installer (run on the CM5, arm64).
+- `scripts/cm5-acceptance.sh` — device acceptance script emitting a JSON report;
+  non-zero exit when any check fails.
 
 ## Build & Test Commands
 

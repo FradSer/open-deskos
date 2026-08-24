@@ -9,4 +9,19 @@ if [ ! -x node_modules/.bin/electron ]; then
   exit 1
 fi
 
-exec ./node_modules/.bin/electron . "$@"
+ARGS=("$@")
+USER_ARGS="${ARGS[*]+${ARGS[*]}}"
+if [ -n "${WAYLAND_DISPLAY:-}" ] && [[ "$USER_ARGS" != *--ozone-platform-hint* ]]; then
+  ARGS+=(--ozone-platform-hint=auto)
+fi
+# Chromium refuses to run as root without --no-sandbox; SBC kiosk sessions
+# often boot as root.
+if [ "$(id -u)" = "0" ] && [[ "$USER_ARGS" != *--no-sandbox* ]]; then
+  ARGS+=(--no-sandbox)
+fi
+
+if [ "${#ARGS[@]}" -gt 0 ]; then
+  exec ./node_modules/.bin/electron . "${ARGS[@]}"
+else
+  exec ./node_modules/.bin/electron .
+fi
