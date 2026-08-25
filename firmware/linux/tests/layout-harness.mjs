@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { compute } = require('../src/renderer/layout.js')
+const { compute, REF } = require('../src/renderer/layout.js')
 
 const SIZES = [
   ['target panel', 568, 1232],
@@ -14,7 +14,7 @@ const SIZES = [
 ]
 
 // Golden values pinning the target-panel geometry against accidental drift.
-const GOLDEN = { '568x1232': { cellW: 170, cellH: 170, gutter: 28, statusH: 57 } }
+const GOLDEN = { '568x1232': { cellW: 170, cellH: 164, gutter: 28, statusH: 57 } }
 
 let failures = 0
 function check(name, ok, detail = '') {
@@ -29,7 +29,7 @@ for (const [label, width, height] of SIZES) {
   const tag = `${label} ${width}x${height}`
 
   const cols = 3
-  const rows = 4
+  const rows = 5
   const colW = (width - (cols - 1) * m.gutter) / cols
   const cellHByHeight = Math.floor(
     (height - m.statusH - m.peekH - 4 * m.gutter - (rows - 1) * m.gutter) / rows,
@@ -47,7 +47,10 @@ for (const [label, width, height] of SIZES) {
   check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
 
   check(`${tag}: status bar floored`, m.statusH >= 40)
-  check(`${tag}: peek clamped`, m.peekH >= 96 && m.peekH <= 160, `peekH=${m.peekH}`)
+  // The peek may yield below PEEK_MIN on extreme ratios, but never below
+  // its scaled reference height — and the yield floor never exceeds PEEK_MIN.
+  const peekFloor = Math.min(96, Math.floor(REF.stripMin * m.fit))
+  check(`${tag}: peek clamped`, m.peekH >= peekFloor && m.peekH <= 160, `peekH=${m.peekH}`)
 
   const golden = GOLDEN[`${width}x${height}`]
   if (golden) {

@@ -4,10 +4,13 @@ set -euo pipefail
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null && pwd -P)"
 cd "$DIR"
 
-if [ ! -x node_modules/.bin/electron ]; then
-  echo "electron not installed; run: pnpm install (or npm install)" >&2
+if [ ! -x node_modules/.bin/electron ] || [ ! -x node_modules/.bin/unocss ]; then
+  echo "dependencies not installed; run: pnpm install (or npm install)" >&2
   exit 1
 fi
+
+./node_modules/.bin/unocss "src/renderer/**/*.html" "src/renderer/**/*.js" \
+  -c uno.config.mjs -o src/renderer/uno.css --minify >/dev/null
 
 ARGS=("$@")
 USER_ARGS="${ARGS[*]+${ARGS[*]}}"

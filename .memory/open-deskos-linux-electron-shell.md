@@ -62,3 +62,48 @@ smoke 模式决定了后续切片能否安全迭代。
 `scripts/cm5-install.sh`(arm64 设备端执行)。
 
 **Related:** [[cerberus-rpi-migration-eval]] [[aiodi-ui-design-standard]] [[cerberus-os-top-spec]]
+
+## 2026-08 设计优化轮(全面 design pass)
+
+- **P4 环形 parity 锚点**:pomodoro 2×2 环直径 = 环形 span 的 77%
+  (aiodi ref: ring.d 160 / (2×cell 96+gutter 16)=208),红弧(#eb5757),
+  空闲时 dashoffset 0 = 完整圆环(remaining=满 session);弧宽 ~15/120 viewBox。
+  之前 52% 灰环是错的——读起来像禁用态。
+- **字重纪律**:只捆绑了 Noto 400 与 Montserrat 700 两个面;font-weight
+  500/600 会静默回退或触发 CJK 伪粗。AIODI Bold Digits Rule → CJK 一律 400,
+  数字/拉丁 700(.al-weekday 400、.al-day 700、#app-title 400、.grp b 700)。
+- **状态栏单行**:页名(#page-context)+ 页点(#dots)同入 #page-center 居中行,
+  页名不再压顶缘;e2e 仍钉 label "名称 · N/3" 格式与 bolt/dots/clock 左中右序。
+- **Dashboard 叙述流从头部正下方排布**(P4 parity,不用 margin-top:auto 压底);
+  文案去重:叙述只说等待 Mac,辅助行独占"真实日程与用量"短语(e2e 钉死);
+  装饰性红点已删——AIODI 色彩只表达状态;星期/日期 CSS uppercase(DOM 文本
+  保持 "Tue"/"August 25" 以过 e2e 正则)。
+- **Year 磁贴实时百分比**:year-pct 大数字 + 绿 meter(P4 2×1 meter 的
+  label+value overlay 等价物);.w-state"实时"保留在 year-head 行。
+- 网格页/卡片页一律 justify-content:flex-start 顶对齐(P4:网格贴状态栏,
+  剩余高度归 peek 区),不再垂直居中悬浮。
+- peek 加 chevron-right 尾随箭头提示可点按;quota 卡状态行升为大号主文字
+  (信息主角),标题退居其上。
+- 改 UI 前先改 .feature 场景(本轮:删红点、顶对齐、红环、实时百分比、
+  单行状态栏均先落 scenario);截图验证用临时 electron capturePage 脚本放
+  /tmp,用完即删。
+
+## 2026-08 对比度/CSP 修复 + e2e flake 根因(重要)
+
+- **e2e 几何扫描 flake 根因**:主测试窗口即使 `show: true`,被桌面其它窗口
+  完全遮挡时 Chromium 仍会冻结 rAF(occlusion throttling),resize 驱动的
+  `applyGeometry()` 永不执行,`__odkGrid` 停留旧值(症状:`applied=170
+  expected=190`,时好时坏随桌面 z-order)。修复三件套:主窗口
+  `backgroundThrottling: false`;sweep 在 setContentSize 后主动
+  `dispatchEvent(new Event('resize'))`(与 OS 事件同一 handler,幂等);
+  轮询 `__odkGrid.cellW === layout.compute().cellW`(上限 5s)替代盲睡
+  500ms,另加 400ms 等 pager 260ms transform 过渡结束再探测。盲睡会漏掉
+  两种竞态:rAF 延迟(metrics 未更新)和过渡中探测(widgets 位移出视口)。
+- **对比度修复**:`.dash-support`、`.quota-checked/.app-action-status`
+  (共享选择器)换 `--odk-secondary-strong`;`.al-weekday` 0.14→0.15
+  (23.8→25.5px 跨过 24px AA-large 门槛,红色 #eb5757 白底 3.48:1)。
+- **CSP 已收紧**:index.html `style-src 'self'`(移除 unsafe-inline);
+  全仓无内联 style 属性,运行时样式全是 CSSOM(CSP 不拦)。改 CSP 后
+  e2e 必跑——若未来插件模板引入内联 style 属性会静默失效。
+- 排查心法:队友/测试"时好时坏"时先做受控 bisect(还原变量重跑)再下结论;
+  本例 CSP 一度被误判为元凶,还原后同样失败才定位到 occlusion throttling。

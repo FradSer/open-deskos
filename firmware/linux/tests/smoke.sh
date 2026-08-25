@@ -4,6 +4,9 @@ set -euo pipefail
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." >/dev/null && pwd -P)"
 cd "$root"
 
+./node_modules/.bin/unocss "src/renderer/**/*.html" "src/renderer/**/*.js" \
+  -c uno.config.mjs -o src/renderer/uno.css --minify >/dev/null
+
 fail() {
   echo "FAIL: $1" >&2
   exit 1
@@ -37,6 +40,8 @@ echo "== scenario: shell core stays plugin-free =="
 if grep -RIlE 'almanac|pomodoro|quota|dash-narrative|w-clock-time|w-chat|w-settings|sb-net|sb-time|peek-bridge|Mac companion' src/renderer/shell.js src/renderer/core/ >/dev/null 2>&1; then
   fail "shell core references element specifics; move them into plugins/"
 fi
+
+[ -s src/renderer/uno.css ] || fail "UnoCSS output is missing"
 
 for f in \
   src/renderer/core/registry.js \

@@ -32,7 +32,7 @@
     appView: {
       mount(el, ctx) {
         el.innerHTML = `
-          <div class="app-clock">
+          <div class="app-clock odk-stack-center">
             <span class="app-clock-time">--:--</span>
             <span class="app-clock-date"></span>
           </div>`

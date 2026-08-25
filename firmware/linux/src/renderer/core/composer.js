@@ -31,7 +31,7 @@
     const plugin = root.odkPlugins.get(widgetDef.id)
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `widget w-${widgetDef.id}`
+    button.className = `widget w-${widgetDef.id} flex flex-col items-center justify-center`
     button.dataset.widget = widgetDef.id
     button.dataset.app = plugin.app
     button.dataset.state = plugin.state
@@ -47,14 +47,14 @@
     track.replaceChildren()
     layout.pages.forEach((page, index) => {
       const section = document.createElement('section')
-      section.className = 'page'
+      section.className = 'page flex flex-col'
       section.dataset.page = String(index)
       section.dataset.builtBy = 'composer'
       section.setAttribute('aria-label', page.name)
       track.append(section)
       if (page.kind === 'grid') {
         const grid = document.createElement('div')
-        grid.className = 'widget-grid'
+        grid.className = 'widget-grid grid'
         for (const widget of page.widgets) grid.append(buildTile(widget, uiCtx))
         section.append(grid)
       } else {

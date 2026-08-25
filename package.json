@@ -1,0 +1,6 @@
+{
+	"devDependencies": {
+		"unocss": "^66.8.1",
+		"@unocss/cli": "^66.8.1"
+	}
+}

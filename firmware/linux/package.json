@@ -5,12 +5,16 @@
   "description": "Open DeskOS shell for the Orange Pi CM5 (RK3588S) Linux panel, 568x1232 portrait touch",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
-    "smoke": "electron . --smoke",
-    "e2e": "electron tests/e2e.js"
+    "styles": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify",
+    "styles:watch": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --watch",
+    "start": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron .",
+    "smoke": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron . --smoke",
+    "e2e": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/e2e.js"
   },
   "devDependencies": {
     "@tabler/icons": "^3.46.0",
-    "electron": "^43.4.1"
+    "@unocss/cli": "^66.8.1",
+    "electron": "^43.4.1",
+    "unocss": "^66.8.1"
   }
 }

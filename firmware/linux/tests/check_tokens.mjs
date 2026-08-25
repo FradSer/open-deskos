@@ -31,7 +31,8 @@ if (!designRoot) {
   process.exit(1)
 }
 const design = parseDesignTokens(readFileSync(designRoot, 'utf8'))
-const cssVars = parseCssVars(readFileSync(path.join(root, 'src/renderer/shell.css'), 'utf8'))
+const shellCss = readFileSync(path.join(root, 'src/renderer/shell.css'), 'utf8')
+const cssVars = parseCssVars(shellCss)
 
 if (Object.keys(design).length === 0) {
   console.error('FAIL: no color tokens parsed from DESIGN.md')
@@ -54,4 +55,13 @@ for (const [name, hex] of Object.entries(design)) {
 if (failures > 0) {
   process.exit(1)
 }
-console.log('TOKENS MATCH DESIGN.MD')
+const unoConfig = readFileSync(path.join(root, 'uno.config.mjs'), 'utf8')
+for (const token of ['odk-bg', 'odk-surface', 'odk-primary', 'odk-red', 'odk-green']) {
+  if (!unoConfig.includes(`'${token}'`)) {
+    console.error(`FAIL: UnoCSS is missing Open DeskOS token ${token}`)
+    failures += 1
+  }
+}
+
+if (failures > 0) process.exit(1)
+console.log('OPEN DESKOS TOKENS MATCH DESIGN.MD')

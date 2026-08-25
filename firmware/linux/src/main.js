@@ -86,7 +86,7 @@ app.on('child-process-gone', (_event, details) => {
   console.error(`child process gone: ${details.type} (${details.reason})`)
 })
 
-if (!app.requestSingleInstanceLock()) {
+if (!process.argv.includes('--smoke') && !app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => {

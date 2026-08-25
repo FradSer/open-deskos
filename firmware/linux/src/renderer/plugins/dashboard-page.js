@@ -11,10 +11,10 @@
     kind: 'page',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="dash">
-          <header class="dash-head">
-            <div class="dash-wd"><span id="dash-wd"></span><span class="dash-dot"></span></div>
-            <div class="dash-date">
+        <div class="dash odk-stack">
+          <header class="dash-head odk-row items-start">
+            <div class="dash-wd"><span id="dash-wd"></span></div>
+            <div class="dash-date text-right">
               <span id="dash-md"></span>
               <span id="dash-y"></span>
             </div>
@@ -22,11 +22,9 @@
           <p class="dash-narrative" id="dash-narrative">
             <span class="grp">等待你的</span>
             <span class="grp"><b>Mac</b> 连接。</span>
-            <span class="grp">连接后，日程会</span>
-            <span class="grp">显示在这里。</span>
           </p>
-          <p class="dash-support">连接后会显示真实日程与用量。</p>
-          <button class="button-pill dash-connect" id="dash-connect" type="button">连接 Mac</button>
+          <p class="dash-support">连接后显示真实日程与用量。</p>
+          <button class="button-pill button-primary dash-connect" id="dash-connect" type="button">连接 Mac</button>
         </div>`
 
       const narrative = el.querySelector('#dash-narrative')
@@ -36,14 +34,14 @@
       const render = (connected) => {
         if (connected) {
           narrative.innerHTML =
-            '<span class="grp"><b>Mac</b> 已连接。</span>' +
-            '<span class="grp">日程与用量会</span>' +
-            '<span class="grp">显示在这里。</span>'
+            '<span class="grp"><b>Mac</b> <span class="connected-word text-odk-green">已连接。</span></span>' +
+            '<span class="grp">日程与用量</span>' +
+            '<span class="grp">会显示在这里。</span>'
           support.textContent = '已连接到你的 Mac。'
           connect.hidden = true
         } else {
           narrative.innerHTML = waitingNarrative
-          support.textContent = '连接后会显示真实日程与用量。'
+          support.textContent = '连接后显示真实日程与用量。'
           connect.hidden = false
         }
       }

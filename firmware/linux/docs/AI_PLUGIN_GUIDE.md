@@ -10,7 +10,7 @@
 src/renderer/
   index.html               骨架:状态栏/分页视口/peek/app-view 对话框,不含任何页面内容
   shell.js                 组合根:几何、分页器、对话框、键盘导航、核心状态栏
-  layout.js                网格几何(移植固件 aiodi.grid_metrics portrait 分支)
+  layout.js                网格几何(Open DeskOS portrait 分支)
   core/registry.js         odkPlugins.register/has/get/ids — 插件注册表
   core/services.js         odkServices — 共享秒级 tick 与连接状态存储、状态文案词汇表
   core/composer.js         odkComposer.validate/build — 把配置装配成 DOM
@@ -129,7 +129,7 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 
 ## 硬性规则
 
-- 颜色只用根 `DESIGN.md` 的 AIODI token(`--odk-*` CSS 变量);禁裸 hex。
+- 颜色只用根 `DESIGN.md` 的 Open DeskOS token(`--odk-*` CSS 变量);禁裸 hex。
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI 文案与代码禁 emoji;面向用户的文案用中文。
 - 不改 `shell.js`/`core/*`;smoke 的 grep 契约会拦下越界改动。

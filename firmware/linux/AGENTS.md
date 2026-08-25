@@ -42,9 +42,11 @@ does not verify CM5 hardware behavior; validate on device separately.
 
 ## Coding Style & Conventions
 
-- 2-space indentation; no build step for the renderer.
+- 2-space indentation; UnoCSS CLI generates `src/renderer/uno.css` before the renderer starts.
 - All colors come from the root `DESIGN.md` tokens via `--odk-*` CSS variables;
-  `tests/check_tokens.mjs` fails on drift. Never hardcode off-palette hex values.
+  `tests/check_tokens.mjs` fails on drift. UnoCSS utilities must reference these
+  Open DeskOS variables rather than defining a second palette. Never hardcode
+  off-palette hex values.
 - No emojis in UI copy or code. Connection/quota states are shown honestly
   ("未连接") — never fabricate data placeholders look real.
 - Renderer stays sandboxed: `contextIsolation: true`, `nodeIntegration: false`,

@@ -37,6 +37,18 @@
   --peek-h: 160px;
   --peek-inset: 28px;
   --bar-icon: 36px;
+
+  --dot-d: clamp(8px, calc(var(--gutter) * 10 / 28), 14px);
+  --dot-active-w: clamp(20px, calc(var(--gutter) * 26 / 28), 34px);
+  --dot-gap: clamp(6px, calc(var(--gutter) * 8 / 28), 12px);
+
+  /* Open DeskOS utility tokens consumed by UnoCSS. */
+  --odk-space-1: 4px;
+  --odk-space-2: 8px;
+  --odk-space-3: 16px;
+  --odk-space-4: 24px;
+  --odk-radius-card: 36px;
+  --odk-radius-pill: 999px;
 }
 
 * {
@@ -83,8 +95,6 @@ body.kiosk {
   position: absolute;
   inset: 0 0 auto 0;
   height: var(--status-h);
-  display: flex;
-  align-items: center;
   padding: 0 var(--gutter);
   background: var(--odk-bg);
   z-index: 10;
@@ -97,6 +107,9 @@ body.kiosk {
 #sb-net {
   width: var(--bar-icon);
   height: var(--bar-icon);
+  flex: none;
+  flex-shrink: 0;
+  aspect-ratio: 1;
   color: var(--odk-secondary);
 }
 
@@ -104,25 +117,26 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
-#page-context {
+/* Page name and dots share one vertically-centered row: the label never
+   crowds the screen edge and the dots stay the primary indicator. */
+#page-center {
   position: absolute;
-  top: calc(var(--status-h) * 0.05);
+  top: 0;
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
+  gap: calc(var(--gutter) * 0.5);
+}
+
+#page-context {
   color: var(--odk-secondary-strong);
-  font-size: clamp(11px, calc(var(--bar-icon) * 0.42), 16px);
+  font-size: clamp(13px, calc(var(--bar-icon) * 0.48), 18px);
   line-height: 1;
   white-space: nowrap;
 }
 
 #dots {
-  position: absolute;
-  top: calc(var(--status-h) * 0.56);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: calc(var(--gutter) * 10 / 16);
+  gap: var(--dot-gap);
 }
 
 .dot {
@@ -131,41 +145,34 @@ body.kiosk {
   padding: 0;
   cursor: pointer;
   position: relative;
-  width: calc(var(--gutter) * 28 / 16);
-  height: calc(var(--gutter) * 12 / 16);
+  width: var(--dot-d);
+  height: var(--dot-d);
   border-radius: 999px;
-  background: none;
-}
-
-/* Visual pill lives on ::before so scaleX never shrinks the button's hit area. */
-.dot::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
   background: var(--odk-button);
-  transform: scaleX(0.43);
-  transition: transform 200ms ease, background 200ms ease;
+  transition: width 200ms cubic-bezier(0.22, 0.61, 0.36, 1), background 200ms ease;
+  flex: none;
 }
 
-.dot.active::before {
-  transform: scaleX(1);
+.dot.active {
+  width: var(--dot-active-w);
   background: var(--odk-primary);
 }
 
-/* Invisible extended hit area: >=44px around the pill for touch. */
+/* Invisible extended hit area: >=44px around the dot/pill for touch. */
 .dot::after {
   content: "";
   position: absolute;
-  inset: -16px -10px;
+  inset: -18px -12px;
 }
 
 .sb-time {
   margin-left: auto;
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--bar-icon) * 0.95);
+  font-size: calc(var(--bar-icon) * 1.1);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: none;
 }
 
 .dot:focus-visible,
@@ -203,9 +210,6 @@ body.kiosk {
   flex: 0 0 100%;
   height: 100%;
   padding: var(--gutter) 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   gap: var(--gutter);
 }
 
@@ -213,39 +217,24 @@ body.kiosk {
 
 .dash {
   height: 100%;
-  display: flex;
-  flex-direction: column;
   padding: calc(var(--gutter) * 0.6) var(--gutter);
-}
-
-.dash-head {
-  display: flex;
-  align-items: flex-start;
 }
 
 .dash-wd {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: min(64px, 11vw);
+  font-size: min(76px, 13vw);
   font-weight: 700;
   line-height: 1;
-}
-
-.dash-dot {
-  display: inline-block;
-  width: 0.24em;
-  height: 0.24em;
-  margin-left: 0.18em;
-  border-radius: 50%;
-  background: var(--odk-accent-red);
-  vertical-align: super;
+  text-transform: uppercase;
 }
 
 .dash-date {
   margin-left: auto;
   text-align: right;
   color: var(--odk-secondary-strong);
-  font-size: min(26px, 4.6vw);
+  font-size: min(38px, 6.5vw);
   line-height: 1.3;
+  text-transform: uppercase;
 }
 
 .dash-date span {
@@ -253,24 +242,29 @@ body.kiosk {
 }
 
 .dash-narrative {
-  margin-top: auto;
-  max-width: 24ch;
-  font-size: min(42px, 7vw);
-  font-weight: 500;
+  margin-top: calc(var(--gutter) * 1.6);
+  max-width: 22ch;
+  font-size: min(50px, 8.5vw);
+  font-weight: 400;
   line-height: 1.34;
   color: var(--odk-secondary-strong);
 }
 
+/* Connected is a state: the word carries Open DeskOS's green status voice. */
+.dash-narrative .connected-word {
+  color: var(--odk-accent-green);
+}
+
 .dash-support {
-  margin-top: calc(var(--gutter) * 0.45);
-  color: var(--odk-secondary);
+  margin-top: calc(var(--gutter) * 0.7);
+  color: var(--odk-secondary-strong);
   font-size: clamp(15px, calc(var(--cell-w) * 0.1), 20px);
   line-height: 1.4;
 }
 
 .dash-connect {
   align-self: flex-start;
-  margin-top: calc(var(--gutter) * 0.8);
+  margin-top: calc(var(--gutter) * 1.2);
 }
 
 .grp {
@@ -285,7 +279,7 @@ body.kiosk {
 
 .grp b {
   color: var(--odk-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .card {
@@ -297,8 +291,6 @@ body.kiosk {
 }
 
 .quota-card {
-  display: flex;
-  flex-direction: column;
   align-items: flex-start;
   gap: calc(var(--gutter) * 0.55);
 }
@@ -307,42 +299,51 @@ body.kiosk {
   font-size: clamp(22px, calc(var(--cell-w) * 0.17), 32px);
 }
 
+/* The connection state is the card's information lead: large, primary. */
 .quota-state {
-  color: var(--odk-secondary-strong);
-  font-size: clamp(16px, calc(var(--cell-w) * 0.12), 22px);
+  color: var(--odk-primary);
+  font-size: clamp(24px, calc(var(--cell-w) * 0.17), 34px);
+  line-height: 1.25;
 }
 
 .quota-checked,
 .app-action-status {
-  color: var(--odk-secondary);
+  color: var(--odk-secondary-strong);
   font-size: clamp(14px, calc(var(--cell-w) * 0.095), 18px);
 }
 
 .button-pill {
   appearance: none;
   border: none;
-  min-height: 48px;
+  min-height: calc(var(--gutter) * 2);
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: calc(var(--gutter) * 0.36) calc(var(--gutter) * 0.7);
   background: var(--odk-button);
   color: var(--odk-primary);
   cursor: pointer;
-  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+  font-size: clamp(16px, calc(var(--cell-w) * 0.115), 21px);
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.quota-primary {
+/* The one loud action per page: inverted white pill. Shared by the
+   dashboard and quota "连接 Mac" so the same action carries one weight. */
+.button-primary {
   background: var(--odk-primary);
   color: var(--odk-bg);
 }
 
 .quota-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: calc(var(--gutter) * 0.36);
 }
 
 .button-pill:active {
   background: var(--odk-elevated);
+  transform: scale(0.97);
+}
+
+.button-primary:active {
+  background: var(--odk-stroke-focus);
+  transform: scale(0.97);
 }
 
 .button-secondary {
@@ -352,7 +353,6 @@ body.kiosk {
 /* ---- Widget grid: 3 columns, declarative spans ---- */
 
 .widget-grid {
-  display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: var(--cell-h);
   gap: var(--gutter);
@@ -360,10 +360,6 @@ body.kiosk {
 }
 
 .widget {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: calc(var(--cell-w) * 0.05);
   min-width: 0;
   min-height: 0;
@@ -375,16 +371,22 @@ body.kiosk {
   font-size: calc(var(--cell-w) * 0.15);
   overflow: hidden;
   cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 .widget svg {
-  width: calc(var(--cell-w) * 0.3);
-  height: calc(var(--cell-w) * 0.3);
+  /* P4 parity: icons read at ~50% of the cell; 0.44 keeps optical margin
+     with the name/state lines below. */
+  width: calc(var(--cell-w) * 0.44);
+  height: calc(var(--cell-w) * 0.44);
+  flex-shrink: 0;
+  aspect-ratio: 1;
 }
 
 .widget:active {
   background: var(--odk-elevated);
   border-color: var(--odk-stroke-focus);
+  transform: scale(0.98);
 }
 
 .w-state {
@@ -405,17 +407,19 @@ body.kiosk {
   background: var(--odk-primary);
   border-color: var(--odk-primary);
   color: var(--odk-bg);
-  gap: 4px;
+  gap: 6px;
 }
 
-.w-almanac .w-state {
-  color: var(--odk-secondary);
+.w-almanac:active {
+  background: var(--odk-stroke-focus);
+  border-color: var(--odk-stroke-focus);
+  transform: scale(0.98);
 }
 
 .al-weekday {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.14);
-  font-weight: 600;
+  font-size: calc(var(--cell-w) * 0.15);
+  font-weight: 400;
   line-height: 1;
   color: var(--odk-accent-red);
 }
@@ -423,7 +427,7 @@ body.kiosk {
 .al-day {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: calc(var(--cell-w) * 0.42);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -445,46 +449,49 @@ body.kiosk {
   font-variant-numeric: tabular-nums;
 }
 
+/* Pomodoro hero ring: P4 parity — 77% of the 2x2 tile span, red arc,
+   full circle while idle (a fresh session is a full remaining time). */
 .w-pomodoro {
   position: relative;
+  justify-content: flex-start;
+  padding-top: calc((var(--cell-h) * 2 + var(--gutter)) * 0.06);
+  gap: calc((var(--cell-h) * 2 + var(--gutter)) * 0.02);
 }
 
 .w-pomodoro svg {
-  width: calc((var(--cell-w) * 2 + var(--gutter)) * 0.52);
-  height: calc((var(--cell-w) * 2 + var(--gutter)) * 0.52);
+  width: calc((var(--cell-h) * 2 + var(--gutter)) * 0.58);
+  height: calc((var(--cell-h) * 2 + var(--gutter)) * 0.58);
+  flex-shrink: 0;
+  aspect-ratio: 1;
   transform: rotate(-90deg);
 }
 
 .ring-track {
   fill: none;
   stroke: var(--odk-button);
-  stroke-width: 10;
+  stroke-width: 14;
 }
 
 .ring-arc {
   fill: none;
-  stroke: var(--odk-button);
-  stroke-width: 10;
+  stroke: var(--odk-accent-red);
+  stroke-width: 14;
   stroke-linecap: round;
   stroke-dasharray: 314;
-  stroke-dashoffset: 314;
+  stroke-dashoffset: 0;
 }
 
 .ring-mmss {
   position: absolute;
-  top: 50%;
+  top: calc((var(--cell-h) * 2 + var(--gutter)) * 0.06 + (var(--cell-h) * 2 + var(--gutter)) * 0.29);
   left: 50%;
-  transform: translate(-50%, -58%);
+  transform: translate(-50%, -50%);
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.26);
+  font-size: calc((var(--cell-h) * 2 + var(--gutter)) * 0.16);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.w-year .meter {
-  width: 100%;
-  margin: 0 calc(var(--gutter) * 0.6);
+  line-height: 1;
 }
 
 .meter {
@@ -494,15 +501,56 @@ body.kiosk {
   overflow: hidden;
 }
 
+/* P4 meter spec: pill track, fill with a square trailing edge so progress
+   reads as a precise instrument bar. */
 .meter-fill {
   height: 100%;
   width: 0;
   background: var(--odk-accent-green);
-  border-radius: 999px;
+  border-radius: 999px 0 0 999px;
 }
 
-.w-settings {
-  border-color: var(--odk-stroke-focus);
+/* Year tile: live big percentage numeral beside the meter, like the P4
+   widget's overlaid label+value. */
+.w-year {
+  align-items: stretch;
+  justify-content: center;
+  gap: calc(var(--cell-h) * 0.12);
+  padding: 0 calc(var(--gutter) * 1.2);
+}
+
+.year-head {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.w-year .w-name {
+  font-size: clamp(14px, calc(var(--cell-w) * 0.11), 20px);
+  color: var(--odk-secondary-strong);
+}
+
+.year-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: calc(var(--gutter) * 0.8);
+}
+
+.year-pct {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  /* 3x2 anchor tile: numeral at the Open DeskOS display scale. */
+  font-size: calc((var(--cell-h) * 2 + var(--gutter)) * 0.28);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.w-year .meter {
+  flex: 1;
+  height: calc((var(--cell-h) * 2 + var(--gutter)) * 0.06);
+  margin: 0;
 }
 
 /* ---- Peek strip: live bridge/network status ---- */
@@ -514,10 +562,8 @@ body.kiosk {
   right: var(--peek-inset);
   height: var(--peek-h);
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px;
+  align-items: center;
+  gap: var(--gutter);
   padding: 0 calc(var(--gutter) * 0.8);
   background: var(--odk-surface);
   border: var(--stroke-w) solid var(--odk-stroke);
@@ -526,10 +572,32 @@ body.kiosk {
   text-align: left;
   cursor: pointer;
   z-index: 10;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+#peek:active {
+  background: var(--odk-elevated);
+  border-color: var(--odk-stroke-focus);
+  transform: scale(0.99);
+}
+
+.peek-text {
+  gap: calc(var(--gutter) * 0.3);
+  min-width: 0;
+}
+
+.peek-chevron {
+  margin-left: auto;
+  width: calc(var(--bar-icon) * 1.1);
+  height: calc(var(--bar-icon) * 1.1);
+  flex: none;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  color: var(--odk-secondary);
 }
 
 .peek-primary {
-  font-size: clamp(18px, calc(var(--cell-w) * 0.14), 26px);
+  font-size: clamp(19px, calc(var(--cell-w) * 0.15), 27px);
 }
 
 .peek-secondary {
@@ -554,42 +622,48 @@ body.kiosk {
 
 .app-header {
   height: var(--status-h);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 20px;
+  gap: calc(var(--gutter) * 0.55);
+  padding: 0 calc(var(--gutter) * 0.7);
   border-bottom: var(--stroke-w) solid var(--odk-stroke);
 }
 
 #app-back {
-  width: 48px;
-  height: 48px;
+  width: calc(var(--bar-icon) * 1.4);
+  height: calc(var(--bar-icon) * 1.4);
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--odk-button);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 999px;
   color: var(--odk-primary);
   cursor: pointer;
+  flex: none;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+#app-back:active {
+  background: var(--odk-elevated);
+  transform: scale(0.95);
 }
 
 #app-back svg {
-  width: 26px;
-  height: 26px;
+  width: calc(var(--bar-icon) * 0.72);
+  height: calc(var(--bar-icon) * 0.72);
+  flex: none;
+  flex-shrink: 0;
+  aspect-ratio: 1;
 }
 
 #app-title {
   font-size: clamp(22px, calc(var(--cell-w) * 0.16), 30px);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .app-body {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 12px;
   padding: var(--gutter);
   text-align: center;
@@ -602,10 +676,6 @@ body.kiosk {
 
 .app-clock {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: calc(var(--gutter) * 0.75);
 }
 
@@ -620,6 +690,58 @@ body.kiosk {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: calc(var(--cell-w) * 0.14);
   color: var(--odk-secondary);
+}
+
+/* ---- Fullscreen month calendar (almanac app surface) ---- */
+
+.cal {
+  width: 100%;
+  gap: calc(var(--gutter) * 1.1);
+}
+
+.cal-title {
+  font-family: "Noto Sans SC", "Montserrat", sans-serif;
+  font-size: clamp(26px, calc(var(--cell-w) * 0.2), 38px);
+  font-weight: 400;
+}
+
+.cal-grid {
+  width: min(100%, calc(var(--cell-w) * 2.6));
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: calc(var(--gutter) * 0.28);
+}
+
+.cal-wd {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(14px, calc(var(--cell-w) * 0.1), 19px);
+  line-height: 1;
+  text-align: center;
+  padding-bottom: calc(var(--gutter) * 0.2);
+}
+
+/* Sunday header echoes the almanac tile's red weekday voice. */
+.cal-wd:first-child {
+  color: var(--odk-accent-red);
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(16px, calc(var(--cell-w) * 0.115), 22px);
+  font-weight: 400;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+}
+
+.cal-day.is-today {
+  background: var(--odk-primary);
+  color: var(--odk-bg);
+  font-weight: 700;
 }
 
 .app-empty-sub {
@@ -656,7 +778,11 @@ body.kiosk {
 
 @media (prefers-reduced-motion: reduce) {
   #pages-track,
-  .dot::before {
+  .dot,
+  .widget,
+  .button-pill,
+  #peek,
+  #app-back {
     transition: none;
   }
 }

@@ -15,13 +15,21 @@
     state: '实时',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="meter"><div class="meter-fill"></div></div>
-        <span class="w-name">${this.app}</span>
-        <span class="w-state">${this.state}</span>`
+        <div class="year-head odk-row justify-between">
+          <span class="w-name">${this.app}</span>
+          <span class="w-state">${this.state}</span>
+        </div>
+        <div class="year-row odk-row items-center">
+          <span class="year-pct">--%</span>
+          <div class="meter"><div class="meter-fill"></div></div>
+        </div>`
 
       const fill = el.querySelector('.meter-fill')
+      const pct = el.querySelector('.year-pct')
       ctx.onTick((now) => {
-        fill.style.width = `${(yearRatio(now) * 100).toFixed(2)}%`
+        const ratio = yearRatio(now)
+        fill.style.width = `${(ratio * 100).toFixed(2)}%`
+        pct.textContent = `${Math.round(ratio * 100)}%`
       })
     },
   })

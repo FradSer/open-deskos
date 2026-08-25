@@ -9,11 +9,11 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 ## 功能范围(第一片)
 
 - 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
-- **三段式布局对齐 ESP32-P4 launcher**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
+- **三段式 Open DeskOS 布局**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
   中部 3 列 widget 网格(按 `desktop_layout.lua` 声明的跨列跨行磁贴)、底部内缩 peek 条
   (显示 Mac 连接与网络状态,点击进入网络连接说明)
-- AIODI 设计系统 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何移植
-  固件 `aiodi.grid_metrics()` portrait 算法(fit = min(w/320, h/480))
+- Open DeskOS 设计 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何使用
+  Open DeskOS portrait 算法(fit = min(w/320, h/480))
 - 三页横向触摸滑动:Dashboard 流 / Home 网格 / Quota 页;当前页名与 N/3 可见,年份进度条
 - 点按 widget 进入全屏视图,返回按钮与 Escape 始终可用;未接入 App 明确显示待接入状态
 - quota 与 peek 分离显示 Mac companion 健康状态和网络在线状态,提供网络连接说明与重新检查入口
@@ -25,13 +25,13 @@ src/main.js            Electron 主进程(窗口/kiosk/smoke 检查,导航与权
                        单实例锁,渲染进程崩溃退出)
 src/renderer/index.html 骨架(状态栏/分页视口/peek/app-view),不含页面内容
 src/renderer/shell.js   组合根:几何、分页器、对话框、键盘导航、核心状态栏
-src/renderer/layout.js  网格几何(移植固件 aiodi.grid_metrics portrait 分支)
+src/renderer/layout.js  网格几何(Open DeskOS portrait 分支)
 src/renderer/core/      插件注册表、共享服务(tick/连接)、桌面组合器
 src/renderer/config/    desktop_layout.js:页面构成与磁贴摆放的唯一权威
 src/renderer/plugins/   页面/磁贴/状态栏/peek 插件,每个文件自包含
 docs/AI_PLUGIN_GUIDE.md AI 生成新插件的契约与步骤指南
 tests/features/        BDD 场景(中文 Gherkin)
-tests/smoke.sh         可执行检查:两种分辨率启动 + DESIGN.md token 对齐
+tests/smoke.sh         可执行检查:两种分辨率启动 + Open DeskOS token 对齐
                        + 架构契约(骨架纯净/核心无专名)
 scripts/start-kiosk.sh kiosk 启动包装器:崩溃自动重启,日志写入 launcher.log
 scripts/cm5-install.sh CM5 设备端安装器(依赖/arm64 模块/kiosk 自启)
@@ -49,12 +49,13 @@ scripts/cm5-acceptance.sh
 ```sh
 cd firmware/linux
 pnpm install          # 或 npm install
+pnpm styles           # 生成 Open DeskOS UnoCSS utility stylesheet
 ./run.sh              # 窗口模式,默认 568x1232
 ODESK_SHELL_KIOSK=1 ./run.sh --kiosk   # kiosk 全屏
 bash tests/smoke.sh   # 可执行检查
 ```
 
-环境变量:`ODESK_SHELL_WIDTH` / `ODESK_SHELL_HEIGHT`(默认 568/1232)、
+开发时可用 `pnpm styles:watch` 持续生成样式。环境变量:`ODESK_SHELL_WIDTH` / `ODESK_SHELL_HEIGHT`(默认 568/1232)、
 `ODESK_SHELL_KIOSK=1`;命令行 `--kiosk` 等价。Wayland 会话(`WAYLAND_DISPLAY`
 已设置)由 `run.sh` 自动追加 `--ozone-platform-hint=auto`,用户显式传入时不重复。
 
@@ -113,7 +114,7 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 800x1400x24" \
 
 ## 验证状态
 
-- 已验证:宿主机 smoke(窗口尺寸两种场景 + AIODI token 对齐),macOS arm64。
+- 已验证:UnoCSS CLI 样式生成、宿主机 smoke(窗口尺寸两种场景 + Open DeskOS token 对齐),macOS arm64。
 - Mac companion 状态检查经 Electron 主进程调用 `http://127.0.0.1:8788/health`(macOS App 内置的
   CompanionStatusServer,默认监听 Mac 的网络接口,返回 `service: "OpenDeskOS companion"` 身份标识;
   非 OpenDeskOS 身份的 2xx 响应一律视为未连接)。可用时显示 Mac 已连接,不可用时显示 Mac 尚未连接。

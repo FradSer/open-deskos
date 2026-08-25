@@ -18,10 +18,19 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: 三段式布局与状态栏构成对齐 P4
     Given 外壳已启动
     Then 状态栏位于顶部且包含左侧网络指示、居中页名/页点容器与右侧 HH:MM 时钟
-    And 主区 widget 网格为 3 列且左右贴合屏幕边缘(无侧向间距)
-    And 磁贴按声明跨列跨行(clock 与 pomodoro 跨 2 列,pomodoro 另跨 2 行,year 整行铺满底行)
+    And 主区 widget 网格为 3 列 × 5 行且左右贴合屏幕边缘(无侧向间距)
+    And 主区内容从状态栏正下方开始排布,网格与卡片顶部对齐而不悬浮居中
+    And 磁贴按声明跨列跨行(clock 与 pomodoro 跨 2 列,pomodoro 另跨 2 行,year 跨 2 行铺满最后两行)
+    And 3 列 × 5 行网格被磁贴完全铺满,无空洞行列
     And 不存在指向同一 App 的重复磁贴
     And 底部 peek 条显示 Mac 桥接状态与网络状态,而不是空白占位
+    And peek 条带尾随箭头提示可点按
+    And 番茄钟磁贴使用 Open DeskOS 红色进度环,空闲时呈完整圆环
+    And 年度进度磁贴显示实时百分比数值与绿色进度条
+    And 年度进度条填充为方头尾边(仅前缘圆角),对齐 P4 meter 规范
+    And 设置磁贴静止态使用常规描边,浅色 Focus Ring 仅出现在选中或键盘焦点
+    And 图标类磁贴的图标尺寸不小于磁贴单元宽度的 44%,对齐 P4 图标比例
+    And "连接 Mac" 主操作在概览与用量两页使用同一白色主按钮样式
 
   Scenario: 状态栏显示当前时间与日期
     Given 外壳已启动
@@ -30,9 +39,10 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: Dashboard 只陈述真实状态
     Given 外壳已启动
-    Then 首页头部为左侧英文星期缩写加红点、右侧月日与年份两行右对齐
+    Then 首页头部为左侧大写英文星期缩写、右侧月日与年份两行右对齐,不使用装饰性色点
     And 叙述流使用中文说明正在等待 Mac 连接,不含会议/任务/习惯计数,也不含步数或睡眠数值
     And 叙述流正文中不出现任何数字
+    And 叙述流从头部正下方开始排布,不把内容压到底部留出中段空档
     And Dashboard 底部没有统计行
     And Dashboard 提供唯一的连接 Mac 主操作
     And 连接 Mac 主操作的辅助文字说明连接后会显示真实日程与用量
@@ -51,6 +61,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then Dashboard 显示 Mac 已连接
     And quota 页面显示 Mac 已连接
     And peek 条显示 Mac 已连接
+    And 概览叙述与 peek 主行的"已连接"文字使用 Open DeskOS 绿色状态语态
     When Mac companion health endpoint 不可用并重新检查
     Then Dashboard 显示 Mac 尚未连接
     And 页面显示本次检查时间
@@ -100,6 +111,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: 页点是带名称的按钮并可直接跳转
     Given 主屏有至少两个页面
     Then 当前页名与页数以"名称 · N/3"形式可见
+    And 页名与页点位于同一居中行,页名不再压在状态栏顶缘
     And 每个页点都是 button 且携带"第 N 页,名称"形式的 aria 标签
     When 点按第三个页点
     Then 页面容器平移到第三页且第三个页点变为激活态
@@ -116,15 +128,22 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 每个 widget 磁贴都显示可理解的状态文字
     And 番茄钟显示未启动而不是暗示正在运行
     And 时钟磁贴显示可查看而不是待接入
+    And 日历磁贴显示实时日期并标注可查看,而不是待接入
     And 磁贴状态文案使用中文或明确的产品专有名词
     And 待接入 App 磁贴显示待接入状态
     And 待接入磁贴的全屏说明提供具体的接入状态而不是只提示返回
 
-  Scenario: 字体与 AIODI 状态文字在 CM5 上确定可用
+  Scenario: 字体与 Open DeskOS 状态文字在 CM5 上确定可用
     Given 外壳已启动
     When 渲染完成
     Then Noto Sans SC 与 Montserrat 字体均已加载
-    And 状态文字使用高对比度 token
+    And 状态文字使用高对比度 Open DeskOS token
+
+  Scenario: Open DeskOS 样式由 UnoCSS CLI 生成
+    Given renderer 使用 Open DeskOS 的 utility classes 与设计 token
+    When 运行 UnoCSS CLI 样式构建
+    Then 生成的样式表存在并由 renderer 加载
+    And firmware/linux 内只使用 Open DeskOS 的产品命名
 
   Scenario: 点按磁贴进入 App 全屏视图且返回可用
     Given 网格页存在可点按的 widget 磁贴
@@ -158,7 +177,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: 图标统一使用 Tabler 集合
     Given 外壳已启动
-    Then 全部 Tabler 图标元素携带 data-tabler 标识且覆盖所需集合(bolt/mail/settings/chevron-left)
+    Then 全部 Tabler 图标元素携带 data-tabler 标识且覆盖所需集合(bolt/message/settings/chevron-left)
+    And Chatbot 磁贴使用对话气泡图标而非邮件图标
 
   Scenario: 外壳元素以插件方式组织
     Given 外壳已启动
@@ -183,6 +203,15 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 全屏视图挂载该 App 的实时内容(大号 HH:MM 与英文日期)而非静态对话框
     When 返回桌面
     Then App 内容被卸载且其 tick 订阅被释放
+
+  Scenario: 日历磁贴声明全屏月历 App 面
+    Given almanac 磁贴声明了 app 挂载面
+    When 点按 almanac 磁贴
+    Then 全屏视图挂载当月真实月历,标题为"YYYY 年 M 月"
+    And 月历以周日为首列,表头"日"使用 Open DeskOS 红色强调
+    And 今日日期以反白圆形标记,其余日期为常规数字,不伪造任何日程数据
+    When 返回桌面
+    Then 月历内容被卸载且其 tick 订阅被释放
 
   Scenario: Wayland 会话自动选择 ozone 后端
     Given WAYLAND_DISPLAY 已设置且用户参数未包含 --ozone-platform-hint
@@ -236,16 +265,17 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: 网格摆放由声明式配置驱动
     Given 外壳已启动
     Then index.html 不含任何内联样式,磁贴改用 data-widget 标识
-    And shell.js 从 config/desktop_layout.js 读声明，跨列跨行与 desktop_layout.lua 一致(clock 跨 2 列、pomodoro 跨 2×2、year 铺满整行)
+    And shell.js 从 config/desktop_layout.js 读声明，磁贴跨列跨行对齐 P4 惯例(clock 跨 2 列、pomodoro 跨 2×2)，year 因 3 列 × 5 行网格跨 2 行铺满最后两行
     And 每个 data-widget 配置项都有对应磁贴,缺失时启动立即失败
     And 计算后的 gridColumn/gridRow 与物理几何检查(clock 宽等于 2 列加 gutter,pomodoro 等)保持一致
 
-  Scenario: 页点触摸目标不小于 44px 且布局不变
+  Scenario: 页点触摸目标不小于 44px 且以圆点与胶囊组合呈现
     Given 外壳已启动
-    Then 页点可见胶囊尺寸不变,点击热区经不可见扩展达到至少 44×44
+    Then 页点未激活时呈现为等宽等高真圆点，激活时展开为高亮胶囊
+    And 点击热区经不可见扩展达到至少 44×44
     And 在页点中心上方 16px 处做命中测试仍返回该页点按钮
     And 状态栏内页点容器矩形不变,bolt 在左、时钟在右的关系保持
-    And 页点的 scaleX 动画只作用于视觉伪元素,不再缩放按钮本身的热区
+    And 页点按钮本身未被 transform 扭曲，保持正圆与正胶囊边缘
 
   Scenario: 可信键盘输入可激活磁贴并返回
     Given 焦点位于任一磁贴

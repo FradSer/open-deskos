@@ -7,12 +7,12 @@
     kind: 'page',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="card quota-card">
+        <div class="card quota-card odk-stack">
           <div class="quota-title">OpenCode Go 用量</div>
           <div class="quota-state" id="quota-state" role="status" aria-live="polite"></div>
           <div class="quota-checked" id="quota-checked"></div>
-          <div class="quota-actions">
-            <button class="button-pill quota-primary" id="quota-connect" type="button">连接 Mac</button>
+          <div class="quota-actions flex flex-wrap">
+            <button class="button-pill button-primary" id="quota-connect" type="button">连接 Mac</button>
             <button class="button-pill button-secondary" id="quota-refresh" type="button">重新检查状态</button>
             <button class="button-pill button-secondary" id="quota-help" type="button">操作说明</button>
           </div>

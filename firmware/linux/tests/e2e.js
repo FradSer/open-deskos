@@ -56,6 +56,7 @@ const DRIVER_SCRIPT = `
   out.boltLeftOfDots = boltRect.right <= dotsRect.left
   out.clockRightOfDots = timeRect.left >= dotsRect.right
 
+
   out.pageCount = document.querySelectorAll('#pages-track .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
   out.pageContext = $('#page-context').textContent
@@ -71,7 +72,7 @@ const DRIVER_SCRIPT = `
   out.dashSupportText = $('.dash-support')?.textContent.includes('真实日程与用量')
   out.dashInitialBridgeStatus = $('#dash-narrative').textContent.includes('Mac')
   out.statRowRemoved = !document.querySelector('.dash-stats')
-  const requiredIcons = ['bolt', 'mail', 'settings', 'chevron-left']
+  const requiredIcons = ['bolt', 'message', 'settings', 'chevron-left']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
@@ -160,7 +161,8 @@ const DRIVER_SCRIPT = `
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
-  document.querySelector('.widget').click()
+  const unavailableTile = document.querySelector('.widget[data-widget="chat"]') || document.querySelector('.widget')
+  unavailableTile.click()
   out.appVisibleAfterTileTap = !$('#app-view').hidden
   out.appTitle = $('#app-title').textContent
   out.appEmptyNamesApp = $('#app-empty').textContent.includes(out.appTitle)
@@ -366,9 +368,33 @@ async function runGeometrySweep(win) {
   let failures = 0
   for (const [label, width, height] of EXTRA_SIZES) {
     win.setContentSize(width, height)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
+    // Desktop window servers deliver resize to occluded/hidden windows
+    // unreliably (rAF throttling varies with z-order), so re-dispatch the
+    // resize event in the page: same handler path as the OS event, and the
+    // handler is idempotent if the OS event also arrives.
+    await win.webContents.executeJavaScript("window.dispatchEvent(new Event('resize'))", true)
+    // The renderer recomputes geometry on resize via requestAnimationFrame;
+    // a blind sleep races cold-start rAF throttling in hidden windows, so
+    // poll until the applied metrics match the layout module (bounded).
     const expectedCell = layout.compute(width, height).cellW
+    const deadline = Date.now() + 5000
+    let settled = false
+    let lastApplied = null
+    while (Date.now() < deadline) {
+      lastApplied = await win.webContents.executeJavaScript('window.__odkGrid ? window.__odkGrid.cellW : 0', true)
+      if (lastApplied === expectedCell) { settled = true; break }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    if (!settled) {
+      const bounds = win.getContentBounds()
+      const inner = await win.webContents.executeJavaScript('window.innerWidth', true)
+      console.log(`WARN  ${label} ${width}x${height} — resize metrics never settled within 5s (applied=${lastApplied} expected=${expectedCell} content=${bounds.width}x${bounds.height} innerWidth=${inner})`)
+    }
+    // refresh() re-applies the pager transform, which animates over 260ms;
+    // probing mid-transition displaces widget rects out of the viewport.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal],
       ['no widget overlaps peek', probe.peekOverlaps === 0],
@@ -430,6 +456,24 @@ async function runInputChecks(win) {
       contentUnmounted: document.querySelector('#app-content').children.length === 0,
     })`)
 
+    // Almanac tile declares a fullscreen month-calendar appView surface.
+    await js("document.querySelector('[data-widget=\"almanac\"]').click()")
+    await sleep(200)
+    const calApp = await js(`({
+      viewOpen: !document.querySelector('#app-view').hidden,
+      title: document.querySelector('#cal-title').textContent,
+      titleFormat: /^\\d{4} 年 \\d{1,2} 月$/.test(document.querySelector('#cal-title').textContent),
+      sundayHeaderRed: getComputedStyle(document.querySelector('.cal-wd:first-child')).color === 'rgb(235, 87, 87)',
+      todayMarked: Boolean(document.querySelector('.cal-day.is-today')),
+      dayCells: document.querySelectorAll('.cal-day').length,
+    })`)
+    await press('Escape')
+    await sleep(200)
+    const calAppClosed = await js(`({
+      viewHidden: document.querySelector('#app-view').hidden,
+      contentUnmounted: document.querySelector('#app-content').children.length === 0,
+    })`)
+
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
     })
@@ -450,6 +494,10 @@ async function runInputChecks(win) {
       ['clock tile mounts its appView surface', clockApp.viewOpen && clockApp.contentVisible && clockApp.dialogHidden],
       ['clock app shows live hero time and date', clockApp.heroTime && clockApp.heroDate],
       ['clock app unmounts content on close', clockAppClosed.viewHidden && clockAppClosed.contentUnmounted],
+      ['almanac tile mounts month-calendar appView', calApp.viewOpen && calApp.titleFormat && calApp.todayMarked],
+      ['calendar marks Sunday header in Open DeskOS red', calApp.sundayHeaderRed],
+      ['calendar renders the real month only', calApp.dayCells >= 28 && calApp.dayCells <= 31],
+      ['calendar unmounts content on close', calAppClosed.viewHidden && calAppClosed.contentUnmounted],
       ['reduced motion zeroes pager transitions', reduced === '0s'],
       ['motion restored when preference is no-preference', restored !== '0s'],
     ]
@@ -471,6 +519,8 @@ const COMPANION_CONNECTED_SCRIPT = `
     await new Promise((resolve) => setTimeout(resolve, 1500))
     out.dashConnected = $('#dash-narrative').textContent.includes('Mac 已连接')
     out.peekConnected = $('#peek-bridge').textContent.includes('Mac 已连接')
+    out.dashGreenVoice = getComputedStyle(document.querySelector('#dash-narrative .connected-word')).color === 'rgb(52, 199, 89)'
+    out.peekGreenVoice = getComputedStyle($('#peek-bridge')).color === 'rgb(52, 199, 89)'
     ;[...document.querySelectorAll('#dots .dot')][2].click()
     await new Promise((resolve) => setTimeout(resolve, 400))
     out.quotaConnected = $('#quota-state').textContent.includes('Mac 已连接')
@@ -548,6 +598,7 @@ async function runCompanionChecks() {
     const checks = [
       ['dashboard shows Mac connected', connected.dashConnected],
       ['peek shows Mac connected', connected.peekConnected],
+      ['connected state carries Open DeskOS green voice', connected.dashGreenVoice && connected.peekGreenVoice],
       ['quota shows Mac connected after startup check', connected.quotaConnected],
       ['quota shows last check time when connected', connected.quotaChecked],
       ['non-companion HTTP 200 stays disconnected', identityRejected],
@@ -595,12 +646,15 @@ async function main() {
     frame: false,
     // Visible on purpose: hidden windows do not paint frames on headless Linux
     // (GPU-less Xvfb), which freezes CSS transitions and lies to rect probes.
+    // backgroundThrottling off keeps rAF alive when the desktop occludes this
+    // window, so resize-driven geometry recompute cannot be frozen mid-sweep.
     show: true,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   })
 
