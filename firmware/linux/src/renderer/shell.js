@@ -137,9 +137,7 @@ function main() {
   const appTroubleshooting = document.getElementById('app-troubleshooting')
   const appAction = document.getElementById('app-action')
   const appActionStatus = document.getElementById('app-action-status')
-  const appContent = document.getElementById('app-content')
   let lastFocusedElement = null
-  let appDisposers = []
 
   function setBackgroundInert(inert) {
     for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('peek')]) {
@@ -152,7 +150,6 @@ function main() {
   function openInfoView(title, message, detail, showSteps = false, action = null) {
     lastFocusedElement = document.activeElement
     appTitle.textContent = title
-    appContent.hidden = true
     appEmpty.hidden = false
     appEmpty.textContent = message
     appHelp.hidden = true
@@ -174,24 +171,8 @@ function main() {
     document.getElementById('app-back').focus()
   }
 
-  function openAppView(title, app) {
-    lastFocusedElement = document.activeElement
-    appTitle.textContent = title
-    for (const element of [appEmpty, appHelp, appEmptySub, appSteps, appTroubleshooting, appAction, appActionStatus]) element.hidden = true
-    appContent.replaceChildren()
-    appContent.hidden = false
-    const disposer = app.mount(appContent, uiCtx)
-    if (typeof disposer === 'function') appDisposers.push(disposer)
-    appView.hidden = false
-    setBackgroundInert(true)
-    document.getElementById('app-back').focus()
-  }
-
   function closeInfoView() {
     appView.hidden = true
-    for (const dispose of appDisposers) dispose()
-    appDisposers = []
-    appContent.replaceChildren()
     appAction.onclick = null
     appActionStatus.textContent = ''
     setBackgroundInert(false)
@@ -249,20 +230,6 @@ function main() {
   }
 
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
-
-  function openApp(tile) {
-    const plugin = odkPlugins.get(tile.dataset.widget)
-    if (plugin.appView) {
-      openAppView(plugin.app, plugin.appView)
-      return
-    }
-    if (typeof plugin.activate === 'function' && plugin.activate(uiCtx)) return
-    openInfoView(plugin.app, `「${plugin.app}」当前尚未接入。`, '此功能将在后续平台版本提供；当前可以返回桌面使用已开放的功能。')
-  }
-
-  for (const tile of document.querySelectorAll('.widget')) {
-    tile.addEventListener('click', () => openApp(tile))
-  }
 
   document.getElementById('app-back').addEventListener('click', closeInfoView)
   if (peekDef) document.getElementById('peek').addEventListener('click', () => uiCtx.openCompanionGuide())

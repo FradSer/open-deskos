@@ -15,7 +15,7 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 - Open DeskOS 设计 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何使用
   Open DeskOS portrait 算法(fit = min(w/320, h/480))
 - 三页横向触摸滑动:Dashboard 流 / Home 网格 / Quota 页;当前页名与 N/3 可见,年份进度条
-- 点按 widget 进入全屏视图,返回按钮与 Escape 始终可用;未接入 App 明确显示待接入状态
+- 磁贴是纯展示面(对齐 ESP32-P4):点按与键盘都不进入 App;未接入 App 明确显示待接入状态
 - quota 与 peek 分离显示 Mac companion 健康状态和网络在线状态,提供网络连接说明与重新检查入口
 
 ## 目录结构
@@ -41,8 +41,8 @@ scripts/cm5-acceptance.sh
 ```
 
 扩展外壳 = 新增一个插件文件(+ 在 `config/desktop_layout.js` 声明位置):
-磁贴、整页、状态栏指示、peek 内容、全屏 App(appView 挂载面)全部可插件化,
-零核心改动;完整契约见 [docs/AI_PLUGIN_GUIDE.md](docs/AI_PLUGIN_GUIDE.md)。
+磁贴、整页、状态栏指示、peek 内容全部可插件化,零核心改动;
+完整契约见 [docs/AI_PLUGIN_GUIDE.md](docs/AI_PLUGIN_GUIDE.md)。
 
 ## 本机开发(macOS/Linux 均可)
 

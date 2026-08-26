@@ -15,9 +15,9 @@ Repository-wide rules live in the root `AGENTS.md`.
 - `src/renderer/core/` — plugin registry (`odkPlugins`), shared services
   (tick/connection, `odkServices`), desktop composer (`odkComposer`).
 - `src/renderer/plugins/` — every visible element is one self-contained plugin
-  (pages, grid tiles, status-bar indicators, peek content, fullscreen app
-  surfaces via a tile's `appView`); placement lives in
-  `src/renderer/config/desktop_layout.js`. Adding a feature means a new plugin
+  (pages, grid tiles, status-bar indicators, peek content); placement lives in
+  `src/renderer/config/desktop_layout.js`. Tiles are display-only surfaces
+  (P4 parity: taps never open views). Adding a feature means a new plugin
   file plus one config line — never edit core; `tests/smoke.sh` greps enforce
   this. See `docs/AI_PLUGIN_GUIDE.md`.
 - `tests/features/` — Chinese-Gherkin BDD scenarios (repo convention).

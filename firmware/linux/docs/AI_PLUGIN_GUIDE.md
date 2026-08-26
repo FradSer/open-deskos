@@ -24,12 +24,16 @@ src/renderer/
 
 | kind | 挂载点 | 注册字段 |
 |---|---|---|
-| `tile` | 网格磁贴(由 desktop_layout.js 声明位置) | `app`(标题)、`state`、`mount`、可选 `activate`、可选 `appView` |
+| `tile` | 网格磁贴(由 desktop_layout.js 声明位置) | `app`(标识名)、`state`、`mount` |
 | `page` | 整页(由 desktop_layout.js 声明) | `mount` |
 | `status` | 状态栏槽位(`slot: 'left' \| 'right'`) | `mount` |
 | `peek` | 底部 peek 条内容与点按行为 | `mount`、`activate` |
 
 ### 磁贴插件(kind = tile)
+
+磁贴与 ESP32-P4 固件一致是纯展示面:`app`/`state` 只作标识与状态陈述,
+点按或键盘激活都不会进入全屏视图;全屏视图仅供 peek 说明、页面内连接入口
+与操作说明等外壳级入口经 `ctx.openDialog` 使用。
 
 ```js
 ;(function (root) {
@@ -37,30 +41,18 @@ src/renderer/
   root.odkPlugins.register({
     id: 'my-widget',          // 唯一 id;CSS 类自动为 .w-my-widget
     kind: 'tile',
-    app: '我的应用',           // 全屏视图标题与 aria-label 用名
+    app: '我的应用',           // 标识名(data-app),用于唯一性与调试
     state: '待接入',           // 真实状态:待接入 | 未启动 | 实时;绝不伪造"运行中"
-    mount(el, ctx) {          // el 是 <button class="widget">,往里建自己的 DOM
+    mount(el, ctx) {          // el 是展示用 <div class="widget">,往里建自己的 DOM
       el.innerHTML = `
         <svg data-tabler="star" aria-hidden="true" ...>...</svg>
         <span class="w-name">${this.app}</span>
         <span class="w-state">${this.state}</span>`
       ctx.onTick((now) => { /* 每秒回调;需要时钟就订阅,不要自开 setInterval */ })
     },
-    activate(ctx) {           // 可选:点按磁贴的自定义行为;返回 true 表示已处理
-      ctx.openDialog(this.app, '说明文字', '补充说明')
-      return true
-    },
-    appView: {                // 可选:全屏 App 挂载面,优先于 activate/默认对话框
-      mount(el, ctx) {        // el 是 #app-content;返回清理函数则关闭时自动执行
-        el.innerHTML = `<div class="app-clock">...</div>`
-        return ctx.onTick((now) => { /* 实时内容 */ })
-      },
-    },
   })
 })(typeof window !== 'undefined' ? window : globalThis)
 ```
-
-无 `appView` 与 `activate` 时,引擎给出默认全屏视图:「〈app〉尚未在此平台实现」。
 
 ### 页面插件(kind = page)、状态栏插件(kind = status)、peek 插件(kind = peek)
 
@@ -91,7 +83,7 @@ root.odkPlugins.register({
 
 | 成员 | 说明 |
 |---|---|
-| `ctx.onTick(cb)` | 订阅共享 1s tick,订阅即首绘;返回退订函数(appView 关闭时自动执行) |
+| `ctx.onTick(cb)` | 订阅共享 1s tick,订阅即首绘;返回退订函数 |
 | `ctx.connection.subscribe(cb)` | 连接状态(true/false),订阅即首绘;返回退订函数 |
 | `ctx.connection.refresh()` | 手动重读 |
 | `ctx.BRIDGE_STATUS` / `ctx.NETWORK_LABELS` | 统一状态文案,禁止自造 |

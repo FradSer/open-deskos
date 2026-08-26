@@ -40,14 +40,16 @@ AIODI 外壳,目标面板 568×1232 竖屏触摸。P4+C6 固件仍是生产权�
   (status-connection/status-clock)、peek(peek-bridge,含 USB 指南文案)均为
   自包含插件,由 `core/registry.js`(odkPlugins,含 byKind)+ `core/composer.js`
   从 `config/desktop_layout.js` 装配进 index.html 骨架(骨架只剩空槽位
-  data-slot);shell.js 只剩组合根。磁贴可声明 `appView: { mount }` 全屏 App
-  面(参考实现:时钟 App),mount 返回的清理函数在关闭时自动执行
-  (services 的订阅都返回退订函数)。扩展 = 新增 plugins/*.js + 一行配置,
+  data-slot);shell.js 只剩组合根。磁贴是纯展示面(对齐 P4:点按/键盘都不进
+  App;曾有的 tile `appView`/`activate` 契约已删,composer 产出非交互 div);
+  #app-view 全屏视图仅供外壳级入口(peek 说明、页面内连接/操作说明)经
+  ctx.openDialog 使用。扩展 = 新增 plugins/*.js + 一行配置,
   零核心改动(smoke grep 强制核心无专名、骨架无内容);契约见
   docs/AI_PLUGIN_GUIDE.md。陷阱:composer 必须 append 后再 mount,
   否则插件内 document 级查询拿到 null(首绘即抛错)。
 - e2e 可信键盘输入陷阱:sendInputEvent 的 Enter 必须补发 `char '\r'`
-  事件才会触发 button 激活,Space 则 keyUp 即可;reduced-motion 用
+  事件才会触发 button 激活(Space 则 keyUp 即可);磁贴改为非交互 div 后
+  该路径仅适用于页点/按钮类控件;reduced-motion 用
   `webContents.debugger` + `Emulation.setEmulatedMedia` 验证。
 - **smoke 模式陷阱**:无 WindowServer 访问权的终端会话里 `ready-to-show`
   永不触发导致挂死;smoke 必须挂 `webContents.did-finish-load` 并加超时,

@@ -176,7 +176,6 @@ body.kiosk {
 }
 
 .dot:focus-visible,
-.widget:focus-visible,
 #app-back:focus-visible,
 .button-pill:focus-visible,
 #peek:focus-visible {
@@ -370,8 +369,6 @@ body.kiosk {
   font-family: inherit;
   font-size: calc(var(--cell-w) * 0.15);
   overflow: hidden;
-  cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 .widget svg {
@@ -381,12 +378,6 @@ body.kiosk {
   height: calc(var(--cell-w) * 0.44);
   flex-shrink: 0;
   aspect-ratio: 1;
-}
-
-.widget:active {
-  background: var(--odk-elevated);
-  border-color: var(--odk-stroke-focus);
-  transform: scale(0.98);
 }
 
 .w-state {
@@ -674,76 +665,6 @@ body.kiosk {
   font-size: clamp(20px, calc(var(--cell-w) * 0.15), 28px);
 }
 
-.app-clock {
-  flex: 1;
-  gap: calc(var(--gutter) * 0.75);
-}
-
-.app-clock-time {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.9);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.app-clock-date {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.14);
-  color: var(--odk-secondary);
-}
-
-/* ---- Fullscreen month calendar (almanac app surface) ---- */
-
-.cal {
-  width: 100%;
-  gap: calc(var(--gutter) * 1.1);
-}
-
-.cal-title {
-  font-family: "Noto Sans SC", "Montserrat", sans-serif;
-  font-size: clamp(26px, calc(var(--cell-w) * 0.2), 38px);
-  font-weight: 400;
-}
-
-.cal-grid {
-  width: min(100%, calc(var(--cell-w) * 2.6));
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: calc(var(--gutter) * 0.28);
-}
-
-.cal-wd {
-  color: var(--odk-secondary-strong);
-  font-size: clamp(14px, calc(var(--cell-w) * 0.1), 19px);
-  line-height: 1;
-  text-align: center;
-  padding-bottom: calc(var(--gutter) * 0.2);
-}
-
-/* Sunday header echoes the almanac tile's red weekday voice. */
-.cal-wd:first-child {
-  color: var(--odk-accent-red);
-}
-
-.cal-day {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(16px, calc(var(--cell-w) * 0.115), 22px);
-  font-weight: 400;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  border-radius: 999px;
-}
-
-.cal-day.is-today {
-  background: var(--odk-primary);
-  color: var(--odk-bg);
-  font-weight: 700;
-}
-
 .app-empty-sub {
   max-width: 32ch;
   color: var(--odk-secondary-strong);
@@ -779,7 +700,6 @@ body.kiosk {
 @media (prefers-reduced-motion: reduce) {
   #pages-track,
   .dot,
-  .widget,
   .button-pill,
   #peek,
   #app-back {

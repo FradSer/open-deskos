@@ -29,17 +29,16 @@
 
   function buildTile(widgetDef, uiCtx) {
     const plugin = root.odkPlugins.get(widgetDef.id)
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = `widget w-${widgetDef.id} flex flex-col items-center justify-center`
-    button.dataset.widget = widgetDef.id
-    button.dataset.app = plugin.app
-    button.dataset.state = plugin.state
-    button.setAttribute('aria-label', `${plugin.app}，${plugin.state}`)
-    if (widgetDef.col) button.style.gridColumn = widgetDef.col
-    if (widgetDef.row) button.style.gridRow = widgetDef.row
-    plugin.mount(button, uiCtx)
-    return button
+    // Display-only surface, P4 parity: tiles never open views on tap.
+    const tile = document.createElement('div')
+    tile.className = `widget w-${widgetDef.id} flex flex-col items-center justify-center`
+    tile.dataset.widget = widgetDef.id
+    tile.dataset.app = plugin.app
+    tile.dataset.state = plugin.state
+    if (widgetDef.col) tile.style.gridColumn = widgetDef.col
+    if (widgetDef.row) tile.style.gridRow = widgetDef.row
+    plugin.mount(tile, uiCtx)
+    return tile
   }
 
   function build(layout, track, uiCtx) {

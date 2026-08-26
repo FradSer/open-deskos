@@ -3,6 +3,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   CM5(RK3588S)上的 Electron 外壳,目标面板分辨率 568×1232 竖屏触摸。
   交互结构与 ESP32-P4 launcher 对齐:顶部状态栏(左网络指示/中页名与页点/右时钟),
   中部 3×N widget 网格(桌面布局按列行声明),底部内缩 peek 条显示真实连接状态。
+  磁贴与 ESP32-P4 固件一致是纯展示面:点按或键盘激活都不进入 App 全屏视图。
   外壳只陈述真实状态:未连接即显示未连接,不伪造任何活动、订阅或健康数据。
 
   Scenario: 以 568×1232 窗口启动并可通过环境变量覆盖
@@ -104,9 +105,9 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When 在页面上向左滑动超过阈值
     Then 页面容器平移到下一页且第二个页点变为激活态
     When 在磁贴上拖动但位移小于换页阈值
-    Then 页面保持原页且不进入 App 全屏视图
+    Then 页面保持原页且磁贴保持展示面,不进入任何全屏视图
     When 拖动被系统中断(pointercancel)
-    Then 抑制不会驻留,后续点按照常打开 App
+    Then 抑制不会驻留,后续点按页面内按钮(如连接 Mac)照常生效
 
   Scenario: 页点是带名称的按钮并可直接跳转
     Given 主屏有至少两个页面
@@ -131,7 +132,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 日历磁贴显示实时日期并标注可查看,而不是待接入
     And 磁贴状态文案使用中文或明确的产品专有名词
     And 待接入 App 磁贴显示待接入状态
-    And 待接入磁贴的全屏说明提供具体的接入状态而不是只提示返回
+    And 待接入状态只由磁贴文字陈述,点按不打开任何补充视图
 
   Scenario: 字体与 Open DeskOS 状态文字在 CM5 上确定可用
     Given 外壳已启动
@@ -145,19 +146,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 生成的样式表存在并由 renderer 加载
     And firmware/linux 内只使用 Open DeskOS 的产品命名
 
-  Scenario: 点按磁贴进入 App 全屏视图且返回可用
-    Given 网格页存在可点按的 widget 磁贴
+  Scenario: 磁贴是纯展示面,点按与键盘都不进入 App
+    Given 网格页存在任意 widget 磁贴
     When 点按任一磁贴
-    Then 进入该 App 的全屏视图且返回按钮可见
-    And 全屏视图具有 dialog 语义并将焦点移到返回按钮
-    And 全屏视图打开时后台页面不可聚焦且对辅助技术隐藏
-    And Tab 与 Shift+Tab 焦点循环保持在全屏视图内
-    And 正文提示该 App 尚未在此平台实现且包含磁贴名称
-    And 正文提供返回桌面的下一步
-    When 关闭全屏视图
-    Then 焦点回到原磁贴
-    When 按下 Escape
-    Then 回到主屏且原页面保持当前页
+    Then 不打开全屏视图,页面保持当前页
+    And 磁贴不是 button 元素且不在 Tab 序列中
+    And 键盘 Enter 与 Space 在磁贴上不触发任何视图
+    And 全屏视图仅供 peek 说明、页面内连接入口与操作说明等外壳级入口使用
 
   Scenario: 连接说明页面提供明确恢复路径
     Given quota 页面显示 Mac 桥接未配置
@@ -196,22 +191,6 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And quota 页的网络说明入口经服务委托到同一 peek 插件,文案单一来源
     When 新增一个 status 插件并声明槽位
     Then 无需修改核心即可出现在状态栏
-
-  Scenario: 磁贴可声明全屏 App 插件面
-    Given clock 磁贴声明了 app 挂载面
-    When 点按 clock 磁贴
-    Then 全屏视图挂载该 App 的实时内容(大号 HH:MM 与英文日期)而非静态对话框
-    When 返回桌面
-    Then App 内容被卸载且其 tick 订阅被释放
-
-  Scenario: 日历磁贴声明全屏月历 App 面
-    Given almanac 磁贴声明了 app 挂载面
-    When 点按 almanac 磁贴
-    Then 全屏视图挂载当月真实月历,标题为"YYYY 年 M 月"
-    And 月历以周日为首列,表头"日"使用 Open DeskOS 红色强调
-    And 今日日期以反白圆形标记,其余日期为常规数字,不伪造任何日程数据
-    When 返回桌面
-    Then 月历内容被卸载且其 tick 订阅被释放
 
   Scenario: Wayland 会话自动选择 ozone 后端
     Given WAYLAND_DISPLAY 已设置且用户参数未包含 --ozone-platform-hint
@@ -276,15 +255,6 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 在页点中心上方 16px 处做命中测试仍返回该页点按钮
     And 状态栏内页点容器矩形不变,bolt 在左、时钟在右的关系保持
     And 页点按钮本身未被 transform 扭曲，保持正圆与正胶囊边缘
-
-  Scenario: 可信键盘输入可激活磁贴并返回
-    Given 焦点位于任一磁贴
-    When 通过可信输入发送 Enter 按下与抬起
-    Then 该 App 全屏视图打开
-    When 通过可信输入发送 Escape
-    Then 全屏视图关闭回到主屏
-    When 焦点位于另一磁贴并发送 Space 按下与抬起
-    Then 全屏视图打开
 
   Scenario: 系统 prefers-reduced-motion 生效
     Given 模拟 prefers-reduced-motion 为 reduce

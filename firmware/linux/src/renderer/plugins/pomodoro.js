@@ -17,11 +17,5 @@
         <span class="w-name">${this.app}</span>
         <span class="w-state">${this.state}</span>`
     },
-
-    // Tile-specific activation: the pomodoro owns its "not running" copy.
-    activate(ctx) {
-      ctx.openDialog(this.app, `${this.app}尚未启动。`, '返回桌面继续浏览；启动控制将在此平台接入后提供。')
-      return true
-    },
   })
 })(typeof window !== 'undefined' ? window : globalThis)

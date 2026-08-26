@@ -12,7 +12,9 @@
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
        and core plugin hosts from src/renderer/plugins/*.js registrations:
        pages/tiles via config/desktop_layout.js, status-bar and peek via
-       kind="status"/"peek" plugins, fullscreen apps via a tile's app surface. -->
+       kind="status"/"peek" plugins. Tiles are display-only (P4 parity); the
+       #app-view dialog serves shell-level entries only (peek guide, page
+       actions, help). -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
     <div id="page-center" class="flex items-center">
@@ -39,7 +41,6 @@
       <h1 id="app-title"></h1>
     </header>
     <div class="app-body flex flex-col items-center justify-center">
-      <div id="app-content" hidden></div>
       <p class="app-empty" id="app-empty"></p>
       <p class="app-help" id="app-help" hidden>滑动切换页面；点击页点直接跳转；左右键或 Home/End 键可分页；Back 或 Escape 返回；点击 peek 查看连接状态。</p>
       <p class="app-empty-sub" id="app-empty-sub"></p>

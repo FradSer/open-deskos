@@ -137,6 +137,18 @@ const DRIVER_SCRIPT = `
   const x1 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.2
   const pointerEvent = (type, x, py) =>
     new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: py ?? midY, buttons: 1 })
+
+  // A cancelled drag must not leave click suppression stuck: the visible
+  // page-level action on the current page stays tappable.
+  viewport.dispatchEvent(pointerEvent('pointerdown', x0))
+  viewport.dispatchEvent(pointerEvent('pointermove', x0 - 60))
+  viewport.dispatchEvent(pointerEvent('pointercancel', x0 - 60))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  $('#dash-connect').click()
+  out.connectOpensAfterCancelledDrag = !$('#app-view').hidden && $('#app-title').textContent === '连接 Mac'
+  out.cancelledDragKeepsFirstPage = document.querySelectorAll('#dots .dot')[0].classList.contains('active')
+  $('#app-back').click()
+
   viewport.dispatchEvent(pointerEvent('pointerdown', x0))
   viewport.dispatchEvent(pointerEvent('pointermove', (x0 + x1) / 2))
   viewport.dispatchEvent(pointerEvent('pointermove', x1))
@@ -161,22 +173,14 @@ const DRIVER_SCRIPT = `
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
-  const unavailableTile = document.querySelector('.widget[data-widget="chat"]') || document.querySelector('.widget')
-  unavailableTile.click()
-  out.appVisibleAfterTileTap = !$('#app-view').hidden
-  out.appTitle = $('#app-title').textContent
-  out.appEmptyNamesApp = $('#app-empty').textContent.includes(out.appTitle)
-  $('#app-back').click()
-  out.appClosedAfterBack = $('#app-view').hidden
-  out.stillSecondPageAfterBack = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
-
-  viewport.dispatchEvent(pointerEvent('pointerdown', x0, midY))
-  viewport.dispatchEvent(pointerEvent('pointermove', x0 - 60, midY))
-  viewport.dispatchEvent(pointerEvent('pointercancel', x0 - 60, midY))
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  document.querySelector('.widget').click()
-  out.appOpensAfterCancelledDrag = !$('#app-view').hidden
-  $('#app-back').click()
+  // Tiles are display-only surfaces (P4 parity): taps must never open a view,
+  // and tiles cannot take focus, so keyboard Enter/Space can never activate one.
+  const tile = document.querySelector('.widget[data-widget="chat"]') || document.querySelector('.widget')
+  tile.focus()
+  out.tileCannotTakeFocus = tile.tagName !== 'BUTTON' && tile.tabIndex === -1 && document.activeElement !== tile
+  tile.click()
+  out.tileTapKeepsViewHidden = $('#app-view').hidden
+  out.pagePreservedAfterTileTap = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
   document.querySelectorAll('#dots .dot')[2].click()
   await new Promise((resolve) => setTimeout(resolve, 350))
@@ -302,7 +306,7 @@ function check(results) {
     ['stats row removed', results.statRowRemoved],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 4', results.tablerCount >= 4],
-    ['six widgets with unique app targets', results.widgetCount === 6 && results.uniqueApps],
+    ['six display-only widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
@@ -326,13 +330,11 @@ function check(results) {
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
-    ['small drag on tile does not open app', results.appHiddenAfterTileDrag],
-    ['tile opens app view', results.appVisibleAfterTileTap],
-    ['app title set', typeof results.appTitle === 'string' && results.appTitle.length > 0],
-    ['unavailable copy names the app', results.appEmptyNamesApp === true],
-    ['back closes app view', results.appClosedAfterBack],
-    ['page preserved after back', results.stillSecondPageAfterBack],
-    ['cancelled drag does not suppress next tap', results.appOpensAfterCancelledDrag === true],
+    ['tile drag never opens a view', results.appHiddenAfterTileDrag],
+    ['tile tap never opens a view', results.tileTapKeepsViewHidden && results.pagePreservedAfterTileTap],
+    ['tiles are not interactive elements', results.tileCannotTakeFocus],
+    ['cancelled drag keeps page and does not suppress next tap',
+      results.connectOpensAfterCancelledDrag === true && results.cancelledDragKeepsFirstPage],
     ['dot click jumps to last page', results.transformAfterDotJump === `translateX(-${results.viewportWidth * 2}px)`],
     ['third dot active after jump', results.thirdDotActive],
     ['third page context is visible', results.thirdPageContext],
@@ -409,71 +411,11 @@ async function runGeometrySweep(win) {
   return failures
 }
 
-async function runInputChecks(win) {
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+async function runMotionChecks(win) {
   const js = (code) => win.webContents.executeJavaScript(code, true)
-  const key = (keyCode, type) => win.webContents.sendInputEvent({ type, keyCode })
-  const press = async (keyCode) => {
-    key(keyCode, 'keyDown')
-    // Chromium synthesizes button clicks from Enter only when the key produces
-    // a character input; '\r' is that char event.
-    if (keyCode === 'Enter') key('\r', 'char')
-    key(keyCode, 'keyUp')
-  }
 
   await win.webContents.debugger.attach('1.3')
   try {
-    // Trusted keyboard input: buttons only synthesize clicks from real input.
-    await js("document.querySelector('.widget').focus()")
-    await press('Enter')
-    await sleep(200)
-    const enterOpens = !(await js("document.querySelector('#app-view').hidden"))
-    await press('Escape')
-    await sleep(200)
-    const escapeCloses = await js("document.querySelector('#app-view').hidden")
-
-    await js("document.querySelectorAll('.widget')[1].focus()")
-    await press('Space')
-    await sleep(200)
-    const spaceOpens = !(await js("document.querySelector('#app-view').hidden"))
-    await press('Escape')
-    await sleep(100)
-
-    // Clock tile declares an appView surface: real app content, not a dialog.
-    await js("document.querySelector('[data-widget=\"clock\"]').click()")
-    await sleep(200)
-    const clockApp = await js(`({
-      viewOpen: !document.querySelector('#app-view').hidden,
-      contentVisible: !document.querySelector('#app-content').hidden,
-      dialogHidden: document.querySelector('#app-empty').hidden,
-      heroTime: /^\\d{2}:\\d{2}$/.test(document.querySelector('.app-clock-time').textContent),
-      heroDate: document.querySelector('.app-clock-date').textContent.length > 0,
-    })`)
-    await press('Escape')
-    await sleep(200)
-    const clockAppClosed = await js(`({
-      viewHidden: document.querySelector('#app-view').hidden,
-      contentUnmounted: document.querySelector('#app-content').children.length === 0,
-    })`)
-
-    // Almanac tile declares a fullscreen month-calendar appView surface.
-    await js("document.querySelector('[data-widget=\"almanac\"]').click()")
-    await sleep(200)
-    const calApp = await js(`({
-      viewOpen: !document.querySelector('#app-view').hidden,
-      title: document.querySelector('#cal-title').textContent,
-      titleFormat: /^\\d{4} 年 \\d{1,2} 月$/.test(document.querySelector('#cal-title').textContent),
-      sundayHeaderRed: getComputedStyle(document.querySelector('.cal-wd:first-child')).color === 'rgb(235, 87, 87)',
-      todayMarked: Boolean(document.querySelector('.cal-day.is-today')),
-      dayCells: document.querySelectorAll('.cal-day').length,
-    })`)
-    await press('Escape')
-    await sleep(200)
-    const calAppClosed = await js(`({
-      viewHidden: document.querySelector('#app-view').hidden,
-      contentUnmounted: document.querySelector('#app-content').children.length === 0,
-    })`)
-
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
     })
@@ -488,16 +430,6 @@ async function runInputChecks(win) {
     )
 
     const checks = [
-      ['Enter opens app view', enterOpens],
-      ['Escape closes app view', escapeCloses],
-      ['Space opens app view', spaceOpens],
-      ['clock tile mounts its appView surface', clockApp.viewOpen && clockApp.contentVisible && clockApp.dialogHidden],
-      ['clock app shows live hero time and date', clockApp.heroTime && clockApp.heroDate],
-      ['clock app unmounts content on close', clockAppClosed.viewHidden && clockAppClosed.contentUnmounted],
-      ['almanac tile mounts month-calendar appView', calApp.viewOpen && calApp.titleFormat && calApp.todayMarked],
-      ['calendar marks Sunday header in Open DeskOS red', calApp.sundayHeaderRed],
-      ['calendar renders the real month only', calApp.dayCells >= 28 && calApp.dayCells <= 31],
-      ['calendar unmounts content on close', calAppClosed.viewHidden && calAppClosed.contentUnmounted],
       ['reduced motion zeroes pager transitions', reduced === '0s'],
       ['motion restored when preference is no-preference', restored !== '0s'],
     ]
@@ -679,12 +611,12 @@ async function main() {
   }
   const endpointFailures = runEndpointChecks()
   const driverFailures = check(results)
-  const inputFailures = await runInputChecks(win)
+  const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)
   const companionFailures = await runCompanionChecks()
   clearTimeout(timeout)
 
-  process.exitCode = endpointFailures + driverFailures + inputFailures + sweepFailures + companionFailures === 0 ? 0 : 1
+  process.exitCode = endpointFailures + driverFailures + motionFailures + sweepFailures + companionFailures === 0 ? 0 : 1
   app.exit(process.exitCode)
 }
 
