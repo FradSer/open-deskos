@@ -1,18 +1,15 @@
 # Repository Guidelines
 
-Instructions specific to the macOS/iOS client in `app/apple/`. Repository-wide
-rules live in the root `AGENTS.md`.
-
 ## Project Structure & Module Organization
 
 - `OpenDeskOS.xcodeproj` — one Xcode project, two targets:
   - **OpenDeskOS** — SwiftUI cross-platform (iOS/iPadOS/macOS) GUI app.
-  - **OpenDeskOSCLI** — macOS-only CLI target; the built product is `odkctl`.
+  - **OpenDeskOSCLI** — macOS-only CLI target; the current built executable is `OpenDeskOS` (the source target remains `OpenDeskOSCLI`).
 - `OpenDeskOS/Plugins/` — sidecar plugin host (`PluginHost`, `SidecarProcess`);
   plugin payloads live in `OpenDeskOS/Resources/plugins/<name>/`
   (server bundle + `.proto.txt` contract).
 - `LaunchAgents/` — launchd plists for per-user scheduled health checks;
-  they reference the absolute installed path of `odkctl`.
+  they reference the absolute installed path of the `OpenDeskOS` executable.
 - `tests/` — executable shell checks and BDD specs:
   - `test_macos_management.sh` — builds via `xcodebuild` and asserts views exist.
   - `test_open-deskos_cli.sh` — compiles CLI sources with `xcrun swiftc` directly.
@@ -22,25 +19,31 @@ rules live in the root `AGENTS.md`.
 ## Build & Test Commands
 
 ```sh
-# Build the macOS CLI target
+# Build the SwiftUI management app (also embeds the CLI)
+xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOS \
+  -configuration Debug -destination 'platform=macOS' build
+bash app/apple/tests/test_macos_management.sh
+
+# Build and exercise the standalone CLI target
 xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
   -configuration Release -destination 'generic/platform=macOS' \
   -derivedDataPath build/open-deskos-cli build
-
-# Run checks from repo root
-bash app/apple/tests/test_macos_management.sh
-bash app/apple/tests/test_open-deskos_cli.sh
+OPEN_DESKOSCTL=build/open-deskos-cli/Build/Products/Release/OpenDeskOS \
+  bash app/apple/tests/test_open-deskos_cli.sh
+bash app/apple/tests/test_wispr_sidecar_auth.sh  # optional Bun sidecar integration check
 ```
 
 ## Coding Style & Conventions
 
-- Standard Swift naming; no external Swift package dependencies are configured.
+- Standard Swift naming; the Xcode project has no external Swift package dependencies configured. Keep GUI code in `OpenDeskOS/`, CLI code in `OpenDeskOSCLI/`, and sidecar payloads under `OpenDeskOS/Resources/plugins/`.
 - New behavior starts as a scenario in `tests/features/`, then an executable
   check in `tests/`.
-- The installed daemon depends on `odkctl` living at a stable absolute path
-  (`/usr/local/bin/odkctl`) — see `app/README.md` before changing install layout.
+- The installed daemon resolves and records the built `OpenDeskOS` executable at
+  a stable absolute path; see `app/README.md` before changing install layout.
 
 ## Scope Boundary
 
-This app is **not** the OPEN-DESKOS.md §10 Rust companion. iOS/iPadOS cannot do
-CGEvent/HID injection; see `../README.md` for the capability split.
+This SwiftUI client is not the planned Rust companion from
+`docs/open-deskos/OPEN-DESKOS.md` §10. iOS/iPadOS cannot perform CGEvent/HID
+injection; keep that capability in the future macOS companion rather than this
+cross-platform client.
