@@ -19,8 +19,7 @@ AIODI 外壳,目标面板 568×1232 竖屏触摸。P4+C6 固件仍是生产权�
   `~/.local/state/open-deskos-shell/launcher.log`。安装器内部处理 sudo/apt,
   pnpm 用 `--frozen-lockfile`,rsync 同步必须保留 pnpm-lock.yaml。
 - 设备验收用 `scripts/cm5-acceptance.sh`:输出单 JSON(arch/os/session/display/
-  touch/gpu/electron/smoke/autostart/memory),任一失败非零退出;结果贴入
-  CM5-S31-INTEGRATION.md。host 上跑会如实报多项 FAIL,这是契约不是 bug。
+  touch/gpu/electron/smoke/autostart/memory),任一失败非零退出;host 上跑会如实报多项 FAIL,这是契约不是 bug。
 - **CM5 真机事实(2026-08-23 首次上机,无屏 Xvfb)**:Debian 12 bookworm;
   root 会话下 Chromium 拒绝启动,run.sh 自动附加 --no-sandbox;Xvfb 屏幕必须
   ≥ 窗口尺寸(默认 1280x1024 会把 1232 高钳到 1024);无 GPU 时隐藏窗口不产帧,
@@ -54,7 +53,8 @@ AIODI 外壳,目标面板 568×1232 竖屏触摸。P4+C6 固件仍是生产权�
 - **smoke 模式陷阱**:无 WindowServer 访问权的终端会话里 `ready-to-show`
   永不触发导致挂死;smoke 必须挂 `webContents.did-finish-load` 并加超时,
   尺寸断言用 `getContentBounds()`。
-- 宿主机 smoke 绿 ≠ CM5 真机绿(GPU 合成、触摸、自启均未验证)。
+- 宿主机 smoke/e2e 绿 ≠ CM5 真机绿(GPU 合成、触摸、自启均未验证)。
+- **App Manager owner boundary:** `odk_app_manager.h:6-8` 要求 UI Runtime 在 LVGL owner task 执行,但 `odk_composition.c:152-198` 当前从 `task_app_manager` tick 所有 manager app;`odk_voice_ui.c:388-432` 又单独拥有另一个 Lua/LVGL task。在显式 owner/dispatch port 出现前,不要通过该 worker 启动 UI App。`odk_app_runtime.c:64-66` 还以 NULL modules/capability context 创建 sandbox,因此当前不能声称提供文档中的 allowlisted `lvgl`/`aiodi`/`state`/`root` 接口。Linux endpoint 只能作为验证适配器,不是真实 UI Runtime 集成证据。
 
 **Why:** 这是仓库第一个 JS/Electron 运行时端;token 对齐测试和无头可跑的
 smoke 模式决定了后续切片能否安全迭代。
