@@ -63,6 +63,7 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
       trace.push({ layer: 'app-manager', action: 'activate-ui', appId })
       if (foreground.appId && foreground.appId !== appId) {
         states.set(foreground.appId, 'stopped')
+        foreground.appId = null
       }
       const started = start(appId)
       if (!started.ok) return { ...started, trace }
