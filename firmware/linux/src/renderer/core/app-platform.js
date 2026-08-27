@@ -91,10 +91,14 @@
         if (!runtimePlugin) return false
         record('app-runtime', 'action', intent.appId)
         if (!runtimePlugin.handleAction) return true
-        return runtimePlugin.handleAction(intent, {
-          ...host.context(),
-          runtimeRoot: host.runtimeRoot,
-        }) !== false
+        try {
+          return runtimePlugin.handleAction(intent, {
+            ...host.context(),
+            runtimeRoot: host.runtimeRoot,
+          }) !== false
+        } catch {
+          return false
+        }
       },
       stop() {
         if (!runtimePlugin) return
@@ -189,23 +193,46 @@
           host.openRuntimeUnavailable(appId, result.error)
           return false
         }
-        if (!plugin) {
-          host.openMissingApp(appId)
-          return false
-        }
         recordEndpointTrace(result.trace)
+        const previous = state.active ? { ...state.active } : null
         if (state.active) stopForeground()
         const source = { widgetId, route }
         manager.start(plugin, source)
-        host.openAppFrame({ plugin, source })
-        runtime.start(plugin, {
-          ...host.context(),
-          appId: plugin.appId || plugin.id,
-          route,
-          sourceWidget: widgetId,
-          platform,
-        })
-        return true
+        try {
+          host.openAppFrame({ plugin, source })
+          runtime.start(plugin, {
+            ...host.context(),
+            appId: plugin.appId || plugin.id,
+            route,
+            sourceWidget: widgetId,
+            platform,
+          })
+          return true
+        } catch (error) {
+          runtime.stop()
+          manager.stop()
+          if (previous) {
+            const previousPlugin = installer.ensureInstalled(previous.appId)
+            if (previousPlugin) {
+              manager.start(previousPlugin, previous)
+              host.openAppFrame({ plugin: previousPlugin, source: previous })
+              try {
+                runtime.start(previousPlugin, {
+                  ...host.context(),
+                  appId: previous.appId,
+                  route: previous.route,
+                  sourceWidget: previous.sourceWidget,
+                  platform,
+                })
+              } catch {
+                manager.stop()
+                host.closeAppFrame()
+              }
+            }
+          }
+          host.openRuntimeUnavailable(appId, error.message)
+          return false
+        }
       },
       async emitIntent(intent) {
         if (!intent) return false

@@ -224,6 +224,22 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 页面显示明确的未安装错误
     And 原有 Widget 与 route 上下文不丢失
 
+  Scenario: Runtime 启动失败时恢复旧前台 App
+    Given 番茄钟 App 正在前台运行
+    When 目标 App 的 Runtime 启动失败
+    Then 番茄钟 App 仍保持前台
+    And App Manager 恢复番茄钟的 running 状态
+    And 页面显示可恢复的 Runtime 错误
+
+  Scenario: App 返回不会卸载已安装插件
+    Given 番茄钟 App 已安装并且当前正在运行
+    When 用户按 Back 返回 Widget
+    Then Runtime 收到 stop 并释放实例
+    And 插件仍保持 installed 与 enabled
+    When 用户再次打开番茄钟 App
+    Then 不重复执行 uninstall
+    And Runtime 可以重新 start
+
   Scenario: App Manager 列表支持搜索验证
     Given 用户从统一入口打开 App Manager
     Then 页面列出已安装 App 的名称、kind、版本、来源和生命周期状态
@@ -236,6 +252,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When 插件执行 stop、unmount、disable、uninstall
     Then 所有订阅都被取消
     And 后续 tick 不再触发旧插件回调
+    And stop 与 unmount 不会隐式执行 disable 或 uninstall
 
   Scenario: 关闭 App 返回来源上下文
     Given 用户从状态 widget 进入 App 并携带 route

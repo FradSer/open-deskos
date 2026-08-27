@@ -59,6 +59,7 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     search.addEventListener('input', render)
+    ctx.platform.subscribeAppState(render)
     render()
   }))
 })(typeof window !== 'undefined' ? window : globalThis)

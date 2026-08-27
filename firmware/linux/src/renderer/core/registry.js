@@ -44,5 +44,11 @@
       lifecycle.stop.call(def, ctx)
       lifecycle.unmount.call(def, el, ctx)
     },
+    disable(def, ctx) {
+      def.lifecycle.disable.call(def, ctx)
+    },
+    uninstall(def, ctx) {
+      def.lifecycle.uninstall.call(def, ctx)
+    },
   }
 })(typeof window !== 'undefined' ? window : globalThis)
