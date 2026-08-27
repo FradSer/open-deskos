@@ -247,6 +247,14 @@
         return runtime.dispatchAction(intent)
       },
       closeApp: stopForeground,
+      uninstallApp(appId) {
+        const plugin = findApp(appId)
+        if (!plugin) return false
+        root.odkPlugins.retire(plugin, null, host.context())
+        state.appStates.set(appId, 'uninstalled')
+        publishAppState(appId)
+        return true
+      },
     }
 
     return platform

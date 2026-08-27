@@ -10,9 +10,29 @@
     interaction: 'open-app',
     appId: 'pomodoro',
     lifecycle: {
-      install() {}, enable() {}, mount(el) { this.renderTile(el) }, start() {},
-      pause() {}, resume() {}, stop() {}, unmount(el) { el.replaceChildren() },
-      disable() {}, uninstall() {},
+      install() {},
+      enable() {},
+      mount(el, ctx) {
+        this.renderTile(el)
+        this.stateUnsubscribe = ctx.platform?.subscribeAppState?.((appId, state) => {
+          if (appId !== this.appId) return
+          const label = state === '运行中' ? '运行中' : this.state
+          el.dataset.state = label
+          const status = el.querySelector('.w-state')
+          if (status) status.textContent = label
+        }) || null
+      },
+      start() {},
+      pause() {},
+      resume() {},
+      stop() {},
+      unmount(el) {
+        this.stateUnsubscribe?.()
+        this.stateUnsubscribe = null
+        el.replaceChildren()
+      },
+      disable() {},
+      uninstall() {},
     },
     renderTile(el) {
       el.innerHTML = `

@@ -17,18 +17,18 @@
       const bridge = el.querySelector('#peek-bridge')
       const network = el.querySelector('#peek-network')
       const app = el.querySelector('#peek-app')
-      ctx.connection.subscribeBridge((connected) => {
+      ctx.trackCleanup?.(ctx.connection.subscribeBridge((connected) => {
         bridge.textContent = connected ? ctx.BRIDGE_LABELS.connected : ctx.BRIDGE_LABELS.disconnected
         bridge.classList.toggle('text-odk-green', connected)
-      })
-      ctx.connection.subscribe((online) => {
+      }))
+      ctx.trackCleanup?.(ctx.connection.subscribe((online) => {
         network.textContent = ctx.connection.label()
-      })
-      if (ctx.onPlatformState) ctx.onPlatformState((active) => {
+      }))
+      if (ctx.onPlatformState) ctx.trackCleanup?.(ctx.onPlatformState((active) => {
         app.textContent = active.state === 'idle' ? '未打开 App' : `${active.label} · ${active.state === 'running' ? '运行中' : active.state}`
         app.dataset.appId = active.appId || ''
         app.dataset.route = active.route || ''
-      })
+      }))
     },
 
     // Single source of the network guide copy; the peek tap and the quota page's
