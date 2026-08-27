@@ -191,15 +191,23 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 当前插件收到 pause 或 stop
     And 恢复前台时收到 resume 或 start
     When 外壳卸载该插件
-    Then 依次完成 unmount、disable、uninstall
-    And 插件释放所有订阅与运行时资源
+    Then 依次完成 stop、unmount、disable、uninstall
+    And 插件释放所有 tick 与连接订阅
+    And 插件不会在下一次装配后收到旧实例回调
 
   Scenario: App 操作只能穿过平台三层
     Given 一个已运行的 UI App
     When 用户在 App 页面触发动作
     Then UI 发出 action 意图而不直接调用 Runtime
+    And 意图经 preload 进入 Electron 主进程的 App Manager endpoint
     And Installer、App Manager、App Runtime 按顺序记录该动作
     And 任一层失败时 UI 显示可恢复错误且前台 App 不被静默替换
+
+  Scenario: 触摸与语音共享同一个 App intent seam
+    Given 触摸或语音产生相同的 open-app 意图
+    When Linux 外壳将意图交给 preload
+    Then 主进程 endpoint 使用相同的 Installer、App Manager、App Runtime 路由
+    And renderer 不直接访问文件系统或包目录
 
   Scenario: App 生命周期从 Widget 状态延续
     Given 番茄钟 widget 显示未启动

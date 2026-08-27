@@ -4,6 +4,7 @@ const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { resolveCompanionHealthUrl } = require('../src/companion-endpoint')
+const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 1087],
@@ -96,6 +97,8 @@ const DRIVER_SCRIPT = `
   out.widgetIntentMetadata =
     document.querySelector('.widget[data-widget="almanac"]')?.dataset.interaction === 'open-app' &&
     document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
+  out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
+  out.preloadExposesIntentEndpoint = typeof window.odkCompanion?.dispatchIntent === 'function' && typeof window.odkCompanion?.listApps === 'function'
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
@@ -194,6 +197,7 @@ const DRIVER_SCRIPT = `
   out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === '番茄钟'
   out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
+  out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
   $('#app-back').click()
   out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
@@ -323,6 +327,8 @@ function check(results) {
     ['tabler icons count >= 4', results.tablerCount >= 4],
     ['six state widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
     ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
+    ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
+    ['preload exposes the App Manager endpoint', results.preloadExposesIntentEndpoint],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
@@ -348,7 +354,7 @@ function check(results) {
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved],
-    ['widget intent routes through platform layers', results.platformIntentTrace],
+    ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps page and does not suppress next tap',
       results.connectOpensAfterCancelledDrag === true && results.cancelledDragKeepsFirstPage],
@@ -587,6 +593,10 @@ async function main() {
     const { checkCompanionHealth } = require('../src/companion-health')
     return checkCompanionHealth(endpoint)
   })
+  const appManager = createAppManagerEndpoint()
+  ipcMain.handle('odk-app-manager-list', () => appManager.list())
+  ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
+  ipcMain.handle('odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent))
 
   const win = new BrowserWindow({
     width: 568,
@@ -603,6 +613,7 @@ async function main() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(APP_ROOT, 'src', 'preload.js'),
       backgroundThrottling: false,
     },
   })

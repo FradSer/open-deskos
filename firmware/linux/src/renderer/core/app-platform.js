@@ -3,6 +3,7 @@
   'use strict'
 
   const EMPTY_STATE = '未打开 App'
+  const PLATFORM_LAYERS = ['installer', 'app-manager', 'app-runtime']
 
   function createAppPlatform({ host }) {
     const events = []
@@ -40,13 +41,25 @@
       }
     })
 
+    async function dispatchToEndpoint(intent) {
+      if (root.odkCompanion?.dispatchIntent) {
+        try {
+          return await root.odkCompanion.dispatchIntent(intent)
+        } catch {
+          return { ok: false, error: 'endpoint-unavailable', trace: [] }
+        }
+      }
+      return {
+        ok: true,
+        trace: PLATFORM_LAYERS.slice(0, 2).map((layer) => ({ layer, action: intent.type, appId: intent.appId })),
+      }
+    }
+
     const installer = {
       ensureInstalled(appId) {
-        record('installer', 'ensure-installed', appId)
         return findApp(appId) || null
       },
       prepareAction(intent) {
-        record('installer', 'prepare-action', intent.appId)
         return findApp(intent.appId) || null
       },
     }
@@ -74,9 +87,10 @@
         root.odkPlugins.activate(plugin, rootElement, scopedContext)
         runtimePlugin = plugin
       },
-      dispatchAction(intent) {
-        if (!runtimePlugin?.handleAction) return true
+      async dispatchAction(intent) {
+        if (!runtimePlugin) return false
         record('app-runtime', 'action', intent.appId)
+        if (!runtimePlugin.handleAction) return true
         return runtimePlugin.handleAction(intent, {
           ...host.context(),
           runtimeRoot: host.runtimeRoot,
@@ -97,7 +111,6 @@
       start(plugin, source) {
         const appId = plugin.appId || plugin.id
         if (state.active?.appId === appId) return
-        record('app-manager', 'start', appId)
         state.active = {
           appId,
           label: plugin.app || plugin.name || appId,
@@ -109,14 +122,12 @@
         publish()
         publishAppState(appId)
       },
-      dispatchAction(intent) {
-        record('app-manager', 'action', intent.appId)
+      dispatchAction() {
         return true
       },
       stop() {
         if (!state.active) return
         const appId = state.active.appId
-        record('app-manager', 'stop', appId)
         state.active = null
         state.appStates.set(appId, '已停止')
         publish()
@@ -131,9 +142,20 @@
       host.closeAppFrame()
     }
 
+    function recordEndpointTrace(trace, skipRuntime = true) {
+      for (const event of trace || []) {
+        if (skipRuntime && event.layer === 'app-runtime') continue
+        record(event.layer, event.action, event.appId)
+      }
+    }
+
     const platform = {
       events,
+      endpoint: 'main-process',
       catalog,
+      listApps() {
+        return root.odkCompanion?.listApps?.() || Promise.resolve(catalog())
+      },
       subscribe(listener) {
         listeners.add(listener)
         publish()
@@ -155,14 +177,20 @@
         publishAppState(appId)
       },
       active: () => state.active ? { ...state.active } : null,
-      openApp({ appId, widgetId = null, route = null }) {
+      async openApp({ appId, widgetId = null, route = null }) {
         if (state.active?.appId === appId) return true
         if (state.active) stopForeground()
+        const result = await dispatchToEndpoint({ type: 'open-app', appId, route, source: widgetId })
+        if (!result.ok) {
+          host.openMissingApp(appId)
+          return false
+        }
         const plugin = installer.ensureInstalled(appId)
         if (!plugin) {
           host.openMissingApp(appId)
           return false
         }
+        recordEndpointTrace(result.trace)
         const source = { widgetId, route }
         manager.start(plugin, source)
         host.openAppFrame({ plugin, source })
@@ -175,12 +203,15 @@
         })
         return true
       },
-      emitIntent(intent) {
+      async emitIntent(intent) {
         if (!intent) return false
         if (intent.type === 'open-app') return platform.openApp(intent)
         if (intent.type !== 'action') return false
         const plugin = installer.prepareAction(intent)
         if (!plugin || state.active?.appId !== intent.appId) return false
+        const result = await dispatchToEndpoint(intent)
+        if (!result.ok) return false
+        recordEndpointTrace(result.trace)
         manager.dispatchAction(intent)
         return runtime.dispatchAction(intent)
       },

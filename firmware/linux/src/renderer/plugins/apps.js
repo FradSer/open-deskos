@@ -49,7 +49,7 @@
   }))
   root.odkPlugins.register(app('app-manager', '应用管理', (el, ctx) => {
     const entries = ctx.platform.catalog().map((item) =>
-      `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.state}</span></li>`).join('')
+      `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     el.innerHTML = `<div class="runtime-app app-manager"><h2>应用管理</h2><p>统一管理已安装 App，不使用 dock 或桌面图标堆积。</p><ul>${entries}</ul></div>`
   }))
 })(typeof window !== 'undefined' ? window : globalThis)

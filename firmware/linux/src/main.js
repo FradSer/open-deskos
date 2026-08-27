@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, session } = require('electron')
 const DEFAULT_WIDTH = 568
 const DEFAULT_HEIGHT = 1232
 const { resolveCompanionHealthUrl } = require('./companion-endpoint')
+const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 
 function resolveLaunchOptions(argv, env) {
   const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
@@ -73,6 +74,10 @@ function main() {
     const { checkCompanionHealth } = require('./companion-health')
     return checkCompanionHealth(endpoint)
   })
+  const appManager = createAppManagerEndpoint()
+  ipcMain.handle('odk-app-manager-list', () => appManager.list())
+  ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
+  ipcMain.handle('odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent))
 
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)
