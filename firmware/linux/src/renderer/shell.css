@@ -634,7 +634,8 @@ body.kiosk {
 }
 
 .runtime-app p,
-.runtime-app li {
+.runtime-app li,
+.app-manager-status {
   color: var(--odk-secondary-strong);
   font-size: clamp(16px, calc(var(--cell-w) * 0.11), 21px);
   line-height: 1.45;
@@ -756,6 +757,14 @@ body.kiosk {
 
 .app-action {
   margin-top: 4px;
+}
+
+.app-manager-status {
+  min-height: 1.45em;
+}
+
+.app-manager-retry {
+  align-self: flex-start;
 }
 
 .app-help {

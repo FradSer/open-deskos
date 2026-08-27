@@ -48,8 +48,10 @@
     el.innerHTML = '<div class="runtime-app"><h2>年度进度</h2><p>年度进度在 Widget 中实时更新。</p></div>'
   }))
   root.odkPlugins.register(app('app-manager', '应用管理', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app app-manager"><h2>应用管理</h2><input class="app-search" type="search" aria-label="搜索 App" placeholder="搜索 App" /><ul class="app-list"></ul></div>'
+    el.innerHTML = '<div class="runtime-app app-manager"><h2>应用管理</h2><input class="app-search" type="search" aria-label="搜索 App" placeholder="搜索 App" /><p class="app-manager-status" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>重新加载</button><ul class="app-list"></ul></div>'
     const search = el.querySelector('.app-search')
+    const status = el.querySelector('.app-manager-status')
+    const retry = el.querySelector('.app-manager-retry')
     const list = el.querySelector('.app-list')
     let items = []
     const render = () => {
@@ -60,11 +62,24 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     const load = async () => {
-      items = await ctx.platform.listApps()
-      render()
+      status.textContent = '正在读取 App 列表。'
+      retry.hidden = true
+      try {
+        items = await ctx.platform.listApps()
+        status.textContent = ''
+        render()
+      } catch (error) {
+        items = []
+        list.replaceChildren()
+        status.textContent = `无法读取 App 列表：${error.message || '未知错误'}`
+        retry.hidden = false
+      }
     }
     search.addEventListener('input', render)
-    const unsubscribe = ctx.platform.subscribeAppState(render)
+    retry.addEventListener('click', load)
+    const unsubscribe = ctx.platform.subscribeAppState(() => {
+      if (items.length > 0) render()
+    })
     ctx.trackCleanup?.(unsubscribe)
     load()
   }))

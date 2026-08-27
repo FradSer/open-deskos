@@ -138,6 +138,7 @@ function main() {
   const appAction = document.getElementById('app-action')
   const appActionStatus = document.getElementById('app-action-status')
   let lastFocusedElement = null
+  let activeFrame = null
 
   function setBackgroundInert(inert) {
     for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('peek')]) {
@@ -148,7 +149,9 @@ function main() {
   }
 
   function openInfoView(title, message, detail, showSteps = false, action = null) {
-    lastFocusedElement = document.activeElement
+    const preservesActiveApp = Boolean(appPlatform?.active())
+    if (appView.hidden) lastFocusedElement = document.activeElement
+    appView.dataset.infoView = preservesActiveApp ? 'active-error' : 'standalone'
     appView.removeAttribute('data-source-widget')
     appView.removeAttribute('data-route')
     appTitle.textContent = title
@@ -160,33 +163,31 @@ function main() {
     appTroubleshooting.hidden = !showSteps
     appAction.hidden = !action
     appActionStatus.hidden = !action
-    appActionStatus.textContent = action ? odkServices.connection.lastCheck() : ''
+    appActionStatus.textContent = action?.status || (action ? odkServices.connection.lastCheck() : '')
     appAction.onclick = action
       ? async () => {
-          await action.onClick()
-          appActionStatus.textContent = odkServices.connection.lastCheck()
+          appAction.disabled = true
+          try {
+            const result = await action.onClick()
+            if (!appView.hidden) {
+              appActionStatus.textContent = action.statusAfter?.(result) || action.status || odkServices.connection.lastCheck()
+              if (result === true && appView.dataset.infoView === 'active-error') closeInfoView()
+            }
+          } catch (error) {
+            appActionStatus.textContent = error.message || '操作失败'
+          } finally {
+            appAction.disabled = false
+          }
         }
       : null
     if (action) appAction.textContent = action.label
+    runtimeRoot().hidden = !preservesActiveApp
     appView.hidden = false
     setBackgroundInert(true)
     document.getElementById('app-back').focus()
   }
 
-  function closeInfoView() {
-    appView.hidden = true
-    appAction.onclick = null
-    appActionStatus.textContent = ''
-    runtimeRoot().replaceChildren()
-    appView.removeAttribute('data-source-widget')
-    appView.removeAttribute('data-route')
-    setBackgroundInert(false)
-    if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus()
-    lastFocusedElement = null
-  }
-
-  function openAppFrame({ plugin, source }) {
-    lastFocusedElement = document.activeElement
+  function renderAppFrame({ plugin, source }) {
     appTitle.textContent = plugin.app || plugin.name || plugin.id
     appView.dataset.sourceWidget = source.widgetId || ''
     appView.dataset.route = source.route || ''
@@ -197,6 +198,36 @@ function main() {
     appTroubleshooting.hidden = true
     appAction.hidden = true
     appActionStatus.hidden = true
+    runtimeRoot().hidden = false
+  }
+
+  function closeInfoView() {
+    const restoringActiveApp = appView.dataset.infoView === 'active-error' && appPlatform?.active() && activeFrame
+    appView.hidden = true
+    appAction.onclick = null
+    appActionStatus.textContent = ''
+    appView.removeAttribute('data-info-view')
+    if (restoringActiveApp) {
+      renderAppFrame(activeFrame)
+      appView.hidden = false
+      setBackgroundInert(true)
+      document.getElementById('app-back').focus()
+      return
+    }
+    runtimeRoot().replaceChildren()
+    runtimeRoot().hidden = false
+    appView.removeAttribute('data-source-widget')
+    appView.removeAttribute('data-route')
+    setBackgroundInert(false)
+    if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus()
+    lastFocusedElement = null
+  }
+
+  function openAppFrame({ plugin, source }) {
+    activeFrame = { plugin, source }
+    if (appView.hidden) lastFocusedElement = document.activeElement
+    appView.removeAttribute('data-info-view')
+    renderAppFrame({ plugin, source })
     appView.hidden = false
     setBackgroundInert(true)
     document.getElementById('app-back').focus()
@@ -206,8 +237,35 @@ function main() {
     openInfoView('应用未安装', `无法打开 ${appId}。`, '请在应用管理中确认安装状态。')
   }
 
-  function openRuntimeUnavailable(appId, reason) {
-    openInfoView('App 暂不可用', `无法启动 ${appId}。`, `Runtime 返回 ${reason || '未知错误'}，当前前台 App 未改变。`)
+  function openRuntimeUnavailable(appId, reason, retry = null) {
+    openInfoView(
+      'App 暂不可用',
+      `无法启动 ${appId}。`,
+      `Runtime 返回 ${reason || '未知错误'}，当前前台 App 未改变。`,
+      false,
+      retry ? {
+        label: '重试',
+        onClick: retry,
+        status: '可重新尝试启动。',
+        statusAfter: (result) => result ? '已重新提交启动请求。' : '重试未成功。',
+      } : null,
+    )
+  }
+
+  function openAppActionError(intent, reason, retry = null) {
+    const action = intent.action || intent.type || '操作'
+    openInfoView(
+      'App 操作失败',
+      `无法执行 ${action}。`,
+      `App Manager 返回 ${reason || '未知错误'}。`,
+      false,
+      retry ? {
+        label: '重试',
+        onClick: retry,
+        status: '可重新尝试该操作。',
+        statusAfter: (result) => result ? '操作已完成。' : '重试未成功。',
+      } : null,
+    )
   }
 
   function showAppError(message, retry) {
@@ -215,7 +273,18 @@ function main() {
     appActionStatus.textContent = message
     appAction.hidden = false
     appAction.textContent = '重试'
-    appAction.onclick = () => { retry() }
+    appAction.onclick = async () => {
+      appAction.disabled = true
+      try {
+        const result = await retry()
+        appActionStatus.textContent = result ? '操作已完成。' : '重试未成功。'
+        if (result && appView.dataset.infoView === 'active-error') closeInfoView()
+      } catch (error) {
+        appActionStatus.textContent = error.message || '操作失败'
+      } finally {
+        appAction.disabled = false
+      }
+    }
   }
 
   function runtimeRoot() {
@@ -274,6 +343,7 @@ function main() {
       openAppFrame,
       openMissingApp,
       openRuntimeUnavailable,
+      openAppActionError,
       showAppError,
     },
   })
@@ -298,7 +368,8 @@ function main() {
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
 
   document.getElementById('app-back').addEventListener('click', async () => {
-    if (appPlatform.active()) await appPlatform.closeApp()
+    if (appView.dataset.infoView) closeInfoView()
+    else if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
   })
   if (peekDef) document.getElementById('peek').addEventListener('click', () => {
@@ -326,7 +397,8 @@ function main() {
     if (!appView.hidden) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        if (appPlatform.active()) appPlatform.closeApp()
+        if (appView.dataset.infoView) closeInfoView()
+        else if (appPlatform.active()) appPlatform.closeApp()
         else closeInfoView()
         return
       }

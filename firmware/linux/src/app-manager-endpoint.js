@@ -7,6 +7,7 @@ const BUILTIN_APPS = [
 ]
 
 const APP_STATES = new Set(['installed', 'running', 'paused', 'stopped'])
+const ACTIONS = new Set(['start', 'pause', 'resume', 'stop'])
 
 function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
   const states = new Map(apps.map((app) => [app.appId, 'installed']))
@@ -55,28 +56,28 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
 
   function pause(appId) {
     const available = requireInstalled(appId)
-    if (!available.ok || available.app.state !== 'running') {
-      return available.ok ? { ok: false, error: 'invalid-state' } : available
-    }
+    if (!available.ok) return available
+    if (available.app.state !== 'running') return { ok: false, error: 'invalid-state' }
     states.set(appId, 'paused')
     return result(appId)
   }
 
   function resume(appId) {
     const available = requireInstalled(appId)
-    if (!available.ok || available.app.state !== 'paused') {
-      return available.ok ? { ok: false, error: 'invalid-state' } : available
-    }
+    if (!available.ok) return available
+    if (available.app.state !== 'paused') return { ok: false, error: 'invalid-state' }
     states.set(appId, 'running')
     return result(appId)
   }
 
   function rollbackOpen(intent) {
     const target = get(intent.appId)
-    if (!target) return { ok: false, error: 'not-found' }
-    if (!APP_STATES.has(intent.targetState) || target.state === 'removed') {
-      return { ok: false, error: 'invalid-state' }
+    if (!target || target.state === 'removed') return { ok: false, error: 'not-installed' }
+    if (intent.expectedTargetState && target.state !== intent.expectedTargetState) {
+      return { ok: false, error: 'stale-transition' }
     }
+    if (!APP_STATES.has(intent.targetState)) return { ok: false, error: 'invalid-state' }
+
     if (intent.previousAppId) {
       const previous = get(intent.previousAppId)
       if (!previous || previous.state === 'removed') return { ok: false, error: 'not-installed' }
@@ -90,8 +91,11 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
 
   function rollbackAction(intent) {
     const app = get(intent.appId)
-    if (!app || app.state === 'removed' || !APP_STATES.has(intent.previousState)) {
-      return { ok: false, error: 'invalid-state' }
+    if (!app || app.state === 'removed') return { ok: false, error: 'not-installed' }
+    if (intent.expectedState && app.state !== intent.expectedState) return { ok: false, error: 'stale-transition' }
+    if (!APP_STATES.has(intent.previousState)) return { ok: false, error: 'invalid-state' }
+    if (intent.previousForegroundAppId && !get(intent.previousForegroundAppId)) {
+      return { ok: false, error: 'not-found' }
     }
     states.set(intent.appId, intent.previousState)
     foreground.appId = intent.previousForegroundAppId || null
@@ -110,7 +114,7 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
       if (app.state === 'removed') return { ok: false, error: 'not-installed', trace }
       const previousAppId = foreground.appId
       const previousState = previousAppId ? states.get(previousAppId) : null
-      const previousTargetState = app.state
+      const targetState = app.state
       if (previousAppId && previousAppId !== appId) {
         states.set(previousAppId, 'stopped')
         foreground.appId = null
@@ -126,9 +130,7 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
       trace.push({ layer: 'app-runtime', action: 'start', appId })
       return {
         ...started,
-        previousAppId,
-        previousState,
-        previousTargetState,
+        transition: { previousAppId, previousState, targetState },
         trace,
       }
     }
@@ -150,23 +152,20 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
     if (intent.type === 'rollback-open') {
       trace[0].action = 'rollback'
       trace.push({ layer: 'app-manager', action: 'rollback-open', appId })
-      const restored = rollbackOpen(intent)
-      return { ...restored, trace }
+      return { ...rollbackOpen(intent), trace }
     }
 
     if (intent.type === 'rollback-action') {
       trace[0].action = 'rollback'
       trace.push({ layer: 'app-manager', action: 'rollback-action', appId })
-      const restored = rollbackAction(intent)
-      return { ...restored, trace }
+      return { ...rollbackAction(intent), trace }
     }
 
     if (intent.type !== 'action') return { ok: false, error: 'unsupported-intent', trace }
     if (app.state === 'removed') return { ok: false, error: 'not-installed', trace }
     trace.push({ layer: 'app-manager', action })
-    if (!['start', 'pause', 'resume', 'stop'].includes(action)) {
-      return { ok: false, error: 'unsupported-action', trace }
-    }
+    if (!ACTIONS.has(action)) return { ok: false, error: 'unsupported-action', trace }
+
     const previousState = app.state
     const previousForegroundAppId = foreground.appId
     const actionResult = action === 'start' ? start(appId)
@@ -174,7 +173,15 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
         : action === 'resume' ? resume(appId) : stop(appId)
     if (!actionResult.ok) return { ...actionResult, trace }
     trace.push({ layer: 'app-runtime', action, appId })
-    return { ...actionResult, previousState, previousForegroundAppId, trace }
+    return {
+      ...actionResult,
+      transition: {
+        previousState,
+        previousForegroundAppId,
+        nextState: actionResult.app.state,
+      },
+      trace,
+    }
   }
 
   return {

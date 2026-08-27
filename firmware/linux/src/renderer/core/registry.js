@@ -67,36 +67,49 @@
     },
     activate(def, el, ctx) {
       const scoped = scopedContext(ctx)
-      if (!enabled.has(def.id)) {
-        callLifecycle(def, 'install', scoped)
-        callLifecycle(def, 'enable', scoped)
-        enabled.add(def.id)
+      let mountAttempted = false
+      try {
+        if (!enabled.has(def.id)) {
+          callLifecycle(def, 'install', scoped)
+          callLifecycle(def, 'enable', scoped)
+          enabled.add(def.id)
+        }
+        mountAttempted = true
+        callLifecycle(def, 'mount', el, scoped)
+        callLifecycle(def, 'start', scoped)
+        instances.set(el, { def, ctx: scoped })
+      } catch (error) {
+        if (mountAttempted) {
+          try { callLifecycle(def, 'unmount', el, scoped) } catch {}
+        }
+        scoped.cleanup()
+        throw error
       }
-      callLifecycle(def, 'mount', el, scoped)
-      callLifecycle(def, 'start', scoped)
-      instances.set(el, { def, ctx: scoped })
     },
     deactivate(def, el, ctx) {
       const instance = instances.get(el)
       const scoped = instance?.ctx || ctx
-      callLifecycle(def, 'stop', scoped)
-      callLifecycle(def, 'unmount', el, scoped)
-      scoped.cleanup?.()
-      instances.delete(el)
-    },
-    disable(def, el, ctx) {
-      const instance = el && instances.get(el)
-      callLifecycle(def, 'disable', instance?.ctx || ctx)
-    },
-    uninstall(def, el, ctx) {
-      const instance = el && instances.get(el)
-      callLifecycle(def, 'uninstall', instance?.ctx || ctx)
+      let failure = null
+      try {
+        callLifecycle(def, 'stop', scoped)
+      } catch (error) {
+        failure = error
+      }
+      try {
+        callLifecycle(def, 'unmount', el, scoped)
+      } catch (error) {
+        failure ||= error
+      } finally {
+        scoped.cleanup?.()
+        instances.delete(el)
+      }
+      if (failure) throw failure
     },
     retire(def, el, ctx) {
       if (el) root.odkPlugins.deactivate(def, el, ctx)
       if (!enabled.has(def.id)) return
-      root.odkPlugins.disable(def, el, ctx)
-      root.odkPlugins.uninstall(def, el, ctx)
+      callLifecycle(def, 'disable', ctx)
+      callLifecycle(def, 'uninstall', ctx)
       enabled.delete(def.id)
     },
     unregister(id, ctx) {
