@@ -70,27 +70,19 @@
     }
 
     let runtimePlugin = null
-    let runtimeCleanup = null
     const runtime = {
       start(plugin, appContext) {
         const appId = plugin.appId || plugin.id
         record('app-runtime', 'start', appId)
-        const cleanups = []
-        const scopedContext = {
-          ...appContext,
-          onTick(callback) {
-            const unsubscribe = appContext.onTick(callback)
-            cleanups.push(unsubscribe)
-            return unsubscribe
-          },
-        }
-        runtimeCleanup = () => {
-          for (const unsubscribe of cleanups.splice(0)) unsubscribe()
-        }
         const rootElement = host.runtimeRoot()
         rootElement.replaceChildren()
-        root.odkPlugins.activate(plugin, rootElement, scopedContext)
-        runtimePlugin = plugin
+        try {
+          root.odkPlugins.activate(plugin, rootElement, appContext)
+          runtimePlugin = plugin
+        } catch (error) {
+          rootElement.replaceChildren()
+          throw error
+        }
       },
       async dispatchAction(intent) {
         if (!runtimePlugin) return false
@@ -110,8 +102,6 @@
         const appId = runtimePlugin.appId || runtimePlugin.id
         record('app-runtime', 'stop', appId)
         root.odkPlugins.deactivate(runtimePlugin, host.runtimeRoot(), host.context())
-        runtimeCleanup?.()
-        runtimeCleanup = null
         runtimePlugin = null
       },
     }
@@ -119,7 +109,6 @@
     const manager = {
       start(plugin, source) {
         const appId = plugin.appId || plugin.id
-        if (state.active?.appId === appId) return
         state.active = {
           appId,
           label: plugin.app || plugin.name || appId,
@@ -131,9 +120,6 @@
         publish()
         publishAppState(appId)
       },
-      dispatchAction() {
-        return true
-      },
       stop() {
         if (!state.active) return
         const appId = state.active.appId
@@ -144,12 +130,8 @@
       },
     }
 
-    function stopForeground() {
+    function stopLocalForeground() {
       if (!state.active) return
-      const appId = state.active.appId
-      dispatchToEndpoint({ type: 'action', appId, action: 'stop' }).then((result) => {
-        if (!result.ok) record('app-manager', 'stop-failed', appId)
-      })
       runtime.stop()
       manager.stop()
       host.closeAppFrame()
@@ -160,6 +142,55 @@
         if (skipRuntime && event.layer === 'app-runtime') continue
         record(event.layer, event.action, event.appId)
       }
+    }
+
+    async function restoreForeground(previous, reason, retry) {
+      if (!previous) {
+        host.openRuntimeUnavailable(retry.appId, reason)
+        return false
+      }
+      const endpointResult = await dispatchToEndpoint({ type: 'restore-ui', appId: previous.appId })
+      if (!endpointResult.ok) {
+        host.openRuntimeUnavailable(retry.appId, reason)
+        return false
+      }
+      const previousPlugin = installer.ensureInstalled(previous.appId)
+      if (!previousPlugin) {
+        host.openRuntimeUnavailable(retry.appId, reason)
+        return false
+      }
+      const source = { widgetId: previous.sourceWidget, route: previous.route }
+      manager.start(previousPlugin, source)
+      host.openAppFrame({ plugin: previousPlugin, source })
+      try {
+        runtime.start(previousPlugin, {
+          ...host.context(),
+          appId: previous.appId,
+          route: previous.route,
+          sourceWidget: previous.sourceWidget,
+          platform,
+        })
+        host.showAppError(`无法启动 ${retry.appId}：${reason}`, () => platform.openApp(retry))
+        return true
+      } catch {
+        manager.stop()
+        host.closeAppFrame()
+        host.openRuntimeUnavailable(retry.appId, reason)
+        return false
+      }
+    }
+
+    async function closeForeground() {
+      if (!state.active) return true
+      const appId = state.active.appId
+      const result = await dispatchToEndpoint({ type: 'action', appId, action: 'stop' })
+      if (!result.ok) {
+        host.showAppError(`无法停止 ${appId}：${result.error}`, () => platform.closeApp())
+        return false
+      }
+      recordEndpointTrace(result.trace)
+      stopLocalForeground()
+      return true
     }
 
     const platform = {
@@ -201,21 +232,22 @@
           host.openMissingApp(appId)
           return false
         }
-        const result = await dispatchToEndpoint({ type: 'open-app', appId, route, source: widgetId })
-        if (!result.ok) {
-          host.openRuntimeUnavailable(appId, result.error)
+        const target = { appId, widgetId, route }
+        const endpointResult = await dispatchToEndpoint({ type: 'open-app', appId, route, source: widgetId })
+        if (!endpointResult.ok) {
+          host.openRuntimeUnavailable(appId, endpointResult.error)
           return false
         }
-        recordEndpointTrace(result.trace)
+        recordEndpointTrace(endpointResult.trace)
         const previous = state.active ? { ...state.active } : null
-        if (state.active) stopForeground()
+        stopLocalForeground()
         const source = { widgetId, route }
         manager.start(plugin, source)
         try {
           host.openAppFrame({ plugin, source })
           runtime.start(plugin, {
             ...host.context(),
-            appId: plugin.appId || plugin.id,
+            appId,
             route,
             sourceWidget: widgetId,
             platform,
@@ -224,27 +256,7 @@
         } catch (error) {
           runtime.stop()
           manager.stop()
-          if (previous) {
-            const previousPlugin = installer.ensureInstalled(previous.appId)
-            if (previousPlugin) {
-              manager.start(previousPlugin, previous)
-              host.openAppFrame({ plugin: previousPlugin, source: previous })
-              try {
-                runtime.start(previousPlugin, {
-                  ...host.context(),
-                  appId: previous.appId,
-                  route: previous.route,
-                  sourceWidget: previous.sourceWidget,
-                  platform,
-                })
-              } catch {
-                manager.stop()
-                host.closeAppFrame()
-              }
-            }
-          }
-          host.openRuntimeUnavailable(appId, error.message)
-          return false
+          return restoreForeground(previous, error.message, target)
         }
       },
       async emitIntent(intent) {
@@ -253,19 +265,23 @@
         if (intent.type !== 'action') return false
         const plugin = installer.prepareAction(intent)
         if (!plugin || state.active?.appId !== intent.appId) return false
-        const result = await dispatchToEndpoint(intent)
-        if (!result.ok) return false
-        recordEndpointTrace(result.trace)
-        manager.dispatchAction(intent)
-        return runtime.dispatchAction(intent)
+        const endpointResult = await dispatchToEndpoint(intent)
+        if (!endpointResult.ok) {
+          host.showAppError(`操作失败：${endpointResult.error}`, () => platform.emitIntent(intent))
+          return false
+        }
+        recordEndpointTrace(endpointResult.trace)
+        const succeeded = await runtime.dispatchAction(intent)
+        if (!succeeded) host.showAppError('操作未完成，请重试。', () => platform.emitIntent(intent))
+        return succeeded
       },
-      closeApp: stopForeground,
+      closeApp: closeForeground,
       async uninstallApp(appId) {
         const plugin = findApp(appId)
         if (!plugin) return false
-        const result = await dispatchToEndpoint({ type: 'remove-app', appId })
-        if (!result.ok) return false
-        if (state.active?.appId === appId) stopForeground()
+        const endpointResult = await dispatchToEndpoint({ type: 'remove-app', appId })
+        if (!endpointResult.ok) return false
+        if (state.active?.appId === appId) await closeForeground()
         root.odkPlugins.retire(plugin, null, host.context())
         state.appStates.set(appId, 'uninstalled')
         publishAppState(appId)

@@ -247,13 +247,50 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 列表只显示匹配的 App
     And 搜索不会创建桌面图标或 dock
 
-  Scenario: App Manager endpoint 拒绝已移除 App 的启动
-    Given App Manager endpoint 中一个 App 已被移除
-    When UI 发出 open-app intent
-    Then endpoint 返回 not-installed 错误
-    And 当前前台 App 不受影响
+  Scenario: App Manager endpoint rejects launching a removed App
+    Given an App has been removed from the App Manager endpoint
+    When the UI emits an open-app intent
+    Then the endpoint returns a not-installed error
+    And the current foreground App is unaffected
 
-  Scenario: 视觉插件卸载会释放订阅
+  Scenario: A rejected removed App launch preserves the current foreground App
+    Given the pomodoro App is running in the foreground
+    And the clock App has been removed from the App Manager
+    When the UI emits an open-app intent for clock
+    Then the endpoint returns a not-installed error
+    And pomodoro remains running in the foreground
+    And the endpoint keeps its current foreground
+
+  Scenario: Stopping a removed App cannot resurrect it
+    Given the clock App has been removed from the App Manager
+    When the endpoint receives a stop action for clock
+    Then the endpoint returns a not-installed error
+    And clock remains removed
+    When the UI emits another open-app intent for clock
+    Then the endpoint still returns a not-installed error
+
+  Scenario: A Runtime startup failure rolls back endpoint and local foreground state
+    Given the clock App is running in the foreground
+    And the target App Runtime mount will fail
+    When the UI requests the target App
+    Then clock remains the local foreground App in the running state
+    And the endpoint foreground remains clock
+    And the clock App remains visible with a retryable Runtime error
+
+  Scenario: A failed App action shows a recoverable error
+    Given an App is running in the foreground
+    And the App Manager endpoint rejects its action
+    When the UI triggers the App action
+    Then the UI shows the action failure reason
+    And the UI provides an entry point to retry the action
+
+  Scenario: An App Manager list failure shows a recoverable error
+    Given the App Manager list endpoint is unavailable
+    When the user opens App Manager
+    Then the page shows that the App list cannot be loaded
+    And the page provides an entry point to reload the App list
+
+  Scenario: Visual plugin uninstall releases subscriptions
     Given 一个插件 mount 时订阅了 tick 或 connection
     When 插件执行 stop、unmount、disable、uninstall
     Then 所有订阅都被取消

@@ -210,6 +210,14 @@ function main() {
     openInfoView('App 暂不可用', `无法启动 ${appId}。`, `Runtime 返回 ${reason || '未知错误'}，当前前台 App 未改变。`)
   }
 
+  function showAppError(message, retry) {
+    appActionStatus.hidden = false
+    appActionStatus.textContent = message
+    appAction.hidden = false
+    appAction.textContent = '重试'
+    appAction.onclick = () => { retry() }
+  }
+
   function runtimeRoot() {
     return document.getElementById('app-runtime')
   }
@@ -266,6 +274,7 @@ function main() {
       openAppFrame,
       openMissingApp,
       openRuntimeUnavailable,
+      showAppError,
     },
   })
   window.odkAppPlatform = appPlatform
@@ -288,8 +297,8 @@ function main() {
 
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
 
-  document.getElementById('app-back').addEventListener('click', () => {
-    if (appPlatform.active()) appPlatform.closeApp()
+  document.getElementById('app-back').addEventListener('click', async () => {
+    if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
   })
   if (peekDef) document.getElementById('peek').addEventListener('click', () => {

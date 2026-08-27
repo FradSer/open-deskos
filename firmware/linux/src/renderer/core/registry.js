@@ -4,6 +4,7 @@
 
   const plugins = new Map()
   const instances = new WeakMap()
+  const enabled = new Set()
   const LIFECYCLE = ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
 
   function scopedContext(ctx) {
@@ -66,8 +67,11 @@
     },
     activate(def, el, ctx) {
       const scoped = scopedContext(ctx)
-      callLifecycle(def, 'install', scoped)
-      callLifecycle(def, 'enable', scoped)
+      if (!enabled.has(def.id)) {
+        callLifecycle(def, 'install', scoped)
+        callLifecycle(def, 'enable', scoped)
+        enabled.add(def.id)
+      }
       callLifecycle(def, 'mount', el, scoped)
       callLifecycle(def, 'start', scoped)
       instances.set(el, { def, ctx: scoped })
@@ -90,9 +94,15 @@
     },
     retire(def, el, ctx) {
       if (el) root.odkPlugins.deactivate(def, el, ctx)
-      else callLifecycle(def, 'stop', ctx)
+      if (!enabled.has(def.id)) return
       root.odkPlugins.disable(def, el, ctx)
       root.odkPlugins.uninstall(def, el, ctx)
+      enabled.delete(def.id)
+    },
+    unregister(id, ctx) {
+      const def = root.odkPlugins.get(id)
+      root.odkPlugins.retire(def, null, ctx)
+      plugins.delete(id)
     },
   }
 })(typeof window !== 'undefined' ? window : globalThis)
