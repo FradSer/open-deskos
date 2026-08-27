@@ -27,9 +27,10 @@ test('switches foreground apps only after the target is accepted', () => {
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'missing' }).error, 'not-found')
   assert.equal(endpoint.foreground().appId, 'clock')
-  assert.equal(endpoint.dispatch({ type: 'action', appId: 'clock', action: 'stop' }).ok, true)
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'pomodoro' }).ok, true)
   assert.equal(endpoint.foreground().appId, 'pomodoro')
+  assert.equal(endpoint.get('clock').state, 'stopped')
+  assert.equal(endpoint.dispatch({ type: 'action', appId: 'pomodoro', action: 'stop' }).ok, true)
 })
 
 test('routes lifecycle actions and rejects malformed intent', () => {

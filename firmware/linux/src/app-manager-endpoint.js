@@ -60,7 +60,10 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
     trace.push({ layer: 'installer', action: 'ensure-installed', appId })
     if (!app) return { ok: false, error: 'not-found', trace }
     if (intent.type === 'open-app') {
-      trace.push({ layer: 'app-manager', action: 'start', appId })
+      trace.push({ layer: 'app-manager', action: 'activate-ui', appId })
+      if (foreground.appId && foreground.appId !== appId) {
+        states.set(foreground.appId, 'stopped')
+      }
       const started = start(appId)
       if (!started.ok) return { ...started, trace }
       trace.push({ layer: 'app-runtime', action: 'start', appId })
