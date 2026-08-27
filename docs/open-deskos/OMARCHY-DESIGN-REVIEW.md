@@ -392,7 +392,7 @@ Open DeskOS 应该坚持自己的：
 - v2 manifest 和 capabilities consent。
 - App Manager、Lua sandbox 和 atomic installer。
 
-**最关键的下一步不是复制 Omarchy 的 UI，而是解决 Open DeskOS 内部的 Widget → App 契约冲突。**只有在这个决策完成后，`firmware/linux/` 才能明确判断自己是 P4 display-only 迁移切片，还是 App Manager 的 Linux 验证端。
+**当前裁决已完成：`firmware/linux/` 是 App Manager 验证端。**下一步不是复制 Omarchy 的 UI，而是把验证适配器逐步替换为真实的 Installer、App Manager、App Runtime IPC，同时保持 Widget → App、Peek、触摸与语音 intent 的统一契约。
 
 ## 参考资料
 
