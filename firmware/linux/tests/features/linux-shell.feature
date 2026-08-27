@@ -217,6 +217,26 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 返回状态页后 peek 显示番茄钟正在运行
     And widget 状态更新为真实的运行状态
 
+  Scenario: 打开失败不替换当前前台 App
+    Given 番茄钟 App 正在前台运行
+    When 用户请求打开一个未安装的 App
+    Then 当前番茄钟 App 仍保持前台
+    And 页面显示明确的未安装错误
+    And 原有 Widget 与 route 上下文不丢失
+
+  Scenario: App Manager 列表支持搜索验证
+    Given 用户从统一入口打开 App Manager
+    Then 页面列出已安装 App 的名称、kind、版本、来源和生命周期状态
+    When 用户输入番茄钟进行搜索
+    Then 列表只显示匹配的 App
+    And 搜索不会创建桌面图标或 dock
+
+  Scenario: 视觉插件卸载会释放订阅
+    Given 一个插件 mount 时订阅了 tick 或 connection
+    When 插件执行 stop、unmount、disable、uninstall
+    Then 所有订阅都被取消
+    And 后续 tick 不再触发旧插件回调
+
   Scenario: 关闭 App 返回来源上下文
     Given 用户从状态 widget 进入 App 并携带 route
     When 用户按 Back 或 Escape

@@ -206,6 +206,10 @@ function main() {
     openInfoView('应用未安装', `无法打开 ${appId}。`, '请在应用管理中确认安装状态。')
   }
 
+  function openRuntimeUnavailable(appId, reason) {
+    openInfoView('App 暂不可用', `无法启动 ${appId}。`, `Runtime 返回 ${reason || '未知错误'}，当前前台 App 未改变。`)
+  }
+
   function runtimeRoot() {
     return document.getElementById('app-runtime')
   }
@@ -261,6 +265,7 @@ function main() {
       closeAppFrame: closeInfoView,
       openAppFrame,
       openMissingApp,
+      openRuntimeUnavailable,
     },
   })
   window.odkAppPlatform = appPlatform

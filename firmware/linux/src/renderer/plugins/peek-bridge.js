@@ -26,6 +26,8 @@
       })
       if (ctx.onPlatformState) ctx.onPlatformState((active) => {
         app.textContent = active.state === 'idle' ? '未打开 App' : `${active.label} · ${active.state === 'running' ? '运行中' : active.state}`
+        app.dataset.appId = active.appId || ''
+        app.dataset.route = active.route || ''
       })
     },
 

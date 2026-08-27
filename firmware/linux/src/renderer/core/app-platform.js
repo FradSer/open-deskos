@@ -179,18 +179,22 @@
       active: () => state.active ? { ...state.active } : null,
       async openApp({ appId, widgetId = null, route = null }) {
         if (state.active?.appId === appId) return true
-        if (state.active) stopForeground()
-        const result = await dispatchToEndpoint({ type: 'open-app', appId, route, source: widgetId })
-        if (!result.ok) {
-          host.openMissingApp(appId)
-          return false
-        }
         const plugin = installer.ensureInstalled(appId)
         if (!plugin) {
           host.openMissingApp(appId)
           return false
         }
+        const result = await dispatchToEndpoint({ type: 'open-app', appId, route, source: widgetId })
+        if (!result.ok) {
+          host.openRuntimeUnavailable(appId, result.error)
+          return false
+        }
+        if (!plugin) {
+          host.openMissingApp(appId)
+          return false
+        }
         recordEndpointTrace(result.trace)
+        if (state.active) stopForeground()
         const source = { widgetId, route }
         manager.start(plugin, source)
         host.openAppFrame({ plugin, source })

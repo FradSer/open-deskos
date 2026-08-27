@@ -196,6 +196,7 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === '番茄钟'
   out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
+  out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === '番茄钟'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
   $('#app-back').click()
@@ -353,7 +354,7 @@ function check(results) {
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
-    ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved],
+    ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved && results.widgetAppShowsRuntimeContent],
     ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps page and does not suppress next tap',

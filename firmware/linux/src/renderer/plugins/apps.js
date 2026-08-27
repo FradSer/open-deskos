@@ -48,8 +48,17 @@
     el.innerHTML = '<div class="runtime-app"><h2>年度进度</h2><p>年度进度在 Widget 中实时更新。</p></div>'
   }))
   root.odkPlugins.register(app('app-manager', '应用管理', (el, ctx) => {
-    const entries = ctx.platform.catalog().map((item) =>
-      `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
-    el.innerHTML = `<div class="runtime-app app-manager"><h2>应用管理</h2><p>统一管理已安装 App，不使用 dock 或桌面图标堆积。</p><ul>${entries}</ul></div>`
+    el.innerHTML = '<div class="runtime-app app-manager"><h2>应用管理</h2><input class="app-search" type="search" aria-label="搜索 App" placeholder="搜索 App" /><ul class="app-list"></ul></div>'
+    const search = el.querySelector('.app-search')
+    const list = el.querySelector('.app-list')
+    const render = () => {
+      const query = search.value.trim().toLowerCase()
+      const entries = ctx.platform.catalog().filter((item) =>
+        !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
+      list.innerHTML = entries.map((item) =>
+        `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
+    }
+    search.addEventListener('input', render)
+    render()
   }))
 })(typeof window !== 'undefined' ? window : globalThis)
