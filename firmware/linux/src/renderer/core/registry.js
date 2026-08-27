@@ -65,6 +65,9 @@
     byKind(kind) {
       return [...plugins.values()].filter((def) => def.kind === kind)
     },
+    isEnabled(id) {
+      return enabled.has(id)
+    },
     activate(def, el, ctx) {
       const scoped = scopedContext(ctx)
       let mountAttempted = false
@@ -108,9 +111,20 @@
     retire(def, el, ctx) {
       if (el) root.odkPlugins.deactivate(def, el, ctx)
       if (!enabled.has(def.id)) return
-      callLifecycle(def, 'disable', ctx)
-      callLifecycle(def, 'uninstall', ctx)
-      enabled.delete(def.id)
+      let failure = null
+      try {
+        callLifecycle(def, 'disable', ctx)
+      } catch (error) {
+        failure = error
+      } finally {
+        try {
+          callLifecycle(def, 'uninstall', ctx)
+        } catch (error) {
+          failure ||= error
+        }
+        enabled.delete(def.id)
+      }
+      if (failure) throw failure
     },
     unregister(id, ctx) {
       const def = root.odkPlugins.get(id)

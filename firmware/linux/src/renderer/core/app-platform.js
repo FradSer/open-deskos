@@ -238,10 +238,22 @@
           previousAppId: transition.previousAppId,
           previousState: transition.previousState,
         }) : { ok: false, error: 'rollback-unavailable' }
-        if (rollback.ok && previous) await restoreLocalForeground(previous)
+        let restored = false
+        if (rollback.ok && previous) restored = await restoreLocalForeground(previous)
+        if (rollback.ok && previous && !restored) {
+          await dispatchToEndpoint({
+            type: 'rollback-open',
+            appId,
+            expectedTargetState: transition.targetState,
+            targetState: transition.targetState,
+            previousAppId: null,
+            previousState: null,
+          })
+          host.closeAppFrame()
+        }
         if (!previous) host.closeAppFrame()
-        const detail = rollback.ok ? error.message :
-          `${error.message}; endpoint rollback failed: ${rollback.error || 'unknown error'}`
+        const detail = rollback.ok && (restored || !previous) ? error.message :
+          `${error.message}; foreground recovery failed`
         showOpenFailure(appId, detail, widgetId, route)
         return false
       }

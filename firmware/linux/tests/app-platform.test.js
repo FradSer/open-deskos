@@ -6,16 +6,17 @@ const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 
 const source = fs.readFileSync('src/renderer/core/app-platform.js', 'utf8')
 
-function createHarness({ targetFails = false, actionAccepted = true, dispatchIntent } = {}) {
+function createHarness({ targetFails = false, clockFailsAfterStart = false, actionAccepted = true, dispatchIntent } = {}) {
   const endpoint = createAppManagerEndpoint({ apps: [
     { appId: 'clock', name: '时钟', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
     { appId: 'target', name: '目标', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   ] })
   const calls = []
   const rootElement = { replaceChildren() { calls.push(['replace-children']) } }
+  let clockMounts = 0
   const plugins = [
     { id: 'app-clock', appId: 'clock', kind: 'app', app: '时钟', name: '时钟',
-      mount() {}, handleAction: () => true },
+      mount() { clockMounts += 1; if (clockFailsAfterStart && clockMounts > 1) throw new Error('clock remount failed') }, handleAction: () => true },
     { id: 'app-target', appId: 'target', kind: 'app', app: '目标', name: '目标',
       mount() { if (targetFails) throw new Error('mount failed') },
       handleAction: () => actionAccepted },
@@ -59,6 +60,15 @@ test('rolls back endpoint and local foreground after runtime startup failure', a
   assert.equal(endpoint.foreground().appId, 'clock')
   assert.equal(endpoint.get('clock').state, 'running')
   assert.equal(endpoint.get('target').state, 'installed')
+  assert.equal(calls.some(([type]) => type === 'runtime-error'), true)
+})
+
+test('clears endpoint foreground when target and foreground restoration both fail', async () => {
+  const { endpoint, platform, calls } = createHarness({ targetFails: true, clockFailsAfterStart: true })
+  assert.equal(await platform.openApp({ appId: 'clock' }), true)
+  assert.equal(await platform.openApp({ appId: 'target' }), false)
+  assert.equal(platform.active(), null)
+  assert.equal(endpoint.foreground(), null)
   assert.equal(calls.some(([type]) => type === 'runtime-error'), true)
 })
 

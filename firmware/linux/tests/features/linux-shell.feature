@@ -277,6 +277,14 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the endpoint foreground remains clock
     And the clock App remains visible with a retryable Runtime error
 
+  Scenario: A failed foreground restoration leaves no split brain
+    Given the clock App is running in the foreground
+    And both the target and clock Runtime remounts will fail
+    When the UI requests the target App
+    Then no local foreground App remains
+    And the endpoint has no foreground App
+    And the UI shows a retryable Runtime error
+
   Scenario: A failed App action shows a recoverable error
     Given an App is running in the foreground
     And the App Manager endpoint rejects its action
@@ -297,6 +305,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And 后续 tick 不再触发旧插件回调
     And stop 与 unmount 不会隐式执行 disable 或 uninstall
     And 生命周期 trace 保留 stop、unmount、disable、uninstall 的顺序
+
+  Scenario: Visual plugin uninstall completes after disable failure
+    Given 一个插件的 disable 生命周期抛出错误
+    When 外壳卸载该插件
+    Then uninstall 生命周期仍会执行
+    And 插件不再保持 enabled
+    And disable 错误会如实返回给调用方
 
   Scenario: 关闭 App 返回来源上下文
     Given 用户从状态 widget 进入 App 并携带 route
