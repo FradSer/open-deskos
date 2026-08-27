@@ -29,15 +29,24 @@
 
   function buildTile(widgetDef, uiCtx) {
     const plugin = root.odkPlugins.get(widgetDef.id)
-    // Display-only surface, P4 parity: tiles never open views on tap.
-    const tile = document.createElement('div')
+    const tile = document.createElement(plugin.interaction === 'open-app' ? 'button' : 'div')
+    if (plugin.interaction === 'open-app') tile.type = 'button'
     tile.className = `widget w-${widgetDef.id} flex flex-col items-center justify-center`
     tile.dataset.widget = widgetDef.id
     tile.dataset.app = plugin.app
     tile.dataset.state = plugin.state
+    tile.dataset.interaction = plugin.interaction || 'display-only'
     if (widgetDef.col) tile.style.gridColumn = widgetDef.col
     if (widgetDef.row) tile.style.gridRow = widgetDef.row
-    plugin.mount(tile, uiCtx)
+    root.odkPlugins.activate(plugin, tile, uiCtx)
+    if (plugin.interaction === 'open-app') {
+      tile.addEventListener('click', () => uiCtx.emitIntent({
+        type: 'open-app',
+        appId: plugin.appId,
+        widgetId: widgetDef.id,
+        route: widgetDef.route || 'today',
+      }))
+    }
     return tile
   }
 
@@ -57,7 +66,7 @@
         for (const widget of page.widgets) grid.append(buildTile(widget, uiCtx))
         section.append(grid)
       } else {
-        root.odkPlugins.get(page.plugin).mount(section, uiCtx)
+        root.odkPlugins.activate(root.odkPlugins.get(page.plugin), section, uiCtx)
       }
     })
   }

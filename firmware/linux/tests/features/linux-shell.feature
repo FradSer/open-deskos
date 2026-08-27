@@ -1,9 +1,10 @@
 Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   CM5(RK3588S)上的 Electron 外壳,目标面板分辨率 568×1232 竖屏触摸。
-  交互结构与 ESP32-P4 launcher 对齐:顶部状态栏(左网络指示/中页名与页点/右时钟),
-  中部 3×N widget 网格(桌面布局按列行声明),底部内缩 peek 条显示真实连接状态。
-  磁贴与 ESP32-P4 固件一致是纯展示面:点按或键盘激活都不进入 App 全屏视图。
+  交互结构与 ESP32-P4 launcher 对齐:顶部状态栏(左网络指示/统一应用入口/中页名与页点/右时钟),
+  中部状态 Widget 区(按声明布局),底部 peek 条承担大部分持续状态与当前 App 的 live chrome。
+  Widget 先陈述真实状态,点按后进入对应 App；App 是 Widget 状态的延续与内容扩展。
+  外壳只发起意图,实际安装、启动、动作和停止必须穿过 Installer、App Manager 与 App Runtime。
   外壳只陈述真实状态:未连接即显示未连接,不伪造任何活动、订阅或健康数据。
 
   Scenario: 以 568×1232 窗口启动并可通过环境变量覆盖
@@ -146,13 +147,74 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 生成的样式表存在并由 renderer 加载
     And firmware/linux 内只使用 Open DeskOS 的产品命名
 
-  Scenario: 磁贴是纯展示面,点按与键盘都不进入 App
-    Given 网格页存在任意 widget 磁贴
-    When 点按任一磁贴
-    Then 不打开全屏视图,页面保持当前页
-    And 磁贴不是 button 元素且不在 Tab 序列中
-    And 键盘 Enter 与 Space 在磁贴上不触发任何视图
-    And 全屏视图仅供 peek 说明、页面内连接入口与操作说明等外壳级入口使用
+  Scenario: Widget 先陈述真实状态再延续到 App
+    Given 网格页存在显示真实状态的 widget
+    Then 网络 widget 显示网络未连接
+    And Mac widget 显示 Mac 尚未连接
+    And 番茄钟 widget 显示未启动
+    And 日期 widget 显示可查看
+    When 点按一个声明 open-app 的 widget
+    Then UI 只发出 open-app 意图
+    And 意图经 Installer 确认已安装后交给 App Manager
+    And App Manager 通过 App Runtime 启动对应 App
+    And App 页面保留来源 widget 的 app_id 与 route
+
+  Scenario: Display-only 状态不会伪装成 App 入口
+    Given 一个没有对应 App 的状态 widget
+    When 点按该 widget
+    Then UI 发出 display-only 意图
+    And App Manager 不启动任何 App
+    And peek 仍显示该状态的真实文字
+
+  Scenario: Peek 取代大部分持续状态控件
+    Given 外壳已启动
+    Then peek 显示网络、Mac 和当前前台 App 的实时状态
+    And 状态栏不通过 tooltip 承担完整状态说明
+    When 前台 App 状态发生变化
+    Then peek 更新状态并提供继续进入该 App 的触摸入口
+    And 状态变化不新增桌面图标或 dock
+
+  Scenario: 统一入口替代 dock 与桌面图标堆积
+    Given 外壳已启动
+    Then 状态栏提供唯一的应用管理入口
+    And 主屏不包含 dock
+    And 主屏不把 App 目录渲染为图标堆积
+    When 点按统一应用入口
+    Then 打开 App Manager 验证页面
+    And 页面以可搜索的列表显示已安装 App、kind、版本和生命周期状态
+
+  Scenario: 插件拥有完整生命周期
+    Given 一个已注册并启用的 UI 插件
+    When 外壳装配并显示该插件
+    Then 依次经过 install、enable、mount、start 生命周期
+    When 外壳切换前台 App
+    Then 当前插件收到 pause 或 stop
+    And 恢复前台时收到 resume 或 start
+    When 外壳卸载该插件
+    Then 依次完成 unmount、disable、uninstall
+    And 插件释放所有订阅与运行时资源
+
+  Scenario: App 操作只能穿过平台三层
+    Given 一个已运行的 UI App
+    When 用户在 App 页面触发动作
+    Then UI 发出 action 意图而不直接调用 Runtime
+    And Installer、App Manager、App Runtime 按顺序记录该动作
+    And 任一层失败时 UI 显示可恢复错误且前台 App 不被静默替换
+
+  Scenario: App 生命周期从 Widget 状态延续
+    Given 番茄钟 widget 显示未启动
+    When 用户进入番茄钟 App 并开始计时
+    Then App Manager 状态变为 running
+    And App Runtime 持有番茄钟内容状态
+    And 返回状态页后 peek 显示番茄钟正在运行
+    And widget 状态更新为真实的运行状态
+
+  Scenario: 关闭 App 返回来源上下文
+    Given 用户从状态 widget 进入 App 并携带 route
+    When 用户按 Back 或 Escape
+    Then App Runtime 收到 on_stop
+    And App Manager 释放前台运行实例
+    And 返回原页面、原分页位置和原 route 上下文
 
   Scenario: 连接说明页面提供明确恢复路径
     Given quota 页面显示 Mac 桥接未配置
@@ -186,9 +248,10 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: 状态栏与 peek 由内置插件提供
     Given 外壳已启动
-    Then 状态栏左槽为连接指示插件、右槽为时钟插件,骨架只留空槽位
+    Then 状态栏左槽为连接指示与统一应用入口插件、右槽为时钟插件,骨架只留空槽位
     And peek 内容与网络连接说明文案由 peek 插件提供,核心不含其文案
     And quota 页的网络说明入口经服务委托到同一 peek 插件,文案单一来源
+    And 当前 App 的 live 状态由 App Manager 发布给 peek 插件
     When 新增一个 status 插件并声明槽位
     Then 无需修改核心即可出现在状态栏
 

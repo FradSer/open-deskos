@@ -9,14 +9,16 @@
   denial, renderer-crash exit, DevTools shortcut block in kiosk.
 - `src/renderer/` — shell UI as plain DOM (`index.html` skeleton,
   `shell.css`, generated `uno.css`, and `shell.js` composition root). No frameworks.
-- `src/renderer/core/` — plugin registry (`odkPlugins`), shared services
-  (tick/connection, `odkServices`), desktop composer (`odkComposer`).
+- `src/renderer/core/` — plugin registry and lifecycle, App Platform seam
+  (Installer → App Manager → App Runtime), shared services (tick/connection),
+  and desktop composer (`odkComposer`).
 - `src/renderer/plugins/` — every visible element is one self-contained plugin
-  (pages, grid tiles, status-bar indicators, peek content); placement lives in
-  `src/renderer/config/desktop_layout.js`. Tiles are display-only surfaces
-  (P4 parity: taps never open views). Adding a feature means a new plugin
-  file plus one config line — never edit core; `tests/smoke.sh` greps enforce
-  this. See `docs/AI_PLUGIN_GUIDE.md`.
+  (pages, state widgets, status-bar indicators, peek content, and Apps); widget
+  placement lives in `src/renderer/config/desktop_layout.js`. Widgets state
+  truth first and may continue into an App through the platform seam. The shell
+  has one unified App Manager entry; no dock or desktop icon pile. Adding a
+  feature means a plugin file plus config when needed — never bypass the core
+  seams. See `docs/AI_PLUGIN_GUIDE.md`.
 - `tests/features/` — Chinese-Gherkin BDD scenarios (repo convention).
 - `PRODUCT.md` — product context for the CM5 shell; `docs/AI_PLUGIN_GUIDE.md` defines the plugin contract.
 - `tests/smoke.sh`, `tests/check_tokens.mjs` — executable checks.
@@ -46,7 +48,9 @@ does not verify CM5 hardware behavior; validate on device separately.
   `tests/check_tokens.mjs` fails on drift. UnoCSS utilities must reference these
   Open DeskOS variables rather than defining a second palette. Never hardcode
   off-palette hex values.
-- Connection/quota states are shown honestly ("未连接"); never fabricate data placeholders that look real.
+- Connection, widget, and App states are shown honestly ("未连接", "未启动");
+  never fabricate data placeholders that look real. Most persistent state belongs
+  in the live peek, not tooltip-only chrome.
 - Renderer stays sandboxed: `contextIsolation: true`, `nodeIntegration: false`,
   local files only, no remote content.
 

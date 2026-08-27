@@ -116,47 +116,25 @@ Open DeskOS 可以把这一原则转化为：
 
 ## 3. 当前 `firmware/linux/` 的实际状态
 
-### 3.1 当前 Linux 切片是 display-only
+### 3.1 Linux App Manager 验证端（已落地）
 
-`firmware/linux/src/renderer/core/composer.js` 的 `buildTile()` 创建普通 `<div>`，并明确写有：
+Linux 切片现已升格为 App Manager 验证端：Widget 先陈述真实状态，再通过声明式 `open-app` 意图延续到 App。`core/app-platform.js` 以 Installer → App Manager → App Runtime 的顺序记录并执行入口与动作；`peek-bridge.js` 承担网络、Mac 与当前 App 的持续状态；状态栏只有统一的 App Manager 入口。
 
-> Display-only surface, P4 parity: tiles never open views on tap.
+`firmware/linux/src/renderer/config/desktop_layout.js` 仍是 Widget 位置唯一事实源；没有对应 App 的 Widget 保持 `display-only`，不会伪装成入口。主屏不使用 dock 或桌面图标堆积，应用发现与生命周期验证集中在 App Manager 页面。
 
-`firmware/linux/src/renderer/config/desktop_layout.js` 只声明页面、Widget 位置以及跨列跨行布局，没有 `appId`、路由或 Action 描述。
+`firmware/linux/tests/features/linux-shell.feature` 已固定以下新契约：
 
-`firmware/linux/src/renderer/plugins/settings.js` 的设置磁贴状态仍然是“待接入”。
+- Widget 先显示网络未连接、Mac 尚未连接、番茄钟未启动等真实状态。
+- `open-app` Widget 保留来源 `app_id` 与 route，并进入统一 App frame。
+- 大部分持续状态进入 peek，而不是 tooltip-only 控件。
+- UI 只发出 intent；平台层负责安装确认、生命周期与动作执行。
+- Back/Escape 停止前台 App 并恢复原页面上下文。
 
-`firmware/linux/src/renderer/shell.js` 中的 fullscreen view 当前主要承载：
+### 3.2 仓库内的 Widget → App 产品权威
 
-- 连接 Mac 说明。
-- 操作说明。
-- 重新检查连接状态。
-- Back/Escape 返回。
+产品权威 `docs/open-deskos/OPEN-DESKOS.md` 的 §5.2–§6.2 现在与 Linux 验证端方向一致：Widget 可进入 App，App Manager 管理前台生命周期，Installer 负责 manifest、capabilities、checksum、consent 与 atomic install。
 
-它还不是通用 App runtime 的承载层。
-
-`firmware/linux/tests/features/linux-shell.feature` 也把以下行为固定为契约：
-
-- 点按 Widget 不打开全屏视图。
-- Widget 不是 button，也不在 Tab 序列中。
-- Enter 和 Space 不触发 Widget 视图。
-- 全屏视图只服务于 peek 说明、连接入口和操作说明等 Shell-level 入口。
-
-因此，当前 Linux 切片更准确的定位是：
-
-> Open DeskOS 的视觉、分页、状态和连接体验迁移验证壳，而不是完整的 App 平台实现。
-
-### 3.2 仓库内已经存在另一套 Widget → App 设计
-
-产品权威文档 `docs/open-deskos/OPEN-DESKOS.md` 写下了不同的方向：
-
-- §5.2：点按 Widget 打开所属 App。
-- §5.3：Widget 通过 Shell 的 App open seam 进入全屏 App，并可以使用 Hero 转场。
-- §5.4：App Manager 管理前台 App 生命周期。
-- §6.1：App 使用 v2 package contract。
-- §6.2：生成 App 必须经过安装管线和权限确认。
-
-代码和测试也已经存在对应基础：
+Linux 当前使用浏览器端验证适配器；真实固件实现仍由以下模块负责：
 
 - `firmware/open-deskos/components/odk_app_manager/`
 - `firmware/open-deskos/components/odk_app_runtime/`
@@ -164,14 +142,6 @@ Open DeskOS 可以把这一原则转化为：
 - `firmware/open-deskos/tests/features/app-lifecycle.feature`
 - `firmware/open-deskos/tests/features/package-install.feature`
 - `firmware/open-deskos/tests/features/manifest-domain.feature`
-
-但是以下测试和文档仍保留了相反的旧语义：
-
-- `firmware/open-deskos/tests/features/app-transition.feature` 的标题仍是 `Widget-only interaction (no App layer)`。
-- 该文件仍写着没有 fullscreen App 和 hero navigator。
-- `docs/open-deskos/PLUGINS_AND_WIDGETS_ARCHITECTURE.md` 和 `docs/open-deskos/WIDGET_SPEC_AND_AI_GUIDE.md` 仍包含 Widget 点击进入 App 的设计描述。
-
-这是 Open DeskOS 内部的产品契约冲突，不能靠引入 Omarchy 的设计来掩盖。实施前必须先决定 Linux 切片是否开始兑现产品权威文档中的 Widget → App 语义。
 
 ## 4. 应该学习什么，不应该学习什么
 
@@ -314,50 +284,30 @@ Omarchy 的可配置 bar 说明了“用户可以管理自己的工作区”这�
 
 这属于布局管理，不应与 App 安装、App 生命周期和权限管理混在一起。
 
-## 6. 推荐实施顺序
+## 6. 已完成的第一阶段与后续边界
 
-### Phase A：先统一契约
+### Phase A：统一契约（已完成）
 
-先裁决 Linux 切片的目标：
+Linux 切片已确定为 App Manager 验证端，并同步更新 `firmware/linux/PRODUCT.md`、`README.md`、`tests/features/linux-shell.feature` 与 `firmware/open-deskos/tests/features/app-transition.feature`。旧的 Widget-only 语义不再是当前契约。
 
-- 如果它只是 P4 parity 迁移验证，继续保持 display-only，并只借鉴 actionable status 和插件管理信息架构。
-- 如果它要成为 Open DeskOS App 平台的 Linux 验证端，就更新 `firmware/linux/PRODUCT.md`、`firmware/linux/tests/features/linux-shell.feature` 和冲突的 `app-transition.feature`。
+### Phase B：声明式交互 metadata（已完成首个垂直切片）
 
-不应在契约未裁决前直接修改 `composer.js` 让所有 tile 变成 button。
+`almanac`、`clock`、`pomodoro`、`year` 使用 `interaction: 'open-app'` 与 `appId`；Chat 和 Settings 仍以真实的 `display-only`/待接入状态呈现。布局可选 `route`，Widget 点击只发出平台 intent。
 
-### Phase B：加入声明式交互 metadata
+### Phase C：统一 App frame 与 peek（已完成验证端切片）
 
-先增加可选的 `interaction`、`appId` 和 `route`，默认不改变已有 Widget 行为。优先选择有明确产品语义的 Widget：
+`core/app-platform.js` 提供统一 App host、来源 Widget/route 上下文、前台 App 状态和资源清理；peek 接收当前 App live 状态。Back/Escape 释放 Runtime 并回到来源页面。
 
-1. calendar
-2. pomodoro
-3. quota
-4. network/connection
+### Phase D：真实 Installer / App Manager / App Runtime 接入（后续）
 
-不要从 settings、chat 等仍然“待接入”的磁贴开始。
+当前 Linux 端使用同名平台 seam 的验证适配器；下一步把 `odk_installer`、`odk_app_manager` 与 `odk_app_runtime` 的真实实现接入 Linux bridge，继续保持 manifest、capability、checksum、consent 和 atomic install 规则。
 
-### Phase C：复用共享 App frame
+### Phase E：管理能力增强（后续）
 
-将当前连接说明用的 fullscreen frame 扩展为真正的 App host：
-
-- 统一 Back/Escape。
-- 保留来源上下文。
-- 支持 App loading、error 和 stopped 状态。
-- 让 App 内容不因来源 tile 的尺寸被压缩。
-
-### Phase D：接入 App Manager 和 Installer
-
-先实现已安装 App 的列表、状态和生命周期，再实现商店、侧载和动态安装。安装和更新必须继续经过 manifest、capability、checksum、consent 和 atomic install 流程。
-
-### Phase E：实现管理 overlay 和布局编辑
-
-最后加入：
-
-- App 管理。
-- Widget 库。
-- 布局编辑。
-- 搜索入口。
-- 更新和恢复反馈。
+- App Manager 可搜索列表与筛选。
+- 安装、更新、回滚、移除和错误恢复操作。
+- Widget 库与用户布局覆盖。
+- 语音唤起统一入口；触摸仍是主要操作路径。
 
 ## 7. 建议先补充的 BDD 场景
 
@@ -402,24 +352,25 @@ Omarchy 的可配置 bar 说明了“用户可以管理自己的工作区”这�
 
 ## 8. 验证记录
 
-本评审期间对当前 Linux 切片执行了：
+本轮实现对当前 Linux 切片执行了：
 
 ```sh
 cd firmware/linux
 pnpm run e2e
+bash tests/smoke.sh
 ```
 
-当前 e2e 检查全部通过，包含：
+当前检查全部通过，包含：
 
-- 三页 pager 和页点导航。
-- Widget display-only 语义。
-- Back/Escape 和 dialog focus trap。
-- 网络与 Mac companion 状态区分。
-- 多尺寸几何重算。
-- reduced-motion。
-- 插件注册与声明式布局校验。
+- Widget 真实状态与 `open-app` continuation。
+- Installer → App Manager → App Runtime intent trace。
+- 完整插件 lifecycle 字段与 Runtime 资源清理。
+- 统一 App Manager 入口，且无 dock/桌面图标堆积。
+- Peek 的网络、Mac 与当前 App 状态。
+- 三页 pager、Back/Escape、连接状态、多尺寸几何和 reduced-motion。
+- Open DeskOS token、UnoCSS 与布局契约。
 
-这证明当前实现内部是一致的；它不证明 display-only 方向与根产品文档的 Widget → App 方向已经统一。
+这证明 Linux 验证端内部契约已统一；它不替代真实 CM5 触摸/GPU 验收，也不声称验证适配器已经替代固件中的真实 Installer、App Manager 和 App Runtime。
 
 ## 9. 最终建议
 

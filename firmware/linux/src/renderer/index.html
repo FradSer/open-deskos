@@ -12,9 +12,8 @@
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
        and core plugin hosts from src/renderer/plugins/*.js registrations:
        pages/tiles via config/desktop_layout.js, status-bar and peek via
-       kind="status"/"peek" plugins. Tiles are display-only (P4 parity); the
-       #app-view dialog serves shell-level entries only (peek guide, page
-       actions, help). -->
+       kind="status"/"peek" plugins. Widgets state truth first and may continue
+       into an App through the platform seam; #app-view is the unified App frame. -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
     <div id="page-center" class="flex items-center">
@@ -41,6 +40,7 @@
       <h1 id="app-title"></h1>
     </header>
     <div class="app-body flex flex-col items-center justify-center">
+      <div id="app-runtime" class="app-runtime" data-slot="app-runtime"></div>
       <p class="app-empty" id="app-empty"></p>
       <p class="app-help" id="app-help" hidden>滑动切换页面；点击页点直接跳转；左右键或 Home/End 键可分页；Back 或 Escape 返回；点击 peek 查看连接状态。</p>
       <p class="app-empty-sub" id="app-empty-sub"></p>
@@ -63,6 +63,7 @@
   <script src="core/registry.js"></script>
   <script src="core/services.js"></script>
   <script src="core/composer.js"></script>
+  <script src="core/app-platform.js"></script>
   <script src="plugins/dashboard-page.js"></script>
   <script src="plugins/almanac.js"></script>
   <script src="plugins/clock.js"></script>
@@ -74,6 +75,8 @@
   <script src="plugins/status-connection.js"></script>
   <script src="plugins/status-clock.js"></script>
   <script src="plugins/peek-bridge.js"></script>
+  <script src="plugins/status-apps.js"></script>
+  <script src="plugins/apps.js"></script>
   <script src="config/desktop_layout.js"></script>
   <script src="shell.js"></script>
 </body>

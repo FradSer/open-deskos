@@ -149,6 +149,8 @@ function main() {
 
   function openInfoView(title, message, detail, showSteps = false, action = null) {
     lastFocusedElement = document.activeElement
+    appView.removeAttribute('data-source-widget')
+    appView.removeAttribute('data-route')
     appTitle.textContent = title
     appEmpty.hidden = false
     appEmpty.textContent = message
@@ -175,9 +177,37 @@ function main() {
     appView.hidden = true
     appAction.onclick = null
     appActionStatus.textContent = ''
+    runtimeRoot().replaceChildren()
+    appView.removeAttribute('data-source-widget')
+    appView.removeAttribute('data-route')
     setBackgroundInert(false)
     if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus()
     lastFocusedElement = null
+  }
+
+  function openAppFrame({ plugin, source }) {
+    lastFocusedElement = document.activeElement
+    appTitle.textContent = plugin.app || plugin.name || plugin.id
+    appView.dataset.sourceWidget = source.widgetId || ''
+    appView.dataset.route = source.route || ''
+    appEmpty.hidden = true
+    appHelp.hidden = true
+    appEmptySub.textContent = ''
+    appSteps.hidden = true
+    appTroubleshooting.hidden = true
+    appAction.hidden = true
+    appActionStatus.hidden = true
+    appView.hidden = false
+    setBackgroundInert(true)
+    document.getElementById('app-back').focus()
+  }
+
+  function openMissingApp(appId) {
+    openInfoView('应用未安装', `无法打开 ${appId}。`, '请在应用管理中确认安装状态。')
+  }
+
+  function runtimeRoot() {
+    return document.getElementById('app-runtime')
   }
 
   function dialogControls() {
@@ -202,12 +232,16 @@ function main() {
 
   // Services handed to every plugin: dialogs owned by the shell frame,
   // plus the shared tick/connection stores.
+  let appPlatform = null
   const uiCtx = {
     BRIDGE_LABELS: odkServices.BRIDGE_LABELS,
     NETWORK_LABELS: odkServices.NETWORK_LABELS,
     connection: odkServices.connection,
     onTick: odkServices.onTick,
     openDialog: openInfoView,
+    emitIntent(intent) {
+      return appPlatform?.emitIntent(intent) || false
+    },
     openNavigationHelp() {
       openInfoView('操作说明', '', '', false)
       appHelp.hidden = false
@@ -220,19 +254,47 @@ function main() {
   window.addEventListener('odk-connection-announcement', (event) => {
     document.getElementById('status-announcement').textContent = event.detail
   })
+  appPlatform = window.odkAppPlatform.create({
+    host: {
+      context: () => uiCtx,
+      runtimeRoot,
+      closeAppFrame: closeInfoView,
+      openAppFrame,
+      openMissingApp,
+    },
+  })
+  window.odkAppPlatform = appPlatform
+  uiCtx.platform = appPlatform
+  uiCtx.appPlatform = appPlatform
+  uiCtx.onPlatformState = appPlatform.subscribe
   for (const def of odkPlugins.byKind('status')) {
-    def.mount(document.querySelector(`[data-slot="status-${def.slot}"]`), uiCtx)
+    const slot = document.querySelector(`[data-slot="status-${def.slot}"]`)
+    const host = document.createElement('span')
+    host.className = `status-plugin status-${def.id}`
+    slot.append(host)
+    odkPlugins.activate(def, host, uiCtx)
   }
+
   const peekDef = odkPlugins.byKind('peek')[0]
   if (peekDef) {
-    peekDef.mount(document.querySelector('[data-slot="peek"]'), uiCtx)
+    odkPlugins.activate(peekDef, document.querySelector('[data-slot="peek"]'), uiCtx)
     uiCtx.openCompanionGuide = () => peekDef.activate(uiCtx)
   }
 
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
 
-  document.getElementById('app-back').addEventListener('click', closeInfoView)
-  if (peekDef) document.getElementById('peek').addEventListener('click', () => uiCtx.openCompanionGuide())
+  document.getElementById('app-back').addEventListener('click', () => {
+    if (appPlatform.active()) appPlatform.closeApp()
+    else closeInfoView()
+  })
+  if (peekDef) document.getElementById('peek').addEventListener('click', () => {
+    if (appPlatform.active()) appPlatform.openApp({
+      appId: appPlatform.active().appId,
+      widgetId: appPlatform.active().sourceWidget,
+      route: appPlatform.active().route,
+    })
+    else uiCtx.openCompanionGuide()
+  })
 
   const pageNames = window.DESKTOP_LAYOUT.pages.map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
@@ -250,7 +312,8 @@ function main() {
     if (!appView.hidden) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        closeInfoView()
+        if (appPlatform.active()) appPlatform.closeApp()
+        else closeInfoView()
         return
       }
       trapDialogFocus(event)

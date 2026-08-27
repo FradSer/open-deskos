@@ -13,6 +13,8 @@
     kind: 'tile',
     app: '年度进度',
     state: '实时',
+    interaction: 'open-app',
+    appId: 'year',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="year-head odk-row justify-between">

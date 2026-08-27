@@ -4,9 +4,9 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 [Electron](https://www.electronjs.org/),目标面板为 **568×1232 竖屏触摸**。
 
 这是迁移评估([CM5-S31-INTEGRATION](../../../docs/open-deskos/CM5-S31-INTEGRATION.md))中
-"CM5 应用链路"的第一步实现。P4+C6 固件仍是生产权威;本切片不替换它。
+"CM5 应用链路"的 Linux App Manager 验证端。P4+C6 固件仍是生产权威;本切片不替换它。
 
-## 功能范围(第一片)
+## 功能范围(App Manager 验证端)
 
 - 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
 - **三段式 Open DeskOS 布局**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
@@ -14,8 +14,11 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
   (显示 Mac 连接与网络状态,点击进入网络连接说明)
 - Open DeskOS 设计 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何使用
   Open DeskOS portrait 算法(fit = min(w/320, h/480))
-- 三页横向触摸滑动:Dashboard 流 / Home 网格 / Quota 页;当前页名与 N/3 可见,年份进度条
-- 磁贴是纯展示面(对齐 ESP32-P4):点按与键盘都不进入 App;未接入 App 明确显示待接入状态
+- 三页横向触摸滑动:Dashboard 流 / Home 状态 Widget / Quota 页;当前页名与 N/3 可见
+- Widget 先陈述真实状态;已声明 `open-app` 的 Widget 是对应 App 的状态延续与内容入口
+- 大部分持续状态由底部 peek 承担;不使用 tooltip-only 状态控件
+- 状态栏提供唯一的应用管理入口;不使用 dock 或桌面图标堆积
+- UI 只发出 intent,实际动作按 Installer → App Manager → App Runtime 顺序执行
 - quota 与 peek 分离显示 Mac companion 健康状态和网络在线状态,提供网络连接说明与重新检查入口
 
 ## 目录结构
@@ -26,9 +29,9 @@ src/main.js            Electron 主进程(窗口/kiosk/smoke 检查,导航与权
 src/renderer/index.html 骨架(状态栏/分页视口/peek/app-view),不含页面内容
 src/renderer/shell.js   组合根:几何、分页器、对话框、键盘导航、核心状态栏
 src/renderer/layout.js  网格几何(Open DeskOS portrait 分支)
-src/renderer/core/      插件注册表、共享服务(tick/连接)、桌面组合器
-src/renderer/config/    desktop_layout.js:页面构成与磁贴摆放的唯一权威
-src/renderer/plugins/   页面/磁贴/状态栏/peek 插件,每个文件自包含
+src/renderer/core/      插件注册表/生命周期、App Platform seam、共享服务与桌面组合器
+src/renderer/config/    desktop_layout.js:页面构成与 Widget 摆放的唯一权威
+src/renderer/plugins/   页面/Widget/状态栏/peek/App 插件,每个文件自包含
 docs/AI_PLUGIN_GUIDE.md AI 生成新插件的契约与步骤指南
 tests/features/        BDD 场景(中文 Gherkin)
 tests/smoke.sh         可执行检查:两种分辨率启动 + Open DeskOS token 对齐
@@ -41,7 +44,7 @@ scripts/cm5-acceptance.sh
 ```
 
 扩展外壳 = 新增一个插件文件(+ 在 `config/desktop_layout.js` 声明位置):
-磁贴、整页、状态栏指示、peek 内容全部可插件化,零核心改动;
+Widget、整页、状态栏指示、peek 与 App 全部可插件化,统一由生命周期与平台 seam 装配;
 完整契约见 [docs/AI_PLUGIN_GUIDE.md](docs/AI_PLUGIN_GUIDE.md)。
 
 ## 本机开发(macOS/Linux 均可)

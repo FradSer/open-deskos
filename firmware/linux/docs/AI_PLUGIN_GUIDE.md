@@ -1,8 +1,9 @@
 # Open DeskOS Linux Shell — AI 插件生成指南
 
-本切片的外壳是插件化架构:页面和磁贴都是自包含插件,摆放由声明式配置驱动。
+本切片的外壳是插件化架构:页面、Widget、peek、状态栏和 App 都是自包含插件,摆放由声明式配置驱动。
 **AI 生成新功能的唯一正确方式 = 新增一个插件文件 + 在布局配置里声明位置。
-禁止修改外壳核心(`shell.js`、`core/`),`tests/smoke.sh` 会强制这一点。**
+UI 只发出 intent;实际动作必须穿过 Installer、App Manager 和 App Runtime。
+插件必须实现完整生命周期;不得绕过核心 seam。**
 
 ## 文件地图
 
@@ -11,29 +12,31 @@ src/renderer/
   index.html               骨架:状态栏/分页视口/peek/app-view 对话框,不含任何页面内容
   shell.js                 组合根:几何、分页器、对话框、键盘导航、核心状态栏
   layout.js                网格几何(Open DeskOS portrait 分支)
-  core/registry.js         odkPlugins.register/has/get/ids — 插件注册表
+  core/registry.js         odkPlugins.register/has/get/ids — 注册表与生命周期
   core/services.js         odkServices — 共享秒级 tick 与连接状态存储、状态文案词汇表
+  core/app-platform.js     Installer → App Manager → App Runtime 意图路由
   core/composer.js         odkComposer.validate/build — 把配置装配成 DOM
-  config/desktop_layout.js 页面构成与磁贴跨列跨行的唯一权威
-  plugins/*.js             每个页面/磁贴一个自包含文件
+  config/desktop_layout.js 页面构成与 Widget 摆放的唯一权威
+  plugins/*.js             每个页面/Widget/peek/App 一个自包含文件
 ```
 
 ## 插件契约
 
-四种 kind,覆盖外壳所有可见元素:
+五种 kind,覆盖外壳所有可见元素:
 
 | kind | 挂载点 | 注册字段 |
 |---|---|---|
-| `tile` | 网格磁贴(由 desktop_layout.js 声明位置) | `app`(标识名)、`state`、`mount` |
-| `page` | 整页(由 desktop_layout.js 声明) | `mount` |
-| `status` | 状态栏槽位(`slot: 'left' \| 'right'`) | `mount` |
-| `peek` | 底部 peek 条内容与点按行为 | `mount`、`activate` |
+| `tile` | 网格 Widget(由 desktop_layout.js 声明位置) | `app`、`state`、`interaction`、`appId`、生命周期 |
+| `page` | 整页(由 desktop_layout.js 声明) | 生命周期 |
+| `status` | 状态栏槽位(`slot: 'left' \| 'right'`) | 生命周期 |
+| `peek` | 底部 peek 条内容与点按行为 | 生命周期、`activate` |
+| `app` | App Manager 前台验证运行时 | `appId`、`appKind`、生命周期、可选 `handleAction` |
 
-### 磁贴插件(kind = tile)
+### Widget 插件(kind = tile)
 
-磁贴与 ESP32-P4 固件一致是纯展示面:`app`/`state` 只作标识与状态陈述,
-点按或键盘激活都不会进入全屏视图;全屏视图仅供 peek 说明、页面内连接入口
-与操作说明等外壳级入口经 `ctx.openDialog` 使用。
+Widget 先陈述真实状态,再按声明延续到对应 App。没有对应 App 时使用
+`display-only`;有 App 时使用 `interaction: 'open-app'`。Widget 不直接调用
+Runtime,只通过 `ctx.emitIntent()` 发起意图。大部分持续状态由 peek 承担。
 
 ```js
 ;(function (root) {
@@ -43,6 +46,8 @@ src/renderer/
     kind: 'tile',
     app: '我的应用',           // 标识名(data-app),用于唯一性与调试
     state: '待接入',           // 真实状态:待接入 | 未启动 | 实时;绝不伪造"运行中"
+    interaction: 'display-only', // 或 open-app;由平台 seam 处理
+    appId: null,
     mount(el, ctx) {          // el 是展示用 <div class="widget">,往里建自己的 DOM
       el.innerHTML = `
         <svg data-tabler="star" aria-hidden="true" ...>...</svg>
@@ -54,7 +59,7 @@ src/renderer/
 })(typeof window !== 'undefined' ? window : globalThis)
 ```
 
-### 页面插件(kind = page)、状态栏插件(kind = status)、peek 插件(kind = peek)
+### 页面插件(kind = page)、状态栏插件(kind = status)、peek 插件(kind = peek)、App 插件(kind = app)
 
 ```js
 root.odkPlugins.register({
@@ -79,6 +84,13 @@ root.odkPlugins.register({
 ```
 ```
 
+### 完整生命周期
+
+每个插件都必须提供以下阶段: `install`、`enable`、`mount`、`start`、`pause`、
+`resume`、`stop`、`unmount`、`disable`、`uninstall`。注册表会补齐无副作用
+默认实现;有副作用的插件必须在 `unmount`/`uninstall` 中释放订阅、计时器和运行时资源。
+App 额外可以提供 `handleAction(intent, ctx)`;它只能由平台 seam 调度。
+
 ### mount 收到的 ctx
 
 | 成员 | 说明 |
@@ -88,6 +100,9 @@ root.odkPlugins.register({
 | `ctx.connection.refresh()` | 手动重读 |
 | `ctx.BRIDGE_STATUS` / `ctx.NETWORK_LABELS` | 统一状态文案,禁止自造 |
 | `ctx.openDialog(title, message, sub, showSteps?)` | 打开外壳全屏对话框 |
+| `ctx.emitIntent({ type: 'open-app', appId, widgetId, route })` | 发起 App 意图,由 Installer → App Manager → App Runtime 路由 |
+| `ctx.emitIntent({ type: 'action', appId, action })` | 发起 App 动作,禁止直接调用 Runtime |
+| `ctx.platform.catalog()` | App Manager 验证页读取已安装 App 元数据 |
 | `ctx.openNavigationHelp()` / `ctx.openCompanionGuide()` | 内置两个标准视图(网络连接指南文案由 peek 插件提供) |
 
 ## 布局声明
@@ -124,5 +139,6 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - 颜色只用根 `DESIGN.md` 的 Open DeskOS token(`--odk-*` CSS 变量);禁裸 hex。
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI 文案与代码禁 emoji;面向用户的文案用中文。
-- 不改 `shell.js`/`core/*`;smoke 的 grep 契约会拦下越界改动。
+- 插件不得绕过 Installer、App Manager、App Runtime;核心 seam 只负责装配、生命周期和意图路由。
+- 状态优先进入 peek;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

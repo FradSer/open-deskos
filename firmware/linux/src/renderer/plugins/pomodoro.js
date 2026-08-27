@@ -7,7 +7,14 @@
     kind: 'tile',
     app: '番茄钟',
     state: '未启动',
-    mount(el) {
+    interaction: 'open-app',
+    appId: 'pomodoro',
+    lifecycle: {
+      install() {}, enable() {}, mount(el) { this.renderTile(el) }, start() {},
+      pause() {}, resume() {}, stop() {}, unmount(el) { el.replaceChildren() },
+      disable() {}, uninstall() {},
+    },
+    renderTile(el) {
       el.innerHTML = `
         <svg viewBox="0 0 120 120" aria-hidden="true">
           <circle class="ring-track" cx="60" cy="60" r="50"/>
@@ -17,5 +24,8 @@
         <span class="w-name">${this.app}</span>
         <span class="w-state">${this.state}</span>`
     },
+    name: '番茄钟',
+    appKind: 'ui',
+    version: 'builtin',
   })
 })(typeof window !== 'undefined' ? window : globalThis)

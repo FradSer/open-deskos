@@ -27,6 +27,13 @@ const DRIVER_SCRIPT = `
   out.appViewDisplayOnLoad = getComputedStyle($('#app-view')).display
 
   out.pluginIds = window.odkPlugins ? [...window.odkPlugins.ids()].sort() : []
+  out.pluginsHaveCompleteLifecycle = out.pluginIds.every((id) => {
+    const lifecycle = window.odkPlugins.get(id).lifecycle
+    return ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
+      .every((phase) => typeof lifecycle?.[phase] === 'function')
+  })
+  out.unifiedAppEntry = $('#sb-app-manager')?.tagName === 'BUTTON' && $('#sb-app-manager')?.textContent.includes('应用')
+  out.noDockOrDesktopIconPile = !$('#dock') && document.querySelectorAll('.desktop-icon').length === 0
   let dupThrown = false
   try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
   out.duplicateRegistrationRejected = dupThrown
@@ -42,6 +49,7 @@ const DRIVER_SCRIPT = `
     .every((page) => page.dataset.builtBy === 'composer')
   out.statusSlotsMounted =
     document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
+    document.querySelector('[data-slot="status-left"] #sb-app-manager') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.peekSlotMounted =
     document.querySelector('[data-slot="peek"] #peek-bridge') !== null &&
@@ -51,6 +59,7 @@ const DRIVER_SCRIPT = `
   const dotsRect = $('#dots').getBoundingClientRect()
   const boltRect = $('#sb-net').getBoundingClientRect()
   const timeRect = $('.sb-time').getBoundingClientRect()
+  out.statusBarRects = { statusBar: statusBarRect.toJSON(), dots: dotsRect.toJSON(), bolt: boltRect.toJSON(), time: timeRect.toJSON() }
   out.dotsInsideStatusBar =
     dotsRect.top >= statusBarRect.top && dotsRect.bottom <= statusBarRect.bottom
   out.boltLeftOfDots = boltRect.right <= dotsRect.left
@@ -81,6 +90,12 @@ const DRIVER_SCRIPT = `
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
     document.querySelectorAll('.widget[data-widget]').length === 6
+  out.widgetStatesAreHonest =
+    $('.w-almanac .w-state')?.textContent === '可查看' &&
+    $('.w-pomodoro .w-state')?.textContent === '未启动'
+  out.widgetIntentMetadata =
+    document.querySelector('.widget[data-widget="almanac"]')?.dataset.interaction === 'open-app' &&
+    document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
@@ -173,14 +188,14 @@ const DRIVER_SCRIPT = `
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
-  // Tiles are display-only surfaces (P4 parity): taps must never open a view,
-  // and tiles cannot take focus, so keyboard Enter/Space can never activate one.
-  const tile = document.querySelector('.widget[data-widget="chat"]') || document.querySelector('.widget')
-  tile.focus()
-  out.tileCannotTakeFocus = tile.tagName !== 'BUTTON' && tile.tabIndex === -1 && document.activeElement !== tile
+  const tile = document.querySelector('.widget[data-widget="pomodoro"]')
   tile.click()
-  out.tileTapKeepsViewHidden = $('#app-view').hidden
-  out.pagePreservedAfterTileTap = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === '番茄钟'
+  out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
+  out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
+  $('#app-back').click()
+  out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
   document.querySelectorAll('#dots .dot')[2].click()
   await new Promise((resolve) => setTimeout(resolve, 350))
@@ -275,10 +290,10 @@ function check(results) {
   const checks = [
     ['grid metrics exposed', results.metricsExposed],
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
-    ['plugin registry holds all 11 plugins',
-      JSON.stringify(results.pluginIds) === JSON.stringify(
-        ['almanac', 'chat', 'clock', 'dashboard-page', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-clock', 'status-connection', 'year'],
-      )],
+    ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
+    ['unified App Manager entry replaces dock', results.unifiedAppEntry && results.noDockOrDesktopIconPile],
+    ['plugin registry includes shell, state and app plugins',
+      ['almanac', 'chat', 'clock', 'dashboard-page', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-apps', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -306,7 +321,8 @@ function check(results) {
     ['stats row removed', results.statRowRemoved],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 4', results.tablerCount >= 4],
-    ['six display-only widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
+    ['six state widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
+    ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
@@ -331,8 +347,9 @@ function check(results) {
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
-    ['tile tap never opens a view', results.tileTapKeepsViewHidden && results.pagePreservedAfterTileTap],
-    ['tiles are not interactive elements', results.tileCannotTakeFocus],
+    ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved],
+    ['widget intent routes through platform layers', results.platformIntentTrace],
+    ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps page and does not suppress next tap',
       results.connectOpensAfterCancelledDrag === true && results.cancelledDragKeepsFirstPage],
     ['dot click jumps to last page', results.transformAfterDotJump === `translateX(-${results.viewportWidth * 2}px)`],

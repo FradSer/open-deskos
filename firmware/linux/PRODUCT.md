@@ -14,7 +14,7 @@ The same desk-side user as the product family: personal developers and knowledge
 
 ## Product Purpose
 
-First implementation slice of the "CM5 application chain" from `docs/open-deskos/CM5-S31-INTEGRATION.md`: render the Open DeskOS shell — status bar (connection bolt / centered page dots / bold clock), three-page horizontal pager (dashboard narrative stream, home widget grid, quota card), bottom inset peek strip placeholder, and fullscreen app view with guaranteed Back — inside a kiosk Electron window on the CM5's 568×1232 portrait touch panel. It validates shell interaction structure and Open DeskOS token fidelity outside LVGL. The P4+C6 firmware remains production authority; this slice does not replace it.
+Linux App Manager validation endpoint for the "CM5 application chain" from `docs/open-deskos/CM5-S31-INTEGRATION.md`: validate truthful state-first Widgets, an iOS-like peek for most persistent status, Widget → App continuation, a unified App Manager entry, and the Installer → App Manager → App Runtime intent seam inside a kiosk Electron window on the CM5's 568×1232 portrait touch panel. The P4+C6 firmware remains production authority; this slice does not replace it.
 
 ## Positioning
 
@@ -32,10 +32,11 @@ Not an independent product: it is the Open DeskOS experience rendered on a secon
 
 Confirmed capabilities:
 - 568×1232 default kiosk window; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
-- Three-page horizontal touch pager with threshold-based swipe, visible page context (`名称 · N/3`), and status-bar dot sync: Dashboard narrative stream / Home widget grid / Quota honesty card.
-- Home grid: 3 columns with declarative column/row spans in `src/renderer/config/desktop_layout.js`, mirroring `desktop_layout.lua` (clock and pomodoro 2-wide, pomodoro 2×2, year meter full-width); every tile exposes a truthful state label. All pages, tiles, status-bar indicators, and peek content are self-contained plugins assembled by `core/composer.js`; extending the shell means adding a plugin file plus one config line (see `docs/AI_PLUGIN_GUIDE.md`), never core edits — enforced by smoke greps.
-- Network and Mac companion states are separate: the bolt reports network reachability, while dashboard, quota and peek check the Mac companion status server (macOS app, default `127.0.0.1:8788`, configurable host/port) and report `Mac 已连接` or `Mac 尚未连接`, with network guidance and retry. Only responses identifying as `OpenDeskOS companion` count as connected.
-- Tiles are display-only surfaces (P4 parity): taps and keyboard input never open fullscreen views; the fullscreen dialog serves shell-level entries only (peek guide, quota actions, help) where Back and Escape always return to the exact page left.
+- Three-page horizontal touch pager with threshold-based swipe, visible page context (`名称 · N/3`), and status-bar dot sync: Dashboard narrative stream / Home state Widget grid / Quota honesty card.
+- Home grid: 3 columns with declarative column/row spans in `src/renderer/config/desktop_layout.js`; every Widget exposes a truthful state label and may declare its continuation App. All pages, Widgets, status-bar indicators, peek content, and Apps are self-contained plugins assembled by `core/composer.js`; the App Platform seam handles Installer → App Manager → App Runtime intent routing.
+- Network, Mac companion, and active App states are separate: the bolt reports network reachability, while dashboard, quota and peek check the Mac companion status server and peek also carries the current App live state.
+- The status bar has one unified App Manager entry. The shell has no dock or desktop icon pile; App discovery and lifecycle validation live in the App Manager view.
+- Widget taps use `open-app` intent only when an App is installed; `display-only` Widgets remain truthful and do not pretend to be launchers. Back and Escape always return to the exact source page and context.
 - Runtime geometry: `layout.js` computes the Open DeskOS portrait grid algorithm (`fit = min(w/320, h/480)`) into CSS custom properties; the shell re-flows on any aspect ratio without cropping.
 - Noto Sans SC Regular and Montserrat Bold are bundled locally under `src/renderer/fonts/` so CM5 rendering does not depend on host-installed fonts.
 
@@ -64,11 +65,14 @@ calm / precise / companion — inherited unchanged from the product family. Open
 
 ## Product Principles
 
-1. **Parity over reinvention.** The shell mirrors the P4 launcher's anatomy — status bar, 3-column grid, pager, peek strip, Back escape. Divergence must be platform-necessitated, documented, and test-pinned.
-2. **Tokens are law.** Color changes happen in root `DESIGN.md` and flow through the checker, never through ad-hoc hex values; the test is the contract, not the review eye.
-3. **Honest instrument.** Show 未连接 and the empty peek strip truthfully; no decorative fake data, ever.
-4. **Escape is guaranteed.** Back always works and restores the exact page the user left.
-5. **Geometry adapts, never crops.** Runtime grid recomputation keeps every tile inside the viewport on any window ratio.
+1. **Glance first, dive second.** Widgets state what is true; peek carries live status; Apps extend the Widget when a task needs more depth.
+2. **Unified entry over icon piles.** App discovery and lifecycle validation belong in one searchable App Manager entry, not a dock or desktop icon grid.
+3. **Intent over direct action.** UI emits intent; Installer, App Manager, and App Runtime own installation, authorization, lifecycle, and execution.
+4. **Parity over reinvention.** The shell mirrors the P4 launcher's anatomy — status bar, 3-column grid, pager, peek strip, Back escape. Divergence must be platform-necessitated, documented, and test-pinned.
+5. **Tokens are law.** Color changes happen in root `DESIGN.md` and flow through the checker, never through ad-hoc hex values; the test is the contract, not the review eye.
+6. **Honest instrument.** Show 未连接, 未启动, and live App state truthfully; no decorative fake data, ever.
+7. **Escape is guaranteed.** Back always works and restores the exact page the user left.
+8. **Geometry adapts, never crops.** Runtime grid recomputation keeps every Widget inside the viewport on any window ratio.
 
 ## Accessibility & Inclusion
 

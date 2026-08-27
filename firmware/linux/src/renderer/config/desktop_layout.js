@@ -17,10 +17,10 @@
         name: '应用',
         kind: 'grid',
         widgets: [
-          { id: 'almanac', col: '1', row: '1' },
-          { id: 'clock', col: '2 / 4', row: '1' },
+          { id: 'almanac', col: '1', row: '1', route: 'today' },
+          { id: 'clock', col: '2 / 4', row: '1', route: 'now' },
           { id: 'chat', col: '3', row: '2' },
-          { id: 'pomodoro', col: '1 / 3', row: '2 / 4' },
+          { id: 'pomodoro', col: '1 / 3', row: '2 / 4', route: 'today' },
           { id: 'settings', col: '3', row: '3' },
           { id: 'year', col: '1 / 4', row: '4 / 6' },
         ],

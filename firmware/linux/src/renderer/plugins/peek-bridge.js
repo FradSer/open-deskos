@@ -10,17 +10,22 @@
         <span class="peek-text odk-stack">
           <span class="peek-primary" id="peek-bridge" role="status" aria-live="polite"></span>
           <span class="peek-secondary" id="peek-network"></span>
+          <span class="peek-secondary" id="peek-app"></span>
         </span>
         <svg class="peek-chevron" data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>`
 
       const bridge = el.querySelector('#peek-bridge')
       const network = el.querySelector('#peek-network')
+      const app = el.querySelector('#peek-app')
       ctx.connection.subscribeBridge((connected) => {
         bridge.textContent = connected ? ctx.BRIDGE_LABELS.connected : ctx.BRIDGE_LABELS.disconnected
         bridge.classList.toggle('text-odk-green', connected)
       })
       ctx.connection.subscribe((online) => {
         network.textContent = ctx.connection.label()
+      })
+      if (ctx.onPlatformState) ctx.onPlatformState((active) => {
+        app.textContent = active.state === 'idle' ? '未打开 App' : `${active.label} · ${active.state === 'running' ? '运行中' : active.state}`
       })
     },
 
