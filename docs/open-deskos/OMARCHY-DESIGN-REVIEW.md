@@ -114,7 +114,7 @@ Open DeskOS 可以把这一原则转化为：
 - 更新失败可以回到上一个可用版本。
 - 布局配置、App 安装状态和 App 运行状态不要混为一个数据结构。
 
-## 3. 当前 `firmware/linux/` 的实际状态
+## 3. 当前 `firmware/linux/` 的实际状态（2026-08-27 更新）
 
 ### 3.1 Linux App Manager 验证端（已落地）
 
@@ -304,10 +304,11 @@ Linux 切片已确定为 App Manager 验证端，并同步更新 `firmware/linux
 
 ### Phase E：管理能力增强（后续）
 
-- App Manager 可搜索列表与筛选。
 - 安装、更新、回滚、移除和错误恢复操作。
 - Widget 库与用户布局覆盖。
 - 语音唤起统一入口；触摸仍是主要操作路径。
+
+App Manager 的首版验证端已经提供可搜索列表；真实安装、更新、回滚、移除和 capability/consent 仍由固件平台待接入。
 
 ## 7. 建议先补充的 BDD 场景
 
@@ -352,7 +353,7 @@ Linux 切片已确定为 App Manager 验证端，并同步更新 `firmware/linux
 
 ## 8. 验证记录
 
-本轮实现对当前 Linux 切片执行了：
+本轮实现对当前 Linux 切片执行了（验证适配器范围）：
 
 ```sh
 cd firmware/linux

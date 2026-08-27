@@ -65,7 +65,6 @@
       return [...plugins.values()].filter((def) => def.kind === kind)
     },
     activate(def, el, ctx) {
-      const lifecycle = def.lifecycle
       const scoped = scopedContext(ctx)
       callLifecycle(def, 'install', scoped)
       callLifecycle(def, 'enable', scoped)
@@ -74,7 +73,6 @@
       instances.set(el, { def, ctx: scoped })
     },
     deactivate(def, el, ctx) {
-      const lifecycle = def.lifecycle
       const instance = instances.get(el)
       const scoped = instance?.ctx || ctx
       callLifecycle(def, 'stop', scoped)

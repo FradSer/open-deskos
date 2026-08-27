@@ -174,6 +174,7 @@
         return () => stateListeners.delete(listener)
       },
       stateFor: (appId) => state.appStates.get(appId) || 'installed',
+      activeSnapshot: () => state.active ? { ...state.active } : null,
       setState(appId, appState) {
         state.appStates.set(appId, appState)
         if (state.active?.appId === appId) state.active.state = appState === '运行中' ? 'running' : 'paused'

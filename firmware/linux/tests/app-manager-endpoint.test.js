@@ -22,6 +22,16 @@ test('rejects starting an app after removal', () => {
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
 })
 
+test('switches foreground apps only after the target is accepted', () => {
+  const endpoint = createAppManagerEndpoint()
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'missing' }).error, 'not-found')
+  assert.equal(endpoint.foreground().appId, 'clock')
+  assert.equal(endpoint.dispatch({ type: 'action', appId: 'clock', action: 'stop' }).ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'pomodoro' }).ok, true)
+  assert.equal(endpoint.foreground().appId, 'pomodoro')
+})
+
 test('routes lifecycle actions and rejects malformed intent', () => {
   const endpoint = createAppManagerEndpoint()
   assert.equal(endpoint.dispatch(null).error, 'invalid-intent')

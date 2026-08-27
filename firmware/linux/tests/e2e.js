@@ -198,6 +198,16 @@ const DRIVER_SCRIPT = `
   out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
   out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === '番茄钟'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
+  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="pomodoro"] .w-state')?.textContent === '运行中'
+  const managerEntry = $('#sb-app-manager')
+  managerEntry.click()
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  out.appManagerSearchVisible = Boolean($('#app-runtime .app-manager .app-search'))
+  const appList = $('#app-runtime .app-manager .app-list')
+  const countBeforeSearch = appList?.querySelectorAll('li').length || 0
+  const search = $('#app-runtime .app-manager .app-search')
+  if (search) { search.value = '番茄钟'; search.dispatchEvent(new Event('input', { bubbles: true })) }
+  out.appManagerSearchFilters = countBeforeSearch > 1 && appList.querySelectorAll('li').length === 1
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
   $('#app-back').click()
   out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
@@ -356,6 +366,8 @@ function check(results) {
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved && results.widgetAppShowsRuntimeContent],
     ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
+    ['pomodoro Widget follows App state', results.pomodoroTileStateAfterOpen],
+    ['App Manager search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps page and does not suppress next tap',
       results.connectOpensAfterCancelledDrag === true && results.cancelledDragKeepsFirstPage],
