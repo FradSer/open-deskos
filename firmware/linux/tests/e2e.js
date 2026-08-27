@@ -99,6 +99,18 @@ const DRIVER_SCRIPT = `
     document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
   out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
   out.preloadExposesIntentEndpoint = typeof window.odkCompanion?.dispatchIntent === 'function' && typeof window.odkCompanion?.listApps === 'function'
+  out.endpointListCalled = false
+  out.endpointIntentCalled = false
+  const originalListApps = window.odkCompanion?.listApps
+  const originalDispatchIntent = window.odkCompanion?.dispatchIntent
+  if (originalListApps) window.odkCompanion.listApps = async (...args) => {
+    out.endpointListCalled = true
+    return originalListApps(...args)
+  }
+  if (originalDispatchIntent) window.odkCompanion.dispatchIntent = async (...args) => {
+    out.endpointIntentCalled = true
+    return originalDispatchIntent(...args)
+  }
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
@@ -340,7 +352,7 @@ function check(results) {
     ['six state widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
     ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
-    ['preload exposes the App Manager endpoint', results.preloadExposesIntentEndpoint],
+    ['preload exposes the App Manager endpoint', results.preloadExposesIntentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],

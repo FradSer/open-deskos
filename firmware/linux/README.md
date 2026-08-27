@@ -10,7 +10,7 @@ Orange Pi CM5(RK3588S)Linux 设备上的 Open DeskOS 外壳切片,基于
 
 - 568×1232 kiosk 窗口,分辨率可经环境变量覆盖
 - **三段式 Open DeskOS 布局**:顶部状态栏(左连接闪电/中页点/右粗体时钟)、
-  中部 3 列 widget 网格(按 `desktop_layout.lua` 声明的跨列跨行磁贴)、底部内缩 peek 条
+  中部 3 列 widget 网格(按 `src/renderer/config/desktop_layout.js` 声明的跨列跨行磁贴)、底部内缩 peek 条
   (显示 Mac 连接与网络状态,点击进入网络连接说明)
 - Open DeskOS 设计 token(与根目录 `DESIGN.md` 逐色对齐,由测试强制);网格几何使用
   Open DeskOS portrait 算法(fit = min(w/320, h/480))
@@ -110,9 +110,10 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 800x1400x24" \
 
 ## 图标
 
-全部图标来自 [Tabler Icons](https://github.com/tabler/tabler-icons)
-(outline,MIT),以 `@tabler/icons` v3.46.0 的官方路径数据内联到
-`src/renderer/index.html`,每个图标带 `data-tabler="名称"` 标识,e2e 校验集合完整性。
+Tabler 图标来自 [Tabler Icons](https://github.com/tabler/tabler-icons)
+(outline,MIT),并以内联 SVG 路径放在各自插件模板中;外壳骨架
+`src/renderer/index.html` 只保留返回按钮图标。每个 Tabler 图标带
+`data-tabler="名称"` 标识并由 e2e 校验集合完整性;Pomodoro 进度环是自定义 SVG,不是 Tabler 图标。
 升级时从 `node_modules/@tabler/icons/icons/outline/` 复制对应 svg 内部路径即可。
 
 ## 验证状态

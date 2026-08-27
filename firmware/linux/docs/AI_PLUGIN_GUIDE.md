@@ -96,13 +96,15 @@ App 额外可以提供 `handleAction(intent, ctx)`;它只能由平台 seam 调�
 | 成员 | 说明 |
 |---|---|
 | `ctx.onTick(cb)` | 订阅共享 1s tick,订阅即首绘;返回退订函数 |
-| `ctx.connection.subscribe(cb)` | 连接状态(true/false),订阅即首绘;返回退订函数 |
-| `ctx.connection.refresh()` | 手动重读 |
-| `ctx.BRIDGE_STATUS` / `ctx.NETWORK_LABELS` | 统一状态文案,禁止自造 |
-| `ctx.openDialog(title, message, sub, showSteps?)` | 打开外壳全屏对话框 |
+| `ctx.connection.subscribe(cb)` | 网络状态(true/false),订阅即首绘;返回退订函数 |
+| `ctx.connection.subscribeBridge(cb)` | Mac companion 状态(true/false),订阅即首绘;返回退订函数 |
+| `ctx.connection.refresh()` | 手动重读 Mac companion 状态 |
+| `ctx.BRIDGE_LABELS` / `ctx.NETWORK_LABELS` | 统一状态文案,禁止自造 |
+| `ctx.openDialog(title, message, sub, showSteps?, action?)` | 打开外壳全屏对话框,可选恢复操作按钮 |
 | `ctx.emitIntent({ type: 'open-app', appId, widgetId, route })` | 发起 App 意图,由 Installer → App Manager → App Runtime 路由 |
 | `ctx.emitIntent({ type: 'action', appId, action })` | 发起 App 动作,禁止直接调用 Runtime |
-| `ctx.platform.catalog()` | App Manager 验证页读取已安装 App 元数据 |
+| `await ctx.platform.listApps()` | 从主进程 App Manager endpoint 读取权威 App 元数据; IPC 不可用时显示恢复错误 |
+| `ctx.platform.catalog()` | 仅供本地适配与测试使用的 renderer 插件目录,不是 App Manager 权威列表 |
 | `ctx.openNavigationHelp()` / `ctx.openCompanionGuide()` | 内置两个标准视图(网络连接指南文案由 peek 插件提供) |
 
 ## 布局声明
