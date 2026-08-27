@@ -189,13 +189,9 @@
       }
     }
 
-    function showOpenFailure(appId, reason, widgetId, route, preserveForeground = false) {
+    function showOpenFailure(appId, reason, widgetId, route) {
       const retry = () => platform.openApp({ appId, widgetId, route })
-      if (preserveForeground && state.active) {
-        host.showAppError(`无法启动 ${appId}：${reason}`, retry)
-      } else {
-        host.openRuntimeUnavailable(appId, reason, retry)
-      }
+      host.openRuntimeUnavailable(appId, reason, retry)
     }
 
     function showActionFailure(intent, reason) {
@@ -243,9 +239,10 @@
           previousState: transition.previousState,
         }) : { ok: false, error: 'rollback-unavailable' }
         if (rollback.ok && previous) await restoreLocalForeground(previous)
+        if (!previous) host.closeAppFrame()
         const detail = rollback.ok ? error.message :
           `${error.message}; endpoint rollback failed: ${rollback.error || 'unknown error'}`
-        showOpenFailure(appId, detail, widgetId, route, rollback.ok && Boolean(previous))
+        showOpenFailure(appId, detail, widgetId, route)
         return false
       }
     }

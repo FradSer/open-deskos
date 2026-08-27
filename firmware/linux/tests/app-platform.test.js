@@ -59,7 +59,7 @@ test('rolls back endpoint and local foreground after runtime startup failure', a
   assert.equal(endpoint.foreground().appId, 'clock')
   assert.equal(endpoint.get('clock').state, 'running')
   assert.equal(endpoint.get('target').state, 'installed')
-  assert.equal(calls.some(([type]) => type === 'app-error'), true)
+  assert.equal(calls.some(([type]) => type === 'runtime-error'), true)
 })
 
 test('rolls back endpoint state when runtime rejects an action', async () => {

@@ -214,6 +214,7 @@ function main() {
       document.getElementById('app-back').focus()
       return
     }
+    activeFrame = null
     runtimeRoot().replaceChildren()
     runtimeRoot().hidden = false
     appView.removeAttribute('data-source-widget')

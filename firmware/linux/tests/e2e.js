@@ -99,18 +99,6 @@ const DRIVER_SCRIPT = `
     document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
   out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
   out.preloadExposesIntentEndpoint = typeof window.odkCompanion?.dispatchIntent === 'function' && typeof window.odkCompanion?.listApps === 'function'
-  out.endpointListCalled = false
-  out.endpointIntentCalled = false
-  const originalListApps = window.odkCompanion?.listApps
-  const originalDispatchIntent = window.odkCompanion?.dispatchIntent
-  if (originalListApps) window.odkCompanion.listApps = async (...args) => {
-    out.endpointListCalled = true
-    return originalListApps(...args)
-  }
-  if (originalDispatchIntent) window.odkCompanion.dispatchIntent = async (...args) => {
-    out.endpointIntentCalled = true
-    return originalDispatchIntent(...args)
-  }
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
@@ -620,9 +608,16 @@ async function main() {
     return checkCompanionHealth(endpoint)
   })
   const appManager = createAppManagerEndpoint()
-  ipcMain.handle('odk-app-manager-list', () => appManager.list())
+  const endpointCalls = { list: 0, intent: 0 }
+  ipcMain.handle('odk-app-manager-list', () => {
+    endpointCalls.list += 1
+    return appManager.list()
+  })
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
-  ipcMain.handle('odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent))
+  ipcMain.handle('odk-app-manager-intent', (_event, intent) => {
+    endpointCalls.intent += 1
+    return appManager.dispatch(intent)
+  })
 
   const win = new BrowserWindow({
     width: 568,
@@ -663,6 +658,8 @@ async function main() {
     app.exit(1)
     return
   }
+  results.endpointListCalled = endpointCalls.list > 0
+  results.endpointIntentCalled = endpointCalls.intent > 0
   const endpointFailures = runEndpointChecks()
   const driverFailures = check(results)
   const motionFailures = await runMotionChecks(win)
