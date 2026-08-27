@@ -22,6 +22,23 @@ test('rejects starting an app after removal', () => {
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
 })
 
+test('preserves the foreground app when the target is removed', () => {
+  const endpoint = createAppManagerEndpoint()
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'pomodoro' }).ok, true)
+  assert.equal(endpoint.remove('clock').ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+  assert.equal(endpoint.foreground().appId, 'pomodoro')
+  assert.equal(endpoint.get('pomodoro').state, 'running')
+})
+
+test('keeps removed apps removed when stop is requested', () => {
+  const endpoint = createAppManagerEndpoint()
+  assert.equal(endpoint.remove('clock').ok, true)
+  assert.equal(endpoint.stop('clock').error, 'not-installed')
+  assert.equal(endpoint.get('clock').state, 'removed')
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+})
+
 test('switches foreground apps only after the target is accepted', () => {
   const endpoint = createAppManagerEndpoint()
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
