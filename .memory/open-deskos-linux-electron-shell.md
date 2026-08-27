@@ -55,6 +55,8 @@ AIODI 外壳,目标面板 568×1232 竖屏触摸。P4+C6 固件仍是生产权�
   尺寸断言用 `getContentBounds()`。
 - 宿主机 smoke/e2e 绿 ≠ CM5 真机绿(GPU 合成、触摸、自启均未验证)。
 - **App Manager owner boundary:** `odk_app_manager.h:6-8` 要求 UI Runtime 在 LVGL owner task 执行,但 `odk_composition.c:152-198` 当前从 `task_app_manager` tick 所有 manager app;`odk_voice_ui.c:388-432` 又单独拥有另一个 Lua/LVGL task。在显式 owner/dispatch port 出现前,不要通过该 worker 启动 UI App。`odk_app_runtime.c:64-66` 还以 NULL modules/capability context 创建 sandbox,因此当前不能声称提供文档中的 allowlisted `lvgl`/`aiodi`/`state`/`root` 接口。Linux endpoint 只能作为验证适配器,不是真实 UI Runtime 集成证据。
+- **验证适配器边界（2026-08-27）:** Linux `src/app-manager-endpoint.js` 是进程内内存 fake；它不读取 v2 manifest、不执行真实 Installer checksum/consent/atomic install，也不执行 C App Runtime。后续若接入真实 IPC，必须先补 `activate_ui`/owner dispatch、完整 AppContext（kind/route/root/state/尺寸/capability）和 Service→UI deny。切换失败必须保留旧前台 App；停止/卸载也必须通过 endpoint，而不是只更新 renderer 本地状态。
+- **生命周期边界:** renderer registry 的完整 hook 集合只保证方法存在；shell composition 仍需继续补充 visual plugin 实例的 disposer/unsubscribe tracking、rebuild teardown 和 `unregister`/fail-closed dependency 语义。App package lifecycle 与 visual plugin lifecycle 不得混用。
 
 **Why:** 这是仓库第一个 JS/Electron 运行时端;token 对齐测试和无头可跑的
 smoke 模式决定了后续切片能否安全迭代。
