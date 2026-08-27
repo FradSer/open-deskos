@@ -82,6 +82,7 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
       return { ...result(appId), trace }
     }
     if (intent.type !== 'action') return { ok: false, error: 'unsupported-intent', trace }
+    if (app.state === 'removed') return { ok: false, error: 'not-installed', trace }
     trace.push({ layer: 'app-manager', action })
     if (!['start', 'pause', 'resume', 'stop'].includes(action)) {
       return { ok: false, error: 'unsupported-action', trace }

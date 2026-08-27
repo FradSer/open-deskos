@@ -208,6 +208,7 @@ const DRIVER_SCRIPT = `
   const search = $('#app-runtime .app-manager .app-search')
   if (search) { search.value = '番茄钟'; search.dispatchEvent(new Event('input', { bubbles: true })) }
   out.appManagerSearchFilters = countBeforeSearch > 1 && appList.querySelectorAll('li').length === 1
+  $('#app-back').click()
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
   $('#app-back').click()
   out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')

@@ -166,8 +166,11 @@
       events,
       endpoint: 'main-process',
       catalog,
-      listApps() {
-        return root.odkCompanion?.listApps?.() || Promise.resolve(catalog())
+      async listApps() {
+        const apps = root.odkCompanion?.listApps
+          ? await root.odkCompanion.listApps()
+          : catalog()
+        return apps.map((app) => ({ ...app, capabilities: [...(app.capabilities || [])] }))
       },
       subscribe(listener) {
         listeners.add(listener)
@@ -257,9 +260,12 @@
         return runtime.dispatchAction(intent)
       },
       closeApp: stopForeground,
-      uninstallApp(appId) {
+      async uninstallApp(appId) {
         const plugin = findApp(appId)
         if (!plugin) return false
+        const result = await dispatchToEndpoint({ type: 'remove-app', appId })
+        if (!result.ok) return false
+        if (state.active?.appId === appId) stopForeground()
         root.odkPlugins.retire(plugin, null, host.context())
         state.appStates.set(appId, 'uninstalled')
         publishAppState(appId)

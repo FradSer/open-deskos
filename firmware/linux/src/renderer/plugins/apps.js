@@ -51,16 +51,21 @@
     el.innerHTML = '<div class="runtime-app app-manager"><h2>应用管理</h2><input class="app-search" type="search" aria-label="搜索 App" placeholder="搜索 App" /><ul class="app-list"></ul></div>'
     const search = el.querySelector('.app-search')
     const list = el.querySelector('.app-list')
+    let items = []
     const render = () => {
       const query = search.value.trim().toLowerCase()
-      const entries = ctx.platform.catalog().filter((item) =>
+      const entries = items.filter((item) =>
         !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
       list.innerHTML = entries.map((item) =>
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
+    const load = async () => {
+      items = await ctx.platform.listApps()
+      render()
+    }
     search.addEventListener('input', render)
     const unsubscribe = ctx.platform.subscribeAppState(render)
     ctx.trackCleanup?.(unsubscribe)
-    render()
+    load()
   }))
 })(typeof window !== 'undefined' ? window : globalThis)
