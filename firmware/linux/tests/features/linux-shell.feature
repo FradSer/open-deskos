@@ -247,12 +247,19 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then 列表只显示匹配的 App
     And 搜索不会创建桌面图标或 dock
 
+  Scenario: App Manager endpoint 拒绝已移除 App 的启动
+    Given App Manager endpoint 中一个 App 已被移除
+    When UI 发出 open-app intent
+    Then endpoint 返回 not-installed 错误
+    And 当前前台 App 不受影响
+
   Scenario: 视觉插件卸载会释放订阅
     Given 一个插件 mount 时订阅了 tick 或 connection
     When 插件执行 stop、unmount、disable、uninstall
     Then 所有订阅都被取消
     And 后续 tick 不再触发旧插件回调
     And stop 与 unmount 不会隐式执行 disable 或 uninstall
+    And 生命周期 trace 保留 stop、unmount、disable、uninstall 的顺序
 
   Scenario: 关闭 App 返回来源上下文
     Given 用户从状态 widget 进入 App 并携带 route

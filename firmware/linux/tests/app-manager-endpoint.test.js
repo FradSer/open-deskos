@@ -16,6 +16,12 @@ test('lists app metadata and enforces one foreground UI app', () => {
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'other' }).error, 'not-found')
 })
 
+test('rejects starting an app after removal', () => {
+  const endpoint = createAppManagerEndpoint()
+  assert.equal(endpoint.remove('clock').ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+})
+
 test('routes lifecycle actions and rejects malformed intent', () => {
   const endpoint = createAppManagerEndpoint()
   assert.equal(endpoint.dispatch(null).error, 'invalid-intent')

@@ -13,7 +13,9 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
   function get(appId) {
     const app = apps.find((candidate) => candidate.appId === appId)
     if (!app) return null
-    return { ...app, capabilities: [...app.capabilities], state: states.get(appId) }
+    const state = states.get(appId)
+    if (state === 'removed') return { ...app, capabilities: [...app.capabilities], state: 'removed' }
+    return { ...app, capabilities: [...app.capabilities], state }
   }
 
   function result(appId) {
@@ -23,6 +25,7 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
   function start(appId) {
     const app = get(appId)
     if (!app) return { ok: false, error: 'not-found' }
+    if (app.state === 'removed') return { ok: false, error: 'not-installed' }
     if (app.kind === 'ui' && foreground.appId && foreground.appId !== appId) {
       return { ok: false, error: 'foreground-busy' }
     }
