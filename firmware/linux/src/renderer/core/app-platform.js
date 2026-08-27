@@ -41,18 +41,23 @@
       }
     })
 
-    async function dispatchToEndpoint(intent) {
-      if (root.odkCompanion?.dispatchIntent) {
-        try {
-          return await root.odkCompanion.dispatchIntent(intent)
-        } catch {
-          return { ok: false, error: 'endpoint-unavailable', trace: [] }
+    let endpointQueue = Promise.resolve()
+    function dispatchToEndpoint(intent) {
+      const request = endpointQueue.then(async () => {
+        if (root.odkCompanion?.dispatchIntent) {
+          try {
+            return await root.odkCompanion.dispatchIntent(intent)
+          } catch {
+            return { ok: false, error: 'endpoint-unavailable', trace: [] }
+          }
         }
-      }
-      return {
-        ok: true,
-        trace: PLATFORM_LAYERS.slice(0, 2).map((layer) => ({ layer, action: intent.type, appId: intent.appId })),
-      }
+        return {
+          ok: true,
+          trace: PLATFORM_LAYERS.slice(0, 2).map((layer) => ({ layer, action: intent.type, appId: intent.appId })),
+        }
+      })
+      endpointQueue = request.catch(() => ({ ok: false, error: 'endpoint-unavailable', trace: [] }))
+      return request
     }
 
     const installer = {
@@ -141,6 +146,10 @@
 
     function stopForeground() {
       if (!state.active) return
+      const appId = state.active.appId
+      dispatchToEndpoint({ type: 'action', appId, action: 'stop' }).then((result) => {
+        if (!result.ok) record('app-manager', 'stop-failed', appId)
+      })
       runtime.stop()
       manager.stop()
       host.closeAppFrame()
