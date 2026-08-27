@@ -43,13 +43,15 @@ For firmware, run these commands from `firmware/open-deskos/application/open_des
 # Guition JC4880P443C (P4 + C6)
 eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 eim run "idf.py build" v6.0.1
+eim run "idf.py -p PORT flash monitor" v6.0.1
 
 # Waveshare ESP32-S3 Touch LCD 2.8
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 eim run "idf.py -B build-s3 build" v6.0.1
+eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
 ```
 
-Keep S3 in `build-s3`; the native simulator cannot replace a production ESP-IDF build.
+Keep S3 in `build-s3`; the native simulator cannot replace a production ESP-IDF build. Run `firmware/open-deskos/tools/build_c6_espnow_slave.sh` from the repository root for the C6 bridge image.
 
 ## Coding Style & Testing Guidelines
 

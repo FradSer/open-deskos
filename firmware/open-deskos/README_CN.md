@@ -1,16 +1,13 @@
 # Open DeskOS 固件
 
-本目录包含 **Guition JC4880P443C** 的 Open DeskOS 生产固件：
+本目录包含 Open DeskOS 生产固件及两个受支持的 board-manager 目标：
 
-- ESP32-P4 主处理器
-- ESP32-C6 Wi-Fi 与 ESP-NOW 协处理器
-- ST7701S MIPI-DSI 显示屏，480×800 竖屏
-- GT911 电容触摸
+- **Guition JC4880P443C**：ESP32-P4 主处理器、ESP32-C6 Wi-Fi/ESP-NOW 协处理器、ST7701S MIPI-DSI 480×800 竖屏、GT911 触摸。
+- **Waveshare ESP32-S3 Touch LCD 2.8**：ESP32-S3、ST7789 SPI 240×320 显示屏、CST328 触摸。
 
-生产固件工程位于 [`application/open_deskos/`](application/open_deskos/)。唯一的
-board-manager 定义位于
-[`application/open_deskos/boards/guition/jc4880p443c/`](application/open_deskos/boards/guition/jc4880p443c/)。
-其他开发板和上游独立示例工程不属于当前固件树。
+生产固件工程位于 [`application/open_deskos/`](application/open_deskos/)。板级定义位于
+[`application/open_deskos/boards/`](application/open_deskos/)，支持的 ID 是
+`jc4880p443c` 和 `esp32_s3_touch_lcd_2_8`。上游独立示例工程不属于当前固件树。
 
 ## 编译与烧录
 
@@ -19,13 +16,18 @@ IDF。
 
 ```bash
 cd firmware/open-deskos/application/open_deskos
+# Guition JC4880P443C（P4 + C6）
 eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 eim run "idf.py build" v6.0.1
 eim run "idf.py -p PORT flash monitor" v6.0.1
+
+# Waveshare ESP32-S3 Touch LCD 2.8（独立构建目录）
+eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
+eim run "idf.py -B build-s3 build" v6.0.1
+eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
 ```
 
-board-manager 步骤会在 `components/gen_bmgr_codes/` 生成板级组件。删除 build
-目录或修改板级定义后，需要重新执行该步骤。
+board-manager 步骤会在 `components/gen_bmgr_codes/` 生成板级组件。删除构建目录或修改板级定义后，需要重新执行该步骤；S3 目标使用独立的 `build-s3` 目录。
 
 需要时，C6 网络镜像单独构建并嵌入：
 
@@ -56,5 +58,4 @@ cmake --build /tmp/open-deskos-host-build -j
 ctest --test-dir /tmp/open-deskos-host-build --output-on-failure
 ```
 
-Native 模拟器使用 SDL2 IO/PARTIAL 渲染路径。模拟器通过不代表生产 P4 MIPI-DSI
-adapter 路径通过；烧录真机前必须执行 `idf.py build` 验证固件。
+Native 模拟器使用 SDL2 IO/PARTIAL 渲染路径。模拟器通过不代表生产 P4 MIPI-DSI adapter 或 S3 SPI 路径通过；烧录真机前必须执行对应目标的 ESP-IDF 构建验证固件。

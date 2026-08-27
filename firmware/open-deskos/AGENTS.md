@@ -107,9 +107,10 @@ behavior changes. Host CTest includes C tests plus contracts such as
 `dashboard_layout_contract.cmake`. Run the relevant board build and host CTest
 suite; run both frontend commands for settings UI changes. Before review, state
 the board/build target and commands. A host or simulator pass does not prove
-the P4 MIPI-DSI display path. The firmware `.pre-commit-config.yaml` references
-removed `.gitlab/ci/` and `tools/ci/` files; repair those hooks before treating
-pre-commit as a reliable gate. Never commit credentials or temporary diagnostics.
+the P4 MIPI-DSI display path. The firmware `.pre-commit-config.yaml` keeps
+portable whitespace, executable, branch-name, commit-message, and codespell
+hooks; run them only after reviewing the firmware-scoped configuration. Never
+commit credentials or temporary diagnostics.
 
 ## Common File Locations
 

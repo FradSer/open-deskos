@@ -35,25 +35,33 @@ Skill manifests and built-in Lua scripts/docs are synced into `build/system_fs_i
 
 ### Prerequisites
 
-- ESP-IDF is installed and exported
-- `ESP-IDF v5.5.4` is recommended
+- ESP-IDF 6.0.1 or newer is installed; use `eim` to select the version. The
+  P4 MIPI-DSI path requires this newer toolchain.
+- Install the board-manager helper once in the selected ESP-IDF environment:
+  `pip install esp-bmgr-assist`
+
+Run commands through the selected toolchain:
 
 ```bash
-. <your-esp-idf-path>/export.sh
+eim run "idf.py --version" v6.0.1
 ```
 
 ### Configuration
 
-To make `esp-board-manager` easier to use, first install the helper package with `pip install esp-bmgr-assist`. You only need to do this once in a given ESP-IDF environment.
-
-1. Generate board support files:
+1. Generate board support files for the target you are building:
 
 ```bash
 cd application/open_deskos
-idf.py bmgr -c ./boards -b jc4880p443c
+# Guition JC4880P443C (ESP32-P4 + C6)
+eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
+
+# Waveshare ESP32-S3 Touch LCD 2.8
+# Keep this target in the separate build-s3 directory below.
+eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 ```
 
-> Production firmware supports only `jc4880p443c`, which generates the configuration for the Guition JC4880P443C board.
+The supported board-manager targets are `jc4880p443c` and
+`esp32_s3_touch_lcd_2_8`. Board-specific metadata lives under `boards/`.
 
 2. Configure Wi-Fi, LLM, IM, search engine, and related parameters:
 
@@ -74,12 +82,17 @@ Key Notes:
 You can adjust compile-time default values through `menuconfig`:
 
 ```bash
-idf.py menuconfig
+eim run "idf.py menuconfig" v6.0.1
 ```
 
-3. Build and flash:
+3. Build and flash the selected target:
 
 ```bash
-idf.py build
-idf.py flash monitor
+# Guition P4 + C6
+eim run "idf.py build" v6.0.1
+eim run "idf.py -p PORT flash monitor" v6.0.1
+
+# Waveshare S3 (separate build tree)
+eim run "idf.py -B build-s3 build" v6.0.1
+eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
 ```
