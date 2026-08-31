@@ -1,27 +1,15 @@
 # Repository Guidelines
-
 ## Project Structure & Module Organization
-
-`main/p4_camera_main.c` owns ESP32-P4 boot, USB CDC setup, and capture startup. Keep SC2336 hardware logic in `main/p4_sc2336.{c,h}` and versioned metadata encoding/parsing in `main/p4_camera_protocol.{c,h}`. `main/idf_component.yml`, `dependencies.lock`, and `sdkconfig.defaults` define the ESP-IDF component set and defaults. Behavior is specified in `tests/features/p4-camera.feature`.
-
-## Build & Development Commands
-
+This is the ESP32-P4 SC2336 Camera Peripheral for the active CM5 architecture; it is distinct from preserved P4+C6 DeskOS research. `main/p4_camera_main.c` owns boot, USB CDC, and capture startup. Keep sensor logic in `main/p4_sc2336.{c,h}` and versioned metadata encoding/parsing in `main/p4_camera_protocol.{c,h}`. `tests/features/p4-camera.feature` owns behavior.
+## Build, Test & Development Commands
 Use ESP-IDF 6.0.1 from this directory:
-
 ```sh
 eim run 'idf.py set-target esp32p4' v6.0.1
 eim run 'idf.py build' v6.0.1
 eim run 'idf.py -p PORT flash monitor' v6.0.1
 ```
-
-For repository contract coverage, run `pnpm test` from `runtime/linux/`; it checks the feature, documentation, and v1 metadata parser. A successful host check does not validate the SC2336 sensor, MIPI link, or USB device on hardware.
-
+Run `pnpm test` from `runtime/linux/` for feature, documentation, and v1 protocol coverage. It does not validate the SC2336 sensor, MIPI link, or USB hardware.
 ## Coding Style & Testing Guidelines
-
-Use ESP-IDF C conventions: 4-space indentation, `snake_case`, explicit `esp_err_t` handling, and focused modules. Preserve the documented SCCB pins (GPIO 7/8), reset pin (GPIO 26), MIPI CSI capture boundary, and newline-delimited v1 metadata protocol. Add or update the local Given/When/Then feature before behavior changes, then update the matching Linux contract test.
-
-Do not manually edit `build/`, `managed_components/`, `sdkconfig`, or `sdkconfig.old`; they are ESP-IDF-generated configuration or dependency output.
-
+Use 4-space ESP-IDF C, `snake_case`, focused modules, and explicit `esp_err_t` handling. Preserve SCCB GPIO 7/8, reset GPIO 26, the MIPI CSI capture boundary, and newline-delimited v1 metadata. Owner recognition is an experiment; it must not create a CM5 base-shell gate. Update the local Given/When/Then feature and matching runtime protocol test before behavior changes. Do not edit `build/`, `managed_components/`, `sdkconfig`, `sdkconfig.old`, or dependency output manually.
 ## Commit & Pull Request Guidelines
-
-Use the repository’s Conventional Commit style and keep camera firmware, protocol, and documentation changes reviewable together. State the ESP-IDF target and the exact build/test commands run; identify unverified hardware behavior. Never include device credentials, captured biometric data, or temporary diagnostics.
+Keep camera firmware, protocol, and docs reviewable together under a focused Conventional Commit. Report the ESP-IDF target, tests run, and unverified hardware. Never include biometric data, camera captures, credentials, or diagnostics.
