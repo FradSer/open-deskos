@@ -1,15 +1,15 @@
 scopes:
-    - name: runtime
-      description: active CM5/Linux Electron runtime, tests, deployment, and renderer code in runtime/linux/.
-    - name: peripherals
-      description: required ESP32-S3 Remote and ESP32-P4 Camera Peripheral firmware in peripherals/.
-    - name: integrations
-      description: CM5 service integrations and opt-in experiments in integrations/ and experiments/.
-    - name: research
-      description: preserved P4+C6 DeskOS firmware, specifications, simulator, and Apple USB companion in research/esp32-p4-c6-deskos/.
-    - name: firmware
-      description: core application logic, OS services, and platform-specific firmware for linux, ESP32-P4, and ESP32-S3 in firmware/; does not cover apple companion apps
-    - name: app
-      description: Apple-based management consoles, companion applications, and CLI tools in app/; does not cover linux firmware
-    - name: experiments
-      description: sandbox, research, and non-production prototypes in experiments/; does not cover main application code
+    - name: cm5
+      description: active CM5/Linux Electron runtime, renderer, deployment, and tests in runtime/linux/.
+    - name: hw
+      description: required hardware peripherals in peripherals/.
+    - name: link
+      description: Remote Bridge transport and systemd integration in integrations/remote-bridge/.
+    - name: vision
+      description: opt-in Face Agent experiment in experiments/vision/face-agent/.
+    - name: s31
+      description: CM5/S31 gateway experiment in experiments/cm5-s31-gateway/.
+    - name: p4
+      description: preserved P4+C6 firmware, simulator, and specifications in research/esp32-p4-c6-deskos/firmware/ and docs/.
+    - name: mac
+      description: preserved Apple P4 companion in research/esp32-p4-c6-deskos/apple/.
