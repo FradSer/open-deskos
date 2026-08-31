@@ -6,9 +6,9 @@
   OpenCode Go, Remote Bridge, and fixed-loopback Face Agent IPC; it denies
   navigation, popups, permissions, and kiosk DevTools.
 - `src/renderer/` is a framework-free DOM shell. `core/` owns plugin lifecycle,
-  the Installer → App Manager → App Runtime seam, and composition; visible
-  plugins live in `plugins/`, with placement in `config/desktop_layout.js`.
-  Follow `docs/AI_PLUGIN_GUIDE.md`; do not bypass those seams.
+  composition, and the built-in-view intent seam; visible plugins live in
+  `plugins/`, with placement in `config/desktop_layout.js`. Follow
+  `docs/AI_PLUGIN_GUIDE.md`; do not bypass those seams.
 - `tests/` contains mixed-language BDD features, Node contracts, smoke/layout
   checks, and Electron E2E. The adjacent architecture peripherals live at
   `../../peripherals/esp32-s3-remote/`, `../../peripherals/esp32-p4-camera/`,
@@ -40,16 +40,15 @@ verify CM5 GPU, touch, or autostart behavior; validate those on device.
   `tests/check_tokens.mjs` fails on drift. UnoCSS utilities must reference these
   Open DeskOS variables rather than defining a second palette. Never hardcode
   off-palette hex values.
-- Connection, widget, and App states are shown honestly ("未连接", "未启动");
-  never fabricate data placeholders that look real. Most persistent state belongs
-  in the live peek, not tooltip-only chrome.
+- Connection, widget, and built-in-view states are shown honestly; never fabricate
+  data placeholders that look real. Most persistent state belongs in the live
+  peek, not tooltip-only chrome.
 - Renderer stays sandboxed: `contextIsolation: true`, `nodeIntegration: false`,
   local files only, no remote content.
 
 ## Commit & Pull Request Guidelines
 
-- Use focused Conventional Commits; current history includes `feat(firmware)`,
-  `fix(firmware)`, and `feat(app)` for this slice.
+- Use focused Conventional Commits; current history includes `fix(runtime):`.
 - Start behavior changes with the relevant `.feature` scenario and keep checks
   in sync. Before review run `pnpm test`, `pnpm smoke`, plus affected E2E or
   Remote Bridge tests. State validation commands and unverified CM5 behavior.
