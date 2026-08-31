@@ -1,5 +1,15 @@
 scopes:
-    - name: app
-      description: macOS OpenDeskOS application, CLI, plugins, health agents, and tests in app/; does not cover embedded device firmware.
+    - name: runtime
+      description: active CM5/Linux Electron runtime, tests, deployment, and renderer code in runtime/linux/.
+    - name: peripherals
+      description: required ESP32-S3 Remote and ESP32-P4 Camera Peripheral firmware in peripherals/.
+    - name: integrations
+      description: CM5 service integrations and opt-in experiments in integrations/ and experiments/.
+    - name: research
+      description: preserved P4+C6 DeskOS firmware, specifications, simulator, and Apple USB companion in research/esp32-p4-c6-deskos/.
     - name: firmware
-      description: ESP-IDF device software, board support, and display drivers in firmware/; does not cover the macOS application.
+      description: core application logic, OS services, and platform-specific firmware for linux, ESP32-P4, and ESP32-S3 in firmware/; does not cover apple companion apps
+    - name: app
+      description: Apple-based management consoles, companion applications, and CLI tools in app/; does not cover linux firmware
+    - name: experiments
+      description: sandbox, research, and non-production prototypes in experiments/; does not cover main application code

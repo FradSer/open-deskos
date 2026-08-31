@@ -19,6 +19,6 @@ P4 首页 OpenCode Go 磁贴使用 Mac 侧抓取的真实订阅快照，而不�
 
 **Why:** 首页的订阅显示必须反映真实账户数据；设备端没有凭据和稳定的账户 API，因此 Mac 负责抓取，P4 只保存并展示快照。
 
-**How to apply:** 修改订阅模型时同时检查 `components/cerb_sub/`、`tests/features/subscription-data.feature`、`app/apple/CerberusCLI/SubBridge.swift` 和 launcher 绑定；先跑 host/BDD 测试，再验证串口 push、设备存储和页面渲染。
+**How to apply:** 修改订阅模型时同时检查 `components/cerb_sub/`、`tests/features/subscription-data.feature`、`research/esp32-p4-c6-deskos/apple/CerberusCLI/SubBridge.swift` 和 launcher 绑定；先跑 host/BDD 测试，再验证串口 push、设备存储和页面渲染。
 
 **Related:** [[cerberus-native-sdl-sim]] [[cerberus-p4-c6-esp-hosted-up]] [[aiodi-ui-design-standard]]

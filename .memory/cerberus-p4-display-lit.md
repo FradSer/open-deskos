@@ -8,7 +8,7 @@ Guition JC4880P443C 的权威硬件参考是 csvke BSP；不要把其他 P4 carr
 
 **板级约束：**
 - GPIO23 是背光；禁止把 GPIO20–23 按其他板的 I2S map 使用，否则会使面板电源/控制脚失效。
-- C6 slave 工程位于 `firmware/open-deskos/application/edge_agent/managed_components/espressif__esp_hosted/slave/`；`network_adapter.bin` 由 `main/cerb_c6_slave_ota.c` 通过 SDIO 更新。
+- C6 slave 工程位于 `research/esp32-p4-c6-deskos/firmware/application/edge_agent/managed_components/espressif__esp_hosted/slave/`；`network_adapter.bin` 由 `main/cerb_c6_slave_ota.c` 通过 SDIO 更新。
 
 **点屏实现：**
 - 控制台走 P4 原生 USB-Serial-JTAG；UART0 不等同于板载 USB-C 调试口。

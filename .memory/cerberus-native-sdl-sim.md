@@ -4,11 +4,11 @@ description: SDL2 480x800 模拟器跑真 lua_module_lvgl+AIODI launcher(无 IDF
 type: project
 ---
 
-Native SDL2 desktop sim at `firmware/open-deskos/sim/native_sdl/`. Builds with plain CMake + SDL2 — NO ESP-IDF, NO emsdk. Compiles the UNMODIFIED firmware `lua_module_lvgl` C sources + runs `lib/launcher.lua`/`lib/aiodi.lua`.
+Native SDL2 desktop sim at `research/esp32-p4-c6-deskos/firmware/sim/native_sdl/`. Builds with plain CMake + SDL2 — NO ESP-IDF, NO emsdk. Compiles the UNMODIFIED firmware `lua_module_lvgl` C sources + runs `lib/launcher.lua`/`lib/aiodi.lua`.
 
 **Build/run:**
 ```
-cd firmware/open-deskos/sim/native_sdl
+cd research/esp32-p4-c6-deskos/firmware/sim/native_sdl
 cmake -S . -B build && cmake --build build -j
 cp ../../components/lua_modules/lua_module_lvgl/lib/{launcher,aiodi}.lua lib/
 cp ../../application/edge_agent/managed_components/lvgl__lvgl/tests/src/test_files/fonts/noto/NotoSansSC-Regular.ttf fonts/

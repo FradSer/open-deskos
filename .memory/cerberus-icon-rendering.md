@@ -12,7 +12,7 @@ type: project
 3. 曾用 `<g transform="scale(s)">` 手动放大(无 viewBox)——9.5 parser 忽略 group transform, 24 单位 path 渲染在画布角落不可见。改 viewBox 后解析对了但仍渲染空白 → **放弃 SVG**。
 
 **FontAwesome 方案:**
-- `firmware/open-deskos/application/edge_agent/fatfs_image/storage/fonts/fa-icons.ttf` — hb-subset 提取 13 个字形(U+F0E0 envelope, F133 calendar, F013 gear, F254 hourglass, F0F3 bell, F0E7 bolt, F522 dice, F043 droplet, F005 star, F06C leaf, F0C1 link, F060 arrow-left, F0D9 caret-left)。**必须用 hb-subset 生成**(fontTools 在 macOS 输出损坏 TTF, 见 cjk-font-subset-hb-subset)。
+- `research/esp32-p4-c6-deskos/firmware/application/edge_agent/fatfs_image/storage/fonts/fa-icons.ttf` — hb-subset 提取 13 个字形(U+F0E0 envelope, F133 calendar, F013 gear, F254 hourglass, F0F3 bell, F0E7 bolt, F522 dice, F043 droplet, F005 star, F06C leaf, F0C1 link, F060 arrow-left, F0D9 caret-left)。**必须用 hb-subset 生成**(fontTools 在 macOS 输出损坏 TTF, 见 cjk-font-subset-hb-subset)。
 - `aiodi.lua`: `M.icon_font_path`、`FA_GLYPHS` 映射表、`M.icon_font(size)`(走 font_at 缓存)、`M.icon_label(parent, {name, size, color, x, y})`(label + utf8.char(glyph))。
 - `launcher.lua`: 首页 3 tile、状态栏闪电、peek 图标全用 `aiodi.icon_label`(不再 svg_icon)。`svg_icon` 保留(兼容)但 launcher 不调用。
 - 图标尺寸: 首页 `icon_px = math.floor(g.cell * 0.5)`(50%, 用户调过 88%→60%→50%)。

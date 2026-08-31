@@ -1,15 +1,12 @@
-# docs/ 导航索引
+# Documentation index
 
-> OpenDeskOS — 桌面 OS 设备（ESP32-P4 + ESP32-C6），从 open-deskos 仓库迁出。
+## Current Open DeskOS
 
-## 目录分类
+- [Product definition](../PRODUCT.md)
+- [CM5 runtime architecture context](../runtime/linux/CONTEXT.md)
+- [CM5 runtime runbook](../runtime/linux/README.md)
+- [CM5/P4 research-boundary decision](../runtime/linux/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
 
-| 目录 | 内容 |
-|---|---|
-| [open-deskos/](open-deskos/) | 产品规格文档：**`OPEN-DESKOS.md`（顶层总纲：产品定义/硬门/里程碑/任务映射）**、`PROJECT-OPEN-DESKOS.md`、`SPEC-MVP.md`、`DESIGN-EXTENSIONS.md`、`FACT-CHECK.md`、`PLUGINS_AND_WIDGETS_ARCHITECTURE.md`、`WIDGET_SPEC_AND_AI_GUIDE.md` 等 |
-| [reference/](reference/) | 现役板硬件/生态参考资料：`GUITION-JC4880P443.md`、`guition-lvgl-60fps-path.md`、`guition-lvgl-touch-pager-best-practices.md` |
+## Preserved research
 
-## 阅读顺序
-
-1. **入口**：[open-deskos/OPEN-DESKOS.md](open-deskos/OPEN-DESKOS.md) — 产品定义、五大支柱、硬门、里程碑
-2. **整体规格**：`open-deskos/PROJECT-OPEN-DESKOS.md` → `open-deskos/SPEC-MVP.md`
+[research/esp32-p4-c6-deskos/docs/](../research/esp32-p4-c6-deskos/docs/) preserves the earlier P4+C6 DeskOS product definition, specifications, board references, UI architecture, and historical reviews. Those documents describe the prior parallel research line; they do not define the active CM5 runtime.

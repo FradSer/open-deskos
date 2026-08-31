@@ -16,7 +16,7 @@ Open DeskOS 实现了完全解耦、组件化、声明式编排的插件操作�
 - `launcher.lua`：精简为 ~300 行的 Shell Composition Root。
 
 **AI 生成友好规范：**
-- 单文件自包含 Plugin 模板（见 `docs/open-deskos/WIDGET_SPEC_AND_AI_GUIDE.md`）。
+- 单文件自包含 Plugin 模板（见 `research/esp32-p4-c6-deskos/docs/WIDGET_SPEC_AND_AI_GUIDE.md`）。
 - 严格遵循 AIODI 设计系统（`aiodi.colors`, `aiodi.px`, `aiodi.icon_label`），严禁使用 SVG 和非标准颜色。
 - 热路径严格执行零表分配。
 

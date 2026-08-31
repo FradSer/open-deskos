@@ -23,7 +23,7 @@ type: project
 **Why:** CM5 的计算、Linux 和 NPU 能力不能由 S31 替代；CM5 的联网与 S31 的无线外设职责也不应通过未经验证的网络桥接强耦合。把两者拆开可先得到可工作的端到端原型，再决定是否值得做定制载板。
 
 **How to apply:**
-- 新文档引用 [CM5-S31-INTEGRATION.md](../docs/open-deskos/CM5-S31-INTEGRATION.md)。
+- 新文档引用 [experiments/cm5-s31-gateway/README.md](../experiments/cm5-s31-gateway/README.md)。
 - 不再把 S3 写成当前迁移方案，也不把 C6 esp-hosted 直接套到 S31。
 - P4+C6 的既有事实仍只适用于 P4 基线；CM5/S31 是独立迁移分支。
 

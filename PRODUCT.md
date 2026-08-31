@@ -4,54 +4,44 @@
 
 ## Platform
 
-adaptive
-
-Open DeskOS ships one product across platforms that each own their native design language: on-device LVGL/Lua UI (AIODI design system) on the **Guition JC4880P443C 480×800 portrait panel only**, SwiftUI client apps (`app/apple/`), a planned Rust macOS menu-bar companion (OPEN-DESKOS.md §10), and web surfaces (docs site, embedded SolidJS settings UI). Other boards and the 928×262 landscape bar are future research/form-factor references, not supported firmware targets.
+Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. It has two required architecture peripherals with independent hardware acceptance gates: an ESP32-S3 touch Remote Control and an ESP32-P4 SC2336 Camera Peripheral. The base CM5 shell remains usable through direct touch and keyboard before either peripheral is accepted. The prior ESP32-P4+C6 DeskOS device OS and its Apple USB companion are preserved research, not active product platforms.
 
 ## Users
 
-Personal developers and knowledge workers at a Mac keyboard. The device sits beside the keyboard as a glanceable companion: they look down for status (time, timer, AI quota, connection), then tap into an app when the task needs more than a glance. Context is short attention, one hand near the trackpad, ambient desk light, not a lean-back browsing session.
+Personal developers and knowledge workers using a fixed desk display. They glance at current time, focus, network, and explicitly configured account state, then use direct touch, keyboard, or the accepted Remote Control to enter a focused view. The system must remain useful during peripheral, network-provider, or experimental-service degradation.
 
 ## Product Purpose
 
-Open DeskOS is a desktop companion operating system on ESP32-P4 + ESP32-C6: voice-to-cursor input, a modular widget home screen, an extensible plugin runtime, a small built-in app suite, and an ESP-NOW hub for nearby desk peripherals. Success on the panel means glanceable status, physical page/app navigation, and zero trapdoors (Back always works). The only supported firmware canvas is the Guition JC4880P443C 480×800 portrait panel under the AIODI design system. The 928×262 landscape bar and alternate boards remain non-production research references.
+Open DeskOS is a truthful desk companion: a CM5 display runtime that makes the current desk state legible without fabricated personal data, opens focused built-in views without trapping the user, and composes accepted peripherals through explicit protocols. It does not require a Mac or Apple companion.
 
-## Positioning
+## Active Architecture
 
-A desk-side OS device, not a keyboard peripheral: the user speaks to the device and text appears at the macOS cursor (HID + vendor-channel injection); the user generates apps with their own prompts and installs them from a shared catalog, on-device. A neighboring product could copy the touchscreen or the mic — it could not truthfully copy the combination of voice-to-cursor injection plus a prompt-built app platform running self-hosted Wi-Fi, independent of the Mac's sleep state.
+```text
+CM5 Linux / Electron runtime
+  ├─ direct touch and keyboard
+  ├─ ESP32-S3 Remote Control peripheral
+  ├─ ESP32-P4 SC2336 Camera Peripheral
+  ├─ Remote Bridge integration
+  └─ opt-in Face Agent experiment
+```
 
-## Operating Context
+The S3 Remote and P4 Camera are intended system components. Their hardware acceptance is independent from the CM5 base-shell acceptance. Face Agent/owner recognition is experimental and cannot make the base shell inert or hidden.
 
-Desk beside a Mac keyboard, connected over USB-C (composite HID + vendor channel). Device holds its own Wi-Fi via ESP32-C6 (esp-hosted SDIO), so widgets keep refreshing while the Mac sleeps. The macOS companion is the host-side half of the product — Chinese text injection, calendar/usage data push, package sideloading all flow through it. All shipped firmware targets the Guition JC4880P443C 480×800 portrait panel. Alternate form factors, including the 928×262 landscape bar, are not supported production hardware.
+## Preserved Research
 
-## Capabilities and Constraints
-
-Five product pillars (OPEN-DESKOS.md §1): voice input (typeless-style dictation with polish/translate), extensible plugin runtime (esp-claw base; Lua sandbox; App Center archived for refactor), widget home screen, built-in app suite (pomodoro, calendar, AI chatbot, AI usage), ESP-NOW peripheral hub. Hard constraints: hardware gates HG-2–HG-4 (esp-hosted SDIO concurrency, audio chain bring-up, landscape rendering) remain open; M1 "typewriter" runs without a display. Firmware is the esp-claw fork; runtime LLM is first-class but quota-gated.
+`research/esp32-p4-c6-deskos/` preserves the earlier parallel exploration: P4 as a UI/HID/voice host, C6 as Wi-Fi/ESP-NOW coprocessor, LVGL/Lua/AIODI shell, board variants, native simulator, ESP-IDF tests, and Apple USB serial companion. It supplies historical evidence only; it cannot define active runtime requirements, boot paths, UI parity, release gates, or product authority.
 
 ## Brand Commitments
 
 calm / precise / companion
 
-Quiet confidence at the desk. Numerals and status read like instruments, not marketing. The shell feels like a small OS you trust with a flick of the thumb, not a dashboard you configure.
-
-Anti-references: SaaS analytics dashboards (hero metrics, identical card grids, purple gradients); neon cyber / glassmorphism for decoration; generic AI landing-page aesthetics; nested cards and side-stripe accents; decorative motion that does not convey state.
-
-## Evidence on Hand
-
-- `docs/open-deskos/OPEN-DESKOS.md` — top-level product authority (2026-07-07)
-- `DESIGN.md` — AIODI on-device design system; Figma `aCjWcJawjHWCqXXxFVckjS` is the visual source of truth
-- `firmware/open-deskos/` — landed firmware (esp-claw fork); AIODI launcher + voice-generated LVGL Lua UI verified in the native SDL sim and on the P4 panel
-- `app/apple/` — SwiftUI client (read-only/remote/settings subset)
-- No marketing site, testimonials, or external proof assets exist; future work must not fabricate them.
+The CM5 shell inherits the semantic Open DeskOS token palette: black field, charcoal surfaces, restrained red/green/blue state accents, and heavy numerals. Its interaction model is a desk instrument, not a dashboard: show what is true, make an available action clear, preserve a reliable way back.
 
 ## Product Principles
 
-1. **AIODI is law on-device.** Tokens, tiles, and builders in `aiodi` win over ad-hoc styling; Figma `aCjWcJawjHWCqXXxFVckjS` is the visual source of truth.
-2. **Glance first, dive second.** Home surfaces answer "what is true right now" in one look; apps open for the next action.
-3. **System, not website.** Navigation is pager + Back + live peek chrome; gestures should feel physical (momentum, snap, elastic), not page-reload.
-4. **One accent job.** Saturated color marks state or a single focal widget (ring, year fill, quota bar), never decoration on every tile.
-5. **Escape is guaranteed.** The launcher owns the frame; no app may trap the user without Back.
-
-## Accessibility & Inclusion
-
-Touch-first targets sized for fat fingers on a 480×800 portrait panel. Contrast follows AIODI primary/secondary tokens on black. No separate WCAG product mandate beyond readable type and high-contrast status. Prefer motion that conveys navigation state (page coast/snap, page-dot progress); skip ornamental animation. Color-blind users still get shape/position cues (dots, layout), not color alone.
+1. **CM5 owns the runtime.** Linux services, display, local data, and application orchestration live on CM5.
+2. **Truth before detail.** Show locally known or provider-sourced state with provenance; never invent personal activity, health, calendar, or usage data.
+3. **Peripheral gates are independent.** S3 Remote and P4 Camera have dedicated hardware acceptance; missing hardware cannot block base-shell operation.
+4. **Experiments do not become prerequisites.** Face Agent, owner recognition, C6/S31 gateways, and future packages remain opt-in until a product decision promotes them.
+5. **Preserve research without inheriting its constraints.** The P4+C6 device OS and Apple companion stay reproducible in research and do not define the active product.
+6. **Escape is guaranteed.** Back returns to the source context; direct touch and keyboard remain usable when Remote Link is unavailable.

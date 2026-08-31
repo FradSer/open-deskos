@@ -1,10 +1,10 @@
 ---
 name: open-deskos-linux-electron-shell
-description: "CM5(RK3588S)的 Open DeskOS 外壳切片位于 firmware/linux(Electron);smoke 检查必须挂 did-finish-load 而非 ready-to-show"
+description: "CM5(RK3588S)的 Open DeskOS runtime 位于 runtime/linux(Electron);smoke 检查必须挂 did-finish-load 而非 ready-to-show"
 type: project
 ---
 
-CM5 Linux 应用链路的第一片实现:`firmware/linux/`,Electron(43.x,pnpm 固定)渲染
+CM5 Linux 应用链路的第一片实现:`runtime/linux/`,Electron(43.x,pnpm 固定)渲染
 AIODI 外壳,目标面板 568×1232 竖屏触摸。P4+C6 固件仍是生产权威,此切片对应
 迁移评估的"CM5 验证第一步"。
 
