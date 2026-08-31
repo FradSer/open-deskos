@@ -34,6 +34,7 @@ Plugin.widgets = {
         })
 
         local last_tick_sec = 0
+        local last_time_str = ""
 
         return {
             root = tile,
@@ -41,7 +42,11 @@ Plugin.widgets = {
                 local now = os.time()
                 if now == last_tick_sec then return end
                 last_tick_sec = now
-                time_lbl:set_text(os.date("%H:%M", now))
+                local t_str = os.date("%H:%M", now)
+                if t_str ~= last_time_str then
+                    last_time_str = t_str
+                    time_lbl:set_text(t_str)
+                end
             end,
         }
     end,
@@ -63,6 +68,7 @@ Plugin.widgets = {
         })
 
         local last_tick_sec = 0
+        local last_time_str = ""
 
         return {
             root = tile,
@@ -70,7 +76,11 @@ Plugin.widgets = {
                 local now = os.time()
                 if now == last_tick_sec then return end
                 last_tick_sec = now
-                clock_lbl:set_text(os.date("%H:%M", now))
+                local t_str = os.date("%H:%M", now)
+                if t_str ~= last_time_str then
+                    last_time_str = t_str
+                    clock_lbl:set_text(t_str)
+                end
             end,
         }
     end,

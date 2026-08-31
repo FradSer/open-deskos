@@ -9,8 +9,8 @@
   root.odkPlugins.register({
     id: 'clock',
     kind: 'tile',
-    app: '时钟',
-    state: '可查看',
+    app: 'Clock',
+    state: 'Available',
     interaction: 'open-app',
     appId: 'clock',
     mount(el, ctx) {

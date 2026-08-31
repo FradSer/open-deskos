@@ -32,6 +32,7 @@
   --gutter: 28px;
   --cell-w: 170px;
   --cell-h: 170px;
+  --cell-dim: 170px;
   --radius: 36px;
   --stroke-w: 4px;
   --peek-h: 160px;
@@ -73,6 +74,10 @@ html,
 body {
   width: 100%;
   height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
   overflow: hidden;
   background: var(--odk-bg);
   color: var(--odk-primary);
@@ -87,6 +92,46 @@ button {
 
 body.kiosk {
   cursor: none;
+}
+
+#privacy-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.94);
+  color: var(--odk-primary);
+  transition: opacity 240ms ease, visibility 240ms ease;
+}
+
+#privacy-shield[hidden] {
+  display: none;
+}
+
+.privacy-shield-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(12px, 1.2vw, 20px);
+  text-align: center;
+}
+
+.privacy-shield-content svg {
+  width: clamp(56px, 8vw, 112px);
+  height: clamp(56px, 8vw, 112px);
+  color: var(--odk-secondary-strong);
+}
+
+.privacy-shield-content p {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(28px, 4vw, 56px);
+  font-weight: 700;
+}
+
+.privacy-shield-content span {
+  color: var(--odk-secondary);
+  font-size: clamp(16px, 2vw, 26px);
 }
 
 /* ---- Status bar: network, current page, dots, clock ---- */
@@ -216,33 +261,54 @@ body.kiosk {
 }
 
 .page {
-  flex: 0 0 100%;
+  flex: 0 0 auto;
+  width: 100%;
   height: 100%;
   padding: var(--gutter) 0;
   gap: var(--gutter);
 }
 
-/* ---- Dashboard narrative stream ---- */
+/* ---- Dashboard briefing ---- */
 
 .dash {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   padding: calc(var(--gutter) * 0.6) var(--gutter);
+  background: var(--odk-surface);
+}
+
+.dash-head {
+  display: flex;
+  align-items: flex-start;
 }
 
 .dash-wd {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: min(76px, 13vw);
+  font-size: clamp(64px, 11vw, 150px);
   font-weight: 700;
-  line-height: 1;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
   text-transform: uppercase;
+}
+
+.dash-status-dot {
+  width: clamp(20px, 2.5vw, 42px);
+  height: clamp(20px, 2.5vw, 42px);
+  margin: clamp(10px, 1.8vw, 26px) 0 0 calc(var(--gutter) * 0.45);
+  border-radius: 50%;
+  background: var(--odk-accent-red);
+  flex: none;
 }
 
 .dash-date {
   margin-left: auto;
   text-align: right;
   color: var(--odk-secondary-strong);
-  font-size: min(38px, 6.5vw);
-  line-height: 1.3;
+  font-size: clamp(26px, 3.1vw, 50px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -251,44 +317,64 @@ body.kiosk {
 }
 
 .dash-narrative {
-  margin-top: calc(var(--gutter) * 1.6);
-  max-width: 22ch;
-  font-size: min(50px, 8.5vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.08em;
+  margin: clamp(54px, 9vh, 110px) 0 0;
+  max-width: 24ch;
+  font-size: clamp(36px, 4vw, 68px);
   font-weight: 400;
-  line-height: 1.34;
-  color: var(--odk-secondary-strong);
+  letter-spacing: -0.035em;
+  line-height: 1.18;
+  color: var(--odk-secondary);
 }
 
-/* Connected is a state: the word carries Open DeskOS's green status voice. */
-.dash-narrative .connected-word {
-  color: var(--odk-accent-green);
-}
-
-.dash-support {
-  margin-top: calc(var(--gutter) * 0.7);
-  color: var(--odk-secondary-strong);
-  font-size: clamp(15px, calc(var(--cell-w) * 0.1), 20px);
-  line-height: 1.4;
-}
-
-.dash-connect {
-  align-self: flex-start;
-  margin-top: calc(var(--gutter) * 1.2);
-}
-
-.grp {
-  display: inline-block;
+.dash-narrative span {
   white-space: nowrap;
-  margin-right: 0.28em;
 }
 
-.grp:last-child {
-  margin-right: 0;
-}
-
-.grp b {
+.dash-narrative b {
   color: var(--odk-primary);
   font-weight: 700;
+}
+
+.dash-narrative svg {
+  display: inline-block;
+  width: 0.78em;
+  height: 0.78em;
+  margin: 0 0.12em -0.07em 0;
+  color: var(--odk-primary);
+  vertical-align: baseline;
+}
+
+.dash-stats {
+  display: flex;
+  gap: clamp(36px, 5vw, 84px);
+  margin-top: auto;
+  padding-bottom: calc(var(--gutter) * 0.7);
+}
+
+.dash-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38em;
+  color: var(--odk-secondary);
+  font-size: clamp(22px, 2.2vw, 38px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+.dash-stat svg {
+  width: 1.02em;
+  height: 1.02em;
+}
+
+.dash-stat-steps svg {
+  color: var(--odk-accent-blue);
+}
+
+.dash-stat-sleep svg {
+  color: var(--odk-accent-blue);
 }
 
 .card {
@@ -305,20 +391,20 @@ body.kiosk {
 }
 
 .quota-title {
-  font-size: clamp(22px, calc(var(--cell-w) * 0.17), 32px);
+  font-size: clamp(22px, calc(var(--cell-dim) * 0.17), 32px);
 }
 
 /* The connection state is the card's information lead: large, primary. */
 .quota-state {
   color: var(--odk-primary);
-  font-size: clamp(24px, calc(var(--cell-w) * 0.17), 34px);
+  font-size: clamp(24px, calc(var(--cell-dim) * 0.17), 34px);
   line-height: 1.25;
 }
 
 .quota-checked,
 .app-action-status {
   color: var(--odk-secondary-strong);
-  font-size: clamp(14px, calc(var(--cell-w) * 0.095), 18px);
+  font-size: clamp(14px, calc(var(--cell-dim) * 0.095), 18px);
 }
 
 .button-pill {
@@ -330,12 +416,11 @@ body.kiosk {
   background: var(--odk-button);
   color: var(--odk-primary);
   cursor: pointer;
-  font-size: clamp(16px, calc(var(--cell-w) * 0.115), 21px);
+  font-size: clamp(16px, calc(var(--cell-dim) * 0.115), 21px);
   transition: background 140ms ease, transform 140ms ease;
 }
 
-/* The one loud action per page: inverted white pill. Shared by the
-   dashboard and quota "连接 Mac" so the same action carries one weight. */
+/* The one loud action per page uses an inverted primary pill. */
 .button-primary {
   background: var(--odk-primary);
   color: var(--odk-bg);
@@ -369,7 +454,7 @@ body.kiosk {
 }
 
 .widget {
-  gap: calc(var(--cell-w) * 0.05);
+  gap: calc(var(--cell-dim) * 0.05);
   min-width: 0;
   min-height: 0;
   border: var(--stroke-w) solid var(--odk-stroke);
@@ -377,22 +462,22 @@ body.kiosk {
   background: var(--odk-surface);
   color: var(--odk-primary);
   font-family: inherit;
-  font-size: calc(var(--cell-w) * 0.15);
+  font-size: calc(var(--cell-dim) * 0.15);
   overflow: hidden;
 }
 
 .widget svg {
   /* P4 parity: icons read at ~50% of the cell; 0.44 keeps optical margin
      with the name/state lines below. */
-  width: calc(var(--cell-w) * 0.44);
-  height: calc(var(--cell-w) * 0.44);
+  width: calc(var(--cell-dim) * 0.44);
+  height: calc(var(--cell-dim) * 0.44);
   flex-shrink: 0;
   aspect-ratio: 1;
 }
 
 .w-state {
   color: var(--odk-secondary-strong);
-  font-size: clamp(12px, calc(var(--cell-w) * 0.095), 16px);
+  font-size: clamp(12px, calc(var(--cell-dim) * 0.095), 16px);
   line-height: 1;
 }
 
@@ -419,7 +504,7 @@ body.kiosk {
 
 .al-weekday {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.15);
+  font-size: calc(var(--cell-dim) * 0.15);
   font-weight: 400;
   line-height: 1;
   color: var(--odk-accent-red);
@@ -427,13 +512,13 @@ body.kiosk {
 
 .al-day {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 0.42);
+  font-size: calc(var(--cell-dim) * 0.42);
   font-weight: 700;
   line-height: 1;
 }
 
 .al-month {
-  font-size: calc(var(--cell-w) * 0.13);
+  font-size: calc(var(--cell-dim) * 0.13);
   line-height: 1;
   color: var(--odk-secondary);
 }
@@ -444,10 +529,42 @@ body.kiosk {
 
 .w-clock-time {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc(var(--cell-w) * 2 * 0.26);
+  font-size: calc(var(--cell-dim) * 2 * 0.26);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.w-face-presence,
+.w-current-emotion {
+  gap: calc(var(--cell-dim) * 0.035);
+}
+
+.w-face-presence svg,
+.w-current-emotion svg {
+  width: calc(var(--cell-dim) * 0.3);
+  height: calc(var(--cell-dim) * 0.3);
+}
+
+.w-face-presence .w-name,
+.w-current-emotion .w-name {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(12px, calc(var(--cell-dim) * 0.1), 17px);
+}
+
+.w-vision-value,
+.w-emotion {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(22px, calc(var(--cell-dim) * 0.19), 34px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.w-emotion {
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Pomodoro hero ring: P4 parity — 77% of the 2x2 tile span, red arc,
@@ -528,7 +645,7 @@ body.kiosk {
 }
 
 .w-year .w-name {
-  font-size: clamp(14px, calc(var(--cell-w) * 0.11), 20px);
+  font-size: clamp(14px, calc(var(--cell-dim) * 0.11), 20px);
   color: var(--odk-secondary-strong);
 }
 
@@ -554,7 +671,7 @@ body.kiosk {
   margin: 0;
 }
 
-/* ---- Peek strip: live bridge/network status ---- */
+/* ---- Peek strip: live subscription/network status ---- */
 
 #peek {
   position: absolute;
@@ -598,12 +715,12 @@ body.kiosk {
 }
 
 .peek-primary {
-  font-size: clamp(19px, calc(var(--cell-w) * 0.15), 27px);
+  font-size: clamp(19px, calc(var(--cell-dim) * 0.15), 27px);
 }
 
 .peek-secondary {
   color: var(--odk-secondary-strong);
-  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+  font-size: clamp(15px, calc(var(--cell-dim) * 0.11), 20px);
 }
 
 /* ---- App runtime ---- */
@@ -629,7 +746,7 @@ body.kiosk {
 }
 
 .runtime-app h2 {
-  font-size: clamp(24px, calc(var(--cell-w) * 0.17), 34px);
+  font-size: clamp(24px, calc(var(--cell-dim) * 0.17), 34px);
   font-weight: 400;
 }
 
@@ -637,7 +754,7 @@ body.kiosk {
 .runtime-app li,
 .app-manager-status {
   color: var(--odk-secondary-strong);
-  font-size: clamp(16px, calc(var(--cell-w) * 0.11), 21px);
+  font-size: clamp(16px, calc(var(--cell-dim) * 0.11), 21px);
   line-height: 1.45;
 }
 
@@ -732,7 +849,7 @@ body.kiosk {
 }
 
 #app-title {
-  font-size: clamp(22px, calc(var(--cell-w) * 0.16), 30px);
+  font-size: clamp(22px, calc(var(--cell-dim) * 0.16), 30px);
   font-weight: 400;
 }
 
@@ -745,13 +862,13 @@ body.kiosk {
 
 .app-empty {
   max-width: 24ch;
-  font-size: clamp(20px, calc(var(--cell-w) * 0.15), 28px);
+  font-size: clamp(20px, calc(var(--cell-dim) * 0.15), 28px);
 }
 
 .app-empty-sub {
   max-width: 32ch;
   color: var(--odk-secondary-strong);
-  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+  font-size: clamp(15px, calc(var(--cell-dim) * 0.11), 20px);
   line-height: 1.5;
 }
 
@@ -770,7 +887,7 @@ body.kiosk {
 .app-help {
   max-width: 34ch;
   color: var(--odk-secondary-strong);
-  font-size: clamp(16px, calc(var(--cell-w) * 0.12), 22px);
+  font-size: clamp(16px, calc(var(--cell-dim) * 0.12), 22px);
   line-height: 1.6;
 }
 
@@ -779,7 +896,7 @@ body.kiosk {
   width: min(100%, 34ch);
   padding-left: 1.4em;
   color: var(--odk-secondary-strong);
-  font-size: clamp(15px, calc(var(--cell-w) * 0.11), 20px);
+  font-size: clamp(15px, calc(var(--cell-dim) * 0.11), 20px);
   line-height: 1.6;
   text-align: left;
 }

@@ -52,6 +52,8 @@
     const gridW = width
     const gridH = ROWS * cellH + (ROWS - 1) * gutter
 
+    const cellDim = Math.min(Math.floor(colW), cellH)
+
     return {
       width,
       height,
@@ -63,6 +65,7 @@
       colW,
       cellW: Math.floor(colW),
       cellH,
+      cellDim,
       radius: px(REF.radius),
       stroke: Math.max(1, px(REF.stroke)),
       peekH,

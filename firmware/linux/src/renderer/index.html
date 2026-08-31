@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=568, initial-scale=1, user-scalable=no" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src http://127.0.0.1:8788" />
+  <meta name="viewport" content="width=1920, initial-scale=1, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'" />
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="uno.css" />
   <link rel="stylesheet" href="shell.css" />
@@ -17,8 +17,8 @@
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
     <div id="page-center" class="flex items-center">
-      <span id="page-context" aria-live="polite" aria-atomic="true">概览 · 1/3</span>
-      <nav id="dots" class="flex items-center" aria-label="页面指示"></nav>
+      <span id="page-context" aria-live="polite" aria-atomic="true">Overview · 1/3</span>
+      <nav id="dots" class="flex items-center" aria-label="Page indicator"></nav>
     </div>
     <span data-slot="status-right"></span>
     <span id="status-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -28,13 +28,21 @@
     <div id="pages-track"></div>
   </main>
 
-  <button id="peek" class="flex items-center" type="button" aria-label="Mac 与网络状态">
+  <button id="peek" class="flex items-center" type="button" aria-label="OpenCode Go, network, and Remote status">
     <span data-slot="peek"></span>
   </button>
 
+  <section id="privacy-shield" role="alert" aria-live="assertive" aria-label="Screen locked">
+    <div class="privacy-shield-content">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+      <p>Screen locked</p>
+      <span>Waiting for recognized owner</span>
+    </div>
+  </section>
+
   <div id="app-view" role="dialog" aria-modal="true" aria-labelledby="app-title" hidden>
     <header class="app-header flex items-center">
-      <button id="app-back" aria-label="返回">
+      <button id="app-back" aria-label="Back">
         <svg data-tabler="chevron-left" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 6l-6 6l6 6" /></svg>
       </button>
       <h1 id="app-title"></h1>
@@ -42,20 +50,10 @@
     <div class="app-body flex flex-col items-center justify-center">
       <div id="app-runtime" class="app-runtime" data-slot="app-runtime"></div>
       <p class="app-empty" id="app-empty"></p>
-      <p class="app-help" id="app-help" hidden>滑动切换页面；点击页点直接跳转；左右键或 Home/End 键可分页；Back 或 Escape 返回；点击 peek 查看连接状态。</p>
+      <p class="app-help" id="app-help" hidden>Swipe to change pages; select a page dot to jump directly; use Arrow keys or Home/End to navigate; use Back or Escape to return; select the peek to view connection status.</p>
       <p class="app-empty-sub" id="app-empty-sub"></p>
-      <button class="button-pill app-action" id="app-action" type="button" hidden>重新检查状态</button>
+      <button class="button-pill app-action" id="app-action" type="button" hidden>Check status again</button>
       <p class="app-action-status" id="app-action-status" aria-live="polite" hidden></p>
-      <ol class="app-steps" id="app-steps" hidden>
-        <li>让 CM5 与 Mac 连接到同一网络。</li>
-        <li>启动 Mac companion 并保持运行。</li>
-        <li>等待状态变为 Mac 已连接。</li>
-      </ol>
-      <ul class="app-troubleshooting" id="app-troubleshooting" hidden>
-        <li>确认 Mac 与 CM5 在同一网络。</li>
-        <li>确认 Mac companion 正在运行。</li>
-        <li>确认 endpoint 地址正确后重新检查。</li>
-      </ul>
     </div>
   </div>
 
@@ -71,6 +69,8 @@
   <script src="plugins/pomodoro.js"></script>
   <script src="plugins/settings.js"></script>
   <script src="plugins/year.js"></script>
+  <script src="plugins/face-presence.js"></script>
+  <script src="plugins/current-emotion.js"></script>
   <script src="plugins/quota-page.js"></script>
   <script src="plugins/status-connection.js"></script>
   <script src="plugins/status-clock.js"></script>

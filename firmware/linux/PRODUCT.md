@@ -14,7 +14,7 @@ The same desk-side user as the product family: personal developers and knowledge
 
 ## Product Purpose
 
-Linux App Manager validation endpoint for the "CM5 application chain" from `docs/open-deskos/CM5-S31-INTEGRATION.md`: validate truthful state-first Widgets, an iOS-like peek for most persistent status, Widget → App continuation, a unified App Manager entry, and the Installer → App Manager → App Runtime intent seam inside a kiosk Electron window on the CM5's 568×1232 portrait touch panel. The P4+C6 firmware remains production authority; this slice does not replace it.
+Linux App Manager validation endpoint for the "CM5 application chain" from `docs/open-deskos/CM5-S31-INTEGRATION.md`: validate truthful state-first Widgets, an iOS-like peek for most persistent status, Widget → App continuation, a unified App Manager entry, and the Installer → App Manager → App Runtime intent seam inside a kiosk Electron window at the CM5's native 1920×1280 HDMI content size. The P4+C6 firmware remains production authority; this slice does not replace it.
 
 ## Positioning
 
@@ -22,7 +22,7 @@ Not an independent product: it is the Open DeskOS experience rendered on a secon
 
 ## Operating Context
 
-- Target hardware: Orange Pi CM5 (RK3588S) driving a 568×1232 portrait touch panel; kiosk autostart via `scripts/cm5-install.sh` (run on-device, arm64).
+- Target hardware: Orange Pi CM5 (RK3588S) driving a 1920×1280 HDMI display; kiosk autostart via `scripts/cm5-install.sh` (run on-device, arm64).
 - Development happens on macOS or Linux host: `./run.sh` windowed, `bash tests/smoke.sh`, `pnpm run e2e`.
 - Touch input arrives through the display server (X11/Wayland evdev) straight to Chromium; Wayland sessions append `--ozone-platform-hint=auto`.
 - Deployment is rsync-from-Mac then on-device install; see README runbook.
@@ -31,7 +31,7 @@ Not an independent product: it is the Open DeskOS experience rendered on a secon
 ## Capabilities and Constraints
 
 Confirmed capabilities:
-- 568×1232 default kiosk window; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
+- 1920×1280 default kiosk content size; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
 - Three-page horizontal touch pager with threshold-based swipe, visible page context (`名称 · N/3`), and status-bar dot sync: Dashboard narrative stream / Home state Widget grid / Quota honesty card.
 - Home grid: 3 columns with declarative column/row spans in `src/renderer/config/desktop_layout.js`; every Widget exposes a truthful state label and may declare its continuation App. All pages, Widgets, status-bar indicators, peek content, and Apps are self-contained plugins assembled by `core/composer.js`; the App Platform seam handles Installer → App Manager → App Runtime intent routing.
 - Network, Mac companion, and active App states are separate: the bolt reports network reachability, while dashboard, quota and peek check the Mac companion status server and peek also carries the current App live state.
@@ -76,4 +76,4 @@ calm / precise / companion — inherited unchanged from the product family. Open
 
 ## Accessibility & Inclusion
 
-Touch-first targets sized for fingers on a 568×1232 portrait panel. High-contrast Open DeskOS primary/secondary text on black. Motion conveys state (page coast, dot progress), never decoration; navigation cues rely on shape and position (dots, layout), not color alone. No separate WCAG product mandate beyond readable type and strong contrast.
+Touch-first targets sized for fingers on the 1920×1280 HDMI display. High-contrast Open DeskOS primary/secondary text on black. Motion conveys state (page coast, dot progress), never decoration; navigation cues rely on shape and position (dots, layout), not color alone. No separate WCAG product mandate beyond readable type and strong contrast.

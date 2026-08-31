@@ -161,3 +161,8 @@ add_test(NAME s3_small_board_contract
     COMMAND ${CMAKE_COMMAND}
             -D ODK_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/../..
             -P "${CMAKE_CURRENT_SOURCE_DIR}/s3_small_board_contract.cmake")
+
+add_test(NAME m5papercolor_board_contract
+    COMMAND ${CMAKE_COMMAND}
+            -D ODK_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/../..
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/m5papercolor_board_contract.cmake")

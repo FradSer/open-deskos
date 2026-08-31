@@ -22,33 +22,33 @@
     lifecycle: lifecycleFor(mount),
   })
 
-  root.odkPlugins.register(app('calendar', '日历', (el) => {
-    el.innerHTML = '<div class="runtime-app"><h2>日历</h2><p>今日日期可查看。</p><p class="runtime-state">等待 Mac 日程数据。</p></div>'
+  root.odkPlugins.register(app('calendar', 'Calendar', (el) => {
+    el.innerHTML = '<div class="runtime-app"><h2>Calendar</h2><p>Today\'s date is available.</p><p class="runtime-state">Awaiting local calendar data.</p></div>'
   }))
-  root.odkPlugins.register(app('clock', '时钟', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><h2>时钟</h2><p class="runtime-value">--:--</p><p class="runtime-state">实时查看本地时间。</p></div>'
+  root.odkPlugins.register(app('clock', 'Clock', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app"><h2>Clock</h2><p class="runtime-value">--:--</p><p class="runtime-state">View local time in real time.</p></div>'
     const value = el.querySelector('.runtime-value')
     ctx.onTick((now) => {
-      value.textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      value.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     })
   }))
-  root.odkPlugins.register(app('pomodoro', '番茄钟', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><h2>番茄钟</h2><p class="runtime-state">未启动</p><button class="button-pill button-primary" type="button">开始计时</button></div>'
+  root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app"><h2>Pomodoro</h2><p class="runtime-state">Not started</p><button class="button-pill button-primary" type="button">Start timer</button></div>'
     el.querySelector('button').addEventListener('click', () => ctx.emitIntent({
       type: 'action', appId: 'pomodoro', action: 'start',
     }))
   }, [], (intent, context) => {
     if (intent.action !== 'start') return false
-    context.platform.setState('pomodoro', '运行中')
+    context.platform.setState('pomodoro', 'Running')
     const status = context.runtimeRoot().querySelector('.runtime-state')
-    if (status) status.textContent = '运行中'
+    if (status) status.textContent = 'Running'
     return true
   }))
-  root.odkPlugins.register(app('year', '年度进度', (el) => {
-    el.innerHTML = '<div class="runtime-app"><h2>年度进度</h2><p>年度进度在 Widget 中实时更新。</p></div>'
+  root.odkPlugins.register(app('year', 'Year progress', (el) => {
+    el.innerHTML = '<div class="runtime-app"><h2>Year progress</h2><p>Year progress updates in the Widget in real time.</p></div>'
   }))
-  root.odkPlugins.register(app('app-manager', '应用管理', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app app-manager"><h2>应用管理</h2><input class="app-search" type="search" aria-label="搜索 App" placeholder="搜索 App" /><p class="app-manager-status" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>重新加载</button><ul class="app-list"></ul></div>'
+  root.odkPlugins.register(app('app-manager', 'App Manager', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app app-manager"><h2>App Manager</h2><input class="app-search" type="search" aria-label="Search Apps" placeholder="Search Apps" /><p class="app-manager-status" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>Reload</button><ul class="app-list"></ul></div>'
     const search = el.querySelector('.app-search')
     const status = el.querySelector('.app-manager-status')
     const retry = el.querySelector('.app-manager-retry')
@@ -62,7 +62,7 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     const load = async () => {
-      status.textContent = '正在读取 App 列表。'
+      status.textContent = 'Loading Apps.'
       retry.hidden = true
       try {
         items = await ctx.platform.listApps()
@@ -71,7 +71,7 @@
       } catch (error) {
         items = []
         list.replaceChildren()
-        status.textContent = `无法读取 App 列表：${error.message || '未知错误'}`
+        status.textContent = `Unable to load Apps: ${error.message || 'Unknown error'}`
         retry.hidden = false
       }
     }

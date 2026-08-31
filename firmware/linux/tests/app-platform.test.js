@@ -32,7 +32,7 @@ function createHarness({ targetFails = false, clockFailsAfterStart = false, acti
     showAppError: (...args) => calls.push(['app-error', ...args]),
   }
   const root = {
-    odkCompanion: {
+    odkPlatform: {
       dispatchIntent: dispatchIntent || ((intent) => endpoint.dispatch(intent)),
       listApps: () => endpoint.list(),
     },

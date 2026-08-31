@@ -1,0 +1,18 @@
+[Unit]
+Description=Open DeskOS Face Agent
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=FACE_AGENT_DEVICE=/dev/open-deskos-p4-camera
+Environment=FACE_AGENT_WIDTH=1280
+Environment=FACE_AGENT_HEIGHT=720
+Environment=FACE_AGENT_FPS=30
+ExecStart=/opt/face-agent-venv/bin/python3 /opt/face-agent/face_service.py
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+
+[Install]
+WantedBy=default.target

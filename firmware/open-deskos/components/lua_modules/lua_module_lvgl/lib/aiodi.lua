@@ -325,9 +325,10 @@ function M.grid_metrics(w, h)
         return m
     end
     local small_screen = pw <= 320 or ph <= 320
+    local paper_color = pw == 400 and ph == 600
     local cols, rows = small_screen and 2 or 3, small_screen and 2 or 4
     local fit = math.min(pw / M.ref.w, ph / M.ref.h)
-    local gutter = math.floor(M.ref.gutter * fit + 0.5)
+    local gutter = paper_color and 24 or math.floor(M.ref.gutter * fit + 0.5)
     -- Status bar hugs the top edge: bar height = icon glyph + breathing room
     -- (content is top-aligned in build_status_bar, no vertical dead space).
     local status_h = math.max(40, math.floor((M.ref.bar.icon + 12) * fit + 0.5))
@@ -339,7 +340,9 @@ function M.grid_metrics(w, h)
     -- (no side margins; vertical gaps between status bar / grid / peek stay).
     -- The height constraint no longer shrinks the cell: the leftover column
     -- is absorbed by the peek strip, which may drop below peek_min.
-    local cell = (pw - (cols - 1) * gutter) // cols
+    local safe_inset = paper_color and 24 or 0
+    local usable_w = pw - 2 * safe_inset
+    local cell = (usable_w - (cols - 1) * gutter) // cols
     local gw = cols * cell + (cols - 1) * gutter
     local gh = rows * cell + (rows - 1) * gutter
     -- Leftover height becomes the peek strip (may be smaller than peek_min
@@ -349,6 +352,7 @@ function M.grid_metrics(w, h)
         cols = cols, rows = rows,
         cell = cell,
         cell_w = cell, cell_h = cell,
+        safe_inset = safe_inset,
         gutter = gutter,
         gutter_x = gutter, gutter_y = gutter,
         status_h = status_h,
@@ -359,7 +363,7 @@ function M.grid_metrics(w, h)
         peek_inset = math.floor(M.ref.peek.inset * fit + 0.5),
         handle_h = peek_h,
         w = gw, h = gh,
-        x = 0, -- flush left edge
+        x = safe_inset,
         y = status_h,
         -- Peek sits one gutter below the grid, matching tile spacing.
         peek_y = status_h + gh + peek_gap,

@@ -24,6 +24,7 @@
 
 #include "odk_display_bringup.h"
 #include "odk_s3_display_bringup.h"
+#include "odk_m5paper_display_bringup.h"
 #include "driver/usb_serial_jtag.h"
 #include "odk_sub.h"
 #include "odk_touch_bringup.h"
@@ -41,7 +42,9 @@
 static const char *TAG = "odk_voice_ui";
 
 static const char *s_system_prompt =
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    "You generate Lua UI for the Open DeskOS OS shell: a 400x600 portrait e-paper panel.\n"
+#elif CONFIG_IDF_TARGET_ESP32S3
     "You generate Lua UI for the Open DeskOS OS shell: a 240x320 portrait touch panel.\n"
 #else
     "You generate Lua UI for the Open DeskOS OS shell: a 480x800 portrait touch panel.\n"
@@ -100,7 +103,9 @@ static const char *s_system_prompt =
     "NEVER emoji or Unicode pictographs. See the name list above.\n"
     "For anything not in that list use ASCII words (Sunny, Rain).\n"
     "\n"
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    "Globals: PANEL, PANEL_IF, WIDTH=400, HEIGHT=600, ICONS, UI_SCALE.\n"
+#elif CONFIG_IDF_TARGET_ESP32S3
     "Globals: PANEL, PANEL_IF, WIDTH=240, HEIGHT=320, ICONS, UI_SCALE.\n"
 #else
     "Globals: PANEL, PANEL_IF, WIDTH=480, HEIGHT=800, ICONS, UI_SCALE.\n"
@@ -336,6 +341,55 @@ static int voice_ui_lua_usb_connected(lua_State *L)
     return 1;
 }
 
+/* get_button_events() -> table | nil: returns debounced rising-edge flags
+ * {left=bool, center=bool, right=bool} for the PaperColor buttons. */
+static int voice_ui_lua_get_button_events(lua_State *L)
+{
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    static int s_prev_left = 0;
+    static int s_prev_center = 0;
+    static int s_prev_right = 0;
+    static TickType_t s_last_left = 0;
+    static TickType_t s_last_center = 0;
+    static TickType_t s_last_right = 0;
+    const TickType_t now = xTaskGetTickCount();
+    const TickType_t debounce = pdMS_TO_TICKS(250);
+
+    int left = odk_m5paper_get_btn_left();
+    int center = odk_m5paper_get_btn_center();
+    int right = odk_m5paper_get_btn_right();
+
+    int click_left = left && !s_prev_left && (now - s_last_left >= debounce);
+    int click_center = center && !s_prev_center && (now - s_last_center >= debounce);
+    int click_right = right && !s_prev_right && (now - s_last_right >= debounce);
+    if (click_left) {
+        s_last_left = now;
+    }
+    if (click_center) {
+        s_last_center = now;
+    }
+    if (click_right) {
+        s_last_right = now;
+    }
+
+    s_prev_left = left;
+    s_prev_center = center;
+    s_prev_right = right;
+
+    lua_createtable(L, 0, 3);
+    lua_pushboolean(L, click_left);
+    lua_setfield(L, -2, "left");
+    lua_pushboolean(L, click_center);
+    lua_setfield(L, -2, "center");
+    lua_pushboolean(L, click_right);
+    lua_setfield(L, -2, "right");
+    return 1;
+#else
+    lua_pushnil(L);
+    return 1;
+#endif
+}
+
 static int call_global(lua_State *L, const char *name)
 {
     lua_getglobal(L, name);
@@ -353,7 +407,9 @@ static int call_global(lua_State *L, const char *name)
 
 static void voice_ui_register_touch(lua_State *L)
 {
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    esp_lcd_touch_handle_t tp = odk_m5paper_touch_get_handle();
+#elif CONFIG_IDF_TARGET_ESP32S3
     esp_lcd_touch_handle_t tp = odk_s3_touch_get_handle();
 #else
     esp_lcd_touch_handle_t tp = odk_touch_get_handle();
@@ -491,7 +547,9 @@ static void voice_ui_add_lib_path(lua_State *L)
 static odk_err_t load_and_start(const char *lua_src, const char *mode,
                                  const char *app_id, const char *title)
 {
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    esp_lcd_panel_handle_t panel = odk_m5paper_display_get_panel();
+#elif CONFIG_IDF_TARGET_ESP32S3
     esp_lcd_panel_handle_t panel = NULL;
 #else
     esp_lcd_panel_handle_t panel = odk_display_get_panel();
@@ -499,7 +557,12 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     const char *data_root = claw_paths_get(CLAW_PATH_DATA);
     esp_err_t data_root_err;
 
-#if !CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    if (panel == NULL) {
+        ESP_LOGE(TAG, "M5Paper display panel not ready");
+        return ODK_ERR_NOT_FOUND;
+    }
+#elif !CONFIG_IDF_TARGET_ESP32S3
     if (panel == NULL) {
         ESP_LOGE(TAG, "display panel not ready");
         return ODK_ERR_NOT_FOUND;
@@ -558,7 +621,12 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     voice_ui_add_lib_path(L);
 
     int w = 0, h = 0;
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    esp_lcd_panel_handle_t active_panel = odk_m5paper_display_get_panel();
+    esp_lcd_panel_io_handle_t active_io = odk_m5paper_display_get_io();
+    esp_lcd_touch_handle_t active_touch = odk_m5paper_touch_get_handle();
+    odk_m5paper_display_get_size(&w, &h);
+#elif CONFIG_IDF_TARGET_ESP32S3
     esp_lcd_panel_handle_t active_panel = odk_s3_display_get_panel();
     esp_lcd_panel_io_handle_t active_io = odk_s3_display_get_io();
     esp_lcd_touch_handle_t active_touch = odk_s3_touch_get_handle();
@@ -569,7 +637,7 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     esp_lcd_touch_handle_t active_touch = odk_touch_get_handle();
     odk_display_get_size(&w, &h);
 #endif
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR) || CONFIG_IDF_TARGET_ESP32S3
     (void)panel;
 #else
     panel = active_panel;
@@ -595,7 +663,9 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     lua_setglobal(L, "WIDTH");
     lua_pushinteger(L, h);
     lua_setglobal(L, "HEIGHT");
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    lua_pushinteger(L, 1);
+#elif CONFIG_IDF_TARGET_ESP32S3
     lua_pushnumber(L, 0.5);
 #else
     lua_pushinteger(L, 2);
@@ -606,7 +676,7 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     lua_pushstring(L, data_root);
     lua_setglobal(L, "DATA_ROOT");
     lua_getglobal(L, "lvgl");
-#if CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32S3 || defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
     lua_getfield(L, -1, "PANEL_IF_IO");
 #else
     lua_getfield(L, -1, "PANEL_IF_MIPI_DSI");
@@ -625,6 +695,8 @@ static odk_err_t load_and_start(const char *lua_src, const char *mode,
     lua_setglobal(L, "sub_request_fresh");
     lua_pushcfunction(L, voice_ui_lua_usb_connected);
     lua_setglobal(L, "usb_connected");
+    lua_pushcfunction(L, voice_ui_lua_get_button_events);
+    lua_setglobal(L, "get_button_events");
 
     if (luaL_loadstring(L, s_script) != LUA_OK || lua_pcall(L, 0, 1, 0) != LUA_OK) {
         ESP_LOGE(TAG, "App module load failed: %s", lua_tostring(L, -1));

@@ -5,8 +5,8 @@
   root.odkPlugins.register({
     id: 'pomodoro',
     kind: 'tile',
-    app: '番茄钟',
-    state: '未启动',
+    app: 'Pomodoro',
+    state: 'Not started',
     interaction: 'open-app',
     appId: 'pomodoro',
     lifecycle: {
@@ -16,7 +16,7 @@
         this.renderTile(el)
         this.stateUnsubscribe = ctx.platform?.subscribeAppState?.((appId, state) => {
           if (appId !== this.appId) return
-          const label = state === '运行中' ? '运行中' : this.state
+          const label = state === 'Running' ? 'Running' : this.state
           el.dataset.state = label
           const status = el.querySelector('.w-state')
           if (status) status.textContent = label
@@ -44,7 +44,7 @@
         <span class="w-name">${this.app}</span>
         <span class="w-state">${this.state}</span>`
     },
-    name: '番茄钟',
+    name: 'Pomodoro',
     appKind: 'ui',
     version: 'builtin',
   })

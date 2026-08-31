@@ -2,44 +2,53 @@
 (function (root) {
   'use strict'
 
+  function usageLabel(snapshot) {
+    if (!snapshot) return 'OpenCode Go not synchronized'
+    return `OpenCode Go · Rolling ${snapshot.rollingPct ?? '--'}%`
+  }
+
   root.odkPlugins.register({
     id: 'peek-bridge',
     kind: 'peek',
     mount(el, ctx) {
       el.innerHTML = `
         <span class="peek-text odk-stack">
-          <span class="peek-primary" id="peek-bridge" role="status" aria-live="polite"></span>
+          <span class="peek-primary" id="peek-subscription" role="status" aria-live="polite"></span>
           <span class="peek-secondary" id="peek-network"></span>
+          <span class="peek-secondary" id="peek-remote"></span>
           <span class="peek-secondary" id="peek-app"></span>
         </span>
         <svg class="peek-chevron" data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>`
 
-      const bridge = el.querySelector('#peek-bridge')
+      const subscription = el.querySelector('#peek-subscription')
       const network = el.querySelector('#peek-network')
+      const remote = el.querySelector('#peek-remote')
       const app = el.querySelector('#peek-app')
-      ctx.trackCleanup?.(ctx.connection.subscribeBridge((connected) => {
-        bridge.textContent = connected ? ctx.BRIDGE_LABELS.connected : ctx.BRIDGE_LABELS.disconnected
-        bridge.classList.toggle('text-odk-green', connected)
+      ctx.trackCleanup?.(ctx.subscription.subscribe((status) => {
+        subscription.textContent = status.state === 'available'
+          ? usageLabel(status.snapshot)
+          : ctx.subscription.label()
+        subscription.classList.toggle('text-odk-green', status.state === 'available')
       }))
-      ctx.trackCleanup?.(ctx.connection.subscribe((online) => {
+      ctx.trackCleanup?.(ctx.connection.subscribe(() => {
         network.textContent = ctx.connection.label()
       }))
+      ctx.trackCleanup?.(ctx.remoteLink.subscribe((state) => {
+        remote.textContent = `Remote · ${ctx.REMOTE_LINK_LABELS[state]}`
+      }))
       if (ctx.onPlatformState) ctx.trackCleanup?.(ctx.onPlatformState((active) => {
-        app.textContent = active.state === 'idle' ? '未打开 App' : `${active.label} · ${active.state === 'running' ? '运行中' : active.state}`
+        app.textContent = active.state === 'idle' ? 'No App open' : `${active.label} · ${active.state === 'running' ? 'Running' : active.state}`
         app.dataset.appId = active.appId || ''
         app.dataset.route = active.route || ''
       }))
     },
-
-    // Single source of the network guide copy; the peek tap and the quota page's
-    // connect action both land here through ctx.openCompanionGuide().
     activate(ctx) {
       ctx.openDialog(
-        '连接 Mac',
-        '通过网络访问 Mac companion。',
-        '连接成功后，真实日程与用量会显示在这里。当前 CM5 切片不含 Mac companion 安装器。',
-        true,
-        { label: '重新检查状态', onClick: () => ctx.connection.refresh() },
+        'OpenCode Go',
+        ctx.subscription.label(),
+        'The Linux shell reads the device-configured endpoint and credentials in the main process; credentials are never exposed to the page.',
+        false,
+        { label: 'Check status again', onClick: () => ctx.subscription.refresh() },
       )
       return true
     },

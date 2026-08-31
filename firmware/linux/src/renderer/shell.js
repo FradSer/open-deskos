@@ -7,10 +7,12 @@ let pagerRef = null
 function applyGeometry() {
   const m = odkLayout.compute(window.innerWidth, window.innerHeight)
   const root = document.documentElement.style
+  const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
   root.setProperty('--cell-w', `${m.cellW}px`)
   root.setProperty('--cell-h', `${m.cellH}px`)
+  root.setProperty('--cell-dim', `${cellDim}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
   root.setProperty('--peek-h', `${m.peekH}px`)
@@ -68,7 +70,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
       const dot = document.createElement('button')
       dot.type = 'button'
       dot.className = 'dot'
-      dot.setAttribute('aria-label', `第 ${i + 1} 页，${pageNames[i] ?? ''}`)
+      dot.setAttribute('aria-label', `Page ${i + 1}, ${pageNames[i] ?? ''}`)
       dot.addEventListener('click', () => setIndex(i))
       container.append(dot)
     }
@@ -117,24 +119,27 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     event.preventDefault()
   }, true)
 
-  return { setIndex, buildDots, refresh }
+  return {
+    setIndex,
+    buildDots,
+    currentIndex: () => index,
+    refresh,
+  }
 }
 
 function main() {
   const params = new URLSearchParams(window.location.search)
   if (params.get('kiosk') === '1') document.body.classList.add('kiosk')
-  if (params.get('companion')) window.__ODK_COMPANION_HEALTH_URL = params.get('companion')
-
   applyGeometry()
-  odkServices.connection.refresh()
+  odkServices.subscription.refresh()
 
   const appView = document.getElementById('app-view')
+  let privacyShield = null
+  let privacyProtectedElements = []
   const appTitle = document.getElementById('app-title')
   const appEmpty = document.getElementById('app-empty')
   const appHelp = document.getElementById('app-help')
   const appEmptySub = document.getElementById('app-empty-sub')
-  const appSteps = document.getElementById('app-steps')
-  const appTroubleshooting = document.getElementById('app-troubleshooting')
   const appAction = document.getElementById('app-action')
   const appActionStatus = document.getElementById('app-action-status')
   let lastFocusedElement = null
@@ -144,12 +149,27 @@ function main() {
     for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('peek')]) {
       element.inert = inert
       if (inert) element.setAttribute('aria-hidden', 'true')
+      else if (odkServices.faceAgent.status()?.unlocked === true) element.removeAttribute('aria-hidden')
+    }
+  }
+
+  function syncPrivacyShield(status = odkServices.faceAgent.status()) {
+    const unlocked = status?.unlocked === true
+    const dialogOpen = !appView.hidden
+    privacyShield.hidden = unlocked
+    privacyShield.inert = unlocked
+    for (const element of privacyProtectedElements) {
+      const hiddenFromBackground = element === appView ? !unlocked : !unlocked || dialogOpen
+      element.inert = hiddenFromBackground
+      if (hiddenFromBackground) element.setAttribute('aria-hidden', 'true')
       else element.removeAttribute('aria-hidden')
     }
+    document.body.classList.toggle('screen-locked', !unlocked)
   }
 
   function openInfoView(title, message, detail, showSteps = false, action = null) {
     const preservesActiveApp = Boolean(appPlatform?.active())
+    setBackgroundInert(true)
     if (appView.hidden) lastFocusedElement = document.activeElement
     appView.dataset.infoView = preservesActiveApp ? 'active-error' : 'standalone'
     appView.removeAttribute('data-source-widget')
@@ -159,22 +179,20 @@ function main() {
     appEmpty.textContent = message
     appHelp.hidden = true
     appEmptySub.textContent = detail
-    appSteps.hidden = !showSteps
-    appTroubleshooting.hidden = !showSteps
     appAction.hidden = !action
     appActionStatus.hidden = !action
-    appActionStatus.textContent = action?.status || (action ? odkServices.connection.lastCheck() : '')
+    appActionStatus.textContent = action?.status || ''
     appAction.onclick = action
       ? async () => {
           appAction.disabled = true
           try {
             const result = await action.onClick()
             if (!appView.hidden) {
-              appActionStatus.textContent = action.statusAfter?.(result) || action.status || odkServices.connection.lastCheck()
+              appActionStatus.textContent = action.statusAfter?.(result) || action.status || ''
               if (result === true && appView.dataset.infoView === 'active-error') closeInfoView()
             }
           } catch (error) {
-            appActionStatus.textContent = error.message || '操作失败'
+            appActionStatus.textContent = error.message || 'Action failed'
           } finally {
             appAction.disabled = false
           }
@@ -183,8 +201,17 @@ function main() {
     if (action) appAction.textContent = action.label
     runtimeRoot().hidden = !preservesActiveApp
     appView.hidden = false
-    setBackgroundInert(true)
-    document.getElementById('app-back').focus()
+    syncPrivacyShield()
+    focusDialogBack()
+  }
+
+  function focusDialogBack() {
+    const back = document.getElementById('app-back')
+    back.focus()
+    if (document.activeElement !== back) {
+      back.setAttribute('tabindex', '0')
+      back.focus()
+    }
   }
 
   function renderAppFrame({ plugin, source }) {
@@ -194,24 +221,24 @@ function main() {
     appEmpty.hidden = true
     appHelp.hidden = true
     appEmptySub.textContent = ''
-    appSteps.hidden = true
-    appTroubleshooting.hidden = true
     appAction.hidden = true
     appActionStatus.hidden = true
     runtimeRoot().hidden = false
   }
 
   function closeInfoView() {
+    setBackgroundInert(false)
     const restoringActiveApp = appView.dataset.infoView === 'active-error' && appPlatform?.active() && activeFrame
     appView.hidden = true
+    syncPrivacyShield()
     appAction.onclick = null
     appActionStatus.textContent = ''
     appView.removeAttribute('data-info-view')
     if (restoringActiveApp) {
       renderAppFrame(activeFrame)
       appView.hidden = false
-      setBackgroundInert(true)
-      document.getElementById('app-back').focus()
+      syncPrivacyShield()
+      focusDialogBack()
       return
     }
     activeFrame = null
@@ -230,41 +257,41 @@ function main() {
     appView.removeAttribute('data-info-view')
     renderAppFrame({ plugin, source })
     appView.hidden = false
-    setBackgroundInert(true)
-    document.getElementById('app-back').focus()
+    syncPrivacyShield()
+    focusDialogBack()
   }
 
   function openMissingApp(appId) {
-    openInfoView('应用未安装', `无法打开 ${appId}。`, '请在应用管理中确认安装状态。')
+    openInfoView('App not installed', `Cannot open ${appId}.`, 'Verify its installation status in App Manager.')
   }
 
   function openRuntimeUnavailable(appId, reason, retry = null) {
     openInfoView(
-      'App 暂不可用',
-      `无法启动 ${appId}。`,
-      `Runtime 返回 ${reason || '未知错误'}，当前前台 App 未改变。`,
+      'App unavailable',
+      `Cannot start ${appId}.`,
+      `Runtime returned ${reason || 'an unknown error'}. The foreground App was not changed.`,
       false,
       retry ? {
-        label: '重试',
+        label: 'Retry',
         onClick: retry,
-        status: '可重新尝试启动。',
-        statusAfter: (result) => result ? '已重新提交启动请求。' : '重试未成功。',
+        status: 'You can try starting it again.',
+        statusAfter: (result) => result ? 'The start request was resubmitted.' : 'Retry failed.',
       } : null,
     )
   }
 
   function openAppActionError(intent, reason, retry = null) {
-    const action = intent.action || intent.type || '操作'
+    const action = intent.action || intent.type || 'action'
     openInfoView(
-      'App 操作失败',
-      `无法执行 ${action}。`,
-      `App Manager 返回 ${reason || '未知错误'}。`,
+      'App action failed',
+      `Cannot complete ${action}.`,
+      `App Manager returned ${reason || 'an unknown error'}.`,
       false,
       retry ? {
-        label: '重试',
+        label: 'Retry',
         onClick: retry,
-        status: '可重新尝试该操作。',
-        statusAfter: (result) => result ? '操作已完成。' : '重试未成功。',
+        status: 'You can try this action again.',
+        statusAfter: (result) => result ? 'Action completed.' : 'Retry failed.',
       } : null,
     )
   }
@@ -273,15 +300,15 @@ function main() {
     appActionStatus.hidden = false
     appActionStatus.textContent = message
     appAction.hidden = false
-    appAction.textContent = '重试'
+    appAction.textContent = 'Retry'
     appAction.onclick = async () => {
       appAction.disabled = true
       try {
         const result = await retry()
-        appActionStatus.textContent = result ? '操作已完成。' : '重试未成功。'
+        appActionStatus.textContent = result ? 'Action completed.' : 'Retry failed.'
         if (result && appView.dataset.infoView === 'active-error') closeInfoView()
       } catch (error) {
-        appActionStatus.textContent = error.message || '操作失败'
+        appActionStatus.textContent = error.message || 'Action failed'
       } finally {
         appAction.disabled = false
       }
@@ -313,19 +340,23 @@ function main() {
   }
 
   // Services handed to every plugin: dialogs owned by the shell frame,
-  // plus the shared tick/connection stores.
+  // plus the shared tick, network, subscription, and Remote Link stores.
   let appPlatform = null
   const uiCtx = {
-    BRIDGE_LABELS: odkServices.BRIDGE_LABELS,
     NETWORK_LABELS: odkServices.NETWORK_LABELS,
+    SUBSCRIPTION_LABELS: odkServices.SUBSCRIPTION_LABELS,
+    REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
     connection: odkServices.connection,
+    subscription: odkServices.subscription,
+    faceAgent: odkServices.faceAgent,
+    remoteLink: odkServices.remoteLink,
     onTick: odkServices.onTick,
     openDialog: openInfoView,
     emitIntent(intent) {
       return appPlatform?.emitIntent(intent) || false
     },
     openNavigationHelp() {
-      openInfoView('操作说明', '', '', false)
+      openInfoView('Navigation help', '', '', false)
       appHelp.hidden = false
       appEmptySub.textContent = ''
     },
@@ -363,10 +394,18 @@ function main() {
   const peekDef = odkPlugins.byKind('peek')[0]
   if (peekDef) {
     odkPlugins.activate(peekDef, document.querySelector('[data-slot="peek"]'), uiCtx)
-    uiCtx.openCompanionGuide = () => peekDef.activate(uiCtx)
   }
 
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
+  privacyShield = document.getElementById('privacy-shield')
+  privacyProtectedElements = [
+    document.getElementById('status-bar'),
+    document.getElementById('pages-viewport'),
+    document.getElementById('peek'),
+    appView,
+  ]
+  odkServices.faceAgent.subscribe(syncPrivacyShield)
+  void odkServices.faceAgent.refresh()
 
   document.getElementById('app-back').addEventListener('click', async () => {
     if (appView.dataset.infoView) closeInfoView()
@@ -379,20 +418,53 @@ function main() {
       widgetId: appPlatform.active().sourceWidget,
       route: appPlatform.active().route,
     })
-    else uiCtx.openCompanionGuide()
+    else if (peekDef?.activate) peekDef.activate(uiCtx)
   })
 
   const pageNames = window.DESKTOP_LAYOUT.pages.map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
 
+  let currentPageState = null
+
+  function publishPageState() {
+    if (!currentPageState) return
+    window.odkRemote?.publishPageState(currentPageState)?.catch(() => {})
+  }
+
   function updatePageContext(index) {
-    document.getElementById('page-context').textContent = `${pageNames[index] ?? '页面'} · ${index + 1}/${pageNames.length}`
+    const page = index + 1
+    const name = pageNames[index] ?? 'Page'
+    currentPageState = {
+      page,
+      pages: pageNames.length,
+      name,
+      canPrev: page > 1,
+      canNext: page < pageNames.length,
+    }
+    document.getElementById('page-context').textContent = `${name} · ${page}/${pageNames.length}`
+    publishPageState()
   }
 
   pagerRef = createPager(viewport, track, pageNames, updatePageContext)
   pagerRef.buildDots(document.getElementById('dots'))
   updatePageContext(0)
+  setInterval(publishPageState, 5000)
+
+  let lastNavTime = 0
+  const NAV_DEBOUNCE_MS = 1250
+
+  function navigate(direction) {
+    if (!appView.hidden) return
+    const now = Date.now()
+    if (now - lastNavTime < NAV_DEBOUNCE_MS) return
+    lastNavTime = now
+    pagerRef.setIndex(pagerRef.currentIndex() + direction)
+  }
+
+  window.odkRemote?.subscribeNavigation((direction) => {
+    navigate(direction === 'previous' ? -1 : 1)
+  })
 
   window.addEventListener('keydown', (event) => {
     if (!appView.hidden) {
@@ -408,11 +480,12 @@ function main() {
     }
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
+    if (event.repeat) return
+    if (event.key === 'ArrowLeft') return navigate(-1)
+    if (event.key === 'ArrowRight') return navigate(1)
     const dots = [...document.querySelectorAll('#dots .dot')]
-    const current = dots.findIndex((dot) => dot.hasAttribute('aria-current'))
     if (event.key === 'Home') pagerRef.setIndex(0)
-    else if (event.key === 'End') pagerRef.setIndex(dots.length - 1)
-    else pagerRef.setIndex(current + (event.key === 'ArrowLeft' ? -1 : 1))
+    else pagerRef.setIndex(dots.length - 1)
   })
 }
 

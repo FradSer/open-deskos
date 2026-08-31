@@ -17,12 +17,32 @@
       ? {
           ...ctx.connection,
           subscribe: (listener) => track(ctx.connection.subscribe(listener)),
-          subscribeBridge: (listener) => track(ctx.connection.subscribeBridge(listener)),
         }
       : ctx.connection
+    const remoteLink = ctx.remoteLink
+      ? {
+          ...ctx.remoteLink,
+          subscribe: (listener) => track(ctx.remoteLink.subscribe(listener)),
+        }
+      : ctx.remoteLink
+    const subscription = ctx.subscription
+      ? {
+          ...ctx.subscription,
+          subscribe: (listener) => track(ctx.subscription.subscribe(listener)),
+        }
+      : ctx.subscription
+    const faceAgent = ctx.faceAgent
+      ? {
+          ...ctx.faceAgent,
+          subscribe: (listener) => track(ctx.faceAgent.subscribe(listener)),
+        }
+      : ctx.faceAgent
     return {
       ...ctx,
       connection,
+      subscription,
+      faceAgent,
+      remoteLink,
       onTick: (listener) => track(ctx.onTick(listener)),
       trackCleanup: track,
       cleanup() {

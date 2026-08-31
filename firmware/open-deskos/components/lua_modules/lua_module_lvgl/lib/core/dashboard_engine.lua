@@ -63,7 +63,6 @@ function M.render_page(parent, g, host_ctx)
     bg:set_scroll(NO_SCROLL)
     bg:set_clickable(false)
 
-    -- Full-width column with no side insets per design specification
     local dashboard_w = W
     local col = lvgl.container(bg, {
         x = 0, y = 0, w = dashboard_w, h = H,
@@ -74,9 +73,8 @@ function M.render_page(parent, g, host_ctx)
     col:set_clickable(false)
     col:set_flex({ flow = "column", main = "start", cross = "start", track = "start" })
 
-    -- Build and validate geometry model
-    local metrics = dashboard_layout.build_metrics(aiodi, W, H)
-    dashboard_layout.validate(metrics)
+    -- Build geometry model; the grid metrics carry PaperColor safe insets.
+    local metrics = dashboard_layout.build_metrics(aiodi, dashboard_w, H)
 
     -- Top Header: Day of week (left) + Full Date (right)
     local header = lvgl.container(col, {
@@ -191,6 +189,8 @@ function M.render_page(parent, g, host_ctx)
     rebuild_stream()
 
     local last_tick_sec = 0
+    local last_day_str = ""
+    local last_date_str = ""
     return {
         root = bg,
         on_tick = function()
@@ -199,8 +199,16 @@ function M.render_page(parent, g, host_ctx)
                 return
             end
             last_tick_sec = cur_now
-            date_day:set_text(os.date("%A", cur_now):upper())
-            date_val:set_text(os.date("%B %d", cur_now):upper())
+            local d_str = os.date("%A", cur_now):upper()
+            if d_str ~= last_day_str then
+                last_day_str = d_str
+                date_day:set_text(d_str)
+            end
+            local dt_str = os.date("%B %d", cur_now):upper()
+            if dt_str ~= last_date_str then
+                last_date_str = dt_str
+                date_val:set_text(dt_str)
+            end
             rebuild_stream()
         end,
     }

@@ -2,13 +2,13 @@
 (function (root) {
   'use strict'
 
-  const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
   root.odkPlugins.register({
     id: 'almanac',
     kind: 'tile',
-    app: '日历',
-    state: '可查看',
+    app: 'Calendar',
+    state: 'Available',
     interaction: 'open-app',
     appId: 'calendar',
     lifecycle: {
@@ -29,10 +29,10 @@
       ctx.onTick((now) => {
         weekday.textContent = WEEKDAYS[now.getDay()]
         day.textContent = now.getDate()
-        month.textContent = `${now.getMonth() + 1} 月`
+        month.textContent = now.toLocaleString('en-US', { month: 'short' })
       })
     },
-    name: '日历',
+    name: 'Calendar',
     appKind: 'ui',
     version: 'builtin',
   })

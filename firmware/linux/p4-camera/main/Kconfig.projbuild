@@ -1,0 +1,78 @@
+menu "ESP32-P4 SC2336 Camera Configuration"
+
+    config APP_CAMERA_MIPI_SCCB_SDA_PIN
+        int "SCCB SDA GPIO Pin"
+        default 7
+
+    config APP_CAMERA_MIPI_SCCB_SCL_PIN
+        int "SCCB SCL GPIO Pin"
+        default 8
+
+    config APP_CAMERA_SC2336_MIPI_RESET_PIN
+        int "SC2336 Reset GPIO Pin"
+        default 26
+
+    config APP_CAMERA_SC2336_MIPI_PWDN_PIN
+        int "SC2336 Power Down GPIO Pin (-1 if unused)"
+        default -1
+
+    config APP_CAMERA_SCCB_I2C_PORT
+        int "SCCB I2C Port"
+        default 0
+
+    config APP_CAMERA_SCCB_I2C_FREQ
+        int "SCCB I2C Frequency in Hz"
+        default 100000
+
+    config APP_CAMERA_FRAME_WIDTH
+        int "Camera Frame Width"
+        default 640
+
+    config APP_CAMERA_FRAME_HEIGHT
+        int "Camera Frame Height"
+        default 480
+
+    config APP_CAMERA_BUFFER_COUNT
+        int "Video Buffer Count"
+        default 2
+
+    config APP_CAMERA_OWNER_CONFIRM_PIN
+        int "Physical owner enrollment confirmation GPIO"
+        default 0
+        help
+            The ESP32-P4 BOOT button is GPIO 0 on the supported camera board.
+            Set this to a dedicated active-low physical button GPIO for a
+            different board. Enrollment is rejected when no recent button
+            press exists.
+
+    config APP_CAMERA_OWNER_CONFIRM_WINDOW_SECONDS
+        int "Owner enrollment confirmation window in seconds"
+        range 5 120
+        default 30
+
+    config APP_CAMERA_OWNER_NAME
+        string "Physical enrollment owner name"
+        default "Frad"
+        help
+            A physical confirmation press with exactly one visible face stores
+            that face under this local P4 owner label. Host processes cannot
+            set this value or initiate enrollment.
+
+    config APP_CAMERA_DIAGNOSTIC_SNAPSHOT
+        bool "Emit one diagnostic camera snapshot over the serial console"
+        default n
+        help
+            Diagnostic builds only. Emits the first camera frame as a
+            downsampled grayscale PGM record for local CM5 inspection. Do not
+            enable in a production owner-lock image.
+
+    config APP_CAMERA_DIAGNOSTIC_SNAPSHOT_DELAY_SECONDS
+        int "Diagnostic snapshot delay in seconds"
+        range 1 30
+        default 10
+        depends on APP_CAMERA_DIAGNOSTIC_SNAPSHOT
+        help
+            Allows a technician to attach the serial console after flashing
+            before the one-shot image is emitted.
+
+endmenu

@@ -6,7 +6,7 @@
     id: 'chat',
     kind: 'tile',
     app: 'Chatbot',
-    state: '待接入',
+    state: 'Pending integration',
     interaction: 'display-only',
     mount(el) {
       el.innerHTML = `

@@ -58,10 +58,14 @@ eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 # Waveshare ESP32-S3 Touch LCD 2.8
 # Keep this target in the separate build-s3 directory below.
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
+
+# M5Stack PaperColor
+# Keep this target in the separate build-m5paper directory below.
+eim run "idf.py bmgr -c ./boards -b m5papercolor" v6.0.1
 ```
 
-The supported board-manager targets are `jc4880p443c` and
-`esp32_s3_touch_lcd_2_8`. Board-specific metadata lives under `boards/`.
+The supported board-manager targets are `jc4880p443c`,
+`esp32_s3_touch_lcd_2_8`, and `m5papercolor`. Board-specific metadata lives under `boards/`.
 
 2. Configure Wi-Fi, LLM, IM, search engine, and related parameters:
 
@@ -95,4 +99,8 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 # Waveshare S3 (separate build tree)
 eim run "idf.py -B build-s3 build" v6.0.1
 eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
+
+# M5Stack PaperColor (separate build tree)
+eim run "idf.py -B build-m5paper build" v6.0.1
+eim run "idf.py -B build-m5paper -p PORT flash monitor" v6.0.1
 ```

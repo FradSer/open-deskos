@@ -1,17 +1,18 @@
 # Open DeskOS firmware
 
-This directory contains the production Open DeskOS firmware and its two
+This directory contains the production Open DeskOS firmware and its three
 supported board-manager targets:
 
 - **Guition JC4880P443C** — ESP32-P4 application processor, ESP32-C6 Wi-Fi and
   ESP-NOW co-processor, ST7701S MIPI-DSI 480×800 portrait display, GT911 touch.
 - **Waveshare ESP32-S3 Touch LCD 2.8** — ESP32-S3, ST7789 SPI 240×320 display,
   CST328 touch.
+- **M5Stack PaperColor** — ESP32-S3, ED2208 SPI 400×600 e-paper display, M5PM1 PMIC.
 
 The production firmware application is [`application/open_deskos/`](application/open_deskos/).
 Board definitions live under
 [`application/open_deskos/boards/`](application/open_deskos/boards/); the
-supported IDs are `jc4880p443c` and `esp32_s3_touch_lcd_2_8`. Standalone
+supported IDs are `jc4880p443c`, `esp32_s3_touch_lcd_2_8`, and `m5papercolor`. Standalone
 upstream sample applications are not part of this firmware tree.
 
 ## Build and flash
@@ -30,6 +31,11 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 eim run "idf.py -B build-s3 build" v6.0.1
 eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
+
+# M5Stack PaperColor (separate build tree)
+eim run "idf.py bmgr -c ./boards -b m5papercolor" v6.0.1
+eim run "idf.py -B build-m5paper build" v6.0.1
+eim run "idf.py -B build-m5paper -p PORT flash monitor" v6.0.1
 ```
 
 The board-manager step generates the board-specific component under

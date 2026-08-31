@@ -5,8 +5,8 @@
   root.odkPlugins.register({
     id: 'settings',
     kind: 'tile',
-    app: '设置',
-    state: '待接入',
+    app: 'Settings',
+    state: 'Pending integration',
     interaction: 'display-only',
     mount(el) {
       el.innerHTML = `

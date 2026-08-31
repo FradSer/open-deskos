@@ -10,12 +10,13 @@ Open DeskOS is a desktop companion operating system for an ESP32-P4 display devi
 
 ### Firmware
 
-The production firmware lives in `firmware/open-deskos/application/open_deskos/` (ESP-IDF project `open_deskos`). It supports two boards:
+The production firmware lives in `firmware/open-deskos/application/open_deskos/` (ESP-IDF project `open_deskos`). It supports three boards:
 
 - **Guition JC4880P443C** (`guition/jc4880p443c`, ESP32-P4 + ESP32-C6, 480x800 ST7701S MIPI-DSI, GT911 touch) — main desktop device.
 - **Waveshare ESP32-S3 Touch LCD 2.8** (`waveshare/esp32_s3_touch_lcd_2_8`, ESP32-S3, 240x320 ST7789 SPI, CST328 touch) — compact variant with adapted layout and target-gated services.
+- **M5Stack PaperColor** (`m5stack/m5papercolor`, ESP32-S3, 400x600 ED2208 e-paper, M5PM1 PMIC) — reflective e-paper terminal.
 
-Both boards are the product scope enforced by `firmware-scope.feature`. The only supported application path is `application/open_deskos`; the legacy `edge_agent` path and other vendor board trees are not part of the product build. Current product direction and hardware boundaries are documented in [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md).
+All three boards are the product scope enforced by `firmware-scope.feature`. The only supported application path is `application/open_deskos`; the legacy `edge_agent` path and other vendor board trees are not part of the product build. Current product direction and hardware boundaries are documented in [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md).
 
 ### Native SDL simulator
 
@@ -42,6 +43,7 @@ xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
 - [Product specification](docs/open-deskos/OPEN-DESKOS.md)
 - [Firmware README](firmware/open-deskos/README.md)
 - [Waveshare S3 board notes](firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/README.md)
+- [M5PaperColor board notes](firmware/open-deskos/application/open_deskos/boards/m5stack/m5papercolor/README.md)
 - [Apple client notes](app/README.md)
 - [BDD scenarios](firmware/open-deskos/tests/features/)
 
@@ -65,11 +67,16 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 eim run "idf.py -B build-s3 build" v6.0.1
 eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
+
+# M5Stack PaperColor (S3 e-paper, 400x600) — separate build dir
+eim run "idf.py bmgr -c ./boards -b m5papercolor" v6.0.1
+eim run "idf.py -B build-m5paper build" v6.0.1
+eim run "idf.py -B build-m5paper -p PORT flash monitor" v6.0.1
 ```
 
 On macOS, the port is commonly `/dev/cu.usbmodem*`; on Linux, it is commonly `/dev/ttyACM0`. If automatic download mode does not start, hold BOOT while resetting the board, then rerun the flash command. Stop the monitor with `Ctrl-C`.
 
-Board IDs match `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml` and `firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml`. Do not select another board ID for production firmware.
+Board IDs match `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml`, `firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml`, and `firmware/open-deskos/application/open_deskos/boards/m5stack/m5papercolor/board_info.yaml`. Do not select another board ID for production firmware.
 
 ## Testing
 

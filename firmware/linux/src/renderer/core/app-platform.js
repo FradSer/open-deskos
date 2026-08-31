@@ -2,7 +2,7 @@
 (function (root) {
   'use strict'
 
-  const EMPTY_STATE = '未打开 App'
+  const EMPTY_STATE = 'No App open'
 
   function createAppPlatform({ host }) {
     const events = []
@@ -43,11 +43,11 @@
 
     function dispatchToEndpoint(intent) {
       const request = endpointQueue.then(async () => {
-        if (typeof root.odkCompanion?.dispatchIntent !== 'function') {
+        if (typeof root.odkPlatform?.dispatchIntent !== 'function') {
           return { ok: false, error: 'endpoint-unavailable', trace: [] }
         }
         try {
-          return await root.odkCompanion.dispatchIntent(intent)
+          return await root.odkPlatform.dispatchIntent(intent)
         } catch {
           return { ok: false, error: 'endpoint-unavailable', trace: [] }
         }
@@ -132,7 +132,7 @@
           sourceWidget: source?.widgetId || null,
           route: source?.route || null,
         }
-        state.appStates.set(appId, '运行中')
+        state.appStates.set(appId, 'Running')
         publish()
         publishAppState(appId)
       },
@@ -141,7 +141,7 @@
         if (!state.active) return
         const appId = state.active.appId
         state.active = null
-        state.appStates.set(appId, '已停止')
+        state.appStates.set(appId, 'Stopped')
         publish()
         publishAppState(appId)
       },
@@ -319,9 +319,9 @@
       endpoint: 'main-process',
       catalog,
       async listApps() {
-        if (typeof root.odkCompanion?.listApps !== 'function') throw new Error('endpoint-unavailable')
+        if (typeof root.odkPlatform?.listApps !== 'function') throw new Error('endpoint-unavailable')
         try {
-          const apps = await root.odkCompanion.listApps()
+          const apps = await root.odkPlatform.listApps()
           return apps.map((app) => ({ ...app, capabilities: [...(app.capabilities || [])] }))
         } catch {
           throw new Error('endpoint-unavailable')
@@ -344,7 +344,7 @@
       activeSnapshot: () => state.active ? { ...state.active } : null,
       setState(appId, appState) {
         state.appStates.set(appId, appState)
-        if (state.active?.appId === appId) state.active.state = appState === '运行中' ? 'running' : 'paused'
+        if (state.active?.appId === appId) state.active.state = appState === 'Running' ? 'running' : 'paused'
         publish()
         publishAppState(appId)
       },
@@ -376,7 +376,7 @@
           showActionFailure({ type: 'remove-app', appId }, detail)
           return false
         }
-        state.appStates.set(appId, '已卸载')
+        state.appStates.set(appId, 'Uninstalled')
         publishAppState(appId)
         return true
       },

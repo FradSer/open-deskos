@@ -1,0 +1,5 @@
+board: m5papercolor
+chip: esp32s3
+version: 1.0.0
+description: "M5Stack PaperColor 4.3-inch ESP32-S3 e-paper display: ED2208 400x600 e-paper panel over SPI, M5PM1 PMIC over I2C, physical buttons, 16MB flash, 8MB PSRAM."
+manufacturer: "M5Stack"

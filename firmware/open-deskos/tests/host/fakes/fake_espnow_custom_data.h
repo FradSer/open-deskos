@@ -9,7 +9,7 @@
 typedef struct {
     int send_calls;
     uint32_t last_msg_id;
-    uint8_t last_data[ODK_ESPNOW_MAX_PAYLOAD];
+    uint8_t last_data[ODK_ESPNOW_MAC_LEN + ODK_ESPNOW_MAX_PAYLOAD];
     size_t last_len;
     int send_result;
 } fake_espnow_custom_data_t;

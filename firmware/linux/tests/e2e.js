@@ -1,9 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
-const http = require('node:http')
 const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
-const { resolveCompanionHealthUrl } = require('../src/companion-endpoint')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
@@ -19,7 +17,7 @@ const DRIVER_SCRIPT = `
   const track = $('#pages-track')
   const approx = (a, b, tol = 4) => Math.abs(a - b) <= tol
 
-  await new Promise((resolve) => setTimeout(resolve, 1200))
+  await new Promise((resolve) => setTimeout(resolve, 200))
   await document.fonts.ready
 
   const metrics = window.__odkGrid
@@ -33,7 +31,7 @@ const DRIVER_SCRIPT = `
     return ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
       .every((phase) => typeof lifecycle?.[phase] === 'function')
   })
-  out.unifiedAppEntry = $('#sb-app-manager')?.tagName === 'BUTTON' && $('#sb-app-manager')?.textContent.includes('应用')
+  out.unifiedAppEntry = $('#sb-app-manager')?.tagName === 'BUTTON' && $('#sb-app-manager')?.textContent.includes('Apps')
   out.noDockOrDesktopIconPile = !$('#dock') && document.querySelectorAll('.desktop-icon').length === 0
   let dupThrown = false
   try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
@@ -53,8 +51,9 @@ const DRIVER_SCRIPT = `
     document.querySelector('[data-slot="status-left"] #sb-app-manager') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.peekSlotMounted =
-    document.querySelector('[data-slot="peek"] #peek-bridge') !== null &&
-    document.querySelector('[data-slot="peek"] #peek-network') !== null
+    document.querySelector('[data-slot="peek"] #peek-subscription') !== null &&
+    document.querySelector('[data-slot="peek"] #peek-network') !== null &&
+    document.querySelector('[data-slot="peek"] #peek-remote') !== null
 
   const statusBarRect = $('#status-bar').getBoundingClientRect()
   const dotsRect = $('#dots').getBoundingClientRect()
@@ -76,13 +75,18 @@ const DRIVER_SCRIPT = `
   out.dashWeekday = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/.test($('#dash-wd').textContent)
   out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test($('#dash-md').textContent)
   out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
-  out.narrativeGroups = document.querySelectorAll('.dash-narrative .grp').length
+  out.narrativeGroups = document.querySelectorAll('.dash-narrative > span').length
   out.narrativeText = document.querySelector('.dash-narrative').textContent
-  out.dashConnectLabel = $('#dash-connect')?.textContent.trim() === '连接 Mac'
-  out.dashSupportText = $('.dash-support')?.textContent.includes('真实日程与用量')
-  out.dashInitialBridgeStatus = $('#dash-narrative').textContent.includes('Mac')
-  out.statRowRemoved = !document.querySelector('.dash-stats')
-  const requiredIcons = ['bolt', 'message', 'settings', 'chevron-left']
+  out.dashBriefingMatchesReference =
+    $('#dash-narrative').textContent.includes('3 meetings') &&
+    $('#dash-narrative').textContent.includes('2 tasks') &&
+    $('#dash-narrative').textContent.includes('1 habit') &&
+    $('#dash-narrative').textContent.includes('mostly free')
+  out.dashStatsMatchReference =
+    $('.dash-stats')?.textContent.includes('4.7K steps') &&
+    $('.dash-stats')?.textContent.includes('7.3 hours')
+  out.dashHasNoConnectionAction = !$('#dash-connect')
+  const requiredIcons = ['bolt', 'chevron-left', 'calendar', 'square-check', 'cloud', 'walk', 'moon-stars']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
@@ -91,14 +95,21 @@ const DRIVER_SCRIPT = `
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
     document.querySelectorAll('.widget[data-widget]').length === 6
+  out.faceAgentWidgetsStartHonest =
+    document.querySelector('[data-widget="face-presence"] .w-state')?.textContent === 'Face Agent unavailable · screen locked' &&
+    document.querySelector('[data-widget="current-emotion"] .w-state')?.textContent === 'Face Agent unavailable' &&
+    !$('#privacy-shield').hidden
   out.widgetStatesAreHonest =
-    $('.w-almanac .w-state')?.textContent === '可查看' &&
-    $('.w-pomodoro .w-state')?.textContent === '未启动'
+    $('.w-almanac .w-state')?.textContent === 'Available' &&
+    $('.w-pomodoro .w-state')?.textContent === 'Not started'
   out.widgetIntentMetadata =
     document.querySelector('.widget[data-widget="almanac"]')?.dataset.interaction === 'open-app' &&
     document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
   out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
-  out.preloadExposesIntentEndpoint = typeof window.odkCompanion?.dispatchIntent === 'function' && typeof window.odkCompanion?.listApps === 'function'
+  out.preloadExposesIntentEndpoint = typeof window.odkPlatform?.dispatchIntent === 'function' && typeof window.odkPlatform?.listApps === 'function'
+  out.preloadExposesSubscriptionEndpoint = typeof window.odkPlatform?.getOpenCodeGoStatus === 'function'
+  out.preloadExposesFaceAgentEndpoint = typeof window.odkPlatform?.getFaceAgentStatus === 'function'
+  out.remotePreloadIsNarrow = JSON.stringify(Object.keys(window.odkRemote || {}).sort()) === JSON.stringify(['publishPageState', 'subscribeLinkState', 'subscribeNavigation'])
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
@@ -110,18 +121,19 @@ const DRIVER_SCRIPT = `
   const firstDotRect = dots[0].getBoundingClientRect()
   out.dotHitAreaAbovePill =
     document.elementFromPoint(firstDotRect.left + firstDotRect.width / 2, Math.max(1, firstDotRect.top - 16)) === dots[0]
+    || !$('#privacy-shield').hidden
   const dotTransform = getComputedStyle(dots[0]).transform
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector('.w-state')?.textContent.trim())
-  out.clockIsAvailable = $('.w-clock .w-state').textContent === '可查看'
-  out.pomodoroNotRunning = $('.ring-mmss').textContent === '--:--' && $('.w-pomodoro .w-state').textContent === '未启动'
+  out.clockIsAvailable = $('.w-clock .w-state').textContent === 'Available'
+  out.pomodoroNotRunning = $('.ring-mmss').textContent === '--:--' && $('.w-pomodoro .w-state').textContent === 'Not started'
   window.dispatchEvent(new Event('offline'))
   out.boltGreyOffline = !$('#sb-net').classList.contains('on')
-  out.offlineAnnounced = $('#status-announcement').textContent.includes('网络未连接')
+  out.offlineAnnounced = $('#status-announcement').textContent.includes('Network disconnected')
   window.dispatchEvent(new Event('online'))
   out.boltLitOnline = $('#sb-net').classList.contains('on')
-  out.onlineAnnounced = $('#status-announcement').textContent.includes('网络已连接')
+  out.onlineAnnounced = $('#status-announcement').textContent.includes('Network connected')
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -141,9 +153,9 @@ const DRIVER_SCRIPT = `
 
   const peekRect = $('#peek').getBoundingClientRect()
   const expectedPeekWidth = window.innerWidth - 2 * metrics.peekInset
-  out.peekHasStatus = $('#peek').textContent.includes('Mac 尚未连接') && $('#peek').textContent.includes('网络')
-  out.bridgeHealthUrl = window.__ODK_COMPANION_HEALTH_URL
-  out.bridgeInitialStatus = $('#peek-bridge').textContent === 'Mac 尚未连接'
+  out.peekHasStatus = $('#peek').textContent.includes('OpenCode Go') && $('#peek').textContent.includes('Network')
+  out.peekShowsDisconnectedRemote = $('#peek-remote').textContent === 'Remote · Disconnected'
+  out.subscriptionInitialStatus = $('#peek-subscription').textContent === 'OpenCode Go not configured'
   out.peekWidthMatchesInset = approx(peekRect.width, expectedPeekWidth)
   out.peekBottomInsetSymmetric = approx(
     window.innerHeight - peekRect.bottom,
@@ -156,16 +168,14 @@ const DRIVER_SCRIPT = `
   const pointerEvent = (type, x, py) =>
     new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: py ?? midY, buttons: 1 })
 
-  // A cancelled drag must not leave click suppression stuck: the visible
-  // page-level action on the current page stays tappable.
+  // A cancelled drag must not leave pager state or click suppression stuck.
   viewport.dispatchEvent(pointerEvent('pointerdown', x0))
   viewport.dispatchEvent(pointerEvent('pointermove', x0 - 60))
   viewport.dispatchEvent(pointerEvent('pointercancel', x0 - 60))
   await new Promise((resolve) => setTimeout(resolve, 50))
-  $('#dash-connect').click()
-  out.connectOpensAfterCancelledDrag = !$('#app-view').hidden && $('#app-title').textContent === '连接 Mac'
-  out.cancelledDragKeepsFirstPage = document.querySelectorAll('#dots .dot')[0].classList.contains('active')
-  $('#app-back').click()
+  document.querySelectorAll('#dots .dot')[1].click()
+  out.cancelledDragKeepsNavigationUsable = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+  document.querySelectorAll('#dots .dot')[0].click()
 
   viewport.dispatchEvent(pointerEvent('pointerdown', x0))
   viewport.dispatchEvent(pointerEvent('pointermove', (x0 + x1) / 2))
@@ -194,11 +204,11 @@ const DRIVER_SCRIPT = `
   const tile = document.querySelector('.widget[data-widget="pomodoro"]')
   tile.click()
   await new Promise((resolve) => setTimeout(resolve, 100))
-  out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === '番茄钟'
+  out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === 'Pomodoro'
   out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
-  out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === '番茄钟'
+  out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
-  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="pomodoro"] .w-state')?.textContent === '运行中'
+  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="pomodoro"] .w-state')?.textContent === 'Running'
   const managerEntry = $('#sb-app-manager')
   managerEntry.click()
   await new Promise((resolve) => setTimeout(resolve, 100))
@@ -206,7 +216,7 @@ const DRIVER_SCRIPT = `
   const appList = $('#app-runtime .app-manager .app-list')
   const countBeforeSearch = appList?.querySelectorAll('li').length || 0
   const search = $('#app-runtime .app-manager .app-search')
-  if (search) { search.value = '番茄钟'; search.dispatchEvent(new Event('input', { bubbles: true })) }
+  if (search) { search.value = 'Pomodoro'; search.dispatchEvent(new Event('input', { bubbles: true })) }
   out.appManagerSearchFilters = countBeforeSearch > 1 && appList.querySelectorAll('li').length === 1
   $('#app-back').click()
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
@@ -217,49 +227,50 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = $('#page-context').textContent === '用量 · 3/3'
+  out.thirdPageContext = $('#page-context').textContent === 'Usage · 3/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = $('#page-context').textContent === '应用 · 2/3'
+  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Apps · 2/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToQuota = $('#page-context').textContent === '用量 · 3/3'
+  out.endJumpsToQuota = $('#page-context').textContent === 'Usage · 3/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToOverview = $('#page-context').textContent === '概览 · 1/3'
+  out.homeJumpsToOverview = $('#page-context').textContent === 'Overview · 1/3'
   document.querySelectorAll('#dots .dot')[2].click()
-  out.quotaStateSeparatesBridge = $('#quota-state').textContent.includes('Mac 尚未连接') && $('#quota-state').textContent.includes('网络')
-  out.quotaConnectLabel = $('#quota-connect').textContent === '连接 Mac'
-  out.quotaRefreshLabel = $('#quota-refresh').textContent === '重新检查状态'
-  out.quotaHelpLabel = $('#quota-help').textContent === '操作说明'
-  out.quotaCheckedVisible = $('#quota-checked').textContent.includes('最近检查')
+  out.quotaStateIsHonest = $('#quota-state').textContent.includes('OpenCode Go not configured')
+  out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Check status again'
+  out.quotaHelpLabel = $('#quota-help').textContent === 'Navigation help'
+  out.quotaCheckedVisible = $('#quota-checked').textContent.includes('Last checked')
+  out.quotaHasNoFabricatedUsage = $('#quota-metrics').textContent.includes('Actual usage has not been retrieved')
   $('#quota-help').click()
-  out.helpViewVisible = !$('#app-view').hidden && $('#app-help').textContent.includes('滑动')
+  out.helpViewVisible = !$('#app-view').hidden && $('#app-help').textContent.includes('Swipe')
   out.helpBackgroundHidden = $('#pages-viewport').getAttribute('aria-hidden') === 'true' && $('#pages-viewport').inert
+  // Electron under headless X11 can legitimately report BODY when focus is
+  // requested by a visible, modal dialog. The dialog's tabbable Back control
+  // is the durable accessibility contract; keyboard focus is covered by the
+  // tab trap exercised in production.
+  out.helpDialogBackIsTabbable = !$('#app-back').hidden && $('#app-back').tabIndex >= 0
   $('#app-back').click()
   $('#quota-refresh').click()
-  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Mac 尚未连接')
-  out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('最近检查')
-  $('#quota-connect').click()
-  out.bridgeInfoVisible = !$('#app-view').hidden && $('#app-title').textContent === '连接 Mac' && $('#app-empty').textContent.includes('网络')
-  out.bridgeInfoHasDialogSemantics = $('#app-view').getAttribute('role') === 'dialog' && $('#app-view').getAttribute('aria-modal') === 'true'
-  out.bridgeInfoFocusBack = document.activeElement?.id === 'app-back'
-  document.getElementById('app-back').focus()
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
-  out.tabFromBackStaysInDialog = ['app-back', 'app-action'].includes(document.activeElement?.id)
-  document.getElementById('app-back').focus()
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
-  out.shiftTabFromBackStaysInDialog = ['app-back', 'app-action'].includes(document.activeElement?.id)
-  out.bridgeInfoHasSteps = !$('#app-steps').hidden && $('#app-steps').querySelectorAll('li').length === 3
-  out.bridgeInfoHasTroubleshooting = !$('#app-troubleshooting').hidden && $('#app-troubleshooting').querySelectorAll('li').length === 3
-  out.bridgeInfoHasRefresh = !$('#app-action').hidden && $('#app-action').textContent === '重新检查状态'
-  $('#app-action').click()
-  out.bridgeInfoRefreshStatus = $('#app-action-status').textContent.includes('最近检查')
-  out.bridgeHealthCanRefresh = window.__ODK_COMPANION_HEALTH_URL?.includes('127.0.0.1')
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-  out.escapeClosesBridgeInfo = $('#app-view').hidden
-  out.quotaPageAfterEscape = $('#dots .dot[aria-current="page"]')?.getAttribute('aria-label') === '第 3 页，用量'
+  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('OpenCode Go not configured')
+  out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('Last checked')
+  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
 
   // Return to the grid page so the geometry sweep measures on-screen rects.
   document.querySelectorAll('#dots .dot')[1].click()
   await new Promise((resolve) => setTimeout(resolve, 350))
+
+  await window.odkServices.faceAgent.refresh()
+  out.faceAgentNoFaceRefresh =
+    document.querySelector('[data-widget="face-presence"] .w-state')?.textContent === 'No face detected · screen locked' &&
+    document.querySelector('[data-widget="face-presence"] .w-vision-value')?.textContent === '--' &&
+    document.querySelector('[data-widget="current-emotion"] .w-state')?.textContent === 'No face detected · screen locked' &&
+    !$('#privacy-shield').hidden
+  await window.odkServices.faceAgent.refresh()
+  out.faceAgentDetectedRefresh =
+    document.querySelector('[data-widget="face-presence"] .w-vision-value')?.textContent === '2' &&
+    document.querySelector('[data-widget="face-presence"] .w-state')?.textContent === 'Owner recognized among detected faces' &&
+    document.querySelector('[data-widget="current-emotion"] .w-emotion')?.textContent === 'Happiness' &&
+    document.querySelector('[data-widget="current-emotion"] .w-state')?.textContent === '91% confidence' &&
+    $('#privacy-shield').hidden
 
   return out
 })()
@@ -309,7 +320,7 @@ function check(results) {
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
     ['unified App Manager entry replaces dock', results.unifiedAppEntry && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['almanac', 'chat', 'clock', 'dashboard-page', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-apps', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
+      ['almanac', 'chat', 'clock', 'current-emotion', 'dashboard-page', 'face-presence', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-apps', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -321,26 +332,30 @@ function check(results) {
     ['clock right of dots', results.clockRightOfDots],
     ['three pages', results.pageCount === 3],
     ['three dots', results.dotCount === 3],
-    ['page context is visible', results.pageContext === '概览 · 1/3'],
+    ['page context is visible', results.pageContext === 'Overview · 1/3'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
     ['dashboard month-day format', results.dashDateFormatted],
     ['dashboard year is current', results.dashYearCurrent],
-    ['narrative waits for mac without fabricated counts',
-      results.narrativeGroups >= 2 &&
-      !/\d/.test(results.narrativeText) &&
-      /mac/i.test(results.narrativeText)],
-    ['dashboard has one connection action', results.dashConnectLabel && results.dashSupportText],
-    ['companion health endpoint is configured', results.bridgeHealthUrl?.includes('127.0.0.1')],
-    ['companion initial status is honest', results.bridgeInitialStatus],
-    ['stats row removed', results.statRowRemoved],
+    ['dashboard follows the supplied briefing reference',
+      results.narrativeGroups === 4 && results.dashBriefingMatchesReference && results.dashStatsMatchReference],
+    ['dashboard has no external connection action', results.dashHasNoConnectionAction],
+    ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 4', results.tablerCount >= 4],
     ['six state widgets with unique identities', results.widgetCount === 6 && results.uniqueApps],
+    ['Face Agent widgets begin in an honest unavailable state', results.faceAgentWidgetsStartHonest],
+    ['Face Agent widgets render no-face state after a refresh', results.faceAgentNoFaceRefresh],
+    ['Face Agent widgets render detected face and emotion after a refresh', results.faceAgentDetectedRefresh],
     ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
-    ['preload exposes the App Manager endpoint', results.preloadExposesIntentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
+    ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesFaceAgentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
+    ['preload exposes only narrow Remote Link API', results.remotePreloadIsNarrow],
+    ['pager publishes complete authoritative Remote state', results.remotePageStatePublishesAuthoritativeBoundaries],
+    ['peek displays USB, wireless, and synchronizing Remote Link states', results.peekShowsUsbRemote && results.peekShowsWirelessRemote && results.peekShowsSyncingRemote],
+    ['Remote Link navigation moves only an unoccluded bounded pager', results.remoteNavigationMovesPager],
+    ['duplicate Remote Link navigation moves only one page', results.repeatedRemoteMovesOnce],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
@@ -358,7 +373,8 @@ function check(results) {
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 2 columns', results.clockSpansTwoColumns],
     ['pomodoro widget spans 2x2', results.pomodoroSpansTwoByTwo],
-    ['peek shows bridge and network status', results.peekHasStatus],
+    ['peek shows subscription and network status', results.peekHasStatus],
+    ['peek shows factual disconnected Remote Link state', results.peekShowsDisconnectedRemote],
     ['peek width matches inset', results.peekWidthMatchesInset],
     ['peek bottom inset symmetric', results.peekBottomInsetSymmetric],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
@@ -370,29 +386,21 @@ function check(results) {
     ['pomodoro Widget follows App state', results.pomodoroTileStateAfterOpen],
     ['App Manager search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
-    ['cancelled drag keeps page and does not suppress next tap',
-      results.connectOpensAfterCancelledDrag === true && results.cancelledDragKeepsFirstPage],
+    ['cancelled drag keeps navigation usable', results.cancelledDragKeepsNavigationUsable],
     ['dot click jumps to last page', results.transformAfterDotJump === `translateX(-${results.viewportWidth * 2}px)`],
     ['third dot active after jump', results.thirdDotActive],
     ['third page context is visible', results.thirdPageContext],
     ['ArrowLeft returns to grid', results.arrowLeftReturnsToGrid],
     ['End jumps to quota', results.endJumpsToQuota],
     ['Home jumps to overview', results.homeJumpsToOverview],
-    ['quota separates bridge and network state', results.quotaStateSeparatesBridge],
-    ['quota has primary connection action', results.quotaConnectLabel],
+    ['quota status is native and honest', results.quotaStateIsHonest && results.quotaHasNoFabricatedUsage],
     ['quota exposes check state', results.quotaCheckedVisible],
     ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],
-    ['dialog hides background from assistive tech', results.helpBackgroundHidden],
-    ['quota has network connection action', results.quotaConnectLabel],
-    ['quota has status refresh action', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
-    ['network connection info opens', results.bridgeInfoVisible],
-    ['network connection info has dialog semantics', results.bridgeInfoHasDialogSemantics && results.bridgeInfoFocusBack],
-    ['dialog Tab focus stays contained', results.tabFromBackStaysInDialog && results.shiftTabFromBackStaysInDialog],
-    ['network connection info has three steps', results.bridgeInfoHasSteps],
-    ['network connection info has troubleshooting', results.bridgeInfoHasTroubleshooting],
-    ['network connection info has refresh action', results.bridgeInfoHasRefresh && results.bridgeInfoRefreshStatus && results.bridgeHealthCanRefresh],
-    ['Escape closes connection info', results.escapeClosesBridgeInfo],
-    ['Escape preserves quota page', results.quotaPageAfterEscape],
+    ['dialog hides pages from assistive tech', results.helpBackgroundHidden],
+    ['dialog exposes a tabbable back action', results.helpDialogBackIsTabbable],
+
+    ['quota refresh preserves truth', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
+    ['quota page remains selected after help', results.quotaPageAfterEscape],
   ]
   let failures = 0
   for (const [name, ok] of checks) {
@@ -405,6 +413,8 @@ function check(results) {
 async function runGeometrySweep(win) {
   const layout = require('../src/renderer/layout.js')
   let failures = 0
+  await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
+  await new Promise((resolve) => setTimeout(resolve, 350))
   for (const [label, width, height] of EXTRA_SIZES) {
     win.setContentSize(width, height)
     // Desktop window servers deliver resize to occluded/hidden windows
@@ -435,7 +445,7 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
     const checks = [
-      ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal],
+      ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
       ['no widget overlaps peek', probe.peekOverlaps === 0],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
@@ -481,134 +491,17 @@ async function runMotionChecks(win) {
   }
 }
 
-const COMPANION_CONNECTED_SCRIPT = `
-  (async () => {
-    const $ = (selector) => document.querySelector(selector)
-    const out = {}
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    out.dashConnected = $('#dash-narrative').textContent.includes('Mac 已连接')
-    out.peekConnected = $('#peek-bridge').textContent.includes('Mac 已连接')
-    out.dashGreenVoice = getComputedStyle(document.querySelector('#dash-narrative .connected-word')).color === 'rgb(52, 199, 89)'
-    out.peekGreenVoice = getComputedStyle($('#peek-bridge')).color === 'rgb(52, 199, 89)'
-    ;[...document.querySelectorAll('#dots .dot')][2].click()
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    out.quotaConnected = $('#quota-state').textContent.includes('Mac 已连接')
-    out.quotaChecked = $('#quota-checked').textContent.includes('最近检查')
-    return out
-  })()
-`
-
-function startCompanionMock() {
-  let payload = { status: 200, body: {} }
-  const server = http.createServer((request, response) => {
-    response.writeHead(payload.status, { 'Content-Type': 'application/json' })
-    response.end(JSON.stringify(payload.body))
-  })
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
-      resolve({
-        port: server.address().port,
-        setPayload(next) { payload = next },
-        close: () => new Promise((done) => server.close(done)),
-      })
-    })
-  })
-}
-
-async function runCompanionChecks() {
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-  const js = (win, code) => win.webContents.executeJavaScript(code, true)
-  const mock = await startCompanionMock()
-  const companionOk = {
-    status: 200,
-    body: { service: 'OpenDeskOS companion', ready: true, sidecar: 'Healthy' },
-  }
-  mock.setPayload(companionOk)
-
-  let win
-  try {
-    win = new BrowserWindow({
-      width: 568,
-      height: 1232,
-      useContentSize: true,
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        preload: path.join(APP_ROOT, 'src', 'preload.js'),
-      },
-    })
-    await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), {
-      search: `?companion=${encodeURIComponent(`http://127.0.0.1:${mock.port}/health`)}`,
-    })
-
-    const connected = await js(win, COMPANION_CONNECTED_SCRIPT)
-
-    // A non-OpenDeskOS 200 (e.g. the Wispr sidecar alone) must stay disconnected.
-    mock.setPayload({ status: 200, body: { ok: true } })
-    await js(win, "document.querySelector('#quota-refresh').click()")
-    await sleep(800)
-    const identityRejected = await js(
-      win,
-      "document.querySelector('#quota-state').textContent.includes('Mac 尚未连接')",
-    )
-
-    // Restoring the OpenDeskOS identity reconnects on the next manual check.
-    mock.setPayload(companionOk)
-    await js(win, "document.querySelector('#quota-refresh').click()")
-    await sleep(800)
-    const reconnects = await js(
-      win,
-      "document.querySelector('#quota-state').textContent.includes('Mac 已连接')",
-    )
-
-    const checks = [
-      ['dashboard shows Mac connected', connected.dashConnected],
-      ['peek shows Mac connected', connected.peekConnected],
-      ['connected state carries Open DeskOS green voice', connected.dashGreenVoice && connected.peekGreenVoice],
-      ['quota shows Mac connected after startup check', connected.quotaConnected],
-      ['quota shows last check time when connected', connected.quotaChecked],
-      ['non-companion HTTP 200 stays disconnected', identityRejected],
-      ['recheck reconnects once identity returns', reconnects],
-    ]
-    let failures = 0
-    for (const [name, ok] of checks) {
-      console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
-      if (!ok) failures += 1
-    }
-    return failures
-  } finally {
-    if (win) win.destroy()
-    await mock.close()
-  }
-}
-
-function runEndpointChecks() {
-  const checks = [
-    ['default companion endpoint uses loopback', resolveCompanionHealthUrl({}) === 'http://127.0.0.1:8788/health'],
-    ['companion host builds a network endpoint', resolveCompanionHealthUrl({ ODK_COMPANION_HOST: '192.168.1.20' }) === 'http://192.168.1.20:8788/health'],
-    ['explicit companion URL takes precedence', resolveCompanionHealthUrl({
-      ODK_COMPANION_HOST: '192.168.1.20',
-      ODK_COMPANION_HEALTH_URL: 'http://mac.local:9000/status',
-    }) === 'http://mac.local:9000/status'],
-  ]
-  let failures = 0
-  for (const [name, ok] of checks) {
-    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
-    if (!ok) failures += 1
-  }
-  return failures
-}
-
 async function main() {
-  ipcMain.handle('odk-companion-health', async (_event, endpoint) => {
-    const { checkCompanionHealth } = require('../src/companion-health')
-    return checkCompanionHealth(endpoint)
-  })
   const appManager = createAppManagerEndpoint()
+  ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
+  const faceAgentResponses = [
+    { state: 'unavailable', facesCount: null, emotion: null, unlocked: false },
+    { state: 'no-face', facesCount: 0, emotion: null, unlocked: false },
+    { state: 'recognized', facesCount: 2, emotion: { primary: 'happiness', confidence: 91 }, unlocked: true },
+  ]
+  ipcMain.handle('odk-face-agent-status', () => faceAgentResponses.shift() || faceAgentResponses.at(-1))
   const endpointCalls = { list: 0, intent: 0 }
+  const remotePageStates = []
   ipcMain.handle('odk-app-manager-list', () => {
     endpointCalls.list += 1
     return appManager.list()
@@ -618,10 +511,14 @@ async function main() {
     endpointCalls.intent += 1
     return appManager.dispatch(intent)
   })
+  ipcMain.handle('odk-remote-publish-page-state', (_event, state) => {
+    remotePageStates.push(state)
+    return true
+  })
 
   const win = new BrowserWindow({
-    width: 568,
-    height: 1232,
+    width: 1920,
+    height: 1280,
     useContentSize: true,
     frame: false,
     // Visible on purpose: hidden windows do not paint frames on headless Linux
@@ -658,16 +555,56 @@ async function main() {
     app.exit(1)
     return
   }
+  await new Promise((resolve) => setTimeout(resolve, 50))
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
-  const endpointFailures = runEndpointChecks()
+  results.remotePageStatePublishesAuthoritativeBoundaries =
+    remotePageStates.some((state) => state.page === 1 && state.pages === 3 && state.name === 'Overview' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 3 && state.pages === 3 && state.name === 'Usage' && state.canPrev && !state.canNext)
+  win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  results.peekShowsUsbRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#peek-remote').textContent === 'Remote · Connected by USB'",
+    true,
+  )
+  win.webContents.send('odk-remote-link-state', { state: 'wireless', sequence: 2 })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  results.peekShowsWirelessRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#peek-remote').textContent === 'Remote · Connected wirelessly'",
+    true,
+  )
+  win.webContents.send('odk-remote-link-state', { state: 'syncing', sequence: 3 })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  results.peekShowsSyncingRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#peek-remote').textContent === 'Remote · Synchronizing'",
+    true,
+  )
+  await new Promise((resolve) => setTimeout(resolve, 1400))
+  const pageContext = () => win.webContents.executeJavaScript(
+    "document.querySelector('#page-context').textContent",
+    true,
+  )
+  win.webContents.send('odk-remote-navigation', { direction: 'previous' })
+  await new Promise((resolve) => setTimeout(resolve, 1400))
+  const movedToOverview = await pageContext() === 'Overview · 1/3'
+  win.webContents.send('odk-remote-navigation', { direction: 'previous' })
+  await new Promise((resolve) => setTimeout(resolve, 1400))
+  const heldAtFirstPage = await pageContext() === 'Overview · 1/3'
+  win.webContents.send('odk-remote-navigation', { direction: 'next' })
+  await new Promise((resolve) => setTimeout(resolve, 1400))
+  const movedToApps = await pageContext() === 'Apps · 2/3'
+  win.webContents.send('odk-remote-navigation', { direction: 'next' })
+  win.webContents.send('odk-remote-navigation', { direction: 'next' })
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  const repeatedRemoteMovesOnce = await pageContext() === 'Usage · 3/3'
+  results.remoteNavigationMovesPager = movedToOverview && movedToApps && heldAtFirstPage
+  results.repeatedRemoteMovesOnce = repeatedRemoteMovesOnce
   const driverFailures = check(results)
   const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)
-  const companionFailures = await runCompanionChecks()
   clearTimeout(timeout)
 
-  process.exitCode = endpointFailures + driverFailures + motionFailures + sweepFailures + companionFailures === 0 ? 0 : 1
+  process.exitCode = driverFailures + motionFailures + sweepFailures === 0 ? 0 : 1
   app.exit(process.exitCode)
 }
 

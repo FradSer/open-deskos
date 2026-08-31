@@ -11,8 +11,8 @@
   root.odkPlugins.register({
     id: 'year',
     kind: 'tile',
-    app: '年度进度',
-    state: '实时',
+    app: 'Year progress',
+    state: 'Live',
     interaction: 'open-app',
     appId: 'year',
     mount(el, ctx) {

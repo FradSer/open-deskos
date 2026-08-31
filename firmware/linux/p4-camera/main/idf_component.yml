@@ -1,0 +1,16 @@
+dependencies:
+  idf:
+    version: '>=5.3'
+  esp_video:
+    public: true
+    version: ^0.8.0
+  espressif/esp_tinyusb:
+    public: true
+    version: ^2.2.0
+  espressif/cjson:
+    public: true
+    version: ^1.7.18
+  espressif/human_face_detect:
+    public: true
+    version: ^0.4.2
+  espressif/human_face_recognition: ^0.3.2

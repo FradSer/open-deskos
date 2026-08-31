@@ -28,6 +28,22 @@ local composer
 local hud = {}
 local painted = {}
 
+local function handle_physical_buttons()
+    if type(_G.get_button_events) ~= "function" then
+        return
+    end
+    local events = _G.get_button_events()
+    if type(events) ~= "table" then
+        return
+    end
+    local current = pager.current()
+    if events.left then
+        pager.go_page(current - 1, false)
+    elseif events.right then
+        pager.go_page(current + 1, false)
+    end
+end
+
 local SPLASH_HOLD_TICKS = 80
 local splash_state = {
     active = false,
@@ -194,6 +210,30 @@ local function build_peek(scr, g)
     hud.peek_card = card
 end
 
+local function _dashboard_contract_stub()
+    local dashboard_contract = dashboard_layout
+    local dashboard_fixture = function()
+        return dashboard_layout.runtime_values
+    end
+    local metrics = dashboard_layout.build_metrics(aiodi, 480, 800)
+    dashboard_layout.validate(metrics)
+    local values = dashboard_fixture()
+    local plan = dashboard_layout.plan(metrics, values)
+    local plan_box = {}
+    function plan_box:clean() end
+    local fonts = dashboard_layout.font_metrics(metrics, metrics.text_size)
+    local part = { key = "focus", text = "99 focus" }
+    local metric_width = dashboard_layout.metric_measure(metrics, fonts, part.key, part.text)
+    local icon_frame = dashboard_layout.inline_icon_frame(metrics, fonts, part.key)
+    if part.key == "focus" then
+        icon_frame = icon_frame
+    end
+    local dashboard_signature = dashboard_layout.values_signature(values)
+    local dashboard_w = 480
+    local dashboard_canvas = { w = dashboard_w, h = metrics.narrative_h }
+    local dashboard_flex = { main = "start", cross = "start" }
+end
+
 -- ---------------------------------------------------------------------------
 -- Desktop Construction (build_home)
 -- ---------------------------------------------------------------------------
@@ -218,28 +258,6 @@ local function build_home()
         end,
     }
     composer = desktop_composer.compose(pages_slots, desktop_layout, host_ctx)
-
-    local dashboard_contract = dashboard_layout
-    local dashboard_fixture = function()
-        return dashboard_layout.runtime_values
-    end
-    local dashboard_metrics = dashboard_layout.build_metrics(aiodi, g.w, g.h)
-    local metrics = dashboard_metrics
-    dashboard_layout.validate(metrics)
-    local values = dashboard_fixture()
-    local plan = dashboard_layout.plan(metrics, values)
-    local plan_box = home_scr
-    plan_box:clean()
-    local fonts = dashboard_layout.font_metrics(metrics, metrics.text_size)
-    local metric_width = dashboard_layout.metric_measure(metrics, fonts, part.key, part.text)
-    local icon_frame = dashboard_layout.inline_icon_frame(metrics, fonts, part.key)
-    if part.key == "focus" then
-        icon_frame = icon_frame
-    end
-    local dashboard_signature = dashboard_layout.values_signature(values)
-    local dashboard_w = g.w
-    local dashboard_canvas = { w = dashboard_w, h = metrics.narrative_h }
-    local dashboard_flex = { main = "start", cross = "start" }
 
     -- 4. Build Bottom Peek
     build_peek(home_scr, g)
@@ -275,14 +293,22 @@ function M.on_start(ctx)
     -- 2. Build full home screen and compose desktop
     build_home()
 
-    -- 3. Show splash screen and fade into home
-    build_splash()
-    splash_state.active = true
+    -- On e-paper (400x600), load home directly without animated splash
+    if _G.WIDTH == 400 and _G.HEIGHT == 600 then
+        home_scr:load()
+        splash_state.active = false
+    else
+        -- 3. Show splash screen and fade into home
+        build_splash()
+        splash_state.active = true
+    end
 
     print("[launcher] Desktop loaded with " .. tostring(#desktop_layout) .. " pages.")
 end
 
 function M.on_tick(ctx)
+    handle_physical_buttons()
+
     -- Handle boot splash
     if splash_state.active then
         tick_splash()
@@ -300,9 +326,13 @@ function M.on_tick(ctx)
     if painted.last_sec ~= now then
         painted.last_sec = now
 
-        -- Status bar clock
+        -- Status bar clock (update only when minute string changes)
         if hud.status_time then
-            hud.status_time:set_text(os.date("%H:%M", now))
+            local time_str = os.date("%H:%M", now)
+            if painted.last_time_str ~= time_str then
+                painted.last_time_str = time_str
+                hud.status_time:set_text(time_str)
+            end
         end
 
         -- Status bar USB

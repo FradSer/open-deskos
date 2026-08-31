@@ -78,3 +78,38 @@ Feature: ESP-NOW data validation through the C6 custom-data bridge
     Then the callback returns without performing custom-data I/O or blocking
     And the dropped-frame counter increases
     And frames already in the queue remain available to the consumer
+
+  Scenario: Every received frame is attributed to its sender MAC
+    Given the C6 receives an ESP-NOW frame from a paired peer
+    When the C6 forwards the frame over custom data
+    Then the P4 event carries the sender MAC from the transport header
+    And the payload bytes reach the validator unchanged
+
+  Scenario: The P4 transmits a payload to a peer through the C6 radio
+    When the P4 queues a payload for a peer MAC
+    Then the C6-bound custom-data frame uses the TX message id
+    And the frame begins with the peer MAC followed by the payload bytes
+
+  Scenario: Invalid transmit arguments are rejected locally
+    When the P4 sends an empty payload or a payload over 250 bytes
+    Then no custom-data frame is emitted
+    And the call returns an invalid-argument error
+
+  Scenario: Send results reported by the C6 are counted
+    When the C6 reports a successful TX result for a peer
+    Then the TX success counter increases
+    When the C6 reports a failed TX result for a peer
+    Then the TX failure counter increases
+
+  Scenario: Adding and removing an encrypted peer emits peer frames
+    When the P4 adds a peer with an LMK and encryption enabled
+    Then the C6-bound peer frame carries the add operation, the peer MAC, the encrypt flag, and the LMK
+    When the P4 removes that peer
+    Then the C6-bound peer frame carries the remove operation and the peer MAC
+    And adding an encrypted peer without an LMK is rejected as an invalid argument
+
+  Scenario: The C6 radio stays on the fixed ESP-NOW channel without Wi-Fi
+    Given no Wi-Fi access point is configured for the monitoring screen
+    When the C6 bridge initializes
+    Then the radio locks the default ESP-NOW channel
+    And no station association is attempted

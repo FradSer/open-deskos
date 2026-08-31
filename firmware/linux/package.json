@@ -2,7 +2,7 @@
   "name": "@fradser/open-deskos-linux-shell",
   "version": "0.1.0",
   "private": true,
-  "description": "Open DeskOS shell for the Orange Pi CM5 (RK3588S) Linux panel, 568x1232 portrait touch",
+  "description": "Open DeskOS shell for the Orange Pi CM5 (RK3588S) Linux panel, 1920x1280 HDMI display",
   "main": "src/main.js",
   "scripts": {
     "styles": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify",

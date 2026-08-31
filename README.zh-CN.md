@@ -10,12 +10,13 @@ Open DeskOS 是一套桌面伴侣操作系统，运行在 ESP32-P4 显示设备�
 
 ### 固件
 
-生产固件位于 `firmware/open-deskos/application/open_deskos/`（ESP-IDF 工程名 `open_deskos`），支持两块开发板：
+生产固件位于 `firmware/open-deskos/application/open_deskos/`（ESP-IDF 工程名 `open_deskos`），支持三块开发板：
 
 - **Guition JC4880P443C**（`guition/jc4880p443c`，ESP32-P4 + ESP32-C6，480x800 ST7701S MIPI-DSI，GT911 触摸）——主桌面设备。
 - **Waveshare ESP32-S3 Touch LCD 2.8**（`waveshare/esp32_s3_touch_lcd_2_8`，ESP32-S3，240x320 ST7789 SPI，CST328 触摸）——紧凑型变体，布局与服务按目标条件编译。
+- **M5Stack PaperColor**（`m5stack/m5papercolor`，ESP32-S3，400x600 ED2208 墨水屏，M5PM1 PMIC）——反射式电子墨水屏终端。
 
-两块板共同构成 `firmware-scope.feature` 约束的产品范围。唯一受支持的应用路径是 `application/open_deskos`，旧的 `edge_agent` 路径和其他厂商板级目录不在产品构建范围内。当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。
+三块板共同构成 `firmware-scope.feature` 约束的产品范围。唯一受支持的应用路径是 `application/open_deskos`，旧的 `edge_agent` 路径和其他厂商板级目录不在产品构建范围内。当前产品方向和硬件边界见 [docs/open-deskos/OPEN-DESKOS.md](docs/open-deskos/OPEN-DESKOS.md)。
 
 ### Native SDL 模拟器
 
@@ -42,6 +43,7 @@ xcodebuild -project app/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
 - [产品规格](docs/open-deskos/OPEN-DESKOS.md)
 - [固件 README](firmware/open-deskos/README.md)
 - [Waveshare S3 板级说明](firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/README.md)
+- [M5PaperColor 板级说明](firmware/open-deskos/application/open_deskos/boards/m5stack/m5papercolor/README.md)
 - [Apple 客户端说明](app/README.md)
 - [BDD 场景](firmware/open-deskos/tests/features/)
 
@@ -65,11 +67,16 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 eim run "idf.py -B build-s3 build" v6.0.1
 eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
+
+# M5Stack PaperColor（S3 墨水屏，400x600）——独立构建目录
+eim run "idf.py bmgr -c ./boards -b m5papercolor" v6.0.1
+eim run "idf.py -B build-m5paper build" v6.0.1
+eim run "idf.py -B build-m5paper -p PORT flash monitor" v6.0.1
 ```
 
 在 macOS 上，端口通常是 `/dev/cu.usbmodem*`；在 Linux 上通常是 `/dev/ttyACM0`。如果设备没有自动进入下载模式，按住 BOOT 的同时重置开发板，然后重新运行烧录命令。使用 `Ctrl-C` 退出监视器。
 
-上面的 board ID 对应 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml` 和 `firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml`。生产固件不要选择其他 board ID。
+上面的 board ID 对应 `firmware/open-deskos/application/open_deskos/boards/guition/jc4880p443c/board_info.yaml`、`firmware/open-deskos/application/open_deskos/boards/waveshare/esp32_s3_touch_lcd_2_8/board_info.yaml` 和 `firmware/open-deskos/application/open_deskos/boards/m5stack/m5papercolor/board_info.yaml`。生产固件不要选择其他 board ID。
 
 ## 测试
 

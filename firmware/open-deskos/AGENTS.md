@@ -2,10 +2,11 @@
 
 ## Project Structure & Module Organization
 
-This directory contains Open DeskOS firmware for two board-manager targets under
+This directory contains Open DeskOS firmware for three board-manager targets under
 `application/open_deskos/`: Guition JC4880P443C (ESP32-P4 + C6, 480×800
-ST7701S MIPI-DSI, GT911) and Waveshare ESP32-S3 Touch LCD 2.8 (240×320
-ST7789 SPI, CST328). The production application is `application/open_deskos/`;
+ST7701S MIPI-DSI, GT911), Waveshare ESP32-S3 Touch LCD 2.8 (240×320
+ST7789 SPI, CST328), and M5Stack PaperColor (ESP32-S3, 400×600 ED2208 e-paper).
+The production application is `application/open_deskos/`;
 shared `claw_*` components remain from the ESP-Claw base. Board scope is pinned
 by `tests/features/firmware-scope.feature` and the contracts under `tests/host/`;
 read `TRIM.md` for the retained/removed upstream boundary.
@@ -33,6 +34,10 @@ eim run "idf.py -p PORT flash monitor" v6.0.1
 eim run "idf.py bmgr -c ./boards -b esp32_s3_touch_lcd_2_8" v6.0.1
 eim run "idf.py -B build-s3 build" v6.0.1
 eim run "idf.py -B build-s3 -p PORT flash monitor" v6.0.1
+# M5Stack PaperColor (ESP32-S3 e-paper); keep a separate build tree
+eim run "idf.py bmgr -c ./boards -b m5papercolor" v6.0.1
+eim run "idf.py -B build-m5paper build" v6.0.1
+eim run "idf.py -B build-m5paper -p PORT flash monitor" v6.0.1
 ```
 
 The `bmgr` step regenerates `components/gen_bmgr_codes/`; rerun it after board

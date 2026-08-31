@@ -37,6 +37,7 @@ Plugin.widgets = {
         local day_h = font_day and font_day:line_height() or aiodi.px(aiodi.ref.text.day)
         local top = math.max(0, (spec.h - month_h - day_h) // 2)
         local last_tick_sec = 0
+        local last_day_int = -1
 
         local month_lbl = aiodi.title(tile, {
             x = 0, y = top,
@@ -63,8 +64,12 @@ Plugin.widgets = {
                 local cur_now = os.time()
                 if cur_now == last_tick_sec then return end
                 last_tick_sec = cur_now
-                month_lbl:set_text(aiodi.spaced(os.date("%b", cur_now):upper()))
-                day_lbl:set_text(tostring(tonumber(os.date("%d", cur_now)) or 1))
+                local d_val = tonumber(os.date("%d", cur_now)) or 1
+                if d_val ~= last_day_int then
+                    last_day_int = d_val
+                    month_lbl:set_text(aiodi.spaced(os.date("%b", cur_now):upper()))
+                    day_lbl:set_text(tostring(d_val))
+                end
             end,
         }
     end,

@@ -11,21 +11,21 @@
    */
   root.DESKTOP_LAYOUT = {
     pages: [
-      { id: 'dashboard', name: '概览', kind: 'page', plugin: 'dashboard-page' },
+      { id: 'dashboard', name: 'Overview', kind: 'page', plugin: 'dashboard-page' },
       {
         id: 'home',
-        name: '应用',
+        name: 'Apps',
         kind: 'grid',
         widgets: [
           { id: 'almanac', col: '1', row: '1', route: 'today' },
           { id: 'clock', col: '2 / 4', row: '1', route: 'now' },
-          { id: 'chat', col: '3', row: '2' },
+          { id: 'face-presence', col: '3', row: '2' },
           { id: 'pomodoro', col: '1 / 3', row: '2 / 4', route: 'today' },
-          { id: 'settings', col: '3', row: '3' },
+          { id: 'current-emotion', col: '3', row: '3' },
           { id: 'year', col: '1 / 4', row: '4 / 6' },
         ],
       },
-      { id: 'quota', name: '用量', kind: 'page', plugin: 'quota-page' },
+      { id: 'quota', name: 'Usage', kind: 'page', plugin: 'quota-page' },
     ],
   }
 })(typeof window !== 'undefined' ? window : globalThis)

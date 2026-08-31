@@ -1,0 +1,22 @@
+# M5Stack PaperColor hardware peripheral map.
+# Pin assignments: ED2208 SPI display (MOSI=13, MISO=14, SCLK=15, DC=43, CS=44, RST=12, BUSY=11), M5PM1 PMIC on I2C (SDA=3, SCL=2).
+peripherals:
+  - name: i2c_pmic
+    type: i2c
+    role: master
+    config:
+      port: 1
+      pins:
+        sda: 3
+        scl: 2
+
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        mosi_io_num: 13
+        miso_io_num: 14
+        sclk_io_num: 15
+        max_transfer_sz: 30000

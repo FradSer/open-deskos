@@ -1,0 +1,11 @@
+# M5Stack PaperColor (ESP32-S3) device map.
+# Display is initialized by the Open DeskOS M5Paper direct bring-up path.
+devices:
+  - name: buttons
+    chip: gpio_button
+    type: custom
+    version: 1.0.0
+    init_skip: true
+    config:
+      button_boot_gpio: 0
+      active_level: 0

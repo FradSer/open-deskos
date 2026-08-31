@@ -204,3 +204,26 @@ not an OTA partition write; installer delivery stays file-copy-and-verify.
   silent post-bringup (IDF log system quirk under DSI init); esp_rom_printf
   works. The cerb platform/console still needs the post-bringup app_main stall
   triaged (separate).
+
+- 2026-08-20 — Added M5Stack PaperColor (ESP32-S3) e-paper board support.
+  Added board definition `application/open_deskos/boards/m5stack/m5papercolor/`
+  (`board_info.yaml`, `board_devices.yaml`, `board_peripherals.yaml`,
+  `sdkconfig.defaults.board`, `README.md`), ED2208 EPD driver component
+  `application/open_deskos/components/esp_lcd_m5paper_epd/` (`CMakeLists.txt`,
+  `idf_component.yml`, `include/esp_lcd_m5paper_epd.h`,
+  `src/esp_lcd_m5paper_epd.c`), direct bring-up
+  `application/open_deskos/main/odk_m5paper_display_bringup.{c,h}`, board
+  selection `application/open_deskos/Kconfig.projbuild`, BDD feature
+  `tests/features/m5papercolor-board.feature`, and host contract
+  `tests/host/m5papercolor_board_contract.cmake`.
+  Modified fork files:
+  - `application/open_deskos/main/main.c`: added `odk_m5paper_display_bringup`
+    branch under `CONFIG_ODK_BOARD_M5PAPERCOLOR`.
+  - `application/open_deskos/main/odk_voice_ui.c`: added 6 branch points for
+    `CONFIG_ODK_BOARD_M5PAPERCOLOR` (panel, IO, touch, size, PANEL_IF_IO).
+  - `application/open_deskos/main/CMakeLists.txt`: added source filtering for
+    M5PaperColor and `PRIV_REQUIRES esp_lcd_m5paper_epd`.
+  - `tests/features/firmware-scope.feature` and `tests/host/firmware_scope_contract.cmake`:
+    updated production board count from two to three.
+  - `tests/host/CMakeLists.txt`: registered `m5papercolor_board_contract`.
+

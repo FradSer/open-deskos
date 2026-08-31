@@ -60,3 +60,13 @@ menu "Default Search Settings"
 endmenu
 
 endmenu
+
+menu "Open DeskOS Board Selection"
+
+    config ODK_BOARD_M5PAPERCOLOR
+        bool "M5Stack PaperColor (ESP32-S3 e-paper)"
+        default n
+        help
+            Enable support for the M5Stack PaperColor e-paper board (ESP32-S3).
+
+endmenu

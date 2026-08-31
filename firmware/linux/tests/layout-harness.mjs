@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url)
 const { compute, REF } = require('../src/renderer/layout.js')
 
 const SIZES = [
-  ['target panel', 568, 1232],
+  ['target HDMI display', 1920, 1280],
   ['user window', 636, 1087],
   ['small dev', 480, 854],
   ['reference canvas', 320, 480],
@@ -14,7 +14,7 @@ const SIZES = [
 ]
 
 // Golden values pinning the target-panel geometry against accidental drift.
-const GOLDEN = { '568x1232': { cellW: 170, cellH: 164, gutter: 28, statusH: 57 } }
+const GOLDEN = { '1920x1280': { cellW: 611, cellH: 138, cellDim: 138, gutter: 43, statusH: 85 } }
 
 let failures = 0
 function check(name, ok, detail = '') {

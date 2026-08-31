@@ -8,7 +8,7 @@
     slot: 'left',
     lifecycle: {
       install() {}, enable() {}, mount(el, ctx) {
-        el.innerHTML = '<button id="sb-app-manager" class="status-app-entry" type="button" aria-label="打开应用管理">应用</button>'
+        el.innerHTML = '<button id="sb-app-manager" class="status-app-entry" type="button" aria-label="Open App Manager">Apps</button>'
         el.querySelector('#sb-app-manager').addEventListener('click', () =>
           ctx.emitIntent({ type: 'open-app', appId: 'app-manager', route: 'installed' }))
       },

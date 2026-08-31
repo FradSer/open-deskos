@@ -1,9 +1,11 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron')
+const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('./remote-bridge-client')
 
-const DEFAULT_WIDTH = 568
-const DEFAULT_HEIGHT = 1232
-const { resolveCompanionHealthUrl } = require('./companion-endpoint')
+const DEFAULT_WIDTH = 1920
+const DEFAULT_HEIGHT = 1280
+const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
+const { fetchFaceAgentStatus } = require('./face-agent-status')
 
 function resolveLaunchOptions(argv, env) {
   const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
@@ -22,7 +24,10 @@ function createWindow(options) {
     height: options.height,
     useContentSize: true,
     frame: false,
+    hasShadow: false,
+    thickFrame: false,
     kiosk: options.kiosk,
+    fullscreen: options.kiosk,
     backgroundColor: '#000000',
     show: false,
     autoHideMenuBar: true,
@@ -48,8 +53,7 @@ function createWindow(options) {
     })
   }
 
-  const companionHealth = encodeURIComponent(resolveCompanionHealthUrl())
-  const query = `?${options.kiosk ? 'kiosk=1&' : ''}companion=${companionHealth}`
+  const query = options.kiosk ? '?kiosk=1' : ''
   win.loadFile('src/renderer/index.html', { search: query })
   return win
 }
@@ -70,10 +74,37 @@ function runSmokeCheck(win, expected) {
 
 function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
-  ipcMain.handle('odk-companion-health', async (_event, endpoint) => {
-    const { checkCompanionHealth } = require('./companion-health')
-    return checkCompanionHealth(endpoint)
+  let remoteSocketPath = null
+  try {
+    remoteSocketPath = resolveRemoteBridgeSocketPath()
+  } catch (error) {
+    console.error(`remote bridge disabled: ${error.message}`)
+  }
+  const remoteBridge = createRemoteBridgeClient({ socketPath: remoteSocketPath })
+  let remoteSequence = 0
+  const broadcastRemoteLinkState = (state) => {
+    remoteSequence += 1
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('odk-remote-link-state', { state, sequence: remoteSequence })
+    }
+  }
+  remoteBridge.onLinkState(broadcastRemoteLinkState)
+  remoteBridge.onNavigation((direction) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('odk-remote-navigation', { direction })
+    }
   })
+  if (!process.argv.includes('--smoke')) remoteBridge.start()
+  ipcMain.handle('odk-remote-link-state', () => ({
+    state: remoteBridge.getLinkState(),
+    sequence: remoteSequence,
+  }))
+  ipcMain.handle('odk-remote-publish-page-state', (_event, state) => remoteBridge.publishPageState(state))
+  ipcMain.handle('odk-opencode-go-status', () => {
+    const openCodeGoConfig = resolveOpenCodeGoConfig()
+    return fetchOpenCodeGo(openCodeGoConfig)
+  })
+  ipcMain.handle('odk-face-agent-status', fetchFaceAgentStatus)
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-list', () => appManager.list())
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
@@ -82,8 +113,20 @@ function main() {
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
+  win.webContents.once('did-finish-load', () => {
+    win.webContents.send('odk-remote-link-state', {
+      state: remoteBridge.getLinkState(),
+      sequence: remoteSequence,
+    })
+  })
   win.once('ready-to-show', () => {
-    if (!options.smoke) win.show()
+    if (!options.smoke) {
+      if (options.kiosk) {
+        win.setFullScreen(true)
+        win.setKiosk(true)
+      }
+      win.show()
+    }
   })
 }
 

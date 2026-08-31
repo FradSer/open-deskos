@@ -155,7 +155,9 @@ static IRAM_ATTR bool lua_lvgl_dpi_refresh_done(esp_lcd_panel_handle_t panel,
 static esp_err_t lua_lvgl_register_flush_callbacks_locked(void)
 {
     if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
-        ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
+        if (s_lvgl.io == NULL) {
+            return ESP_OK;
+        }
 
         const esp_lcd_panel_io_callbacks_t callbacks = {
             .on_color_trans_done = lua_lvgl_flush_done_cb,
@@ -198,7 +200,10 @@ static esp_err_t lua_lvgl_clear_flush_callbacks_locked(void)
         return ESP_OK;
     }
     if (s_lvgl.panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
-        ESP_RETURN_ON_FALSE(s_lvgl.io != NULL, ESP_ERR_INVALID_STATE, TAG, "io handle missing");
+        if (s_lvgl.io == NULL) {
+            s_lvgl.flush_callbacks_registered = false;
+            return ESP_OK;
+        }
 
         const esp_lcd_panel_io_callbacks_t callbacks = {0};
         esp_err_t err = esp_lcd_panel_io_register_event_callbacks(s_lvgl.io, &callbacks, NULL);
@@ -239,7 +244,10 @@ static void lua_lvgl_wait_flush_done(void)
 
 static bool lua_lvgl_panel_requires_color_swap(const lua_lvgl_state_t *state)
 {
-    return state && state->panel_if == LUA_MODULE_LVGL_PANEL_IF_IO;
+    /* Synchronous panels may use the IO interface for their own transfers
+     * while intentionally withholding the handle from LVGL. Only the normal
+     * esp_lcd SPI path needs LVGL's in-place RGB565 byte swap. */
+    return state && state->panel_if == LUA_MODULE_LVGL_PANEL_IF_IO && state->io != NULL;
 }
 
 static void lua_lvgl_bswap16_in_place(uint8_t *px_map, size_t pixel_count)
@@ -555,9 +563,6 @@ static int lua_lvgl_init(lua_State *L)
     esp_err_t err;
 
     luaL_argcheck(L, panel != NULL, 1, "panel_handle lightuserdata expected");
-    if (panel_if == LUA_MODULE_LVGL_PANEL_IF_IO) {
-        luaL_argcheck(L, io != NULL, 2, "io_handle lightuserdata expected for IO panels");
-    }
     luaL_argcheck(L, width > 0 && height > 0, 3, "width and height must be positive");
     luaL_argcheck(L,
                   panel_if >= LUA_MODULE_LVGL_PANEL_IF_IO && panel_if <= LUA_MODULE_LVGL_PANEL_IF_MIPI_DSI,

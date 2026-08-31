@@ -24,7 +24,7 @@ run_smoke() {
 }
 
 echo "== scenario: default size =="
-run_smoke 568 1232
+run_smoke 1920 1280
 
 echo "== scenario: no inline styles in index.html =="
 if grep -q 'style=' src/renderer/index.html; then
@@ -37,7 +37,7 @@ if sed '/<script/d' src/renderer/index.html | grep -qE 'widget|dash-|quota|w-clo
 fi
 
 echo "== scenario: shell core stays plugin-free =="
-if grep -RIlE 'almanac|pomodoro|quota|dash-narrative|w-clock-time|w-chat|w-settings|sb-net|sb-time|peek-bridge|Mac companion' src/renderer/shell.js src/renderer/core/ >/dev/null 2>&1; then
+if grep -RIlE 'almanac|pomodoro|quota|dash-narrative|w-clock-time|w-chat|w-settings|sb-net|sb-time|peek-(subscription|network|remote)' src/renderer/shell.js src/renderer/core/ >/dev/null 2>&1; then
   fail "shell core references element specifics; move them into plugins/"
 fi
 

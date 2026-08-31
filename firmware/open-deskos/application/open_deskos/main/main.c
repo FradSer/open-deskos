@@ -26,6 +26,7 @@
 #include "odk_svc_llm_ports_idf.h"
 #include "odk_display_bringup.h"
 #include "odk_s3_display_bringup.h"
+#include "odk_m5paper_display_bringup.h"
 #include "odk_touch_bringup.h"
 #include "odk_voice_ui.h"
 
@@ -506,7 +507,9 @@ void app_main(void)
      * fill, no diagnostic cycle) so it does not block app_main long enough to
      * trip the Task Watchdog, and runs synchronously to avoid concurrent
      * SPI-flash access against the fork's init chain. */
-#if CONFIG_IDF_TARGET_ESP32S3
+#if defined(CONFIG_ODK_BOARD_M5PAPERCOLOR)
+    ESP_ERROR_CHECK(odk_m5paper_display_bringup());
+#elif CONFIG_IDF_TARGET_ESP32S3
     ESP_ERROR_CHECK(odk_s3_display_bringup());
     if (odk_s3_touch_bringup() != ESP_OK) {
         ESP_LOGW(TAG, "Open DeskOS: CST328 touch bring-up failed — UI will be display-only");

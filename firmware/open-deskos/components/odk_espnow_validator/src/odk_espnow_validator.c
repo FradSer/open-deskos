@@ -5,6 +5,7 @@
 
 struct odk_espnow_validator {
     struct {
+        uint8_t src_mac[ODK_ESPNOW_MAC_LEN];
         uint8_t data[ODK_ESPNOW_MAX_PAYLOAD];
         size_t len;
     } queue[ODK_ESPNOW_VALIDATOR_QUEUE_CAPACITY];
@@ -41,9 +42,10 @@ void odk_espnow_validator_delete(odk_espnow_validator_t *validator)
 }
 
 bool odk_espnow_validator_enqueue(odk_espnow_validator_t *validator,
+                                   const uint8_t src_mac[ODK_ESPNOW_MAC_LEN],
                                    const uint8_t *data, size_t len)
 {
-    if (validator == NULL || data == NULL || len > ODK_ESPNOW_MAX_PAYLOAD) {
+    if (validator == NULL || src_mac == NULL || data == NULL || len > ODK_ESPNOW_MAX_PAYLOAD) {
         return false;
     }
     size_t next = (validator->head + 1u) % ODK_ESPNOW_VALIDATOR_QUEUE_CAPACITY;
@@ -51,6 +53,7 @@ bool odk_espnow_validator_enqueue(odk_espnow_validator_t *validator,
         validator->stats.dropped++;
         return false;
     }
+    memcpy(validator->queue[validator->head].src_mac, src_mac, ODK_ESPNOW_MAC_LEN);
     memcpy(validator->queue[validator->head].data, data, len);
     validator->queue[validator->head].len = len;
     validator->head = next;
@@ -73,6 +76,7 @@ bool odk_espnow_validator_process_one(odk_espnow_validator_t *validator,
         memset(event, 0, sizeof(*event));
         event->result = result;
         event->payload_len = len;
+        memcpy(event->src_mac, validator->queue[index].src_mac, ODK_ESPNOW_MAC_LEN);
     }
     if (result != ODK_ESPNOW_FRAME_OK) {
         if (result == ODK_ESPNOW_FRAME_UNKNOWN_TYPE) {
@@ -116,6 +120,74 @@ bool odk_espnow_validator_process_one(odk_espnow_validator_t *validator,
     validator->stats.last_payload_len[slot] = sizeof(frame);
     validator->stats.last_timestamp[slot] = timestamp;
     return true;
+}
+
+odk_err_t odk_espnow_validator_send(odk_espnow_validator_t *validator,
+                                      const uint8_t dst_mac[ODK_ESPNOW_MAC_LEN],
+                                      const uint8_t *payload, size_t len)
+{
+    if (validator == NULL || validator->transport.send_custom_data == NULL ||
+        dst_mac == NULL || payload == NULL || len == 0u || len > ODK_ESPNOW_MAX_PAYLOAD) {
+        return ODK_ERR_INVALID_ARG;
+    }
+    uint8_t frame[ODK_ESPNOW_MAC_LEN + ODK_ESPNOW_MAX_PAYLOAD];
+    memcpy(frame, dst_mac, ODK_ESPNOW_MAC_LEN);
+    memcpy(frame + ODK_ESPNOW_MAC_LEN, payload, len);
+    if (validator->transport.send_custom_data(validator->transport.ctx,
+                                               ODK_C6_MSG_ID_ESPNOW_TX,
+                                               frame, ODK_ESPNOW_MAC_LEN + len) != 0) {
+        return ODK_ERR_STATE;
+    }
+    return ODK_OK;
+}
+
+void odk_espnow_validator_note_tx_result(odk_espnow_validator_t *validator,
+                                           const uint8_t mac[ODK_ESPNOW_MAC_LEN],
+                                           uint8_t status)
+{
+    if (validator == NULL || mac == NULL) return;
+    if (status == ODK_ESPNOW_TX_STATUS_OK) {
+        validator->stats.tx_ok++;
+    } else {
+        validator->stats.tx_failed++;
+    }
+}
+
+static odk_err_t send_peer_frame(odk_espnow_validator_t *validator,
+                                   odk_c6_peer_op_t op,
+                                   const uint8_t mac[ODK_ESPNOW_MAC_LEN],
+                                   const uint8_t *lmk, bool encrypt)
+{
+    if (validator == NULL || validator->transport.send_custom_data == NULL ||
+        mac == NULL || (encrypt && lmk == NULL)) {
+        return ODK_ERR_INVALID_ARG;
+    }
+    odk_c6_peer_frame_t frame = {0};
+    frame.op = (uint8_t)op;
+    memcpy(frame.mac, mac, ODK_ESPNOW_MAC_LEN);
+    frame.flags = encrypt ? ODK_C6_PEER_FLAG_ENCRYPT : 0u;
+    if (lmk != NULL) memcpy(frame.lmk, lmk, ODK_ESPNOW_LMK_LEN);
+    if (validator->transport.send_custom_data(validator->transport.ctx,
+                                               ODK_C6_MSG_ID_ESPNOW_PEER,
+                                               (const uint8_t *)&frame,
+                                               sizeof(frame)) != 0) {
+        return ODK_ERR_STATE;
+    }
+    return ODK_OK;
+}
+
+odk_err_t odk_espnow_validator_add_peer(odk_espnow_validator_t *validator,
+                                          const uint8_t mac[ODK_ESPNOW_MAC_LEN],
+                                          const uint8_t lmk[ODK_ESPNOW_LMK_LEN],
+                                          bool encrypt)
+{
+    return send_peer_frame(validator, ODK_C6_PEER_OP_ADD, mac, lmk, encrypt);
+}
+
+odk_err_t odk_espnow_validator_del_peer(odk_espnow_validator_t *validator,
+                                          const uint8_t mac[ODK_ESPNOW_MAC_LEN])
+{
+    return send_peer_frame(validator, ODK_C6_PEER_OP_DEL, mac, NULL, false);
 }
 
 odk_err_t odk_espnow_validator_send_control(odk_espnow_validator_t *validator,

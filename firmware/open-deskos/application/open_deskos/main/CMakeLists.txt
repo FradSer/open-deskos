@@ -26,11 +26,17 @@ if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/network_adapter.bin")
 endif()
 
 file(GLOB ODK_MAIN_SRCS "*.c")
-if(CONFIG_IDF_TARGET_ESP32S3)
+if(CONFIG_ODK_BOARD_M5PAPERCOLOR)
     list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_display_bringup\\.c$")
     list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_touch_bringup\\.c$")
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_s3_display_bringup\\.c$")
+elseif(CONFIG_IDF_TARGET_ESP32S3)
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_display_bringup\\.c$")
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_touch_bringup\\.c$")
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_m5paper_display_bringup\\.c$")
 else()
     list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_s3_display_bringup\\.c$")
+    list(FILTER ODK_MAIN_SRCS EXCLUDE REGEX "/odk_m5paper_display_bringup\\.c$")
 endif()
 
 idf_component_register(
@@ -40,7 +46,7 @@ idf_component_register(
         "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_hosted/host"
         "${CMAKE_CURRENT_LIST_DIR}/../managed_components/espressif__esp_hosted/host/api/include"
         "${IDF_PATH}/components/esp_lcd/dsi/include"
-    PRIV_REQUIRES esp_app_format cmd_wifi esp_lcd_st7701 esp_lcd esp_driver_ledc
+    PRIV_REQUIRES esp_app_format cmd_wifi esp_lcd_st7701 esp_lcd_m5paper_epd esp_lcd esp_driver_ledc
                   esp_lcd_touch esp_lcd_touch_gt911 espressif__esp_hosted
                   esp_driver_spi esp_driver_i2c
                   esp_driver_usb_serial_jtag

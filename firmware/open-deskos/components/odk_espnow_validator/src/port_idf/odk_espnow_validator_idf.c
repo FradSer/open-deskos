@@ -32,8 +32,19 @@ static odk_espnow_validator_t *s_validator;
 
 static void custom_data_callback(uint32_t msg_id, const uint8_t *data, size_t len)
 {
-    if (msg_id != ODK_C6_MSG_ID_ESPNOW_RX || s_validator == NULL) return;
-    (void)odk_espnow_validator_enqueue(s_validator, data, len);
+    if (s_validator == NULL || data == NULL) return;
+    if (msg_id == ODK_C6_MSG_ID_ESPNOW_RX) {
+        if (len <= ODK_ESPNOW_MAC_LEN || len > ODK_ESPNOW_MAC_LEN + ODK_ESPNOW_MAX_PAYLOAD) return;
+        (void)odk_espnow_validator_enqueue(s_validator, data, data + ODK_ESPNOW_MAC_LEN,
+                                            len - ODK_ESPNOW_MAC_LEN);
+    } else if (msg_id == ODK_C6_MSG_ID_ESPNOW_TX_RESULT) {
+        if (len != ODK_ESPNOW_MAC_LEN + 1u) return;
+        odk_espnow_validator_note_tx_result(s_validator, data, data[ODK_ESPNOW_MAC_LEN]);
+    } else if (msg_id == ODK_C6_MSG_ID_ESPNOW_PEER_RESULT) {
+        if (len != ODK_ESPNOW_MAC_LEN + 2u) return;
+        ESP_LOGI(TAG, "[espnow] peer op=%u mac=%02x:%02x:%02x:%02x:%02x:%02x status=%u",
+                 data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+    }
 }
 
 static int send_custom_data(void *ctx, uint32_t msg_id, const uint8_t *data, size_t len)
@@ -58,8 +69,11 @@ static void validator_task(void *arg)
         }
         const odk_espnow_fleet_message_t *frame = &event.message;
         if (frame->type == ODK_ESPNOW_TYPE_ENV) {
-            ESP_LOGI(TAG, "[espnow] rx type=ENV node=%u temp=%.2f humidity=%.2f pressure=%.2f lux=%.2f vpd=%.2f channel=%u",
-                     frame->node_id, frame->temp_c, frame->humidity, frame->pressure_pa,
+            ESP_LOGI(TAG, "[espnow] rx type=ENV node=%u src=%02x:%02x:%02x:%02x:%02x:%02x temp=%.2f humidity=%.2f pressure=%.2f lux=%.2f vpd=%.2f channel=%u",
+                     frame->node_id,
+                     event.src_mac[0], event.src_mac[1], event.src_mac[2],
+                     event.src_mac[3], event.src_mac[4], event.src_mac[5],
+                     frame->temp_c, frame->humidity, frame->pressure_pa,
                      frame->lux, frame->vpd_kpa, frame->channel);
         } else {
             ESP_LOGI(TAG, "[espnow] rx type=STATUS node=%u mac=%02x:%02x:%02x:%02x:%02x:%02x soil_raw=%ld soil_pct=%.2f valid=%u status=%u",
@@ -81,6 +95,14 @@ esp_err_t odk_espnow_validator_init(void)
     if (s_validator == NULL) return ESP_ERR_NO_MEM;
     esp_err_t err = esp_hosted_register_custom_callback(ODK_C6_MSG_ID_ESPNOW_RX,
                                                          custom_data_callback);
+    if (err == ESP_OK) {
+        err = esp_hosted_register_custom_callback(ODK_C6_MSG_ID_ESPNOW_TX_RESULT,
+                                                   custom_data_callback);
+    }
+    if (err == ESP_OK) {
+        err = esp_hosted_register_custom_callback(ODK_C6_MSG_ID_ESPNOW_PEER_RESULT,
+                                                   custom_data_callback);
+    }
     if (err != ESP_OK) {
         odk_espnow_validator_delete(s_validator);
         s_validator = NULL;

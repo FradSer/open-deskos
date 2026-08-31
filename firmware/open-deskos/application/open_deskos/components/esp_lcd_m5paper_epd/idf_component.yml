@@ -1,0 +1,4 @@
+version: 1.0.0
+description: "ESP-IDF esp_lcd panel driver for M5Stack PaperColor ED2208 E-Paper Display"
+dependencies:
+  idf: ">=5.0"

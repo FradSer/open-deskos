@@ -42,6 +42,7 @@
 1. **§四"显示内容"清单** → 由本文 §5 的 OS 外壳(widget 主屏 + app 全屏)取代。原清单里的每一项(语音状态/连接状态/外设状态/now-playing/宏面板/系统状态)都映射为 widget 或内置 app,不再是固定状态页。
 2. **§五/§十九"触摸确认后才上屏"** → 从强制改为**可配置**:默认"直出模式"(段级流式注入,零摩擦,typeless 式),设置里可开"确认模式"(原行为)。验收行同步修订(§11.2 M1)。
 3. **§四触摸 IC 型号**:SPEC 写 CST3530;现役 Guition JC4880P443C 板为 Goodix **GT911**(board_peripherals.yaml / setup_device.c 已按 GT911 落地)。实施 021 任务时以现役板实物为准。
+4. **硬件支持目标**:固件生产支持 Guition JC4880P443C (P4+C6 480×800 MIPI-DSI)、Waveshare ESP32-S3 Touch LCD 2.8 (240×320 SPI)、以及 M5Stack PaperColor (ESP32-S3, 400×600 ED2208 电子墨水屏) 三款硬件。
 
 ## 3. 系统总览
 
