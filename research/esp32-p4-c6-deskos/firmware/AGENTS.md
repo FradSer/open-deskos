@@ -2,8 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This directory preserves prior ESP32-P4+C6 Open DeskOS research firmware for three board-manager targets. It is not the active CM5/Linux product runtime. under
-`application/open_deskos/`: Guition JC4880P443C (ESP32-P4 + C6, 480×800
+This directory preserves prior ESP32-P4+C6 Open DeskOS research firmware for three board-manager targets under `application/open_deskos/`. It is not the active CM5/Linux product runtime: Guition JC4880P443C (ESP32-P4 + C6, 480×800
 ST7701S MIPI-DSI, GT911), Waveshare ESP32-S3 Touch LCD 2.8 (240×320
 ST7789 SPI, CST328), and M5Stack PaperColor (ESP32-S3, 400×600 ED2208 e-paper).
 The production application is `application/open_deskos/`;
@@ -125,4 +124,4 @@ commit credentials or temporary diagnostics.
 - App configuration: `application/open_deskos/components/app_config/`
 - Board definitions: `application/open_deskos/boards/`
 - Host contracts and BDD: `tests/host/` and `tests/features/`
-- Guition display-performance reference: `../../docs/reference/guition-lvgl-60fps-path.md`
+- Guition display-performance reference: `../reference/guition-lvgl-60fps-path.md`
