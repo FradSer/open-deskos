@@ -52,8 +52,8 @@ Keep S3 in `build-s3`; the native simulator cannot replace a research target bui
 
 ## Coding Style & Testing Guidelines
 
-Use 2-space JavaScript/TypeScript, standard Swift naming, and ESP-IDF C style with 4-space indentation and `snake_case`. Device UI must use AIODI tokens/builders. Start behavior changes with the relevant Given/When/Then scenario and keep executable checks alongside it. Never commit credentials, temporary diagnostics, or untracked generated output.
+Use 2-space JavaScript/TypeScript, standard Swift naming, and ESP-IDF C style with 4-space indentation and `snake_case`. The active CM5 runtime uses the semantic tokens in `DESIGN.md`; preserved P4+C6 research UI uses its retained AIODI builders. Start behavior changes with the relevant Given/When/Then scenario and keep executable checks alongside it. Never commit credentials, temporary diagnostics, or generated output.
 
 ## Commit & Pull Request Guidelines
 
-Use focused Conventional Commits and keep one concern per commit. State the active runtime, peripheral, experiment, or research scope plus validation run. The preserved P4+C6 tree retains its own workflow and pre-commit configuration under `research/esp32-p4-c6-deskos/firmware/`.
+Use focused Conventional Commits and keep one concern per commit. Recent history uses scopes such as `fix(runtime):`, `refactor(integrations):`, and `feat(peripherals):`; state the affected scope and validation run. The preserved P4+C6 tree retains its own workflow and pre-commit configuration under `research/esp32-p4-c6-deskos/firmware/`.
