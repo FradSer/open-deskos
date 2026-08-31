@@ -32,6 +32,10 @@ test('provisions experimental local Face Agent dependencies only when opted in',
   assert.match(installer, /skipping experimental Face Agent and ESP32-P4 camera provisioning/)
   assert.match(installer, /BRIDGE_UNIT_DIR="\$\{TARGET_HOME\}\/.config\/systemd\/user"/)
   assert.match(installer, /run_as_target_user systemctl --user enable --now open-deskos-remote-bridge\.service/)
+  assert.match(installer, /OPENBOX_CONFIG_DIR="\$\{TARGET_HOME\}\/.config\/openbox"/)
+  assert.match(installer, /run_as_target_user mkdir -p "\$OPENBOX_CONFIG_DIR"/)
+  assert.match(installer, /chown -R "\$\{TARGET_UID\}:\$\{TARGET_GID\}" "\$OPENBOX_CONFIG_DIR"/)
+  assert.match(installer, /run_as_target_user sed -i 's\/<name>\.\*<\\\/name>\/<name>OpenDeskOS<\\\/name>\/' "\$OPENBOX_CONFIG_DIR\/rc\.xml"/)
   assert.match(installer, /AUTOSTART_DIR="\$\{TARGET_HOME\}\/.config\/autostart"/)
   assert.match(installer, /chown "\$\{TARGET_UID\}:\$\{TARGET_GID\}" "\$AUTOSTART_DIR\/open-deskos-shell\.desktop"/)
 

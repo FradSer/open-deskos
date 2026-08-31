@@ -176,10 +176,11 @@ menu.border.width: 0
 EOF
 
 OPENBOX_CONFIG_DIR="${TARGET_HOME}/.config/openbox"
-mkdir -p "$OPENBOX_CONFIG_DIR"
+run_as_target_user mkdir -p "$OPENBOX_CONFIG_DIR"
+chown -R "${TARGET_UID}:${TARGET_GID}" "$OPENBOX_CONFIG_DIR"
 if [ -f "$OPENBOX_CONFIG_DIR/rc.xml" ]; then
-  sed -i 's/<name>.*<\/name>/<name>OpenDeskOS<\/name>/' "$OPENBOX_CONFIG_DIR/rc.xml"
-  sed -i 's/<keepBorder>yes<\/keepBorder>/<keepBorder>no<\/keepBorder>/g' "$OPENBOX_CONFIG_DIR/rc.xml"
+  run_as_target_user sed -i 's/<name>.*<\/name>/<name>OpenDeskOS<\/name>/' "$OPENBOX_CONFIG_DIR/rc.xml"
+  run_as_target_user sed -i 's/<keepBorder>yes<\/keepBorder>/<keepBorder>no<\/keepBorder>/g' "$OPENBOX_CONFIG_DIR/rc.xml"
 fi
 
 echo "== registering kiosk autostart =="
