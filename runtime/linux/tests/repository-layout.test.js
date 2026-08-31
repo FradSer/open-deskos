@@ -5,6 +5,7 @@ const path = require('node:path')
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..', '..')
 const FEATURE = path.join(__dirname, 'features', 'repository-layout.feature')
+const GIT_AGENT_CONFIG = path.join(REPOSITORY_ROOT, '.git-agent', 'config.yml')
 const OBSOLETE_PATHS = ['firmware/linux', 'firmware/open-deskos', 'app/apple', 'docs/open-deskos']
 
 function exists(relativePath) {
@@ -37,6 +38,14 @@ test('separates the active CM5 runtime, required peripherals, experiments, and p
   for (const legacyPath of OBSOLETE_PATHS) {
     assert.equal(exists(legacyPath), false, `obsolete path remains: ${legacyPath}`)
   }
+})
+
+test('git-agent uses concise scopes aligned with the current topology', () => {
+  const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
+  const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
+  assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for CM5, hardware, link, vision, S31, P4, and Mac work/)
+  assert.deepEqual(names, ['cm5', 'hw', 'link', 'vision', 's31', 'p4', 'mac'])
+  assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
 })
 
 test('active product documentation does not direct contributors to obsolete paths', () => {
