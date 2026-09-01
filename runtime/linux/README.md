@@ -32,6 +32,9 @@ tests/features/         中文 Gherkin 场景
 tests/smoke.sh          分辨率、token、骨架和核心架构检查
 scripts/start-kiosk.sh  kiosk 启动包装器
 scripts/cm5-install.sh CM5 设备端安装器
+scripts/update-runtime.js CM5 原子 release 激活与回退事务
+scripts/migrate-runtime.js CM5 用户级、幂等 runtime migration
+scripts/cm5-stage-release.sh 从开发机 stage 并在 CM5 上激活 release
 ```
 
 ## 本机开发
@@ -90,17 +93,31 @@ That opt-in path creates `/opt/face-agent-venv`, installs its serial metadata de
 ## 部署到 CM5
 
 ```sh
-rsync -a --delete --exclude node_modules runtime/linux/ cm5:/opt/open-deskos/runtime/linux/
-rsync -a integrations/ experiments/ peripherals/ cm5:/opt/open-deskos/
-rsync -a DESIGN.md cm5:/opt/open-deskos/DESIGN.md
-ssh cm5
-cd /opt/open-deskos/runtime/linux && bash scripts/cm5-install.sh
+# From the development checkout: stage, preflight, activate, then verify on CM5.
+bash runtime/linux/scripts/cm5-stage-release.sh
+
 # Optional, only after the vision hardware acceptance gate:
-# ODESK_INSTALL_EXPERIMENTAL_VISION=1 bash scripts/cm5-install.sh
-sudo reboot
+# ODESK_INSTALL_EXPERIMENTAL_VISION=1 bash runtime/linux/scripts/cm5-stage-release.sh
+
+ssh cm5 'cd /opt/open-deskos/current && bash scripts/cm5-acceptance.sh'
 ```
 
-在 kiosk 用户会话中配置 OpenCode Go 环境变量后再启动 `scripts/start-kiosk.sh`。安装器注册的自启项会在外壳退出后自动重启，日志位于 `~/.local/state/open-deskos-shell/launcher.log`。
+在 kiosk 用户会话中配置 OpenCode Go 环境变量后，由图形会话自启项导入显示环境并启动 `open-deskos-shell.service`。该服务解析 active release，外壳退出后自动重启；日志位于 `~/.local/state/open-deskos-shell/launcher.log`。
+
+## 受控 Runtime 更新
+
+安装器会从同步后的 staging tree 建立首个 versioned release，并创建 `/opt/open-deskos/current` 原子指针和 `open-deskos-shell.service`。候选 release 必须先包含有效的 `release.json`（`schemaVersion: 1`、与目录一致的 `id`）并通过 `pnpm preflight`，才会切换 active release。post-activation kiosk 或 smoke 检查失败会恢复前一个 release；系统包、内核、用户桌面和实验服务不属于此回退范围。
+
+```sh
+sudo ODK_RUNTIME_ROOT=/opt/open-deskos \
+ODK_CANDIDATE_RELEASE=/opt/open-deskos/releases/<release-id> \
+ODK_KIOSK_USER=<kiosk-user> \
+ODK_KIOSK_UID=$(id -u <kiosk-user>) \
+ODK_KIOSK_HOME=/home/<kiosk-user> \
+node scripts/update-runtime.js
+```
+
+更新状态、回退候选和用户级 migration marker 位于 `/opt/open-deskos/state/`。同一时间只允许一个更新事务。`scripts/cm5-acceptance.sh` 的 JSON 会分别报告 active/rollback release、migration、base shell、外围服务和硬件证据；host 运行产生的是诊断报告，不是 CM5 硬件验收。
 
 Remote Bridge 使用 `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`。生产环境不支持 socket 路径覆盖；自动化测试可同时设置 `ODESK_SHELL_TEST_MODE=1` 和绝对路径 `ODESK_REMOTE_BRIDGE_SOCKET`。
 
@@ -114,6 +131,6 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 1920x1280x24" \
 
 ## 验证状态
 
-已验证：OpenCode Go 配置/解析单元测试、Linux 主进程 IPC 设计、renderer 沙盒约束、Remote Bridge 单元测试、host smoke 的 token 和布局检查。
+已验证：OpenCode Go 配置/解析单元测试、Linux 主进程 IPC 设计、renderer 沙盒约束、Remote Bridge 单元测试、host smoke 的 token 和布局检查；并已在真实 CM5 的 X11 `:0` HDMI 会话验证 active release、1920×1280 smoke、kiosk user service、Remote Bridge、原子 release 指针与 rollback candidate。CM5 运行时实际截图确认 Today 与真实 network/OpenCode Go/Remote Link 状态可见。
 
-尚未验证：真实 CM5 GPU 合成、evdev 触摸、桌面会话自启，以及真实 OpenCode Go 账户请求。真实设备验收使用 `scripts/cm5-acceptance.sh`。
+尚未验证：CM5 evdev 触摸（当前设备没有发现 touch-named input）、硬件 GPU 合成（当前报告为 llvmpipe）以及真实 OpenCode Go 账户请求。`scripts/cm5-acceptance.sh` 会将这些未通过的 required hardware evidence 如实标为失败；它们不会被 host 验证掩盖。

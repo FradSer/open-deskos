@@ -10,7 +10,7 @@ src/renderer/
   index.html               骨架:状态栏/分页视口/peek/app-view 对话框,不含任何页面内容
   shell.js                 组合根:几何、分页器、对话框、键盘导航、核心状态栏
   layout.js                网格几何(Open DeskOS portrait 分支)
-  core/registry.js         odkPlugins.register/has/get/ids — 注册表与生命周期
+  core/registry.js         odkPlugins.register/has/get/ids — 注册表、`odk.*` 身份与生命周期
   core/services.js         odkServices — 共享秒级 tick 与连接状态存储、状态文案词汇表
   core/app-platform.js     Installer → App Manager → App Runtime 意图路由
   core/composer.js         odkComposer.validate/build — 把配置装配成 DOM
@@ -40,7 +40,8 @@ Runtime,只通过 `ctx.emitIntent()` 发起意图。大部分持续状态由 pee
 ;(function (root) {
   'use strict'
   root.odkPlugins.register({
-    id: 'my-widget',          // 唯一 id;CSS 类自动为 .w-my-widget
+    id: 'odk.tile.my-widget', // 唯一、受控的 Open DeskOS id;CSS 类自动为 .w-my-widget
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'My view',           // English identifier(data-app), used for uniqueness and diagnostics
     state: 'Pending integration', // truthful state; never fabricate a running or personal-data status
@@ -61,25 +62,27 @@ Runtime,只通过 `ctx.emitIntent()` 发起意图。大部分持续状态由 pee
 
 ```js
 root.odkPlugins.register({
-  id: 'my-page',
+  id: 'odk.page.my-page',
+  manifest: { schemaVersion: 1 },
   kind: 'page',
   mount(el, ctx) { el.innerHTML = `<div class="card my-card">...</div>` },
 })
 
 root.odkPlugins.register({
-  id: 'my-indicator',
+  id: 'odk.status.my-indicator',
+  manifest: { schemaVersion: 1 },
   kind: 'status',
   slot: 'left',             // 'left' 或 'right'
   mount(el, ctx) { /* el 是空槽位 span;订阅 ctx.connection 更新状态 */ },
 })
 
 root.odkPlugins.register({
-  id: 'my-peek',
+  id: 'odk.peek.my-peek',
+  manifest: { schemaVersion: 1 },
   kind: 'peek',
   mount(el, ctx) { /* el 是 peek 按钮内的内容槽位 */ },
   activate(ctx) { ctx.openDialog('标题', '正文', '补充'); return true },
 })
-```
 ```
 
 ### 完整生命周期
@@ -111,9 +114,9 @@ App 额外可以提供 `handleAction(intent, ctx)`;它只能由平台 seam 调�
 
 ```js
 { id: 'home', name: 'Home', kind: 'grid', widgets: [
-  { id: 'my-widget', col: '3', row: '4' },
+  { id: 'odk.tile.my-widget', col: '3', row: '4' },
 ]},
-{ id: 'my-page', name: 'My page', kind: 'page', plugin: 'my-page' },
+{ id: 'my-page', name: 'My page', kind: 'page', plugin: 'odk.page.my-page' },
 ```
 
 页名会自动进入状态栏页点、`名称 · N/M` 上下文与 aria 标签。
@@ -139,6 +142,8 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - 颜色只用根 `DESIGN.md` 的 Open DeskOS token(`--odk-*` CSS 变量);禁裸 hex。
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI copy and code must not use emoji. All user-visible CM5 shell copy and catalog values are English.
+- Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, `peek`, and `app`; status slots are only `left` or `right`. `open-app` tiles require one valid built-in `appId`; display-only tiles cannot declare one.
 - Plugins must not bypass the built-in-view intent seam; the core owns composition, lifecycle, and routing. Do not describe it as an Installer/App Manager/App Runtime platform until an installable package exists.
+- Plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code.
 - 状态优先进入 peek;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

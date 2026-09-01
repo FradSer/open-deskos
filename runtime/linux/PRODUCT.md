@@ -25,7 +25,7 @@ The active implementation focus for Open DeskOS. It is not yet a committed suppo
 - Target hardware: Orange Pi CM5 (RK3588S) driving a 1920×1280 HDMI display; kiosk autostart via `scripts/cm5-install.sh` (run on-device, arm64).
 - Development happens on macOS or Linux host: `./run.sh` windowed, `bash tests/smoke.sh`, `pnpm run e2e`.
 - Touch input arrives through the display server (X11/Wayland evdev) straight to Chromium; Wayland sessions append `--ozone-platform-hint=auto`.
-- Deployment is rsync-from-Mac then on-device install; see README runbook.
+- Deployment stages a CM5 runtime release then activates it through the device-owned update transaction; see README runbook.
 - Host smoke/e2e passing does NOT verify CM5 hardware behavior (GPU compositing, touch events, autostart remain unverified until first bring-up).
 
 ## Capabilities and Constraints
@@ -34,8 +34,8 @@ Confirmed capabilities:
 - 1920×1280 default kiosk content size; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
 - Three-page horizontal touch pager with threshold-based swipe, visible page context (`Today · N/3`), and status-bar dot sync: truthful Today status / Home Widget grid / Usage honesty card.
 - Home grid: 3 columns with declarative column/row spans in `src/renderer/config/desktop_layout.js`; every visible Widget exposes a truthful state label and may declare a focused built-in view. All pages, Widgets, status-bar indicators, peek content, and built-in views are self-contained plugins assembled by `core/composer.js`; the intent seam validates main-process routing into the renderer runtime.
-- Network, Mac companion, and active App states are separate: the bolt reports network reachability, while dashboard, quota and peek check the Mac companion status server and peek also carries the current App live state.
-- The status bar has one unified App Manager entry. The shell has no dock or desktop icon pile; App discovery and lifecycle validation live in the App Manager view.
+- Network, OpenCode Go, Remote Link, and active built-in view states are separate: the bolt reports network reachability, while Today, Usage, and peek show only Linux-native, device-configured provider state. Peek also carries the foreground built-in view state.
+- The status bar remains a minimal orientation surface. The shell has no dock or desktop icon pile; built-in view discovery and lifecycle validation live in the Built-in views surface.
 - Widget taps use `open-app` intent only for declared built-in views; `display-only` Widgets remain truthful and do not pretend to be launchers. Back and Escape always return to the exact source page and context.
 - Runtime geometry: `layout.js` computes the Open DeskOS portrait grid algorithm (`fit = min(w/320, h/480)`) into CSS custom properties; the shell re-flows on any aspect ratio without cropping.
 - Noto Sans SC Regular and Montserrat Bold are bundled locally under `src/renderer/fonts/` so CM5 rendering does not depend on host-installed fonts.
@@ -58,7 +58,7 @@ calm / precise / companion — inherited unchanged from the product family. Open
 
 ## Evidence on Hand
 
-- `README.md` — slice scope, dev/deploy runbook, honest verification status.
+- `README.md` — slice scope, dev/deploy runbook, controlled release update, and honest verification status.
 - `AGENTS.md` — structure, style gates, commit conventions (`feat(linux): ...`).
 - `src/renderer/fonts/{NotoSansSC-Regular.ttf,Montserrat-Bold.ttf}` — bundled Open DeskOS type assets.
 - Working shell: `src/renderer/{index.html,shell.css,shell.js,layout.js}` + `src/main.js`.
