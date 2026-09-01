@@ -3,7 +3,8 @@
   'use strict'
 
   root.odkPlugins.register({
-    id: 'status-connection',
+    id: 'odk.status.connection',
+    manifest: { schemaVersion: 1 },
     kind: 'status',
     slot: 'left',
     mount(el, ctx) {

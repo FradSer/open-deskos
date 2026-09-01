@@ -3,7 +3,8 @@
   'use strict'
 
   root.odkPlugins.register({
-    id: 'chat',
+    id: 'odk.tile.chat',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Chatbot',
     state: 'Pending integration',

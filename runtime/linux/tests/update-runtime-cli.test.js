@@ -1,0 +1,73 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const updater = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'update-runtime.js'), 'utf8')
+const migrator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'migrate-runtime.js'), 'utf8')
+const validator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'validate-release.js'), 'utf8')
+const releaseVerifier = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'verify-release.sh'), 'utf8')
+const stageRelease = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-stage-release.sh'), 'utf8')
+
+test('CM5 updater serializes transactions and preflights before activating a release', () => {
+  assert.match(updater, /openSync\(lockPath, 'wx'\)/)
+  assert.match(updater, /preflightRelease/)
+  assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
+  assert.match(updater, /activateRelease/)
+  assert.match(updater, /post-activation smoke failed/)
+  assert.match(updater, /open-deskos-remote-bridge\.service/)
+  assert.match(updater, /open-deskos-shell\.service/)
+  assert.match(updater, /ODK_KIOSK_USER/)
+  assert.match(updater, /ODK_KIOSK_UID/)
+  assert.match(updater, /ODK_KIOSK_HOME/)
+  assert.match(updater, /ODK_KIOSK_NODE_BIN/)
+  assert.match(updater, /ODK_KIOSK_BIN_DIR/)
+  assert.match(updater, /COREPACK_ENABLE_PROJECT_SPEC=0/)
+  assert.match(updater, /runtime update must run as root/)
+  assert.match(updater, /function sealRelease/)
+  assert.match(updater, /chown', \['-R', 'root:root'/)
+  assert.match(updater, /chmod', \['-R', 'a-w'/)
+  assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
+  assert.match(updater, /\['pnpm', 'verify-release'\], kiosk/)
+})
+
+test('kiosk identity retains names while resolving only filesystem paths', () => {
+  assert.match(updater, /function requiredValue\(name\)/)
+  assert.match(updater, /const user = requiredValue\('ODK_KIOSK_USER'\)/)
+  assert.match(updater, /const home = requiredValue\('ODK_KIOSK_HOME'\)/)
+  assert.doesNotMatch(updater, /const user = requiredEnv\('ODK_KIOSK_USER'\)/)
+})
+
+test('immutable runtime smoke can skip generated stylesheet writes', () => {
+  const launcher = fs.readFileSync(path.join(__dirname, '..', 'run.sh'), 'utf8')
+  const packageManifest = fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
+  assert.match(launcher, /ODESK_SKIP_STYLE_BUILD/)
+  assert.match(packageManifest, /bash scripts\/verify-release\.sh/)
+  assert.match(releaseVerifier, /ODESK_SKIP_STYLE_BUILD=1 \.\/run\.sh --smoke/)
+  assert.match(releaseVerifier, /loginctl show-session/)
+  assert.match(releaseVerifier, /SESSION_DISPLAY/)
+  assert.match(releaseVerifier, /xvfb-run/)
+})
+
+test('CM5 staging command delegates release construction and verification to the device', () => {
+  assert.match(stageRelease, /ODK_CM5_TARGET:-cm5/)
+  assert.match(stageRelease, /mkdir -p '\$\{REMOTE_ROOT\}\/staging' '\$\{REMOTE_ROOT\}\/releases' '\$\{REMOTE_ROOT\}\/state'/)
+  assert.match(stageRelease, /rsync -a --delete --exclude node_modules/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/integrations\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/integrations\/"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/experiments\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/experiments\/"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/peripherals\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/peripherals\/"/)
+  assert.match(stageRelease, /ssh "\$\{TARGET\}" "cd '\$\{REMOTE_ROOT\}\/staging\/runtime-linux' && bash scripts\/cm5-install\.sh"/)
+})
+
+test('release validator fails closed when packaged composition is invalid', () => {
+  assert.match(validator, /validateRuntimeComposition/)
+  assert.match(validator, /release path is required/)
+  assert.match(validator, /release validation failed/)
+})
+
+test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
+  assert.match(migrator, /ODK_KIOSK_USER/)
+  assert.match(migrator, /migrateUser/)
+  assert.doesNotMatch(migrator, /experimental:\s*true/)
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8'), /ODK_KIOSK_UID="\$\{TARGET_UID\}"/)
+})

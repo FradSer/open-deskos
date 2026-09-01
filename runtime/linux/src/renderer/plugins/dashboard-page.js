@@ -7,7 +7,8 @@
     'July', 'August', 'September', 'October', 'November', 'December']
 
   root.odkPlugins.register({
-    id: 'dashboard-page',
+    id: 'odk.page.dashboard',
+    manifest: { schemaVersion: 1 },
     kind: 'page',
     mount(el, ctx) {
       el.innerHTML = `

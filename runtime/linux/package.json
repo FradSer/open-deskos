@@ -9,6 +9,8 @@
     "styles:watch": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --watch",
     "start": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron .",
     "smoke": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron . --smoke",
+    "verify-release": "bash scripts/verify-release.sh",
+    "preflight": "pnpm test && pnpm styles && pnpm verify-release",
     "e2e": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/e2e.js",
     "test": "node --test tests/*.test.js"
   },

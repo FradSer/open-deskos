@@ -7,7 +7,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'clock',
+    id: 'odk.tile.clock',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Clock',
     state: 'Available',

@@ -3,6 +3,7 @@ const BUILTIN_APPS = [
   { appId: 'clock', name: 'Clock', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'pomodoro', name: 'Pomodoro', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'year', name: 'Year progress', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'system-status', name: 'System status', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'app-manager', name: 'Built-in views', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
 ]
 

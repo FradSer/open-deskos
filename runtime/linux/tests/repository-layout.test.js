@@ -22,8 +22,8 @@ function markdownFiles(directory) {
 
 if (!exists('.git')) {
   test('deployed runtime does not require repository topology metadata', () => {
-    assert.equal(exists('runtime/linux/package.json'), true)
-    assert.equal(exists('runtime/linux/src/main.js'), true)
+    assert.equal(fs.existsSync(path.join(__dirname, '..', 'package.json')), true)
+    assert.equal(fs.existsSync(path.join(__dirname, '..', 'src', 'main.js')), true)
   })
 } else {
   test('separates the active CM5 runtime, required peripherals, experiments, and preserved P4+C6 research', () => {

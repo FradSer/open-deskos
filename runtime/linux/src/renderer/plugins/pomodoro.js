@@ -3,7 +3,8 @@
   'use strict'
 
   root.odkPlugins.register({
-    id: 'pomodoro',
+    id: 'odk.tile.pomodoro',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Pomodoro',
     state: 'Not started',

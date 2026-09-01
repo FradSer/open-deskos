@@ -237,6 +237,34 @@ body.kiosk {
   outline-offset: 3px;
 }
 
+/* ---- Focused system status ---- */
+
+.system-status-list {
+  width: min(100%, 680px);
+  margin: 32px 0;
+  border-top: 1px solid var(--odk-stroke);
+}
+
+.system-status-list > div {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--odk-stroke);
+  text-align: left;
+}
+
+.system-status-list dt {
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-weight: 700;
+}
+
+.system-status-list dd {
+  color: var(--odk-primary);
+  margin: 0;
+}
+
 /* ---- Pager viewport between status bar and peek ---- */
 
 #pages-viewport {

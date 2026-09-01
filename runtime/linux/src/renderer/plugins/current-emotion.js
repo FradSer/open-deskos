@@ -44,7 +44,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'current-emotion',
+    id: 'odk.tile.current-emotion',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Current emotion',
     state: 'Face Agent unavailable',

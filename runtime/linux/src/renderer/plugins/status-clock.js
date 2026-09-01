@@ -7,7 +7,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'status-clock',
+    id: 'odk.status.clock',
+    manifest: { schemaVersion: 1 },
     kind: 'status',
     slot: 'right',
     mount(el, ctx) {

@@ -5,7 +5,8 @@
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
   root.odkPlugins.register({
-    id: 'almanac',
+    id: 'odk.tile.almanac',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Calendar',
     state: 'Available',

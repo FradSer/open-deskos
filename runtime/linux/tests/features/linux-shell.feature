@@ -62,6 +62,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And it disables X11 screen-saver and DPMS blanking before starting Electron
     And an idle HDMI panel remains powered while the shell is running
 
+  Scenario: CM5 shell enables hardware GPU acceleration with configurable software fallback
+    Given the CM5 kiosk launcher initializes
+    When hardware acceleration is enabled by default
+    Then the kiosk launcher does not force software OpenGL
+    And the main process configures Chromium to ignore the GPU blocklist and enable GPU rasterization
+    And setting ODESK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
+
   Scenario: Experimental vision never blocks the desk surface
     Given the Face Agent user service is stopped, starting, has no camera frame, or cannot capture from its camera
     When the Linux shell starts
@@ -119,3 +126,47 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And built-in view catalog names are English
     And interactive controls and page indicators have English accessible labels
     And no Chinese characters appear in renderer UI source, catalog values, or end-to-end expectations
+
+  Scenario: CM5 activates only a verified staged Open DeskOS release
+    Given a known-good Open DeskOS release is active
+    And a complete candidate release is staged outside the active release path
+    When the CM5 updater preflights and activates the candidate
+    Then it atomically selects the candidate as active
+    And it retains the previous release as the rollback candidate
+    And it restarts only Open DeskOS-owned services after activation
+
+  Scenario: CM5 retains a usable release after an update failure
+    Given a known-good Open DeskOS release is active
+    When a candidate release fails preflight or post-activation smoke verification
+    Then the failed candidate is not left active
+    And the known-good release remains or is restored as active
+    And the update result reports the factual failure reason
+
+  Scenario: CM5 runtime migrations are user-scoped and retry-safe
+    Given an Open DeskOS migration has not completed for the kiosk user
+    When the migration is retried after interruption
+    Then it changes only Open DeskOS-owned state exactly once
+    And it records completion only after the state is valid
+    And base migration does not enable optional vision or Remote hardware
+
+  Scenario: Built-in composition rejects invalid continuations before release activation
+    Given a candidate runtime contains its built-in plugins and desktop layout
+    When release preflight validates the composition contract
+    Then every plugin has a unique supported identity, kind, and lifecycle
+    And every layout entry references a compatible plugin
+    And every open-app tile references a valid built-in App
+    But no third-party plugin or theme code is loaded
+
+  Scenario: Peek opens a focused factual system status view
+    Given the Display Shell is running with available or unavailable provider and Remote Link state
+    When the user selects the peek
+    Then a focused status view shows provider, network, Remote Link, and foreground-view state
+    And it offers only supported recovery actions
+    And Back or Escape restores the source page and page position
+
+  Scenario: CM5 acceptance identifies release and hardware evidence separately
+    Given an Open DeskOS release is installed on a CM5
+    When the acceptance command runs
+    Then it emits one JSON report for release, migration, kiosk, service, smoke, display, and touch evidence
+    And unavailable hardware checks are not reported as accepted
+    And host validation does not claim CM5 hardware acceptance

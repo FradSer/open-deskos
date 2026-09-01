@@ -36,7 +36,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'face-presence',
+    id: 'odk.tile.face-presence',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Face presence',
     state: 'Face Agent unavailable',

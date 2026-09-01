@@ -6,6 +6,23 @@
   const instances = new WeakMap()
   const enabled = new Set()
   const LIFECYCLE = ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
+  const KINDS = new Set(['tile', 'page', 'status', 'peek', 'app'])
+
+  function validateDefinition(def) {
+    if (!def || typeof def.id !== 'string' || !def.id.startsWith('odk.') || !def.kind || !KINDS.has(def.kind)) {
+      throw new Error('plugin requires an Open DeskOS identity and supported kind')
+    }
+    if (!def.manifest || def.manifest.schemaVersion !== 1) throw new Error(`plugin "${def.id}" requires manifest schema version 1`)
+    if (def.kind === 'status' && !['left', 'right'].includes(def.slot)) {
+      throw new Error(`status plugin "${def.id}" requires a supported slot`)
+    }
+    if (def.kind === 'tile' && def.interaction === 'display-only' && def.appId) {
+      throw new Error(`display-only tile "${def.id}" cannot declare appId`)
+    }
+    if (def.kind === 'tile' && def.interaction === 'open-app' && !def.appId) {
+      throw new Error(`open-app tile "${def.id}" requires appId`)
+    }
+  }
 
   function scopedContext(ctx) {
     const cleanups = new Set()
@@ -60,9 +77,8 @@
 
   root.odkPlugins = {
     register(def) {
-      if (!def || typeof def.id !== 'string' || !def.id || typeof def.mount !== 'function' && !def.lifecycle?.mount) {
-        throw new Error('plugin requires { id, mount }')
-      }
+      validateDefinition(def)
+      if (typeof def.mount !== 'function' && !def.lifecycle?.mount) throw new Error(`plugin "${def.id}" requires mount`)
       if (plugins.has(def.id)) throw new Error(`plugin "${def.id}" already registered`)
       const lifecycle = def.lifecycle || {}
       def.lifecycle = Object.fromEntries(LIFECYCLE.map((phase) => [
@@ -81,6 +97,12 @@
     },
     ids() {
       return [...plugins.keys()]
+    },
+    lifecyclePhases() {
+      return [...LIFECYCLE]
+    },
+    supportedKinds() {
+      return [...KINDS]
     },
     byKind(kind) {
       return [...plugins.values()].filter((def) => def.kind === kind)

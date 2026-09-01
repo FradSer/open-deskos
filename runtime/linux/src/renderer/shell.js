@@ -366,7 +366,7 @@ function main() {
   for (const def of odkPlugins.byKind('status')) {
     const slot = document.querySelector(`[data-slot="status-${def.slot}"]`)
     const host = document.createElement('span')
-    host.className = `status-plugin status-${def.id}`
+    host.className = `status-plugin status-${def.id.replace(/^odk\.status\./, '')}`
     slot.append(host)
     odkPlugins.activate(def, host, uiCtx)
   }

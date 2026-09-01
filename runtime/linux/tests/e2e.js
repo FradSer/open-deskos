@@ -26,6 +26,7 @@ const DRIVER_SCRIPT = `
   out.appViewDisplayOnLoad = getComputedStyle($('#app-view')).display
 
   out.pluginIds = window.odkPlugins ? [...window.odkPlugins.ids()].sort() : []
+  out.pluginsUseOdkIdentity = out.pluginIds.every((id) => id.startsWith('odk.'))
   out.pluginsHaveCompleteLifecycle = out.pluginIds.every((id) => {
     const lifecycle = window.odkPlugins.get(id).lifecycle
     return ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
@@ -90,7 +91,8 @@ const DRIVER_SCRIPT = `
   out.widgetCount = apps.length
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
-    document.querySelectorAll('.widget[data-widget]').length === 4
+    document.querySelectorAll('.widget[data-widget]').length === 4 &&
+    [...document.querySelectorAll('.widget[data-widget]')].every((widget) => widget.dataset.widget.startsWith('odk.tile.'))
   out.experimentalVisionDoesNotBlockShell =
     $('#privacy-shield').hidden &&
     !$('#pages-viewport').inert &&
@@ -99,16 +101,16 @@ const DRIVER_SCRIPT = `
     $('.w-almanac .w-state')?.textContent === 'Available' &&
     $('.w-pomodoro .w-state')?.textContent === 'Not started'
   out.widgetIntentMetadata =
-    document.querySelector('.widget[data-widget="almanac"]')?.dataset.interaction === 'open-app' &&
-    document.querySelector('.widget[data-widget="pomodoro"]')?.dataset.interaction === 'open-app'
+    document.querySelector('.widget[data-widget="odk.tile.almanac"]')?.dataset.interaction === 'open-app' &&
+    document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')?.dataset.interaction === 'open-app'
   out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
   out.preloadExposesIntentEndpoint = typeof window.odkPlatform?.dispatchIntent === 'function' && typeof window.odkPlatform?.listApps === 'function'
   out.preloadExposesSubscriptionEndpoint = typeof window.odkPlatform?.getOpenCodeGoStatus === 'function'
   out.preloadExposesFaceAgentEndpoint = typeof window.odkPlatform?.getFaceAgentStatus === 'function'
   out.remotePreloadIsNarrow = JSON.stringify(Object.keys(window.odkRemote || {}).sort()) === JSON.stringify(['publishPageState', 'subscribeLinkState', 'subscribeNavigation'])
-  const clockPlacement = getComputedStyle(document.querySelector('[data-widget="clock"]'))
+  const clockPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.clock"]'))
   out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
-  const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="pomodoro"]'))
+  const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.pomodoro"]'))
   out.pomodoroPlacementFromConfig =
     pomodoroPlacement.gridRowStart === '2' && pomodoroPlacement.gridRowEnd === '4'
   const dots = [...document.querySelectorAll('#dots .dot')]
@@ -197,14 +199,26 @@ const DRIVER_SCRIPT = `
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
-  const tile = document.querySelector('.widget[data-widget="pomodoro"]')
+  const tile = document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')
   tile.click()
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === 'Pomodoro'
-  out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'pomodoro' && $('#app-view').dataset.route === 'today'
+  out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'odk.tile.pomodoro' && $('#app-view').dataset.route === 'today'
   out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
-  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="pomodoro"] .w-state')?.textContent === 'Running'
+  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="odk.tile.pomodoro"] .w-state')?.textContent === 'Running'
+  $('#app-back').click()
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  $('#peek').click()
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  out.peekOpensSystemStatus = !$('#app-view').hidden && $('#app-title').textContent === 'System status'
+  out.systemStatusIsFactual =
+    $('#system-status-subscription')?.textContent.includes('OpenCode Go') &&
+    $('#system-status-network')?.textContent.includes('Network') &&
+    $('#system-status-remote')?.textContent.trim() &&
+    $('#system-status-app')?.textContent.trim()
+  $('#app-back').click()
+  out.peekRestoresSourcePage = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
   await window.odkAppPlatform.openApp({ appId: 'app-manager' })
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.appManagerSearchVisible = Boolean($('#app-runtime .app-manager .app-search'))
@@ -302,9 +316,10 @@ function check(results) {
     ['grid metrics exposed', results.metricsExposed],
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
+    ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['clean minimal status bar without text clutter', results.cleanMinimalStatusBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['almanac', 'chat', 'clock', 'current-emotion', 'dashboard-page', 'face-presence', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -364,6 +379,7 @@ function check(results) {
     ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved && results.widgetAppShowsRuntimeContent],
     ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['pomodoro Widget follows App state', results.pomodoroTileStateAfterOpen],
+    ['peek opens a focused factual system status view', results.peekOpensSystemStatus && results.systemStatusIsFactual && results.peekRestoresSourcePage],
     ['built-in view search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps navigation usable', results.cancelledDragKeepsNavigationUsable],

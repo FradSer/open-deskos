@@ -15,7 +15,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'quota-page',
+    id: 'odk.page.quota',
+    manifest: { schemaVersion: 1 },
     kind: 'page',
     mount(el, ctx) {
       el.innerHTML = `

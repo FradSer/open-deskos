@@ -3,7 +3,8 @@
   'use strict'
 
   root.odkPlugins.register({
-    id: 'settings',
+    id: 'odk.tile.settings',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Settings',
     state: 'Pending integration',

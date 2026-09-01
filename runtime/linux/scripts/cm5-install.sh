@@ -26,9 +26,9 @@ fi
 
 echo "== installing Electron runtime dependencies =="
 $SUDO apt-get update || echo "apt-get update failed; using cached package indexes" >&2
-if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 unclutter 2>/dev/null; then
+if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2 2>/dev/null; then
   echo "retrying with libasound2t64 (Ubuntu 24.04 naming)"
-  $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter
+  $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2
 fi
 
 FACE_AGENT_DIR="/opt/face-agent"
@@ -62,6 +62,13 @@ TARGET_UID="$(id -u "${TARGET_USER}")"
 TARGET_GID="$(id -g "${TARGET_USER}")"
 FACE_AGENT_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
 
+# Ensure target user has access to DRM/GPU render nodes (/dev/dri/card*, /dev/dri/renderD128)
+for group in video render; do
+  if getent group "$group" >/dev/null 2>&1; then
+    $SUDO usermod -a -G "$group" "${TARGET_USER}" || true
+  fi
+done
+
 run_as_target_user() {
   if [ "$(id -u)" -eq "${TARGET_UID}" ]; then
     "$@"
@@ -72,9 +79,30 @@ run_as_target_user() {
       LOGNAME="${TARGET_USER}" \
       XDG_RUNTIME_DIR="/run/user/${TARGET_UID}" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_UID}/bus" \
+      DISPLAY="${DISPLAY:-}" \
+      WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+      XAUTHORITY="${XAUTHORITY:-}" \
+      PATH="${KIOSK_BIN:-${NODE_BIN:-/usr/local/bin}}:${NODE_BIN:-/usr/local/bin}:/usr/local/bin:/usr/bin:/bin" \
+      COREPACK_ENABLE_PROJECT_SPEC=0 \
       "$@"
   fi
 }
+
+TARGET_NODE="$(runuser -u "${TARGET_USER}" -- env HOME="${TARGET_HOME}" PATH="/usr/local/bin:/usr/bin:/bin" sh -c 'command -v node')"
+if [ -z "${TARGET_NODE}" ]; then
+  echo "Could not locate Node for the kiosk user." >&2
+  exit 1
+fi
+NODE_BIN="$(dirname "$(readlink -f "${TARGET_NODE}")")"
+COREPACK_PNPM="${NODE_BIN}/corepack"
+KIOSK_BIN="${TARGET_HOME}/.local/lib/open-deskos/bin"
+$SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${KIOSK_BIN}"
+cat <<EOF | $SUDO tee "${KIOSK_BIN}/pnpm" >/dev/null
+#!/bin/sh
+exec "${COREPACK_PNPM}" pnpm "\$@"
+EOF
+$SUDO chown "${TARGET_UID}:${TARGET_GID}" "${KIOSK_BIN}/pnpm"
+$SUDO chmod 0755 "${KIOSK_BIN}/pnpm"
 
 install_face_agent() {
   if [ ! -f "${FACE_AGENT_DIR}/face_service.py" ]; then
@@ -121,15 +149,9 @@ else
 fi
 
 echo "== installing node modules (downloads linux-arm64 Electron) =="
-PNPM="$(command -v pnpm || true)"
-if [ -z "${PNPM}" ]; then
-  COREPACK_PNPM="$(dirname "$(readlink -f "$(command -v node)")")/../lib/node_modules/corepack/shims/pnpm"
-  if [ -x "${COREPACK_PNPM}" ]; then
-    PNPM="${COREPACK_PNPM}"
-  fi
-fi
-if [ -n "${PNPM}" ]; then
-  run_as_target_user "${PNPM}" install --frozen-lockfile
+$SUDO chown -R "${TARGET_UID}:${TARGET_GID}" "${DIR}"
+if [ -x "${COREPACK_PNPM}" ]; then
+  run_as_target_user pnpm install --frozen-lockfile
 else
   run_as_target_user npm install
 fi
@@ -186,20 +208,77 @@ if [ -f "$OPENBOX_CONFIG_DIR/rc.xml" ]; then
   run_as_target_user sed -i 's/<keepBorder>yes<\/keepBorder>/<keepBorder>no<\/keepBorder>/g' "$OPENBOX_CONFIG_DIR/rc.xml"
 fi
 
-echo "== registering kiosk autostart =="
+echo "== establishing the initial immutable Open DeskOS release =="
+RUNTIME_ROOT="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+RELEASES_DIR="${RUNTIME_ROOT}/releases"
+RELEASE_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
+RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
+$SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
+if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
+  run_as_target_user cp -a "${DIR}/." "${RELEASE_DIR}/"
+fi
+run_as_target_user node -e "require('node:fs').writeFileSync('${RELEASE_DIR}/release.json', JSON.stringify({ id: '${RELEASE_ID}', schemaVersion: 1, createdAt: new Date().toISOString() }) + '\\n')"
+$SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RUNTIME_ROOT}/state/migrations/${TARGET_USER}"
+
+KIOSK_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
+run_as_target_user mkdir -p "$KIOSK_UNIT_DIR"
+cat > "$KIOSK_UNIT_DIR/open-deskos-shell.service" <<EOF
+[Unit]
+Description=Open DeskOS kiosk shell
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${RUNTIME_ROOT}/current/scripts/start-kiosk.sh
+Restart=always
+RestartSec=3
+EOF
+chown "${TARGET_UID}:${TARGET_GID}" "$KIOSK_UNIT_DIR/open-deskos-shell.service"
+chmod 0644 "$KIOSK_UNIT_DIR/open-deskos-shell.service"
+run_as_target_user systemctl --user daemon-reload
+GRAPHICAL_DISPLAY="$(loginctl show-session "$(loginctl list-sessions --no-legend | awk -v user="${TARGET_USER}" '$3 == user && $2 >= 1000 { print $1; exit }')" -p Display --value 2>/dev/null || true)"
+if [ -n "${GRAPHICAL_DISPLAY}" ]; then
+  run_as_target_user env DISPLAY="${GRAPHICAL_DISPLAY}" systemctl --user import-environment DISPLAY
+fi
+
+if [ -d "${RUNTIME_ROOT}/current" ]; then
+  $SUDO env \
+    ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" \
+    ODK_CANDIDATE_RELEASE="${RELEASE_DIR}" \
+    ODK_KIOSK_USER="${TARGET_USER}" \
+    ODK_KIOSK_UID="${TARGET_UID}" \
+    ODK_KIOSK_HOME="${TARGET_HOME}" \
+    ODK_KIOSK_NODE_BIN="${NODE_BIN}" \
+    ODK_KIOSK_BIN_DIR="${KIOSK_BIN}" \
+    node "${DIR}/scripts/update-runtime.js"
+else
+  if [ -x "${COREPACK_PNPM}" ]; then
+    (cd "${RELEASE_DIR}" && run_as_target_user pnpm preflight)
+  else
+    (cd "${RELEASE_DIR}" && run_as_target_user npm run preflight)
+  fi
+  $SUDO node "${RELEASE_DIR}/scripts/validate-release.js" "${RELEASE_DIR}"
+  $SUDO chown -R root:root "${RELEASE_DIR}"
+  $SUDO chmod -R a-w "${RELEASE_DIR}"
+  $SUDO ln -sfn "${RELEASE_DIR}" "${RUNTIME_ROOT}/current"
+fi
+run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \
+  node "${RUNTIME_ROOT}/current/scripts/migrate-runtime.js"
+
 AUTOSTART_DIR="${TARGET_HOME}/.config/autostart"
 run_as_target_user mkdir -p "$AUTOSTART_DIR"
 cat > "$AUTOSTART_DIR/open-deskos-shell.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Open DeskOS Shell
-Exec="${DIR}/scripts/start-kiosk.sh"
+Exec=sh -lc "systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY; systemctl --user restart open-deskos-shell.service"
 X-GNOME-Autostart-enabled=true
 Terminal=false
 EOF
 chown "${TARGET_UID}:${TARGET_GID}" "$AUTOSTART_DIR/open-deskos-shell.desktop"
 chmod 0644 "$AUTOSTART_DIR/open-deskos-shell.desktop"
 
-echo "done. reboot (or restart the session) to start the shell in kiosk mode."
+echo "done. the graphical-session autostart activates the kiosk service resolving ${RUNTIME_ROOT}/current."
 echo "logs: ~/.local/state/open-deskos-shell/launcher.log"
 echo "override resolution with ODESK_SHELL_WIDTH / ODESK_SHELL_HEIGHT in the environment."

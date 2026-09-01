@@ -2,6 +2,8 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const childProcess = require('node:child_process')
 const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
 const source = fs.readFileSync('../../experiments/vision/face-agent/face_service.py', 'utf8')
 
@@ -41,8 +43,14 @@ test('Face Agent serial mode forwards only on-device inference metadata', () => 
 })
 
 test('Face Agent service overlay remains valid Python without local vision dependencies', () => {
-  const result = childProcess.spawnSync('python3', ['-m', 'py_compile', '../../experiments/vision/face-agent/face_service.py'], {
-    encoding: 'utf8',
-  })
-  assert.equal(result.status, 0, result.stderr)
+  const pycachePrefix = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-pycache-'))
+  try {
+    const result = childProcess.spawnSync('python3', ['-m', 'py_compile', '../../experiments/vision/face-agent/face_service.py'], {
+      encoding: 'utf8',
+      env: { ...process.env, PYTHONPYCACHEPREFIX: pycachePrefix },
+    })
+    assert.equal(result.status, 0, result.stderr)
+  } finally {
+    fs.rmSync(pycachePrefix, { recursive: true, force: true })
+  }
 })

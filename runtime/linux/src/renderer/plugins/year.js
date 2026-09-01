@@ -9,7 +9,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'year',
+    id: 'odk.tile.year',
+    manifest: { schemaVersion: 1 },
     kind: 'tile',
     app: 'Year progress',
     state: 'Live',

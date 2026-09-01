@@ -8,7 +8,8 @@
   }
 
   root.odkPlugins.register({
-    id: 'peek-bridge',
+    id: 'odk.peek.bridge',
+    manifest: { schemaVersion: 1 },
     kind: 'peek',
     mount(el, ctx) {
       el.innerHTML = `
@@ -43,14 +44,7 @@
       }))
     },
     activate(ctx) {
-      ctx.openDialog(
-        'OpenCode Go',
-        ctx.subscription.label(),
-        'The Linux shell reads the device-configured endpoint and credentials in the main process; credentials are never exposed to the page.',
-        false,
-        { label: 'Check status again', onClick: () => ctx.subscription.refresh() },
-      )
-      return true
+      return ctx.emitIntent({ type: 'open-app', appId: 'system-status', widgetId: 'odk.peek.bridge', route: 'status' })
     },
   })
 })(typeof window !== 'undefined' ? window : globalThis)
