@@ -422,14 +422,8 @@ function main() {
   updatePageContext(0)
   setInterval(publishPageState, 5000)
 
-  let lastNavTime = 0
-  const NAV_DEBOUNCE_MS = 1250
-
   function navigate(direction) {
     if (!appView.hidden) return
-    const now = Date.now()
-    if (now - lastNavTime < NAV_DEBOUNCE_MS) return
-    lastNavTime = now
     pagerRef.setIndex(pagerRef.currentIndex() + direction)
   }
 

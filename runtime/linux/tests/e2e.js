@@ -31,7 +31,7 @@ const DRIVER_SCRIPT = `
     return ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
       .every((phase) => typeof lifecycle?.[phase] === 'function')
   })
-  out.unifiedAppEntry = $('#sb-app-manager')?.tagName === 'BUTTON' && $('#sb-app-manager')?.textContent.includes('Views')
+  out.cleanMinimalStatusBar = !$('#sb-app-manager') && $('#page-context')?.classList.contains('sr-only')
   out.noDockOrDesktopIconPile = !$('#dock') && document.querySelectorAll('.desktop-icon').length === 0
   let dupThrown = false
   try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
@@ -48,7 +48,6 @@ const DRIVER_SCRIPT = `
     .every((page) => page.dataset.builtBy === 'composer')
   out.statusSlotsMounted =
     document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
-    document.querySelector('[data-slot="status-left"] #sb-app-manager') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.peekSlotMounted =
     document.querySelector('[data-slot="peek"] #peek-subscription') !== null &&
@@ -206,8 +205,7 @@ const DRIVER_SCRIPT = `
   out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
   out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="pomodoro"] .w-state')?.textContent === 'Running'
-  const managerEntry = $('#sb-app-manager')
-  managerEntry.click()
+  await window.odkAppPlatform.openApp({ appId: 'app-manager' })
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.appManagerSearchVisible = Boolean($('#app-runtime .app-manager .app-search'))
   const appList = $('#app-runtime .app-manager .app-list')
@@ -231,6 +229,9 @@ const DRIVER_SCRIPT = `
   out.endJumpsToQuota = $('#page-context').textContent === 'Usage · 3/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
   out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/3'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 3/3'
   document.querySelectorAll('#dots .dot')[2].click()
   out.quotaStateIsHonest = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Check status again'
@@ -301,9 +302,9 @@ function check(results) {
     ['grid metrics exposed', results.metricsExposed],
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
-    ['unified built-in views entry replaces dock', results.unifiedAppEntry && results.noDockOrDesktopIconPile],
+    ['clean minimal status bar without text clutter', results.cleanMinimalStatusBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['almanac', 'chat', 'clock', 'current-emotion', 'dashboard-page', 'face-presence', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-apps', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
+      ['almanac', 'chat', 'clock', 'current-emotion', 'dashboard-page', 'face-presence', 'peek-bridge', 'pomodoro', 'quota-page', 'settings', 'status-clock', 'status-connection', 'year', 'app-calendar', 'app-clock', 'app-app-manager', 'app-pomodoro', 'app-year'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -315,7 +316,7 @@ function check(results) {
     ['clock right of dots', results.clockRightOfDots],
     ['three pages', results.pageCount === 3],
     ['three dots', results.dotCount === 3],
-    ['page context is visible', results.pageContext === 'Today · 1/3'],
+    ['page context is tracked', results.pageContext === 'Today · 1/3'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
@@ -372,6 +373,7 @@ function check(results) {
     ['ArrowLeft returns to grid', results.arrowLeftReturnsToGrid],
     ['End jumps to quota', results.endJumpsToQuota],
     ['Home jumps to Today', results.homeJumpsToToday],
+    ['consecutive ArrowRight presses reach Usage', results.consecutiveArrowRightsReachUsage],
     ['quota status is native and honest', results.quotaStateIsHonest && results.quotaHasNoFabricatedUsage],
     ['quota exposes check state', results.quotaCheckedVisible],
     ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],

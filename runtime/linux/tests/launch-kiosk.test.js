@@ -6,10 +6,13 @@ const path = require('node:path')
 const launcherPath = path.join(__dirname, '..', 'scripts', 'start-kiosk.sh')
 const launcher = fs.readFileSync(launcherPath, 'utf8')
 
-test('kiosk launcher disables X11 screen blanking before starting Electron', () => {
+test('kiosk launcher hides the X11 pointer and disables screen blanking before starting Electron', () => {
+  assert.match(launcher, /command -v unclutter/)
+  assert.match(launcher, /unclutter\s+-idle\s+0\.1\s+-root/)
   assert.match(launcher, /command -v xset/)
   assert.match(launcher, /xset\s+-dpms/)
   assert.match(launcher, /xset\s+s\s+off/)
   assert.match(launcher, /xset\s+s\s+noblank/)
+  assert.ok(launcher.indexOf('unclutter -idle 0.1 -root') < launcher.indexOf('while true'))
   assert.ok(launcher.indexOf('xset -dpms') < launcher.indexOf('while true'))
 })

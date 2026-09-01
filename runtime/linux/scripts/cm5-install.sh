@@ -25,10 +25,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo "== installing Electron runtime dependencies =="
-$SUDO apt-get update
-if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 2>/dev/null; then
+$SUDO apt-get update || echo "apt-get update failed; using cached package indexes" >&2
+if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 unclutter 2>/dev/null; then
   echo "retrying with libasound2t64 (Ubuntu 24.04 naming)"
-  $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64
+  $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter
 fi
 
 FACE_AGENT_DIR="/opt/face-agent"
@@ -67,6 +67,9 @@ run_as_target_user() {
     "$@"
   else
     runuser -u "${TARGET_USER}" -- env \
+      HOME="${TARGET_HOME}" \
+      USER="${TARGET_USER}" \
+      LOGNAME="${TARGET_USER}" \
       XDG_RUNTIME_DIR="/run/user/${TARGET_UID}" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_UID}/bus" \
       "$@"
@@ -78,21 +81,12 @@ install_face_agent() {
     echo "Face Agent source is missing at ${FACE_AGENT_DIR}; install it before running this installer." >&2
     return 1
   fi
-  if [ ! -f "${FACE_AGENT_DIR}/models/emotion-ferplus-8.onnx" ] \
-    || [ ! -f "${FACE_AGENT_DIR}/models/face_detection_yunet_2023mar.onnx" ] \
-    || [ ! -f "${FACE_AGENT_DIR}/models/face_recognition_sface_2021dec.onnx" ]; then
-    echo "Face Agent model files are incomplete under ${FACE_AGENT_DIR}/models." >&2
-    return 1
-  fi
-
   echo "== provisioning Face Agent =="
-  $SUDO apt-get install -y python3-venv python3-opencv python3-aiohttp python3-numpy python3-serial
+  $SUDO apt-get install -y python3-venv python3-aiohttp python3-serial
   if [ ! -x "${FACE_AGENT_VENV}/bin/python3" ]; then
     $SUDO python3 -m venv --system-site-packages "${FACE_AGENT_VENV}"
   fi
-  $SUDO "${FACE_AGENT_VENV}/bin/pip" install --upgrade pyserial onnxruntime opencv-contrib-python-headless
-  # The provisioned Face Agent owns models, profiles, and face_engine.py.
-  # This shell overlay updates only the production service implementation.
+  $SUDO "${FACE_AGENT_VENV}/bin/pip" install --upgrade pyserial
   $SUDO install -o root -g root -m 0644 "${FACE_AGENT_SOURCE}/face_service.py" "${FACE_AGENT_DIR}/face_service.py"
   $SUDO chown -R "${TARGET_UID}:${TARGET_GID}" "${FACE_AGENT_DIR}/data"
 
@@ -127,16 +121,25 @@ else
 fi
 
 echo "== installing node modules (downloads linux-arm64 Electron) =="
-if command -v pnpm >/dev/null 2>&1; then
-  pnpm install --frozen-lockfile
-else
-  npm install
+PNPM="$(command -v pnpm || true)"
+if [ -z "${PNPM}" ]; then
+  COREPACK_PNPM="$(dirname "$(readlink -f "$(command -v node)")")/../lib/node_modules/corepack/shims/pnpm"
+  if [ -x "${COREPACK_PNPM}" ]; then
+    PNPM="${COREPACK_PNPM}"
+  fi
 fi
+if [ -n "${PNPM}" ]; then
+  run_as_target_user "${PNPM}" install --frozen-lockfile
+else
+  run_as_target_user npm install
+fi
+run_as_target_user "${DIR}/node_modules/.bin/unocss" "src/renderer/**/*.html" "src/renderer/**/*.js" \
+  -c uno.config.mjs -o src/renderer/uno.css --minify
 SANDBOX_FLAG=""
 if [ "$(id -u)" = "0" ]; then
   SANDBOX_FLAG="--no-sandbox"
 fi
-echo "electron $(./node_modules/.bin/electron --version $SANDBOX_FLAG 2>/dev/null || echo '?') on $(uname -m)"
+echo "electron $(run_as_target_user "${DIR}/node_modules/.bin/electron" --version $SANDBOX_FLAG 2>/dev/null || echo '?') on $(uname -m)"
 
 if [ -d "${REMOTE_BRIDGE_SOURCE}" ]; then
   echo "== installing Remote Bridge user service =="

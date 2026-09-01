@@ -25,6 +25,10 @@ if [ -n "${DISPLAY:-}" ] && command -v openbox >/dev/null 2>&1; then
   openbox --reconfigure >/dev/null 2>&1 || true
 fi
 
+if [ -n "${DISPLAY:-}" ] && command -v unclutter >/dev/null 2>&1; then
+  unclutter -idle 0.1 -root >/dev/null 2>&1 &
+fi
+
 while true; do
   echo "$(date '+%Y-%m-%dT%H:%M:%S%z') starting kiosk shell" >> "$LOG"
   ./run.sh --kiosk >> "$LOG" 2>&1

@@ -7,7 +7,15 @@ const {
 } = require('../src/opencode-go')
 
 test('requires an explicit OpenCode Go cookie without exposing it in config status', () => {
-  const missing = resolveOpenCodeGoConfig({})
+  const missing = resolveOpenCodeGoConfig({
+    ODK_OPENCODE_GO_URL: '',
+    ODK_OPENCODE_COOKIE: '',
+    ODK_OPENCODE_COOKIE_FILE: '',
+  }, {
+    readFileSync() {
+      throw new Error('no cookie file')
+    },
+  })
   assert.equal(missing.configured, false)
   assert.deepEqual(missing.missing, [
     'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE',

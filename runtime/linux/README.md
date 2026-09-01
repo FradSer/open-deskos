@@ -62,24 +62,24 @@ export ODK_OPENCODE_COOKIE_FILE=/etc/open-deskos/opencode-go.cookie
 
 `ODK_OPENCODE_GO_URL` 必须显式设置；请求在 Electron 主进程完成，renderer 只收到脱敏后的状态和用量快照。renderer CSP 不允许远程连接，凭据不会通过 preload 暴露。
 
-## Experimental Face Agent (CM5 local vision)
+## Experimental Face Agent (ESP32-P4 metadata adapter)
 
-Face Agent is a preserved, opt-in experiment; it is not required for the desk shell, and cannot lock or hide core shell data. Electron never opens a camera or reads Face Agent model/profile files; its main process may read only `http://127.0.0.1:8790/status` with a short timeout. The endpoint is intentionally fixed to loopback, not environment-configurable.
+Face Agent is a preserved, opt-in experiment; it is not required for the desk shell, and cannot lock or hide core shell data. Face capture, inference, owner-feature storage, and physical enrollment run exclusively on the ESP32-P4. CM5 accepts only validated P4 USB-CDC metadata through `/dev/open-deskos-p4-camera`; Electron reads only `http://127.0.0.1:8790/status` with a short timeout. The endpoint is intentionally fixed to loopback, not environment-configurable.
 
-The experimental deployer provides `/opt/face-agent/` with its source, models, and owner profile. Install it only after a separate hardware acceptance decision:
+The experimental deployer provides `/opt/face-agent/` with the CM5 metadata adapter source. Install it only after a separate hardware acceptance decision:
 
 ```sh
 ODESK_INSTALL_EXPERIMENTAL_VISION=1 bash scripts/cm5-install.sh
 ```
 
-That opt-in path creates `/opt/face-agent-venv`, installs its dependencies, enables `open-deskos-face-agent.service`, and configures the optional P4 serial rule. `/status` distinguishes `starting`, `no-frame`, `camera-unavailable`, and `online`; an unreachable or malformed endpoint remains an unavailable experimental status. A running service with no delivered camera frames is never reported as online or face-free.
+That opt-in path creates `/opt/face-agent-venv`, installs its serial metadata dependencies, enables `open-deskos-face-agent.service`, and configures the optional P4 serial rule. `/status` distinguishes `starting`, `no-frame`, `camera-unavailable`, and `online`; an unreachable, stale, or malformed P4 record remains an unavailable experimental status. A running service with no valid P4 metadata is never reported as online or face-free.
 
 ## Experimental ESP32-P4 SC2336 Camera Sub-device
 
 `../../peripherals/esp32-p4-camera/` is the ESP32-P4 SC2336 Camera Peripheral. It is part of the intended CM5 architecture and has its own hardware acceptance gate; the base CM5 shell remains usable through direct touch and keyboard until that gate passes.
 
 - **硬件连接**：SC2336 模组经 2-lane MIPI CSI-2 连入 ESP32-P4；SCCB 控制走 I2C0（SDA: GPIO 7, SCL: GPIO 8, RST: GPIO 26）。
-- **通信与流传输**：ESP32-P4 经 USB (UVC/CDC) 与 CM5 连接，既可作为标准视频设备输出帧，也可传输结构化 v1 元数据（人脸检测与置信度），为后续在 P4 端实现本地人脸推理奠定基础。
+- **通信与推理**：ESP32-P4 经 USB CDC 与 CM5 连接，只传输由 P4 本地推理产生的结构化 v1 元数据；不会作为 CM5 视频设备输出图像帧。
 - **构建与烧录**：
   ```sh
   cd peripherals/esp32-p4-camera

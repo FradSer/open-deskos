@@ -14,6 +14,12 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And no usage value is fabricated
     And the shell does not render a platform connection guide
 
+  Scenario: Consecutive HID navigation presses advance consecutive pages
+    Given the Display Shell is focused on the first of three pages
+    When it receives an ArrowRight key press
+    And it receives another ArrowRight key press after the prior navigation completes
+    Then it displays the third page
+
   Scenario: Linux network and Remote Link status remain separate
     Given the Linux shell is running
     Then the network indicator only describes network reachability
@@ -35,10 +41,25 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And every visible widget states a truthful status before any App opens
     And the grid remains inside the viewport at alternate window sizes
 
-  Scenario: Kiosk launch prevents X11 DPMS from blanking the HDMI panel
+  Scenario: CM5 root installation leaves the runtime usable by the kiosk user
+    Given the CM5 installer runs as root for the graphical kiosk user
+    When it installs Node dependencies and regenerates runtime assets
+    Then the runtime tree is owned by the graphical kiosk user
+    And dependency installation runs as that user
+    And the installer resolves pnpm from the installed Node runtime when it is absent from PATH
+    And the kiosk can regenerate its tracked stylesheet without a permission error
+
+  Scenario: CM5 installation continues past unrelated apt index failures
+    Given apt has cached package indexes for the required Electron libraries
+    When an unrelated configured repository fails during apt-get update
+    Then the installer reports the update failure and continues to install required runtime packages
+    And installation still fails if the required package installation cannot complete
+
+  Scenario: Kiosk launch hides the pointer and prevents X11 DPMS blanking
     Given the shell starts from the graphical autostart session
     When the kiosk launcher initializes
-    Then it disables X11 screen-saver and DPMS blanking before starting Electron
+    Then it hides the X11 pointer before starting Electron
+    And it disables X11 screen-saver and DPMS blanking before starting Electron
     And an idle HDMI panel remains powered while the shell is running
 
   Scenario: Experimental vision never blocks the desk surface
@@ -47,15 +68,15 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then Today, Home, Usage, direct touch, and keyboard navigation remain available
     And experimental Face Agent and P4 owner-recognition integrations do not reveal personal status or gate the shell
 
-  Scenario: Experimental Face Agent isolates blocked camera and inference work
-    Given the Novatek UVC camera blocks while opening or reading, or face inference stops responding
-    When the Face Agent monitor exceeds its worker timeout
-    Then the loopback status server continues responding while the child worker is recycled
-    And status starts as starting, reports no-frame for an opened camera without frames, and reports camera-unavailable for a timed-out worker
-    And an online zero-face result remains a truthful no-face result and an online detection remains available to Electron
+  Scenario: Experimental Face Agent consumes only ESP32-P4 inference metadata
+    Given the ESP32-P4 camera serial device is unavailable, reconnecting, or sends stale metadata
+    When the Face Agent runs on CM5
+    Then it opens only the configured ESP32-P4 serial device and never opens a local video device
+    And status starts as starting, reports no-frame while the P4 link has no valid record, and reports camera-unavailable after a failed or stale P4 link
+    And an online zero-face result remains a truthful no-face result and an online P4 detection remains available to Electron
 
   Scenario: Experimental vision provisioning is opt-in
-    Given Face Agent source code and model files are present under /opt/face-agent
+    Given Face Agent source code is present under /opt/face-agent
     When the CM5 installer runs with ODESK_INSTALL_EXPERIMENTAL_VISION=1
     Then it provisions the Face Agent virtual environment and P4 camera udev rule
     And it installs and enables the Face Agent user systemd service before kiosk autostart

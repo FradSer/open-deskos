@@ -172,22 +172,16 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
-/* Page name and dots share one vertically-centered row: the label never
-   crowds the screen edge and the dots stay the primary indicator. */
+/* Page dots centered in the status bar */
 #page-center {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  gap: calc(var(--gutter) * 0.5);
-}
-
-#page-context {
-  color: var(--odk-secondary-strong);
-  font-size: clamp(13px, calc(var(--bar-icon) * 0.48), 18px);
-  line-height: 1;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #dots {
@@ -197,6 +191,7 @@ body.kiosk {
 .dot {
   appearance: none;
   border: none;
+  outline: none;
   padding: 0;
   cursor: pointer;
   position: relative;
@@ -206,6 +201,11 @@ body.kiosk {
   background: var(--odk-button);
   transition: width 200ms cubic-bezier(0.22, 0.61, 0.36, 1), background 200ms ease;
   flex: none;
+}
+
+.dot:focus,
+.dot:focus-visible {
+  outline: none;
 }
 
 .dot.active {
@@ -230,7 +230,6 @@ body.kiosk {
   flex: none;
 }
 
-.dot:focus-visible,
 #app-back:focus-visible,
 .button-pill:focus-visible,
 #peek:focus-visible {
@@ -779,22 +778,7 @@ body.kiosk {
   font-weight: 400;
 }
 
-.status-app-entry {
-  min-width: 44px;
-  min-height: 36px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--odk-button);
-  color: var(--odk-primary);
-  cursor: pointer;
-  font-size: clamp(13px, calc(var(--bar-icon) * 0.42), 17px);
-}
 
-.status-app-entry:focus-visible {
-  outline: 3px solid var(--odk-stroke-focus);
-  outline-offset: 3px;
-}
 
 /* ---- Fullscreen app view ---- */
 

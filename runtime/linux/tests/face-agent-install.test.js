@@ -12,16 +12,13 @@ test('defines a restartable user service for the installed Face Agent', () => {
   assert.match(service, /^RestartSec=3$/m)
 })
 
-test('provisions experimental local Face Agent dependencies only when opted in', () => {
+test('provisions experimental ESP32-P4 Face Agent dependencies only when opted in', () => {
   assert.match(installer, /FACE_AGENT_DIR="\/opt\/face-agent"/)
-  assert.match(installer, /python3-venv python3-opencv python3-aiohttp python3-numpy/)
   assert.match(service, /Environment=FACE_AGENT_DEVICE=\/dev\/open-deskos-p4-camera/)
-  assert.match(service, /Environment=FACE_AGENT_WIDTH=1280/)
-  assert.match(service, /Environment=FACE_AGENT_HEIGHT=720/)
-  assert.match(service, /Environment=FACE_AGENT_FPS=30/)
-  assert.match(installer, /python3-venv python3-opencv python3-aiohttp python3-numpy python3-serial/)
+  assert.match(installer, /python3-venv python3-aiohttp python3-serial/)
   assert.match(installer, /python3 -m venv --system-site-packages "\$\{FACE_AGENT_VENV\}"/)
-  assert.match(installer, /"\$\{FACE_AGENT_VENV\}\/bin\/pip" install --upgrade pyserial onnxruntime opencv-contrib-python-headless/)
+  assert.match(installer, /"\$\{FACE_AGENT_VENV\}\/bin\/pip" install --upgrade pyserial/)
+  assert.doesNotMatch(installer, /opencv|onnxruntime|python3-numpy/)
   assert.match(installer, /99-open-deskos-p4-camera\.rules/)
   assert.match(installer, /SYMLINK\+="open-deskos-p4-camera"/)
   assert.match(installer, /FACE_AGENT_SOURCE="\$\{REPOSITORY_ROOT\}\/experiments\/vision\/face-agent"/)
@@ -38,6 +35,14 @@ test('provisions experimental local Face Agent dependencies only when opted in',
   assert.match(installer, /run_as_target_user sed -i 's\/<name>\.\*<\\\/name>\/<name>OpenDeskOS<\\\/name>\/' "\$OPENBOX_CONFIG_DIR\/rc\.xml"/)
   assert.match(installer, /AUTOSTART_DIR="\$\{TARGET_HOME\}\/.config\/autostart"/)
   assert.match(installer, /chown "\$\{TARGET_UID\}:\$\{TARGET_GID\}" "\$AUTOSTART_DIR\/open-deskos-shell\.desktop"/)
+
+  assert.match(installer, /HOME="\$\{TARGET_HOME\}"/)
+  assert.match(installer, /USER="\$\{TARGET_USER\}"/)
+  assert.match(installer, /COREPACK_PNPM="\$\(dirname "\$\(readlink -f "\$\(command -v node\)"\)"\)\/\.\.\/lib\/node_modules\/corepack\/shims\/pnpm"/)
+  assert.match(installer, /run_as_target_user "\$\{PNPM\}" install --frozen-lockfile/)
+  assert.match(installer, /run_as_target_user npm install/)
+  assert.match(installer, /apt-get update \|\| echo "apt-get update failed; using cached package indexes"/)
+  assert.match(installer, /run_as_target_user "\$\{DIR\}\/node_modules\/\.bin\/unocss"/)
 
   const experimentalInstall = installer.indexOf('install_experimental_vision')
   const kioskAutostart = installer.indexOf('== registering kiosk autostart ==')
