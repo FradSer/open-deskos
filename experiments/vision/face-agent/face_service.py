@@ -8,75 +8,25 @@ try:
 except ImportError:
     serial = None
 
-import cv2
 from aiohttp import web
 
-try:
-    from face_engine import FaceAgentEngine
-except ImportError:
-    FaceAgentEngine = None
-
-DEFAULT_DEVICE = "/dev/video0"
-DEFAULT_WIDTH = 640
-DEFAULT_HEIGHT = 480
-DEFAULT_FPS = 30
+DEFAULT_DEVICE = "/dev/open-deskos-p4-camera"
 DEFAULT_PORT = 8790
 CAPTURE_RETRY_SECONDS = 2.0
-CAMERA_OPEN_TIMEOUT_SECONDS = 3.0
 FRAME_READ_TIMEOUT_SECONDS = 2.0
 MAX_CONSECUTIVE_READ_FAILURES = 3
 P4_RESULT_MAX_AGE_SECONDS = 3.0
 
 
-def is_serial_device(device_path):
-    if not device_path:
-        return False
-    return (
-        device_path.startswith("/dev/ttyACM")
-        or device_path.startswith("/dev/ttyUSB")
-        or device_path == "/dev/open-deskos-p4-camera"
-    )
-
-
-def resolve_device(requested_device):
-    if requested_device and os.path.exists(requested_device):
-        return requested_device
-    # Auto-detect fallback: check for ESP32-P4 camera on ACM0/USB0 if video0 is missing
-    if requested_device == DEFAULT_DEVICE and not os.path.exists(DEFAULT_DEVICE):
-        for candidate in ["/dev/ttyACM0", "/dev/ttyUSB0"]:
-            if os.path.exists(candidate):
-                return candidate
-    return requested_device or DEFAULT_DEVICE
-
-
-def positive_integer(value, default):
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    return parsed if parsed > 0 else default
-
-
 def capture_config(env=os.environ):
-    return {
-        "device": env.get("FACE_AGENT_DEVICE", DEFAULT_DEVICE),
-        "width": positive_integer(env.get("FACE_AGENT_WIDTH"), DEFAULT_WIDTH),
-        "height": positive_integer(env.get("FACE_AGENT_HEIGHT"), DEFAULT_HEIGHT),
-        "fps": positive_integer(env.get("FACE_AGENT_FPS"), DEFAULT_FPS),
-        "port": positive_integer(env.get("FACE_AGENT_PORT"), DEFAULT_PORT),
-    }
-
-
-def open_camera(device, width, height, fps):
-    cap = cv2.VideoCapture(device, cv2.CAP_V4L2)
-    if not cap.isOpened():
-        return cap
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_FPS, fps)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    return cap
+    device = env.get("FACE_AGENT_DEVICE", DEFAULT_DEVICE)
+    if device != DEFAULT_DEVICE:
+        raise ValueError("Face Agent accepts only the ESP32-P4 camera serial device")
+    try:
+        port = int(env.get("FACE_AGENT_PORT", DEFAULT_PORT))
+    except (TypeError, ValueError):
+        port = DEFAULT_PORT
+    return {"device": device, "port": port if port > 0 else DEFAULT_PORT}
 
 
 def finite_number(value):
@@ -106,12 +56,10 @@ def normalize_face(face, width, height):
         return None
 
     detect_score = bounded_score(face.get("detect_score"))
-    if detect_score is None:
+    landmarks = face.get("landmarks")
+    if detect_score is None or not isinstance(landmarks, list) or len(landmarks) != 5:
         return None
 
-    landmarks = face.get("landmarks")
-    if not isinstance(landmarks, list) or len(landmarks) != 5:
-        return None
     normalized_landmarks = []
     for point in landmarks:
         if not isinstance(point, list) or len(point) != 2:
@@ -122,12 +70,7 @@ def normalize_face(face, width, height):
             return None
         normalized_landmarks.append([point_x, point_y])
 
-    normalized = {
-        "box": box,
-        "detect_score": detect_score,
-        "landmarks": normalized_landmarks,
-    }
-
+    normalized = {"box": box, "detect_score": detect_score, "landmarks": normalized_landmarks}
     identity = face.get("face_id")
     if isinstance(identity, dict):
         unlocked = identity.get("unlocked")
@@ -148,7 +91,6 @@ def normalize_face(face, width, height):
         confidence = bounded_score(emotion.get("confidence"))
         if primary in {"neutral", "happiness", "surprise", "sadness", "anger", "disgust", "fear", "contempt"} and confidence is not None:
             normalized["emotion"] = {"primary": primary, "confidence": confidence}
-
     return normalized
 
 
@@ -201,130 +143,40 @@ def normalize_p4_inference_metadata(meta):
 
 
 class FaceAgentService:
-    def __init__(self, device=None, port=None, width=None, height=None, fps=None):
+    def __init__(self, device=None, port=None):
         config = capture_config()
-        self.device = resolve_device(device or config["device"])
+        self.device = device or config["device"]
+        if self.device != DEFAULT_DEVICE:
+            raise ValueError("Face Agent accepts only the ESP32-P4 camera serial device")
         self.port = port or config["port"]
-        self.width = width or config["width"]
-        self.height = height or config["height"]
-        self.fps = fps or config["fps"]
-        self.engine = None if is_serial_device(self.device) else FaceAgentEngine()
         self.app = web.Application()
-        self.setup_routes()
-
-        self.latest_frame = None
+        self.app.router.add_get("/status", self.handle_status)
         self.latest_result = None
-        self.latest_annotated = None
         self.last_frame_at = None
         self.capture_status = "starting"
         self.capture_error = None
-        self.sse_clients = set()
         self.is_running = False
         self.last_p4_sequence = None
 
-    def setup_routes(self):
-        self.app.router.add_get("/status", self.handle_status)
-        self.app.router.add_get("/events", self.handle_events)
-        self.app.router.add_get("/snapshot.jpg", self.handle_snapshot)
-        self.app.router.add_post("/enroll", self.handle_enroll)
-
     def status_payload(self):
-        profiles = self.engine.load_owner_profiles() if self.engine is not None else []
-        if self.capture_status == "online" and is_serial_device(self.device) and self.last_frame_at is not None:
-            if time.time() - self.last_frame_at > P4_RESULT_MAX_AGE_SECONDS:
-                self.mark_degraded("p4-inference-stale")
-        online = self.capture_status == "online"
-        result = self.latest_result if online else None
-        owner_names = [] if self.engine is None else [profile["name"] for profile in profiles]
-        if result is not None:
-            owner_names = [
-                face["face_id"]["user"]
-                for face in result["faces"]
-                if face["face_id"]["unlocked"] and face["face_id"]["user"]
-            ]
+        if self.capture_status == "online" and self.last_frame_at is not None and time.time() - self.last_frame_at > P4_RESULT_MAX_AGE_SECONDS:
+            self.mark_degraded("p4-inference-stale")
         return {
             "status": self.capture_status,
             "device": self.device,
-            "capture": {
-                "width": self.width,
-                "height": self.height,
-                "fps": self.fps,
-                "last_frame_at": self.last_frame_at,
-                "error": self.capture_error,
-            },
-            "owner_enrolled": bool(owner_names),
-            "owners": owner_names,
-            "latest_result": result,
+            "capture": {"last_frame_at": self.last_frame_at, "error": self.capture_error},
+            "owner_enrolled": bool(self.latest_result and self.latest_result["any_unlocked"]),
+            "owners": [],
+            "latest_result": self.latest_result if self.capture_status == "online" else None,
         }
 
     def mark_degraded(self, error):
         self.capture_status = "camera-unavailable"
         self.capture_error = error
-        self.latest_frame = None
         self.latest_result = None
-        self.latest_annotated = None
 
     async def handle_status(self, request):
         return web.json_response(self.status_payload())
-
-    async def handle_enroll(self, request):
-        data = await request.json() if request.can_read_body else {}
-        name = data.get("name", "Frad")
-        if not isinstance(name, str) or not name or len(name) > 32 or "\n" in name or "\r" in name:
-            return web.json_response({"ok": False, "message": "Owner name must be 1-32 characters."}, status=400)
-
-        if is_serial_device(self.device):
-            return web.json_response({
-                "ok": False,
-                "message": "Press the ESP32-P4 physical confirmation button to enroll the configured owner.",
-            }, status=403)
-
-        if self.capture_status != "online" or self.latest_frame is None:
-            return web.json_response({"ok": False, "message": "No current camera frame"}, status=503)
-
-        ok, message = self.engine.enroll_owner(name, self.latest_frame)
-        return web.json_response({"ok": ok, "message": message})
-
-    async def handle_snapshot(self, request):
-        if self.capture_status != "online" or self.latest_annotated is None:
-            return web.Response(text="No current camera frame", status=503)
-        ok, encoded = cv2.imencode(".jpg", self.latest_annotated)
-        if not ok:
-            return web.Response(text="Encode failed", status=500)
-        return web.Response(body=encoded.tobytes(), content_type="image/jpeg")
-
-    async def handle_events(self, request):
-        response = web.StreamResponse(
-            status=200,
-            reason="OK",
-            headers={
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-            },
-        )
-        await response.prepare(request)
-        queue = asyncio.Queue()
-        self.sse_clients.add(queue)
-
-        try:
-            while True:
-                result = await queue.get()
-                payload = f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
-                await response.write(payload.encode("utf-8"))
-        except asyncio.CancelledError:
-            pass
-        finally:
-            self.sse_clients.discard(queue)
-
-        return response
-
-    def publish_result(self, result):
-        for queue in list(self.sse_clients):
-            try:
-                queue.put_nowait(result)
-            except asyncio.QueueFull:
-                pass
 
     async def serial_capture_loop(self):
         if serial is None:
@@ -335,24 +187,21 @@ class FaceAgentService:
         while self.is_running:
             try:
                 ser = await asyncio.to_thread(serial.Serial, self.device, 115200, timeout=1.0)
-            except Exception as e:
-                self.mark_degraded(f"serial-open-failed: {e}")
+            except Exception as error:
+                self.mark_degraded(f"serial-open-failed: {error}")
                 await asyncio.sleep(CAPTURE_RETRY_SECONDS)
                 continue
 
             self.capture_status = "no-frame"
             self.capture_error = None
+            self.last_p4_sequence = None
             consecutive_failures = 0
             try:
                 while self.is_running:
                     try:
-                        raw_line = await asyncio.wait_for(
-                            asyncio.to_thread(ser.readline),
-                            timeout=FRAME_READ_TIMEOUT_SECONDS,
-                        )
+                        raw_line = await asyncio.wait_for(asyncio.to_thread(ser.readline), timeout=FRAME_READ_TIMEOUT_SECONDS)
                     except TimeoutError:
                         raw_line = b""
-
                     if not raw_line:
                         consecutive_failures += 1
                         if consecutive_failures >= MAX_CONSECUTIVE_READ_FAILURES:
@@ -363,17 +212,11 @@ class FaceAgentService:
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if not (line.startswith("{") and line.endswith("}")):
                         continue
-
                     try:
-                        meta = json.loads(line)
+                        result = normalize_p4_inference_metadata(json.loads(line))
                     except json.JSONDecodeError:
                         continue
-
-                    result = normalize_p4_inference_metadata(meta)
-                    if result is None:
-                        continue
-
-                    if self.last_p4_sequence is not None and result["sequence"] <= self.last_p4_sequence:
+                    if result is None or (self.last_p4_sequence is not None and result["sequence"] <= self.last_p4_sequence):
                         continue
 
                     consecutive_failures = 0
@@ -382,78 +225,8 @@ class FaceAgentService:
                     self.last_frame_at = time.time()
                     self.capture_status = "online"
                     self.capture_error = None
-                    self.publish_result(result)
             finally:
                 ser.close()
-
-            if self.is_running:
-                await asyncio.sleep(CAPTURE_RETRY_SECONDS)
-
-    async def capture_loop(self):
-        self.is_running = True
-        self.device = resolve_device(self.device)
-        if is_serial_device(self.device):
-            await self.serial_capture_loop()
-            return
-        if self.engine is None:
-            self.mark_degraded("local-face-engine-unavailable")
-            return
-
-        while self.is_running:
-            try:
-                cap = await asyncio.wait_for(
-                    asyncio.to_thread(open_camera, self.device, self.width, self.height, self.fps),
-                    timeout=CAMERA_OPEN_TIMEOUT_SECONDS,
-                )
-            except TimeoutError:
-                self.mark_degraded("camera-open-timeout")
-                await asyncio.sleep(CAPTURE_RETRY_SECONDS)
-                continue
-            if not cap.isOpened():
-                self.mark_degraded("camera-unavailable")
-                cap.release()
-                await asyncio.sleep(CAPTURE_RETRY_SECONDS)
-                continue
-
-            self.capture_status = "no-frame"
-            self.capture_error = None
-            failures = 0
-            try:
-                while self.is_running:
-                    try:
-                        ok, frame = await asyncio.wait_for(
-                            asyncio.to_thread(cap.read),
-                            timeout=FRAME_READ_TIMEOUT_SECONDS,
-                        )
-                    except TimeoutError:
-                        ok, frame = False, None
-                    if not ok or frame is None:
-                        failures += 1
-                        if failures >= MAX_CONSECUTIVE_READ_FAILURES:
-                            self.mark_degraded("camera-read-failed")
-                            break
-                        await asyncio.sleep(0.05)
-                        continue
-
-                    try:
-                        result = self.engine.analyze_frame(frame)
-                        annotated = self.engine.annotate_frame(frame, result)
-                    except Exception:
-                        self.mark_degraded("analysis-failed")
-                        break
-
-                    failures = 0
-                    self.latest_frame = frame
-                    self.latest_result = result
-                    self.latest_annotated = annotated
-                    self.last_frame_at = time.time()
-                    self.capture_status = "online"
-                    self.capture_error = None
-                    self.publish_result(result)
-                    await asyncio.sleep(0.03)
-            finally:
-                cap.release()
-
             if self.is_running:
                 await asyncio.sleep(CAPTURE_RETRY_SECONDS)
 
@@ -463,7 +236,7 @@ class FaceAgentService:
         site = web.TCPSite(runner, "127.0.0.1", self.port)
         await site.start()
         try:
-            await self.capture_loop()
+            await self.serial_capture_loop()
         finally:
             await runner.cleanup()
 
