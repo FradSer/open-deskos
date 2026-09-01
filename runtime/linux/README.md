@@ -133,4 +133,4 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 1920x1280x24" \
 
 已验证：OpenCode Go 配置/解析单元测试、Linux 主进程 IPC 设计、renderer 沙盒约束、Remote Bridge 单元测试、host smoke 的 token 和布局检查；并已在真实 CM5 的 X11 `:0` HDMI 会话验证 active release、1920×1280 smoke、kiosk user service、Remote Bridge、原子 release 指针与 rollback candidate。CM5 运行时实际截图确认 Today 与真实 network/OpenCode Go/Remote Link 状态可见。
 
-尚未验证：CM5 evdev 触摸（当前设备没有发现 touch-named input）、硬件 GPU 合成（当前报告为 llvmpipe）以及真实 OpenCode Go 账户请求。`scripts/cm5-acceptance.sh` 会将这些未通过的 required hardware evidence 如实标为失败；它们不会被 host 验证掩盖。
+CM5 默认启用硬件 GPU 加速（Chromium 绕过 blocklist 并启用 GPU rasterization 与 zero-copy），并通过环境变量 `LIBGL_ALWAYS_SOFTWARE=1` 或 `ODESK_DISABLE_GPU=1` 保留软件 fallback。`scripts/cm5-acceptance.sh` 会报告实际的 GPU renderer（如 Panfrost / Mali G610 或 llvmpipe）。
