@@ -10,6 +10,7 @@
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
 #include "driver/spi_master.h"
+#include "navigation_gesture.h"
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
@@ -17,7 +18,6 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_st7789.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -47,11 +47,8 @@
 #define TOUCH_REGISTER_COUNT 0xD005
 #define TOUCH_REGISTER_POINTS 0xD000
 
-#define SWIPE_MINIMUM_PIXELS 48
 #define TOUCH_POLL_INTERVAL_MS 16
 #define HID_RELEASE_DELAY_MS 12
-#define NAV_COOLDOWN_US 1500000
-#define TOUCH_RELEASE_SAMPLES 6
 #define CDC_STATE_MAX_BYTES 255
 #define STATE_NAME_MAX_BYTES 47
 #define STATE_COUNTER_MAX_BYTES 15
@@ -73,13 +70,6 @@ typedef struct {
     char name[STATE_NAME_MAX_BYTES + 1];
 } remote_state_t;
 
-typedef struct {
-    bool active;
-    bool swipe_sent;
-    int16_t start_x;
-    int16_t start_y;
-} touch_gesture_t;
-
 static esp_lcd_panel_handle_t s_panel;
 static uint16_t *s_framebuffer;
 static i2c_master_dev_handle_t s_touch;
@@ -87,10 +77,7 @@ static QueueHandle_t s_state_queue;
 static remote_state_t s_state;
 static remote_state_t s_rendered_state;
 static bool s_has_rendered = false;
-static touch_gesture_t s_gesture;
-static bool s_waiting_for_release;
-static uint8_t s_release_samples;
-static int64_t s_last_nav_time_us = 0;
+static navigation_gesture_t s_gesture;
 static char s_cdc_line[CDC_STATE_MAX_BYTES + 1];
 static size_t s_cdc_line_length;
 static bool s_cdc_line_overflow;
@@ -437,12 +424,9 @@ static void display_render(void)
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(s_panel, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, s_framebuffer));
 }
 
-static bool send_navigation_key(uint8_t keycode)
+static bool send_navigation_key(void *context, uint8_t keycode)
 {
-    const int64_t now = esp_timer_get_time();
-    if (now - s_last_nav_time_us < NAV_COOLDOWN_US) {
-        return false;
-    }
+    (void)context;
     const bool allowed = keycode == HID_KEY_ARROW_LEFT ? s_state.can_prev : s_state.can_next;
     if (s_state.received && !allowed) {
         ESP_LOGW(TAG, "navigation unavailable at the reported page boundary");
@@ -452,60 +436,11 @@ static bool send_navigation_key(uint8_t keycode)
         ESP_LOGW(TAG, "HID not ready; navigation ignored");
         return false;
     }
-    s_last_nav_time_us = now;
     const uint8_t keys[6] = {keycode};
     tud_hid_keyboard_report(0, 0, keys);
     vTaskDelay(pdMS_TO_TICKS(HID_RELEASE_DELAY_MS));
     tud_hid_keyboard_report(0, 0, NULL);
     return true;
-}
-
-static void handle_touch_point(int16_t x, int16_t y)
-{
-    s_release_samples = 0;
-    if (s_waiting_for_release || s_gesture.swipe_sent) {
-        return;
-    }
-    if (!s_gesture.active) {
-        s_gesture.active = true;
-        s_gesture.start_x = x;
-        s_gesture.start_y = y;
-        return;
-    }
-    const int delta_x = x - s_gesture.start_x;
-    const int delta_y = y - s_gesture.start_y;
-    if ((delta_x >= SWIPE_MINIMUM_PIXELS || delta_x <= -SWIPE_MINIMUM_PIXELS) &&
-        (delta_y < SWIPE_MINIMUM_PIXELS && delta_y > -SWIPE_MINIMUM_PIXELS) &&
-        send_navigation_key(delta_x > 0 ? HID_KEY_ARROW_LEFT : HID_KEY_ARROW_RIGHT)) {
-        s_gesture.active = false;
-        s_gesture.swipe_sent = true;
-        s_waiting_for_release = true;
-    }
-}
-
-static void complete_touch_gesture(void)
-{
-    if (++s_release_samples < TOUCH_RELEASE_SAMPLES) {
-        return;
-    }
-    if (s_waiting_for_release) {
-        s_waiting_for_release = false;
-        s_gesture.active = false;
-        s_gesture.swipe_sent = false;
-        return;
-    }
-    if (s_gesture.swipe_sent) {
-        s_gesture.swipe_sent = false;
-        return;
-    }
-    if (!s_gesture.active) {
-        return;
-    }
-    if (s_gesture.start_y >= 158 && s_gesture.start_y < 300 &&
-        send_navigation_key(s_gesture.start_x < DISPLAY_WIDTH / 2 ? HID_KEY_ARROW_LEFT : HID_KEY_ARROW_RIGHT)) {
-        s_waiting_for_release = true;
-    }
-    s_gesture.active = false;
 }
 
 static bool copy_json_string(const cJSON *item, char *output, size_t output_size)
@@ -671,9 +606,9 @@ void app_main(void)
         int16_t x = 0;
         int16_t y = 0;
         if (touch_read_point(&x, &y)) {
-            handle_touch_point(x, y);
+            navigation_gesture_touch(&s_gesture, x, y, send_navigation_key, NULL);
         } else {
-            complete_touch_gesture();
+            navigation_gesture_release(&s_gesture, send_navigation_key, NULL);
         }
         vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_INTERVAL_MS));
     }

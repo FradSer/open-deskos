@@ -15,10 +15,17 @@ Feature: USB remote control for the Open DeskOS Linux shell
     Given the HID keyboard is ready
     When I tap the large left target
     Then the host receives one HID ArrowLeft key
-    And repeated touch reports for that tap do not send another navigation key for 1.5 seconds
+    And repeated touch reports for that tap do not send another navigation key
     And six stable touch-release polls are required before the next navigation gesture
-    When I tap the large right target after the cooldown
+    When I tap the large right target after the release is confirmed
     Then the host receives one HID ArrowRight key
+
+  Scenario: Consecutive next taps are not lost after their releases are confirmed
+    Given the HID keyboard is ready
+    When I tap the large right target
+    And six stable touch-release polls confirm that tap has ended
+    And I tap the large right target again
+    Then the host receives two HID ArrowRight keys
 
   Scenario: A horizontal swipe sends one directional navigation key
     Given the HID keyboard is ready
