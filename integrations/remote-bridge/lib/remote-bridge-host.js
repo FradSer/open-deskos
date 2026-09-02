@@ -14,7 +14,10 @@ const {
 const {
   SOCKET_DIRECTORY,
   SOCKET_NAME,
+  closeServer,
   createAdapterState,
+  listen,
+  removeSocketIfPresent,
   removeStaleSocket,
   resolveSocketPath,
 } = require('./remote-bridge')
@@ -165,34 +168,6 @@ class RemoteBridgeHost {
 
 function linkStateForTransport(transportKind) {
   return transportKind === 'usb-cdc' ? 'usb' : 'wireless'
-}
-
-function listen(server, socketPath) {
-  return new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(socketPath, () => {
-      server.off('error', reject)
-      resolve()
-    })
-  })
-}
-
-function closeServer(server) {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error) reject(error)
-      else resolve()
-    })
-  })
-}
-
-async function removeSocketIfPresent(socketPath) {
-  try {
-    const stat = await fs.promises.lstat(socketPath)
-    if (stat.isSocket()) await fs.promises.unlink(socketPath)
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
-  }
 }
 
 module.exports = {

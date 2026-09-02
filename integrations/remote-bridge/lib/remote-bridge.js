@@ -204,8 +204,11 @@ function closeServer(server) {
 module.exports = {
   RemoteBridge,
   SOCKET_DIRECTORY,
-  createAdapterState,
   SOCKET_NAME,
+  closeServer,
+  createAdapterState,
+  listen,
+  removeSocketIfPresent,
   removeStaleSocket,
   resolveSocketPath,
 }
