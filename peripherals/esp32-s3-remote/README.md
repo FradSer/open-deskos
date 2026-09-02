@@ -14,7 +14,8 @@ shell's page-name field. This avoids unsupported UTF-8 glyph rendering on the
 small display. The two large targets across the lower half of the 240x320
 display emit the corresponding arrow key. A horizontal swipe of at least 48
 pixels sends one navigation key: left-to-right emits `ArrowLeft`; right-to-left
-emits `ArrowRight`.
+emits `ArrowRight`. The shell alone enforces page boundaries: the Remote's CDC
+state only controls its visual affordances and never suppresses HID input.
 
 ## State protocol
 
@@ -33,10 +34,11 @@ The parser requires `v: 1`, `type: "state"`, positive integer `page` and
 `link: "wired"` or `link: "wireless"`. It rejects frames when `page > pages`
 or the boundary flags contradict the page number. A valid frame displays its
 English page label, `page/pages`, and visibly mutes the unavailable left or
-right target; only after that frame does firmware suppress HID navigation at
-the reported boundary. The implementation uses cJSON to decode each line, caps
-a line at 255 bytes, and retains the last valid display state when it receives
-invalid or oversized input.
+right target. The shell remains the authoritative boundary owner, so every
+target activation still emits its HID key even when that target is visibly
+muted. The implementation uses cJSON to decode each line, caps a line at 255
+bytes, and retains the last valid display state when it receives invalid or
+oversized input.
 
 On Linux the CDC device normally appears as `/dev/ttyACM0`. For example:
 

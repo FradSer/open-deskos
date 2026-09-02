@@ -16,15 +16,17 @@ static bool record_key(void *context, uint8_t keycode)
     return true;
 }
 
+static void confirm_release(navigation_gesture_t *gesture, navigation_log_t *log)
+{
+    for (unsigned i = 0; i < 6; ++i) {
+        navigation_gesture_release(gesture, record_key, log);
+    }
+}
+
 static void tap_right(navigation_gesture_t *gesture, navigation_log_t *log)
 {
     navigation_gesture_touch(gesture, 180, 200, record_key, log);
-    for (unsigned i = 0; i < 6; ++i) {
-        navigation_gesture_release(gesture, record_key, log);
-    }
-    for (unsigned i = 0; i < 6; ++i) {
-        navigation_gesture_release(gesture, record_key, log);
-    }
+    confirm_release(gesture, log);
 }
 
 int main(void)

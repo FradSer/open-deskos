@@ -427,11 +427,6 @@ static void display_render(void)
 static bool send_navigation_key(void *context, uint8_t keycode)
 {
     (void)context;
-    const bool allowed = keycode == HID_KEY_ARROW_LEFT ? s_state.can_prev : s_state.can_next;
-    if (s_state.received && !allowed) {
-        ESP_LOGW(TAG, "navigation unavailable at the reported page boundary");
-        return false;
-    }
     if (!tud_mounted() || !tud_hid_ready()) {
         ESP_LOGW(TAG, "HID not ready; navigation ignored");
         return false;

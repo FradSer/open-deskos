@@ -47,6 +47,13 @@ Feature: USB remote control for the Open DeskOS Linux shell
     When I tap the large right target
     Then the host receives the HID ArrowRight key
 
+  Scenario: Cached state never suppresses a navigation key
+    Given the HID keyboard is ready
+    And the screen has received a valid state frame for the last page
+    When I tap the unavailable right target
+    Then the host receives the HID ArrowRight key
+    And the host remains the authority that keeps navigation at its last page
+
   Scenario: An authoritative v1 state frame updates the English-only screen
     Given the screen says "Connecting to Open DeskOS"
     When CDC receives the frame "{\"v\":1,\"type\":\"state\",\"page\":1,\"pages\":3,\"name\":\"Home\",\"canPrev\":false,\"canNext\":true,\"link\":\"wired\"}\n"
