@@ -157,6 +157,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And every open-app tile references a valid built-in App
     But no third-party plugin or theme code is loaded
 
+  Scenario: Universal plugin manifest v1 validation
+    Given a plugin declares a universal manifest v1
+    When the host kernel validates the plugin manifest
+    Then it accepts valid kinds, versioned interfaces, and declared permissions
+    And it rejects manifests with unsupported schema versions or invalid capability declarations
+
+
   Scenario: Peek opens a focused factual system status view
     Given the Display Shell is running with available or unavailable provider and Remote Link state
     When the user selects the peek

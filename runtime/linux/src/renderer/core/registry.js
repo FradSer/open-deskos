@@ -6,13 +6,27 @@
   const instances = new WeakMap()
   const enabled = new Set()
   const LIFECYCLE = ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
-  const KINDS = new Set(['tile', 'page', 'status', 'peek', 'app'])
+  const KINDS = new Set([
+    'tile', 'page', 'status', 'peek', 'app',
+    'surface', 'application', 'service', 'transport', 'device-driver', 'processor', 'protocol', 'integration', 'system',
+  ])
+
+  const UI_KINDS = new Set(['tile', 'page', 'status', 'peek', 'surface', 'application'])
 
   function validateDefinition(def) {
     if (!def || typeof def.id !== 'string' || !def.id.startsWith('odk.') || !def.kind || !KINDS.has(def.kind)) {
       throw new Error('plugin requires an Open DeskOS identity and supported kind')
     }
     if (!def.manifest || def.manifest.schemaVersion !== 1) throw new Error(`plugin "${def.id}" requires manifest schema version 1`)
+    if (def.manifest.provides !== undefined && !Array.isArray(def.manifest.provides)) {
+      throw new Error(`plugin "${def.id}" manifest.provides must be an array`)
+    }
+    if (def.manifest.requires !== undefined && !Array.isArray(def.manifest.requires)) {
+      throw new Error(`plugin "${def.id}" manifest.requires must be an array`)
+    }
+    if (def.manifest.permissions !== undefined && !Array.isArray(def.manifest.permissions)) {
+      throw new Error(`plugin "${def.id}" manifest.permissions must be an array`)
+    }
     if (def.kind === 'status' && !['left', 'right'].includes(def.slot)) {
       throw new Error(`status plugin "${def.id}" requires a supported slot`)
     }
@@ -78,12 +92,15 @@
   root.odkPlugins = {
     register(def) {
       validateDefinition(def)
-      if (typeof def.mount !== 'function' && !def.lifecycle?.mount) throw new Error(`plugin "${def.id}" requires mount`)
+      const isUiPlugin = UI_KINDS.has(def.kind)
+      if (isUiPlugin && typeof def.mount !== 'function' && !def.lifecycle?.mount) {
+        throw new Error(`plugin "${def.id}" requires mount`)
+      }
       if (plugins.has(def.id)) throw new Error(`plugin "${def.id}" already registered`)
       const lifecycle = def.lifecycle || {}
       def.lifecycle = Object.fromEntries(LIFECYCLE.map((phase) => [
         phase,
-        lifecycle[phase] || (phase === 'mount' ? def.mount : (() => {})),
+        lifecycle[phase] || (phase === 'mount' ? (def.mount || (() => {})) : (() => {})),
       ]))
       plugins.set(def.id, def)
     },

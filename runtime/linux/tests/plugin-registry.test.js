@@ -16,6 +16,55 @@ test('rejects plugins without a schema-versioned manifest', () => {
   assert.throws(() => registry.register({ id: 'odk.tile.unversioned', kind: 'tile', mount() {} }), /requires manifest schema version 1/)
 })
 
+test('validates universal manifest v1 kinds, provides, requires, and permissions', () => {
+  const registry = createRegistry()
+  assert.throws(() => registry.register({
+    id: 'odk.invalid.kind',
+    manifest: { schemaVersion: 1 },
+    kind: 'non-existent-kind',
+    mount() {},
+  }), /supported kind/)
+
+  assert.throws(() => registry.register({
+    id: 'odk.invalid.provides',
+    manifest: {
+      schemaVersion: 1,
+      provides: 'not-an-array',
+    },
+    kind: 'service',
+  }), /manifest.provides must be an array/)
+
+  assert.throws(() => registry.register({
+    id: 'odk.invalid.requires',
+    manifest: {
+      schemaVersion: 1,
+      requires: 'not-an-array',
+    },
+    kind: 'service',
+  }), /manifest.requires must be an array/)
+
+  assert.throws(() => registry.register({
+    id: 'odk.invalid.permissions',
+    manifest: {
+      schemaVersion: 1,
+      permissions: 'not-an-array',
+    },
+    kind: 'service',
+  }), /manifest.permissions must be an array/)
+
+  assert.doesNotThrow(() => registry.register({
+    id: 'odk.service.sample',
+    manifest: {
+      schemaVersion: 1,
+      provides: [{ interface: 'odk.sample/v1' }],
+      requires: [{ interface: 'odk.required/v1', optional: true }],
+      permissions: ['hardware:serial:by-id'],
+    },
+    kind: 'service',
+  }))
+})
+
+
 test('runs uninstall and clears enabled state when disable fails', () => {
   const registry = createRegistry()
   const events = []

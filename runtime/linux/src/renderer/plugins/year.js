@@ -14,8 +14,8 @@
     kind: 'tile',
     app: 'Year progress',
     state: 'Live',
-    interaction: 'open-app',
-    appId: 'year',
+    interaction: 'display-only',
+    appId: null,
     mount(el, ctx) {
       el.innerHTML = `
         <div class="year-head odk-row justify-between">
