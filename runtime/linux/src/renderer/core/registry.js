@@ -13,19 +13,20 @@
 
   const UI_KINDS = new Set(['tile', 'page', 'status', 'peek', 'surface', 'application'])
 
+  const MANIFEST_ARRAY_FIELDS = ['provides', 'requires', 'permissions']
+  const SERVICE_KEYS = ['connection', 'remoteLink', 'subscription', 'faceAgent']
+
   function validateDefinition(def) {
     if (!def || typeof def.id !== 'string' || !def.id.startsWith('odk.') || !def.kind || !KINDS.has(def.kind)) {
       throw new Error('plugin requires an Open DeskOS identity and supported kind')
     }
-    if (!def.manifest || def.manifest.schemaVersion !== 1) throw new Error(`plugin "${def.id}" requires manifest schema version 1`)
-    if (def.manifest.provides !== undefined && !Array.isArray(def.manifest.provides)) {
-      throw new Error(`plugin "${def.id}" manifest.provides must be an array`)
+    if (!def.manifest || def.manifest.schemaVersion !== 1) {
+      throw new Error(`plugin "${def.id}" requires manifest schema version 1`)
     }
-    if (def.manifest.requires !== undefined && !Array.isArray(def.manifest.requires)) {
-      throw new Error(`plugin "${def.id}" manifest.requires must be an array`)
-    }
-    if (def.manifest.permissions !== undefined && !Array.isArray(def.manifest.permissions)) {
-      throw new Error(`plugin "${def.id}" manifest.permissions must be an array`)
+    for (const field of MANIFEST_ARRAY_FIELDS) {
+      if (def.manifest[field] !== undefined && !Array.isArray(def.manifest[field])) {
+        throw new Error(`plugin "${def.id}" manifest.${field} must be an array`)
+      }
     }
     if (def.kind === 'status' && !['left', 'right'].includes(def.slot)) {
       throw new Error(`status plugin "${def.id}" requires a supported slot`)
@@ -44,36 +45,9 @@
       if (typeof cleanup === 'function') cleanups.add(cleanup)
       return cleanup
     }
-    const connection = ctx.connection
-      ? {
-          ...ctx.connection,
-          subscribe: (listener) => track(ctx.connection.subscribe(listener)),
-        }
-      : ctx.connection
-    const remoteLink = ctx.remoteLink
-      ? {
-          ...ctx.remoteLink,
-          subscribe: (listener) => track(ctx.remoteLink.subscribe(listener)),
-        }
-      : ctx.remoteLink
-    const subscription = ctx.subscription
-      ? {
-          ...ctx.subscription,
-          subscribe: (listener) => track(ctx.subscription.subscribe(listener)),
-        }
-      : ctx.subscription
-    const faceAgent = ctx.faceAgent
-      ? {
-          ...ctx.faceAgent,
-          subscribe: (listener) => track(ctx.faceAgent.subscribe(listener)),
-        }
-      : ctx.faceAgent
-    return {
+
+    const scoped = {
       ...ctx,
-      connection,
-      subscription,
-      faceAgent,
-      remoteLink,
       onTick: (listener) => track(ctx.onTick(listener)),
       trackCleanup: track,
       cleanup() {
@@ -81,6 +55,17 @@
         cleanups.clear()
       },
     }
+
+    for (const key of SERVICE_KEYS) {
+      if (ctx[key]?.subscribe) {
+        scoped[key] = {
+          ...ctx[key],
+          subscribe: (listener) => track(ctx[key].subscribe(listener)),
+        }
+      }
+    }
+
+    return scoped
   }
 
   function callLifecycle(def, phase, ...args) {

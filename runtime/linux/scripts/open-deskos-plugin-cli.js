@@ -4,8 +4,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const COMMANDS = ['list', 'validate', 'add', 'remove', 'enable', 'disable', 'diagnose', 'link', 'update']
-
 function showHelp() {
   console.log(`Open DeskOS Plugin CLI
 
@@ -49,22 +47,13 @@ function validateManifest(manifestPath) {
   return manifest
 }
 
-function main(args = process.argv.slice(2)) {
-  const command = args[0]
-  if (!command || command === '--help' || command === '-h' || !COMMANDS.includes(command)) {
-    showHelp()
-    return 0
-  }
-
-  const configPath = resolveConfigPath()
-  const config = readConfig(configPath)
-
-  if (command === 'list') {
+const COMMAND_HANDLERS = {
+  list(args, { config }) {
     console.log(JSON.stringify(config.plugins, null, 2))
     return 0
-  }
+  },
 
-  if (command === 'validate') {
+  validate(args) {
     const target = args[1]
     if (!target) {
       console.error('Error: validate requires path to manifest.json')
@@ -78,9 +67,9 @@ function main(args = process.argv.slice(2)) {
       console.error(`Validation failed: ${e.message}`)
       return 1
     }
-  }
+  },
 
-  if (command === 'enable') {
+  enable(args, { config, configPath }) {
     const id = args[1]
     if (!id) {
       console.error('Error: enable requires plugin id')
@@ -90,9 +79,9 @@ function main(args = process.argv.slice(2)) {
     writeConfig(configPath, config)
     console.log(`Plugin "${id}" enabled.`)
     return 0
-  }
+  },
 
-  if (command === 'disable') {
+  disable(args, { config, configPath }) {
     const id = args[1]
     if (!id) {
       console.error('Error: disable requires plugin id')
@@ -102,16 +91,35 @@ function main(args = process.argv.slice(2)) {
     writeConfig(configPath, config)
     console.log(`Plugin "${id}" disabled.`)
     return 0
-  }
+  },
 
-  if (command === 'diagnose') {
+  diagnose(args) {
     const id = args[1]
     console.log(`Diagnostics: ${id ? `plugin ${id} is configured` : 'all plugins healthy'}`)
     return 0
+  },
+}
+
+function main(args = process.argv.slice(2)) {
+  const command = args[0]
+  if (!command || command === '--help' || command === '-h') {
+    showHelp()
+    return 0
   }
 
-  console.log(`Command "${command}" executed successfully.`)
-  return 0
+  const handler = COMMAND_HANDLERS[command]
+  if (!handler) {
+    if (['add', 'remove', 'link', 'update'].includes(command)) {
+      console.log(`Command "${command}" executed successfully.`)
+      return 0
+    }
+    showHelp()
+    return 0
+  }
+
+  const configPath = resolveConfigPath()
+  const config = readConfig(configPath)
+  return handler(args, { config, configPath })
 }
 
 if (require.main === module) {
