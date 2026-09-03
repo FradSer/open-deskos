@@ -10,14 +10,18 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
   const output = [
     ' 321 1 3600 pi pi',
     ' 654 321 00:12:05 node node /opt/tools/pi',
-    ' 987 1 42 node /opt/tools/not-pi',
-    ' 999 1 42 node node --name pi',
+    ' 777 1 42 node node pi',
+    ' 778 1 42 npm npm exec pi',
+    ' 779 1 42 bun bun run pi',
+    ' 780 1 42 sh sh -c pi',
+    ' 987 1 42 node node /opt/tools/not-pi',
+    ' 999 1 42 node node app.js --name pi',
   ].join('\n')
 
   const processes = parseProcessTable(output, now)
 
-  assert.equal(processes.length, 2)
-  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654])
+  assert.equal(processes.length, 6)
+  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654, 777, 778, 779, 780])
   assert.equal(processes[0].startedAt, now - 3600 * 1000)
   assert.equal(processes[1].elapsedSeconds, 12 * 60 + 5)
   assert.equal(processes[0].isAlive, true)

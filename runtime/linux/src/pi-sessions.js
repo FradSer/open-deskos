@@ -64,10 +64,21 @@ function isPiProcess(processInfo) {
   if (!processInfo?.args || typeof processInfo.args !== 'string') return false
   const tokens = processInfo.args.split(/\s+/).filter(Boolean)
   const launcher = executableName(tokens[0])
-  return tokens.slice(1).some((token) => {
-    if (!isPiExecutable(token)) return false
-    return token.includes('/') || ['bunx', 'npx', 'pnpm', 'yarn'].includes(launcher)
-  })
+  const script = tokens.slice(1).find((token) => !token.startsWith('-'))
+  if (isPiExecutable(script)) return true
+  if (tokens.some((token) => isPiExecutable(token) && token.includes('/'))) return true
+
+  if (['bun', 'deno'].includes(launcher)) {
+    return tokens.some((token, index) => isPiExecutable(token) && ['run', 'exec', 'x'].includes(tokens[index - 1]))
+  }
+  if (['npm', 'npx', 'pnpm', 'yarn', 'bunx'].includes(launcher)) {
+    return tokens.some((token, index) => isPiExecutable(token) && ['exec', 'dlx', 'run', 'x'].includes(tokens[index - 1]))
+  }
+  if (['sh', 'bash', 'zsh', 'fish'].includes(launcher)) {
+    const commandIndex = tokens.indexOf('-c')
+    return commandIndex >= 0 && isPiExecutable(tokens[commandIndex + 1])
+  }
+  return false
 }
 
 function parseProcessTable(output, now = Date.now()) {

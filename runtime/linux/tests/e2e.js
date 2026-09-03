@@ -262,6 +262,7 @@ const DRIVER_SCRIPT = `
     piPageText.includes('Live Pi process; session metadata unavailable.') &&
     /\\d+[mh] elapsed/.test(piPageText)
   const piFilesToggle = piPage?.querySelector('.pi-files-toggle')
+  out.piFilesCollapsedInitially = Boolean(piFilesToggle && piFilesToggle.getAttribute('aria-expanded') === 'false' && piFilesToggle.nextElementSibling?.hidden)
   piFilesToggle?.click()
   out.piPageRendersModifiedFiles = (piPage?.textContent || '').includes('src/renderer/shell.js')
   const piSearch = document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')
@@ -411,7 +412,7 @@ function check(results) {
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
-    ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piPageRendersSessionDetails && results.piPageRendersModifiedFiles && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
+    ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piPageRendersSessionDetails && results.piFilesCollapsedInitially && results.piPageRendersModifiedFiles && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar remains factual after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsVisible],

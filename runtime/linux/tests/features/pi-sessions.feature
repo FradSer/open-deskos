@@ -14,7 +14,7 @@ Feature: Local Pi Sessions Monitoring
     And the widget is non-interactive and does not open an App on click
 
   Scenario: Linux shell includes running Pi processes even without session metadata
-    Given a running `pi` process is visible to the local process table
+    Given a running direct or supported-wrapper `pi` process is visible to the local process table
     And no matching session metadata exists for its PID
     When the shell queries active Pi sessions
     Then it includes the process with its PID, working directory, and elapsed runtime

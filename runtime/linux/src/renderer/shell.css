@@ -1697,6 +1697,10 @@ body.kiosk {
   border: 1px solid var(--odk-stroke);
 }
 
+.pi-files-list[hidden] {
+  display: none;
+}
+
 .pi-file-item code {
   font-size: 12px;
   color: var(--odk-secondary-strong);
