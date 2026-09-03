@@ -497,10 +497,26 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
+    await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[2].click()", true)
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    const piProbe = await win.webContents.executeJavaScript(`(() => {
+      const page = document.querySelector('#pages-track .page[data-page="2"]')
+      const pageRect = page.getBoundingClientRect()
+      const controls = [...page.querySelectorAll('.pi-app-actions, .pi-filter-group, #pi-refresh-btn')]
+      const inside = (rect, parent) => rect.left >= parent.left - 1 && rect.right <= parent.right + 1 && rect.top >= parent.top - 1 && rect.bottom <= parent.bottom + 1
+      return {
+        controlsPresent: controls.length === 3,
+        controlsInside: controls.every((control) => inside(control.getBoundingClientRect(), pageRect)),
+        filterButtonsInside: [...page.querySelectorAll('.pi-filter-btn')].every((button) => inside(button.getBoundingClientRect(), page.querySelector('.pi-filter-group').getBoundingClientRect())),
+      }
+    })()`, true)
+    await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
+    await new Promise((resolve) => setTimeout(resolve, 350))
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
       ['State Bar summary remains visible', probe.stateSummaryVisible],
       ['portrait State Bar summary avoids pager and clock', probe.stateSummaryResponsive],
+      ['Pi App controls stay inside portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.filterButtonsInside],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
       ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height).cols],

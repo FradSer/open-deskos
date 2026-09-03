@@ -47,6 +47,12 @@ Feature: Local Pi Sessions Monitoring
     And each session displays the list of modified files
     And users can filter sessions by status or trigger a manual refresh
 
+  Scenario: Pi Sessions controls reflow inside a narrow App page
+    Given the user opens Pi Sessions in a narrow portrait window
+    When the App toolbar renders its filters and refresh action
+    Then every control stays inside the App surface without horizontal clipping
+    And the filters remain individually selectable
+
   Scenario: Pi Sessions status bar indicator provides system-level glanceability
     Given the status plugin for Pi Sessions is registered
     When active Pi sessions are running locally

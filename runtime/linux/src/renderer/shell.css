@@ -1880,3 +1880,52 @@ body.kiosk {
   }
 }
 
+@media (max-width: 520px) {
+  .pi-app-toolbar {
+    align-items: stretch;
+  }
+
+  .pi-app-metrics {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .pi-app-actions {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pi-filter-group {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .pi-filter-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 10px;
+  }
+
+  .pi-refresh-btn {
+    flex: 0 0 auto;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .pi-filter-group {
+    flex-wrap: wrap;
+    border-radius: 14px;
+    row-gap: 3px;
+  }
+
+  .pi-filter-btn {
+    flex: 1 1 45%;
+    padding-inline: 6px;
+  }
+}
+
