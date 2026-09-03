@@ -25,6 +25,22 @@ function extractUuid(sessionId) {
   return match ? match[1].toLowerCase() : sessionId
 }
 
+function mergeSessionMetadata(existing, candidate) {
+  const existingUpdatedAt = Number(existing?.updatedAt) || 0
+  const candidateUpdatedAt = Number(candidate?.updatedAt) || 0
+  const newer = candidateUpdatedAt >= existingUpdatedAt ? candidate : existing
+  const older = newer === candidate ? existing : candidate
+  const merged = { ...older, ...newer }
+
+  for (const field of ['pid', 'cwd', 'startedAt', 'latestGoal', 'command']) {
+    if (!merged[field] && older[field]) merged[field] = older[field]
+  }
+  if (!Array.isArray(merged.modifiedFiles) && Array.isArray(older.modifiedFiles)) {
+    merged.modifiedFiles = older.modifiedFiles
+  }
+  return merged
+}
+
 function resolveWorkspaceName(cwd) {
   if (!cwd || typeof cwd !== 'string') return 'Unknown'
   const trimmed = cwd.replace(/[/\\]+$/, '')
@@ -65,26 +81,71 @@ function isPiExecutable(value) {
   return name === 'pi' || name === 'pi.js' || name === 'pi.mjs' || name === 'pi.cjs'
 }
 
+function skipCommandWrappers(tokens) {
+  let index = 0
+  while (index < tokens.length) {
+    const token = tokens[index]
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) {
+      index += 1
+      continue
+    }
+    const name = executableName(token)
+    if (name === 'env') {
+      index += 1
+      while (index < tokens.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index]) || tokens[index].startsWith('-'))) {
+        if (['-u', '--unset'].includes(tokens[index])) index += 1
+        index += 1
+      }
+      continue
+    }
+    if (name === 'sudo') {
+      index += 1
+      while (index < tokens.length && tokens[index].startsWith('-')) {
+        if (['-u', '--user', '-g', '--group', '-C', '--chdir'].includes(tokens[index])) index += 1
+        index += 1
+      }
+      continue
+    }
+    if (name === 'command' || name === 'exec') {
+      index += 1
+      continue
+    }
+    break
+  }
+  return index
+}
+
+function shellCommandIsPi(value) {
+  const command = String(value || '').trim().replace(/^(?:['"])(.*)\1$/, '$1')
+  return isPiInvocation(command.split(/\s+/).filter(Boolean))
+}
+
+function isPiInvocation(tokens) {
+  const commandIndex = skipCommandWrappers(tokens)
+  const command = tokens[commandIndex]
+  if (isPiExecutable(command)) return true
+  const launcher = executableName(command)
+  if (['sh', 'bash', 'zsh', 'fish'].includes(launcher)) {
+    const flagIndex = tokens.slice(commandIndex + 1).findIndex((token) => /^-[^-]*c/.test(token))
+    return flagIndex >= 0 && shellCommandIsPi(tokens.slice(commandIndex + 2 + flagIndex).join(' '))
+  }
+  const script = tokens.slice(commandIndex + 1).find((token) => !token.startsWith('-'))
+  if (isPiExecutable(script)) return true
+  if (['npx', 'yarn', 'bunx'].includes(launcher)) {
+    return tokens.slice(commandIndex + 1).some((token) => isPiExecutable(token))
+  }
+  if (['bun', 'deno', 'npm', 'pnpm'].includes(launcher)) {
+    const subcommandIndex = tokens.slice(commandIndex + 1).findIndex((token) => ['exec', 'dlx', 'run', 'x'].includes(executableName(token)))
+    return subcommandIndex >= 0 && tokens.slice(commandIndex + 2 + subcommandIndex).some((token) => isPiExecutable(token))
+  }
+  return false
+}
+
 function isPiProcess(processInfo) {
   if (isPiExecutable(processInfo?.comm)) return true
   if (!processInfo?.args || typeof processInfo.args !== 'string') return false
   const tokens = processInfo.args.split(/\s+/).filter(Boolean)
-  const launcher = executableName(tokens[0])
-  const script = tokens.slice(1).find((token) => !token.startsWith('-'))
-  if (isPiExecutable(script)) return true
-  if (tokens.some((token) => isPiExecutable(token) && token.includes('/'))) return true
-
-  if (['bun', 'deno'].includes(launcher)) {
-    return tokens.some((token, index) => isPiExecutable(token) && ['run', 'exec', 'x'].includes(tokens[index - 1]))
-  }
-  if (['npm', 'npx', 'pnpm', 'yarn', 'bunx'].includes(launcher)) {
-    return tokens.some((token, index) => isPiExecutable(token) && ['exec', 'dlx', 'run', 'x'].includes(tokens[index - 1]))
-  }
-  if (['sh', 'bash', 'zsh', 'fish'].includes(launcher)) {
-    const commandIndex = tokens.indexOf('-c')
-    return commandIndex >= 0 && isPiExecutable(tokens[commandIndex + 1])
-  }
-  return false
+  return isPiInvocation(tokens)
 }
 
 function parseProcessTable(output, now = Date.now()) {
@@ -128,6 +189,21 @@ function processMatchesMetadata(metadataSession, processSessionInfo) {
   if (!Number.isFinite(metadataStartedAt) || metadataStartedAt <= 0) return true
   if (!Number.isFinite(processStartedAt) || processStartedAt <= 0) return true
   return Math.abs(metadataStartedAt - processStartedAt) <= 5000
+}
+
+function selectMetadataSession(candidates, processSessionInfo) {
+  const compatible = candidates.filter((candidate) => processMatchesMetadata(candidate, processSessionInfo))
+  if (compatible.length === 0) return null
+  return compatible.sort((a, b) => {
+    const aDistance = Math.abs((Number(a.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
+    const bDistance = Math.abs((Number(b.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
+    return aDistance - bDistance || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)
+  })[0]
+}
+
+function markMetadataExited(session) {
+  session.isAlive = false
+  if (session.status === 'running') session.status = 'exited'
 }
 
 function processSession(processInfo) {
@@ -190,12 +266,18 @@ async function scanPiSessions(options = {}) {
         if (!uuid) continue
 
         const existing = sessionMap.get(uuid)
-        // Keep the record with the higher updatedAt or more complete info
-        if (!existing || (parsed.updatedAt && (!existing.updatedAt || parsed.updatedAt > existing.updatedAt))) {
+        if (!existing) {
           sessionMap.set(uuid, {
             ...parsed,
             uuid,
             file,
+            source: 'session',
+          })
+        } else {
+          sessionMap.set(uuid, {
+            ...mergeSessionMetadata(existing, parsed),
+            uuid,
+            file: Number(parsed.updatedAt) >= Number(existing.updatedAt) ? file : existing.file,
             source: 'session',
           })
         }
@@ -240,7 +322,13 @@ async function scanPiSessions(options = {}) {
     })
   }
 
-  const metadataByPid = new Map(sessions.filter((session) => session.isAlive && session.pid !== null).map((session) => [session.pid, session]))
+  const metadataByPid = new Map()
+  for (const session of sessions) {
+    if (!session.isAlive || session.pid === null) continue
+    const candidates = metadataByPid.get(session.pid) || []
+    candidates.push(session)
+    metadataByPid.set(session.pid, candidates)
+  }
   let processEntries = []
   try {
     processEntries = listProcesses(now) || []
@@ -250,14 +338,11 @@ async function scanPiSessions(options = {}) {
   for (const processInfo of processEntries) {
     const session = processSession(processInfo)
     if (!session || !session.isAlive) continue
-    const metadataSession = metadataByPid.get(session.pid)
+    const candidates = metadataByPid.get(session.pid) || []
+    const metadataSession = selectMetadataSession(candidates, session)
     if (metadataSession) {
-      if (!processMatchesMetadata(metadataSession, session)) {
-        metadataSession.isAlive = false
-        if (metadataSession.status === 'running') metadataSession.status = 'exited'
-        metadataByPid.delete(session.pid)
-        sessions.push(session)
-        continue
+      for (const candidate of candidates) {
+        if (candidate !== metadataSession) markMetadataExited(candidate)
       }
       if (!metadataSession.cwd && session.cwd) {
         metadataSession.cwd = session.cwd
@@ -265,8 +350,11 @@ async function scanPiSessions(options = {}) {
       }
       if (!metadataSession.command && session.command) metadataSession.command = session.command
       if (!metadataSession.startedAt && session.startedAt) metadataSession.startedAt = session.startedAt
+      metadataByPid.delete(session.pid)
       continue
     }
+    for (const candidate of candidates) markMetadataExited(candidate)
+    metadataByPid.delete(session.pid)
     sessions.push(session)
   }
 

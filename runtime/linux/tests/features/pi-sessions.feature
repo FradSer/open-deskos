@@ -26,6 +26,13 @@ Feature: Local Pi Sessions Monitoring
     Then it returns one record for that PID
     And it keeps the session goal and modified files while filling missing process facts
 
+  Scenario: Linux shell preserves complete facts across duplicate metadata files
+    Given duplicate metadata files describe one Pi session at different update times
+    And the newer file omits a previously known workspace or command
+    When the shell queries active Pi sessions
+    Then it keeps the newer session state and activity timestamp
+    And it retains the older non-empty facts instead of inventing replacements
+
   Scenario: Pi Sessions App page displays workspaces, session goals, and modified files
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state

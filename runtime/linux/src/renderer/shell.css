@@ -603,21 +603,27 @@ body.kiosk {
   .sb-state-summary {
     position: absolute;
     right: var(--gutter);
-    bottom: 3px;
+    bottom: 0;
     left: calc(var(--gutter) * 2.5);
-    display: flex;
-    justify-content: center;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    gap: 4px;
     margin-left: 0;
-    font-size: clamp(9px, calc(var(--cell-dim) * 0.075), 11px);
+    font-size: clamp(8px, calc(var(--cell-dim) * 0.075), 11px);
     line-height: 1;
   }
 
   .sb-state-item {
-    max-width: none;
     min-width: 0;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sb-state-divider {
+    display: none;
   }
 
   .sb-pi-status {

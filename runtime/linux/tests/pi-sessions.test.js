@@ -14,14 +14,19 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
     ' 778 1 42 npm npm exec pi',
     ' 779 1 42 bun bun run pi',
     ' 780 1 42 sh sh -c pi',
+    ' 781 1 42 npx npx pi',
+    ' 782 1 42 yarn yarn pi',
+    ' 783 1 42 sh sh -c "exec pi"',
+    ' 784 1 42 env env PI_MODE=live pi',
+    ' 785 1 42 sudo sudo -u desk pi',
     ' 987 1 42 node node /opt/tools/not-pi',
     ' 999 1 42 node node app.js --name pi',
   ].join('\n')
 
   const processes = parseProcessTable(output, now)
 
-  assert.equal(processes.length, 6)
-  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654, 777, 778, 779, 780])
+  assert.equal(processes.length, 11)
+  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654, 777, 778, 779, 780, 781, 782, 783, 784, 785])
   assert.equal(processes[0].startedAt, now - 3600 * 1000)
   assert.equal(processes[1].elapsedSeconds, 12 * 60 + 5)
   assert.equal(processes[0].isAlive, true)
@@ -99,6 +104,46 @@ test('scanPiSessions merges process facts into a matching metadata record', asyn
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
+test('scanPiSessions merges duplicate metadata fields without losing complete facts', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-metadata-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-metadata--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  const uuid = '03c062fe-c0a6-7922-a757-abb790ef7777'
+  fs.writeFileSync(path.join(wsDir, 'older.json'), JSON.stringify({
+    sessionId: `older-${uuid}`,
+    pid: 4321,
+    cwd: '/Users/test/metadata-workspace',
+    command: 'pi --resume',
+    startedAt: 1_699_999_940_000,
+    updatedAt: 1_699_999_950_000,
+    status: 'running',
+    latestGoal: 'Known goal',
+    modifiedFiles: ['old-file.md'],
+  }))
+  fs.writeFileSync(path.join(wsDir, 'newer.json'), JSON.stringify({
+    sessionId: `newer-${uuid}`,
+    pid: 4321,
+    startedAt: 1_699_999_940_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: 'Newer goal',
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].sessionId, `newer-${uuid}`)
+  assert.equal(result.sessions[0].latestGoal, 'Newer goal')
+  assert.equal(result.sessions[0].cwd, '/Users/test/metadata-workspace')
+  assert.equal(result.sessions[0].command, 'pi --resume')
+  assert.deepEqual(result.sessions[0].modifiedFiles, ['old-file.md'])
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
 test('scanPiSessions separates a reused PID from its historical metadata', async () => {
   const tmpAgentDir = path.join(os.tmpdir(), `pi-reuse-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-reuse--')
@@ -111,6 +156,15 @@ test('scanPiSessions separates a reused PID from its historical metadata', async
     updatedAt: 1_699_000_000_000,
     status: 'running',
     latestGoal: 'Historical goal',
+    modifiedFiles: [],
+  }))
+  fs.writeFileSync(path.join(wsDir, 'current.json'), JSON.stringify({
+    sessionId: 'current-02b062fe-b0a6-7922-a757-abb790ef8888',
+    pid: 4321,
+    startedAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: 'Current goal',
     modifiedFiles: [],
   }))
 
@@ -130,7 +184,9 @@ test('scanPiSessions separates a reused PID from its historical metadata', async
   assert.equal(result.summary.running, 1)
   assert.equal(result.summary.exited, 1)
   assert.equal(result.sessions.find((session) => session.latestGoal === 'Historical goal').status, 'exited')
-  assert.equal(result.sessions.find((session) => session.source === 'process').cwd, '/Users/test/new-workspace')
+  const currentSession = result.sessions.find((session) => session.latestGoal === 'Current goal')
+  assert.equal(currentSession.cwd, '/Users/test/new-workspace')
+  assert.equal(currentSession.source, 'session')
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 

@@ -27,7 +27,7 @@
     const gutter = isWidescreen ? 28 : Math.max(8, Math.min(24, Math.floor(REF.gutter * fit + 0.5)))
     const statusH = isWidescreen
       ? Math.max(76, Math.min(104, Math.floor(height * 0.075)))
-      : Math.max(56, Math.min(72, Math.floor((REF.barIcon + 12) * fit + 0.5)))
+      : Math.max(72, Math.min(88, Math.floor((REF.barIcon + 12) * fit + 8.5)))
     // Vertical budget available for grid rows below the State Bar.
     const availableV = height - statusH - 3 * gutter
     const maxCellH = Math.max(24, Math.floor((availableV - (rows - 1) * gutter) / rows))

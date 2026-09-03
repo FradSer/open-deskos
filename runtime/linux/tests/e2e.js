@@ -336,9 +336,20 @@ const GEOMETRY_PROBE = `
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
     }
     const summary = $('#sb-state-summary')
+    const summaryRect = summary?.getBoundingClientRect()
+    const dots = $('#dots').getBoundingClientRect()
+    const time = $('.sb-time').getBoundingClientRect()
+    const summaryItemsFit = summary && [...summary.querySelectorAll('.sb-state-item')].every((item) => {
+      const rect = item.getBoundingClientRect()
+      return rect.left >= summaryRect.left - 1 && rect.right <= summaryRect.right + 1
+    })
+    const stateSummaryResponsive = window.innerWidth >= 1000 || (
+      summaryRect.top >= Math.max(dots.bottom, time.bottom) - 1 && summaryItemsFit
+    )
     return {
       cellW: m.cellW,
-      stateSummaryVisible: Boolean(summary && getComputedStyle(summary).display !== 'none' && summary.getBoundingClientRect().height > 0),
+      stateSummaryVisible: Boolean(summary && getComputedStyle(summary).display !== 'none' && summaryRect.height > 0),
+      stateSummaryResponsive,
       widgetsTotal: widgets.length,
       widgetsInside,
       gridColumns: getComputedStyle(document.querySelector('.widget-grid')).gridTemplateColumns.split(' ').length,
@@ -484,6 +495,7 @@ async function runGeometrySweep(win) {
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
       ['State Bar summary remains visible', probe.stateSummaryVisible],
+      ['portrait State Bar summary avoids pager and clock', probe.stateSummaryResponsive],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
       ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height).cols],
