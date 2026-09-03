@@ -1,5 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
+const { scanPiSessions } = require('../src/pi-sessions')
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
@@ -7,6 +10,7 @@ const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 900],
   ['small dev', 480, 854],
+  ['minimum portrait', 320, 480],
 ]
 
 const DRIVER_SCRIPT = `
@@ -339,12 +343,13 @@ const GEOMETRY_PROBE = `
     const summaryRect = summary?.getBoundingClientRect()
     const dots = $('#dots').getBoundingClientRect()
     const time = $('.sb-time').getBoundingClientRect()
-    const summaryItemsFit = summary && [...summary.querySelectorAll('.sb-state-item')].every((item) => {
+    const summaryItems = summary ? [...summary.querySelectorAll('.sb-state-item')] : []
+    const summaryItemsFit = summary && summaryItems.every((item) => {
       const rect = item.getBoundingClientRect()
-      return rect.left >= summaryRect.left - 1 && rect.right <= summaryRect.right + 1
+      return rect.width > 0 && rect.left >= summaryRect.left - 1 && rect.right <= summaryRect.right + 1 && item.textContent.trim().length > 0
     })
     const stateSummaryResponsive = window.innerWidth >= 1000 || (
-      summaryRect.top >= Math.max(dots.bottom, time.bottom) - 1 && summaryItemsFit
+      summaryRect && summaryRect.top >= Math.max(dots.bottom, time.bottom) - 1 && summaryItemsFit
     )
     return {
       cellW: m.cellW,
@@ -543,44 +548,61 @@ async function runMotionChecks(win) {
   }
 }
 
+function createPiFixture() {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-pi-e2e-'))
+  const workspaceDir = path.join(fixtureRoot, 'directory-sessions', '--workspace-open-deskos--')
+  fs.mkdirSync(workspaceDir, { recursive: true })
+  const now = Date.now()
+  fs.writeFileSync(path.join(workspaceDir, 'running.json'), JSON.stringify({
+    sessionId: 'e2e-running-4102',
+    pid: 4102,
+    cwd: '/workspace/open-deskos',
+    startedAt: now - 7 * 60 * 1000,
+    updatedAt: now - 20 * 1000,
+    status: 'running',
+    latestGoal: 'Refactor the desk UI layout',
+    modifiedFiles: ['src/renderer/shell.js'],
+  }))
+  fs.writeFileSync(path.join(workspaceDir, 'settled.json'), JSON.stringify({
+    sessionId: 'e2e-settled-4103',
+    pid: 4103,
+    cwd: '/workspace/notes',
+    startedAt: now - 2 * 60 * 60 * 1000,
+    updatedAt: now - 10 * 60 * 1000,
+    status: 'settled',
+    latestGoal: 'Review the release notes',
+    modifiedFiles: ['README.md', 'CHANGELOG.md'],
+  }))
+  return { root: fixtureRoot, startedAt: now }
+}
+
 async function main() {
   const appManager = createAppManagerEndpoint()
+  const piFixture = createPiFixture()
+  const cleanupPiFixture = () => fs.rmSync(piFixture.root, { recursive: true, force: true })
+  process.once('exit', cleanupPiFixture)
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
   ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false }))
-  ipcMain.handle('odk-pi-sessions', () => {
-    const now = Date.now()
-    const sessions = [
+  ipcMain.handle('odk-pi-sessions', (_event) => scanPiSessions({
+    agentDir: piFixture.root,
+    checkProcessAlive: (pid) => pid === 4102,
+    listProcesses: (now) => [
       {
-        sessionId: 'e2e-running-4102', uuid: 'e2e-running-4102', pid: 4102,
-        cwd: '/workspace/open-deskos', workspaceName: 'open-deskos', status: 'running', isAlive: true,
-        startedAt: now - 7 * 60 * 1000, updatedAt: now - 20 * 1000,
-        latestGoal: 'Refactor the desk UI layout', modifiedFiles: ['src/renderer/shell.js'], source: 'session', command: 'pi',
+        pid: 4102,
+        cwd: '/workspace/open-deskos',
+        command: 'pi',
+        startedAt: piFixture.startedAt - 7 * 60 * 1000,
+        isAlive: true,
       },
       {
-        sessionId: 'e2e-settled-4103', uuid: 'e2e-settled-4103', pid: 4103,
-        cwd: '/workspace/notes', workspaceName: 'notes', status: 'settled', isAlive: false,
-        startedAt: now - 2 * 60 * 60 * 1000, updatedAt: now - 10 * 60 * 1000,
-        latestGoal: 'Review the release notes', modifiedFiles: ['README.md', 'CHANGELOG.md'], source: 'session', command: 'pi',
+        pid: 4104,
+        cwd: '/workspace/automation',
+        command: 'pi',
+        startedAt: now - 3 * 60 * 1000,
+        isAlive: true,
       },
-      {
-        sessionId: 'e2e-process-4104', uuid: 'process-4104', pid: 4104,
-        cwd: '/workspace/automation', workspaceName: 'automation', status: 'running', isAlive: true,
-        startedAt: now - 3 * 60 * 1000, updatedAt: now - 3 * 60 * 1000,
-        latestGoal: '', modifiedFiles: [], source: 'process', command: 'pi',
-      },
-    ]
-    return {
-      ok: true,
-      scannedAt: now,
-      summary: { total: sessions.length, running: 2, settled: 1, exited: 0, workspacesCount: 3 },
-      workspaces: [
-        { name: 'open-deskos', cwd: '/workspace/open-deskos', runningCount: 1, settledCount: 0, exitedCount: 0, totalCount: 1, sessions: [sessions[0]] },
-        { name: 'notes', cwd: '/workspace/notes', runningCount: 0, settledCount: 1, exitedCount: 0, totalCount: 1, sessions: [sessions[1]] },
-        { name: 'automation', cwd: '/workspace/automation', runningCount: 1, settledCount: 0, exitedCount: 0, totalCount: 1, sessions: [sessions[2]] },
-      ],
-      sessions,
-    }
-  })
+    ],
+  }))
   const endpointCalls = { list: 0, intent: 0 }
   const remotePageStates = []
   ipcMain.handle('odk-app-manager-list', () => {
@@ -685,6 +707,7 @@ async function main() {
   const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)
   clearTimeout(timeout)
+  cleanupPiFixture()
 
   process.exitCode = driverFailures + motionFailures + sweepFailures === 0 ? 0 : 1
   app.exit(process.exitCode)

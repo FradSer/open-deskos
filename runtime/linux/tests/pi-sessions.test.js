@@ -127,6 +127,7 @@ test('scanPiSessions merges duplicate metadata fields without losing complete fa
     updatedAt: 1_700_000_000_000,
     status: 'running',
     latestGoal: 'Newer goal',
+    modifiedFiles: [],
   }))
 
   const result = await scanPiSessions({
@@ -187,6 +188,38 @@ test('scanPiSessions separates a reused PID from its historical metadata', async
   const currentSession = result.sessions.find((session) => session.latestGoal === 'Current goal')
   assert.equal(currentSession.cwd, '/Users/test/new-workspace')
   assert.equal(currentSession.source, 'session')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions does not merge ambiguous metadata without a start time', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-ambiguous-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-ambiguous--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'unknown-start.json'), JSON.stringify({
+    sessionId: 'unknown-start-03c062fe-c0a6-7922-a757-abb790ef7777',
+    pid: 4321,
+    cwd: '/Users/test/old-workspace',
+    status: 'running',
+    latestGoal: 'Possibly stale goal',
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/new-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 2)
+  assert.equal(result.summary.running, 1)
+  assert.equal(result.summary.exited, 1)
+  assert.equal(result.sessions.find((session) => session.latestGoal === 'Possibly stale goal').status, 'exited')
+  assert.equal(result.sessions.find((session) => session.source === 'process').cwd, '/Users/test/new-workspace')
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 

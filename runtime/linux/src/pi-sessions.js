@@ -35,8 +35,12 @@ function mergeSessionMetadata(existing, candidate) {
   for (const field of ['pid', 'cwd', 'startedAt', 'latestGoal', 'command']) {
     if (!merged[field] && older[field]) merged[field] = older[field]
   }
-  if (!Array.isArray(merged.modifiedFiles) && Array.isArray(older.modifiedFiles)) {
-    merged.modifiedFiles = older.modifiedFiles
+  const newerFiles = Array.isArray(newer.modifiedFiles) ? newer.modifiedFiles : []
+  const olderFiles = Array.isArray(older.modifiedFiles) ? older.modifiedFiles : []
+  if (newerFiles.length === 0 && olderFiles.length > 0) {
+    merged.modifiedFiles = olderFiles
+  } else if (newerFiles.length > 0 && olderFiles.length > 0) {
+    merged.modifiedFiles = [...new Set([...olderFiles, ...newerFiles])]
   }
   return merged
 }
@@ -116,7 +120,7 @@ function skipCommandWrappers(tokens) {
 }
 
 function shellCommandIsPi(value) {
-  const command = String(value || '').trim().replace(/^(?:['"])(.*)\1$/, '$1')
+  const command = String(value || '').trim().replace(/^(['"])(.*)\1$/, '$2')
   return isPiInvocation(command.split(/\s+/).filter(Boolean))
 }
 
@@ -186,8 +190,8 @@ function listPiProcesses(now = Date.now()) {
 function processMatchesMetadata(metadataSession, processSessionInfo) {
   const metadataStartedAt = Number(metadataSession?.startedAt)
   const processStartedAt = Number(processSessionInfo?.startedAt)
-  if (!Number.isFinite(metadataStartedAt) || metadataStartedAt <= 0) return true
   if (!Number.isFinite(processStartedAt) || processStartedAt <= 0) return true
+  if (!Number.isFinite(metadataStartedAt) || metadataStartedAt <= 0) return false
   return Math.abs(metadataStartedAt - processStartedAt) <= 5000
 }
 

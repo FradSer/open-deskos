@@ -363,6 +363,7 @@ body.kiosk {
   height: 100%;
   padding: var(--gutter) 0;
   gap: var(--gutter);
+  overflow: hidden;
 }
 
 .page-app {
@@ -1865,6 +1866,17 @@ body.kiosk {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 380px) {
+  .widget {
+    padding: calc(var(--gutter) * 0.25);
+  }
+
+  .al-day,
+  .w-clock-time {
+    font-size: 18px;
   }
 }
 
