@@ -224,11 +224,13 @@ async function scanPiSessions(options = {}) {
     sessions.push(session)
   }
 
-  // Sort sessions: running first, then by latest activity or process start time
+  // Sort by latest activity; use running state only as a deterministic tie-breaker.
   sessions.sort((a, b) => {
+    const activityDiff = (b.updatedAt || b.startedAt || 0) - (a.updatedAt || a.startedAt || 0)
+    if (activityDiff !== 0) return activityDiff
     if (a.status === 'running' && b.status !== 'running') return -1
     if (b.status === 'running' && a.status !== 'running') return 1
-    return (b.updatedAt || 0) - (a.updatedAt || 0)
+    return String(a.sessionId).localeCompare(String(b.sessionId))
   })
 
   // Group by workspace

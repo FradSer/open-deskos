@@ -58,6 +58,31 @@ test('scanPiSessions includes running Pi processes without metadata', async () =
   assert.equal(result.sessions[0].source, 'process')
 })
 
+test('scanPiSessions sorts by latest activity before running state', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-sort-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-workspace--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  const oldRunning = {
+    sessionId: 'old-running-01a062fe-a0a6-7922-a757-abb790ef9977', pid: 111,
+    cwd: '/Users/test/workspace', startedAt: 100, updatedAt: 1_000, status: 'running',
+  }
+  const newerSettled = {
+    sessionId: 'newer-settled-02b062fe-b0a6-7922-a757-abb790ef8888', pid: 222,
+    cwd: '/Users/test/workspace', startedAt: 200, updatedAt: 2_000, status: 'settled',
+  }
+  fs.writeFileSync(path.join(wsDir, 'old.json'), JSON.stringify(oldRunning))
+  fs.writeFileSync(path.join(wsDir, 'new.json'), JSON.stringify(newerSettled))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 111,
+    listProcesses: () => [],
+  })
+
+  assert.deepEqual(result.sessions.map((session) => session.pid), [222, 111])
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
 test('scanPiSessions parses sessions, deduplicates, and evaluates process liveness', async () => {
   const tmpAgentDir = path.join(os.tmpdir(), `pi-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const dirSessions = path.join(tmpAgentDir, 'directory-sessions')

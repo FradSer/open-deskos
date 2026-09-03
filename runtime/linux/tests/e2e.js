@@ -257,7 +257,9 @@ const DRIVER_SCRIPT = `
   const piPageText = piPage?.textContent || ''
   out.piPageRendersSessionDetails =
     piPageText.includes('PID 4102') &&
+    piPageText.includes('PID 4104') &&
     piPageText.includes('Refactor the desk UI') &&
+    piPageText.includes('Live Pi process; session metadata unavailable.') &&
     /\\d+[mh] elapsed/.test(piPageText)
   const piFilesToggle = piPage?.querySelector('.pi-files-toggle')
   piFilesToggle?.click()
@@ -544,14 +546,21 @@ async function main() {
         startedAt: now - 2 * 60 * 60 * 1000, updatedAt: now - 10 * 60 * 1000,
         latestGoal: 'Review the release notes', modifiedFiles: ['README.md', 'CHANGELOG.md'], source: 'session', command: 'pi',
       },
+      {
+        sessionId: 'e2e-process-4104', uuid: 'process-4104', pid: 4104,
+        cwd: '/workspace/automation', workspaceName: 'automation', status: 'running', isAlive: true,
+        startedAt: now - 3 * 60 * 1000, updatedAt: now - 3 * 60 * 1000,
+        latestGoal: '', modifiedFiles: [], source: 'process', command: 'pi',
+      },
     ]
     return {
       ok: true,
       scannedAt: now,
-      summary: { total: sessions.length, running: 1, settled: 1, exited: 0, workspacesCount: 2 },
+      summary: { total: sessions.length, running: 2, settled: 1, exited: 0, workspacesCount: 3 },
       workspaces: [
         { name: 'open-deskos', cwd: '/workspace/open-deskos', runningCount: 1, settledCount: 0, exitedCount: 0, totalCount: 1, sessions: [sessions[0]] },
         { name: 'notes', cwd: '/workspace/notes', runningCount: 0, settledCount: 1, exitedCount: 0, totalCount: 1, sessions: [sessions[1]] },
+        { name: 'automation', cwd: '/workspace/automation', runningCount: 1, settledCount: 0, exitedCount: 0, totalCount: 1, sessions: [sessions[2]] },
       ],
       sessions,
     }
