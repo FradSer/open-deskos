@@ -335,8 +335,10 @@ const GEOMETRY_PROBE = `
       const r = el.getBoundingClientRect()
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
     }
+    const summary = $('#sb-state-summary')
     return {
       cellW: m.cellW,
+      stateSummaryVisible: Boolean(summary && getComputedStyle(summary).display !== 'none' && summary.getBoundingClientRect().height > 0),
       widgetsTotal: widgets.length,
       widgetsInside,
       gridColumns: getComputedStyle(document.querySelector('.widget-grid')).gridTemplateColumns.split(' ').length,
@@ -481,6 +483,7 @@ async function runGeometrySweep(win) {
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
+      ['State Bar summary remains visible', probe.stateSummaryVisible],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
       ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height).cols],

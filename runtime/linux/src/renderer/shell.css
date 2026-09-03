@@ -596,8 +596,48 @@ body.kiosk {
 }
 
 @media (max-width: 999px) {
+  #status-bar {
+    padding-inline: calc(var(--gutter) * 0.7);
+  }
+
   .sb-state-summary {
-    display: none;
+    position: absolute;
+    right: var(--gutter);
+    bottom: 3px;
+    left: calc(var(--gutter) * 2.5);
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-left: 0;
+    font-size: clamp(9px, calc(var(--cell-dim) * 0.075), 11px);
+    line-height: 1;
+  }
+
+  .sb-state-item {
+    max-width: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sb-pi-status {
+    height: 30px;
+    gap: 5px;
+    margin-left: calc(var(--gutter) * 0.3);
+    padding: 2px 9px;
+  }
+
+  .sb-pi-dot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .sb-pi-label {
+    font-size: 11px;
+  }
+
+  .sb-pi-count {
+    font-size: 15px;
   }
 
   .widget-grid .widget {

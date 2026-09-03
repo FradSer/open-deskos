@@ -48,6 +48,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Given the shell is resized below the widescreen breakpoint
     When the Home grid is rendered
     Then widgets use the narrow responsive grid instead of overflowing desktop coordinates
+    And the State Bar still shows truthful network, provider, and Remote Link states
     And every widget remains inside the viewport
 
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
