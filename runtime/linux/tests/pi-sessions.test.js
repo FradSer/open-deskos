@@ -9,8 +9,9 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
   const now = 1_700_000_000_000
   const output = [
     ' 321 1 3600 pi pi',
-    ' 654 321 00:12:05 node /opt/tools/pi',
+    ' 654 321 00:12:05 node node /opt/tools/pi',
     ' 987 1 42 node /opt/tools/not-pi',
+    ' 999 1 42 node node --name pi',
   ].join('\n')
 
   const processes = parseProcessTable(output, now)

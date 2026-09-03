@@ -62,9 +62,12 @@ function isPiExecutable(value) {
 function isPiProcess(processInfo) {
   if (isPiExecutable(processInfo?.comm)) return true
   if (!processInfo?.args || typeof processInfo.args !== 'string') return false
-  return processInfo.args
-    .split(/\s+/)
-    .some((token) => isPiExecutable(token) && (token.includes('/') || token === 'pi' || token.startsWith('pi.')))
+  const tokens = processInfo.args.split(/\s+/).filter(Boolean)
+  const launcher = executableName(tokens[0])
+  return tokens.slice(1).some((token) => {
+    if (!isPiExecutable(token)) return false
+    return token.includes('/') || ['bunx', 'npx', 'pnpm', 'yarn'].includes(launcher)
+  })
 }
 
 function parseProcessTable(output, now = Date.now()) {
