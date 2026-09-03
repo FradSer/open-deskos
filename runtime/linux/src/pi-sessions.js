@@ -3,10 +3,16 @@ const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
 
+function normalizePid(value) {
+  const pid = Number(value)
+  return Number.isInteger(pid) && pid > 0 ? pid : null
+}
+
 function defaultCheckProcessAlive(pid) {
-  if (typeof pid !== 'number' || pid <= 0) return false
+  const normalizedPid = normalizePid(pid)
+  if (normalizedPid === null) return false
   try {
-    process.kill(pid, 0)
+    process.kill(normalizedPid, 0)
     return true
   } catch {
     return false
@@ -116,9 +122,17 @@ function listPiProcesses(now = Date.now()) {
   return parseProcessTable(result.stdout, now)
 }
 
+function processMatchesMetadata(metadataSession, processSessionInfo) {
+  const metadataStartedAt = Number(metadataSession?.startedAt)
+  const processStartedAt = Number(processSessionInfo?.startedAt)
+  if (!Number.isFinite(metadataStartedAt) || metadataStartedAt <= 0) return true
+  if (!Number.isFinite(processStartedAt) || processStartedAt <= 0) return true
+  return Math.abs(metadataStartedAt - processStartedAt) <= 5000
+}
+
 function processSession(processInfo) {
-  const pid = Number(processInfo?.pid)
-  if (!Number.isInteger(pid) || pid <= 0) return null
+  const pid = normalizePid(processInfo?.pid)
+  if (pid === null) return null
   const cwd = typeof processInfo.cwd === 'string' ? processInfo.cwd : ''
   const startedAt = Number.isFinite(processInfo.startedAt) ? processInfo.startedAt : 0
   return {
@@ -194,7 +208,8 @@ async function scanPiSessions(options = {}) {
   const sessions = []
 
   for (const [uuid, data] of sessionMap.entries()) {
-    const isAlive = typeof data.pid === 'number' && checkAlive(data.pid)
+    const pid = normalizePid(data.pid)
+    const isAlive = pid !== null && checkAlive(pid)
     let status = 'exited'
     if (isAlive) {
       status = data.status === 'running' ? 'running' : 'settled'
@@ -211,7 +226,7 @@ async function scanPiSessions(options = {}) {
     sessions.push({
       sessionId: data.sessionId || uuid,
       uuid,
-      pid: data.pid || null,
+      pid,
       cwd,
       workspaceName,
       status,
@@ -225,7 +240,7 @@ async function scanPiSessions(options = {}) {
     })
   }
 
-  const metadataPids = new Set(sessions.filter((session) => session.isAlive).map((session) => session.pid))
+  const metadataByPid = new Map(sessions.filter((session) => session.isAlive && session.pid !== null).map((session) => [session.pid, session]))
   let processEntries = []
   try {
     processEntries = listProcesses(now) || []
@@ -234,7 +249,24 @@ async function scanPiSessions(options = {}) {
   }
   for (const processInfo of processEntries) {
     const session = processSession(processInfo)
-    if (!session || !session.isAlive || metadataPids.has(session.pid)) continue
+    if (!session || !session.isAlive) continue
+    const metadataSession = metadataByPid.get(session.pid)
+    if (metadataSession) {
+      if (!processMatchesMetadata(metadataSession, session)) {
+        metadataSession.isAlive = false
+        if (metadataSession.status === 'running') metadataSession.status = 'exited'
+        metadataByPid.delete(session.pid)
+        sessions.push(session)
+        continue
+      }
+      if (!metadataSession.cwd && session.cwd) {
+        metadataSession.cwd = session.cwd
+        metadataSession.workspaceName = session.workspaceName
+      }
+      if (!metadataSession.command && session.command) metadataSession.command = session.command
+      if (!metadataSession.startedAt && session.startedAt) metadataSession.startedAt = session.startedAt
+      continue
+    }
     sessions.push(session)
   }
 

@@ -63,6 +63,77 @@ test('scanPiSessions includes running Pi processes without metadata', async () =
   assert.equal(result.sessions[0].source, 'process')
 })
 
+test('scanPiSessions merges process facts into a matching metadata record', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-merge-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-merge--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'merge.json'), JSON.stringify({
+    sessionId: 'merge-01a062fe-a0a6-7922-a757-abb790ef9977',
+    pid: '4321',
+    cwd: '',
+    startedAt: 1_699_999_940_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: 'Keep the user goal',
+    modifiedFiles: ['README.md'],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/merge-workspace',
+      command: 'pi',
+      startedAt: 1_699_999_940_500,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].pid, 4321)
+  assert.equal(result.sessions[0].cwd, '/Users/test/merge-workspace')
+  assert.equal(result.sessions[0].command, 'pi')
+  assert.equal(result.sessions[0].latestGoal, 'Keep the user goal')
+  assert.deepEqual(result.sessions[0].modifiedFiles, ['README.md'])
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions separates a reused PID from its historical metadata', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-reuse-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-reuse--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'old.json'), JSON.stringify({
+    sessionId: 'old-01a062fe-a0a6-7922-a757-abb790ef9977',
+    pid: 4321,
+    cwd: '/Users/test/old-workspace',
+    startedAt: 1_699_000_000_000,
+    updatedAt: 1_699_000_000_000,
+    status: 'running',
+    latestGoal: 'Historical goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/new-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 2)
+  assert.equal(result.summary.running, 1)
+  assert.equal(result.summary.exited, 1)
+  assert.equal(result.sessions.find((session) => session.latestGoal === 'Historical goal').status, 'exited')
+  assert.equal(result.sessions.find((session) => session.source === 'process').cwd, '/Users/test/new-workspace')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
 test('scanPiSessions sorts by latest activity before running state', async () => {
   const tmpAgentDir = path.join(os.tmpdir(), `pi-sort-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-workspace--')

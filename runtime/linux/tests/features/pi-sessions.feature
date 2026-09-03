@@ -20,6 +20,12 @@ Feature: Local Pi Sessions Monitoring
     Then it includes the process with its PID, working directory, and elapsed runtime
     And it marks the process as running without inventing a goal or modified files
 
+  Scenario: Linux shell merges process facts into a matching metadata record
+    Given a live Pi process and session metadata share the same PID
+    When the shell queries active Pi sessions
+    Then it returns one record for that PID
+    And it keeps the session goal and modified files while filling missing process facts
+
   Scenario: Pi Sessions App page displays workspaces, session goals, and modified files
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
