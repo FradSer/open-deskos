@@ -110,7 +110,7 @@ function skipCommandWrappers(tokens) {
       }
       continue
     }
-    if (name === 'command' || name === 'exec') {
+    if (['command', 'exec', 'corepack', 'time', 'nice', 'nohup', 'setsid'].includes(name)) {
       index += 1
       continue
     }
@@ -198,11 +198,15 @@ function processMatchesMetadata(metadataSession, processSessionInfo) {
 function selectMetadataSession(candidates, processSessionInfo) {
   const compatible = candidates.filter((candidate) => processMatchesMetadata(candidate, processSessionInfo))
   if (compatible.length === 0) return null
-  return compatible.sort((a, b) => {
+  const sorted = compatible.sort((a, b) => {
     const aDistance = Math.abs((Number(a.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
     const bDistance = Math.abs((Number(b.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
     return aDistance - bDistance || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)
-  })[0]
+  })
+  const processStartedAt = Number(processSessionInfo.startedAt)
+  const startsAreKnown = Number.isFinite(processStartedAt) && processStartedAt > 0 && sorted.every((candidate) => Number.isFinite(Number(candidate.startedAt)) && Number(candidate.startedAt) > 0)
+  if (sorted.length > 1 && (!startsAreKnown || Math.abs(Number(sorted[0].startedAt) - Number(sorted[1].startedAt)) <= 5000)) return null
+  return sorted[0]
 }
 
 function markMetadataExited(session) {

@@ -33,6 +33,12 @@ Feature: Local Pi Sessions Monitoring
     Then it keeps the newer session state and activity timestamp
     And it retains the older non-empty facts instead of inventing replacements
 
+  Scenario: Linux shell refuses to merge indistinguishable live PID metadata
+    Given two live Pi metadata records share one PID and have near-identical start times
+    When the shell queries active Pi sessions
+    Then it retains the process record and does not choose one metadata record arbitrarily
+    And the ambiguous metadata records remain historical rather than being marked as the live process
+
   Scenario: Pi Sessions App page displays workspaces, session goals, and modified files
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state

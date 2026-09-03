@@ -19,14 +19,15 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
     ' 783 1 42 sh sh -c "exec pi"',
     ' 784 1 42 env env PI_MODE=live pi',
     ' 785 1 42 sudo sudo -u desk pi',
+    ' 786 1 42 corepack corepack yarn pi',
     ' 987 1 42 node node /opt/tools/not-pi',
     ' 999 1 42 node node app.js --name pi',
   ].join('\n')
 
   const processes = parseProcessTable(output, now)
 
-  assert.equal(processes.length, 11)
-  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654, 777, 778, 779, 780, 781, 782, 783, 784, 785])
+  assert.equal(processes.length, 12)
+  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786])
   assert.equal(processes[0].startedAt, now - 3600 * 1000)
   assert.equal(processes[1].elapsedSeconds, 12 * 60 + 5)
   assert.equal(processes[0].isAlive, true)
@@ -188,6 +189,46 @@ test('scanPiSessions separates a reused PID from its historical metadata', async
   const currentSession = result.sessions.find((session) => session.latestGoal === 'Current goal')
   assert.equal(currentSession.cwd, '/Users/test/new-workspace')
   assert.equal(currentSession.source, 'session')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions refuses indistinguishable live PID metadata candidates', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-tied-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-tied--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  for (const [file, sessionId, goal] of [
+    ['first.json', 'first-04c062fe-d0a6-7922-a757-abb790ef6666', 'First candidate'],
+    ['second.json', 'second-05c062fe-e0a6-7922-a757-abb790ef5555', 'Second candidate'],
+  ]) {
+    fs.writeFileSync(path.join(wsDir, file), JSON.stringify({
+      sessionId,
+      pid: 4321,
+      cwd: '/Users/test/ambiguous-workspace',
+      startedAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_000,
+      status: 'running',
+      latestGoal: goal,
+      modifiedFiles: [],
+    }))
+  }
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/current-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 3)
+  assert.equal(result.summary.running, 1)
+  assert.equal(result.summary.exited, 2)
+  assert.equal(result.sessions.filter((session) => session.source === 'process').length, 1)
+  assert.equal(result.sessions.filter((session) => session.status === 'exited').length, 2)
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
