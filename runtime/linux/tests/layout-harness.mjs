@@ -48,6 +48,14 @@ for (const [label, width, height] of SIZES) {
   const peekFloor = Math.min(96, Math.floor(REF.stripMin * m.fit))
   check(`${tag}: peek clamped`, m.peekH >= peekFloor && m.peekH <= 160, `peekH=${m.peekH}`)
 
+  // Peek vertical budget harness: peek primary + peek secondary line heights + gap
+  // must comfortably fit within peekH across all sizes to prevent text container overflow
+  const peekPrimarySize = Math.max(16, Math.min(24, Math.floor(m.cellDim * 0.11)))
+  const peekSecondarySize = Math.max(12, Math.min(16, Math.floor(m.cellDim * 0.08)))
+  const peekGap = Math.max(4, Math.min(8, Math.floor(m.gutter * 0.2)))
+  const peekContentBudget = Math.ceil(peekPrimarySize * 1.3) + Math.ceil(peekSecondarySize * 1.3) + peekGap
+  check(`${tag}: peek content fits inside peek container`, peekContentBudget <= m.peekH, `peekContent=${peekContentBudget} > peekH=${m.peekH}`)
+
   const golden = GOLDEN[`${width}x${height}`]
   if (golden) {
     for (const [key, expected] of Object.entries(golden)) {

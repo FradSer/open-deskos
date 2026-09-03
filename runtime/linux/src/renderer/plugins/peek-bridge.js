@@ -13,12 +13,16 @@
     kind: 'peek',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="peek-text odk-stack">
+        <div class="peek-text flex flex-col justify-center">
           <span class="peek-primary" id="peek-subscription" role="status" aria-live="polite"></span>
-          <span class="peek-secondary" id="peek-network"></span>
-          <span class="peek-secondary" id="peek-remote"></span>
-          <span class="peek-secondary" id="peek-app"></span>
-        </span>
+          <div class="peek-meta flex items-center">
+            <span class="peek-secondary" id="peek-network"></span>
+            <span class="peek-divider" aria-hidden="true">·</span>
+            <span class="peek-secondary" id="peek-remote"></span>
+            <span class="peek-divider" aria-hidden="true">·</span>
+            <span class="peek-secondary" id="peek-app"></span>
+          </div>
+        </div>
         <svg class="peek-chevron" data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>`
 
       const subscription = el.querySelector('#peek-subscription')

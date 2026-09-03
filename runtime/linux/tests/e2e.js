@@ -163,6 +163,15 @@ const DRIVER_SCRIPT = `
     peekRect.left,
   )
 
+  let peekTextFits = true
+  for (const el of document.querySelectorAll('.peek-text, #peek-subscription, #peek-network, #peek-remote, #peek-app')) {
+    const r = el.getBoundingClientRect()
+    if (r.bottom > peekRect.bottom + 2 || r.top < peekRect.top - 2) {
+      peekTextFits = false
+    }
+  }
+  out.peekTextFits = peekTextFits
+
   const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
   const x0 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.8
   const x1 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.2
@@ -303,6 +312,13 @@ const GEOMETRY_PROBE = `
       const r = el.getBoundingClientRect()
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
     }
+    let peekTextFits = true
+    for (const el of document.querySelectorAll('.peek-text, #peek-subscription, #peek-network, #peek-remote, #peek-app')) {
+      const r = el.getBoundingClientRect()
+      if (r.bottom > peek.bottom + 2 || r.top < peek.top - 2) {
+        peekTextFits = false
+      }
+    }
     return {
       cellW: m.cellW,
       peekH: m.peekH,
@@ -310,6 +326,7 @@ const GEOMETRY_PROBE = `
       widgetsInside,
       peekOverlaps,
       textsFit,
+      peekTextFits,
     }
   })()
 `
@@ -375,6 +392,7 @@ function check(results) {
     ['peek shows factual disconnected Remote Link state', results.peekShowsDisconnectedRemote],
     ['peek width matches inset', results.peekWidthMatchesInset],
     ['peek bottom inset symmetric', results.peekBottomInsetSymmetric],
+    ['peek text fits inside container', results.peekTextFits],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
@@ -448,6 +466,7 @@ async function runGeometrySweep(win) {
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
       ['no widget overlaps peek', probe.peekOverlaps === 0],
       ['widget text fits tiles', probe.textsFit],
+      ['peek text fits container', probe.peekTextFits],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
     ]
     for (const [name, ok] of checks) {
