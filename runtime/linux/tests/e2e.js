@@ -33,7 +33,7 @@ const DRIVER_SCRIPT = `
     return ['mount', 'unmount']
       .every((phase) => typeof lifecycle?.[phase] === 'function')
   })
-  out.cleanMinimalStatusBar = !$('#sb-app-manager') && $('#page-context')?.classList.contains('sr-only')
+  out.focusedStateBar = $('#sb-state-summary')?.classList.contains('sb-state-summary') && $('#page-context')?.classList.contains('sr-only')
   out.noDockOrDesktopIconPile = !$('#dock') && document.querySelectorAll('.desktop-icon').length === 0
   let dupThrown = false
   try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
@@ -51,11 +51,13 @@ const DRIVER_SCRIPT = `
   out.statusSlotsMounted =
     document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
     document.querySelector('[data-slot="status-left"] #sb-pi-status') !== null &&
+    document.querySelector('[data-slot="status-left"] #sb-state-summary') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
-  out.peekSlotMounted =
-    document.querySelector('[data-slot="peek"] #peek-subscription') !== null &&
-    document.querySelector('[data-slot="peek"] #peek-network') !== null &&
-    document.querySelector('[data-slot="peek"] #peek-remote') !== null
+  out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
+  out.stateSummaryIsFactual =
+    $('#sb-network-state')?.textContent === 'Network connected' &&
+    $('#sb-subscription-state')?.textContent === 'OpenCode Go not configured' &&
+    $('#sb-remote-state')?.textContent === 'Remote · Disconnected'
 
   const statusBarRect = $('#status-bar').getBoundingClientRect()
   const dotsRect = $('#dots').getBoundingClientRect()
@@ -93,7 +95,7 @@ const DRIVER_SCRIPT = `
   out.widgetCount = apps.length
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
-    document.querySelectorAll('.widget[data-widget]').length === 9 &&
+    document.querySelectorAll('.widget[data-widget]').length === 10 &&
     [...document.querySelectorAll('.widget[data-widget]')].every((widget) => widget.dataset.widget.startsWith('odk.tile.'))
   out.experimentalVisionDoesNotBlockShell =
     $('#privacy-shield').hidden &&
@@ -102,6 +104,11 @@ const DRIVER_SCRIPT = `
   out.widgetStatesAreHonest =
     $('.w-almanac .w-state')?.textContent === 'Available' &&
     $('.w-pomodoro .w-state')?.textContent === 'Not started'
+  out.deskStatusIsTruthful =
+    $('[data-widget="odk.tile.desk-status"] .desk-status-value')?.textContent === 'READY' &&
+    $('[data-widget="odk.tile.desk-status"] .desk-status-resolution')?.textContent === String(window.innerWidth) + ' × ' + String(window.innerHeight)
+  out.deskStatusPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridColumnStart === '5' &&
+    getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridRowStart === '2'
   out.widgetIntentMetadata =
     document.querySelector('.widget[data-widget="odk.tile.almanac"]')?.dataset.interaction === 'open-app' &&
     document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')?.dataset.interaction === 'open-app'
@@ -139,6 +146,7 @@ const DRIVER_SCRIPT = `
   const gridRect = grid.getBoundingClientRect()
   const gridPageRect = grid.closest('.page').getBoundingClientRect()
   out.gridColumns = getComputedStyle(grid).gridTemplateColumns.split(' ').length
+  out.gridRows = getComputedStyle(grid).gridTemplateRows.split(' ').length
   out.gridFlushEdges =
     gridRect.left >= gridPageRect.left - 2 &&
     gridRect.right <= gridPageRect.right + 2
@@ -151,25 +159,13 @@ const DRIVER_SCRIPT = `
     approx(pomodoroRect.width, 2 * metrics.cellW + metrics.gutter) &&
     approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
-  const peekRect = $('#peek').getBoundingClientRect()
-  const expectedPeekWidth = window.innerWidth - 2 * metrics.peekInset
-  out.peekHasStatus = $('#peek').textContent.includes('OpenCode Go') && $('#peek').textContent.includes('Network')
-  out.peekShowsDisconnectedRemote = $('#peek-remote').textContent === 'Remote · Disconnected'
-  out.subscriptionInitialStatus = $('#peek-subscription').textContent === 'OpenCode Go not configured'
-  out.peekWidthMatchesInset = approx(peekRect.width, expectedPeekWidth)
-  out.peekBottomInsetSymmetric = approx(
-    window.innerHeight - peekRect.bottom,
-    peekRect.left,
-  )
-
-  let peekTextFits = true
-  for (const el of document.querySelectorAll('.peek-text, #peek-subscription, #peek-network, #peek-remote, #peek-app')) {
-    const r = el.getBoundingClientRect()
-    if (r.bottom > peekRect.bottom + 2 || r.top < peekRect.top - 2) {
-      peekTextFits = false
-    }
-  }
-  out.peekTextFits = peekTextFits
+  out.stateSummaryFits = (() => {
+    const summary = $('#sb-state-summary').getBoundingClientRect()
+    const bar = $('#status-bar').getBoundingClientRect()
+    return summary.top >= bar.top && summary.bottom <= bar.bottom
+  })()
+  out.subscriptionInitialStatus = $('#sb-subscription-state').textContent === 'OpenCode Go not configured'
+  out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
   const x0 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.8
@@ -220,16 +216,8 @@ const DRIVER_SCRIPT = `
   out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="odk.tile.pomodoro"] .w-state')?.textContent === 'Running'
   $('#app-back').click()
   await new Promise((resolve) => setTimeout(resolve, 100))
-  $('#peek').click()
-  await new Promise((resolve) => setTimeout(resolve, 100))
-  out.peekOpensSystemStatus = !$('#app-view').hidden && $('#app-title').textContent === 'System status'
-  out.systemStatusIsFactual =
-    $('#system-status-subscription')?.textContent.includes('OpenCode Go') &&
-    $('#system-status-network')?.textContent.includes('Network') &&
-    $('#system-status-remote')?.textContent.trim() &&
-    $('#system-status-app')?.textContent.trim()
-  $('#app-back').click()
-  out.peekRestoresSourcePage = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
+  out.noBottomPeekAfterAppNavigation = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
+  out.stateSummaryRemainsVisible = !$('#sb-state-summary').hidden && $('#sb-state-summary').textContent.includes('Remote')
   await window.odkAppPlatform.openApp({ appId: 'app-manager' })
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.appManagerSearchVisible = Boolean($('#app-runtime .app-manager .app-search'))
@@ -290,9 +278,7 @@ const GEOMETRY_PROBE = `
     const $ = (selector) => document.querySelector(selector)
     const m = window.__odkGrid
     const viewport = $('#pages-viewport').getBoundingClientRect()
-    const peek = $('#peek').getBoundingClientRect()
     let widgetsInside = 0
-    let peekOverlaps = 0
     const widgets = [...document.querySelectorAll('.widget')]
     for (const el of widgets) {
       const r = el.getBoundingClientRect()
@@ -302,8 +288,6 @@ const GEOMETRY_PROBE = `
         r.left >= viewport.left - 2 &&
         r.right <= viewport.right + 2
       ) { widgetsInside += 1 }
-      const separated = r.bottom < peek.top || r.top > peek.bottom || r.right < peek.left || r.left > peek.right
-      if (!separated) { peekOverlaps += 1 }
     }
     let textsFit = true
     for (const el of document.querySelectorAll('.w-clock-time, .al-day, .ring-mmss')) {
@@ -311,21 +295,14 @@ const GEOMETRY_PROBE = `
       const r = el.getBoundingClientRect()
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
     }
-    let peekTextFits = true
-    for (const el of document.querySelectorAll('.peek-text, #peek-subscription, #peek-network, #peek-remote, #peek-app')) {
-      const r = el.getBoundingClientRect()
-      if (r.bottom > peek.bottom + 2 || r.top < peek.top - 2) {
-        peekTextFits = false
-      }
-    }
     return {
       cellW: m.cellW,
-      peekH: m.peekH,
       widgetsTotal: widgets.length,
       widgetsInside,
-      peekOverlaps,
+      gridColumns: getComputedStyle(document.querySelector('.widget-grid')).gridTemplateColumns.split(' ').length,
+      gridRows: getComputedStyle(document.querySelector('.widget-grid')).gridTemplateRows.split(' ').length,
+      widgetsReflowed: widgets.every((widget) => getComputedStyle(widget).gridColumnStart === 'auto' && getComputedStyle(widget).gridRowStart === 'auto'),
       textsFit,
-      peekTextFits,
     }
   })()
 `
@@ -336,15 +313,15 @@ function check(results) {
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
-    ['clean minimal status bar without text clutter', results.cleanMinimalStatusBar && results.noDockOrDesktopIconPile],
+    ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.status.summary', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
     ['all pages built by composer', results.pagesBuiltByComposer],
     ['status bar slots mounted by plugins', results.statusSlotsMounted],
-    ['peek slot mounted by plugin', results.peekSlotMounted],
+    ['State Bar summary is mounted and bottom Peek is removed', results.statusSlotsMounted && results.noBottomPeek && results.stateSummaryIsFactual && results.stateSummaryFits],
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
@@ -360,14 +337,15 @@ function check(results) {
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 3', results.tablerCount >= 3],
-    ['nine state widgets with unique identities', results.widgetCount === 9 && results.uniqueApps],
+    ['ten state widgets with unique identities', results.widgetCount === 10 && results.uniqueApps],
     ['experimental vision does not block the shell', results.experimentalVisionDoesNotBlockShell],
     ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
+    ['right edge shows truthful local desk status', results.deskStatusIsTruthful && results.deskStatusPlacement],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesFaceAgentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
     ['preload exposes only narrow Remote Link API', results.remotePreloadIsNarrow],
     ['pager publishes complete authoritative Remote state', results.remotePageStatePublishesAuthoritativeBoundaries],
-    ['peek displays USB, wireless, and synchronizing Remote Link states', results.peekShowsUsbRemote && results.peekShowsWirelessRemote && results.peekShowsSyncingRemote],
+    ['State Bar displays USB, wireless, and synchronizing Remote Link states', results.stateShowsUsbRemote && results.stateShowsWirelessRemote && results.stateShowsSyncingRemote],
     ['Remote Link navigation moves only an unoccluded bounded pager', results.remoteNavigationMovesPager],
     ['duplicate Remote Link navigation moves only one page', results.repeatedRemoteMovesOnce],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
@@ -384,14 +362,11 @@ function check(results) {
     ['bolt lights on online event', results.boltLitOnline],
     ['online status is announced', results.onlineAnnounced],
     ['grid has 5 columns', results.gridColumns === 5],
+    ['grid has 3 rows', results.gridRows === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['clock widget spans 1x1 square', results.clockSpansOneSquare],
     ['pomodoro widget spans 2x2 square', results.pomodoroSpansTwoSquare],
-    ['peek shows subscription and network status', results.peekHasStatus],
-    ['peek shows factual disconnected Remote Link state', results.peekShowsDisconnectedRemote],
-    ['peek width matches inset', results.peekWidthMatchesInset],
-    ['peek bottom inset symmetric', results.peekBottomInsetSymmetric],
-    ['peek text fits inside container', results.peekTextFits],
+    ['State Bar shows subscription, network, and Remote Link status', results.stateSummaryIsFactual && results.noBottomPeek],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
@@ -399,7 +374,7 @@ function check(results) {
     ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved && results.widgetAppShowsRuntimeContent],
     ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['pomodoro Widget follows App state', results.pomodoroTileStateAfterOpen],
-    ['peek opens a focused factual system status view', results.peekOpensSystemStatus && results.systemStatusIsFactual && results.peekRestoresSourcePage],
+    ['State Bar remains factual after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsVisible],
     ['built-in view search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps navigation usable', results.cancelledDragKeepsNavigationUsable],
@@ -463,10 +438,11 @@ async function runGeometrySweep(win) {
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
-      ['no widget overlaps peek', probe.peekOverlaps === 0],
       ['widget text fits tiles', probe.textsFit],
-      ['peek text fits container', probe.peekTextFits],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
+      ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height).cols],
+      ['responsive grid rows remain bounded', probe.gridRows <= layout.compute(width, height).rows],
+      ['responsive widgets reflow explicit desktop coordinates', probe.widgetsReflowed || width >= 1000],
     ]
     for (const [name, ok] of checks) {
       console.log(`${ok ? 'PASS' : 'FAIL'}  ${label} ${width}x${height} — ${name}`)
@@ -577,20 +553,20 @@ async function main() {
     remotePageStates.some((state) => state.page === 3 && state.pages === 3 && state.name === 'Usage' && state.canPrev && !state.canNext)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
-  results.peekShowsUsbRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#peek-remote').textContent === 'Remote · Connected by USB'",
+  results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#sb-remote-state').textContent === 'Remote · Connected by USB'",
     true,
   )
   win.webContents.send('odk-remote-link-state', { state: 'wireless', sequence: 2 })
   await new Promise((resolve) => setTimeout(resolve, 50))
-  results.peekShowsWirelessRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#peek-remote').textContent === 'Remote · Connected wirelessly'",
+  results.stateShowsWirelessRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#sb-remote-state').textContent === 'Remote · Connected wirelessly'",
     true,
   )
   win.webContents.send('odk-remote-link-state', { state: 'syncing', sequence: 3 })
   await new Promise((resolve) => setTimeout(resolve, 50))
-  results.peekShowsSyncingRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#peek-remote').textContent === 'Remote · Synchronizing'",
+  results.stateShowsSyncingRemote = await win.webContents.executeJavaScript(
+    "document.querySelector('#sb-remote-state').textContent === 'Remote · Synchronizing'",
     true,
   )
   await new Promise((resolve) => setTimeout(resolve, 1400))

@@ -141,8 +141,7 @@ function validateRuntimeComposition(releasePath) {
   }
   if (!pluginSources.some((source) => /id:\s*['"]odk\.page\./.test(source))
     || !pluginSources.some((source) => /id:\s*['"]odk\.tile\./.test(source))
-    || !pluginSources.some((source) => /id:\s*['"]odk\.status\./.test(source))
-    || !pluginSources.some((source) => /id:\s*['"]odk\.peek\./.test(source))) {
+    || !pluginSources.some((source) => /id:\s*['"]odk\.status\./.test(source))) {
     return { ok: false, reason: 'renderer plugin identities are incomplete' }
   }
   return { ok: true }

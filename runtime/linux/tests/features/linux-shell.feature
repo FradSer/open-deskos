@@ -22,8 +22,8 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: Linux network and Remote Link status remain separate
     Given the Linux shell is running
-    Then the network indicator only describes network reachability
-    And the peek shows OpenCode Go readiness and network state
+    Then the State Bar network indicator only describes network reachability
+    And the State Bar shows OpenCode Go readiness and Remote Link state
     And Remote Link states remain disconnected, USB, wireless or synchronizing
     When the network changes offline then online
     Then the indicator and assistive status announcement update accordingly
@@ -37,16 +37,31 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
-    Then the status bar, three-column widget grid and peek are visible
+    Then the State Bar and five-column by three-row widget grid are visible
     And every visible widget states a truthful status before any App opens
+    And the widget grid has five columns and three rows
+    And the State Bar is large enough for the Pi Sessions running state to be legible
     And the grid remains inside the viewport at alternate window sizes
+
+  Scenario: The five-column layout reflows safely in a narrow development window
+    Given the shell is resized below the widescreen breakpoint
+    When the Home grid is rendered
+    Then widgets use the narrow responsive grid instead of overflowing desktop coordinates
+    And every widget remains inside the viewport
 
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
-    Then the status bar, three-column widget grid and peek are visible
+    Then the State Bar and five-column by three-row widget grid are visible
     And the layout provides balanced card proportions without horizontally stretched rows
     And Today, Home, and Usage pages provide structured, centered desk instrument views
     And the grid remains inside the viewport at alternate window sizes
+
+  Scenario: Home grid fills the available layout with truthful local desk status
+    Given the Home grid displays the five-column layout
+    When the shell has loaded on the CM5
+    Then the layout shows a Desk status widget
+    And the widget reports the local shell resolution and ready state
+    And it does not require a provider or fabricate personal data
 
   Scenario: Widget interaction display logic distinguishes operable apps from glanceable instruments
     Given the Home grid displays registered widgets
@@ -174,17 +189,16 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: Built-in composition accepts only fixed visible plugin kinds
     Given a candidate runtime contains its locally packaged built-in plugins
     When release preflight validates the composition contract
-    Then it accepts only tile, page, status, peek, and app plugins with schema version 1
+    Then it accepts only tile, page, status, and app plugins with schema version 1
     And it rejects unsupported kinds and invalid tile or status declarations
     And no generic plugin backend RPC or automatic widget placement is available
 
 
-  Scenario: Peek opens a focused factual system status view
+  Scenario: State Bar keeps factual system status visible without a bottom Peek
     Given the Display Shell is running with available or unavailable provider and Remote Link state
-    When the user selects the peek
-    Then a focused status view shows provider, network, Remote Link, and foreground-view state
-    And it offers only supported recovery actions
-    And Back or Escape restores the source page and page position
+    When the user looks at the State Bar
+    Then it shows provider readiness, network, and Remote Link state
+    And no bottom Peek container is rendered
 
   Scenario: CM5 acceptance identifies release and hardware evidence separately
     Given an Open DeskOS release is installed on a CM5

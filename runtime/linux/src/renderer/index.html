@@ -11,8 +11,8 @@
 <body>
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
        and core plugin hosts from src/renderer/plugins/*.js registrations:
-       pages/tiles via config/desktop_layout.js, status-bar and peek via
-       kind="status"/"peek" plugins. Widgets state truth first and may continue
+       pages/tiles via config/desktop_layout.js and status-bar via kind="status"
+       plugins. Widgets state truth first and may continue
        into an App through the platform seam; #app-view is the unified App frame. -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
@@ -27,10 +27,6 @@
   <main id="pages-viewport">
     <div id="pages-track"></div>
   </main>
-
-  <button id="peek" class="flex items-center" type="button" aria-label="OpenCode Go, network, and Remote status">
-    <span data-slot="peek"></span>
-  </button>
 
   <section id="privacy-shield" role="alert" aria-live="assertive" aria-label="Experimental owner lock" hidden>
     <div class="privacy-shield-content">
@@ -52,7 +48,7 @@
     <div class="app-body flex flex-col items-center justify-center">
       <div id="app-runtime" class="app-runtime" data-slot="app-runtime"></div>
       <p class="app-empty" id="app-empty"></p>
-      <p class="app-help" id="app-help" hidden>Swipe to change pages; select a page dot to jump directly; use Arrow keys or Home/End to navigate; use Back or Escape to return; select the peek to view connection status.</p>
+      <p class="app-help" id="app-help" hidden>Swipe to change pages; select a page dot to jump directly; use Arrow keys or Home/End to navigate; use Back or Escape to return.</p>
       <p class="app-empty-sub" id="app-empty-sub"></p>
       <button class="button-pill app-action" id="app-action" type="button" hidden>Check status again</button>
       <p class="app-action-status" id="app-action-status" aria-live="polite" hidden></p>
@@ -71,14 +67,15 @@
   <script src="plugins/chat.js"></script>
   <script src="plugins/pomodoro.js"></script>
   <script src="plugins/settings.js"></script>
+  <script src="plugins/desk-status.js"></script>
   <script src="plugins/year.js"></script>
   <script src="plugins/face-presence.js"></script>
   <script src="plugins/current-emotion.js"></script>
   <script src="plugins/quota-page.js"></script>
   <script src="plugins/status-connection.js"></script>
+  <script src="plugins/status-summary.js"></script>
   <script src="plugins/status-clock.js"></script>
   <script src="plugins/status-pi-sessions.js"></script>
-  <script src="plugins/peek-bridge.js"></script>
   <script src="plugins/apps.js"></script>
   <script src="plugins/pi-sessions.js"></script>
   <script src="config/desktop_layout.js"></script>

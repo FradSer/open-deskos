@@ -29,7 +29,7 @@ function validate(definitions, layout) {
 
 test('accepts the fixed built-in plugin kinds and rejects speculative extensions', () => {
   const registry = createRegistry()
-  for (const kind of ['tile', 'page', 'status', 'peek', 'app']) {
+  for (const kind of ['tile', 'page', 'status', 'app']) {
     registry.register(plugin({
       id: `odk.${kind}.sample`,
       kind,

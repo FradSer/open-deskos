@@ -17,9 +17,7 @@ function applyGeometry() {
   root.setProperty('--cell-dim', `${cellDim}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
-  root.setProperty('--peek-h', `${m.peekH}px`)
-  root.setProperty('--peek-inset', `${m.peekInset}px`)
-  root.setProperty('--bar-icon', `${Math.floor(20 * m.fit + 0.5)}px`)
+  root.setProperty('--bar-icon', `${m.barIcon}px`)
   window.__odkGrid = m
   return m
 }
@@ -146,7 +144,7 @@ function main() {
   let activeFrame = null
 
   function setBackgroundInert(inert) {
-    for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('peek')]) {
+    for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport')]) {
       element.inert = inert
       if (inert) element.setAttribute('aria-hidden', 'true')
       else element.removeAttribute('aria-hidden')
@@ -353,7 +351,7 @@ function main() {
     },
   }
 
-  // Status-bar and peek plugins own everything visible outside the pages;
+  // Status-bar plugins own the persistent state visible outside the pages;
   // the skeleton only provides empty slots.
   window.addEventListener('odk-connection-announcement', (event) => {
     document.getElementById('status-announcement').textContent = event.detail
@@ -382,11 +380,6 @@ function main() {
     odkPlugins.activate(def, host, uiCtx)
   }
 
-  const peekDef = odkPlugins.byKind('peek')[0]
-  if (peekDef) {
-    odkPlugins.activate(peekDef, document.querySelector('[data-slot="peek"]'), uiCtx)
-  }
-
   odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
 
   document.getElementById('app-back').addEventListener('click', async () => {
@@ -394,15 +387,6 @@ function main() {
     else if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
   })
-  if (peekDef) document.getElementById('peek').addEventListener('click', () => {
-    if (appPlatform.active()) appPlatform.openApp({
-      appId: appPlatform.active().appId,
-      widgetId: appPlatform.active().sourceWidget,
-      route: appPlatform.active().route,
-    })
-    else if (peekDef?.activate) peekDef.activate(uiCtx)
-  })
-
   const pageNames = window.DESKTOP_LAYOUT.pages.map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')

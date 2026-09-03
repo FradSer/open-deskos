@@ -5,7 +5,7 @@
   const plugins = new Map()
   const instances = new WeakMap()
   const LIFECYCLE = ['mount', 'unmount']
-  const KINDS = new Set(['tile', 'page', 'status', 'peek', 'app'])
+  const KINDS = new Set(['tile', 'page', 'status', 'app'])
 
   function validateDefinition(def) {
     if (!def || typeof def.id !== 'string' || !def.id.startsWith('odk.') || !def.kind || !KINDS.has(def.kind)) {

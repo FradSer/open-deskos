@@ -41,12 +41,12 @@ if grep -q 'style=' src/renderer/index.html; then
 fi
 
 echo "== scenario: index.html stays a skeleton =="
-if sed '/<script/d' src/renderer/index.html | grep -qE 'widget|dash-|quota|w-clock|almanac|sb-net|sb-time|peek-bridge|tabler".*bolt'; then
+if sed '/<script/d' src/renderer/index.html | grep -qE 'widget|dash-|quota|w-clock|almanac|sb-net|sb-time|status-summary|tabler".*bolt'; then
   fail "index.html contains element markup; everything visible is mounted from plugins"
 fi
 
 echo "== scenario: shell core stays plugin-free =="
-if grep -RIlE 'almanac|pomodoro|quota|dash-narrative|w-clock-time|w-chat|w-settings|sb-net|sb-time|peek-(subscription|network|remote)' src/renderer/shell.js src/renderer/core/ >/dev/null 2>&1; then
+if grep -RIlE 'almanac|pomodoro|quota|dash-narrative|w-clock-time|w-chat|w-settings|sb-net|sb-time' src/renderer/shell.js src/renderer/core/ >/dev/null 2>&1; then
   fail "shell core references element specifics; move them into plugins/"
 fi
 

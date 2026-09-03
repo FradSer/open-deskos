@@ -48,21 +48,6 @@
   root.odkPlugins.register(app('year', 'Year progress', (el) => {
     el.innerHTML = '<div class="runtime-app"><h2>Year progress</h2><p>Year progress updates in the Widget in real time.</p></div>'
   }))
-  root.odkPlugins.register(app('system-status', 'System status', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app system-status"><h2>System status</h2><dl class="system-status-list"><div><dt>OpenCode Go</dt><dd id="system-status-subscription"></dd></div><div><dt>Network</dt><dd id="system-status-network"></dd></div><div><dt>Remote Link</dt><dd id="system-status-remote"></dd></div><div><dt>Foreground view</dt><dd id="system-status-app"></dd></div></dl><button class="button-pill button-secondary" type="button">Check status again</button></div>'
-    const subscription = el.querySelector('#system-status-subscription')
-    const network = el.querySelector('#system-status-network')
-    const remote = el.querySelector('#system-status-remote')
-    const foreground = el.querySelector('#system-status-app')
-    const refresh = () => { subscription.textContent = ctx.subscription.label() }
-    ctx.trackCleanup?.(ctx.subscription.subscribe(refresh))
-    ctx.trackCleanup?.(ctx.connection.subscribe(() => { network.textContent = ctx.connection.label() }))
-    ctx.trackCleanup?.(ctx.remoteLink.subscribe((state) => { remote.textContent = ctx.REMOTE_LINK_LABELS[state] }))
-    if (ctx.onPlatformState) ctx.trackCleanup?.(ctx.onPlatformState((active) => {
-      foreground.textContent = active.state === 'idle' ? 'No built-in view open' : `${active.label} · ${active.state}`
-    }))
-    el.querySelector('button').addEventListener('click', () => ctx.subscription.refresh())
-  }))
   root.odkPlugins.register(app('app-manager', 'Built-in views', (el, ctx) => {
     el.innerHTML = '<div class="runtime-app app-manager"><h2>Built-in views</h2><input class="app-search" type="search" aria-label="Search built-in views" placeholder="Search built-in views" /><p class="app-manager-status" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>Reload</button><ul class="app-list"></ul></div>'
     const search = el.querySelector('.app-search')

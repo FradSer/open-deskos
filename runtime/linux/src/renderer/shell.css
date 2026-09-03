@@ -51,9 +51,7 @@
   --cell-dim: 170px;
   --radius: 36px;
   --stroke-w: 4px;
-  --peek-h: 160px;
-  --peek-inset: 28px;
-  --bar-icon: 36px;
+  --bar-icon: 30px;
 
   --dot-d: clamp(8px, calc(var(--gutter) * 10 / 28), 14px);
   --dot-active-w: clamp(20px, calc(var(--gutter) * 26 / 28), 34px);
@@ -193,13 +191,13 @@ body.kiosk {
   background: var(--odk-surface);
   border: 1px solid var(--odk-stroke);
   border-radius: 999px;
-  height: clamp(26px, calc(var(--bar-icon) * 0.9), 32px);
-  padding: 2px 10px;
+  height: clamp(38px, calc(var(--bar-icon) * 1.35), 46px);
+  padding: 4px 14px;
   margin-left: calc(var(--gutter) * 0.45);
   cursor: pointer;
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", sans-serif;
-  gap: 6px;
+  gap: 8px;
   flex: none;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
@@ -216,8 +214,8 @@ body.kiosk {
 }
 
 .sb-pi-dot {
-  width: 6px;
-  height: 6px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--odk-secondary);
   flex: none;
@@ -229,7 +227,7 @@ body.kiosk {
 }
 
 .sb-pi-label {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--odk-secondary);
@@ -240,7 +238,7 @@ body.kiosk {
 }
 
 .sb-pi-count {
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--odk-secondary-strong);
   font-variant-numeric: tabular-nums;
@@ -248,6 +246,29 @@ body.kiosk {
 
 .sb-pi-status.has-running .sb-pi-count {
   color: var(--odk-accent-green);
+}
+
+.sb-state-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 18px;
+  min-width: 0;
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.sb-state-item {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-state-divider {
+  color: var(--odk-secondary);
+  user-select: none;
 }
 
 /* Page dots centered in the status bar */
@@ -309,46 +330,17 @@ body.kiosk {
 }
 
 #app-back:focus-visible,
-.button-pill:focus-visible,
-#peek:focus-visible {
+.button-pill:focus-visible {
   outline: 3px solid var(--odk-stroke-focus);
   outline-offset: 3px;
 }
 
-/* ---- Focused system status ---- */
-
-.system-status-list {
-  width: min(100%, 680px);
-  margin: 32px 0;
-  border-top: 1px solid var(--odk-stroke);
-}
-
-.system-status-list > div {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
-  gap: 20px;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--odk-stroke);
-  text-align: left;
-}
-
-.system-status-list dt {
-  color: var(--odk-secondary-strong);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-weight: 700;
-}
-
-.system-status-list dd {
-  color: var(--odk-primary);
-  margin: 0;
-}
-
-/* ---- Pager viewport between status bar and peek ---- */
+/* ---- Pager viewport below the State Bar ---- */
 
 #pages-viewport {
   position: absolute;
   top: var(--status-h);
-  bottom: calc(var(--peek-h) + var(--peek-inset) * 2);
+  bottom: var(--gutter);
   left: 0;
   right: 0;
   overflow: hidden;
@@ -553,7 +545,7 @@ body.kiosk {
 
 .widget-grid {
   display: grid;
-  grid-template-columns: repeat(var(--cols, 5), var(--cell-w));
+  grid-template-columns: repeat(var(--cols, 6), var(--cell-w));
   grid-auto-rows: var(--cell-h);
   gap: var(--gutter);
   width: 100%;
@@ -561,6 +553,22 @@ body.kiosk {
   justify-content: center;
   align-content: center;
   margin: 0 auto;
+}
+
+@media (max-width: 999px) {
+  .widget-grid .widget {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+
+  .pomodoro-ring-wrap svg {
+    width: calc(var(--cell-h) * 0.54) !important;
+    height: calc(var(--cell-h) * 0.54) !important;
+  }
+
+  .ring-mmss {
+    font-size: calc(var(--cell-h) * 0.15) !important;
+  }
 }
 
 .widget {
@@ -761,6 +769,30 @@ body.kiosk {
   color: var(--odk-secondary-strong);
 }
 
+.desk-status-body {
+  gap: calc(var(--cell-dim) * 0.04);
+  margin: auto 0;
+  color: var(--odk-secondary-strong);
+}
+
+.desk-status-body svg {
+  width: calc(var(--cell-dim) * 0.28);
+  height: calc(var(--cell-dim) * 0.28);
+}
+
+.desk-status-value {
+  color: var(--odk-accent-green);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(20px, calc(var(--cell-dim) * 0.2), 32px);
+  letter-spacing: 0.06em;
+}
+
+.desk-status-resolution {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(12px, calc(var(--cell-dim) * 0.1), 16px);
+  font-variant-numeric: tabular-nums;
+}
+
 .w-face-presence,
 .w-current-emotion {
   gap: calc(var(--cell-dim) * 0.035);
@@ -913,88 +945,6 @@ body.kiosk {
   width: 85%;
   height: 8px;
   margin: 0 auto;
-}
-
-/* ---- Peek strip: live subscription/network status ---- */
-
-#peek {
-  position: absolute;
-  bottom: var(--peek-inset);
-  left: var(--peek-inset);
-  right: var(--peek-inset);
-  height: var(--peek-h);
-  display: flex;
-  align-items: center;
-  gap: var(--gutter);
-  padding: 0 calc(var(--gutter) * 0.8);
-  background: var(--odk-surface);
-  border: var(--stroke-w) solid var(--odk-stroke);
-  border-radius: var(--radius);
-  color: var(--odk-primary);
-  text-align: left;
-  cursor: pointer;
-  z-index: 10;
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
-}
-
-#peek:active {
-  background: var(--odk-elevated);
-  border-color: var(--odk-stroke-focus);
-  transform: scale(0.99);
-}
-
-.peek-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: clamp(4px, calc(var(--gutter) * 0.2), 8px);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.peek-chevron {
-  margin-left: auto;
-  width: calc(var(--bar-icon) * 1.1);
-  height: calc(var(--bar-icon) * 1.1);
-  flex: none;
-  flex-shrink: 0;
-  aspect-ratio: 1;
-  color: var(--odk-secondary);
-}
-
-.peek-primary {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-weight: 700;
-  font-size: clamp(16px, calc(var(--cell-dim) * 0.11), 24px);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.peek-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: clamp(4px, calc(var(--gutter) * 0.2), 10px);
-  min-width: 0;
-}
-
-.peek-secondary {
-  color: var(--odk-secondary-strong);
-  font-size: clamp(12px, calc(var(--cell-dim) * 0.08), 16px);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.peek-divider {
-  color: var(--odk-secondary);
-  font-size: clamp(12px, calc(var(--cell-dim) * 0.08), 16px);
-  user-select: none;
-  flex: none;
 }
 
 /* ---- App runtime ---- */
@@ -1677,7 +1627,6 @@ body.kiosk {
   #pages-track,
   .dot,
   .button-pill,
-  #peek,
   #app-back {
     transition: none;
   }

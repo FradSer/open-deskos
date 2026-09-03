@@ -152,7 +152,6 @@ test('release preflight rejects a built-in plugin missing schema-versioned manif
     fs.writeFileSync(path.join(plugins, 'tile.js'), "id: 'odk.tile.clock'", 'utf8')
     fs.writeFileSync(path.join(plugins, 'page.js'), "id: 'odk.page.today', manifest: { schemaVersion: 1 }", 'utf8')
     fs.writeFileSync(path.join(plugins, 'status.js'), "id: 'odk.status.connection', manifest: { schemaVersion: 1 }", 'utf8')
-    fs.writeFileSync(path.join(plugins, 'peek.js'), "id: 'odk.peek.bridge', manifest: { schemaVersion: 1 }", 'utf8')
     assert.deepEqual(validateRuntimeComposition(candidate), {
       ok: false,
       reason: 'renderer plugin manifest is missing or unsupported',

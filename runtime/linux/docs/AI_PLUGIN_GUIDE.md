@@ -1,13 +1,13 @@
 # Open DeskOS Linux Shell — Built-in View Extension Guide
 
-This CM5 Desk Companion slice uses plugins for pages, Widgets, peek content, status indicators, and focused built-in views. Placement is declarative.
+This CM5 Desk Companion slice uses plugins for pages, Widgets, status indicators, and focused built-in views. Placement is declarative.
 **The only supported way to add a visible capability is a plugin file plus a placement declaration. UI emits an intent; the current main-process endpoint and renderer runtime own the built-in-view seam. This is not an installable app platform. Plugins must implement the complete lifecycle and must not bypass the core seam.**
 
 ## 文件地图
 
 ```
 src/renderer/
-  index.html               骨架:状态栏/分页视口/peek/app-view 对话框,不含任何页面内容
+  index.html               骨架:状态栏/分页视口/app-view 对话框,不含任何页面内容
   shell.js                 组合根:几何、分页器、对话框、键盘导航、核心状态栏
   layout.js                网格几何(Open DeskOS portrait 分支)
   core/registry.js         odkPlugins.register/has/get/ids — 固定内建可见元素的注册表与挂载清理
@@ -15,26 +15,25 @@ src/renderer/
   core/app-platform.js     内建视图意图路由
   core/composer.js         odkComposer.validate/build — 把配置装配成 DOM
   config/desktop_layout.js 页面构成与 Widget 摆放的唯一权威
-  plugins/*.js             每个页面/Widget/peek/App 一个自包含文件
+  plugins/*.js             每个页面/Widget/status/App 一个自包含文件
 ```
 
 ## 插件契约
 
-五种 kind,覆盖外壳所有可见元素:
+四种 kind,覆盖外壳所有可见元素:
 
 | kind | 挂载点 | 注册字段 |
 |---|---|---|
 | `tile` | 网格 Widget(由 desktop_layout.js 声明位置) | `app`、`state`、`interaction`、`appId`、生命周期 |
 | `page` | 整页(由 desktop_layout.js 声明) | 生命周期 |
 | `status` | 状态栏槽位(`slot: 'left' \| 'right'`) | 生命周期 |
-| `peek` | 底部 peek 条内容与点按行为 | 生命周期、`activate` |
 | `app` | App Manager 前台验证运行时 | `appId`、`appKind`、生命周期、可选 `handleAction` |
 
 ### Widget 插件(kind = tile)
 
 Widget 先陈述真实状态,再按声明延续到对应 App。没有对应 App 时使用
 `display-only`;有 App 时使用 `interaction: 'open-app'`。Widget 不直接调用
-Runtime,只通过 `ctx.emitIntent()` 发起意图。大部分持续状态由 peek 承担。
+Runtime,只通过 `ctx.emitIntent()` 发起意图。持续状态应进入常驻 State Bar 或对应页面。
 
 ```js
 ;(function (root) {
@@ -77,7 +76,7 @@ root.odkPlugins.register({
 })
 ```
 
-### 页面插件(kind = page)、peek 插件(kind = peek)、App 插件(kind = app)
+### 页面插件(kind = page)、App 插件(kind = app)
 
 ```js
 root.odkPlugins.register({
@@ -85,14 +84,6 @@ root.odkPlugins.register({
   manifest: { schemaVersion: 1 },
   kind: 'page',
   mount(el, ctx) { el.innerHTML = `<div class="card my-card">...</div>` },
-})
-
-root.odkPlugins.register({
-  id: 'odk.peek.my-peek',
-  manifest: { schemaVersion: 1 },
-  kind: 'peek',
-  mount(el, ctx) { /* el 是 peek 按钮内的内容槽位 */ },
-  activate(ctx) { ctx.openDialog('标题', '正文', '补充'); return true },
 })
 ```
 
@@ -152,8 +143,8 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - 颜色只用根 `DESIGN.md` 的 Open DeskOS token(`--odk-*` CSS 变量);禁裸 hex。
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI copy and code must not use emoji. All user-visible CM5 shell copy and catalog values are English.
-- Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, `peek`, and `app`; status slots are only `left` or `right`. `open-app` tiles require one valid built-in `appId`; display-only tiles cannot declare one.
+- Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, and `app`; status slots are only `left` or `right`. `open-app` tiles require one valid built-in `appId`; display-only tiles cannot declare one.
 - Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Do not describe it as an installable app platform.
 - Plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code.
-- 状态优先进入 peek;不要用 tooltip-only 控件承载完整状态。
+- 持续状态优先进入 State Bar、Today 或 Usage;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。
