@@ -12,13 +12,15 @@
       .replace(/'/g, '&#039;')
   }
 
-  function formatTimeAgo(timestamp) {
-    if (!timestamp) return 'Recently'
-    const diff = Math.max(0, Date.now() - timestamp)
-    if (diff < 60000) return 'Just now'
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-    return `${Math.floor(diff / 86400000)}d ago`
+  function formatElapsed(timestamp, now = Date.now()) {
+    const startedAt = typeof timestamp === 'string' ? Date.parse(timestamp) : Number(timestamp)
+    if (!Number.isFinite(startedAt) || startedAt <= 0) return 'Elapsed unavailable'
+    const totalMinutes = Math.floor(Math.max(0, now - startedAt) / 60000)
+    if (totalMinutes < 1) return '<1m elapsed'
+    if (totalMinutes < 60) return `${totalMinutes}m elapsed`
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    return minutes > 0 ? `${hours}h ${minutes}m elapsed` : `${hours}h elapsed`
   }
 
   function lifecycleFor(mount) {
@@ -215,7 +217,7 @@
 
       function renderFeed() {
         if (!sessionData || !sessionData.sessions || sessionData.sessions.length === 0) {
-          feedEl.innerHTML = '<div class="pi-empty-state"><p>No Pi sessions found in <code>~/.pi/agent/directory-sessions/</code>.</p></div>'
+          feedEl.innerHTML = '<div class="pi-empty-state"><p>No running or recorded Pi processes found.</p><small>Checked local process state and <code>~/.pi/agent/directory-sessions/</code>.</small></div>'
           return
         }
 
@@ -281,14 +283,16 @@
                     <span class="pi-card-uuid" title="${escapeHtml(s.sessionId)}">${escapeHtml(s.uuid ? s.uuid.slice(0, 8) : 'session')}</span>
                   </div>
                   <div class="pi-card-meta odk-row items-center gap-2">
-                    <span class="pi-card-time">${formatTimeAgo(s.updatedAt)}</span>
+                    <span class="pi-card-time">${formatElapsed(s.startedAt)}</span>
                   </div>
                 </div>
 
                 <div class="pi-card-goal">
                   <span class="pi-goal-label">Goal:</span>
-                  <p class="pi-goal-text">${escapeHtml(s.latestGoal || 'No goal stated')}</p>
+                  <p class="pi-goal-text">${escapeHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
                 </div>
+
+                ${s.command ? `<div class="pi-card-command" title="${escapeHtml(s.command)}"><span>Process</span><code>${escapeHtml(s.command)}</code></div>` : ''}
 
                 ${modifiedCount > 0 ? `
                   <div class="pi-card-files">

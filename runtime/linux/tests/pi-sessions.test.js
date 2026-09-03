@@ -3,16 +3,59 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
-const { scanPiSessions } = require('../src/pi-sessions')
+const { parseProcessTable, scanPiSessions } = require('../src/pi-sessions')
+
+test('parseProcessTable finds Pi executables and derives elapsed start times', () => {
+  const now = 1_700_000_000_000
+  const output = [
+    ' 321 1 3600 pi pi',
+    ' 654 321 00:12:05 node /opt/tools/pi',
+    ' 987 1 42 node /opt/tools/not-pi',
+  ].join('\n')
+
+  const processes = parseProcessTable(output, now)
+
+  assert.equal(processes.length, 2)
+  assert.deepEqual(processes.map((processInfo) => processInfo.pid), [321, 654])
+  assert.equal(processes[0].startedAt, now - 3600 * 1000)
+  assert.equal(processes[1].elapsedSeconds, 12 * 60 + 5)
+  assert.equal(processes[0].isAlive, true)
+})
 
 test('scanPiSessions returns empty summary when agent directory does not exist', async () => {
   const nonExistentDir = path.join(os.tmpdir(), `pi-test-agent-${Date.now()}`)
-  const result = await scanPiSessions({ agentDir: nonExistentDir })
+  const result = await scanPiSessions({ agentDir: nonExistentDir, listProcesses: () => [] })
   assert.equal(result.ok, true)
   assert.equal(result.summary.total, 0)
   assert.equal(result.summary.running, 0)
   assert.deepEqual(result.sessions, [])
   assert.deepEqual(result.workspaces, [])
+})
+
+test('scanPiSessions includes running Pi processes without metadata', async () => {
+  const nonExistentDir = path.join(os.tmpdir(), `pi-process-agent-${Date.now()}`)
+  const result = await scanPiSessions({
+    agentDir: nonExistentDir,
+    now: 1_700_000_000_000,
+    listProcesses: () => [{
+      pid: 4321,
+      ppid: 1,
+      cwd: '/Users/test/desk-app',
+      command: 'pi',
+      startedAt: 1_699_999_940_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.summary.total, 1)
+  assert.equal(result.summary.running, 1)
+  assert.equal(result.summary.workspacesCount, 1)
+  assert.equal(result.sessions[0].sessionId, 'process-4321')
+  assert.equal(result.sessions[0].workspaceName, 'desk-app')
+  assert.equal(result.sessions[0].startedAt, 1_699_999_940_000)
+  assert.equal(result.sessions[0].latestGoal, '')
+  assert.deepEqual(result.sessions[0].modifiedFiles, [])
+  assert.equal(result.sessions[0].source, 'process')
 })
 
 test('scanPiSessions parses sessions, deduplicates, and evaluates process liveness', async () => {
@@ -67,6 +110,7 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   const result = await scanPiSessions({
     agentDir: tmpAgentDir,
     checkProcessAlive: mockCheckAlive,
+    listProcesses: () => [],
   })
 
   assert.equal(result.ok, true)

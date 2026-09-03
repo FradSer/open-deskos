@@ -199,6 +199,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then every plugin has a unique supported identity, kind, and lifecycle
     And every layout entry references a compatible plugin surface
     And display grid tiles cannot reference an App continuation
+    And no System App or bottom Peek surface is registered
     And interactive App pages remain repository-controlled
     But no third-party plugin or theme code is loaded
 

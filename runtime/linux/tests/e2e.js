@@ -3,7 +3,6 @@ const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
-const { scanPiSessions } = require('../src/pi-sessions')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 900],
@@ -54,6 +53,7 @@ const DRIVER_SCRIPT = `
     document.querySelector('[data-slot="status-left"] #sb-state-summary') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
+  out.noRemovedLegacySurfaces = !out.pluginIds.includes('odk.app.system') && !document.querySelector('#peek, [data-slot="peek"]')
   out.stateSummaryIsFactual =
     $('#sb-network-state')?.textContent === 'Network connected' &&
     $('#sb-subscription-state')?.textContent === 'OpenCode Go not configured' &&
@@ -252,7 +252,16 @@ const DRIVER_SCRIPT = `
     Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')) &&
     Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-filter-btn')) &&
     Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-refresh-btn'))
-  out.piPageShowsProcessState = Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-session-card, #pages-track .page[data-page="2"] .pi-empty-state'))
+  const piPage = document.querySelector('#pages-track .page[data-page="2"]')
+  out.piPageShowsProcessState = Boolean(piPage?.querySelector('.pi-session-card, .pi-empty-state'))
+  const piPageText = piPage?.textContent || ''
+  out.piPageRendersSessionDetails =
+    piPageText.includes('PID 4102') &&
+    piPageText.includes('Refactor the desk UI') &&
+    /\\d+[mh] elapsed/.test(piPageText)
+  const piFilesToggle = piPage?.querySelector('.pi-files-toggle')
+  piFilesToggle?.click()
+  out.piPageRendersModifiedFiles = (piPage?.textContent || '').includes('src/renderer/shell.js')
   const piSearch = document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')
   piSearch.focus()
   piSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
@@ -349,7 +358,7 @@ function check(results) {
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
     ['all pages built by composer', results.pagesBuiltByComposer],
     ['status bar slots mounted by plugins', results.statusSlotsMounted],
-    ['State Bar summary is mounted and bottom Peek is removed', results.statusSlotsMounted && results.noBottomPeek && results.stateSummaryIsFactual && results.stateSummaryFits],
+    ['State Bar summary is mounted and bottom Peek is removed', results.statusSlotsMounted && results.noBottomPeek && results.noRemovedLegacySurfaces && results.stateSummaryIsFactual && results.stateSummaryFits],
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
@@ -400,7 +409,7 @@ function check(results) {
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
-    ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
+    ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piPageRendersSessionDetails && results.piPageRendersModifiedFiles && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar remains factual after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsVisible],
@@ -423,6 +432,8 @@ function check(results) {
     ['quota refresh preserves truth', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
     ['quota page remains selected after help', results.quotaPageAfterEscape],
   ]
+  if (!results.piPageRendersSessionDetails || !results.piPageRendersModifiedFiles) {
+  }
   let failures = 0
   for (const [name, ok] of checks) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
@@ -518,7 +529,33 @@ async function main() {
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
   ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false }))
-  ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
+  ipcMain.handle('odk-pi-sessions', () => {
+    const now = Date.now()
+    const sessions = [
+      {
+        sessionId: 'e2e-running-4102', uuid: 'e2e-running-4102', pid: 4102,
+        cwd: '/workspace/open-deskos', workspaceName: 'open-deskos', status: 'running', isAlive: true,
+        startedAt: now - 7 * 60 * 1000, updatedAt: now - 20 * 1000,
+        latestGoal: 'Refactor the desk UI layout', modifiedFiles: ['src/renderer/shell.js'], source: 'session', command: 'pi',
+      },
+      {
+        sessionId: 'e2e-settled-4103', uuid: 'e2e-settled-4103', pid: 4103,
+        cwd: '/workspace/notes', workspaceName: 'notes', status: 'settled', isAlive: false,
+        startedAt: now - 2 * 60 * 60 * 1000, updatedAt: now - 10 * 60 * 1000,
+        latestGoal: 'Review the release notes', modifiedFiles: ['README.md', 'CHANGELOG.md'], source: 'session', command: 'pi',
+      },
+    ]
+    return {
+      ok: true,
+      scannedAt: now,
+      summary: { total: sessions.length, running: 1, settled: 1, exited: 0, workspacesCount: 2 },
+      workspaces: [
+        { name: 'open-deskos', cwd: '/workspace/open-deskos', runningCount: 1, settledCount: 0, exitedCount: 0, totalCount: 1, sessions: [sessions[0]] },
+        { name: 'notes', cwd: '/workspace/notes', runningCount: 0, settledCount: 1, exitedCount: 0, totalCount: 1, sessions: [sessions[1]] },
+      ],
+      sessions,
+    }
+  })
   const endpointCalls = { list: 0, intent: 0 }
   const remotePageStates = []
   ipcMain.handle('odk-app-manager-list', () => {

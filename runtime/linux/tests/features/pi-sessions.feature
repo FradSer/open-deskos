@@ -13,6 +13,13 @@ Feature: Local Pi Sessions Monitoring
     Then the widget displays the number of running sessions and an active status badge
     And the widget is non-interactive and does not open an App on click
 
+  Scenario: Linux shell includes running Pi processes even without session metadata
+    Given a running `pi` process is visible to the local process table
+    And no matching session metadata exists for its PID
+    When the shell queries active Pi sessions
+    Then it includes the process with its PID, working directory, and elapsed runtime
+    And it marks the process as running without inventing a goal or modified files
+
   Scenario: Pi Sessions App page displays workspaces, session goals, and modified files
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state

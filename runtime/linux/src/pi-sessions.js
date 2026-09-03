@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const { spawnSync } = require('node:child_process')
 
 function defaultCheckProcessAlive(pid) {
   if (typeof pid !== 'number' || pid <= 0) return false
@@ -24,28 +25,119 @@ function resolveWorkspaceName(cwd) {
   return path.basename(trimmed) || trimmed
 }
 
+function parseElapsedSeconds(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.floor(value))
+  if (typeof value !== 'string') return 0
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const parts = trimmed.split(/[-:]/).map(Number)
+  if (parts.some((part) => !Number.isFinite(part))) return 0
+  if (parts.length === 4) return (((parts[0] * 24) + parts[1]) * 60 + parts[2]) * 60 + parts[3]
+  if (parts.length === 3) return (parts[0] * 60 + parts[1]) * 60 + parts[2]
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  return 0
+}
+
+function readProcessCwd(pid) {
+  try {
+    return fs.realpathSync(`/proc/${pid}/cwd`)
+  } catch {
+    const result = spawnSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8' })
+    if (result.status !== 0) return ''
+    const pathLine = result.stdout.split(/\r?\n/).find((line) => line.startsWith('n'))
+    return pathLine ? pathLine.slice(1) : ''
+  }
+}
+
+function executableName(value) {
+  if (!value || typeof value !== 'string') return ''
+  return path.basename(value.trim().replace(/^['"]|['"]$/g, '')).toLowerCase()
+}
+
+function isPiExecutable(value) {
+  const name = executableName(value)
+  return name === 'pi' || name === 'pi.js' || name === 'pi.mjs' || name === 'pi.cjs'
+}
+
+function isPiProcess(processInfo) {
+  if (isPiExecutable(processInfo?.comm)) return true
+  if (!processInfo?.args || typeof processInfo.args !== 'string') return false
+  return processInfo.args
+    .split(/\s+/)
+    .some((token) => isPiExecutable(token) && (token.includes('/') || token === 'pi' || token.startsWith('pi.')))
+}
+
+function parseProcessTable(output, now = Date.now()) {
+  if (!output || typeof output !== 'string') return []
+  const processes = []
+  for (const line of output.split(/\r?\n/)) {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s*(.*)$/)
+    if (!match) continue
+    const pid = Number(match[1])
+    const ppid = Number(match[2])
+    const elapsedSeconds = parseElapsedSeconds(match[3])
+    const comm = match[4]
+    const args = match[5].trim()
+    if (!isPiProcess({ comm, args })) continue
+    processes.push({
+      pid,
+      ppid,
+      comm,
+      command: comm,
+      cwd: readProcessCwd(pid),
+      elapsedSeconds,
+      startedAt: Math.max(0, now - elapsedSeconds * 1000),
+      isAlive: true,
+    })
+  }
+  return processes
+}
+
+function listPiProcesses(now = Date.now()) {
+  const format = process.platform === 'darwin'
+    ? ['-axo', 'pid=,ppid=,etime=,comm=,args=']
+    : ['-eo', 'pid=,ppid=,etimes=,comm=,args=']
+  const result = spawnSync('ps', format, { encoding: 'utf8' })
+  if (result.status !== 0) return []
+  return parseProcessTable(result.stdout, now)
+}
+
+function processSession(processInfo) {
+  const pid = Number(processInfo?.pid)
+  if (!Number.isInteger(pid) || pid <= 0) return null
+  const cwd = typeof processInfo.cwd === 'string' ? processInfo.cwd : ''
+  const startedAt = Number.isFinite(processInfo.startedAt) ? processInfo.startedAt : 0
+  return {
+    sessionId: `process-${pid}`,
+    uuid: `process-${pid}`,
+    pid,
+    cwd,
+    workspaceName: resolveWorkspaceName(cwd),
+    status: 'running',
+    isAlive: processInfo.isAlive !== false,
+    startedAt,
+    updatedAt: startedAt,
+    latestGoal: '',
+    modifiedFiles: [],
+    source: 'process',
+    command: processInfo.command || processInfo.comm || 'pi',
+  }
+}
+
 async function scanPiSessions(options = {}) {
   const agentDir = options.agentDir || process.env.PI_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
   const checkAlive = options.checkProcessAlive || defaultCheckProcessAlive
+  const now = Number.isFinite(options.now) ? options.now : Date.now()
+  const listProcesses = options.listProcesses || (() => listPiProcesses(now))
   const dirSessionsPath = path.join(agentDir, 'directory-sessions')
 
-  const fallback = {
-    ok: true,
-    scannedAt: Date.now(),
-    summary: { total: 0, running: 0, settled: 0, exited: 0, workspacesCount: 0 },
-    workspaces: [],
-    sessions: [],
-  }
-
-  if (!fs.existsSync(dirSessionsPath)) {
-    return fallback
-  }
-
   let wsEntries = []
-  try {
-    wsEntries = fs.readdirSync(dirSessionsPath, { withFileTypes: true })
-  } catch {
-    return fallback
+  if (fs.existsSync(dirSessionsPath)) {
+    try {
+      wsEntries = fs.readdirSync(dirSessionsPath, { withFileTypes: true })
+    } catch {
+      wsEntries = []
+    }
   }
 
   const sessionMap = new Map()
@@ -76,6 +168,7 @@ async function scanPiSessions(options = {}) {
             ...parsed,
             uuid,
             file,
+            source: 'session',
           })
         }
       } catch {
@@ -113,10 +206,25 @@ async function scanPiSessions(options = {}) {
       updatedAt: data.updatedAt || 0,
       latestGoal: data.latestGoal || '',
       modifiedFiles: Array.isArray(data.modifiedFiles) ? data.modifiedFiles : [],
+      source: data.source || 'session',
+      command: data.command || '',
     })
   }
 
-  // Sort sessions: running first, then by updatedAt descending
+  const metadataPids = new Set(sessions.filter((session) => session.isAlive).map((session) => session.pid))
+  let processEntries = []
+  try {
+    processEntries = listProcesses(now) || []
+  } catch {
+    processEntries = []
+  }
+  for (const processInfo of processEntries) {
+    const session = processSession(processInfo)
+    if (!session || !session.isAlive || metadataPids.has(session.pid)) continue
+    sessions.push(session)
+  }
+
+  // Sort sessions: running first, then by latest activity or process start time
   sessions.sort((a, b) => {
     if (a.status === 'running' && b.status !== 'running') return -1
     if (b.status === 'running' && a.status !== 'running') return 1
@@ -157,7 +265,7 @@ async function scanPiSessions(options = {}) {
 
   return {
     ok: true,
-    scannedAt: Date.now(),
+    scannedAt: now,
     summary: {
       total: sessions.length,
       running: runningCount,
@@ -174,4 +282,7 @@ module.exports = {
   scanPiSessions,
   extractUuid,
   resolveWorkspaceName,
+  parseElapsedSeconds,
+  parseProcessTable,
+  listPiProcesses,
 }
