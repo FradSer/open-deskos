@@ -602,7 +602,7 @@ async function main() {
   ipcMain.handle('odk-pi-sessions', (_event) => scanPiSessions({
     agentDir: piFixture.root,
     checkProcessAlive: (pid) => pid === 4102,
-    listProcesses: (now) => [
+    listProcesses: (scanNow) => [
       {
         pid: 4102,
         cwd: '/workspace/open-deskos',
@@ -614,7 +614,7 @@ async function main() {
         pid: 4104,
         cwd: '/workspace/automation',
         command: 'pi',
-        startedAt: now - 3 * 60 * 1000,
+        startedAt: scanNow - 3 * 60 * 1000,
         isAlive: true,
       },
     ],
