@@ -126,14 +126,58 @@
     root.odkRemote.subscribeLinkState(updateRemoteLinkState)
   }
 
-  root.addEventListener('online', () => {
-    notify(connSubs, true)
-    root.dispatchEvent(new CustomEvent('odk-connection-announcement', { detail: NETWORK_LABELS.connected }))
-  })
-  root.addEventListener('offline', () => {
-    notify(connSubs, false)
-    root.dispatchEvent(new CustomEvent('odk-connection-announcement', { detail: NETWORK_LABELS.disconnected }))
-  })
+  if (typeof root.addEventListener === 'function') {
+    root.addEventListener('online', () => {
+      notify(connSubs, true)
+      if (typeof CustomEvent !== 'undefined' && typeof root.dispatchEvent === 'function') {
+        root.dispatchEvent(new CustomEvent('odk-connection-announcement', { detail: NETWORK_LABELS.connected }))
+      }
+    })
+    root.addEventListener('offline', () => {
+      notify(connSubs, false)
+      if (typeof CustomEvent !== 'undefined' && typeof root.dispatchEvent === 'function') {
+        root.dispatchEvent(new CustomEvent('odk-connection-announcement', { detail: NETWORK_LABELS.disconnected }))
+      }
+    })
+  }
+
+  const serviceInstances = new Map()
+
+  function registerService(serviceId, instance) {
+    if (!serviceId || !instance) return
+    serviceInstances.set(serviceId, instance)
+    const shortName = serviceId.replace(/^odk\.service\./, '')
+    if (shortName !== serviceId) {
+      serviceInstances.set(shortName, instance)
+    }
+  }
+
+  function unregisterService(serviceId) {
+    if (!serviceId) return
+    serviceInstances.delete(serviceId)
+    const shortName = serviceId.replace(/^odk\.service\./, '')
+    if (shortName !== serviceId) {
+      serviceInstances.delete(shortName)
+    }
+  }
+
+  function getService(serviceId) {
+    if (!serviceId) return null
+    return serviceInstances.get(serviceId) || serviceInstances.get(serviceId.replace(/^odk\.service\./, '')) || null
+  }
+
+  function hasService(serviceId) {
+    return Boolean(getService(serviceId))
+  }
+
+  function listServices() {
+    return Array.from(new Set(serviceInstances.keys())).filter((k) => k.startsWith('odk.service.'))
+  }
+
+  registerService('odk.service.connection', connection)
+  registerService('odk.service.subscription', subscription)
+  registerService('odk.service.faceAgent', faceAgent)
+  registerService('odk.service.remoteLink', remoteLink)
 
   root.odkServices = {
     NETWORK_LABELS,
@@ -144,6 +188,11 @@
     subscription,
     faceAgent,
     remoteLink,
+    registerService,
+    unregisterService,
+    get: getService,
+    has: hasService,
+    list: listServices,
     onTick(callback) {
       tickSubs.add(callback)
       callback(new Date())

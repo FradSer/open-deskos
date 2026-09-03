@@ -5,6 +5,7 @@ const BUILTIN_APPS = [
   { appId: 'year', name: 'Year progress', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'system-status', name: 'System status', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'app-manager', name: 'Built-in views', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'pi-sessions', name: 'Pi Sessions', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
 ]
 
 const APP_STATES = new Set(['installed', 'running', 'paused', 'stopped'])

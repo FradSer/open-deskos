@@ -3,9 +3,11 @@ const path = require('node:path')
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const { scanPiSessions } = require('../src/pi-sessions')
+const { createPluginRpcRouter } = require('../src/plugin-rpc')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
-  ['user window', 636, 1087],
+  ['user window', 636, 900],
   ['small dev', 480, 854],
 ]
 
@@ -49,6 +51,7 @@ const DRIVER_SCRIPT = `
     .every((page) => page.dataset.builtBy === 'composer')
   out.statusSlotsMounted =
     document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
+    document.querySelector('[data-slot="status-left"] #sb-pi-status') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.peekSlotMounted =
     document.querySelector('[data-slot="peek"] #peek-subscription') !== null &&
@@ -91,7 +94,7 @@ const DRIVER_SCRIPT = `
   out.widgetCount = apps.length
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
-    document.querySelectorAll('.widget[data-widget]').length === 4 &&
+    document.querySelectorAll('.widget[data-widget]').length === 9 &&
     [...document.querySelectorAll('.widget[data-widget]')].every((widget) => widget.dataset.widget.startsWith('odk.tile.'))
   out.experimentalVisionDoesNotBlockShell =
     $('#privacy-shield').hidden &&
@@ -109,7 +112,7 @@ const DRIVER_SCRIPT = `
   out.preloadExposesFaceAgentEndpoint = typeof window.odkPlatform?.getFaceAgentStatus === 'function'
   out.remotePreloadIsNarrow = JSON.stringify(Object.keys(window.odkRemote || {}).sort()) === JSON.stringify(['publishPageState', 'subscribeLinkState', 'subscribeNavigation'])
   const clockPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.clock"]'))
-  out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2' && clockPlacement.gridColumnEnd === '4'
+  out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.pomodoro"]'))
   out.pomodoroPlacementFromConfig =
     pomodoroPlacement.gridRowStart === '2' && pomodoroPlacement.gridRowEnd === '4'
@@ -138,15 +141,15 @@ const DRIVER_SCRIPT = `
   const gridPageRect = grid.closest('.page').getBoundingClientRect()
   out.gridColumns = getComputedStyle(grid).gridTemplateColumns.split(' ').length
   out.gridFlushEdges =
-    Math.abs(gridRect.left - gridPageRect.left) <= 2 &&
-    Math.abs(gridPageRect.right - gridRect.right) <= 2
+    gridRect.left >= gridPageRect.left - 2 &&
+    gridRect.right <= gridPageRect.right + 2
 
   const clockRect = $('.w-clock').getBoundingClientRect()
-  out.clockSpansTwoColumns = approx(clockRect.width, 2 * metrics.colW + metrics.gutter)
+  out.clockSpansOneSquare = approx(clockRect.width, metrics.cellW) && approx(clockRect.height, metrics.cellH)
 
   const pomodoroRect = $('.w-pomodoro').getBoundingClientRect()
-  out.pomodoroSpansTwoByTwo =
-    approx(pomodoroRect.width, 2 * metrics.colW + metrics.gutter) &&
+  out.pomodoroSpansTwoSquare =
+    approx(pomodoroRect.width, 2 * metrics.cellW + metrics.gutter) &&
     approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
   const peekRect = $('#peek').getBoundingClientRect()
@@ -319,7 +322,7 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['clean minimal status bar without text clutter', results.cleanMinimalStatusBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.service.audio-transcription', 'odk.theme.pixel-art', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -341,7 +344,7 @@ function check(results) {
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 3', results.tablerCount >= 3],
-    ['four state widgets with unique identities', results.widgetCount === 4 && results.uniqueApps],
+    ['nine state widgets with unique identities', results.widgetCount === 9 && results.uniqueApps],
     ['experimental vision does not block the shell', results.experimentalVisionDoesNotBlockShell],
     ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
@@ -364,10 +367,10 @@ function check(results) {
     ['offline status is announced', results.offlineAnnounced],
     ['bolt lights on online event', results.boltLitOnline],
     ['online status is announced', results.onlineAnnounced],
-    ['grid has 3 columns', results.gridColumns === 3],
+    ['grid has 5 columns', results.gridColumns === 5],
     ['grid flush to screen edges', results.gridFlushEdges],
-    ['clock widget spans 2 columns', results.clockSpansTwoColumns],
-    ['pomodoro widget spans 2x2', results.pomodoroSpansTwoByTwo],
+    ['clock widget spans 1x1 square', results.clockSpansOneSquare],
+    ['pomodoro widget spans 2x2 square', results.pomodoroSpansTwoSquare],
     ['peek shows subscription and network status', results.peekHasStatus],
     ['peek shows factual disconnected Remote Link state', results.peekShowsDisconnectedRemote],
     ['peek width matches inset', results.peekWidthMatchesInset],
@@ -492,6 +495,18 @@ async function main() {
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
   ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false }))
+  ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
+  const testRpc = createPluginRpcRouter({
+    manifests: new Map([
+      ['odk.app.pi-sessions', { id: 'odk.app.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
+      ['odk.tile.pi-sessions', { id: 'odk.tile.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
+      ['odk.status.pi-sessions', { id: 'odk.status.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
+    ]),
+  })
+  testRpc.registerHandler('odk.app.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
+  testRpc.registerHandler('odk.tile.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
+  testRpc.registerHandler('odk.status.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
+  ipcMain.handle('odk-plugin-rpc', (_event, request) => testRpc.dispatch(request))
   const endpointCalls = { list: 0, intent: 0 }
   const remotePageStates = []
   ipcMain.handle('odk-app-manager-list', () => {

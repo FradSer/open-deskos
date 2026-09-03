@@ -117,11 +117,11 @@ if [ "$SESSION" = "x11" ] && command -v xrandr >/dev/null 2>&1; then
 fi
 if [ -n "$MODE" ]; then
   case "$MODE" in
-    1920x1280|1280x1920) PANEL_OK="true" ;;
+    1920x1080|1080x1920|1920x1280|1280x1920) PANEL_OK="true" ;;
     *) PANEL_OK="false" ;;
   esac
   check "display-mode" "true" "true" "hardware" "active mode ${MODE}"
-  check "panel-resolution" "$PANEL_OK" "true" "hardware" "active mode ${MODE}; expected 1920x1280 or rotated 1280x1920"
+  check "panel-resolution" "$PANEL_OK" "true" "hardware" "active mode ${MODE}; expected 1920x1080/1920x1280 or rotated"
 else
   check "display-mode" "false" "true" "hardware" "no active mode detected (needs X11 + xrandr; record manually on Wayland)"
   check "panel-resolution" "false" "true" "hardware" "undetected"

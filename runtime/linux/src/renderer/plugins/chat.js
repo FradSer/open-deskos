@@ -11,8 +11,13 @@
     interaction: 'display-only',
     mount(el) {
       el.innerHTML = `
-        <svg data-tabler="message" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1" /></svg>
-        <span class="w-name">${this.app}</span>
+        <div class="widget-header odk-row items-center justify-between w-full">
+          <span class="w-name">${this.app}</span>
+          <span class="widget-glance-badge">STATUS</span>
+        </div>
+        <div class="widget-icon-body odk-row items-center justify-center">
+          <svg data-tabler="message" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1" /></svg>
+        </div>
         <span class="w-state">${this.state}</span>`
     },
   })

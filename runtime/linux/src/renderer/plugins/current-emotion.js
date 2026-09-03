@@ -34,13 +34,16 @@
   function render(el, status) {
     const emotion = status.unlocked ? status.emotion : null
     const detail = detailLabel(status, emotion)
-    el.replaceChildren()
-    el.insertAdjacentHTML('beforeend', ICON)
-    el.append(
-      text('w-name', 'Current emotion'),
-      text('w-emotion', emotion ? LABELS[emotion.primary] : '--'),
-      text('w-state', detail),
-    )
+    el.innerHTML = `
+      <div class="widget-header odk-row items-center justify-between w-full">
+        <span class="w-name">Current emotion</span>
+        <span class="widget-glance-badge">EMOTION</span>
+      </div>
+      <div class="widget-icon-body odk-row items-center justify-center gap-3">
+        ${ICON}
+        <span class="w-emotion">${emotion ? LABELS[emotion.primary] : '--'}</span>
+      </div>
+      <span class="w-state">${detail}</span>`
   }
 
   root.odkPlugins.register({

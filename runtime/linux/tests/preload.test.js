@@ -39,13 +39,17 @@ function loadPreload() {
 test('exposes platform actions and only narrow remote state APIs to the sandboxed renderer', async () => {
   const { exposed, listeners, invokes } = loadPreload()
 
-  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['dispatchIntent', 'getAppState', 'getFaceAgentStatus', 'getOpenCodeGoStatus', 'listApps'])
+  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['callPluginRpc', 'dispatchIntent', 'getAppState', 'getFaceAgentStatus', 'getOpenCodeGoStatus', 'getPiSessions', 'listApps'])
+  await exposed.odkPlatform.callPluginRpc({ pluginId: 'odk.test', action: 'ping' })
+  assert.deepEqual(invokes[0], ['odk-plugin-rpc', { pluginId: 'odk.test', action: 'ping' }])
   await exposed.odkPlatform.getOpenCodeGoStatus()
-  assert.deepEqual(invokes[0], ['odk-opencode-go-status', undefined])
+  assert.deepEqual(invokes[1], ['odk-opencode-go-status', undefined])
   await exposed.odkPlatform.getFaceAgentStatus()
-  assert.deepEqual(invokes[1], ['odk-face-agent-status', undefined])
+  assert.deepEqual(invokes[2], ['odk-face-agent-status', undefined])
+  await exposed.odkPlatform.getPiSessions()
+  assert.deepEqual(invokes[3], ['odk-pi-sessions', undefined])
   await exposed.odkRemote.publishPageState({ page: 1 })
-  assert.deepEqual(invokes[2], ['odk-remote-publish-page-state', { page: 1 }])
+  assert.deepEqual(invokes[4], ['odk-remote-publish-page-state', { page: 1 }])
 
   const states = []
   const unsubscribe = exposed.odkRemote.subscribeLinkState((state) => states.push(state))

@@ -58,7 +58,26 @@ Runtime,只通过 `ctx.emitIntent()` 发起意图。大部分持续状态由 pee
 })(typeof window !== 'undefined' ? window : globalThis)
 ```
 
-### 页面插件(kind = page)、状态栏插件(kind = status)、peek 插件(kind = peek)、App 插件(kind = app)
+### 状态栏插件(kind = status) — 常驻系统顶栏能力
+
+系统顶部状态栏（Status Bar）是提供给开发者的常驻全局能力。状态栏插件通过 `slot: 'left' | 'right'` 挂载，无论用户当前在 Today 日报、Home 桌面还是 Usage 用量页，都始终常驻可见。可以用于网络连接指示、时间指示、或像 `odk.status.pi-sessions` 一样显示实时微型指标，并支持点按发起 `ctx.emitIntent({ type: 'open-app', appId })` 直达全屏 App:
+
+```js
+root.odkPlugins.register({
+  id: 'odk.status.my-indicator',
+  manifest: { schemaVersion: 1 },
+  kind: 'status',
+  slot: 'left',             // 'left' 或 'right'
+  mount(el, ctx) {
+    el.innerHTML = `<button type="button" class="sb-pi-status flex items-center">...</button>`
+    el.querySelector('button').addEventListener('click', () => {
+      ctx.emitIntent({ type: 'open-app', appId: 'my-app', widgetId: 'odk.status.my-indicator', route: 'today' })
+    })
+  },
+})
+```
+
+### 页面插件(kind = page)、peek 插件(kind = peek)、App 插件(kind = app)
 
 ```js
 root.odkPlugins.register({
@@ -66,14 +85,6 @@ root.odkPlugins.register({
   manifest: { schemaVersion: 1 },
   kind: 'page',
   mount(el, ctx) { el.innerHTML = `<div class="card my-card">...</div>` },
-})
-
-root.odkPlugins.register({
-  id: 'odk.status.my-indicator',
-  manifest: { schemaVersion: 1 },
-  kind: 'status',
-  slot: 'left',             // 'left' 或 'right'
-  mount(el, ctx) { /* el 是空槽位 span;订阅 ctx.connection 更新状态 */ },
 })
 
 root.odkPlugins.register({

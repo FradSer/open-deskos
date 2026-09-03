@@ -18,9 +18,12 @@
     appId: null,
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="year-head odk-row justify-between">
+        <div class="year-head odk-row items-center justify-between w-full">
           <span class="w-name">${this.app}</span>
-          <span class="w-state">${this.state}</span>
+          <div class="odk-row items-center gap-2">
+            <span class="widget-glance-badge">LIVE</span>
+            <span class="w-state">${this.state}</span>
+          </div>
         </div>
         <div class="year-row odk-row items-center">
           <span class="year-pct">--%</span>

@@ -26,13 +26,16 @@
   function render(el, status) {
     const recognized = status.unlocked === true
     const state = stateLabel(status, recognized)
-    el.replaceChildren()
-    el.insertAdjacentHTML('beforeend', recognized ? ICONS.detected : ICONS.unavailable)
-    el.append(
-      text('w-name', 'Face presence'),
-      text('w-vision-value', recognized ? String(status.facesCount) : '--'),
-      text('w-state', state),
-    )
+    el.innerHTML = `
+      <div class="widget-header odk-row items-center justify-between w-full">
+        <span class="w-name">Face presence</span>
+        <span class="widget-glance-badge">VISION</span>
+      </div>
+      <div class="widget-icon-body odk-row items-center justify-center gap-4">
+        ${recognized ? ICONS.detected : ICONS.unavailable}
+        <span class="w-vision-value">${recognized ? String(status.facesCount) : '--'}</span>
+      </div>
+      <span class="w-state">${state}</span>`
   }
 
   root.odkPlugins.register({

@@ -41,6 +41,20 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And every visible widget states a truthful status before any App opens
     And the grid remains inside the viewport at alternate window sizes
 
+  Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
+    Given the shell starts at 1920 by 1080
+    Then the status bar, three-column widget grid and peek are visible
+    And the layout provides balanced card proportions without horizontally stretched rows
+    And Today, Home, and Usage pages provide structured, centered desk instrument views
+    And the grid remains inside the viewport at alternate window sizes
+
+  Scenario: Widget interaction display logic distinguishes operable apps from glanceable instruments
+    Given the Home grid displays registered widgets
+    Then interactive widgets declaring open-app render as interactive controls with action affordances and active feedback
+    And display-only widgets render as non-interactive instruments with glanceable badges and without hover actions
+    And interactive widgets are keyboard-focusable and open their declared built-in view on tap
+    And display-only widgets remain read-only without opening modal views
+
   Scenario: CM5 root installation leaves the runtime usable by the kiosk user
     Given the CM5 installer runs as root for the graphical kiosk user
     When it installs Node dependencies and regenerates runtime assets

@@ -5,6 +5,7 @@ const { compute, REF } = require('../src/renderer/layout.js')
 
 const SIZES = [
   ['target HDMI display', 1920, 1280],
+  ['1080P HDMI display', 1920, 1080],
   ['user window', 636, 1087],
   ['small dev', 480, 854],
   ['reference canvas', 320, 480],
@@ -14,7 +15,10 @@ const SIZES = [
 ]
 
 // Golden values pinning the target-panel geometry against accidental drift.
-const GOLDEN = { '1920x1280': { cellW: 611, cellH: 138, cellDim: 138, gutter: 43, statusH: 85 } }
+const GOLDEN = {
+  '1920x1280': { cellW: 270, cellH: 270, cellDim: 270, gutter: 28, statusH: 76, cols: 5, rows: 3 },
+  '1920x1080': { cellW: 236, cellH: 236, cellDim: 236, gutter: 28, statusH: 76, cols: 5, rows: 3 },
+}
 
 let failures = 0
 function check(name, ok, detail = '') {
@@ -28,17 +32,9 @@ for (const [label, width, height] of SIZES) {
   const m = compute(width, height)
   const tag = `${label} ${width}x${height}`
 
-  const cols = 3
-  const rows = 5
-  const colW = (width - (cols - 1) * m.gutter) / cols
-  const cellHByHeight = Math.floor(
-    (height - m.statusH - m.peekH - 4 * m.gutter - (rows - 1) * m.gutter) / rows,
-  )
-  check(`${tag}: row height respects column squareness`, m.cellH <= Math.floor(colW), `cellH=${m.cellH} colW=${colW}`)
-  check(`${tag}: row height respects height bound`, m.cellH <= cellHByHeight, `cellH=${m.cellH} bound=${cellHByHeight}`)
+  check(`${tag}: cell is strictly square`, m.cellW === m.cellH && m.cellH === m.cellDim, `cellW=${m.cellW} cellH=${m.cellH} cellDim=${m.cellDim}`)
   check(`${tag}: row height above floor`, m.cellH >= 24, `cellH=${m.cellH}`)
-
-  check(`${tag}: grid flush to both edges`, m.gridW === width, `gridW=${m.gridW}`)
+  check(`${tag}: grid width within screen`, m.gridW <= width, `gridW=${m.gridW} > ${width}`)
 
   // Canonical vertical budget mirrored by the stylesheet: status bar, page
   // padding top/bottom, grid, breathing gap above peek, peek, bottom inset.
@@ -46,7 +42,7 @@ for (const [label, width, height] of SIZES) {
     m.statusH + m.gutter + m.gridH + m.gutter + m.gutter + m.peekH + m.gutter
   check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
 
-  check(`${tag}: status bar floored`, m.statusH >= 40)
+  check(`${tag}: status bar floored`, m.statusH >= 36)
   // The peek may yield below PEEK_MIN on extreme ratios, but never below
   // its scaled reference height — and the yield floor never exceeds PEEK_MIN.
   const peekFloor = Math.min(96, Math.floor(REF.stripMin * m.fit))

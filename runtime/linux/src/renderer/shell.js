@@ -10,6 +10,8 @@ function applyGeometry() {
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
+  root.setProperty('--cols', `${m.cols}`)
+  root.setProperty('--rows', `${m.rows}`)
   root.setProperty('--cell-w', `${m.cellW}px`)
   root.setProperty('--cell-h', `${m.cellH}px`)
   root.setProperty('--cell-dim', `${cellDim}px`)
@@ -319,6 +321,11 @@ function main() {
     }
   }
 
+  // System overlay alert manager
+  const overlayManager = window.odkOverlayAlerts?.create({
+    container: document.getElementById('system-overlay-root'),
+  })
+
   // Services handed to every plugin: dialogs owned by the shell frame,
   // plus the shared tick, network, subscription, and Remote Link stores.
   let appPlatform = null
@@ -330,8 +337,12 @@ function main() {
     subscription: odkServices.subscription,
     faceAgent: odkServices.faceAgent,
     remoteLink: odkServices.remoteLink,
+    services: odkServices,
     onTick: odkServices.onTick,
     openDialog: openInfoView,
+    postOverlayAlert(payload) {
+      return overlayManager?.postAlert(payload)
+    },
     emitIntent(intent) {
       return appPlatform?.emitIntent(intent) || false
     },

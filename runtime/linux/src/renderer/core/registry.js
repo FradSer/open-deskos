@@ -8,7 +8,7 @@
   const LIFECYCLE = ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
   const KINDS = new Set([
     'tile', 'page', 'status', 'peek', 'app',
-    'surface', 'application', 'service', 'transport', 'device-driver', 'processor', 'protocol', 'integration', 'system',
+    'surface', 'application', 'service', 'transport', 'device-driver', 'processor', 'protocol', 'integration', 'system', 'theme',
   ])
 
   const UI_KINDS = new Set(['tile', 'page', 'status', 'peek', 'surface', 'application'])
@@ -39,7 +39,7 @@
     }
   }
 
-  function scopedContext(ctx) {
+  function scopedContext(ctx, def = null) {
     const cleanups = new Set()
     const track = (cleanup) => {
       if (typeof cleanup === 'function') cleanups.add(cleanup)
@@ -56,12 +56,46 @@
       },
     }
 
+    if (def?.id) {
+      scoped.callBackend = (action, payload) => {
+        if (typeof root.odkPlatform?.callPluginRpc !== 'function') {
+          return Promise.reject(new Error('backend-unavailable'))
+        }
+        return root.odkPlatform.callPluginRpc({
+          pluginId: def.id,
+          action,
+          payload,
+        })
+      }
+    }
+
     for (const key of SERVICE_KEYS) {
       if (ctx[key]?.subscribe) {
         scoped[key] = {
           ...ctx[key],
           subscribe: (listener) => track(ctx[key].subscribe(listener)),
         }
+      }
+    }
+
+    const services = ctx.services || root.odkServices
+    if (services) {
+      scoped.services = {
+        get: (serviceId) => {
+          const shortKey = serviceId.replace(/^odk\.service\./, '')
+          if (scoped[shortKey]) return scoped[shortKey]
+          if (scoped[serviceId]) return scoped[serviceId]
+          const svc = services.get?.(serviceId) || ctx[serviceId] || ctx[shortKey]
+          if (svc && typeof svc.subscribe === 'function') {
+            return {
+              ...svc,
+              subscribe: (listener) => track(svc.subscribe(listener)),
+            }
+          }
+          return svc
+        },
+        has: (serviceId) => Boolean(services.has ? services.has(serviceId) : services.get?.(serviceId)),
+        list: () => (services.list ? services.list() : []),
       }
     }
 
@@ -85,9 +119,25 @@
       const lifecycle = def.lifecycle || {}
       def.lifecycle = Object.fromEntries(LIFECYCLE.map((phase) => [
         phase,
-        lifecycle[phase] || (phase === 'mount' ? (def.mount || (() => {})) : (() => {})),
+        lifecycle[phase] || def[phase] || (phase === 'mount' ? (def.mount || (() => {})) : (() => {})),
       ]))
       plugins.set(def.id, def)
+      if (def.kind === 'theme' && root.odkTheme?.registerTheme) {
+        root.odkTheme.registerTheme(def)
+      }
+      if (def.kind === 'service') {
+        const getExport = () => (typeof def.export === 'function' ? def.export() : (def.exports || def))
+        if (root.odkServices?.registerService) {
+          root.odkServices.registerService(def.id, getExport())
+        }
+        try {
+          const sCtx = root.odkServices || {}
+          root.odkPlugins.activate(def, def, sCtx)
+          if (root.odkServices?.registerService) {
+            root.odkServices.registerService(def.id, getExport())
+          }
+        } catch {}
+      }
     },
     has(id) {
       return plugins.has(id)
@@ -113,7 +163,7 @@
       return enabled.has(id)
     },
     activate(def, el, ctx) {
-      const scoped = scopedContext(ctx)
+      const scoped = scopedContext(ctx, def)
       let mountAttempted = false
       try {
         if (!enabled.has(def.id)) {
@@ -134,7 +184,8 @@
       }
     },
     deactivate(def, el, ctx) {
-      const instance = instances.get(el)
+      const targetEl = el || (def.kind === 'service' ? def : null)
+      const instance = instances.get(targetEl)
       const scoped = instance?.ctx || ctx
       let failure = null
       try {
@@ -143,12 +194,15 @@
         failure = error
       }
       try {
-        callLifecycle(def, 'unmount', el, scoped)
+        callLifecycle(def, 'unmount', targetEl, scoped)
       } catch (error) {
         failure ||= error
       } finally {
+        if (def.kind === 'service') {
+          root.odkServices?.unregisterService?.(def.id)
+        }
         scoped.cleanup?.()
-        instances.delete(el)
+        if (targetEl) instances.delete(targetEl)
       }
       if (failure) throw failure
     },

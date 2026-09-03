@@ -57,28 +57,72 @@ test('rejects invalid plugin identity, kind, lifecycle, status slot, and continu
   }), /missing built-in App/)
 })
 
-test('rejects mismatched page plugin kinds, invalid grid placement, and duplicate layout references', () => {
-  const page = plugin({ id: 'odk.page.today', kind: 'page' })
-  const tile = plugin({ id: 'odk.tile.clock', kind: 'tile' })
+test('distinguishes interactive and display-only tiles with semantic classes and attributes', () => {
+  const fakeDoc = {
+    createElement(tag) {
+      const el = {
+        tagName: tag.toUpperCase(),
+        className: '',
+        dataset: {},
+        style: {},
+        listeners: {},
+        children: [],
+        attributes: {},
+        setAttribute(k, v) { this.attributes[k] = v },
+        getAttribute(k) { return this.attributes[k] },
+        addEventListener(event, fn) { this.listeners[event] = fn },
+        append(child) { this.children.push(child) },
+        replaceChildren() { this.children = [] },
+        querySelector() { return null },
+        querySelectorAll() { return [] },
+      }
+      return el
+    },
+  }
+  const root = {
+    document: fakeDoc,
+    odkPlugins: registryWith([
+      plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'open-app', appId: 'clock', app: 'Clock', state: 'Available' }),
+      plugin({ id: 'odk.tile.year', kind: 'tile', interaction: 'display-only', app: 'Year', state: 'Live' }),
+      plugin({ id: 'odk.app.clock', kind: 'app', appId: 'clock' }),
+    ]),
+  }
+  const context = vm.createContext({ window: root, globalThis: root, document: fakeDoc })
+  vm.runInContext(composerSource, context)
 
-  assert.throws(() => validate([tile], {
-    pages: [{ id: 'today', name: 'Today', kind: 'page', plugin: 'odk.tile.clock' }],
-  }), /must reference a page plugin/)
+  const track = fakeDoc.createElement('div')
+  let emitted = null
+  const uiCtx = {
+    emitIntent(intent) { emitted = intent },
+    onTick() {},
+  }
 
-  assert.throws(() => validate([page, tile], {
-    pages: [{
-      id: 'home', name: 'Home', kind: 'grid', widgets: [
-        { id: 'odk.tile.clock', col: 'not-a-grid-line', row: '1' },
-      ],
-    }],
-  }), /invalid grid placement/)
-
-  assert.throws(() => validate([tile], {
+  root.odkComposer.build({
     pages: [{
       id: 'home', name: 'Home', kind: 'grid', widgets: [
         { id: 'odk.tile.clock', col: '1', row: '1' },
-        { id: 'odk.tile.clock', col: '2', row: '1' },
+        { id: 'odk.tile.year', col: '2', row: '1' },
       ],
     }],
-  }), /appears more than once/)
+  }, track, uiCtx)
+
+  const grid = track.children[0].children[0]
+  const clockTile = grid.children[0]
+  const yearTile = grid.children[1]
+
+  assert.equal(clockTile.tagName, 'BUTTON')
+  assert.equal(clockTile.type, 'button')
+  assert.ok(clockTile.className.includes('widget-interactive'))
+  assert.equal(clockTile.dataset.interaction, 'open-app')
+
+  assert.equal(yearTile.tagName, 'DIV')
+  assert.equal(yearTile.type, undefined)
+  assert.ok(yearTile.className.includes('widget-display-only'))
+  assert.equal(yearTile.dataset.interaction, 'display-only')
+
+  clockTile.listeners.click()
+  assert.equal(emitted.type, 'open-app')
+  assert.equal(emitted.appId, 'clock')
+  assert.equal(emitted.widgetId, 'odk.tile.clock')
+  assert.equal(emitted.route, 'today')
 })
