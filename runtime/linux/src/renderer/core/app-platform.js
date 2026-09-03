@@ -357,29 +357,6 @@
         return dispatchAction(intent)
       },
       closeApp: stopForeground,
-      async uninstallApp(appId) {
-        const plugin = findApp(appId)
-        if (!plugin) return false
-        if (state.active?.appId === appId && !(await stopForeground())) return false
-        const result = await dispatchToEndpoint({ type: 'remove-app', appId })
-        if (!result.ok) {
-          showActionFailure({ type: 'remove-app', appId }, result.error)
-          return false
-        }
-        recordEndpointTrace(result.trace)
-        try {
-          root.odkPlugins.retire(plugin, null, host.context())
-        } catch (error) {
-          const rollback = await dispatchToEndpoint({ type: 'install-app', appId })
-          const detail = rollback.ok ? error.message :
-            `${error.message}; endpoint rollback failed: ${rollback.error || 'unknown error'}`
-          showActionFailure({ type: 'remove-app', appId }, detail)
-          return false
-        }
-        state.appStates.set(appId, 'Uninstalled')
-        publishAppState(appId)
-        return true
-      },
     }
 
     return platform

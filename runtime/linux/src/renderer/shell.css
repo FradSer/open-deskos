@@ -1683,39 +1683,6 @@ body.kiosk {
   }
 }
 
-/* ---- Pixel Art Theme Styles ---- */
-
-.theme-pixel-art,
-.theme-pixel-art * {
-  border-radius: 0 !important;
-  font-family: "Silkscreen", monospace, sans-serif !important;
-}
-
-.theme-pixel-art .widget,
-.theme-pixel-art .card,
-.theme-pixel-art .runtime-app,
-.theme-pixel-art .button-pill,
-.theme-pixel-art .dot {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.theme-pixel-art .dot.active {
-  width: var(--dot-d);
-  background: var(--odk-accent-green);
-}
-
-.theme-pixel-art .peek-primary {
-  font-size: clamp(13px, calc(var(--cell-dim) * 0.085), 18px);
-  letter-spacing: 0.03em;
-}
-
-.theme-pixel-art .peek-secondary,
-.theme-pixel-art .peek-divider {
-  font-size: clamp(10px, calc(var(--cell-dim) * 0.06), 12px);
-  letter-spacing: 0.02em;
-}
-
 /* ---- System Overlay Alert Channel ---- */
 
 .system-overlay-container {

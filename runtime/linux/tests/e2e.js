@@ -4,7 +4,6 @@ const path = require('node:path')
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { scanPiSessions } = require('../src/pi-sessions')
-const { createPluginRpcRouter } = require('../src/plugin-rpc')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 900],
@@ -31,7 +30,7 @@ const DRIVER_SCRIPT = `
   out.pluginsUseOdkIdentity = out.pluginIds.every((id) => id.startsWith('odk.'))
   out.pluginsHaveCompleteLifecycle = out.pluginIds.every((id) => {
     const lifecycle = window.odkPlugins.get(id).lifecycle
-    return ['install', 'enable', 'mount', 'start', 'pause', 'resume', 'stop', 'unmount', 'disable', 'uninstall']
+    return ['mount', 'unmount']
       .every((phase) => typeof lifecycle?.[phase] === 'function')
   })
   out.cleanMinimalStatusBar = !$('#sb-app-manager') && $('#page-context')?.classList.contains('sr-only')
@@ -339,7 +338,7 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['clean minimal status bar without text clutter', results.cleanMinimalStatusBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.service.audio-transcription', 'odk.theme.pixel-art', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.face-presence', 'odk.peek.bridge', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.system-status', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -515,17 +514,6 @@ async function main() {
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
   ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false }))
   ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
-  const testRpc = createPluginRpcRouter({
-    manifests: new Map([
-      ['odk.app.pi-sessions', { id: 'odk.app.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-      ['odk.tile.pi-sessions', { id: 'odk.tile.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-      ['odk.status.pi-sessions', { id: 'odk.status.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-    ]),
-  })
-  testRpc.registerHandler('odk.app.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-  testRpc.registerHandler('odk.tile.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-  testRpc.registerHandler('odk.status.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-  ipcMain.handle('odk-plugin-rpc', (_event, request) => testRpc.dispatch(request))
   const endpointCalls = { list: 0, intent: 0 }
   const remotePageStates = []
   ipcMain.handle('odk-app-manager-list', () => {

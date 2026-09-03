@@ -10,9 +10,9 @@ src/renderer/
   index.html               骨架:状态栏/分页视口/peek/app-view 对话框,不含任何页面内容
   shell.js                 组合根:几何、分页器、对话框、键盘导航、核心状态栏
   layout.js                网格几何(Open DeskOS portrait 分支)
-  core/registry.js         odkPlugins.register/has/get/ids — 注册表、`odk.*` 身份与生命周期
+  core/registry.js         odkPlugins.register/has/get/ids — 固定内建可见元素的注册表与挂载清理
   core/services.js         odkServices — 共享秒级 tick 与连接状态存储、状态文案词汇表
-  core/app-platform.js     Installer → App Manager → App Runtime 意图路由
+  core/app-platform.js     内建视图意图路由
   core/composer.js         odkComposer.validate/build — 把配置装配成 DOM
   config/desktop_layout.js 页面构成与 Widget 摆放的唯一权威
   plugins/*.js             每个页面/Widget/peek/App 一个自包含文件
@@ -96,12 +96,11 @@ root.odkPlugins.register({
 })
 ```
 
-### 完整生命周期
+### 挂载与清理
 
-每个插件都必须提供以下阶段: `install`、`enable`、`mount`、`start`、`pause`、
-`resume`、`stop`、`unmount`、`disable`、`uninstall`。注册表会补齐无副作用
-默认实现;有副作用的插件必须在 `unmount`/`uninstall` 中释放订阅、计时器和运行时资源。
-App 额外可以提供 `handleAction(intent, ctx)`;它只能由平台 seam 调度。
+插件只需要 `mount(el, ctx)`；如创建订阅、计时器或其他资源，提供 `unmount(el, ctx)`
+释放它们。注册表为缺省 `unmount` 提供无副作用实现。App 可提供
+`handleAction(intent, ctx)`，但只能由内建视图 seam 调度。
 
 ### mount 收到的 ctx
 
@@ -113,8 +112,8 @@ App 额外可以提供 `handleAction(intent, ctx)`;它只能由平台 seam 调�
 | `ctx.subscription.refresh()` | 手动从 Linux 主进程重读 OpenCode Go 状态 |
 | `ctx.SUBSCRIPTION_LABELS` / `ctx.NETWORK_LABELS` / `ctx.REMOTE_LINK_LABELS` | 统一状态文案,禁止自造 |
 | `ctx.openDialog(title, message, sub, showSteps?, action?)` | 打开外壳全屏对话框,可选恢复操作按钮 |
-| `ctx.emitIntent({ type: 'open-app', appId, widgetId, route })` | 发起 App 意图,由 Installer → App Manager → App Runtime 路由 |
-| `ctx.emitIntent({ type: 'action', appId, action })` | 发起 App 动作,禁止直接调用 Runtime |
+| `ctx.emitIntent({ type: 'open-app', appId, widgetId, route })` | 发起内建视图意图，由主进程 endpoint 和 renderer runtime 处理 |
+| `ctx.emitIntent({ type: 'action', appId, action })` | 发起内建视图动作，禁止直接调用 Runtime |
 | `await ctx.platform.listApps()` | 从主进程 App Manager endpoint 读取权威 App 元数据; IPC 不可用时显示恢复错误 |
 | `ctx.platform.catalog()` | 仅供本地适配与测试使用的 renderer 插件目录,不是 App Manager 权威列表 |
 | `ctx.openNavigationHelp()` | 打开外壳操作说明视图 |
@@ -154,7 +153,7 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI copy and code must not use emoji. All user-visible CM5 shell copy and catalog values are English.
 - Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, `peek`, and `app`; status slots are only `left` or `right`. `open-app` tiles require one valid built-in `appId`; display-only tiles cannot declare one.
-- Plugins must not bypass the built-in-view intent seam; the core owns composition, lifecycle, and routing. Do not describe it as an Installer/App Manager/App Runtime platform until an installable package exists.
+- Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Do not describe it as an installable app platform.
 - Plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code.
 - 状态优先进入 peek;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

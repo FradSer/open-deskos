@@ -85,9 +85,9 @@
 
       const refresh = async () => {
         try {
-          const res = typeof ctx.callBackend === 'function'
-            ? await ctx.callBackend('scanSessions')
-            : (typeof root.odkPlatform?.getPiSessions === 'function' ? await root.odkPlatform.getPiSessions() : null)
+          const res = typeof root.odkPlatform?.getPiSessions === 'function'
+            ? await root.odkPlatform.getPiSessions()
+            : null
           if (!res) {
             countEl.textContent = '0'
             tagLabelEl.textContent = 'OFFLINE'
@@ -321,9 +321,9 @@
 
       const load = async () => {
         try {
-          sessionData = typeof ctx.callBackend === 'function'
-            ? await ctx.callBackend('scanSessions')
-            : (typeof root.odkPlatform?.getPiSessions === 'function' ? await root.odkPlatform.getPiSessions() : null)
+          sessionData = typeof root.odkPlatform?.getPiSessions === 'function'
+            ? await root.odkPlatform.getPiSessions()
+            : null
           if (!sessionData) {
             feedEl.innerHTML = '<div class="pi-empty-state"><p>Platform service is unavailable.</p></div>'
             return

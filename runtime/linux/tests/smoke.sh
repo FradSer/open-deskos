@@ -53,7 +53,6 @@ fi
 [ -s src/renderer/uno.css ] || fail "UnoCSS output is missing"
 
 for f in \
-  src/renderer/core/theme.js \
   src/renderer/core/overlay-alerts.js \
   src/renderer/core/registry.js \
   src/renderer/core/services.js \

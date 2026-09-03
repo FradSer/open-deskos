@@ -12,7 +12,6 @@ const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { fetchFaceAgentStatus } = require('./face-agent-status')
 const { scanPiSessions } = require('./pi-sessions')
-const { createPluginRpcRouter } = require('./plugin-rpc')
 
 function configureGpuSwitches(targetApp = app, env = process.env) {
   const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
@@ -146,18 +145,6 @@ function main() {
   ipcMain.handle('odk-face-agent-status', fetchFaceAgentStatus)
   ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
 
-  const pluginRpc = createPluginRpcRouter({
-    manifests: new Map([
-      ['odk.app.pi-sessions', { id: 'odk.app.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-      ['odk.tile.pi-sessions', { id: 'odk.tile.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-      ['odk.status.pi-sessions', { id: 'odk.status.pi-sessions', schemaVersion: 1, permissions: ['system:sessions:scan'] }],
-    ]),
-  })
-  pluginRpc.registerHandler('odk.app.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-  pluginRpc.registerHandler('odk.tile.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-  pluginRpc.registerHandler('odk.status.pi-sessions', 'scanSessions', () => scanPiSessions(), 'system:sessions:scan')
-
-  ipcMain.handle('odk-plugin-rpc', (_event, request) => pluginRpc.dispatch(request))
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-list', () => appManager.list())
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
