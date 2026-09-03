@@ -8,42 +8,16 @@
     kind: 'tile',
     app: 'Pomodoro',
     state: 'Not started',
-    interaction: 'open-app',
-    appId: 'pomodoro',
-    lifecycle: {
-      install() {},
-      enable() {},
-      mount(el, ctx) {
-        this.renderTile(el)
-        this.stateUnsubscribe = ctx.platform?.subscribeAppState?.((appId, state) => {
-          if (appId !== this.appId) return
-          const label = state === 'Running' ? 'Running' : this.state
-          el.dataset.state = label
-          const status = el.querySelector('.w-state')
-          if (status) status.textContent = label
-        }) || null
-      },
-      start() {},
-      pause() {},
-      resume() {},
-      stop() {},
-      unmount(el) {
-        this.stateUnsubscribe?.()
-        this.stateUnsubscribe = null
-        el.replaceChildren()
-      },
-      disable() {},
-      uninstall() {},
-    },
-    renderTile(el) {
+    interaction: 'display-only',
+    mount(el) {
       el.innerHTML = `
-        <div class="widget-header odk-row items-center justify-between w-full">
-          <span class="w-name">${this.app}</span>
-          <span class="widget-action-cue" aria-hidden="true">
-            <svg data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>
-          </span>
+        <div class="widget-header">
+          <div class="widget-heading">
+            <span class="w-name">${this.app}</span>
+          </div>
+          <span class="widget-glance-badge">READ ONLY</span>
         </div>
-        <div class="pomodoro-body odk-row items-center justify-center">
+        <div class="pomodoro-body">
           <div class="pomodoro-ring-wrap">
             <svg viewBox="0 0 120 120" aria-hidden="true">
               <circle class="ring-track" cx="60" cy="60" r="50"/>
@@ -52,10 +26,10 @@
             <span class="ring-mmss">--:--</span>
           </div>
         </div>
-        <span class="w-state">${this.state}</span>`
+        <div class="widget-footer">
+          <span class="w-state">${this.state}</span>
+          <span class="widget-footer-note">App on later page</span>
+        </div>`
     },
-    name: 'Pomodoro',
-    appKind: 'ui',
-    version: 'builtin',
   })
 })(typeof window !== 'undefined' ? window : globalThis)

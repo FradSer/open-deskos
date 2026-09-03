@@ -10,6 +10,7 @@
     id: 'odk.page.dashboard',
     manifest: { schemaVersion: 1 },
     kind: 'page',
+    surface: 'display',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="dash">

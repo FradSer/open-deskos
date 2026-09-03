@@ -24,16 +24,16 @@ src/renderer/
 
 | kind | 挂载点 | 注册字段 |
 |---|---|---|
-| `tile` | 网格 Widget(由 desktop_layout.js 声明位置) | `app`、`state`、`interaction`、`appId`、生命周期 |
-| `page` | 整页(由 desktop_layout.js 声明) | 生命周期 |
+| `tile` | 网格 Widget(由 desktop_layout.js 声明位置) | `app`、`state`、生命周期；始终只读 |
+| `page` | 整页(由 desktop_layout.js 声明) | `surface: 'display' | 'app'`、生命周期 |
 | `status` | 状态栏槽位(`slot: 'left' \| 'right'`) | 生命周期 |
 | `app` | App Manager 前台验证运行时 | `appId`、`appKind`、生命周期、可选 `handleAction` |
 
 ### Widget 插件(kind = tile)
 
-Widget 先陈述真实状态,再按声明延续到对应 App。没有对应 App 时使用
-`display-only`;有 App 时使用 `interaction: 'open-app'`。Widget 不直接调用
-Runtime,只通过 `ctx.emitIntent()` 发起意图。持续状态应进入常驻 State Bar 或对应页面。
+Widget 只陈述真实状态，永远是不可交互的 glanceable instrument。交互能力只出现在
+独立的 App 页面或内建视图中；Widget 不直接调用 Runtime。持续状态应进入常驻
+State Bar 或对应页面。
 
 ```js
 ;(function (root) {
@@ -44,8 +44,6 @@ Runtime,只通过 `ctx.emitIntent()` 发起意图。持续状态应进入常驻 
     kind: 'tile',
     app: 'My view',           // English identifier(data-app), used for uniqueness and diagnostics
     state: 'Pending integration', // truthful state; never fabricate a running or personal-data status
-    interaction: 'display-only', // 或 open-app;由平台 seam 处理
-    appId: null,
     mount(el, ctx) {          // el 是展示用 <div class="widget">,往里建自己的 DOM
       el.innerHTML = `
         <svg data-tabler="star" aria-hidden="true" ...>...</svg>
@@ -59,7 +57,7 @@ Runtime,只通过 `ctx.emitIntent()` 发起意图。持续状态应进入常驻 
 
 ### 状态栏插件(kind = status) — 常驻系统顶栏能力
 
-系统顶部状态栏（Status Bar）是提供给开发者的常驻全局能力。状态栏插件通过 `slot: 'left' | 'right'` 挂载，无论用户当前在 Today 日报、Home 桌面还是 Usage 用量页，都始终常驻可见。可以用于网络连接指示、时间指示、或像 `odk.status.pi-sessions` 一样显示实时微型指标，并支持点按发起 `ctx.emitIntent({ type: 'open-app', appId })` 直达全屏 App:
+系统顶部状态栏（Status Bar）是提供给开发者的常驻全局能力。状态栏插件通过 `slot: 'left' | 'right'` 挂载，无论用户当前在 Today 日报、Home 桌面、Pi Sessions 还是 Usage 用量页，都始终常驻可见。可以用于网络连接指示、时间指示、或像 `odk.status.pi-sessions` 一样显示实时微型指标；点按只应导航到独立的 App 页面或调用已验证的 App seam:
 
 ```js
 root.odkPlugins.register({
@@ -70,7 +68,7 @@ root.odkPlugins.register({
   mount(el, ctx) {
     el.innerHTML = `<button type="button" class="sb-pi-status flex items-center">...</button>`
     el.querySelector('button').addEventListener('click', () => {
-      ctx.emitIntent({ type: 'open-app', appId: 'my-app', widgetId: 'odk.status.my-indicator', route: 'today' })
+      ctx.emitIntent({ type: 'open-app', appId: 'my-app', widgetId: 'odk.status.my-indicator', route: 'app' })
     })
   },
 })
@@ -114,10 +112,10 @@ root.odkPlugins.register({
 在 `config/desktop_layout.js` 的 `pages` 数组里加一项:
 
 ```js
-{ id: 'home', name: 'Home', kind: 'grid', widgets: [
+{ id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [
   { id: 'odk.tile.my-widget', col: '3', row: '4' },
 ]},
-{ id: 'my-page', name: 'My page', kind: 'page', plugin: 'odk.page.my-page' },
+{ id: 'my-app-page', name: 'My App', kind: 'page', surface: 'app', plugin: 'odk.page.my-app' },
 ```
 
 页名会自动进入状态栏页点、`名称 · N/M` 上下文与 aria 标签。
@@ -143,8 +141,8 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - 颜色只用根 `DESIGN.md` 的 Open DeskOS token(`--odk-*` CSS 变量);禁裸 hex。
 - 状态必须诚实:未接入显示待接入,桥接未配置显示未配置,永不伪造数据。
 - UI copy and code must not use emoji. All user-visible CM5 shell copy and catalog values are English.
-- Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, and `app`; status slots are only `left` or `right`. `open-app` tiles require one valid built-in `appId`; display-only tiles cannot declare one.
-- Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Do not describe it as an installable app platform.
+- Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, and `app`; status slots are only `left` or `right`. Tile plugins cannot declare an App continuation; interactive controls belong to App pages or App plugins.
+- Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Keep display widgets and interactive App surfaces as separate modules. Do not describe it as an installable app platform.
 - Plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code.
 - 持续状态优先进入 State Bar、Today 或 Usage;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

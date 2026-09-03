@@ -11,25 +11,30 @@
     return typeof value === 'string' && /^\d+(?:\s*\/\s*\d+)?$/.test(value)
   }
 
-  function validateApps() {
-    const apps = new Map()
-    for (const app of root.odkPlugins.byKind('app')) {
-      if (!app.appId || apps.has(app.appId)) throw new Error(`built-in App "${app.appId}" must be unique`)
-      apps.set(app.appId, app)
+  function validateSurface(page, plugin) {
+    const surface = page.surface || plugin?.surface || 'display'
+    if (!['display', 'app'].includes(surface)) {
+      throw new Error(`page "${page.id}" has unsupported surface: ${surface}`)
     }
-    return apps
+    if (page.kind === 'grid' && surface !== 'display') {
+      throw new Error(`grid page "${page.id}" must use the display surface`)
+    }
+    if (plugin?.surface && plugin.surface !== surface) {
+      throw new Error(`page "${page.id}" surface does not match plugin "${plugin.id}"`)
+    }
+    return surface
   }
 
   function validate(layout) {
     if (!layout || !Array.isArray(layout.pages) || layout.pages.length === 0) {
       throw new Error('desktop layout requires a non-empty pages array')
     }
-    const apps = validateApps()
     const pageIds = new Set()
     for (const page of layout.pages) {
       if (!page.id || !page.name || pageIds.has(page.id)) throw new Error(`page has missing or duplicate id/name: ${JSON.stringify(page)}`)
       pageIds.add(page.id)
       if (page.kind === 'grid') {
+        validateSurface(page)
         if (!Array.isArray(page.widgets)) throw new Error(`grid page "${page.id}" requires widgets`)
         const widgetIds = new Set()
         for (const widget of page.widgets) {
@@ -41,13 +46,15 @@
           }
           if (widgetIds.has(widget.id)) throw new Error(`tile "${widget.id}" appears more than once on page "${page.id}"`)
           widgetIds.add(widget.id)
-          if (plugin.interaction === 'open-app' && !apps.has(plugin.appId)) {
-            throw new Error(`tile "${widget.id}" references missing built-in App "${plugin.appId}"`)
+          if (plugin.interaction && plugin.interaction !== 'display-only') {
+            throw new Error(`display grid tile "${widget.id}" cannot expose an App interaction`)
           }
         }
       } else if (page.kind === 'page') {
         if (!root.odkPlugins.has(page.plugin)) throw new Error(`unknown page plugin "${page.plugin}"`)
-        if (root.odkPlugins.get(page.plugin).kind !== 'page') throw new Error(`page "${page.id}" must reference a page plugin`)
+        const plugin = root.odkPlugins.get(page.plugin)
+        if (plugin.kind !== 'page') throw new Error(`page "${page.id}" must reference a page plugin`)
+        validateSurface(page, plugin)
       } else {
         throw new Error(`page "${page.id}" has unsupported kind: ${page.kind}`)
       }
@@ -61,10 +68,8 @@
 
   function buildTile(widgetDef, uiCtx) {
     const plugin = root.odkPlugins.get(widgetDef.id)
-    const isInteractive = plugin.interaction === 'open-app'
-    const tile = document.createElement(isInteractive ? 'button' : 'div')
-    if (isInteractive) tile.type = 'button'
-    tile.className = `widget widget-${isInteractive ? 'interactive' : 'display-only'} ${widgetClass(plugin)} flex flex-col`
+    const tile = document.createElement('div')
+    tile.className = `widget widget-display-only ${widgetClass(plugin)} flex flex-col`
     tile.dataset.widget = plugin.id
     tile.dataset.app = plugin.app
     tile.dataset.state = plugin.state
@@ -72,14 +77,6 @@
     if (widgetDef.col) tile.style.gridColumn = widgetDef.col
     if (widgetDef.row) tile.style.gridRow = widgetDef.row
     root.odkPlugins.activate(plugin, tile, uiCtx)
-    if (isInteractive) {
-      tile.addEventListener('click', () => uiCtx.emitIntent({
-        type: 'open-app',
-        appId: plugin.appId,
-        widgetId: widgetDef.id,
-        route: widgetDef.route || 'today',
-      }))
-    }
     return tile
   }
 
@@ -88,8 +85,10 @@
     track.replaceChildren()
     layout.pages.forEach((page, index) => {
       const section = document.createElement('section')
-      section.className = 'page flex flex-col'
+      const surface = page.surface || (page.kind === 'page' ? root.odkPlugins.get(page.plugin).surface : 'display') || 'display'
+      section.className = `page page-${surface} flex flex-col`
       section.dataset.page = String(index)
+      section.dataset.surface = surface
       section.dataset.builtBy = 'composer'
       section.setAttribute('aria-label', page.name)
       track.append(section)

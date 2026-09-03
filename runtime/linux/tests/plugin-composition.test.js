@@ -49,22 +49,31 @@ test('accepts the fixed built-in plugin kinds and rejects speculative extensions
   )
 })
 
-test('validates tile continuations and explicit desktop placement', () => {
+test('keeps display widgets separate from interactive App surfaces', () => {
   assert.equal(validate([
-    plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'open-app', appId: 'clock' }),
-    plugin({ id: 'odk.app.clock', kind: 'app', appId: 'clock' }),
+    plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'display-only' }),
+    plugin({ id: 'odk.page.pi', kind: 'page', surface: 'app' }),
     plugin({ id: 'odk.status.connection', kind: 'status', slot: 'left' }),
   ], {
-    pages: [{ id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: 'odk.tile.clock', col: '1', row: '1' }] }],
+    pages: [
+      { id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [{ id: 'odk.tile.clock', col: '1', row: '1' }] },
+      { id: 'pi', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi' },
+    ],
   }), true)
 
   assert.throws(() => validate([
-    plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'open-app', appId: 'missing' }),
+    plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'open-app', appId: 'clock' }),
   ], {
-    pages: [{ id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: 'odk.tile.clock', col: '1', row: '1' }] }],
-  }), /missing built-in App/)
+    pages: [{ id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [{ id: 'odk.tile.clock', col: '1', row: '1' }] }],
+  }), /must be display-only/)
+
+  assert.throws(() => validate([
+    plugin({ id: 'odk.page.pi', kind: 'page', surface: 'display' }),
+  ], {
+    pages: [{ id: 'pi', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi' }],
+  }), /surface does not match/)
 
   const registry = createRegistry()
   assert.throws(() => registry.register(plugin({ id: 'odk.status.connection', kind: 'status', slot: 'middle' })), /supported slot/)
-  assert.throws(() => registry.register(plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'display-only', appId: 'clock' })), /cannot declare appId/)
+  assert.throws(() => registry.register(plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'display-only', appId: 'clock' })), /cannot declare an App continuation/)
 })

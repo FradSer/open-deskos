@@ -71,7 +71,7 @@ Display Shell navigation that stops at the first and last page; navigation input
 _Avoid_: wraparound paging, circular paging
 
 **Remote State Feedback**:
-The Display Shell's authoritative current-page and boundary state presented back on the Remote Control after navigation. Before the first state arrives, Remote Control shows an explicit connecting or disconnected state instead of a guessed page. The Display Shell peek reports only factual Remote Link states: disconnected, USB connected, or synchronizing.
+The Display Shell's authoritative current-page and boundary state presented back on the Remote Control after navigation. Before the first state arrives, Remote Control shows an explicit connecting or disconnected state instead of a guessed page. The Display Shell State Bar reports only factual Remote Link states: disconnected, USB connected, or synchronizing.
 _Avoid_: send-only feedback, assumed page state, stale page display, fabricated telemetry
 
 **Remote Bridge**:

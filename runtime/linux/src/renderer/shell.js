@@ -349,6 +349,10 @@ function main() {
       appHelp.hidden = false
       appEmptySub.textContent = ''
     },
+    navigateToPage(pageId) {
+      const index = window.DESKTOP_LAYOUT.pages.findIndex((page) => page.id === pageId)
+      if (index >= 0) pagerRef?.setIndex(index)
+    },
   }
 
   // Status-bar plugins own the persistent state visible outside the pages;
@@ -439,6 +443,7 @@ function main() {
       return
     }
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    if (event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return
     event.preventDefault()
     if (event.repeat) return
     if (event.key === 'ArrowLeft') return navigate(-1)

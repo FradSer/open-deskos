@@ -27,15 +27,20 @@
     const recognized = status.unlocked === true
     const state = stateLabel(status, recognized)
     el.innerHTML = `
-      <div class="widget-header odk-row items-center justify-between w-full">
-        <span class="w-name">Face presence</span>
+      <div class="widget-header">
+        <div class="widget-heading">
+          <span class="w-name">Face presence</span>
+        </div>
         <span class="widget-glance-badge">VISION</span>
       </div>
-      <div class="widget-icon-body odk-row items-center justify-center gap-4">
+      <div class="widget-icon-body">
         ${recognized ? ICONS.detected : ICONS.unavailable}
         <span class="w-vision-value">${recognized ? String(status.facesCount) : '--'}</span>
       </div>
-      <span class="w-state">${state}</span>`
+      <div class="widget-footer">
+        <span class="w-state">${state}</span>
+        <span class="widget-footer-note">Local only</span>
+      </div>`
   }
 
   root.odkPlugins.register({

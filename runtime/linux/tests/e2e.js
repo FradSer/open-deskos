@@ -73,6 +73,10 @@ const DRIVER_SCRIPT = `
   out.pageCount = document.querySelectorAll('#pages-track .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
   out.pageContext = $('#page-context').textContent
+  out.surfaceSeparation =
+    document.querySelector('#pages-track .page[data-page="1"]')?.dataset.surface === 'display' &&
+    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'app' &&
+    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app'
   out.fontsLoaded = document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"')
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
@@ -87,7 +91,7 @@ const DRIVER_SCRIPT = `
     $('#dash-focus').textContent === 'Focus is not started.' &&
     $('#dash-usage').textContent.includes('OpenCode Go') &&
     !/\b(?:\d+ meetings|\d+ tasks|\d+ habits|steps|hours)\b/.test(out.narrativeText)
-  const requiredIcons = ['bolt', 'chevron-left', 'chevron-right']
+  const requiredIcons = ['bolt', 'chevron-left', 'folder']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
@@ -109,9 +113,10 @@ const DRIVER_SCRIPT = `
     $('[data-widget="odk.tile.desk-status"] .desk-status-resolution')?.textContent === String(window.innerWidth) + ' × ' + String(window.innerHeight)
   out.deskStatusPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridColumnStart === '5' &&
     getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridRowStart === '2'
-  out.widgetIntentMetadata =
-    document.querySelector('.widget[data-widget="odk.tile.almanac"]')?.dataset.interaction === 'open-app' &&
-    document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')?.dataset.interaction === 'open-app'
+  out.widgetsAreDisplayOnly =
+    [...document.querySelectorAll('.widget')].every((widget) =>
+      widget.tagName === 'DIV' && widget.dataset.interaction === 'display-only') &&
+    !document.querySelector('.widget-interactive, .widget-action-cue')
   out.rendererHasNoFilesystemApi = typeof window.require === 'undefined' && typeof window.process === 'undefined'
   out.preloadExposesIntentEndpoint = typeof window.odkPlatform?.dispatchIntent === 'function' && typeof window.odkPlatform?.listApps === 'function'
   out.preloadExposesSubscriptionEndpoint = typeof window.odkPlatform?.getOpenCodeGoStatus === 'function'
@@ -209,11 +214,15 @@ const DRIVER_SCRIPT = `
   const tile = document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')
   tile.click()
   await new Promise((resolve) => setTimeout(resolve, 100))
-  out.widgetTapOpensContinuationApp = !$('#app-view').hidden && $('#app-title').textContent === 'Pomodoro'
-  out.widgetSourceContextPreserved = $('#app-view').dataset.sourceWidget === 'odk.tile.pomodoro' && $('#app-view').dataset.route === 'today'
-  out.widgetAppShowsRuntimeContent = $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
+  out.displayWidgetDoesNotOpenApp = $('#app-view').hidden
+  out.displayWidgetHasNoAction = tile.tagName === 'DIV' && !tile.matches(':focus')
+  out.platformAppStillOpensSeparately = await window.odkAppPlatform.openApp({
+    appId: 'pomodoro', widgetId: 'e2e-separate-app', route: 'home',
+  })
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  out.appSurfaceShowsRuntimeContent = !$('#app-view').hidden && $('#app-title').textContent === 'Pomodoro' && $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
+  out.appSurfacePreservesSourceContext = $('#app-view').dataset.sourceWidget === 'e2e-separate-app' && $('#app-view').dataset.route === 'home'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
-  out.pomodoroTileStateAfterOpen = document.querySelector('.widget[data-widget="odk.tile.pomodoro"] .w-state')?.textContent === 'Running'
   $('#app-back').click()
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.noBottomPeekAfterAppNavigation = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
@@ -235,17 +244,36 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = $('#page-context').textContent === 'Usage · 3/3'
+  out.thirdPageContext = $('#page-context').textContent === 'Pi Sessions · 3/4'
+  out.piPageIsInteractiveAppSurface =
+    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'app' &&
+    Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-app-wrapper'))
+  out.piPageHasAppControls =
+    Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')) &&
+    Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-filter-btn')) &&
+    Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-refresh-btn'))
+  out.piPageShowsProcessState = Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-session-card, #pages-track .page[data-page="2"] .pi-empty-state'))
+  const piSearch = document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')
+  piSearch.focus()
+  piSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  out.piSearchKeepsPagerPosition = $('#page-context').textContent === 'Pi Sessions · 3/4'
+  const runningFilter = document.querySelector('#pages-track .page[data-page="2"] .pi-filter-btn[data-filter="running"]')
+  runningFilter.click()
+  out.piFilterIsInteractive = runningFilter.classList.contains('active')
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Home · 2/3'
+  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Home · 2/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToQuota = $('#page-context').textContent === 'Usage · 3/3'
+  out.endJumpsToQuota = $('#page-context').textContent === 'Usage · 4/4'
+  out.usageIsInteractiveAppSurface =
+    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
+    Boolean(document.querySelector('#pages-track .page[data-page="3"] #quota-refresh'))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/3'
+  out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 3/3'
-  document.querySelectorAll('#dots .dot')[2].click()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 4/4'
+  document.querySelectorAll('#dots .dot')[3].click()
   out.quotaStateIsHonest = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Check status again'
   out.quotaHelpLabel = $('#quota-help').textContent === 'Navigation help'
@@ -263,7 +291,7 @@ const DRIVER_SCRIPT = `
   $('#quota-refresh').click()
   out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('Last checked')
-  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
+  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[3].classList.contains('active')
 
   // Return to the grid page so the geometry sweep measures on-screen rects.
   document.querySelectorAll('#dots .dot')[1].click()
@@ -315,7 +343,7 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.status.summary', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.status.summary', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -325,9 +353,9 @@ function check(results) {
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
-    ['three pages', results.pageCount === 3],
-    ['three dots', results.dotCount === 3],
-    ['page context is tracked', results.pageContext === 'Today · 1/3'],
+    ['four pages', results.pageCount === 4],
+    ['four dots', results.dotCount === 4],
+    ['page context is tracked', results.pageContext === 'Today · 1/4'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
@@ -339,7 +367,7 @@ function check(results) {
     ['tabler icons count >= 3', results.tablerCount >= 3],
     ['ten state widgets with unique identities', results.widgetCount === 10 && results.uniqueApps],
     ['experimental vision does not block the shell', results.experimentalVisionDoesNotBlockShell],
-    ['widgets declare truthful state and App continuation', results.widgetStatesAreHonest && results.widgetIntentMetadata],
+    ['widgets declare truthful state without App controls', results.widgetStatesAreHonest && results.widgetsAreDisplayOnly && results.surfaceSeparation],
     ['right edge shows truthful local desk status', results.deskStatusIsTruthful && results.deskStatusPlacement],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesFaceAgentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
@@ -371,9 +399,10 @@ function check(results) {
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
-    ['widget tap opens its continuation App', results.widgetTapOpensContinuationApp && results.widgetSourceContextPreserved && results.widgetAppShowsRuntimeContent],
-    ['widget intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
-    ['pomodoro Widget follows App state', results.pomodoroTileStateAfterOpen],
+    ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
+    ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
+    ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
+    ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar remains factual after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsVisible],
     ['built-in view search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
@@ -549,8 +578,9 @@ async function main() {
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
-    remotePageStates.some((state) => state.page === 1 && state.pages === 3 && state.name === 'Today' && !state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 3 && state.pages === 3 && state.name === 'Usage' && state.canPrev && !state.canNext)
+    remotePageStates.some((state) => state.page === 1 && state.pages === 4 && state.name === 'Today' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 3 && state.pages === 4 && state.name === 'Pi Sessions' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 4 && state.pages === 4 && state.name === 'Usage' && state.canPrev && !state.canNext)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
@@ -576,17 +606,17 @@ async function main() {
   )
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToToday = await pageContext() === 'Today · 1/3'
+  const movedToToday = await pageContext() === 'Today · 1/4'
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const heldAtFirstPage = await pageContext() === 'Today · 1/3'
+  const heldAtFirstPage = await pageContext() === 'Today · 1/4'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToHome = await pageContext() === 'Home · 2/3'
+  const movedToHome = await pageContext() === 'Home · 2/4'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const repeatedRemoteMovesOnce = await pageContext() === 'Usage · 3/3'
+  const repeatedRemoteMovesOnce = await pageContext() === 'Usage · 4/4'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.repeatedRemoteMovesOnce = repeatedRemoteMovesOnce
   const driverFailures = check(results)

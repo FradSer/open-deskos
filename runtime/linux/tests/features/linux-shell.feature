@@ -15,7 +15,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the shell does not render a platform connection guide
 
   Scenario: Consecutive HID navigation presses advance consecutive pages
-    Given the Display Shell is focused on the first of three pages
+    Given the Display Shell is focused on the first of four pages
     When it receives an ArrowRight key press
     And it receives another ArrowRight key press after the prior navigation completes
     Then it displays the third page
@@ -38,6 +38,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
     Then the State Bar and five-column by three-row widget grid are visible
+    And the shell exposes four navigable pages with Pi Sessions on page three and Usage on page four
     And every visible widget states a truthful status before any App opens
     And the widget grid has five columns and three rows
     And the State Bar is large enough for the Pi Sessions running state to be legible
@@ -52,8 +53,9 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
     Then the State Bar and five-column by three-row widget grid are visible
+    And Pi Sessions and Usage remain reachable as later App pages
     And the layout provides balanced card proportions without horizontally stretched rows
-    And Today, Home, and Usage pages provide structured, centered desk instrument views
+    And Today, Home, Pi Sessions, and Usage pages provide structured desk instrument views
     And the grid remains inside the viewport at alternate window sizes
 
   Scenario: Home grid fills the available layout with truthful local desk status
@@ -63,12 +65,25 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the widget reports the local shell resolution and ready state
     And it does not require a provider or fabricate personal data
 
-  Scenario: Widget interaction display logic distinguishes operable apps from glanceable instruments
+  Scenario: Display widgets and App pages remain separate surfaces
     Given the Home grid displays registered widgets
-    Then interactive widgets declaring open-app render as interactive controls with action affordances and active feedback
-    And display-only widgets render as non-interactive instruments with glanceable badges and without hover actions
-    And interactive widgets are keyboard-focusable and open their declared built-in view on tap
-    And display-only widgets remain read-only without opening modal views
+    Then every Home widget renders as a non-interactive instrument without an App action affordance
+    And the Pi Sessions page is a full interactive App surface on page three
+    And the OpenCode Go Usage page is a full interactive App surface on page four
+    And App controls never appear inside the Home widget grid
+
+  Scenario: Pi Sessions App page exposes every local process
+    Given the local Pi session scanner reports running, settled, and exited processes
+    When the user navigates to the Pi Sessions page
+    Then the page lists every process with workspace, PID, status, and latest goal
+    And search, status filters, refresh, and modified-file details remain interactive
+    And an empty scanner result explains that no local Pi sessions were found
+
+  Scenario: OpenCode Go remains an interactive Usage App page
+    Given the OpenCode Go endpoint is unavailable or explicitly configured
+    When the user navigates to the Usage page
+    Then the page exposes an honest provider state and a refresh action
+    And configured usage values are shown only when returned by the provider
 
   Scenario: CM5 root installation leaves the runtime usable by the kiosk user
     Given the CM5 installer runs as root for the graphical kiosk user
@@ -101,7 +116,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: Experimental vision never blocks the desk surface
     Given the Face Agent user service is stopped, starting, has no camera frame, or cannot capture from its camera
     When the Linux shell starts
-    Then Today, Home, Usage, direct touch, and keyboard navigation remain available
+    Then Today, Home, Pi Sessions, Usage, direct touch, and keyboard navigation remain available
     And experimental Face Agent and P4 owner-recognition integrations do not reveal personal status or gate the shell
 
   Scenario: Experimental Face Agent consumes only ESP32-P4 inference metadata
@@ -128,9 +143,9 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the sub-device has its own hardware acceptance path and does not block the Linux shell
 
 
-  Scenario: Linux shell validates the built-in view intent seam
-    Given a widget declares an App continuation
-    When the user taps the widget
+  Scenario: Linux shell keeps the built-in App intent seam available
+    Given a status action or built-in view requests an App continuation
+    When the user opens that App
     Then the UI emits an open-app intent through preload
     And the main-process built-in view endpoint and renderer runtime handle the intent
     And the modal makes its background inert and exposes a tabbable Back action
@@ -151,7 +166,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
   Scenario: Renderer UI is English-only
     Given the Linux shell is loaded
-    Then all visible Today, Home, Usage, dialog, status, and service copy is English
+    Then all visible Today, Home, Pi Sessions, Usage, dialog, status, and service copy is English
     And built-in view catalog names are English
     And interactive controls and page indicators have English accessible labels
     And no Chinese characters appear in renderer UI source, catalog values, or end-to-end expectations
@@ -178,12 +193,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And it records completion only after the state is valid
     And base migration does not enable optional vision or Remote hardware
 
-  Scenario: Built-in composition rejects invalid continuations before release activation
+  Scenario: Built-in composition keeps display widgets and App surfaces separate
     Given a candidate runtime contains its built-in plugins and desktop layout
     When release preflight validates the composition contract
     Then every plugin has a unique supported identity, kind, and lifecycle
-    And every layout entry references a compatible plugin
-    And every open-app tile references a valid built-in App
+    And every layout entry references a compatible plugin surface
+    And display grid tiles cannot reference an App continuation
+    And interactive App pages remain repository-controlled
     But no third-party plugin or theme code is loaded
 
   Scenario: Built-in composition accepts only fixed visible plugin kinds

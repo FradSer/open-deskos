@@ -10,26 +10,24 @@
     kind: 'tile',
     app: 'Calendar',
     state: 'Available',
-    interaction: 'open-app',
-    appId: 'calendar',
-    lifecycle: {
-      install() {}, enable() {}, mount(el, ctx) { this.renderTile(el, ctx) }, start() {},
-      pause() {}, resume() {}, stop() {}, unmount(el) { el.replaceChildren() },
-      disable() {}, uninstall() {},
-    },
-    renderTile(el, ctx) {
+    interaction: 'display-only',
+    mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header odk-row items-center justify-between w-full">
-          <span class="al-weekday text-odk-red"></span>
-          <span class="widget-action-cue" aria-hidden="true">
-            <svg data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>
-          </span>
+        <div class="widget-header">
+          <div class="widget-heading">
+            <span class="w-name">Today</span>
+            <span class="al-weekday text-odk-red"></span>
+          </div>
+          <span class="widget-glance-badge">LOCAL</span>
         </div>
         <div class="al-body odk-row items-baseline">
           <span class="al-day"></span>
           <span class="al-month"></span>
         </div>
-        <span class="w-state">${this.state}</span>`
+        <div class="widget-footer">
+          <span class="w-state">${this.state}</span>
+          <span class="widget-footer-note">Date</span>
+        </div>`
 
       const weekday = el.querySelector('.al-weekday')
       const day = el.querySelector('.al-day')
@@ -40,8 +38,5 @@
         month.textContent = now.toLocaleString('en-US', { month: 'short' })
       })
     },
-    name: 'Calendar',
-    appKind: 'ui',
-    version: 'builtin',
   })
 })(typeof window !== 'undefined' ? window : globalThis)

@@ -10,8 +10,10 @@
     interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header odk-row items-center justify-between w-full">
-          <span class="w-name">${this.app}</span>
+        <div class="widget-header">
+          <div class="widget-heading">
+            <span class="w-name">${this.app}</span>
+          </div>
           <span class="widget-glance-badge">LOCAL</span>
         </div>
         <div class="desk-status-body odk-col items-center justify-center">
@@ -25,7 +27,10 @@
           <strong class="desk-status-value">READY</strong>
           <span class="desk-status-resolution">-- × --</span>
         </div>
-        <span class="w-state">Local shell active</span>`
+        <div class="widget-footer">
+          <span class="w-state">Local shell active</span>
+          <span class="widget-footer-note">Ready</span>
+        </div>`
 
       const resolution = el.querySelector('.desk-status-resolution')
       const refresh = () => {

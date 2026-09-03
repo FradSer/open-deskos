@@ -47,12 +47,7 @@
       }
 
       btn.addEventListener('click', () => {
-        ctx.emitIntent?.({
-          type: 'open-app',
-          appId: 'pi-sessions',
-          widgetId: 'odk.status.pi-sessions',
-          route: 'today',
-        })
+        ctx.navigateToPage?.('pi-sessions')
       })
 
       refresh()

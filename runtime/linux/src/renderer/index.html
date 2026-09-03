@@ -12,12 +12,12 @@
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
        and core plugin hosts from src/renderer/plugins/*.js registrations:
        pages/tiles via config/desktop_layout.js and status-bar via kind="status"
-       plugins. Widgets state truth first and may continue
-       into an App through the platform seam; #app-view is the unified App frame. -->
+       plugins. Widgets state truth first and stay display-only; interactive App
+       pages and #app-view own all controls. -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
     <div id="page-center" class="flex items-center">
-      <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true">Today · 1/3</span>
+      <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true">Today · 1/4</span>
       <nav id="dots" class="flex items-center" aria-label="Page indicator"></nav>
     </div>
     <span data-slot="status-right"></span>

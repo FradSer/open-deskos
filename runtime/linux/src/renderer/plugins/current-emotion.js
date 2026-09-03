@@ -35,15 +35,20 @@
     const emotion = status.unlocked ? status.emotion : null
     const detail = detailLabel(status, emotion)
     el.innerHTML = `
-      <div class="widget-header odk-row items-center justify-between w-full">
-        <span class="w-name">Current emotion</span>
+      <div class="widget-header">
+        <div class="widget-heading">
+          <span class="w-name">Current emotion</span>
+        </div>
         <span class="widget-glance-badge">EMOTION</span>
       </div>
-      <div class="widget-icon-body odk-row items-center justify-center gap-3">
+      <div class="widget-icon-body">
         ${ICON}
         <span class="w-emotion">${emotion ? LABELS[emotion.primary] : '--'}</span>
       </div>
-      <span class="w-state">${detail}</span>`
+      <div class="widget-footer">
+        <span class="w-state">${detail}</span>
+        <span class="widget-footer-note">Local only</span>
+      </div>`
   }
 
   root.odkPlugins.register({

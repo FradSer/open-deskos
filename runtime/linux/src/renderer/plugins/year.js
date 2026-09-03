@@ -15,19 +15,21 @@
     app: 'Year progress',
     state: 'Live',
     interaction: 'display-only',
-    appId: null,
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="year-head odk-row items-center justify-between w-full">
-          <span class="w-name">${this.app}</span>
-          <div class="odk-row items-center gap-2">
-            <span class="widget-glance-badge">LIVE</span>
-            <span class="w-state">${this.state}</span>
+        <div class="year-head">
+          <div class="widget-heading">
+            <span class="w-name">${this.app}</span>
           </div>
+          <span class="widget-glance-badge">LIVE</span>
         </div>
-        <div class="year-row odk-row items-center">
+        <div class="year-row">
           <span class="year-pct">--%</span>
           <div class="meter"><div class="meter-fill"></div></div>
+        </div>
+        <div class="widget-footer">
+          <span class="w-state">${this.state}</span>
+          <span class="widget-footer-note">This year</span>
         </div>`
 
       const fill = el.querySelector('.meter-fill')

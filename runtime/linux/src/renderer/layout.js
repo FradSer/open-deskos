@@ -20,7 +20,7 @@
 
   function compute(width, height) {
     const isWidescreen = width >= 1000 && width > height
-    const cols = isWidescreen ? 5 : 3
+    const cols = isWidescreen ? 5 : width >= 720 ? 3 : 2
     const rows = isWidescreen ? 3 : 5
 
     const fit = Math.min(width / (isWidescreen ? 1920 : REF.w), height / (isWidescreen ? 1280 : REF.h))

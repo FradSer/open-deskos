@@ -18,10 +18,16 @@
     id: 'odk.page.quota',
     manifest: { schemaVersion: 1 },
     kind: 'page',
+    surface: 'app',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="card quota-card odk-stack">
-          <div class="quota-title">OpenCode Go usage</div>
+        <div class="card quota-card app-surface-card odk-stack">
+          <header class="app-surface-header">
+            <div class="app-surface-heading">
+              <h1 class="quota-title">OpenCode Go usage</h1>
+            </div>
+            <span class="widget-glance-badge">PROVIDER</span>
+          </header>
           <div class="quota-state" id="quota-state" role="status" aria-live="polite"></div>
           <div class="quota-metrics" id="quota-metrics"></div>
           <div class="quota-checked" id="quota-checked"></div>

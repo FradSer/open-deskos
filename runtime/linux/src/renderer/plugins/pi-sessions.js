@@ -37,15 +37,14 @@
     kind: 'tile',
     app: 'Pi Sessions',
     state: 'Live',
-    interaction: 'open-app',
-    appId: 'pi-sessions',
+    interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header odk-row items-center justify-between w-full">
-          <span class="w-name">Pi Sessions</span>
-          <span class="widget-action-cue" aria-hidden="true">
-            <svg data-tabler="chevron-right" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6l6 6l-6 6" /></svg>
-          </span>
+        <div class="widget-header">
+          <div class="widget-heading">
+            <span class="w-name">Pi Sessions</span>
+          </div>
+          <span class="widget-glance-badge">LOCAL</span>
         </div>
         <div class="pi-widget-body odk-col justify-between w-full">
           <div class="pi-widget-metric-row odk-row items-baseline justify-between w-full">
@@ -67,7 +66,7 @@
             <p class="pi-glance-goal">Checking local sessions in background...</p>
           </div>
 
-          <div class="pi-widget-footer-meta odk-row items-center justify-between w-full">
+          <div class="widget-footer">
             <span class="pi-widget-summary">0 workspaces</span>
             <span class="w-state">${this.state}</span>
           </div>
@@ -166,7 +165,14 @@
     lifecycle: lifecycleFor((el, ctx) => {
       el.innerHTML = `
         <div class="runtime-app pi-app-wrapper">
-          <div class="pi-app-toolbar odk-row items-center justify-between w-full">
+          <header class="app-surface-header pi-app-header">
+            <div class="app-surface-heading">
+              <h1>Pi Sessions</h1>
+              <p>Every local process grouped by workspace.</p>
+            </div>
+            <span class="widget-glance-badge">LOCAL</span>
+          </header>
+          <div class="pi-app-toolbar">
             <div class="pi-app-metrics odk-row items-center gap-2">
               <span class="pi-metric-pill pi-metric-running"><strong id="pi-metric-running">0</strong> running</span>
               <span class="pi-metric-pill"><strong id="pi-metric-settled">0</strong> settled</span>
@@ -364,5 +370,18 @@
 
       load()
     }),
+  })
+
+  // The page is the direct interactive surface; the Home tile remains a
+  // display-only summary and never opens an App.
+  root.odkPlugins.register({
+    id: 'odk.page.pi-sessions',
+    manifest: { schemaVersion: 1 },
+    kind: 'page',
+    surface: 'app',
+    mount(el, ctx) {
+      const app = root.odkPlugins.get('odk.app.pi-sessions')
+      app.lifecycle.mount.call(app, el, ctx)
+    },
   })
 })(typeof window !== 'undefined' ? window : globalThis)

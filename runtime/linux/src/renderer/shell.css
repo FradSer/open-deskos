@@ -365,6 +365,31 @@ body.kiosk {
   gap: var(--gutter);
 }
 
+.page-app {
+  align-items: center;
+  overflow: hidden;
+}
+
+.page-app > .runtime-app,
+.page-app > .card {
+  width: min(100% - calc(var(--gutter) * 2), 78rem);
+  max-width: calc(100% - calc(var(--gutter) * 2));
+  max-height: 100%;
+}
+
+.page-app > .runtime-app {
+  height: 100%;
+  overflow: hidden;
+}
+
+.page-app .pi-app-wrapper {
+  max-height: 100%;
+}
+
+.page-app .quota-card {
+  margin: auto;
+}
+
 /* ---- Dashboard briefing ---- */
 
 .dash {
@@ -491,6 +516,21 @@ body.kiosk {
   font-size: clamp(22px, calc(var(--cell-dim) * 0.17), 32px);
 }
 
+.app-surface-card {
+  padding: calc(var(--gutter) * 1.15);
+}
+
+.quota-metrics {
+  width: 100%;
+  padding: calc(var(--gutter) * 0.65) calc(var(--gutter) * 0.75);
+  border: 1px solid var(--odk-stroke);
+  border-radius: calc(var(--radius) * 0.55);
+  background: var(--odk-elevated);
+  color: var(--odk-primary);
+  font-size: clamp(16px, calc(var(--cell-dim) * 0.11), 21px);
+  line-height: 1.5;
+}
+
 /* The connection state is the card's information lead: large, primary. */
 .quota-state {
   color: var(--odk-primary);
@@ -556,18 +596,30 @@ body.kiosk {
 }
 
 @media (max-width: 999px) {
+  .sb-state-summary {
+    display: none;
+  }
+
   .widget-grid .widget {
     grid-column: auto !important;
     grid-row: auto !important;
   }
 
+  .widget {
+    padding: calc(var(--gutter) * 0.55);
+  }
+
+  .w-pomodoro {
+    padding: calc(var(--gutter) * 0.35);
+  }
+
   .pomodoro-ring-wrap svg {
-    width: calc(var(--cell-h) * 0.54) !important;
-    height: calc(var(--cell-h) * 0.54) !important;
+    width: calc(var(--cell-h) * 0.42) !important;
+    height: calc(var(--cell-h) * 0.42) !important;
   }
 
   .ring-mmss {
-    font-size: calc(var(--cell-h) * 0.15) !important;
+    font-size: calc(var(--cell-h) * 0.12) !important;
   }
 }
 
@@ -577,7 +629,7 @@ body.kiosk {
   flex-direction: column;
   align-items: stretch;
   justify-content: space-between;
-  padding: calc(var(--gutter) * 0.65) calc(var(--gutter) * 0.7);
+  padding: calc(var(--gutter) * 0.78) calc(var(--gutter) * 0.82);
   min-width: 0;
   min-height: 0;
   width: 100%;
@@ -590,72 +642,59 @@ body.kiosk {
   font-size: calc(var(--cell-dim) * 0.15);
   overflow: hidden;
   box-sizing: border-box;
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
-/* Operable / Interactive widgets: buttons with clear action affordance & press feedback */
-.widget-interactive {
-  cursor: pointer;
-  appearance: none;
-  outline: none;
-  text-align: left;
-}
-
-.widget-interactive:hover {
-  background: var(--odk-elevated);
-  border-color: var(--odk-secondary-strong);
-}
-
-.widget-interactive:active {
-  background: var(--odk-elevated);
-  border-color: var(--odk-stroke-focus);
-  transform: scale(0.985);
-}
-
-.widget-interactive:focus-visible {
-  outline: 3px solid var(--odk-stroke-focus);
-  outline-offset: 3px;
-  border-color: var(--odk-stroke-focus);
-}
-
-/* Display-only widgets: glanceable desk instruments without action cues */
+/* Display-only widgets are glanceable desk instruments; App controls live on
+   later pages and never share this tile surface. */
 .widget-display-only {
   cursor: default;
   user-select: none;
 }
 
-.widget-header {
+.widget-header,
+.widget-footer {
   display: flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
+  gap: calc(var(--gutter) * 0.45);
   flex: none;
 }
 
-/* Action cue for operable widgets */
-.widget-action-cue {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: clamp(20px, calc(var(--cell-dim) * 0.16), 28px);
-  height: clamp(20px, calc(var(--cell-dim) * 0.16), 28px);
-  border-radius: 999px;
-  background: var(--odk-button);
+.widget-header .widget-heading,
+.widget-footer .w-state {
+  min-width: 0;
+}
+
+.widget-header .widget-heading {
+  flex: 1 1 auto;
+}
+
+.widget-footer .w-state {
+  flex: 1 1 auto;
+}
+
+.widget-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.widget-footer-note {
+  max-width: 45%;
+  overflow: hidden;
   color: var(--odk-secondary-strong);
-  flex: none;
-  transition: background 140ms ease, color 140ms ease;
-}
-
-.widget-action-cue svg {
-  width: 60%;
-  height: 60%;
-  flex: none;
-}
-
-.widget-interactive:hover .widget-action-cue,
-.widget-interactive:active .widget-action-cue {
-  background: var(--odk-stroke-focus);
-  color: var(--odk-bg);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(9px, calc(var(--cell-dim) * 0.065), 12px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-align: right;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex: 0 1 auto;
 }
 
 /* Glance badge for display-only telemetry instruments */
@@ -723,7 +762,7 @@ body.kiosk {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: clamp(28px, calc(var(--cell-dim) * 0.42), 60px);
   font-weight: 700;
-  line-height: 1;
+  line-height: 0.9;
 }
 
 .al-month {
@@ -838,10 +877,13 @@ body.kiosk {
 .w-pomodoro .pomodoro-body {
   position: relative;
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
-  margin: auto 0;
+  min-height: 0;
+  margin: 0;
   width: 100%;
+  overflow: hidden;
 }
 
 .pomodoro-ring-wrap {
@@ -969,9 +1011,32 @@ body.kiosk {
   background: var(--odk-surface);
 }
 
-.runtime-app h2 {
+.runtime-app h2,
+.runtime-app h1 {
   font-size: clamp(24px, calc(var(--cell-dim) * 0.17), 34px);
   font-weight: 400;
+}
+
+.app-surface-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gutter);
+  padding-bottom: calc(var(--gutter) * 0.55);
+  border-bottom: 1px solid var(--odk-stroke);
+}
+
+.app-surface-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.app-surface-header p {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(14px, calc(var(--cell-dim) * 0.1), 18px);
+  line-height: 1.35;
 }
 
 .runtime-app p,
@@ -1228,17 +1293,14 @@ body.kiosk {
   text-overflow: ellipsis;
 }
 
-.pi-widget-footer-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: clamp(11px, calc(var(--cell-dim) * 0.085), 14px);
-  color: var(--odk-secondary);
-  flex: none;
-}
-
 .pi-widget-summary {
+  max-width: 62%;
+  overflow: hidden;
   color: var(--odk-secondary);
+  font-size: clamp(10px, calc(var(--cell-dim) * 0.085), 14px);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pi-app-wrapper {
@@ -1360,6 +1422,12 @@ body.kiosk {
   max-height: calc(84vh - 140px);
   overflow-y: auto;
   padding-right: 6px;
+}
+
+.page-app .pi-sessions-feed {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 /* Custom scrollbar */

@@ -17,11 +17,11 @@
     if (def.kind === 'status' && !['left', 'right'].includes(def.slot)) {
       throw new Error(`status plugin "${def.id}" requires a supported slot`)
     }
-    if (def.kind === 'tile' && def.interaction === 'display-only' && def.appId) {
-      throw new Error(`display-only tile "${def.id}" cannot declare appId`)
+    if (def.kind === 'tile' && def.interaction && def.interaction !== 'display-only') {
+      throw new Error(`tile "${def.id}" must be display-only`)
     }
-    if (def.kind === 'tile' && def.interaction === 'open-app' && !def.appId) {
-      throw new Error(`open-app tile "${def.id}" requires appId`)
+    if (def.kind === 'tile' && def.appId) {
+      throw new Error(`tile "${def.id}" cannot declare an App continuation`)
     }
   }
 

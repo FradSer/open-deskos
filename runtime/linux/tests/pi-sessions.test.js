@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
-const { scanPiSessions, parseDirectorySessions } = require('../src/pi-sessions')
+const { scanPiSessions } = require('../src/pi-sessions')
 
 test('scanPiSessions returns empty summary when agent directory does not exist', async () => {
   const nonExistentDir = path.join(os.tmpdir(), `pi-test-agent-${Date.now()}`)
@@ -139,9 +139,9 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
     },
   }
 
-  let emitted = null
+  let navigated = null
   const ctx = {
-    emitIntent(intent) { emitted = intent },
+    navigateToPage(pageId) { navigated = pageId },
     onTick(fn) {},
   }
 
@@ -150,11 +150,6 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
   assert.ok(fakeEl.innerHTML.includes('PI'))
   assert.equal(typeof btnListeners.click, 'function')
   btnListeners.click()
-  assert.equal(JSON.stringify(emitted), JSON.stringify({
-    type: 'open-app',
-    appId: 'pi-sessions',
-    widgetId: 'odk.status.pi-sessions',
-    route: 'today',
-  }))
+  assert.equal(navigated, 'pi-sessions')
 })
 
