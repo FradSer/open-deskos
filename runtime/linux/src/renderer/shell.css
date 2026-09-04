@@ -248,29 +248,6 @@ body.kiosk {
   color: var(--odk-accent-green);
 }
 
-.sb-state-summary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: 18px;
-  min-width: 0;
-  color: var(--odk-secondary-strong);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: 15px;
-  white-space: nowrap;
-}
-
-.sb-state-item {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sb-state-divider {
-  color: var(--odk-secondary);
-  user-select: none;
-}
-
 /* Page dots centered in the status bar */
 #page-center {
   position: absolute;
@@ -373,13 +350,15 @@ body.kiosk {
 
 .page-app > .runtime-app,
 .page-app > .card {
-  width: min(100% - calc(var(--gutter) * 2), 78rem);
-  max-width: calc(100% - calc(var(--gutter) * 2));
+  flex: 0 0 min(var(--grid-w), 100%);
+  box-sizing: border-box;
+  width: min(var(--grid-w), 100%);
+  height: var(--grid-h);
   max-height: 100%;
+  margin: auto;
 }
 
 .page-app > .runtime-app {
-  height: 100%;
   overflow: hidden;
 }
 
@@ -388,7 +367,7 @@ body.kiosk {
 }
 
 .page-app .quota-card {
-  margin: auto;
+  overflow: auto;
 }
 
 /* ---- Dashboard briefing ---- */
@@ -599,32 +578,6 @@ body.kiosk {
 @media (max-width: 999px) {
   #status-bar {
     padding-inline: calc(var(--gutter) * 0.7);
-  }
-
-  .sb-state-summary {
-    position: absolute;
-    right: var(--gutter);
-    bottom: 0;
-    left: calc(var(--gutter) * 2.5);
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: center;
-    gap: 4px;
-    margin-left: 0;
-    font-size: clamp(8px, calc(var(--cell-dim) * 0.075), 11px);
-    line-height: 1;
-  }
-
-  .sb-state-item {
-    min-width: 0;
-    overflow: hidden;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sb-state-divider {
-    display: none;
   }
 
   .sb-pi-status {
@@ -1351,7 +1304,6 @@ body.kiosk {
 }
 
 .pi-app-wrapper {
-  width: min(100%, 64rem);
   max-height: 84vh;
   display: flex;
   flex-direction: column;
@@ -1917,15 +1869,38 @@ body.kiosk {
 }
 
 @media (max-width: 380px) {
+  .pi-app-wrapper {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .pi-app-header h1 {
+    font-size: 20px;
+  }
+
+  .pi-app-header p {
+    display: none;
+  }
+
+  .pi-app-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .pi-filter-group {
-    flex-wrap: wrap;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
     border-radius: 14px;
     row-gap: 3px;
   }
 
   .pi-filter-btn {
-    flex: 1 1 45%;
-    padding-inline: 6px;
+    flex: 1 1 0;
+    padding-inline: 2px;
+  }
+
+  .pi-refresh-btn {
+    width: 100%;
   }
 }
 

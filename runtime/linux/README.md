@@ -7,14 +7,14 @@ Orange Pi CM5 (RK3588S) Linux 设备上的 Open DeskOS 外壳，基于 Electron�
 ## 功能范围
 
 - 1920×1280 默认 kiosk 窗口，分辨率可经环境变量覆盖；布局会响应其它窗口尺寸
-- Open DeskOS 布局：顶部 State Bar（网络、OpenCode Go、Remote Link、Pi Sessions 和时钟），下方五列三行 Widget 网格；窄窗口自适应重排
+- Open DeskOS 布局：顶部 State Bar（网络指示、Pi Sessions 和时钟），下方五列三行 Widget 网格；窄窗口自适应重排
 - 四页横向触摸滑动：Today、Home、Pi Sessions、Usage；Home 仅展示不可交互 Widget，后两页提供 App 交互；Pi Sessions 同时读取本地 `ps` 进程表和 Pi 会话元数据，无元数据的进程也会如实显示其 PID、工作目录、状态和运行时长
 - OpenCode Go 用量页显示滚动窗口、周/月用量、重置时间和 Zen 余额
 - 用量状态由设备本地配置决定：未配置、同步成功、凭据无效或暂不可用均如实显示，不伪造数据
 - Face Agent 视觉状态由 Electron 主进程从固定 loopback 健康端点读取；这是不阻断的实验集成，服务、相机和当前帧状态均如实显示，不伪造人脸、身份或情绪
 - Widget 先陈述真实状态；已声明 `open-app` 的 Widget 是对应 App 的状态延续与内容入口
 - UI 只发出 intent；当前的 main-process endpoint 与 renderer runtime 验证内置视图启动、动作和停止的 seam，不宣称已提供可安装应用平台
-- Remote Bridge 通过 Unix socket 发布权威分页状态；State Bar 始终显示网络、OpenCode Go 和 Remote Link 状态
+- Remote Bridge 通过 Unix socket 发布权威分页状态；OpenCode Go 和 Remote Link 状态在各自的专用页面中如实显示
 
 ## 目录结构
 

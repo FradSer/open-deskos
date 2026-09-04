@@ -36,7 +36,7 @@ const DRIVER_SCRIPT = `
     return ['mount', 'unmount']
       .every((phase) => typeof lifecycle?.[phase] === 'function')
   })
-  out.focusedStateBar = $('#sb-state-summary')?.classList.contains('sb-state-summary') && $('#page-context')?.classList.contains('sr-only')
+  out.focusedStateBar = $('#sb-state-summary') === null && $('#page-context')?.classList.contains('sr-only')
   out.noDockOrDesktopIconPile = !$('#dock') && document.querySelectorAll('.desktop-icon').length === 0
   let dupThrown = false
   try { window.odkPlugins.register({ id: out.pluginIds[0], mount() {} }) } catch { dupThrown = true }
@@ -54,14 +54,10 @@ const DRIVER_SCRIPT = `
   out.statusSlotsMounted =
     document.querySelector('[data-slot="status-left"] #sb-net') !== null &&
     document.querySelector('[data-slot="status-left"] #sb-pi-status') !== null &&
-    document.querySelector('[data-slot="status-left"] #sb-state-summary') !== null &&
     document.querySelector('[data-slot="status-right"] .sb-time') !== null
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
   out.noRemovedLegacySurfaces = !out.pluginIds.includes('odk.app.system') && !document.querySelector('#peek, [data-slot="peek"]')
-  out.stateSummaryIsFactual =
-    $('#sb-network-state')?.textContent === 'Network connected' &&
-    $('#sb-subscription-state')?.textContent === 'OpenCode Go not configured' &&
-    $('#sb-remote-state')?.textContent === 'Remote · Disconnected'
+  out.stateSummaryRemoved = $('#sb-state-summary') === null
 
   const statusBarRect = $('#status-bar').getBoundingClientRect()
   const dotsRect = $('#dots').getBoundingClientRect()
@@ -159,6 +155,14 @@ const DRIVER_SCRIPT = `
   out.gridFlushEdges =
     gridRect.left >= gridPageRect.left - 2 &&
     gridRect.right <= gridPageRect.right + 2
+  const piAppRect = document.querySelector('#pages-track .page[data-page="2"] .pi-app-wrapper').getBoundingClientRect()
+  const quotaCardRect = document.querySelector('#pages-track .page[data-page="3"] .quota-card').getBoundingClientRect()
+  const appSurfaceWidth = Math.min(metrics.gridW, window.innerWidth)
+  out.appSurfacesMatchGridFootprint =
+    approx(piAppRect.width, appSurfaceWidth) &&
+    approx(piAppRect.height, metrics.gridH) &&
+    approx(quotaCardRect.width, appSurfaceWidth) &&
+    approx(quotaCardRect.height, metrics.gridH)
 
   const clockRect = $('.w-clock').getBoundingClientRect()
   out.clockSpansOneSquare = approx(clockRect.width, metrics.cellW) && approx(clockRect.height, metrics.cellH)
@@ -168,12 +172,7 @@ const DRIVER_SCRIPT = `
     approx(pomodoroRect.width, 2 * metrics.cellW + metrics.gutter) &&
     approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
-  out.stateSummaryFits = (() => {
-    const summary = $('#sb-state-summary').getBoundingClientRect()
-    const bar = $('#status-bar').getBoundingClientRect()
-    return summary.top >= bar.top && summary.bottom <= bar.bottom
-  })()
-  out.subscriptionInitialStatus = $('#sb-subscription-state').textContent === 'OpenCode Go not configured'
+  out.subscriptionInitialStatus = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
@@ -230,7 +229,7 @@ const DRIVER_SCRIPT = `
   $('#app-back').click()
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.noBottomPeekAfterAppNavigation = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
-  out.stateSummaryRemainsVisible = !$('#sb-state-summary').hidden && $('#sb-state-summary').textContent.includes('Remote')
+  out.stateSummaryRemainsRemoved = $('#sb-state-summary') === null
   await window.odkAppPlatform.openApp({ appId: 'app-manager' })
   await new Promise((resolve) => setTimeout(resolve, 100))
   out.appManagerSearchVisible = Boolean($('#app-runtime .app-manager .app-search'))
@@ -339,22 +338,9 @@ const GEOMETRY_PROBE = `
       const r = el.getBoundingClientRect()
       if (r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1) { textsFit = false }
     }
-    const summary = $('#sb-state-summary')
-    const summaryRect = summary?.getBoundingClientRect()
-    const dots = $('#dots').getBoundingClientRect()
-    const time = $('.sb-time').getBoundingClientRect()
-    const summaryItems = summary ? [...summary.querySelectorAll('.sb-state-item')] : []
-    const summaryItemsFit = summary && summaryItems.every((item) => {
-      const rect = item.getBoundingClientRect()
-      return rect.width > 0 && rect.left >= summaryRect.left - 1 && rect.right <= summaryRect.right + 1 && item.textContent.trim().length > 0
-    })
-    const stateSummaryResponsive = window.innerWidth >= 1000 || (
-      summaryRect && summaryRect.top >= Math.max(dots.bottom, time.bottom) - 1 && summaryItemsFit
-    )
     return {
       cellW: m.cellW,
-      stateSummaryVisible: Boolean(summary && getComputedStyle(summary).display !== 'none' && summaryRect.height > 0),
-      stateSummaryResponsive,
+      stateSummaryRemoved: $('#sb-state-summary') === null,
       widgetsTotal: widgets.length,
       widgetsInside,
       gridColumns: getComputedStyle(document.querySelector('.widget-grid')).gridTemplateColumns.split(' ').length,
@@ -373,13 +359,13 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.status.summary', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
     ['all pages built by composer', results.pagesBuiltByComposer],
     ['status bar slots mounted by plugins', results.statusSlotsMounted],
-    ['State Bar summary is mounted and bottom Peek is removed', results.statusSlotsMounted && results.noBottomPeek && results.noRemovedLegacySurfaces && results.stateSummaryIsFactual && results.stateSummaryFits],
+    ['State Bar omits textual connection summaries and bottom Peek', results.statusSlotsMounted && results.noBottomPeek && results.noRemovedLegacySurfaces && results.stateSummaryRemoved],
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
@@ -403,7 +389,7 @@ function check(results) {
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesFaceAgentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
     ['preload exposes only narrow Remote Link API', results.remotePreloadIsNarrow],
     ['pager publishes complete authoritative Remote state', results.remotePageStatePublishesAuthoritativeBoundaries],
-    ['State Bar displays USB, wireless, and synchronizing Remote Link states', results.stateShowsUsbRemote && results.stateShowsWirelessRemote && results.stateShowsSyncingRemote],
+    ['Remote Link service retains USB, wireless, and synchronizing states', results.stateShowsUsbRemote && results.stateShowsWirelessRemote && results.stateShowsSyncingRemote],
     ['Remote Link navigation moves only an unoccluded bounded pager', results.remoteNavigationMovesPager],
     ['duplicate Remote Link navigation moves only one page', results.repeatedRemoteMovesOnce],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
@@ -422,9 +408,10 @@ function check(results) {
     ['grid has 5 columns', results.gridColumns === 5],
     ['grid has 3 rows', results.gridRows === 3],
     ['grid flush to screen edges', results.gridFlushEdges],
+    ['App surfaces match the widget grid footprint', results.appSurfacesMatchGridFootprint],
     ['clock widget spans 1x1 square', results.clockSpansOneSquare],
     ['pomodoro widget spans 2x2 square', results.pomodoroSpansTwoSquare],
-    ['State Bar shows subscription, network, and Remote Link status', results.stateSummaryIsFactual && results.noBottomPeek],
+    ['State Bar omits subscription, network, and Remote Link text', results.stateSummaryRemoved && results.noBottomPeek],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
@@ -433,7 +420,7 @@ function check(results) {
     ['Pi Sessions is a direct interactive App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageShowsProcessState && results.piPageRendersSessionDetails && results.piFilesCollapsedInitially && results.piPageRendersModifiedFiles && results.piSearchKeepsPagerPosition && results.piFilterIsInteractive],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
-    ['State Bar remains factual after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsVisible],
+    ['State Bar stays concise after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsRemoved],
     ['built-in view search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
     ['widget App returns to source page', results.pagePreservedAfterWidgetApp],
     ['cancelled drag keeps navigation usable', results.cancelledDragKeepsNavigationUsable],
@@ -514,8 +501,7 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 350))
     const checks = [
       ['all widgets inside viewport', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
-      ['State Bar summary remains visible', probe.stateSummaryVisible],
-      ['portrait State Bar summary avoids pager and clock', probe.stateSummaryResponsive],
+      ['State Bar summary remains removed', probe.stateSummaryRemoved],
       ['Pi App controls stay inside portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.filterButtonsInside],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
@@ -684,19 +670,19 @@ async function main() {
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#sb-remote-state').textContent === 'Remote · Connected by USB'",
+    "document.querySelector('#sb-remote-state') === null && window.odkServices.remoteLink.label() === 'Connected by USB'",
     true,
   )
   win.webContents.send('odk-remote-link-state', { state: 'wireless', sequence: 2 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsWirelessRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#sb-remote-state').textContent === 'Remote · Connected wirelessly'",
+    "document.querySelector('#sb-remote-state') === null && window.odkServices.remoteLink.label() === 'Connected wirelessly'",
     true,
   )
   win.webContents.send('odk-remote-link-state', { state: 'syncing', sequence: 3 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsSyncingRemote = await win.webContents.executeJavaScript(
-    "document.querySelector('#sb-remote-state').textContent === 'Remote · Synchronizing'",
+    "document.querySelector('#sb-remote-state') === null && window.odkServices.remoteLink.label() === 'Synchronizing'",
     true,
   )
   await new Promise((resolve) => setTimeout(resolve, 1400))

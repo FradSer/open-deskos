@@ -15,6 +15,8 @@ function applyGeometry() {
   root.setProperty('--cell-w', `${m.cellW}px`)
   root.setProperty('--cell-h', `${m.cellH}px`)
   root.setProperty('--cell-dim', `${cellDim}px`)
+  root.setProperty('--grid-w', `${m.gridW}px`)
+  root.setProperty('--grid-h', `${m.gridH}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
   root.setProperty('--bar-icon', `${m.barIcon}px`)

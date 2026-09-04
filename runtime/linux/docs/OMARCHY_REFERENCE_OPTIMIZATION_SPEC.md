@@ -132,14 +132,7 @@ Feature: Desk instrument experience
     When the first page renders
     Then the top bar presents only network reachability, page orientation, and local time
     And Today presents only local and provider-backed facts
-    And the peek identifies unavailable provider and Remote Link state without fabricated personal activity
-
-  Scenario: The peek leads to a focused factual status view
-    Given the shell is running
-    When the user selects the peek
-    Then a focused status surface presents the current provider, network, Remote Link, and foreground-view state
-    And any recovery action is available only when the runtime can perform it
-    And Back or Escape returns to the source page and preserves its page position
+    And the Usage and Remote Control surfaces identify unavailable provider and Remote Link state without fabricated personal activity
 
   Scenario: Renderer status presentation preserves independent peripheral gates
     Given Remote Link or experimental Face Agent is unavailable

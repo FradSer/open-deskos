@@ -20,11 +20,10 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And it receives another ArrowRight key press after the prior navigation completes
     Then it displays the third page
 
-  Scenario: Linux network and Remote Link status remain separate
+  Scenario: Linux network status remains concise
     Given the Linux shell is running
-    Then the State Bar network indicator only describes network reachability
-    And the State Bar shows OpenCode Go readiness and Remote Link state
-    And Remote Link states remain disconnected, USB, wireless or synchronizing
+    Then the State Bar shows only a network reachability indicator
+    And it does not render Network connected, OpenCode Go readiness, or Remote Link text
     When the network changes offline then online
     Then the indicator and assistive status announcement update accordingly
 
@@ -48,8 +47,14 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Given the shell is resized below the widescreen breakpoint
     When the Home grid is rendered
     Then widgets use the narrow responsive grid instead of overflowing desktop coordinates
-    And the State Bar still shows truthful network, provider, and Remote Link states
+    And the State Bar retains its network reachability indicator
     And every widget remains inside the viewport
+
+  Scenario: Every page uses the widget grid footprint
+    Given the shell starts at 1920 by 1280
+    Then the Home widgets occupy the shared grid footprint
+    And the Pi Sessions App surface matches that grid width and height
+    And the Usage App card matches that grid width and height
 
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
@@ -163,7 +168,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When the remote sends previous or next navigation
     Then the shell changes only to an adjacent page
     And first and last page boundaries remain fixed
-    And Remote Link state is shown independently from OpenCode Go status
+    And Remote Link navigation remains independent from OpenCode Go status
 
   Scenario: Renderer UI is English-only
     Given the Linux shell is loaded
@@ -212,10 +217,10 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And no generic plugin backend RPC or automatic widget placement is available
 
 
-  Scenario: State Bar keeps factual system status visible without a bottom Peek
+  Scenario: State Bar keeps navigation concise without a bottom Peek
     Given the Display Shell is running with available or unavailable provider and Remote Link state
     When the user looks at the State Bar
-    Then it shows provider readiness, network, and Remote Link state
+    Then it shows its network reachability indicator without provider or Remote Link text
     And no bottom Peek container is rendered
 
   Scenario: CM5 acceptance identifies release and hardware evidence separately
