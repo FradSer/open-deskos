@@ -12,6 +12,10 @@
     return formatNumber(lux, lux < 1 ? 2 : 0)
   }
 
+  function formatPressure(pressureHpa) {
+    return String(Math.round(pressureHpa))
+  }
+
   function formatSoil(entry) {
     if (entry.online === false) return '--'
     if (entry.soilPercent === undefined || entry.soilPercent === null) return '--'
@@ -32,14 +36,18 @@
     if (!entry) {
       plant.root.className = 'hydra-plant hydra-idle'
       plant.soil.textContent = '--'
-      plant.note.textContent = ''
+      plant.meterFill.style.width = '0%'
+      plant.meterFill.classList.remove('hydra-meter-dry')
       return
     }
     const offline = entry.online === false
     const watering = entry.pump === true && !offline
     plant.root.className = `hydra-plant${offline ? ' hydra-offline' : ''}${watering ? ' hydra-watering' : ''}`
     plant.soil.textContent = formatSoil(entry)
-    plant.note.textContent = offline ? 'Offline' : (watering ? 'Watering' : '')
+    plant.soil.classList.toggle('hydra-soil-watering', watering)
+    const percent = offline || entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
+    plant.meterFill.style.width = `${percent}%`
+    plant.meterFill.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
   }
 
   root.odkPlugins.register({
@@ -69,14 +77,18 @@
           </div>
           <div class="hydra-plants">
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
-              <span class="hydra-plant-name">Plant 1</span>
-              <span class="hydra-plant-soil">--</span>
-              <span class="hydra-plant-note"></span>
+              <div class="hydra-plant-row">
+                <span class="hydra-plant-name">Plant 1</span>
+                <span class="hydra-plant-soil">--</span>
+              </div>
+              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
             </div>
             <div class="hydra-plant hydra-idle" id="hydra-plant-2">
-              <span class="hydra-plant-name">Plant 2</span>
-              <span class="hydra-plant-soil">--</span>
-              <span class="hydra-plant-note"></span>
+              <div class="hydra-plant-row">
+                <span class="hydra-plant-name">Plant 2</span>
+                <span class="hydra-plant-soil">--</span>
+              </div>
+              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
             </div>
           </div>
         </div>`
@@ -97,7 +109,7 @@
         plants: plantRoots.map((rootEl) => ({
           root: rootEl,
           soil: rootEl.querySelector('.hydra-plant-soil'),
-          note: rootEl.querySelector('.hydra-plant-note'),
+          meterFill: rootEl.querySelector('.hydra-meter-fill'),
         })),
       }
 
@@ -123,11 +135,11 @@
         }
         const env = snapshot.env
         body.classList.remove('hydra-unconfigured')
-        const envLive = env && !env.stale
-        envCell(refs, 'temp', envLive && env.tempC !== undefined ? formatNumber(env.tempC) : '--', '°C')
-        envCell(refs, 'humidity', envLive && env.humidity !== undefined ? formatNumber(env.humidity, 0) : '--', '%')
-        envCell(refs, 'pressure', envLive && env.pressureHpa !== undefined ? formatNumber(env.pressureHpa, 0) : '--', 'hPa')
-        envCell(refs, 'lux', envLive && env.lux !== undefined ? formatLux(env.lux) : '--', 'lx')
+        body.classList.toggle('hydra-stale', Boolean(env && env.stale))
+        envCell(refs, 'temp', env && env.tempC !== undefined ? formatNumber(env.tempC) : '--', '°C')
+        envCell(refs, 'humidity', env && env.humidity !== undefined ? formatNumber(env.humidity, 0) : '--', '%')
+        envCell(refs, 'pressure', env && env.pressureHpa !== undefined ? formatPressure(env.pressureHpa) : '--', 'hPa')
+        envCell(refs, 'lux', env && env.lux !== undefined ? formatLux(env.lux) : '--', 'lx')
         const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
         refs.plants.forEach((_, index) => renderPlant(refs, index, nodes.find((entry) => entry.id === index + 1)))
       }

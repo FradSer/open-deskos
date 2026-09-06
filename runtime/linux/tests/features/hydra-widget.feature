@@ -28,12 +28,20 @@ Feature: Hydra plant and environment widget on the Home grid
     Then node 1 shows the soil reading as unavailable
     And node 2 is marked offline without fabricating moisture
 
-  Scenario: Silent environment data is marked stale
+  Scenario: Silent environment data dims instead of vanishing
     Given the Hydra MQTT bridge is configured and connected
     And the main node stopped publishing environment readings
     When the Hydra widget refreshes after the environment staleness window
     Then the widget marks the environment data as stale
-    And it does not present the stale readings as live
+    And it keeps showing the last known readings dimmed under the stale badge
+    And it never presents the stale readings as live
+
+  Scenario: Plant rows carry a soil moisture meter
+    Given the Hydra MQTT bridge is configured and connected
+    And node 1 reports soil 62 percent and node 2 reports soil 44 percent
+    When the Hydra widget refreshes
+    Then each plant row shows a soil meter bar filled to its reported percentage
+    And a plant below the dry threshold shows its meter in the dry color
 
   Scenario: Hydra occupies the right-edge tall slot and replaces the screen-size tile
     Given the Home grid renders with the Hydra widget placed at column 5 spanning rows 2 to 4

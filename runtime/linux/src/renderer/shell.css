@@ -1933,8 +1933,8 @@ body.kiosk {
 .hydra-env {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.5cqi;
-  padding: 0.5cqi 0;
+  gap: 1.5cqi;
+  padding: 4cqi 0;
   border-block: 1px solid var(--odk-stroke);
 }
 
@@ -1967,9 +1967,34 @@ body.kiosk {
 
 .hydra-plant {
   display: flex;
+  flex-direction: column;
+  gap: 2cqi;
+  min-width: 0;
+}
+
+.hydra-plant-row {
+  display: flex;
   align-items: center;
   gap: 3cqi;
   min-width: 0;
+}
+
+.hydra-meter {
+  height: 2.5cqi;
+  border-radius: var(--odk-radius-pill);
+  background: color-mix(in srgb, var(--odk-stroke) 55%, transparent);
+  overflow: hidden;
+}
+
+.hydra-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--odk-accent-green);
+  transition: width 0.4s var(--odk-ease-out);
+}
+
+.hydra-meter-fill.hydra-meter-dry {
+  background: var(--odk-accent-red);
 }
 
 .hydra-plant-name {
@@ -1993,19 +2018,14 @@ body.kiosk {
   font-variant-numeric: tabular-nums;
 }
 
-.hydra-plant.hydra-watering .hydra-plant-note {
+.hydra-watering .hydra-plant-soil {
   color: var(--odk-accent-blue);
 }
 
-.hydra-plant-note {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--odk-secondary-strong);
-  font-size: clamp(12px, 5cqi, 14px);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.hydra-watering .hydra-meter-fill {
+  background: var(--odk-accent-blue);
 }
+
 
 .hydra-offline .hydra-plant-soil,
 .hydra-offline .hydra-plant-name {
@@ -2015,6 +2035,10 @@ body.kiosk {
 .hydra-unconfigured .hydra-env,
 .hydra-unconfigured .hydra-plants {
   opacity: 0.45;
+}
+
+.hydra-stale .hydra-env {
+  opacity: 0.55;
 }
 
 /* Widescreen: the Hydra tile spans two grid rows, so the instrument scales up. */
@@ -2056,10 +2080,6 @@ body.kiosk {
 
   .hydra-plant-soil {
     font-size: clamp(24px, 18cqi, 64px);
-  }
-
-  .hydra-plant-note {
-    font-size: clamp(13px, 8cqi, 26px);
   }
 }
 
