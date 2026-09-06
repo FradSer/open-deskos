@@ -1931,21 +1931,21 @@ body.kiosk {
 }
 
 .hydra-badge-live {
-  color: var(--odk-accent-green);
-  border-color: color-mix(in srgb, var(--odk-accent-green) 35%, var(--odk-stroke));
+  background: var(--odk-accent-green);
+  border-color: transparent;
+  color: var(--odk-bg);
 }
 
 .hydra-badge-warn {
-  color: var(--odk-accent-red);
-  border-color: color-mix(in srgb, var(--odk-accent-red) 35%, var(--odk-stroke));
+  background: var(--odk-accent-red);
+  border-color: transparent;
+  color: var(--odk-bg);
 }
 
 .hydra-env {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5cqi;
-  padding: 2.5cqi 0;
-  border-block: 1px solid var(--odk-stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 1cqi;
 }
 
 .hydra-env-cell {
@@ -1953,58 +1953,63 @@ body.kiosk {
   align-items: baseline;
   gap: 2cqi;
   min-width: 0;
+  padding: 1.5cqi 3cqi;
+  border-radius: 2.5cqi;
+  background: var(--odk-elevated);
+}
+
+.hydra-env-label {
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(12px, 5.5cqi, 20px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.hydra-reading {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5cqi;
+  margin-left: auto;
+  min-width: 0;
 }
 
 .hydra-env-value {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(12px, 7cqi, 28px);
+  font-size: clamp(12px, 8cqi, 28px);
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .hydra-env-unit {
   color: var(--odk-secondary-strong);
-  font-size: clamp(12px, 4.5cqi, 14px);
+  font-size: clamp(12px, 5cqi, 14px);
 }
 
 .hydra-plants {
   display: flex;
   flex-direction: column;
-  gap: 0.5cqi;
+  gap: 1.5cqi;
 }
 
 .hydra-plant {
   display: flex;
   flex-direction: column;
-  gap: 2cqi;
+  gap: 1.5cqi;
   min-width: 0;
+  padding: 1.5cqi 3cqi;
+  border-radius: 2.5cqi;
+  background: var(--odk-elevated);
 }
 
 .hydra-plant-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 3cqi;
   min-width: 0;
-}
-
-.hydra-meter {
-  height: 3cqi;
-  border-radius: var(--odk-radius-pill);
-  background: var(--odk-stroke);
-  overflow: hidden;
-}
-
-.hydra-meter-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--odk-accent-green);
-  transition: width 0.4s var(--odk-ease-out);
-}
-
-.hydra-meter-fill.hydra-meter-dry {
-  background: var(--odk-accent-red);
 }
 
 .hydra-plant-name {
@@ -2025,21 +2030,46 @@ body.kiosk {
   font-size: clamp(14px, 7cqi, 24px);
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.hydra-watering .hydra-plant-soil {
-  color: var(--odk-accent-blue);
+.hydra-meter {
+  height: 3cqi;
+  border-radius: var(--odk-radius-pill);
+  background: color-mix(in srgb, var(--odk-bg) 65%, transparent);
+  overflow: hidden;
 }
 
+.hydra-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--odk-accent-green);
+  transition: width 0.4s var(--odk-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hydra-meter-fill {
+    transition: none;
+  }
+}
+
+.hydra-meter-fill.hydra-meter-dry {
+  background: var(--odk-accent-red);
+}
+
+/* A running watering overrides the dry threshold: blue is the in-progress state. */
 .hydra-watering .hydra-meter-fill {
   background: var(--odk-accent-blue);
 }
 
-
 .hydra-offline .hydra-plant-soil,
 .hydra-offline .hydra-plant-name {
   color: var(--odk-secondary);
+}
+
+.hydra-offline.hydra-plant {
+  background: color-mix(in srgb, var(--odk-elevated) 55%, transparent);
 }
 
 .hydra-unconfigured .hydra-env,
@@ -2068,12 +2098,19 @@ body.kiosk {
   }
 
   .hydra-env {
-    gap: 3cqi;
-    padding: 4cqi 0;
+    gap: 1.5cqi;
+  }
+
+  .hydra-env-cell {
+    padding: 2.5cqi 3.5cqi;
+  }
+
+  .hydra-env-label {
+    font-size: clamp(14px, 6.5cqi, 26px);
   }
 
   .hydra-env-value {
-    font-size: clamp(24px, 19cqi, 68px);
+    font-size: clamp(24px, 19cqi, 64px);
   }
 
   .hydra-env-unit {
@@ -2081,7 +2118,7 @@ body.kiosk {
   }
 
   .hydra-plants {
-    gap: 3cqi;
+    gap: 2cqi;
   }
 
   .hydra-plant-name {

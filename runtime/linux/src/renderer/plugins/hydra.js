@@ -70,10 +70,10 @@
             <span class="hydra-badge" id="hydra-badge">…</span>
           </div>
           <div class="hydra-env">
-            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></div>
-            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></div>
-            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></div>
-            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></div>
+            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-label">Temp</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-label">Humidity</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-label">Pressure</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-label">Light</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></span></div>
           </div>
           <div class="hydra-plants">
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
