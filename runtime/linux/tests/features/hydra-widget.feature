@@ -18,7 +18,8 @@ Feature: Hydra plant and environment widget on the Home grid
     And the main node reports temperature, humidity, pressure and lux
     When the Hydra widget refreshes
     Then both plant rows show their soil percentage and watering state
-    And the environment section renders label-and-reading rows with a trailing tabular reading on a quiet surface
+    And the environment section renders stacked instrument rows with the label above a large tabular reading
+    And the header sits at the top edge of the tile while the readings breathe evenly below it
     And the live badge renders as a quiet outlined live-state pill
     And the widget states a live data status
 

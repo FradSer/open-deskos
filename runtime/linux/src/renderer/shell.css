@@ -1171,31 +1171,34 @@ body.kiosk {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 4px 0 2px;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  gap: clamp(10px, 7cqi, 70px);
   min-height: 0;
 }
 
 .pi-widget-metric-row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 3cqi;
   flex: none;
 }
 
 .pi-widget-count {
   font-family: "Montserrat", sans-serif;
-  font-size: clamp(34px, calc(var(--cell-dim) * 0.32), 56px);
+  font-size: clamp(64px, 42cqi, 380px);
   font-weight: 700;
   color: var(--odk-primary);
   line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .pi-widget-unit {
   font-family: "Montserrat", sans-serif;
-  font-size: clamp(11px, calc(var(--cell-dim) * 0.08), 14px);
+  font-size: clamp(16px, 8cqi, 44px);
   font-weight: 700;
   color: var(--odk-secondary-strong);
   letter-spacing: 0.06em;
@@ -1213,10 +1216,10 @@ body.kiosk {
 
 .pi-widget-tag-label {
   font-family: "Montserrat", sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--odk-secondary);
-  letter-spacing: 0.05em;
+  color: var(--odk-secondary-strong);
+  letter-spacing: 0.04em;
 }
 
 .pi-widget-tag-label.text-odk-green {
@@ -1238,55 +1241,27 @@ body.kiosk {
   background: var(--odk-secondary);
 }
 
-.pi-widget-glance-box {
-  background: var(--odk-elevated);
-  border: 1px solid var(--odk-stroke);
-  border-radius: calc(var(--radius) * 0.45);
-  padding: calc(var(--gutter) * 0.45) calc(var(--gutter) * 0.55);
+.pi-widget-context {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-height: 0;
-  justify-content: center;
+  align-items: center;
+  gap: var(--odk-space-1);
+  text-align: center;
 }
 
-.pi-glance-icon {
-  width: 15px;
-  height: 15px;
-  color: var(--odk-secondary-strong);
-  flex: none;
+.pi-widget-context .w-state {
+  font-size: clamp(16px, 9cqi, 30px);
 }
 
-.pi-glance-ws-name {
-  font-family: "Montserrat", sans-serif;
-  font-weight: 700;
-  font-size: clamp(12px, calc(var(--cell-dim) * 0.095), 15px);
-  color: var(--odk-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pi-glance-goal {
-  font-size: clamp(12px, calc(var(--cell-dim) * 0.09), 14px);
-  color: var(--odk-secondary-strong);
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.pi-widget-metric-row > .odk-row {
+  flex-wrap: wrap;
 }
 
 .pi-widget-summary {
-  max-width: 62%;
-  overflow: hidden;
-  color: var(--odk-secondary);
-  font-size: clamp(10px, calc(var(--cell-dim) * 0.085), 14px);
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(16px, 7cqi, 30px);
+  line-height: 1.5;
+  white-space: normal;
 }
 
 .pi-app-wrapper {
@@ -1894,9 +1869,9 @@ body.kiosk {
 .hydra-body {
   display: flex;
   flex-direction: column;
-  gap: 1cqi;
-  margin: auto 0;
-  justify-content: space-evenly;
+  gap: 2.5cqi;
+  margin: auto 0 0;
+  justify-content: flex-start;
 }
 
 .hydra-head {
@@ -1941,19 +1916,23 @@ body.kiosk {
 }
 
 .hydra-env {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-evenly;
   gap: 1cqi;
 }
 
 .hydra-env-cell {
   display: flex;
-  align-items: baseline;
-  gap: 2cqi;
+  flex-direction: column;
+  gap: 0.5cqi;
   min-width: 0;
 }
 
 .hydra-env-label {
+  flex: 0 0 34%;
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
   font-size: clamp(12px, 5.5cqi, 20px);
@@ -1965,7 +1944,6 @@ body.kiosk {
   display: flex;
   align-items: baseline;
   gap: 1.5cqi;
-  margin-left: auto;
   min-width: 0;
 }
 
@@ -2027,7 +2005,7 @@ body.kiosk {
 }
 
 .hydra-meter {
-  height: 3cqi;
+  height: 3.5cqi;
   border-radius: var(--odk-radius-pill);
   background: color-mix(in srgb, var(--odk-bg) 65%, transparent);
   overflow: hidden;
@@ -2043,6 +2021,54 @@ body.kiosk {
 @media (prefers-reduced-motion: reduce) {
   .hydra-meter-fill {
     transition: none;
+  }
+}
+
+@media (max-width: 999px) {
+  .pi-widget-count {
+    font-size: clamp(48px, 24cqi, 96px);
+  }
+}
+
+@media (max-width: 999px) {
+  .hydra-body {
+    justify-content: space-between;
+  }
+
+  .hydra-env {
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5cqi;
+  }
+
+  .hydra-env-value {
+    font-size: clamp(12px, 6cqi, 20px);
+  }
+
+  .hydra-meter {
+    height: 2cqi;
+  }
+}
+
+@media (max-width: 999px) {
+  .hydra-body {
+    justify-content: space-between;
+  }
+
+  .hydra-env {
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5cqi;
+  }
+
+  .hydra-env-value {
+    font-size: clamp(12px, 6cqi, 20px);
+  }
+
+  .hydra-meter {
+    height: 2cqi;
   }
 }
 
@@ -2069,40 +2095,46 @@ body.kiosk {
   opacity: 0.55;
 }
 
-/* Widescreen: the Hydra tile spans two grid rows, so the instrument scales up. */
+/* Widescreen: Pomodoro is a 1x2 tall slot and Hydra spans two grid rows. */
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
+  .pomodoro-ring-wrap svg {
+    width: 88cqi;
+    height: 88cqi;
+  }
+
+  .ring-mmss {
+    font-size: clamp(28px, 22cqi, 120px);
+  }
+up. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   .hydra-head svg {
-    width: 11cqi;
-    height: 11cqi;
+    width: 13cqi;
+    height: 13cqi;
   }
 
   .hydra-title {
-    font-size: clamp(18px, 12cqi, 40px);
+    font-size: clamp(18px, 13cqi, 44px);
   }
 
   .hydra-badge {
-    padding: 1.5cqi 2.5cqi;
-    font-size: clamp(13px, 7cqi, 26px);
+    padding: 2cqi 3.5cqi;
+    font-size: clamp(13px, 7.5cqi, 28px);
   }
 
   .hydra-env {
-    gap: 1.5cqi;
-  }
-
-  .hydra-env-cell {
-    padding: 2.5cqi 3.5cqi;
+    gap: 2cqi;
   }
 
   .hydra-env-label {
-    font-size: clamp(14px, 6.5cqi, 26px);
+    font-size: clamp(14px, 6cqi, 22px);
   }
 
   .hydra-env-value {
-    font-size: clamp(24px, 19cqi, 64px);
+    font-size: clamp(24px, 17cqi, 60px);
   }
 
   .hydra-env-unit {
-    font-size: clamp(14px, 8cqi, 28px);
+    font-size: clamp(14px, 7cqi, 26px);
   }
 
   .hydra-plants {

@@ -23,6 +23,84 @@
     return minutes > 0 ? `${hours}h ${minutes}m elapsed` : `${hours}h elapsed`
   }
 
+  function setFilesExpanded(button, expanded) {
+    button.setAttribute('aria-expanded', String(expanded))
+    button.classList.toggle('expanded', expanded)
+    button.nextElementSibling.hidden = !expanded
+  }
+
+  function captureFeedState(feed) {
+    return new Map([...feed.querySelectorAll('[data-session-key]')].map(card => {
+      const focused = card.contains(document.activeElement) ? document.activeElement : null
+      return [card.dataset.sessionKey, {
+        filesOpen: card.querySelector('.pi-files-toggle')?.getAttribute('aria-expanded') === 'true',
+        focus: focused?.matches('.pi-files-toggle') ? '.pi-files-toggle' : null,
+      }]
+    }))
+  }
+
+  function sessionKey(session) {
+    return JSON.stringify([session.uuid || session.sessionId || session.id || '', session.pid || '', session.startedAt || ''])
+  }
+
+  function createSessionOrder() {
+    const workspaces = new Map()
+    const sessions = new Map()
+    return (items) => {
+      for (const session of items) {
+        const workspace = session.cwd || session.workspaceName || 'Default'
+        if (!workspaces.has(workspace)) workspaces.set(workspace, workspaces.size)
+        const key = sessionKey(session)
+        if (!sessions.has(key)) sessions.set(key, sessions.size)
+      }
+      return [...items].sort((a, b) => {
+        if ((a.status === 'running') !== (b.status === 'running')) return a.status === 'running' ? -1 : 1
+        return workspaces.get(a.cwd || a.workspaceName || 'Default') - workspaces.get(b.cwd || b.workspaceName || 'Default') ||
+          sessions.get(sessionKey(a)) - sessions.get(sessionKey(b))
+      })
+    }
+  }
+
+  function captureFeedAnchor(feed, surface) {
+    const top = Math.max(feed.getBoundingClientRect().top, surface.getBoundingClientRect().top)
+    const bottom = Math.min(feed.getBoundingClientRect().bottom, surface.getBoundingClientRect().bottom)
+    const card = [...feed.querySelectorAll('[data-session-key]')].find(node => {
+      const rect = node.getBoundingClientRect()
+      return rect.bottom > top && rect.top < bottom
+    })
+    return card ? { key: card.dataset.sessionKey, top: card.getBoundingClientRect().top } : null
+  }
+
+  function createFeedUpdater(feed) {
+    let previousHtml = null
+    return (html) => {
+      if (html === previousHtml) return
+      const state = captureFeedState(feed)
+      const surface = feed.closest('.pi-app-wrapper')
+      const scrollTop = surface.scrollTop
+      const feedScrollTop = feed.scrollTop
+      const anchor = captureFeedAnchor(feed, surface)
+      feed.innerHTML = html
+      previousHtml = html
+      for (const card of feed.querySelectorAll('[data-session-key]')) {
+        const saved = state.get(card.dataset.sessionKey)
+        if (!saved) continue
+        const files = card.querySelector('.pi-files-toggle')
+        if (files) setFilesExpanded(files, saved.filesOpen)
+        if (saved.focus) card.querySelector(saved.focus)?.focus({ preventScroll: true })
+      }
+      surface.scrollTop = scrollTop
+      feed.scrollTop = feedScrollTop
+      if (anchor) {
+        const card = [...feed.querySelectorAll('[data-session-key]')].find(node => node.dataset.sessionKey === anchor.key)
+        if (card) {
+          const scroller = feed.scrollHeight > feed.clientHeight ? feed : surface
+          scroller.scrollTop += card.getBoundingClientRect().top - anchor.top
+        }
+      }
+    }
+  }
+
   function lifecycleFor(mount) {
     return {
       install() {}, enable() {}, mount, start() {}, pause() {}, resume() {},
@@ -42,43 +120,24 @@
     interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header">
-          <div class="widget-heading">
-            <span class="w-name">Pi Sessions</span>
+        <div class="pi-widget-body odk-col items-center justify-center w-full">
+          <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
+            <span class="pi-widget-count">--</span>
+            <span class="pi-widget-unit">WORKING</span>
           </div>
-          <span class="widget-glance-badge">LOCAL</span>
-        </div>
-        <div class="pi-widget-body odk-col justify-between w-full">
-          <div class="pi-widget-metric-row odk-row items-baseline justify-between w-full">
-            <div class="odk-row items-baseline gap-2">
-              <span class="pi-widget-count">--</span>
-              <span class="pi-widget-unit">RUNNING</span>
-            </div>
-            <div class="pi-widget-live-tag odk-row items-center gap-1">
-              <span class="pi-indicator-dot pi-indicator-idle"></span>
-              <span class="pi-widget-tag-label">IDLE</span>
-            </div>
+          <div class="pi-widget-live-tag odk-row items-center gap-1">
+            <span class="pi-indicator-dot pi-indicator-idle"></span>
+            <span class="pi-widget-tag-label">IDLE</span>
           </div>
-          
-          <div class="pi-widget-glance-box odk-col justify-center">
-            <div class="pi-glance-ws odk-row items-center gap-1">
-              <svg data-tabler="folder" class="pi-glance-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>
-              <span class="pi-glance-ws-name">Scanning...</span>
-            </div>
-            <p class="pi-glance-goal">Checking local sessions in background...</p>
-          </div>
-
-          <div class="widget-footer">
+          <div class="pi-widget-context odk-col items-center">
             <span class="pi-widget-summary">0 workspaces</span>
-            <span class="w-state">${this.state}</span>
+            <span class="w-state">Pi Sessions</span>
           </div>
         </div>`
 
       const countEl = el.querySelector('.pi-widget-count')
       const dotEl = el.querySelector('.pi-indicator-dot')
       const tagLabelEl = el.querySelector('.pi-widget-tag-label')
-      const wsNameEl = el.querySelector('.pi-glance-ws-name')
-      const goalEl = el.querySelector('.pi-glance-goal')
       const summaryEl = el.querySelector('.pi-widget-summary')
       const stateEl = el.querySelector('.w-state')
 
@@ -89,11 +148,13 @@
           const res = typeof root.odkPlatform?.getPiSessions === 'function'
             ? await root.odkPlatform.getPiSessions()
             : null
-          if (!res) {
-            countEl.textContent = '0'
+          if (!res || res.ok === false) {
+            countEl.textContent = '--'
+            dotEl.className = 'pi-indicator-dot pi-indicator-idle'
             tagLabelEl.textContent = 'OFFLINE'
-            wsNameEl.textContent = 'Platform offline'
-            goalEl.textContent = 'Pi session scanning unavailable.'
+            tagLabelEl.className = 'pi-widget-tag-label'
+            summaryEl.textContent = res?.source?.label ? `${res.source.label} · Unavailable` : 'Scanner unavailable'
+            stateEl.textContent = 'Unavailable'
             return
           }
           const running = res?.summary?.running ?? 0
@@ -101,40 +162,32 @@
           const wsCount = res?.summary?.workspacesCount ?? 0
 
           countEl.textContent = String(running)
-          summaryEl.textContent = `${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${total} total`
+          summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${total} total`
 
           if (running > 0) {
             dotEl.className = 'pi-indicator-dot pi-indicator-running'
             tagLabelEl.textContent = 'ACTIVE'
             tagLabelEl.className = 'pi-widget-tag-label text-odk-green'
 
-            // Find top running session to show in glance preview
-            const topRunning = res.sessions.find(s => s.status === 'running')
-            if (topRunning) {
-              wsNameEl.textContent = topRunning.workspaceName || 'Active Workspace'
-              goalEl.textContent = topRunning.latestGoal || 'Active task in progress...'
-            }
-            if (stateEl) stateEl.textContent = `${running} running`
+            if (stateEl) stateEl.textContent = `${running} working`
           } else {
             dotEl.className = 'pi-indicator-dot pi-indicator-idle'
             tagLabelEl.textContent = 'IDLE'
             tagLabelEl.className = 'pi-widget-tag-label'
 
             if (total > 0 && res.sessions.length > 0) {
-              const latest = res.sessions[0]
-              wsNameEl.textContent = latest.workspaceName || 'Recent Workspace'
-              goalEl.textContent = latest.latestGoal || 'No active goal'
               if (stateEl) stateEl.textContent = `${total} recent`
             } else {
-              wsNameEl.textContent = 'No Sessions'
-              goalEl.textContent = 'No local Pi sessions detected.'
               if (stateEl) stateEl.textContent = 'Idle'
             }
           }
         } catch {
-          countEl.textContent = '0'
-          wsNameEl.textContent = 'Error'
-          goalEl.textContent = 'Unable to scan sessions.'
+          countEl.textContent = '--'
+          dotEl.className = 'pi-indicator-dot pi-indicator-idle'
+          tagLabelEl.textContent = 'ERROR'
+          tagLabelEl.className = 'pi-widget-tag-label'
+          summaryEl.textContent = 'Scan failed'
+          stateEl.textContent = 'Unavailable'
         }
       }
 
@@ -170,33 +223,36 @@
           <header class="app-surface-header pi-app-header">
             <div class="app-surface-heading">
               <h1>Pi Sessions</h1>
-              <p>Every local process grouped by workspace.</p>
+              <p id="pi-source-label">All sessions across folders.</p>
             </div>
-            <span class="widget-glance-badge">LOCAL</span>
+            <div class="pi-header-actions">
+              <div class="pi-search-box">
+                <label class="app-search-label" for="pi-search-input">Search sessions</label>
+                <input type="search" class="pi-search-input" id="pi-search-input" data-remote-initial-focus placeholder="Workspace, goal, or PID" aria-label="Search sessions" />
+              </div>
+              <button type="button" class="button-pill button-secondary pi-refresh-btn" id="pi-refresh-btn" aria-label="Refresh">
+                <svg data-tabler="refresh" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+              </button>
+            </div>
           </header>
           <div class="pi-app-toolbar">
             <div class="pi-app-metrics odk-row items-center gap-2">
-              <span class="pi-metric-pill pi-metric-running"><strong id="pi-metric-running">0</strong> running</span>
+              <span class="pi-metric-pill pi-metric-running"><strong id="pi-metric-running">0</strong> working</span>
               <span class="pi-metric-pill"><strong id="pi-metric-settled">0</strong> settled</span>
               <span class="pi-metric-pill"><strong id="pi-metric-workspaces">0</strong> workspaces</span>
             </div>
             <div class="pi-app-actions odk-row items-center gap-2">
-              <div class="pi-filter-group odk-row items-center">
-                <button type="button" class="pi-filter-btn active" data-filter="all">All</button>
-                <button type="button" class="pi-filter-btn" data-filter="running">Running</button>
-                <button type="button" class="pi-filter-btn" data-filter="settled">Settled</button>
-                <button type="button" class="pi-filter-btn" data-filter="exited">Exited</button>
+              <button type="button" class="pi-view-toggle" id="pi-view-toggle" aria-pressed="true">By workspace</button>
+              <div class="pi-filter-group odk-row items-center" role="group" aria-label="Session status filter">
+                <button type="button" class="pi-filter-btn active" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="pi-filter-btn" data-filter="running" aria-pressed="false">Working</button>
+                <button type="button" class="pi-filter-btn" data-filter="settled" aria-pressed="false">Settled</button>
+                <button type="button" class="pi-filter-btn" data-filter="exited" aria-pressed="false">Exited</button>
               </div>
-              <button type="button" class="button-pill button-secondary pi-refresh-btn" id="pi-refresh-btn">
-                Refresh
-              </button>
             </div>
           </div>
 
-          <div class="pi-search-box w-full">
-            <input type="search" class="pi-search-input w-full" id="pi-search-input" placeholder="Search sessions by workspace, goal, or PID..." aria-label="Search sessions" />
-          </div>
-
+          <p class="sr-only" id="pi-sessions-status" role="status" aria-live="polite"></p>
           <div class="pi-sessions-feed w-full" id="pi-sessions-feed" role="region" aria-label="Sessions list">
             <p class="pi-loading-hint">Loading Pi sessions...</p>
           </div>
@@ -206,18 +262,36 @@
       const settledMetric = el.querySelector('#pi-metric-settled')
       const wsMetric = el.querySelector('#pi-metric-workspaces')
       const feedEl = el.querySelector('#pi-sessions-feed')
+      const statusEl = el.querySelector('#pi-sessions-status')
+      const sourceEl = el.querySelector('#pi-source-label')
       const searchInput = el.querySelector('#pi-search-input')
       const refreshBtn = el.querySelector('#pi-refresh-btn')
       const filterBtns = el.querySelectorAll('.pi-filter-btn')
+      const viewToggle = el.querySelector('#pi-view-toggle')
 
       let currentFilter = 'all'
       let currentQuery = ''
+      let groupedView = false
       let sessionData = null
       let tickCount = 0
+      const updateFeed = createFeedUpdater(feedEl)
+      const orderSessions = createSessionOrder()
+
+      feedEl.addEventListener('click', (event) => {
+        const button = event.target.closest('.pi-files-toggle')
+        if (button) setFilesExpanded(button, button.getAttribute('aria-expanded') !== 'true')
+      })
 
       function renderFeed() {
+        if (sessionData?.ok === false) {
+          const message = `${sourceEl.textContent} unavailable. Select Refresh to try again.`
+          updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
+          statusEl.textContent = message
+          return
+        }
         if (!sessionData || !sessionData.sessions || sessionData.sessions.length === 0) {
-          feedEl.innerHTML = '<div class="pi-empty-state"><p>No running or recorded Pi processes found.</p><small>Checked local process state and <code>~/.pi/agent/directory-sessions/</code>.</small></div>'
+          updateFeed('<div class="pi-empty-state"><p>No running or recorded Pi processes found.</p><small>Checked source process state and <code>~/.pi/agent/directory-sessions/</code>.</small></div>')
+          statusEl.textContent = 'No Pi sessions found.'
           return
         }
 
@@ -235,7 +309,8 @@
         })
 
         if (filtered.length === 0) {
-          feedEl.innerHTML = '<div class="pi-empty-state"><p>No matching Pi sessions found.</p></div>'
+          updateFeed('<div class="pi-empty-state"><p>No matching Pi sessions found.</p></div>')
+          statusEl.textContent = 'No matching Pi sessions found.'
           return
         }
 
@@ -253,10 +328,51 @@
           wsGroups.get(key).sessions.push(s)
         }
 
+        const sessionCard = (s) => {
+          const statusClass = `pi-status-${s.status}`
+          const statusDisplay = s.status === 'running' ? 'WORKING' : s.status.toUpperCase()
+          const modifiedCount = s.modifiedFiles ? s.modifiedFiles.length : 0
+          return `
+            <article class="pi-session-card pi-card-${s.status}" data-session-key="${escapeHtml(sessionKey(s))}">
+              <div class="pi-card-header odk-row items-center justify-between">
+                <div class="odk-row items-center gap-2">
+                  <span class="pi-status-badge ${statusClass}">
+                    ${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}
+                    ${statusDisplay}
+                  </span>
+                  <span class="pi-card-pid">PID ${s.pid || '-'}</span>
+                  ${groupedView ? '' : `<span class="pi-card-workspace" title="${escapeHtml(s.cwd || '')}"><svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>${escapeHtml(s.workspaceName || s.cwd || 'Unknown workspace')}</span>`}
+                </div>
+                <div class="pi-card-meta odk-row items-center gap-2">
+                  <span class="pi-card-time">${formatElapsed(s.startedAt)}</span>
+                </div>
+              </div>
+
+              <div class="pi-card-goal">
+                <span class="pi-goal-label">Goal:</span>
+                <p class="pi-goal-text">${escapeHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
+              </div>
+
+              ${modifiedCount > 0 ? `
+                <div class="pi-card-files">
+                  <button type="button" class="pi-files-toggle odk-row items-center gap-1" aria-expanded="false">
+                    <svg data-tabler="file-code" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M10 13l-1 2l1 2" /><path d="M14 13l1 2l-1 2" /></svg>
+                    <span>${modifiedCount} modified file${modifiedCount > 1 ? 's' : ''}</span>
+                    <svg data-tabler="chevron-down" class="pi-chevron-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6" /></svg>
+                  </button>
+                  <div class="pi-files-list" hidden>
+                    ${s.modifiedFiles.map(f => `<div class="pi-file-item"><code>${escapeHtml(f)}</code></div>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </article>`
+        }
+
         let html = ''
-        for (const ws of wsGroups.values()) {
-          const wsRunning = ws.sessions.filter(s => s.status === 'running').length
-          html += `
+        if (groupedView) {
+          for (const ws of wsGroups.values()) {
+            const wsRunning = ws.sessions.filter(s => s.status === 'running').length
+            html += `
             <div class="pi-workspace-section">
               <div class="pi-workspace-header odk-row items-center justify-between">
                 <div class="odk-row items-center gap-2">
@@ -264,69 +380,18 @@
                   <span class="pi-ws-title">${escapeHtml(ws.name)}</span>
                   <span class="pi-ws-path" title="${escapeHtml(ws.cwd)}">${escapeHtml(ws.cwd)}</span>
                 </div>
-                <span class="pi-ws-badge">${wsRunning > 0 ? `<span class="pi-badge-dot"></span>${wsRunning} running · ` : ''}${ws.sessions.length} session${ws.sessions.length > 1 ? 's' : ''}</span>
+                <span class="pi-ws-badge">${wsRunning > 0 ? `<span class="pi-badge-dot"></span>${wsRunning} working · ` : ''}${ws.sessions.length} session${ws.sessions.length > 1 ? 's' : ''}</span>
               </div>
-              <div class="pi-ws-cards odk-col gap-2">`
-
-          for (const s of ws.sessions) {
-            const statusClass = `pi-status-${s.status}`
-            const modifiedCount = s.modifiedFiles ? s.modifiedFiles.length : 0
-            html += `
-              <article class="pi-session-card pi-card-${s.status}">
-                <div class="pi-card-header odk-row items-center justify-between">
-                  <div class="odk-row items-center gap-2">
-                    <span class="pi-status-badge ${statusClass}">
-                      ${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}
-                      ${s.status.toUpperCase()}
-                    </span>
-                    <span class="pi-card-pid">PID ${s.pid || '-'}</span>
-                    <span class="pi-card-uuid" title="${escapeHtml(s.sessionId)}">${escapeHtml(s.uuid ? s.uuid.slice(0, 8) : 'session')}</span>
-                  </div>
-                  <div class="pi-card-meta odk-row items-center gap-2">
-                    <span class="pi-card-time">${formatElapsed(s.startedAt)}</span>
-                  </div>
-                </div>
-
-                <div class="pi-card-goal">
-                  <span class="pi-goal-label">Goal:</span>
-                  <p class="pi-goal-text">${escapeHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
-                </div>
-
-                ${s.command ? `<div class="pi-card-command" title="${escapeHtml(s.command)}"><span>Process</span><code>${escapeHtml(s.command)}</code></div>` : ''}
-
-                ${modifiedCount > 0 ? `
-                  <div class="pi-card-files">
-                    <button type="button" class="pi-files-toggle odk-row items-center gap-1" aria-expanded="false">
-                      <svg data-tabler="file-code" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M10 13l-1 2l1 2" /><path d="M14 13l1 2l-1 2" /></svg>
-                      <span>${modifiedCount} modified file${modifiedCount > 1 ? 's' : ''}</span>
-                      <svg data-tabler="chevron-down" class="pi-chevron-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6" /></svg>
-                    </button>
-                    <div class="pi-files-list" hidden>
-                      ${s.modifiedFiles.map(f => `<div class="pi-file-item"><code>${escapeHtml(f)}</code></div>`).join('')}
-                    </div>
-                  </div>
-                ` : ''}
-              </article>`
-          }
-
-          html += `
+              <div class="pi-ws-cards odk-col gap-2">${ws.sessions.map(sessionCard).join('')}
               </div>
             </div>`
+          }
+        } else {
+          html = `<div class="pi-ws-cards odk-col gap-2">${filtered.map(sessionCard).join('')}</div>`
         }
 
-        feedEl.innerHTML = html
-
-        // Wire up accordion file toggles
-        const toggles = feedEl.querySelectorAll('.pi-files-toggle')
-        toggles.forEach((btn) => {
-          btn.addEventListener('click', () => {
-            const list = btn.nextElementSibling
-            const isExpanded = btn.getAttribute('aria-expanded') === 'true'
-            btn.setAttribute('aria-expanded', String(!isExpanded))
-            if (list) list.hidden = isExpanded
-            btn.classList.toggle('expanded', !isExpanded)
-          })
-        })
+        updateFeed(html)
+        statusEl.textContent = `${filtered.length} Pi session${filtered.length === 1 ? '' : 's'} shown${groupedView ? ' by workspace' : ' across all folders'}.`
       }
 
       const load = async () => {
@@ -334,23 +399,40 @@
           sessionData = typeof root.odkPlatform?.getPiSessions === 'function'
             ? await root.odkPlatform.getPiSessions()
             : null
-          if (!sessionData) {
-            feedEl.innerHTML = '<div class="pi-empty-state"><p>Platform service is unavailable.</p></div>'
+          sourceEl.textContent = sessionData?.source?.label || 'Local'
+          if (!sessionData || sessionData.ok === false) {
+            runningMetric.textContent = '--'
+            settledMetric.textContent = '--'
+            wsMetric.textContent = '--'
+            const message = `${sessionData?.source?.label || 'Platform service'} unavailable. Select Refresh to try again.`
+            updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
+            statusEl.textContent = message
             return
           }
+          sessionData = { ...sessionData, sessions: orderSessions(sessionData.sessions || []) }
           runningMetric.textContent = String(sessionData?.summary?.running ?? 0)
           settledMetric.textContent = String(sessionData?.summary?.settled ?? 0)
           wsMetric.textContent = String(sessionData?.summary?.workspacesCount ?? 0)
           renderFeed()
         } catch (err) {
-          feedEl.innerHTML = `<div class="pi-empty-state"><p>Error scanning sessions: ${escapeHtml(err.message)}</p></div>`
+          sessionData = { ok: false }
+          runningMetric.textContent = '--'
+          settledMetric.textContent = '--'
+          wsMetric.textContent = '--'
+          const message = `Unable to scan sessions: ${err.message}. Select Refresh to try again.`
+          updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
+          statusEl.textContent = message
         }
       }
 
       filterBtns.forEach((btn) => {
         btn.addEventListener('click', () => {
-          filterBtns.forEach(b => b.classList.remove('active'))
+          filterBtns.forEach((filterBtn) => {
+            filterBtn.classList.remove('active')
+            filterBtn.setAttribute('aria-pressed', 'false')
+          })
           btn.classList.add('active')
+          btn.setAttribute('aria-pressed', 'true')
           currentFilter = btn.dataset.filter || 'all'
           renderFeed()
         })
@@ -358,6 +440,14 @@
 
       searchInput.addEventListener('input', (e) => {
         currentQuery = e.target.value
+        renderFeed()
+      })
+
+      viewToggle.addEventListener('click', () => {
+        groupedView = !groupedView
+        viewToggle.setAttribute('aria-pressed', String(!groupedView))
+        viewToggle.textContent = groupedView ? 'All folders' : 'By workspace'
+        sourceEl.textContent = groupedView ? 'Processes grouped by workspace.' : 'All sessions across folders.'
         renderFeed()
       })
 
