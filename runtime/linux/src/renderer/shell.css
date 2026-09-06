@@ -1990,9 +1990,9 @@ body.kiosk {
 }
 
 .hydra-meter {
-  height: 2.5cqi;
+  height: 3cqi;
   border-radius: var(--odk-radius-pill);
-  background: color-mix(in srgb, var(--odk-stroke) 55%, transparent);
+  background: var(--odk-stroke);
   overflow: hidden;
 }
 
