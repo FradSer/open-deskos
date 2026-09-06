@@ -81,9 +81,12 @@
       try {
         callLifecycle(def, 'mount', el, scoped)
         instances.set(el, { def, ctx: scoped })
+        return true
       } catch (error) {
         scoped.cleanup()
-        throw error
+        el?.replaceChildren?.()
+        console.error(`plugin "${def.id}" failed to mount:`, error)
+        return false
       }
     },
     deactivate(def, el, ctx) {
@@ -91,6 +94,8 @@
       const scoped = instance?.ctx || ctx
       try {
         callLifecycle(def, 'unmount', el, scoped)
+      } catch (error) {
+        console.error(`plugin "${def.id}" failed to unmount:`, error)
       } finally {
         scoped.cleanup?.()
         if (el) instances.delete(el)

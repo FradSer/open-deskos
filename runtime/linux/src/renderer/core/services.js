@@ -34,7 +34,13 @@
   let tickTimer = null
 
   function notify(subs, arg) {
-    for (const cb of subs) cb(arg)
+    for (const cb of subs) {
+      try {
+        cb(arg)
+      } catch (error) {
+        console.error('odk service callback failed:', error)
+      }
+    }
   }
 
   function formatCheckTime() {
@@ -195,7 +201,11 @@
     list: listServices,
     onTick(callback) {
       tickSubs.add(callback)
-      callback(new Date())
+      try {
+        callback(new Date())
+      } catch (error) {
+        console.error('odk service callback failed:', error)
+      }
       if (!tickTimer) {
         let tickCounter = 0
         tickTimer = setInterval(() => {

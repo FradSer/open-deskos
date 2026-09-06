@@ -39,7 +39,7 @@ function loadPreload() {
 test('exposes platform actions and only narrow remote state APIs to the sandboxed renderer', async () => {
   const { exposed, listeners, invokes } = loadPreload()
 
-  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['dispatchIntent', 'getAppState', 'getFaceAgentStatus', 'getOpenCodeGoStatus', 'getPiSessions', 'listApps'])
+  assert.deepEqual(Object.keys(exposed.odkPlatform).sort(), ['dispatchIntent', 'getAppState', 'getFaceAgentStatus', 'getHydraStatus', 'getOpenCodeGoStatus', 'getPiSessions', 'listApps'])
   await exposed.odkPlatform.getOpenCodeGoStatus()
   assert.deepEqual(invokes[0], ['odk-opencode-go-status', undefined])
   await exposed.odkPlatform.getFaceAgentStatus()

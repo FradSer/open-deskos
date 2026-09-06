@@ -99,7 +99,7 @@ const DRIVER_SCRIPT = `
   out.widgetCount = apps.length
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
-    document.querySelectorAll('.widget[data-widget]').length === 10 &&
+    document.querySelectorAll('.widget[data-widget]').length === 11 &&
     [...document.querySelectorAll('.widget[data-widget]')].every((widget) => widget.dataset.widget.startsWith('odk.tile.'))
   out.experimentalVisionDoesNotBlockShell =
     $('#privacy-shield').hidden &&
@@ -113,6 +113,11 @@ const DRIVER_SCRIPT = `
     $('[data-widget="odk.tile.desk-status"] .desk-status-resolution')?.textContent === String(window.innerWidth) + ' × ' + String(window.innerHeight)
   out.deskStatusPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridColumnStart === '5' &&
     getComputedStyle(document.querySelector('[data-widget="odk.tile.desk-status"]')).gridRowStart === '2'
+  const hydraTile = document.querySelector('[data-widget="odk.tile.hydra"]')
+  out.hydraTileMounted = Boolean(hydraTile?.querySelector('.hydra-head'))
+  out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '5' &&
+    getComputedStyle(hydraTile).gridRowStart === '3'
+  out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
   out.widgetsAreDisplayOnly =
     [...document.querySelectorAll('.widget')].every((widget) =>
       widget.tagName === 'DIV' && widget.dataset.interaction === 'display-only') &&
@@ -359,7 +364,7 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.desk-status', 'odk.tile.face-presence', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -381,10 +386,11 @@ function check(results) {
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 3', results.tablerCount >= 3],
-    ['ten state widgets with unique identities', results.widgetCount === 10 && results.uniqueApps],
+    ['eleven state widgets with unique identities', results.widgetCount === 11 && results.uniqueApps],
     ['experimental vision does not block the shell', results.experimentalVisionDoesNotBlockShell],
     ['widgets declare truthful state without App controls', results.widgetStatesAreHonest && results.widgetsAreDisplayOnly && results.surfaceSeparation],
     ['right edge shows truthful local desk status', results.deskStatusIsTruthful && results.deskStatusPlacement],
+    ['Hydra plants widget mounts truthfully on the Home grid', results.hydraTileMounted && results.hydraTilePlacement && results.hydraStateIsHonest],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesFaceAgentEndpoint && results.endpointListCalled && results.endpointIntentCalled],
     ['preload exposes only narrow Remote Link API', results.remotePreloadIsNarrow],
@@ -452,6 +458,8 @@ function check(results) {
 
 async function runGeometrySweep(win) {
   const layout = require('../src/renderer/layout.js')
+  require('../src/renderer/config/desktop_layout.js')
+  const desktopLayout = globalThis.DESKTOP_LAYOUT
   let failures = 0
   await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
   await new Promise((resolve) => setTimeout(resolve, 350))
@@ -465,7 +473,7 @@ async function runGeometrySweep(win) {
     // The renderer recomputes geometry on resize via requestAnimationFrame;
     // a blind sleep races cold-start rAF throttling in hidden windows, so
     // poll until the applied metrics match the layout module (bounded).
-    const expectedCell = layout.compute(width, height).cellW
+    const expectedCell = layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).cellW
     const deadline = Date.now() + 5000
     let settled = false
     let lastApplied = null
@@ -505,8 +513,8 @@ async function runGeometrySweep(win) {
       ['Pi App controls stay inside portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.filterButtonsInside],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
-      ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height).cols],
-      ['responsive grid rows remain bounded', probe.gridRows <= layout.compute(width, height).rows],
+      ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).cols],
+      ['responsive grid rows remain bounded', probe.gridRows <= layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).rows],
       ['responsive widgets reflow explicit desktop coordinates', probe.widgetsReflowed || width >= 1000],
     ]
     for (const [name, ok] of checks) {

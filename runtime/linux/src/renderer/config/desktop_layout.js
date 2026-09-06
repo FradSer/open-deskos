@@ -26,6 +26,7 @@
           { id: 'odk.tile.face-presence', col: '4', row: '2' },
           { id: 'odk.tile.current-emotion', col: '4', row: '3' },
           { id: 'odk.tile.desk-status', col: '5', row: '2' },
+          { id: 'odk.tile.hydra', col: '5', row: '3' },
         ],
       },
       { id: 'pi-sessions', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi-sessions' },

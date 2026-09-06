@@ -1904,3 +1904,149 @@ body.kiosk {
   }
 }
 
+
+.hydra-body {
+  gap: 7cqi;
+  margin: auto 0;
+  justify-content: center;
+}
+
+.hydra-head {
+  display: flex;
+  align-items: center;
+  gap: 3cqi;
+}
+
+.hydra-head svg {
+  width: 13cqi;
+  height: 13cqi;
+  flex: none;
+  color: var(--odk-accent-green);
+}
+
+.hydra-title {
+  color: var(--odk-primary);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(18px, 12cqi, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.hydra-badge {
+  margin-left: auto;
+  padding: 1.5cqi 4cqi;
+  border: 1px solid var(--odk-stroke);
+  border-radius: var(--odk-radius-pill);
+  font-size: clamp(14px, 8.5cqi, 26px);
+  font-weight: 700;
+  color: var(--odk-secondary-strong);
+}
+
+.hydra-badge-live {
+  color: var(--odk-accent-green);
+  border-color: color-mix(in srgb, var(--odk-accent-green) 35%, var(--odk-stroke));
+}
+
+.hydra-badge-warn {
+  color: var(--odk-accent-red);
+  border-color: color-mix(in srgb, var(--odk-accent-red) 35%, var(--odk-stroke));
+}
+
+.hydra-env {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.5cqi 6cqi;
+  padding: 5cqi 0;
+  border-block: 1px solid var(--odk-stroke);
+}
+
+.hydra-env-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 2cqi;
+  min-width: 0;
+}
+
+.hydra-env-value {
+  color: var(--odk-primary);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(24px, 15cqi, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hydra-env-unit {
+  color: var(--odk-secondary-strong);
+  font-size: clamp(14px, 8.5cqi, 24px);
+}
+
+.hydra-plants {
+  display: flex;
+  flex-direction: column;
+  gap: 4cqi;
+}
+
+.hydra-plant {
+  display: flex;
+  align-items: center;
+  gap: 3cqi;
+  min-width: 0;
+}
+
+.hydra-plant-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(16px, 10cqi, 30px);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hydra-plant-soil {
+  flex: none;
+  margin-left: auto;
+  color: var(--odk-primary);
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(24px, 15cqi, 44px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hydra-plant.hydra-watering .hydra-plant-note {
+  color: var(--odk-accent-blue);
+}
+
+.hydra-plant-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(14px, 8.5cqi, 24px);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hydra-offline .hydra-plant-soil,
+.hydra-offline .hydra-plant-name {
+  color: var(--odk-secondary);
+}
+
+.hydra-unconfigured .hydra-env,
+.hydra-unconfigured .hydra-plants {
+  opacity: 0.45;
+}
+
+.widget-error {
+  margin: auto;
+  color: var(--odk-accent-red);
+  font-size: var(--odk-text-label);
+  text-align: center;
+}
+
+.status-plugin-error {
+  color: var(--odk-accent-red);
+  font-size: var(--odk-text-label);
+}

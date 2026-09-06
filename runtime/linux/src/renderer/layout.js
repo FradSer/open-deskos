@@ -18,10 +18,11 @@
     barIcon: 20,
   }
 
-  function compute(width, height) {
+  function compute(width, height, widgetCount = 11) {
     const isWidescreen = width >= 1000 && width > height
     const cols = isWidescreen ? 5 : width >= 720 ? 3 : 2
-    const rows = isWidescreen ? 3 : 5
+    // Compact windows scroll rather than shrinking eleven instruments below readable size.
+    const rows = isWidescreen ? 3 : Math.ceil(widgetCount / cols)
 
     const fit = Math.min(width / (isWidescreen ? 1920 : REF.w), height / (isWidescreen ? 1280 : REF.h))
     const gutter = isWidescreen ? 28 : Math.max(8, Math.min(24, Math.floor(REF.gutter * fit + 0.5)))
@@ -66,7 +67,12 @@
     }
   }
 
-  const api = { REF, compute }
+  function gridWidgetCount(layout) {
+    const grid = layout?.pages?.find((page) => page.kind === 'grid')
+    return grid?.widgets?.length ?? 0
+  }
+
+  const api = { REF, compute, gridWidgetCount }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api
   } else {

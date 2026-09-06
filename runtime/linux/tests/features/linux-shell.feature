@@ -229,3 +229,25 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then it emits one JSON report for release, migration, kiosk, service, smoke, display, and touch evidence
     And unavailable hardware checks are not reported as accepted
     And host validation does not claim CM5 hardware acceptance
+
+  Scenario: A broken widget cannot take down the shell
+    Given a Home grid widget whose mount throws
+    When the shell composes the desktop
+    Then every other declared page and widget is still built
+    And the broken tile shows a truthful error state instead of stale partial markup
+    And a widget whose unmount throws does not break teardown
+
+  Scenario: One widget's tick error does not starve the shared tick
+    Given a mounted widget whose tick callback throws
+    When the shared one-second tick fires
+    Then the remaining tick subscribers still receive the tick
+    And the shell keeps ticking on the next second
+
+  Scenario: Selected plugins can be disabled by a launch parameter
+    Given ODESK_DISABLED_PLUGINS lists one tile, one status, and one page plugin id
+    When the shell starts
+    Then the listed tile is absent from its grid while every other declared widget still mounts
+    And the listed status plugin leaves its slot empty without blocking the other slot
+    And the listed page plugin is skipped and pagination counts only the built pages
+    And plugin ids that are not declared are ignored
+    And with no parameter set the shell builds the full declared layout

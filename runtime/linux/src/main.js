@@ -11,6 +11,7 @@ const DEFAULT_HEIGHT = 1280
 const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { fetchFaceAgentStatus } = require('./face-agent-status')
+const { createHydraSource } = require('./hydra-mqtt')
 const { scanPiSessions } = require('./pi-sessions')
 
 function configureGpuSwitches(targetApp = app, env = process.env) {
@@ -40,7 +41,15 @@ function resolveLaunchOptions(argv, env) {
     height,
     smoke: argv.includes('--smoke'),
     kiosk: argv.includes('--kiosk') || env.ODESK_SHELL_KIOSK === '1',
+    disabledPlugins: resolveDisabledPlugins(env),
   }
+}
+
+function resolveDisabledPlugins(env = process.env) {
+  return (env.ODESK_DISABLED_PLUGINS ?? '')
+    .split(/[\s,]+/)
+    .map((id) => id.trim())
+    .filter(Boolean)
 }
 
 function createWindow(options) {
@@ -78,7 +87,10 @@ function createWindow(options) {
     })
   }
 
-  const query = options.kiosk ? '?kiosk=1' : ''
+  const params = new URLSearchParams()
+  if (options.kiosk) params.set('kiosk', '1')
+  if (options.disabledPlugins.length > 0) params.set('disabledPlugins', options.disabledPlugins.join(','))
+  const query = params.size > 0 ? `?${params}` : ''
   win.loadFile('src/renderer/index.html', { search: query })
   return win
 }
@@ -144,6 +156,13 @@ function main() {
   })
   ipcMain.handle('odk-face-agent-status', fetchFaceAgentStatus)
   ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
+  const hydraSource = smokeMode
+    ? createHydraSource({})
+    : createHydraSource({
+      url: process.env.ODK_HYDRA_MQTT_URL,
+      topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
+    })
+  ipcMain.handle('odk-hydra-status', () => hydraSource.snapshot())
 
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-list', () => appManager.list())
@@ -199,4 +218,5 @@ if (app && typeof app.on === 'function') {
 module.exports = {
   configureGpuSwitches,
   resolveLaunchOptions,
+  resolveDisabledPlugins,
 }

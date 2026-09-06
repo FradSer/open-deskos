@@ -91,6 +91,23 @@ root.odkPlugins.register({
 释放它们。注册表为缺省 `unmount` 提供无副作用实现。App 可提供
 `handleAction(intent, ctx)`，但只能由内建视图 seam 调度。
 
+## 健壮性契约
+
+插件 mount/unmount 异常由 core 隔离：单个 Widget 抛错只会在自身位置渲染诚实的
+`Widget error` 状态（status 插件在自身槽位渲染 `Plugin error`），其余页面、磁贴
+和共享 tick 不受影响。插件不应依赖该容错掩盖 bug；mount 抛错会在控制台记录。
+
+运维可用启动参数 `ODESK_DISABLED_PLUGINS`（逗号或空格分隔的插件 id 列表）在
+不阻塞外壳启动的前提下排除可疑插件：
+
+```sh
+ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
+```
+
+- 列表中的 tile 从其网格移除、status 槽位留空、page 从分页中剔除（页点同步减少）。
+- 未声明的 id 被忽略；未设置参数时外壳按 `desktop_layout.js` 全量装配。
+- 主进程经 `?disabledPlugins=` 查询参数传给 renderer；不要在插件内读取环境变量。
+
 ### mount 收到的 ctx
 
 | 成员 | 说明 |

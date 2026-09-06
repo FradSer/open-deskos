@@ -1,11 +1,20 @@
 const SWIPE_THRESHOLD_RATIO = 0.18
 const DRAG_SUPPRESS_PX = 10
 
+// Startup exclusion list: ODESK_DISABLED_PLUGINS carries comma/space separated
+// plugin ids (tile, status, or page) that must not block shell startup.
+const disabledPlugins = new Set(
+  (new URLSearchParams(window.location.search).get('disabledPlugins') || '')
+    .split(/[\s,]+/)
+    .filter(Boolean),
+)
+const effectiveLayout = odkComposer.filterLayout(window.DESKTOP_LAYOUT, disabledPlugins)
+
 let geometryRaf = 0
 let pagerRef = null
 
 function applyGeometry() {
-  const m = odkLayout.compute(window.innerWidth, window.innerHeight)
+  const m = odkLayout.compute(window.innerWidth, window.innerHeight, odkLayout.gridWidgetCount(effectiveLayout))
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
@@ -352,7 +361,7 @@ function main() {
       appEmptySub.textContent = ''
     },
     navigateToPage(pageId) {
-      const index = window.DESKTOP_LAYOUT.pages.findIndex((page) => page.id === pageId)
+      const index = effectiveLayout.pages.findIndex((page) => page.id === pageId)
       if (index >= 0) pagerRef?.setIndex(index)
     },
   }
@@ -378,22 +387,26 @@ function main() {
   uiCtx.platform = appPlatform
   uiCtx.appPlatform = appPlatform
   uiCtx.onPlatformState = appPlatform.subscribe
-  for (const def of odkPlugins.byKind('status')) {
+  for (const def of odkPlugins.byKind('status').filter((candidate) => !disabledPlugins.has(candidate.id))) {
     const slot = document.querySelector(`[data-slot="status-${def.slot}"]`)
     const host = document.createElement('span')
     host.className = `status-plugin status-${def.id.replace(/^odk\.status\./, '')}`
     slot.append(host)
-    odkPlugins.activate(def, host, uiCtx)
+    if (!odkPlugins.activate(def, host, uiCtx)) {
+      host.className += ' status-plugin-error'
+      host.textContent = 'Plugin error'
+      host.title = def.id
+    }
   }
 
-  odkComposer.build(window.DESKTOP_LAYOUT, document.getElementById('pages-track'), uiCtx)
+  odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
 
   document.getElementById('app-back').addEventListener('click', async () => {
     if (appView.dataset.infoView) closeInfoView()
     else if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
   })
-  const pageNames = window.DESKTOP_LAYOUT.pages.map((page) => page.name)
+  const pageNames = effectiveLayout.pages.map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
 

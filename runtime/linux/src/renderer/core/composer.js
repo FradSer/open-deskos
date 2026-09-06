@@ -66,6 +66,29 @@
     return `w-${plugin.id.replace(/^odk\.tile\./, '')}`
   }
 
+  function filterLayout(layout, disabled) {
+    if (!disabled || disabled.size === 0) return layout
+    const kept = []
+    for (const page of layout.pages) {
+      if (page.kind === 'page' && disabled.has(page.plugin)) continue
+      if (page.kind === 'grid' && page.widgets.some((widget) => disabled.has(widget.id))) {
+        kept.push({ ...page, widgets: page.widgets.filter((widget) => !disabled.has(widget.id)) })
+      } else {
+        kept.push(page)
+      }
+    }
+    return { ...layout, pages: kept }
+  }
+
+  function markActivationError(container, def) {
+    container.dataset.state = 'Error'
+    const note = document.createElement('span')
+    note.className = 'widget-error'
+    note.textContent = 'Widget error'
+    note.title = def.id
+    container.append(note)
+  }
+
   function buildTile(widgetDef, uiCtx) {
     const plugin = root.odkPlugins.get(widgetDef.id)
     const tile = document.createElement('div')
@@ -76,7 +99,7 @@
     tile.dataset.interaction = plugin.interaction || 'display-only'
     if (widgetDef.col) tile.style.gridColumn = widgetDef.col
     if (widgetDef.row) tile.style.gridRow = widgetDef.row
-    root.odkPlugins.activate(plugin, tile, uiCtx)
+    if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
     return tile
   }
 
@@ -98,10 +121,11 @@
         for (const widget of page.widgets) grid.append(buildTile(widget, uiCtx))
         section.append(grid)
       } else {
-        root.odkPlugins.activate(root.odkPlugins.get(page.plugin), section, uiCtx)
+        const plugin = root.odkPlugins.get(page.plugin)
+        if (!root.odkPlugins.activate(plugin, section, uiCtx)) markActivationError(section, plugin)
       }
     })
   }
 
-  root.odkComposer = { validate, build }
+  root.odkComposer = { validate, build, filterLayout }
 })(typeof window !== 'undefined' ? window : globalThis)

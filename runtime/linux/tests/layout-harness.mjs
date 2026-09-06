@@ -1,7 +1,9 @@
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { compute } = require('../src/renderer/layout.js')
+const { compute, gridWidgetCount } = require('../src/renderer/layout.js')
+require('../src/renderer/config/desktop_layout.js')
+const DESKTOP_LAYOUT = globalThis.DESKTOP_LAYOUT
 
 const SIZES = [
   ['target HDMI display', 1920, 1280],
@@ -29,7 +31,7 @@ function check(name, ok, detail = '') {
 }
 
 for (const [label, width, height] of SIZES) {
-  const m = compute(width, height)
+  const m = compute(width, height, gridWidgetCount(DESKTOP_LAYOUT))
   const tag = `${label} ${width}x${height}`
 
   check(`${tag}: cell is strictly square`, m.cellW === m.cellH && m.cellH === m.cellDim, `cellW=${m.cellW} cellH=${m.cellH} cellDim=${m.cellDim}`)
@@ -42,6 +44,7 @@ for (const [label, width, height] of SIZES) {
   check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
 
   check(`${tag}: status bar floored`, m.statusH >= 36)
+  check(`${tag}: compact rows fit declared widgets`, m.rows === Math.ceil(gridWidgetCount(DESKTOP_LAYOUT) / m.cols))
 
   const golden = GOLDEN[`${width}x${height}`]
   if (golden) {

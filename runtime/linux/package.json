@@ -19,5 +19,8 @@
     "@unocss/cli": "^66.8.1",
     "electron": "^43.4.1",
     "unocss": "^66.8.1"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.2"
   }
 }
