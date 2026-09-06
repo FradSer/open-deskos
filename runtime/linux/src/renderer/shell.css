@@ -1931,15 +1931,13 @@ body.kiosk {
 }
 
 .hydra-badge-live {
-  background: var(--odk-accent-green);
-  border-color: transparent;
-  color: var(--odk-bg);
+  color: var(--odk-accent-green);
+  border-color: color-mix(in srgb, var(--odk-accent-green) 35%, var(--odk-stroke));
 }
 
 .hydra-badge-warn {
-  background: var(--odk-accent-red);
-  border-color: transparent;
-  color: var(--odk-bg);
+  color: var(--odk-accent-red);
+  border-color: color-mix(in srgb, var(--odk-accent-red) 35%, var(--odk-stroke));
 }
 
 .hydra-env {
@@ -1953,9 +1951,6 @@ body.kiosk {
   align-items: baseline;
   gap: 2cqi;
   min-width: 0;
-  padding: 1.5cqi 3cqi;
-  border-radius: 2.5cqi;
-  background: var(--odk-elevated);
 }
 
 .hydra-env-label {
@@ -2000,9 +1995,6 @@ body.kiosk {
   flex-direction: column;
   gap: 1.5cqi;
   min-width: 0;
-  padding: 1.5cqi 3cqi;
-  border-radius: 2.5cqi;
-  background: var(--odk-elevated);
 }
 
 .hydra-plant-row {
@@ -2066,10 +2058,6 @@ body.kiosk {
 .hydra-offline .hydra-plant-soil,
 .hydra-offline .hydra-plant-name {
   color: var(--odk-secondary);
-}
-
-.hydra-offline.hydra-plant {
-  background: color-mix(in srgb, var(--odk-elevated) 55%, transparent);
 }
 
 .hydra-unconfigured .hydra-env,
