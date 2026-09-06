@@ -34,3 +34,9 @@ Feature: Hydra plant and environment widget on the Home grid
     When the Hydra widget refreshes after the environment staleness window
     Then the widget marks the environment data as stale
     And it does not present the stale readings as live
+
+  Scenario: Hydra occupies the right-edge tall slot and replaces the screen-size tile
+    Given the Home grid renders with the Hydra widget placed at column 5 spanning rows 2 to 4
+    Then the Hydra widget is a one-column by two-row tile
+    And the former screen-size desk-status widget is removed from the grid
+    And the Home grid still declares ten widgets in total

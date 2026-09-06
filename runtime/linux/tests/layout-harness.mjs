@@ -44,7 +44,9 @@ for (const [label, width, height] of SIZES) {
   check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
 
   check(`${tag}: status bar floored`, m.statusH >= 36)
-  check(`${tag}: compact rows fit declared widgets`, m.rows === Math.ceil(gridWidgetCount(DESKTOP_LAYOUT) / m.cols))
+  if (!(width >= 1000 && width > height)) {
+    check(`${tag}: compact rows fit declared widgets`, m.rows === Math.ceil(gridWidgetCount(DESKTOP_LAYOUT) / m.cols))
+  }
 
   const golden = GOLDEN[`${width}x${height}`]
   if (golden) {

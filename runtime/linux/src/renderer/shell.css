@@ -808,30 +808,6 @@ body.kiosk {
   color: var(--odk-secondary-strong);
 }
 
-.desk-status-body {
-  gap: calc(var(--cell-dim) * 0.04);
-  margin: auto 0;
-  color: var(--odk-secondary-strong);
-}
-
-.desk-status-body svg {
-  width: calc(var(--cell-dim) * 0.28);
-  height: calc(var(--cell-dim) * 0.28);
-}
-
-.desk-status-value {
-  color: var(--odk-accent-green);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(20px, calc(var(--cell-dim) * 0.2), 32px);
-  letter-spacing: 0.06em;
-}
-
-.desk-status-resolution {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(12px, calc(var(--cell-dim) * 0.1), 16px);
-  font-variant-numeric: tabular-nums;
-}
-
 .w-face-presence,
 .w-current-emotion {
   gap: calc(var(--cell-dim) * 0.035);
@@ -1906,9 +1882,11 @@ body.kiosk {
 
 
 .hydra-body {
-  gap: 7cqi;
+  display: flex;
+  flex-direction: column;
+  gap: 1cqi;
   margin: auto 0;
-  justify-content: center;
+  justify-content: space-evenly;
 }
 
 .hydra-head {
@@ -1918,8 +1896,8 @@ body.kiosk {
 }
 
 .hydra-head svg {
-  width: 13cqi;
-  height: 13cqi;
+  width: 9cqi;
+  height: 9cqi;
   flex: none;
   color: var(--odk-accent-green);
 }
@@ -1927,17 +1905,17 @@ body.kiosk {
 .hydra-title {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(18px, 12cqi, 36px);
+  font-size: clamp(12px, 8cqi, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .hydra-badge {
   margin-left: auto;
-  padding: 1.5cqi 4cqi;
+  padding: 1cqi 3cqi;
   border: 1px solid var(--odk-stroke);
   border-radius: var(--odk-radius-pill);
-  font-size: clamp(14px, 8.5cqi, 26px);
+  font-size: clamp(12px, 5cqi, 16px);
   font-weight: 700;
   color: var(--odk-secondary-strong);
 }
@@ -1954,9 +1932,9 @@ body.kiosk {
 
 .hydra-env {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3.5cqi 6cqi;
-  padding: 5cqi 0;
+  grid-template-columns: 1fr;
+  gap: 0.5cqi;
+  padding: 0.5cqi 0;
   border-block: 1px solid var(--odk-stroke);
 }
 
@@ -1970,21 +1948,21 @@ body.kiosk {
 .hydra-env-value {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(24px, 15cqi, 44px);
+  font-size: clamp(12px, 7cqi, 28px);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .hydra-env-unit {
   color: var(--odk-secondary-strong);
-  font-size: clamp(14px, 8.5cqi, 24px);
+  font-size: clamp(12px, 4.5cqi, 14px);
 }
 
 .hydra-plants {
   display: flex;
   flex-direction: column;
-  gap: 4cqi;
+  gap: 0.5cqi;
 }
 
 .hydra-plant {
@@ -1999,7 +1977,7 @@ body.kiosk {
   min-width: 0;
   overflow: hidden;
   color: var(--odk-secondary-strong);
-  font-size: clamp(16px, 10cqi, 30px);
+  font-size: clamp(12px, 6.5cqi, 16px);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -2009,7 +1987,7 @@ body.kiosk {
   margin-left: auto;
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(24px, 15cqi, 44px);
+  font-size: clamp(14px, 7cqi, 24px);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -2024,7 +2002,7 @@ body.kiosk {
   min-width: 0;
   overflow: hidden;
   color: var(--odk-secondary-strong);
-  font-size: clamp(14px, 8.5cqi, 24px);
+  font-size: clamp(12px, 5cqi, 14px);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -2037,6 +2015,52 @@ body.kiosk {
 .hydra-unconfigured .hydra-env,
 .hydra-unconfigured .hydra-plants {
   opacity: 0.45;
+}
+
+/* Widescreen: the Hydra tile spans two grid rows, so the instrument scales up. */
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
+  .hydra-head svg {
+    width: 11cqi;
+    height: 11cqi;
+  }
+
+  .hydra-title {
+    font-size: clamp(18px, 12cqi, 40px);
+  }
+
+  .hydra-badge {
+    padding: 1.5cqi 2.5cqi;
+    font-size: clamp(13px, 7cqi, 26px);
+  }
+
+  .hydra-env {
+    gap: 3cqi;
+    padding: 4cqi 0;
+  }
+
+  .hydra-env-value {
+    font-size: clamp(24px, 19cqi, 68px);
+  }
+
+  .hydra-env-unit {
+    font-size: clamp(14px, 8cqi, 28px);
+  }
+
+  .hydra-plants {
+    gap: 3cqi;
+  }
+
+  .hydra-plant-name {
+    font-size: clamp(16px, 11cqi, 40px);
+  }
+
+  .hydra-plant-soil {
+    font-size: clamp(24px, 18cqi, 64px);
+  }
+
+  .hydra-plant-note {
+    font-size: clamp(13px, 8cqi, 26px);
+  }
 }
 
 .widget-error {

@@ -105,7 +105,7 @@ function createHydraSource({ url, topicPrefix } = {}) {
   try {
     const mqtt = require('mqtt')
     client = mqtt.connect(url, {
-      clientId: 'open-deskos-shell',
+      clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
       reconnectPeriod: 5000,
       connectTimeout: 10000,
     })
