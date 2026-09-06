@@ -857,7 +857,17 @@ body.kiosk {
 .w-pomodoro {
   position: relative;
   align-items: stretch;
-  justify-content: space-between;
+  justify-content: center;
+  background: var(--odk-surface);
+  border-color: var(--odk-stroke);
+}
+
+.pomodoro-state {
+  position: absolute;
+  top: var(--odk-widget-inset);
+  left: 0;
+  right: 0;
+  text-align: center;
 }
 
 .w-pomodoro .pomodoro-body {
@@ -873,10 +883,11 @@ body.kiosk {
 }
 
 .pomodoro-ring-wrap {
-  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2cqi;
 }
 
 .pomodoro-ring-wrap svg {
@@ -903,16 +914,13 @@ body.kiosk {
 }
 
 .ring-mmss {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--odk-secondary-strong);
+  color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: calc((var(--cell-h) * 2 + var(--gutter)) * 0.15);
+  font-size: clamp(28px, 24cqi, 120px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .meter {
@@ -2028,6 +2036,19 @@ body.kiosk {
   .pi-widget-count {
     font-size: clamp(48px, 24cqi, 96px);
   }
+  .pomodoro-ring-wrap svg {
+    width: 55cqi;
+    height: 55cqi;
+  }
+
+  .ring-mmss {
+    font-size: clamp(16px, 12cqi, 30px);
+  }
+
+  .pomodoro-ring-wrap {
+    gap: 1.5cqi;
+  }
+
 }
 
 @media (max-width: 999px) {
