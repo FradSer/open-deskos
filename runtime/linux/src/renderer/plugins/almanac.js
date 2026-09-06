@@ -13,20 +13,10 @@
     interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header">
-          <div class="widget-heading">
-            <span class="w-name">Today</span>
-            <span class="al-weekday text-odk-red"></span>
-          </div>
-          <span class="widget-glance-badge">LOCAL</span>
-        </div>
-        <div class="al-body odk-row items-baseline">
+        <span class="al-weekday"></span>
+        <div class="widget-signal al-body">
           <span class="al-day"></span>
           <span class="al-month"></span>
-        </div>
-        <div class="widget-footer">
-          <span class="w-state">${this.state}</span>
-          <span class="widget-footer-note">Date</span>
         </div>`
 
       const weekday = el.querySelector('.al-weekday')
@@ -35,6 +25,7 @@
       ctx.onTick((now) => {
         weekday.textContent = WEEKDAYS[now.getDay()]
         day.textContent = now.getDate()
+        day.classList.toggle('al-day-wide', now.getDate() >= 10)
         month.textContent = now.toLocaleString('en-US', { month: 'short' })
       })
     },

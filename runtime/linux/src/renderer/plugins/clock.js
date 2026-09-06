@@ -15,18 +15,8 @@
     interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="widget-header">
-          <div class="widget-heading">
-            <span class="w-name">${this.app}</span>
-          </div>
-          <span class="widget-glance-badge">LIVE</span>
-        </div>
-        <div class="clock-body">
+        <div class="widget-signal clock-body">
           <span class="w-clock-time">--:--</span>
-        </div>
-        <div class="widget-footer">
-          <span class="w-state">${this.state}</span>
-          <span class="widget-footer-note">24 hour</span>
         </div>`
 
       const time = el.querySelector('.w-clock-time')

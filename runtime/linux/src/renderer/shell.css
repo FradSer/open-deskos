@@ -737,21 +737,23 @@ body.kiosk {
 }
 
 .w-almanac {
-  background: var(--odk-surface);
-  border-color: var(--odk-stroke);
+  background: color-mix(in srgb, var(--odk-accent-red) 8%, var(--odk-surface));
+  border-color: color-mix(in srgb, var(--odk-accent-red) 18%, var(--odk-stroke));
   color: var(--odk-primary);
 }
 
 .w-almanac .al-body {
   display: flex;
   align-items: baseline;
-  gap: calc(var(--gutter) * 0.25);
-  margin: auto 0;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: var(--odk-space-2);
+  margin: auto 0 4cqi;
 }
 
 .al-weekday {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(14px, calc(var(--cell-dim) * 0.15), 20px);
+  font-size: clamp(22px, 15cqi, 48px);
   font-weight: 700;
   line-height: 1;
   color: var(--odk-accent-red);
@@ -760,13 +762,21 @@ body.kiosk {
 
 .al-day {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(28px, calc(var(--cell-dim) * 0.42), 60px);
+  font-size: clamp(72px, 68cqi, 240px);
   font-weight: 700;
-  line-height: 0.9;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.al-day-wide {
+  font-size: clamp(64px, 47cqi, 160px);
 }
 
 .al-month {
-  font-size: clamp(13px, calc(var(--cell-dim) * 0.13), 18px);
+  padding-bottom: 0.08em;
+  font-family: "Montserrat", sans-serif;
+  font-size: clamp(20px, 14cqi, 40px);
+  font-weight: 700;
   line-height: 1;
   color: var(--odk-secondary-strong);
   text-transform: uppercase;
@@ -786,7 +796,7 @@ body.kiosk {
 
 .w-clock-time {
   font-family: "Montserrat", "Noto Sans SC", sans-serif;
-  font-size: clamp(28px, calc(var(--cell-dim) * 0.28), 64px);
+  font-size: clamp(42px, 38cqi, 136px);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1934,7 +1944,7 @@ body.kiosk {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.5cqi;
-  padding: 4cqi 0;
+  padding: 2.5cqi 0;
   border-block: 1px solid var(--odk-stroke);
 }
 
