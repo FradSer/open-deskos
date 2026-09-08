@@ -77,8 +77,7 @@ smoke 模式决定了后续切片能否安全迭代。
 - **字重纪律**:只捆绑了 Noto 400 与 Montserrat 700 两个面;font-weight
   500/600 会静默回退或触发 CJK 伪粗。AIODI Bold Digits Rule → CJK 一律 400,
   数字/拉丁 700(.al-weekday 400、.al-day 700、#app-title 400、.grp b 700)。
-- **状态栏单行**:页名(#page-context)+ 页点(#dots)同入 #page-center 居中行,
-  页名不再压顶缘;e2e 仍钉 label "名称 · N/3" 格式与 bolt/dots/clock 左中右序。
+- **当前状态栏分页**：只显示点/短条，不显示页名或文字分段控件；`#page-context` 仅保留为读屏 live region。Pi 状态和分页胶囊共用 `--odk-status-control-h: 44px`，可见上下边缘对齐。Instrument/Border Beam 为圆点与圆角条，Pixel 为方点与直角条；主题不得缩小或重建点击目标。`tests/page-indicator.cjs` 验证三主题、窄屏、实时主题切换及键盘/Remote。
 - **Dashboard 叙述流从头部正下方排布**(P4 parity,不用 margin-top:auto 压底);
   文案去重:叙述只说等待 Mac,辅助行独占"真实日程与用量"短语(e2e 钉死);
   装饰性红点已删——AIODI 色彩只表达状态;星期/日期 CSS uppercase(DOM 文本
