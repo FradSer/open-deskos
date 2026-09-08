@@ -4,12 +4,13 @@ const fs = require('node:fs')
 const { EventEmitter } = require('node:events')
 const path = require('node:path')
 const { createJsonLineReader } = require('./json-line-reader')
-const { parseJsonLine, encodeJsonLine, validateNavigate } = require('./protocol')
+const { parseJsonLine, encodeJsonLine } = require('./protocol')
 const { RemoteLinkAdapter } = require('./remote-link-adapter')
 
 const DEFAULT_SERIAL_DIRECTORY = '/dev/serial/by-id'
 const DEFAULT_SCAN_INTERVAL_MS = 1_000
 const REMOTE_DEVICE_NAME = 'open-deskos-remote'
+const REMOTE_SERIAL_JTAG_NAME = 'espressifusbjtagserialdebugunit'
 
 class UsbCdcAdapter extends RemoteLinkAdapter {
   constructor({
@@ -127,7 +128,8 @@ async function discoverUsbCdcDevice(serialDirectory = DEFAULT_SERIAL_DIRECTORY) 
 }
 
 function isOpenDeskOsRemoteDevice(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '').includes('opendeskosremote')
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return normalized.includes('opendeskosremote') || normalized.includes(REMOTE_SERIAL_JTAG_NAME)
 }
 
 class CdcConnection extends EventEmitter {
@@ -166,7 +168,7 @@ class CdcConnection extends EventEmitter {
 
   #receive(line) {
     const parsed = parseJsonLine(line)
-    if (parsed.ok && validateNavigate(parsed.record).ok) this.emit('message', parsed.record)
+    if (parsed.ok) this.emit('message', parsed.record)
   }
 
   #end(reason) {
@@ -179,6 +181,12 @@ class CdcConnection extends EventEmitter {
 }
 
 async function createCdcConnection(devicePath) {
+  try {
+    const { execFileSync } = require('node:child_process')
+    execFileSync('stty', ['-F', devicePath, 'raw', '-echo', 'min', '1', 'time', '0'], { stdio: 'ignore' })
+  } catch {
+    // Non-fatal if stty is unavailable or devicePath is mock/test path
+  }
   return new CdcConnection(devicePath)
 }
 
@@ -186,6 +194,7 @@ module.exports = {
   CdcConnection,
   DEFAULT_SERIAL_DIRECTORY,
   REMOTE_DEVICE_NAME,
+  REMOTE_SERIAL_JTAG_NAME,
   UsbCdcAdapter,
   createCdcConnection,
   discoverUsbCdcDevice,

@@ -7,6 +7,7 @@ const {
   createLinkState,
   parseJsonLine,
   validateNavigate,
+  validateRemoteInput,
   validateShellState,
 } = require('../lib/protocol')
 
@@ -40,6 +41,64 @@ test('rejects unversioned, invalid, and contradictory state records', () => {
     canPrev: false,
     canNext: true,
   }), { ok: false, error: 'inconsistent-boundaries' })
+})
+
+test('accepts versioned Remote Touchpad direction, primary, secondary, mic, and action records', () => {
+  for (const input of ['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic']) {
+    assert.deepEqual(validateRemoteInput({
+      v: PROTOCOL_VERSION,
+      type: 'input',
+      input,
+    }), { ok: true })
+  }
+  assert.deepEqual(validateRemoteInput({
+    v: PROTOCOL_VERSION,
+    type: 'input',
+    input: 'action',
+    action: 'refresh',
+  }), { ok: true })
+  assert.deepEqual(validateRemoteInput({
+    v: PROTOCOL_VERSION,
+    type: 'action',
+    action: 'play',
+  }), { ok: true })
+  assert.deepEqual(validateRemoteInput({
+    v: PROTOCOL_VERSION,
+    type: 'input',
+    input: 'action',
+  }), { ok: false, error: 'invalid-action' })
+  assert.deepEqual(validateRemoteInput({
+    v: PROTOCOL_VERSION,
+    type: 'input',
+    input: 'diagonal',
+  }), { ok: false, error: 'invalid-input' })
+})
+
+test('validates dynamic contextual Touch Bar actions in shell state', () => {
+  const validState = {
+    v: PROTOCOL_VERSION,
+    type: 'state',
+    page: 1,
+    pages: 3,
+    name: 'Home',
+    canPrev: false,
+    canNext: true,
+    actions: [
+      { id: 'refresh', label: 'SYNC' },
+      { id: 'mode', label: 'MODE' },
+    ],
+  }
+  assert.deepEqual(validateShellState(validState), { ok: true })
+
+  assert.deepEqual(validateShellState({
+    ...validState,
+    actions: 'not-an-array',
+  }), { ok: false, error: 'invalid-actions' })
+
+  assert.deepEqual(validateShellState({
+    ...validState,
+    actions: [{ id: '' }],
+  }), { ok: false, error: 'invalid-actions' })
 })
 
 test('defines Shell client link states and requires versioned navigation', () => {

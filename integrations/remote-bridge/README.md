@@ -10,7 +10,8 @@ The bridge listens at `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`, matchin
 
 - `link`: emitted by the bridge as `{ "v": 1, "type": "link", "state": "disconnected" | "syncing" | "usb" | "wireless" }`. `usb` only denotes the `usb-cdc` adapter; all non-USB adapters report `wireless`.
 - `state`: sent by Display Shell as `{ "v": 1, "type": "state", "page", "pages", "name", "canPrev", "canNext", "link"? }`. The bridge rejects incomplete or contradictory page boundaries.
-- `navigate`: emitted by a Remote Link adapter and relayed to the Display Shell as `{ "v": 1, "type": "navigate", "direction": "previous" | "next" }`. Unversioned, unsupported-version, and invalid messages are discarded.
+- `navigate`: emitted by a legacy Remote Link adapter and relayed to the Display Shell as `{ "v": 1, "type": "navigate", "direction": "previous" | "next" }`.
+- `input`: emitted by a Remote Touchpad adapter and relayed as `{ "v": 1, "type": "input", "input": "left" | "right" | "up" | "down" | "primary" | "secondary" }`. `secondary` is a long-press request. Unversioned, unsupported-version, and invalid records are discarded.
 
 The bridge retains the latest valid Shell state unchanged. When a Remote Link connects, it publishes `syncing`, derives an adapter state with `link: "wired"` for USB CDC or `link: "wireless"` for a future UART/C6 adapter, sends that state, then publishes factual `usb` or `wireless` link state.
 

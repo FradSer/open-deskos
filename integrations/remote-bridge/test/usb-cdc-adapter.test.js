@@ -10,8 +10,9 @@ const {
 } = require('../lib/usb-cdc-adapter')
 const { PROTOCOL_VERSION } = require('../lib/protocol')
 
-test('identifies only Open DeskOS Remote /dev/serial/by-id entries', () => {
+test('identifies Remote CDC and the fixed S3 USB JTAG serial device', () => {
   assert.equal(isOpenDeskOsRemoteDevice('usb-Open_DeskOS_Remote_ABC-if00'), true)
+  assert.equal(isOpenDeskOsRemoteDevice('usb-Espressif_USB_JTAG_serial_debug_unit_F0:9E:9E:11:23:CC-if00'), true)
   assert.equal(isOpenDeskOsRemoteDevice('usb-Other_Device-if00'), false)
 })
 
@@ -64,7 +65,8 @@ test('connects, reports device absence, relays valid messages, reconnects, and d
   assert.match(connections[0].devicePath, /\/dev\/serial\/by-id\//)
   assert.doesNotMatch(connections[0].devicePath, /ttyACM/)
   connections[0].emit('message', { v: PROTOCOL_VERSION, type: 'navigate', direction: 'next' })
-  assert.equal(messages.length, 1)
+  connections[0].emit('message', { v: PROTOCOL_VERSION, type: 'input', input: 'primary' })
+  assert.equal(messages.length, 2)
 
   connections[0].emit('disconnect', 'read-ended')
   await adapter.scan()

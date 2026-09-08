@@ -46,6 +46,34 @@ test('speaks the Shell client schema over its 0600 runtime socket, syncs state, 
   assert.deepEqual(await client.next(), { v: PROTOCOL_VERSION, type: 'link', state: 'disconnected' })
 })
 
+test('sends each changed Shell state to the active Remote without a reconnect', async (t) => {
+  const runtimeDirectory = await makeRuntimeDirectory()
+  const adapter = new FakeAdapter()
+  const bridge = new RemoteBridge({
+    adapter,
+    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    logger: silentLogger,
+  })
+  await bridge.start()
+  t.after(async () => {
+    await bridge.stop()
+    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
+  })
+
+  const client = await connectClient(bridge.socketPath)
+  t.after(() => client.socket.destroy())
+  await client.next()
+  adapter.emit('connected', { transport: 'usb-cdc' })
+  await client.next()
+  const first = shellStateRecord({ page: 1, canPrev: false, canNext: true })
+  client.socket.write(`${JSON.stringify(first)}\n`)
+  await waitFor(() => adapter.sent.length === 1)
+  const second = shellStateRecord({ page: 2, canPrev: true, canNext: true })
+  client.socket.write(`${JSON.stringify(second)}\n`)
+  await waitFor(() => adapter.sent.length === 2)
+  assert.deepEqual(adapter.sent[1], { ...second, link: 'wired' })
+})
+
 test('resynchronizes retained Shell state after a wired Remote Control reconnects', async (t) => {
   const runtimeDirectory = await makeRuntimeDirectory()
   const adapter = new FakeAdapter()
@@ -105,6 +133,28 @@ test('marks future non-USB adapter state as wireless without changing retained S
   assert.deepEqual(adapter.sent[0], { ...shellState, link: 'wireless' })
   assert.deepEqual(await client.next(), { v: PROTOCOL_VERSION, type: 'link', state: 'wireless' })
   assert.deepEqual(bridge.latestShellState, shellState)
+})
+
+test('relays versioned Remote Touchpad input records emitted by an adapter', async (t) => {
+  const runtimeDirectory = await makeRuntimeDirectory()
+  const adapter = new FakeAdapter()
+  const bridge = new RemoteBridge({
+    adapter,
+    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    logger: silentLogger,
+  })
+  await bridge.start()
+  t.after(async () => {
+    await bridge.stop()
+    await fs.promises.rm(runtimeDirectory, { recursive: true, force: true })
+  })
+
+  const client = await connectClient(bridge.socketPath)
+  t.after(() => client.socket.destroy())
+  await client.next()
+  const input = { v: PROTOCOL_VERSION, type: 'input', input: 'secondary' }
+  adapter.emit('message', input)
+  assert.deepEqual(await client.next(), input)
 })
 
 test('rejects unversioned and unsupported navigation emitted by an adapter', async (t) => {

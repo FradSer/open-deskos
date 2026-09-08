@@ -13,3 +13,9 @@
     When USB CDC disconnects and Wireless Gateway is active
     Then the active transport transitions to wireless with link state wireless
     And the Unix domain socket connection is not closed
+
+  Scenario: Remote Bridge relays versioned Remote Touchpad input
+    Given a Display Shell client is connected to the Remote Bridge
+    When a Remote Link adapter sends a direction, primary, or secondary Remote Touchpad record
+    Then the bridge forwards the same versioned record to the Display Shell client
+    But it discards an unsupported Remote Touchpad input record

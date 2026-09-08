@@ -9,6 +9,7 @@ const {
   encodeJsonLine,
   parseJsonLine,
   validateNavigate,
+  validateRemoteInput,
   validateShellState,
 } = require('./protocol')
 
@@ -81,8 +82,9 @@ class RemoteBridge {
     if (!parsed.ok) return
     const validation = validateShellState(parsed.record)
     if (!validation.ok) return
+    const changed = JSON.stringify(this.latestShellState) !== JSON.stringify(parsed.record)
     this.latestShellState = parsed.record
-    if (this.activeTransport) await this.#synchronizeActiveLink()
+    if (changed && this.activeTransport) await this.#synchronizeActiveLink()
   }
 
   async #onAdapterConnected({ transport }) {
@@ -100,8 +102,7 @@ class RemoteBridge {
   }
 
   #onAdapterMessage(record) {
-    const validation = validateNavigate(record)
-    if (!validation.ok) return
+    if (!validateNavigate(record).ok && !validateRemoteInput(record).ok) return
     this.#broadcast(record)
   }
 
