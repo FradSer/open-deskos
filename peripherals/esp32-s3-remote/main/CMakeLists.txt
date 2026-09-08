@@ -1,5 +1,5 @@
 idf_component_register(
-  SRCS "remote_control.c" "navigation_gesture.c"
+  SRCS "remote_control.c" "touchpad_gesture.c"
   INCLUDE_DIRS "."
-  REQUIRES esp_lcd esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_driver_spi esp_tinyusb
+  REQUIRES esp_lcd esp_driver_gpio esp_driver_i2c esp_driver_ledc esp_driver_spi esp_driver_usb_serial_jtag esp_timer
 )
