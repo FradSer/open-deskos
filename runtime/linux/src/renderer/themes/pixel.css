@@ -1,0 +1,274 @@
+@font-face {
+  font-family: "Zpix";
+  src: url("../fonts/zpix.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+/* Pixel theme: one local face for Latin, Chinese, digits, and controls. */
+
+[data-theme='pixel'],
+[data-theme='pixel'] * {
+  border-radius: 0 !important;
+}
+
+[data-theme='pixel'] {
+  --radius: 0px !important;
+  --odk-radius-card: 0px !important;
+  --odk-radius-pill: 0px !important;
+  --odk-page-marker-active: var(--odk-accent-green);
+  --odk-page-control-stroke: var(--odk-stroke);
+
+  image-rendering: pixelated;
+}
+
+/* Hard pixel border & corners for all containers, inputs, buttons, widgets */
+[data-theme='pixel'] :is(
+  .widget,
+  .card,
+  .quota-card,
+  .runtime-app,
+  .app-surface-card,
+  .button-pill,
+  .dot,
+  .pi-session-card,
+  .pi-filter-btn,
+  .pi-refresh-btn,
+  .pi-search-input,
+  .app-search,
+  .pi-metric-pill,
+  .pi-ws-badge,
+  .pi-status-badge,
+  .widget-glance-badge,
+  .meter,
+  .meter-fill,
+  #app-back
+) {
+  border-radius: 0 !important;
+}
+
+/* Pixel input field styling */
+[data-theme='pixel'] :is(.pi-search-input, .app-search, input) {
+  border: 2px solid var(--odk-stroke) !important;
+  background: var(--odk-surface) !important;
+  box-shadow: inset 1px 1px 0px #000000, 1px 1px 0px var(--odk-elevated) !important;
+  letter-spacing: normal;
+}
+
+[data-theme='pixel'] :is(.pi-search-input:focus-visible, .app-search:focus-visible, input:focus-visible) {
+  outline: none !important;
+  border-color: var(--odk-accent-green) !important;
+  box-shadow: 0 0 0 2px var(--odk-accent-green) !important;
+}
+
+[data-theme='pixel'],
+[data-theme='pixel'] *,
+[data-theme='pixel'] ::before,
+[data-theme='pixel'] ::after,
+[data-theme='pixel'] ::placeholder {
+  font-family: "Zpix", monospace !important;
+  font-weight: 400 !important;
+  font-synthesis: none;
+}
+
+/* Zpix has narrower Latin advances than the Instrument theme's display face. */
+[data-theme='pixel'] .w-clock-time {
+  font-size: 40cqi;
+  letter-spacing: 0;
+  transform: translateX(2.5cqi);
+}
+
+
+
+[data-theme='pixel'] .al-month {
+  font-size: 12cqi;
+}
+
+[data-theme='pixel'] .al-day {
+  font-size: 68cqi;
+  letter-spacing: normal;
+}
+
+[data-theme='pixel'] .al-day-wide {
+  font-size: 50cqi;
+  letter-spacing: normal;
+}
+
+[data-theme='pixel'] .year-pct {
+  font-size: 46cqi;
+}
+
+[data-theme='pixel'] .year-pct-wide {
+  font-size: 39cqi;
+}
+
+[data-theme='pixel'] .desk-status-resolution {
+  font-size: 15cqi;
+}
+
+[data-theme='pixel'] .desk-status-value {
+  font-size: 24cqi;
+}
+
+[data-theme='pixel'] .pi-widget-count {
+  font-size: 42cqi;
+  letter-spacing: normal;
+  line-height: 1;
+}
+
+[data-theme='pixel'] .pi-widget-unit {
+  font-size: max(12px, 6.5cqi);
+  letter-spacing: 0.04em;
+}
+
+[data-theme='pixel'] .pi-widget-tag-label {
+  font-size: max(12px, 3.5cqi);
+}
+
+[data-theme='pixel'] .pi-widget-summary {
+  font-size: max(12px, 4cqi);
+  line-height: 1.35;
+}
+
+[data-theme='pixel'] .pi-widget-context .w-state {
+  font-size: max(12px, 4.6cqi);
+}
+
+[data-theme='pixel'] .pi-skill-bracket {
+  color: var(--odk-accent-green) !important;
+}
+
+@media (width < 1000px), (orientation: portrait) {
+  [data-theme='pixel'] .pi-widget-count {
+    font-size: 42cqi;
+    letter-spacing: normal;
+  }
+
+  [data-theme='pixel'] .pi-widget-unit {
+    font-size: max(12px, 6.5cqi);
+  }
+
+  [data-theme='pixel'] .pi-widget-summary {
+    font-size: max(12px, 4cqi);
+  }
+
+  [data-theme='pixel'] .pi-widget-context .w-state {
+    font-size: max(12px, 4.8cqi);
+  }
+}
+
+@container (width < 190px) {
+  [data-theme='pixel'] .vision-status-layout .widget-icon-body svg {
+    width: 36cqi;
+    height: 36cqi;
+  }
+}
+
+/* Marker shape changes with the theme; hit targets retain shell geometry. */
+[data-theme='pixel'] .dot::before,
+[data-theme='pixel'] .dot::after {
+  border-radius: 0;
+}
+
+/* Meter & dials in pixel art */
+[data-theme='pixel'] :is(.ring-track, .ring-arc) {
+  stroke-linecap: square !important;
+}
+
+[data-theme='pixel'] .meter-fill {
+  border-radius: 0 !important;
+}
+
+/* Pixel Art Icon treatment:
+   Sharp SVG rendering with crisp edges and pixel-step appearance */
+[data-theme='pixel'] svg {
+  shape-rendering: crispEdges !important;
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
+}
+
+[data-theme='pixel'] svg path {
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
+}
+
+/* Pixel buttons with retro 3D bevel / hard shadow */
+[data-theme='pixel'] :is(.button-pill, .pi-filter-btn.active, .pi-refresh-btn) {
+  box-shadow: 2px 2px 0px var(--odk-button), -1px -1px 0px var(--odk-stroke) !important;
+}
+
+[data-theme='pixel'] :is(.button-pill:active, .pi-refresh-btn:active) {
+  transform: translate(1px, 1px) !important;
+  box-shadow: 1px 1px 0px var(--odk-button) !important;
+}
+
+/* Zpix digits are narrower than Montserrat's; keep Hydra numerals filling the tile
+   without the denser content escaping the 1x1 cell. */
+[data-theme='pixel'] .hydra-env-value,
+[data-theme='pixel'] .hydra-plant-soil {
+  /* Zpix digits; sized to keep the narrow 1x1 cell inside its frame.
+     Bitmap faces keep zero tracking so glyphs stay on the pixel grid. */
+  font-size: 10cqi;
+  line-height: 1;
+  letter-spacing: normal;
+}
+
+[data-theme='pixel'] .hydra-title {
+  font-size: 8cqi;
+}
+
+[data-theme='pixel'] .hydra-badge {
+  font-size: clamp(12px, 5.5cqi, 18px);
+}
+
+[data-theme='pixel'] .hydra-env-unit,
+[data-theme='pixel'] .hydra-plant-name {
+  font-size: clamp(12px, 7cqi, 28px);
+}
+
+[data-theme='pixel'] .hydra-env {
+  gap: 1cqi;
+}
+
+[data-theme='pixel'] .hydra-env-label {
+  font-size: clamp(12px, 4cqi, 16px);
+}
+
+[data-theme='pixel'] .hydra-env-label {
+  font-size: clamp(12px, 5.5cqi, 18px);
+}
+
+[data-theme='pixel'] .hydra-meter {
+  height: 2.5cqi;
+}
+
+[data-theme='pixel'] .hydra-meter-fill {
+  transition: none;
+}
+
+[data-theme='pixel'] .hydra-body {
+  gap: 2cqi;
+}
+
+/* Widescreen: the Hydra tile spans two grid rows, so the Zpix numerals scale up. */
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
+  [data-theme='pixel'] .hydra-env-value,
+  [data-theme='pixel'] .hydra-plant-soil {
+    font-size: 20cqi;
+  }
+
+  [data-theme='pixel'] .hydra-plant-name,
+  [data-theme='pixel'] .hydra-env-unit {
+    font-size: 8cqi;
+  }
+
+
+  [data-theme='pixel'] .hydra-title {
+    font-size: 11cqi;
+  }
+
+  [data-theme='pixel'] .hydra-badge {
+    font-size: 7cqi;
+  }
+}

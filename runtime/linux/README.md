@@ -7,7 +7,7 @@ Orange Pi CM5 (RK3588S) Linux 设备上的 Open DeskOS 外壳，基于 Electron�
 ## 功能范围
 
 - 1920×1280 默认 kiosk 窗口，分辨率可经环境变量覆盖；布局会响应其它窗口尺寸
-- Open DeskOS 布局：顶部 State Bar（网络指示、Pi Sessions 和时钟），下方五列三行 Widget 网格；窄窗口自适应重排
+- Open DeskOS 布局：顶部 State Bar（网络指示、Pi Sessions 和时钟），下方五列三行 Widget 网格；窄窗口保留可读的方形 Widget 并纵向滚动，不再缩小整页内容
 - 四页横向触摸滑动：Today、Home、Pi Sessions、Usage；Home 仅展示不可交互 Widget，后两页提供 App 交互；Pi Sessions 同时读取本地 `ps` 进程表和 Pi 会话元数据，无元数据的进程也会如实显示其 PID、工作目录、状态和运行时长
 - OpenCode Go 用量页显示滚动窗口、周/月用量、重置时间和 Zen 余额
 - 用量状态由设备本地配置决定：未配置、同步成功、凭据无效或暂不可用均如实显示，不伪造数据
@@ -47,10 +47,61 @@ pnpm styles
 ODESK_SHELL_KIOSK=1 ./run.sh --kiosk
 bash tests/smoke.sh
 pnpm test
-pnpm run e2e
+pnpm run e2e              # 含 Widget / App 内部样式与交互回归
+pnpm exec electron tests/widget-app-styles.cjs  # 单独运行样式回归
+pnpm exec electron tests/widget-density.cjs     # 逐 Widget 的 62% 填充率门禁
+pnpm exec electron tests/page-indicator.cjs      # 纯图形分页、三主题及等高胶囊
+pnpm exec electron tests/pixel-font.cjs          # 中英文实际 Zpix 字形与布局
 ```
 
+### Pixel 像素字体
+
+Pixel 主题统一使用本地 [Zpix v3.2.0](https://github.com/SolidZORO/zpix-pixel-font/releases/tag/v3.2.0) 字体：英文、简繁中文、数字、输入框和代码内容均由 Zpix Regular 渲染，不依赖在线字体，不合成粗体。官方 WOFF2 原文件约 944 KiB，未转换或裁剪；原字体文件已移除。
+
+**许可注意：个人/教育项目免费，商业产品需向作者另购授权。** 来源、SHA-256 与原文条款见 `src/renderer/fonts/ZPIX-NOTICE.md`。
+
+状态栏分页在所有主题中都不显示文字，只使用点/短条；Pi 状态与分页胶囊统一为 44px 高度。切换主题不改变当前页、焦点或点击区域。`pnpm e2e` 包含实际中英文字形、三主题切换与状态栏检查。
+
+### Border Beam 可选主题
+
+参考 [Libraries.dev / border-beam](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam)
+的 Mono 行进边框，使用本地 CSS 实现，不引入 React。新安装默认 Pixel；暂不提供状态栏切换入口。
+开发时可在 renderer 控制台调用 `odkTheme.set('border-beam')`，恢复默认用
+`odkTheme.set('instrument')`。选择保存在本地，重启后恢复。
+减少动态效果时边框静止，窗口隐藏时暂停动画。
+
+验证：`pnpm exec electron tests/border-beam-theme.cjs`。
+CM5 实机绘制性能尚未验证。
+
+### Widget 密度校验
+
+`pnpm e2e` 同时运行密度门禁：5 种尺寸、在线/不可用状态，以及年初/年末数值。单独运行可选：
+
+```sh
+pnpm exec electron tests/widget-density.cjs --state=live --sizes=1920x1280,480x854
+pnpm exec electron tests/widget-density.cjs --date=2026-12-31T23:59:00
+pnpm exec electron tests/widget-density.cjs --report-only --output=/tmp/widget-density.json --capture-dir=/tmp/widget-density
+```
+
+- **视觉填充率**：真实文本行框、SVG 图标/仪表与进度条的紧致包围盒面积 ÷ 卡片边框内面积；目标 **62%，容差 ±8 个百分点**。
+- **稀疏防护**：元素矩形联合占用面积至少 20%，最大横贯卡片的纵向空白带不超过 28%。不把空 flex 容器或卡片背景算成内容，也不重复计入重叠元素。
+- 这不是字形着墨率：图标和环形仪表按其视觉框测量，不能解释为非背景像素比例。JSON 保留逐元素矩形，便于复核。
+- 默认固定时钟以保证结果可复现，`--date` 可检验不同日期/时间。`--capture-dir` 保存每种尺寸的 Home 截图及逐 Widget 截图；捕获时会滚动到对应 Widget。
+- 默认违规返回非零退出码。`--report-only` 仅允许采集不通过的报告，仍如实输出 `ok: false`，不能作为验收通过依据。
+
 Wayland 会话在 `run.sh` 中自动追加 `--ozone-platform-hint=auto`；root 会话会自动追加 `--no-sandbox`。
+
+## Pi Sessions Mac 监控（可选）
+
+默认仍监控本机；可通过认证 SSH 切换为 Mac 数据源。部署采集器、配置 SSH 密钥和持久化 kiosk 服务环境变量的步骤见 [Mac Pi monitoring](docs/PI_SESSIONS_REMOTE.md)。远端不可用时不会回退本机或显示为空闲。
+
+## Remote 语音 Agent
+
+Remote 的 MIC 由主进程直接交给独立常驻的 Voice Agent，不经过 Pi Sessions 监控 app/widget。再次点击停止录音并提交，30 秒自动结束；使用 CM5 Linux 默认录音设备，不读取 Remote 音频。桌面独立反馈录音、转写、执行和错误状态。
+
+语音经显式配置的 OpenAI-compatible 服务转写，再由 Pi harness 在独立可写 checkout 中执行。能力工具可扩展；首批支持 Widget/App 开发和向已接入 session-control 扩展的 Pi session 发送 prompt。仅被监控到的进程不代表可控制，排队成功不代表任务完成。生成代码不会绕过验证直接修改 active release。
+
+配置与边界见 [Voice Agent](../../integrations/voice-agent/README.md) 和 [部署指南](docs/VOICE_AGENT_DEPLOYMENT.md)。音频、转写服务认证及真实模型执行需要独立验收；测试通过不代表设备端链路已配置完成。
 
 ## OpenCode Go Linux 配置
 

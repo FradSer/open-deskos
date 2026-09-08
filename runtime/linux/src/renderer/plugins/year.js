@@ -17,19 +17,12 @@
     interaction: 'display-only',
     mount(el, ctx) {
       el.innerHTML = `
-        <div class="year-head">
-          <div class="widget-heading">
-            <span class="w-name">${this.app}</span>
+        <div class="widget-signal year-row">
+          <div class="year-signal-line">
+            <span class="year-pct">--%</span>
+            <span class="year-context">of year elapsed</span>
           </div>
-          <span class="widget-glance-badge">LIVE</span>
-        </div>
-        <div class="year-row">
-          <span class="year-pct">--%</span>
-          <div class="meter"><div class="meter-fill"></div></div>
-        </div>
-        <div class="widget-footer">
-          <span class="w-state">${this.state}</span>
-          <span class="widget-footer-note">This year</span>
+          <div class="meter" aria-hidden="true"><div class="meter-fill"></div></div>
         </div>`
 
       const fill = el.querySelector('.meter-fill')
@@ -38,6 +31,7 @@
         const ratio = yearRatio(now)
         fill.style.width = `${(ratio * 100).toFixed(2)}%`
         pct.textContent = `${Math.round(ratio * 100)}%`
+        pct.classList.toggle('year-pct-wide', Math.round(ratio * 100) === 100)
       })
     },
   })

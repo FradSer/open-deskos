@@ -13,6 +13,8 @@ DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null && pwd -P
 REPOSITORY_ROOT="$(CDPATH= cd -- "${DIR}/../.." >/dev/null && pwd -P)"
 FACE_AGENT_SOURCE="${REPOSITORY_ROOT}/experiments/vision/face-agent"
 REMOTE_BRIDGE_SOURCE="${REPOSITORY_ROOT}/integrations/remote-bridge"
+VOICE_AGENT_SOURCE="${REPOSITORY_ROOT}/integrations/voice-agent"
+source "${DIR}/scripts/cm5-voice-agent.sh"
 cd "$DIR"
 
 SUDO=""
@@ -217,6 +219,7 @@ $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
 if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
   run_as_target_user cp -a "${DIR}/." "${RELEASE_DIR}/"
 fi
+prepare_voice_agent_release
 run_as_target_user node -e "require('node:fs').writeFileSync('${RELEASE_DIR}/release.json', JSON.stringify({ id: '${RELEASE_ID}', schemaVersion: 1, createdAt: new Date().toISOString() }) + '\\n')"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RUNTIME_ROOT}/state/migrations/${TARGET_USER}"
 
@@ -265,6 +268,8 @@ else
 fi
 run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \
   node "${RUNTIME_ROOT}/current/scripts/migrate-runtime.js"
+
+install_voice_agent_service || echo "Voice Agent unavailable; base shell remains active. Check device-local voice configuration and ALSA access." >&2
 
 AUTOSTART_DIR="${TARGET_HOME}/.config/autostart"
 run_as_target_user mkdir -p "$AUTOSTART_DIR"

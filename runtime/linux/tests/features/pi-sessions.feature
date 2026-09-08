@@ -39,12 +39,12 @@ Feature: Local Pi Sessions Monitoring
     Then it retains the process record and does not choose one metadata record arbitrarily
     And the ambiguous metadata records remain historical rather than being marked as the live process
 
-  Scenario: Pi Sessions App page displays workspaces, session goals, and modified files
+  Scenario: Pi Sessions App page displays workspaces and session goals without modified file badges
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
     Then sessions are grouped by workspace directory
     And each session card shows its process status, PID, elapsed time, and latest goal
-    And each session displays the list of modified files
+    And each session card omits secondary modified file badges for a compact view
     And users can filter sessions by status or trigger a manual refresh
 
   Scenario: Pi Sessions controls reflow inside a narrow App page
@@ -58,3 +58,26 @@ Feature: Local Pi Sessions Monitoring
     When active Pi sessions are running locally
     Then the status bar displays the running count with an active indicator
     And selecting the status bar indicator navigates to the Pi Sessions page
+
+  Scenario: Pi Sessions widget prioritizes primary numeral over supporting description
+    Given the Pi Sessions widget is mounted on the Home grid
+    When session state is displayed across themes
+    Then the running count is the dominant visual numeral
+    And the supporting source or workspace description text uses compact legible type
+
+  Scenario: Pi Sessions fullscreen App renders a compact session list
+    Given multiple sessions are rendered in the Pi Sessions App feed
+    When viewing the session list on desktop display
+    Then session cards use compact vertical padding and inline goal alignment
+    And multiple running sessions fit within the initial visible viewport
+
+  Scenario: Pi Sessions App formats skill invocation goals as [skill] name
+    Given a session goal contains a skill tag
+    When the session card is rendered
+    Then the skill name is displayed with a bracketed skill indicator similar to the default TUI style
+    And raw skill XML tags are omitted
+
+  Scenario: Pi Sessions App displays active model activity
+    Given an active Pi session is running
+    When the session card is rendered
+    Then the card displays a model activity message indicating current work

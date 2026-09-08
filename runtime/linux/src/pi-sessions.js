@@ -32,7 +32,7 @@ function mergeSessionMetadata(existing, candidate) {
   const older = newer === candidate ? existing : candidate
   const merged = { ...older, ...newer }
 
-  for (const field of ['pid', 'cwd', 'startedAt', 'latestGoal', 'command']) {
+  for (const field of ['pid', 'cwd', 'startedAt', 'latestGoal', 'command', 'recap', 'activity']) {
     if (!merged[field] && older[field]) merged[field] = older[field]
   }
   const newerFiles = Array.isArray(newer.modifiedFiles) ? newer.modifiedFiles : []
@@ -43,6 +43,83 @@ function mergeSessionMetadata(existing, candidate) {
     merged.modifiedFiles = [...new Set([...olderFiles, ...newerFiles])]
   }
   return merged
+}
+
+function extractLatestLine(text) {
+  if (!text || typeof text !== 'string') return ''
+  const lines = text.split(/\r?\n/)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].replace(/\s+/g, ' ').trim()
+    if (trimmed.length > 0 && !trimmed.startsWith('... [truncated') && !trimmed.startsWith('…[truncated')) {
+      return trimmed
+    }
+  }
+  return ''
+}
+
+function formatToolCall(toolName, args) {
+  if (!toolName) return 'Working...'
+  const parsed = typeof args === 'string'
+    ? (() => { try { return JSON.parse(args) } catch { return {} } })()
+    : (args || {})
+  if (parsed.command && typeof parsed.command === 'string') {
+    return `bash: ${parsed.command.replace(/\s+/g, ' ').trim()}`
+  }
+  if (parsed.path && typeof parsed.path === 'string') {
+    return `${toolName}: ${path.basename(parsed.path.trim())}`
+  }
+  if (parsed.query && typeof parsed.query === 'string') {
+    return `search: ${parsed.query.replace(/\s+/g, ' ').trim()}`
+  }
+  if (parsed.subject && typeof parsed.subject === 'string') {
+    return `${toolName}: ${parsed.subject.replace(/\s+/g, ' ').trim()}`
+  }
+  return toolName
+}
+
+function extractLatestActivity(agentDir, cwd, sessionId) {
+  if (!agentDir || !cwd || !sessionId) return ''
+  try {
+    const dirName = '--' + cwd.replace(/^[/\\]+/, '').replace(/[/\\]+/g, '-').replace(/-+$/, '') + '--'
+    const sessionsDir = path.join(agentDir, 'sessions', dirName)
+    if (!fs.existsSync(sessionsDir)) return ''
+    const files = fs.readdirSync(sessionsDir)
+    const match = files.find((f) => f.includes(sessionId) && f.endsWith('.jsonl'))
+    if (!match) return ''
+    const filePath = path.join(sessionsDir, match)
+    const stat = fs.statSync(filePath)
+    const bufSize = Math.min(stat.size, 65536)
+    const fd = fs.openSync(filePath, 'r')
+    const buffer = Buffer.alloc(bufSize)
+    fs.readSync(fd, buffer, 0, bufSize, Math.max(0, stat.size - bufSize))
+    fs.closeSync(fd)
+    const text = buffer.toString('utf8')
+    const lines = text.trim().split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const entry = JSON.parse(lines[i])
+        const msg = entry?.message
+        if (msg?.role === 'assistant') {
+          const contents = Array.isArray(msg.content) ? msg.content : []
+          for (let j = contents.length - 1; j >= 0; j--) {
+            const part = contents[j]
+            if (part?.type === 'toolCall') {
+              return formatToolCall(part.name, part.arguments)
+            }
+            if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+              const line = extractLatestLine(part.text)
+              if (line) return line
+            }
+            if (part?.type === 'thinking' && typeof part.thinking === 'string' && part.thinking.trim()) {
+              const line = extractLatestLine(part.thinking)
+              if (line) return line
+            }
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return ''
 }
 
 function resolveWorkspaceName(cwd) {
@@ -178,27 +255,41 @@ function parseProcessTable(output, now = Date.now()) {
   return processes
 }
 
-function listPiProcesses(now = Date.now()) {
+function listPiProcesses(now = Date.now(), strict = false) {
   const format = process.platform === 'darwin'
     ? ['-axo', 'pid=,ppid=,etime=,comm=,args=']
     : ['-eo', 'pid=,ppid=,etimes=,comm=,args=']
   const result = spawnSync('ps', format, { encoding: 'utf8' })
-  if (result.status !== 0) return []
+  if (result.status !== 0) {
+    if (strict) throw new Error('Pi process inspection unavailable')
+    return []
+  }
   return parseProcessTable(result.stdout, now)
 }
 
 function processMatchesMetadata(metadataSession, processSessionInfo) {
-  const metadataStartedAt = Number(metadataSession?.startedAt)
   const processStartedAt = Number(processSessionInfo?.startedAt)
   if (!Number.isFinite(processStartedAt) || processStartedAt <= 0) return true
-  if (!Number.isFinite(metadataStartedAt) || metadataStartedAt <= 0) return false
-  return Math.abs(metadataStartedAt - processStartedAt) <= 5000
+  const metadataStartedAt = Number(metadataSession?.startedAt)
+  if (Number.isFinite(metadataStartedAt) && metadataStartedAt > 0 &&
+      Math.abs(metadataStartedAt - processStartedAt) <= 5000) return true
+  // The metadata was written while the current process was alive: it covers
+  // resumed sessions, sessions created inside a long-lived process, and
+  // metadata that records no startedAt. A stale file of a dead process cannot
+  // have been written after the live process started, so PID reuse stays safe.
+  const metadataUpdatedAt = Number(metadataSession?.updatedAt)
+  return Number.isFinite(metadataUpdatedAt) && metadataUpdatedAt > 0 &&
+         metadataUpdatedAt >= processStartedAt - 5000
 }
 
 function selectMetadataSession(candidates, processSessionInfo) {
   const compatible = candidates.filter((candidate) => processMatchesMetadata(candidate, processSessionInfo))
   if (compatible.length === 0) return null
   const sorted = compatible.sort((a, b) => {
+    // The candidate whose file is written most recently is the session the
+    // live process is serving now; activity distance is only a tie-breaker.
+    const updatedDiff = (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)
+    if (updatedDiff !== 0) return updatedDiff
     const aDistance = Math.abs((Number(a.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
     const bDistance = Math.abs((Number(b.startedAt) || 0) - (Number(processSessionInfo.startedAt) || 0))
     return aDistance - bDistance || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)
@@ -211,7 +302,7 @@ function selectMetadataSession(candidates, processSessionInfo) {
 
 function markMetadataExited(session) {
   session.isAlive = false
-  if (session.status === 'running') session.status = 'exited'
+  session.status = 'exited'
 }
 
 function processSession(processInfo) {
@@ -231,6 +322,8 @@ function processSession(processInfo) {
     updatedAt: startedAt,
     latestGoal: '',
     modifiedFiles: [],
+    activity: 'Working...',
+    recap: '',
     source: 'process',
     command: processInfo.command || processInfo.comm || 'pi',
   }
@@ -240,7 +333,7 @@ async function scanPiSessions(options = {}) {
   const agentDir = options.agentDir || process.env.PI_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
   const checkAlive = options.checkProcessAlive || defaultCheckProcessAlive
   const now = Number.isFinite(options.now) ? options.now : Date.now()
-  const listProcesses = options.listProcesses || (() => listPiProcesses(now))
+  const listProcesses = options.listProcesses || (() => listPiProcesses(now, options.strictProcessInspection))
   const dirSessionsPath = path.join(agentDir, 'directory-sessions')
 
   let wsEntries = []
@@ -303,15 +396,11 @@ async function scanPiSessions(options = {}) {
     let status = 'exited'
     if (isAlive) {
       status = data.status === 'running' ? 'running' : 'settled'
-    } else if (data.status === 'running') {
-      // Process was marked running but PID is dead
-      status = 'exited'
-    } else {
-      status = data.status || 'exited'
     }
 
     const cwd = data.cwd || ''
     const workspaceName = resolveWorkspaceName(cwd)
+    const activity = extractLatestActivity(agentDir, cwd, data.sessionId || uuid) || data.recap || ''
 
     sessions.push({
       sessionId: data.sessionId || uuid,
@@ -327,6 +416,8 @@ async function scanPiSessions(options = {}) {
       modifiedFiles: Array.isArray(data.modifiedFiles) ? data.modifiedFiles : [],
       source: data.source || 'session',
       command: data.command || '',
+      activity,
+      recap: data.recap || '',
     })
   }
 
@@ -340,7 +431,8 @@ async function scanPiSessions(options = {}) {
   let processEntries = []
   try {
     processEntries = listProcesses(now) || []
-  } catch {
+  } catch (error) {
+    if (options.strictProcessInspection) throw error
     processEntries = []
   }
   for (const processInfo of processEntries) {
@@ -366,12 +458,12 @@ async function scanPiSessions(options = {}) {
     sessions.push(session)
   }
 
-  // Sort by latest activity; use running state only as a deterministic tie-breaker.
+  // Sort by running state first; latest activity breaks ties deterministically.
   sessions.sort((a, b) => {
-    const activityDiff = (b.updatedAt || b.startedAt || 0) - (a.updatedAt || a.startedAt || 0)
-    if (activityDiff !== 0) return activityDiff
     if (a.status === 'running' && b.status !== 'running') return -1
     if (b.status === 'running' && a.status !== 'running') return 1
+    const activityDiff = (b.updatedAt || b.startedAt || 0) - (a.updatedAt || a.startedAt || 0)
+    if (activityDiff !== 0) return activityDiff
     return String(a.sessionId).localeCompare(String(b.sessionId))
   })
 

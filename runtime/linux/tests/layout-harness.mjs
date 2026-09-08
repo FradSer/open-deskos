@@ -38,15 +38,17 @@ for (const [label, width, height] of SIZES) {
   check(`${tag}: row height above floor`, m.cellH >= 24, `cellH=${m.cellH}`)
   check(`${tag}: grid width within screen`, m.gridW <= width, `gridW=${m.gridW} > ${width}`)
 
-  // Canonical vertical budget mirrored by the stylesheet: status bar, page
-  // padding, grid, and the bottom breathing gutter.
-  const budget = m.statusH + m.gutter + m.gridH + m.gutter + m.gutter
-  check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
-
-  check(`${tag}: status bar floored`, m.statusH >= 36)
-  if (!(width >= 1000 && width > height)) {
+  // Desktop fits the fixed panel; compact grids retain readable cells and scroll.
+  const budget = m.statusH + 3 * m.gutter + m.gridH
+  if (width >= 1000 && width > height) {
+    check(`${tag}: vertical budget fits`, budget <= height, `budget=${budget} > ${height}`)
+  } else {
+    check(`${tag}: compact cells remain readable`, m.cellDim >= 200, `cellDim=${m.cellDim}`)
+    check(`${tag}: compact grid keeps side margins`, m.gridW <= width - 2 * m.gutter)
     check(`${tag}: compact rows fit declared widgets`, m.rows === Math.ceil(gridWidgetCount(DESKTOP_LAYOUT) / m.cols))
   }
+
+  check(`${tag}: status bar floored`, m.statusH >= 36)
 
   const golden = GOLDEN[`${width}x${height}`]
   if (golden) {

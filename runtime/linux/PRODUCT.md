@@ -33,12 +33,12 @@ The active implementation focus for Open DeskOS. It is not yet a committed suppo
 Confirmed capabilities:
 - 1920×1280 default kiosk content size; `ODESK_SHELL_WIDTH`/`ODESK_SHELL_HEIGHT` overrides; `ODESK_SHELL_KIOSK=1` or `--kiosk`; `--smoke` headless size verification hooked on `did-finish-load`.
 - Four-page horizontal touch pager with threshold-based swipe, visible page context (`Today · N/4`), and State Bar dot sync: Today display summary / Home display-only Widget grid / Pi Sessions interactive App page / Usage interactive App page.
-- Home grid: five columns by three rows on the widescreen CM5 display, with declarative column/row spans in `src/renderer/config/desktop_layout.js`; narrow windows reflow widgets into the responsive grid. Every visible Widget exposes a truthful state label and remains read-only; interactive controls live on dedicated App pages. All pages, Widgets, status-bar indicators, and built-in views are self-contained plugins assembled by `core/composer.js`; the intent seam validates main-process routing into the renderer runtime.
+- Home grid: five columns by three rows on the widescreen CM5 display, with declarative column/row spans in `src/renderer/config/desktop_layout.js`; compact windows reflow widgets into readable square cells and scroll the Home page vertically. Every visible Widget exposes a truthful state label and remains read-only; interactive controls live on dedicated App pages. All pages, Widgets, status-bar indicators, and built-in views are self-contained plugins assembled by `core/composer.js`; the intent seam validates main-process routing into the renderer runtime.
 - The State Bar uses a bolt-only network reachability indicator; OpenCode Go and Remote Link states remain available in their dedicated surfaces without duplicating status text in the bar.
 - The State Bar is a larger glanceable orientation surface with Pi Sessions, network reachability, page position, and time. The shell has no dock or desktop icon pile; built-in view discovery and lifecycle validation live in the Built-in views surface.
 - Pi Sessions combines local `ps` process discovery with `~/.pi/agent/directory-sessions` metadata. Processes without metadata remain visible with their PID, working directory, status, and elapsed runtime, while goals and modified files stay explicitly unavailable.
 - Widget taps use `open-app` intent only for declared built-in views; `display-only` Widgets remain truthful and do not pretend to be launchers. Back and Escape always return to the exact source page and context.
-- Runtime geometry: `layout.js` computes the Open DeskOS portrait grid algorithm (`fit = min(w/320, h/480)`) into CSS custom properties; the shell re-flows on any aspect ratio without cropping.
+- Runtime geometry: `layout.js` keeps the desktop grid inside the panel and computes compact columns from a 200px cell floor, with CSS custom properties as the geometry contract. Compact Home supports touch, wheel, and Up/Down keyboard scrolling; App interiors use the available width within page margins.
 - Noto Sans SC Regular and Montserrat Bold are bundled locally under `src/renderer/fonts/` so CM5 rendering does not depend on host-installed fonts.
 
 Hard constraints:
@@ -75,7 +75,7 @@ calm / precise / companion — inherited unchanged from the product family. Open
 5. **Tokens are law.** Color changes happen in root `DESIGN.md` and flow through the checker, never through ad-hoc hex values; the test is the contract, not the review eye.
 6. **Honest instrument.** Show unavailable and live state truthfully; no decorative fake data, ever.
 7. **Escape is guaranteed.** Back always works and restores the exact page the user left.
-8. **Geometry adapts, never crops.** Runtime grid recomputation keeps every Widget inside the viewport on any window ratio.
+8. **Geometry adapts, never crops.** Runtime grid recomputation keeps the desktop footprint stable and compact Widgets horizontally contained. Vertical scrolling preserves readable content instead of shrinking an entire compact grid into the viewport.
 
 ## Accessibility & Inclusion
 

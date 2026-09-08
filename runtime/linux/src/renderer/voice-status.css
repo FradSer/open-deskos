@@ -1,0 +1,27 @@
+#voice-status {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  bottom: var(--odk-space-lg, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 48px);
+  max-height: 35vh;
+  overflow: auto;
+  padding: 16px 24px;
+  border: 1px solid var(--odk-stroke-focus);
+  border-radius: var(--odk-radius-card, 36px);
+  background: var(--odk-surface);
+  color: var(--odk-primary);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+#voice-status[hidden] { display: none; }
+#voice-status[data-state="recording"] { border-color: var(--odk-accent-red); }
+#voice-status[data-state="thinking"],
+#voice-status[data-state="transcribing"] { border-color: var(--odk-accent-blue); }
+#voice-status[data-state="error"] { border-color: var(--odk-accent-red); }

@@ -11,7 +11,7 @@ ssh "${TARGET}" "mkdir -p '${REMOTE_ROOT}/staging' '${REMOTE_ROOT}/releases' '${
 
 rsync -a --delete --exclude node_modules --exclude .DS_Store \
   "${ROOT}/runtime/linux/" "${TARGET}:${REMOTE_ROOT}/staging/runtime-linux/"
-rsync -a --delete --exclude .DS_Store \
+rsync -a --delete --exclude .DS_Store --exclude 'node_modules' --exclude '.env*' --exclude 'auth.json' --exclude '.pi' --exclude '*.env' \
   "${ROOT}/integrations/" "${TARGET}:${REMOTE_ROOT}/integrations/"
 rsync -a --delete --exclude .DS_Store \
   "${ROOT}/experiments/" "${TARGET}:${REMOTE_ROOT}/experiments/"

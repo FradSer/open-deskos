@@ -7,6 +7,10 @@
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="uno.css" />
   <link rel="stylesheet" href="shell.css" />
+  <link rel="stylesheet" href="voice-status.css" />
+  <link rel="stylesheet" href="themes/border-beam.css" />
+  <link rel="stylesheet" href="themes/pixel.css" />
+  <script src="core/theme.js"></script>
 </head>
 <body>
   <!-- Shell skeleton only. Everything visible is mounted by core/composer.js
@@ -37,6 +41,8 @@
   </section>
 
   <div id="system-overlay-root" class="system-overlay-container" aria-live="polite"></div>
+  <div id="voice-status" role="status" aria-atomic="true" hidden></div>
+  <script src="core/voice-status.js"></script>
 
   <div id="app-view" role="dialog" aria-modal="true" aria-labelledby="app-title" hidden>
     <header class="app-header flex items-center">
@@ -58,6 +64,8 @@
   <script src="layout.js"></script>
   <script src="core/overlay-alerts.js"></script>
   <script src="core/registry.js"></script>
+  <script src="icons/pixelarticons.js"></script>
+  <script src="core/icons.js"></script>
   <script src="core/services.js"></script>
   <script src="core/composer.js"></script>
   <script src="core/app-platform.js"></script>

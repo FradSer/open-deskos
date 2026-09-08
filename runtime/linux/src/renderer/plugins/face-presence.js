@@ -27,19 +27,13 @@
     const recognized = status.unlocked === true
     const state = stateLabel(status, recognized)
     el.innerHTML = `
-      <div class="widget-header">
-        <div class="widget-heading">
-          <span class="w-name">Face presence</span>
+      <div class="vision-status-layout">
+        <span class="widget-status-name">Face presence</span>
+        <div class="widget-signal widget-icon-body">
+          ${recognized ? ICONS.detected : ICONS.unavailable}
+          <span class="w-vision-value">${recognized ? String(status.facesCount) : 'Offline'}</span>
         </div>
-        <span class="widget-glance-badge">VISION</span>
-      </div>
-      <div class="widget-icon-body">
-        ${recognized ? ICONS.detected : ICONS.unavailable}
-        <span class="w-vision-value">${recognized ? String(status.facesCount) : '--'}</span>
-      </div>
-      <div class="widget-footer">
-        <span class="w-state">${state}</span>
-        <span class="widget-footer-note">Local only</span>
+        <span class="w-state vision-status-detail">${state}</span>
       </div>`
   }
 

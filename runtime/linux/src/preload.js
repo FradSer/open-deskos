@@ -10,6 +10,16 @@ contextBridge.exposeInMainWorld('odkPlatform', {
   dispatchIntent: (intent) => ipcRenderer.invoke('odk-app-manager-intent', intent),
 })
 
+contextBridge.exposeInMainWorld('odkVoice', {
+  toggle: () => ipcRenderer.invoke('odk-voice-toggle'),
+  getStatus: () => ipcRenderer.invoke('odk-voice-status'),
+  subscribe(listener) {
+    const handler = (_event, update) => listener(update)
+    ipcRenderer.on('odk-voice-status', handler)
+    return () => ipcRenderer.removeListener('odk-voice-status', handler)
+  },
+})
+
 contextBridge.exposeInMainWorld('odkRemote', {
   publishPageState: (state) => ipcRenderer.invoke('odk-remote-publish-page-state', state),
   subscribeLinkState(listener) {
@@ -21,5 +31,16 @@ contextBridge.exposeInMainWorld('odkRemote', {
     const handler = (_event, navigation) => listener(navigation.direction)
     ipcRenderer.on('odk-remote-navigation', handler)
     return () => ipcRenderer.removeListener('odk-remote-navigation', handler)
+  },
+  subscribeInput(listener) {
+    const handler = (_event, payload) => {
+      if (typeof payload === 'object' && payload !== null) {
+        listener(payload.input, payload.action)
+      } else {
+        listener(payload)
+      }
+    }
+    ipcRenderer.on('odk-remote-input', handler)
+    return () => ipcRenderer.removeListener('odk-remote-input', handler)
   },
 })

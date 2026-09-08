@@ -11,8 +11,10 @@ const DEFAULT_HEIGHT = 1280
 const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { fetchFaceAgentStatus } = require('./face-agent-status')
+const { createPiSessionsSource } = require('./pi-sessions-source')
 const { createHydraSource } = require('./hydra-mqtt')
-const { scanPiSessions } = require('./pi-sessions')
+const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
+const scanPiSessions = createPiSessionsSource()
 
 function configureGpuSwitches(targetApp = app, env = process.env) {
   const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
@@ -130,6 +132,19 @@ function main() {
       console.error(`remote bridge disabled: ${error.message}`)
     }
   }
+  const voiceAgent = createVoiceAgentClient({ socketPath: smokeMode ? null : resolveVoiceSocketPath() })
+  const broadcastVoiceStatus = (status) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-status', status)
+  }
+  voiceAgent.subscribe(broadcastVoiceStatus)
+  if (!smokeMode) voiceAgent.start()
+  ipcMain.handle('odk-voice-status', () => voiceAgent.snapshot())
+  ipcMain.handle('odk-voice-toggle', () => {
+    const sent = voiceAgent.toggle()
+    if (!sent) broadcastVoiceStatus(voiceAgent.snapshot())
+    return { accepted: sent }
+  })
+  app.once('before-quit', () => voiceAgent.stop())
   const remoteBridge = createRemoteBridgeClient({ socketPath: remoteSocketPath })
   let remoteSequence = 0
   const broadcastRemoteLinkState = (state) => {
@@ -142,6 +157,15 @@ function main() {
   remoteBridge.onNavigation((direction) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('odk-remote-navigation', { direction })
+    }
+  })
+  remoteBridge.onInput((input) => {
+    if (input === 'mic') {
+      if (!voiceAgent.toggle()) broadcastVoiceStatus(voiceAgent.snapshot())
+      return
+    }
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('odk-remote-input', { input })
     }
   })
   if (!smokeMode) remoteBridge.start()
@@ -173,6 +197,7 @@ function main() {
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
   win.webContents.once('did-finish-load', () => {
+    if (voiceAgent.snapshot().state !== 'unavailable') broadcastVoiceStatus(voiceAgent.snapshot())
     win.webContents.send('odk-remote-link-state', {
       state: remoteBridge.getLinkState(),
       sequence: remoteSequence,

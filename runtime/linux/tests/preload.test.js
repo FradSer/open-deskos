@@ -60,8 +60,15 @@ test('exposes platform actions and only narrow remote state APIs to the sandboxe
   listeners.get('odk-remote-navigation')(null, { direction: 'next' })
   assert.deepEqual(navigations, ['next'])
 
+  const inputs = []
+  const unsubscribeInput = exposed.odkRemote.subscribeInput((input) => inputs.push(input))
+  listeners.get('odk-remote-input')(null, { input: 'primary' })
+  assert.deepEqual(inputs, ['primary'])
+
   unsubscribe()
   unsubscribeNavigation()
+  unsubscribeInput()
   assert.equal(listeners.has('odk-remote-link-state'), false)
   assert.equal(listeners.has('odk-remote-navigation'), false)
+  assert.equal(listeners.has('odk-remote-input'), false)
 })

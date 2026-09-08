@@ -46,3 +46,9 @@ Feature: Open DeskOS Remote Bridge
     Given an adapter emits an unversioned or unsupported-version navigate message
     Then Remote Bridge discards it before it reaches the Display Shell
     And the USB CDC adapter remains replaceable by a future UART and C6 Gateway adapter
+
+  Scenario: Display Shell receives versioned Remote Touchpad input
+    Given the Remote Bridge has an active Remote Link adapter
+    When the adapter emits a versioned Remote Touchpad direction, primary, or secondary input
+    Then the connected Display Shell receives that input unchanged
+    But invalid Remote Touchpad inputs do not reach the Display Shell

@@ -16,7 +16,6 @@
         <div class="dash">
           <header class="dash-head">
             <div class="dash-wd" id="dash-wd"></div>
-            <span class="dash-status-dot" aria-label="Status active"></span>
             <div class="dash-date text-right">
               <span id="dash-md"></span>
               <span id="dash-y"></span>

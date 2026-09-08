@@ -35,19 +35,13 @@
     const emotion = status.unlocked ? status.emotion : null
     const detail = detailLabel(status, emotion)
     el.innerHTML = `
-      <div class="widget-header">
-        <div class="widget-heading">
-          <span class="w-name">Current emotion</span>
+      <div class="vision-status-layout">
+        <span class="widget-status-name">Current emotion</span>
+        <div class="widget-signal widget-icon-body">
+          ${ICON}
+          <span class="w-emotion">${emotion ? LABELS[emotion.primary] : 'Unavailable'}</span>
         </div>
-        <span class="widget-glance-badge">EMOTION</span>
-      </div>
-      <div class="widget-icon-body">
-        ${ICON}
-        <span class="w-emotion">${emotion ? LABELS[emotion.primary] : '--'}</span>
-      </div>
-      <div class="widget-footer">
-        <span class="w-state">${detail}</span>
-        <span class="widget-footer-note">Local only</span>
+        <span class="w-state vision-status-detail">${detail}</span>
       </div>`
   }
 

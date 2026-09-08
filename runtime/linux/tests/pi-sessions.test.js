@@ -264,7 +264,147 @@ test('scanPiSessions does not merge ambiguous metadata without a start time', as
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
-test('scanPiSessions sorts by latest activity before running state', async () => {
+test('scanPiSessions merges a live process with a session resumed into it', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-resume-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-resume--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  // The session was created long before the user launched the pi process that
+  // resumed it; the resumed process keeps writing the metadata file.
+  fs.writeFileSync(path.join(wsDir, 'resumed.json'), JSON.stringify({
+    sessionId: 'resumed-06c062fe-f0a6-7922-a757-abb790ef4444',
+    pid: 4321,
+    cwd: '/Users/test/resume-workspace',
+    startedAt: 1_699_000_000_000,
+    updatedAt: 1_700_000_005_000,
+    status: 'running',
+    latestGoal: 'Resumed goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/resume-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].source, 'session')
+  assert.equal(result.sessions[0].status, 'running')
+  assert.equal(result.sessions[0].latestGoal, 'Resumed goal')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions merges a session created inside a long-lived process', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-newsession-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-newsession--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  // /new inside a long-running process: the current session started long after
+  // the process itself, and the file stays actively written.
+  fs.writeFileSync(path.join(wsDir, 'current.json'), JSON.stringify({
+    sessionId: 'current-07c062fe-0ba6-7922-a757-abb790ef3333',
+    pid: 4321,
+    cwd: '/Users/test/long-lived-workspace',
+    startedAt: 1_700_000_300_000,
+    updatedAt: 1_700_000_310_000,
+    status: 'running',
+    latestGoal: 'Long-lived goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/long-lived-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].source, 'session')
+  assert.equal(result.sessions[0].status, 'running')
+  assert.equal(result.sessions[0].latestGoal, 'Long-lived goal')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions matches start-time-less metadata written by the live process', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-nostart-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-nostart--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  // Current pi versions omit startedAt; recent updatedAt proves the file
+  // belongs to this live process.
+  fs.writeFileSync(path.join(wsDir, 'live.json'), JSON.stringify({
+    sessionId: 'live-08c062fe-1ba6-7922-a757-abb790ef2222',
+    pid: 4321,
+    cwd: '/Users/test/nostart-workspace',
+    updatedAt: 1_700_000_010_000,
+    status: 'running',
+    latestGoal: 'No-start goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/nostart-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].source, 'session')
+  assert.equal(result.sessions[0].status, 'running')
+  assert.equal(result.sessions[0].latestGoal, 'No-start goal')
+  assert.equal(result.sessions[0].startedAt, 1_700_000_000_000)
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions marks unmatched settled metadata as exited', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-stale-settled-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-stalesettled--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'stale.json'), JSON.stringify({
+    sessionId: 'stale-09c062fe-2ba6-7922-a757-abb790ef1111',
+    pid: 4321,
+    cwd: '/Users/test/stale-workspace',
+    startedAt: 1_699_000_000_000,
+    updatedAt: 1_699_000_000_500,
+    status: 'settled',
+    latestGoal: 'Stale settled goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{
+      pid: 4321,
+      cwd: '/Users/test/fresh-workspace',
+      command: 'pi',
+      startedAt: 1_700_000_000_000,
+      isAlive: true,
+    }],
+  })
+
+  assert.equal(result.summary.exited, 1)
+  assert.equal(result.sessions.find((session) => session.latestGoal === 'Stale settled goal').status, 'exited')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('scanPiSessions puts running sessions before activity order', async () => {
   const tmpAgentDir = path.join(os.tmpdir(), `pi-sort-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-workspace--')
   fs.mkdirSync(wsDir, { recursive: true })
@@ -285,7 +425,7 @@ test('scanPiSessions sorts by latest activity before running state', async () =>
     listProcesses: () => [],
   })
 
-  assert.deepEqual(result.sessions.map((session) => session.pid), [222, 111])
+  assert.deepEqual(result.sessions.map((session) => session.pid), [111, 222])
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
@@ -372,6 +512,42 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
+test('Pi Sessions widget reports scanner failure without fabricating zero sessions', async () => {
+  const vm = require('node:vm')
+  const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/pi-sessions.js'), 'utf8')
+  const registered = []
+  const root = {
+    odkPlugins: {
+      register(def) { registered.push(def) },
+    },
+    odkPlatform: {
+      getPiSessions: async () => null,
+    },
+  }
+  const context = vm.createContext({ window: root, globalThis: root })
+  vm.runInContext(pluginSrc, context)
+
+  const nodes = {
+    '.pi-widget-count': { textContent: '' },
+    '.pi-indicator-dot': { className: '' },
+    '.pi-widget-tag-label': { textContent: '', className: '' },
+    '.pi-widget-summary': { textContent: '' },
+    '.w-state': { textContent: '' },
+  }
+  const fakeEl = {
+    innerHTML: '',
+    querySelector(selector) { return nodes[selector] || null },
+  }
+
+  registered.find((plugin) => plugin.id === 'odk.tile.pi-sessions').mount(fakeEl, { onTick() {} })
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(nodes['.pi-widget-count'].textContent, '--')
+  assert.equal(nodes['.pi-widget-tag-label'].textContent, 'OFFLINE')
+  assert.equal(nodes['.pi-widget-summary'].textContent, 'Scanner unavailable')
+  assert.equal(nodes['.w-state'].textContent, 'Unavailable')
+})
+
 test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts interactive indicator', () => {
   const vm = require('node:vm')
   const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/status-pi-sessions.js'), 'utf8')
@@ -427,4 +603,112 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
   btnListeners.click()
   assert.equal(navigated, 'pi-sessions')
 })
+
+test('scanPiSessions extracts model activity from session logs and metadata', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-activity-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-activity--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  const uuid = '05a062fe-c0a6-7922-a757-abb790ef8888'
+  fs.writeFileSync(path.join(wsDir, 'session.json'), JSON.stringify({
+    sessionId: uuid,
+    pid: 5432,
+    cwd: '/Users/test/activity',
+    startedAt: 1_699_999_940_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: '<skill name="marketing" location="/test/SKILL.md">\nInstructions\n</skill>\n\nCampaign plan',
+    recap: 'Finished initial campaign',
+  }))
+
+  const logDir = path.join(tmpAgentDir, 'sessions', '--Users-test-activity--')
+  fs.mkdirSync(logDir, { recursive: true })
+  const logContent = [
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'Start' }] } }),
+    JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'pnpm test' } }] } }),
+  ].join('\n')
+  fs.writeFileSync(path.join(logDir, `session_${uuid}.jsonl`), logContent)
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: (pid) => pid === 5432,
+    listProcesses: () => [],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].activity, 'bash: pnpm test')
+  assert.equal(result.sessions[0].recap, 'Finished initial campaign')
+  assert.ok(result.sessions[0].latestGoal.includes('marketing'))
+
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
+})
+
+test('pi-sessions App formats skill invocation goals as [skill] name and displays model activity', async () => {
+  const vm = require('node:vm')
+  const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/pi-sessions.js'), 'utf8')
+  const registered = []
+  const root = {
+    odkPlugins: {
+      register(def) { registered.push(def) },
+    },
+    odkPlatform: {
+      getPiSessions: async () => ({
+        ok: true,
+        source: { label: 'Local' },
+        summary: { running: 1, total: 1, workspacesCount: 1 },
+        sessions: [{
+          sessionId: 'test-skill-sess',
+          uuid: 'test-skill-sess',
+          pid: 7788,
+          status: 'running',
+          cwd: '/workspace/project',
+          workspaceName: 'project',
+          startedAt: Date.now() - 30000,
+          latestGoal: '<skill name="marketing" location="/test/SKILL.md">\nInstructions\n</skill>\n\nLaunch beta',
+          activity: 'bash: pnpm build',
+        }],
+      }),
+    },
+  }
+  const context = vm.createContext({ window: root, globalThis: root })
+  vm.runInContext(pluginSrc, context)
+
+  const plugin = registered.find((p) => p.id === 'odk.app.pi-sessions')
+  assert.ok(plugin)
+
+  let feedHtml = ''
+  const fakeEl = {
+    innerHTML: '',
+    querySelector(sel) {
+      if (sel === '#pi-sessions-feed') return {
+        set innerHTML(val) { feedHtml = val },
+        get innerHTML() { return feedHtml },
+        addEventListener() {},
+        querySelectorAll() { return [] },
+        getBoundingClientRect() { return { top: 0, bottom: 100 } },
+        closest() { return { scrollTop: 0, getBoundingClientRect() { return { top: 0, bottom: 100 } } } },
+      }
+      if (sel === '#pi-sessions-status') return { textContent: '' }
+      if (sel === '#pi-source-label') return { textContent: '' }
+      if (sel === '#pi-search-input') return { addEventListener() {} }
+      if (sel === '#pi-refresh-btn') return { addEventListener() {} }
+      if (sel === '#pi-view-toggle') return { addEventListener() {}, setAttribute() {} }
+      if (sel === '#pi-metric-running' || sel === '#pi-metric-settled' || sel === '#pi-metric-workspaces') return { textContent: '' }
+      return null
+    },
+    querySelectorAll(sel) {
+      if (sel === '.pi-filter-btn') return []
+      return []
+    },
+  }
+
+  plugin.lifecycle.mount(fakeEl, {})
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  assert.ok(feedHtml.includes('[skill]'))
+  assert.ok(feedHtml.includes('marketing'))
+  assert.ok(!feedHtml.includes('<skill name='))
+  assert.ok(feedHtml.includes('Model:'))
+  assert.ok(feedHtml.includes('bash: pnpm build'))
+})
+
 

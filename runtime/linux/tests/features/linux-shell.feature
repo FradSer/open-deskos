@@ -41,20 +41,49 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And every visible widget states a truthful status before any App opens
     And the widget grid has five columns and three rows
     And the State Bar is large enough for the Pi Sessions running state to be legible
-    And the grid remains inside the viewport at alternate window sizes
+    And the grid remains horizontally contained and vertically scrollable at alternate window sizes
 
   Scenario: The five-column layout reflows safely in a narrow development window
     Given the shell is resized below the widescreen breakpoint
     When the Home grid is rendered
     Then widgets use the narrow responsive grid instead of overflowing desktop coordinates
     And the State Bar retains its network reachability indicator
-    And every widget remains inside the viewport
+    And every widget remains horizontally contained and reachable by vertical scrolling
 
   Scenario: Every page uses the widget grid footprint
     Given the shell starts at 1920 by 1280
     Then the Home widgets occupy the shared grid footprint
     And the Pi Sessions App surface matches that grid width and height
     And the Usage App card matches that grid width and height
+    And cards do not use colored top or left edge bars for state
+
+  Scenario: Widgets use a unified signal-capsule information hierarchy
+    Given the Home grid displays every built-in Widget
+    Then every Widget presents one dominant truthful signal that uses the available card area
+    And Widget anatomy may omit generic headers or footers when the signal remains self-explanatory
+    And live numerical signals use tabular numerals
+    And full-surface state color never replaces a readable text label
+    And unavailable capabilities use explicit text instead of decorative empty space
+    And decorative charts never imply unavailable data
+
+  Scenario: App pages extend the Widget signal-capsule language
+    Given the user navigates to Pi Sessions or Usage
+    Then the App surface uses the same radius, border, spacing, typography, and state-color system as Widgets
+    And grouped data remains labeled and scannable without nested decorative cards
+    And workspace paths, goals, process commands, and status explanations wrap instead of being hidden by ellipsis
+
+  Scenario: Pi Sessions controls remain usable at the minimum portrait size
+    Given the shell is resized to 320 by 480
+    When the user navigates to Pi Sessions
+    Then session filters and refresh controls remain inside the App surface
+    And each control remains reachable by touch
+
+  Scenario: Every visible Widget and direct App surface is monitored
+    Given the shell starts at 1920 by 1280
+    Then every Home Widget stays within the shared grid footprint and exposes a state
+    And every direct App surface stays within the shared grid footprint
+    And no monitored Widget or direct App surface overflows horizontally
+    And the standard Electron E2E command runs the Widget and App interior regression suite
 
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
@@ -62,7 +91,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And Pi Sessions and Usage remain reachable as later App pages
     And the layout provides balanced card proportions without horizontally stretched rows
     And Today, Home, Pi Sessions, and Usage pages provide structured desk instrument views
-    And the grid remains inside the viewport at alternate window sizes
+    And the grid remains horizontally contained and vertically scrollable at alternate window sizes
 
   Scenario: Home grid fills the available layout with truthful local desk status
     Given the Home grid displays the five-column layout
@@ -83,6 +112,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When the user navigates to the Pi Sessions page
     Then the page lists every process with workspace, PID, status, and latest goal
     And search, status filters, refresh, and modified-file details remain interactive
+    And status filters expose their selected state and session changes are announced
     And an empty scanner result explains that no local Pi sessions were found
 
   Scenario: OpenCode Go remains an interactive Usage App page
@@ -90,6 +120,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When the user navigates to the Usage page
     Then the page exposes an honest provider state and a refresh action
     And configured usage values are shown only when returned by the provider
+    And each usage value has a visible label
 
   Scenario: CM5 root installation leaves the runtime usable by the kiosk user
     Given the CM5 installer runs as root for the graphical kiosk user
@@ -169,6 +200,65 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then the shell changes only to an adjacent page
     And first and last page boundaries remain fixed
     And Remote Link navigation remains independent from OpenCode Go status
+
+  Scenario: Remote Touchpad leaves display pages in bounded paging mode
+    Given the focused shell is on a non-interactive Today or Home page
+    When the Remote Touchpad sends up, down, primary, or secondary input
+    Then the current page remains unchanged
+    When it sends left or right input
+    Then the shell requests only the adjacent bounded page
+
+  Scenario: Remote control receives a contextual control strip state
+    Given the focused shell is on a display browsing page
+    Then Remote State Feedback declares browse mode with Previous and Next controls
+    Given the focused shell is on an App browsing page
+    Then Remote State Feedback also declares a Select control for entering App Focus Mode
+    When the shell enters App Focus Mode
+    Then Remote State Feedback declares focus mode with directional and Select controls
+    And Back remains available in both modes
+
+  Scenario: Remote Touchpad enters App Focus Mode only after selection
+    Given the focused shell is on a Pi Sessions or Usage App page in browsing mode
+    When the Remote Touchpad sends left or right input
+    Then the shell changes only to the adjacent bounded page
+    And it does not move an App control focus
+    When it sends primary input
+    Then the shell enters App Focus Mode at that App's initial focus target
+    When it sends a direction
+    Then focus moves only among that App's visible enabled controls
+    And the displayed page remains unchanged
+    When it sends secondary input to a control without a Secondary Action
+    Then the App remains unchanged
+
+  Scenario: Remote Back exits App Focus Mode
+    Given the focused shell is in App Focus Mode
+    When the user taps the persistent Back target on the Remote Touchpad
+    Then the shell returns to browsing mode on the same App page
+    And left and right input again requests bounded paging
+
+  Scenario: App interaction cannot start pager dragging
+    Given the focused shell is on an interactive App page
+    When the user touches or uses a control inside that App
+    Then the pager transform remains at that App page
+    And the App remains responsive to its own interaction
+
+  Scenario: Pager always settles to a whole page after interrupted input
+    Given the focused shell begins a page swipe
+    When that pointer is cancelled, lost, or a remote page command arrives before release
+    Then the pager settles on its current whole page
+    And a later page command moves exactly one adjacent page
+    And the track transform never remains between pages
+
+  Scenario: The Remote Touchpad always offers Back
+    Given the focused shell is in App Focus Mode
+    When the user taps the persistent Back target on the Remote Touchpad
+    Then App Focus Mode ends without changing the current page
+    And a second Back target tap leaves the browsing page unchanged
+
+  Scenario: Remote Touchpad establishes App Initial Focus
+    Given the focused shell enters an App page
+    Then focus uses that App's declared initial target when available
+    But otherwise focus uses its first visible enabled interactive control
 
   Scenario: Renderer UI is English-only
     Given the Linux shell is loaded

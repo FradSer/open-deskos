@@ -24,17 +24,17 @@
   })
 
   root.odkPlugins.register(app('calendar', 'Calendar', (el) => {
-    el.innerHTML = '<div class="runtime-app"><h2>Calendar</h2><p>Today\'s date is available.</p><p class="runtime-state">Awaiting local calendar data.</p></div>'
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Calendar</h2></header><p class="app-detail">Today\'s date is available.</p><p class="runtime-state app-detail">Awaiting local calendar data.</p></div>'
   }))
   root.odkPlugins.register(app('clock', 'Clock', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><h2>Clock</h2><p class="runtime-value">--:--</p><p class="runtime-state">View local time in real time.</p></div>'
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Clock</h2></header><p class="runtime-value">--:--</p><p class="runtime-state app-detail">View local time in real time.</p></div>'
     const value = el.querySelector('.runtime-value')
     ctx.onTick((now) => {
       value.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     })
   }))
   root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><h2>Pomodoro</h2><p class="runtime-state">Not started</p><button class="button-pill button-primary" type="button">Start timer</button></div>'
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><p class="runtime-state app-detail">Not started</p><button class="button-pill button-primary" type="button">Start timer</button></div>'
     el.querySelector('button').addEventListener('click', () => ctx.emitIntent({
       type: 'action', appId: 'pomodoro', action: 'start',
     }))
@@ -46,10 +46,10 @@
     return true
   }))
   root.odkPlugins.register(app('year', 'Year progress', (el) => {
-    el.innerHTML = '<div class="runtime-app"><h2>Year progress</h2><p>Year progress updates in the Widget in real time.</p></div>'
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Year progress</h2></header><p class="app-detail">Year progress updates in the Widget in real time.</p></div>'
   }))
   root.odkPlugins.register(app('app-manager', 'Built-in views', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app app-manager"><h2>Built-in views</h2><input class="app-search" type="search" aria-label="Search built-in views" placeholder="Search built-in views" /><p class="app-manager-status" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>Reload</button><ul class="app-list"></ul></div>'
+    el.innerHTML = '<div class="runtime-app app-manager"><header class="app-surface-header"><h2 class="app-surface-heading">Built-in views</h2></header><label class="app-search-label" for="app-search">Search built-in views</label><input id="app-search" class="app-search" type="search" aria-label="Search built-in views" placeholder="Search built-in views" /><p class="app-manager-status runtime-state app-detail" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>Reload</button><ul class="app-list"></ul></div>'
     const search = el.querySelector('.app-search')
     const status = el.querySelector('.app-manager-status')
     const retry = el.querySelector('.app-manager-retry')

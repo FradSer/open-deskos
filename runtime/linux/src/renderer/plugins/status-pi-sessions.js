@@ -19,30 +19,41 @@
       const count = el.querySelector('#sb-pi-count')
 
       let tickCount = 0
+      let sourceLabel = 'Pi sessions'
+      const unavailable = () => {
+        count.textContent = '--'
+        dot.className = 'sb-pi-dot'
+        btn.classList.remove('has-running')
+        btn.setAttribute('aria-label', `${sourceLabel} unavailable`)
+        btn.setAttribute('title', `${sourceLabel} unavailable`)
+      }
 
       const refresh = async () => {
         if (typeof root.odkPlatform?.getPiSessions !== 'function') {
-          count.textContent = '0'
-          dot.className = 'sb-pi-dot'
-          btn.setAttribute('aria-label', 'Pi sessions offline')
+          unavailable()
           return
         }
         try {
           const res = await root.odkPlatform.getPiSessions()
+          sourceLabel = res?.source?.label || 'Pi sessions'
+          if (!res || res.ok === false) {
+            unavailable()
+            return
+          }
+          btn.setAttribute('title', sourceLabel)
           const running = res?.summary?.running ?? 0
           count.textContent = String(running)
           if (running > 0) {
             dot.className = 'sb-pi-dot active'
             btn.classList.add('has-running')
-            btn.setAttribute('aria-label', `${running} active Pi session${running > 1 ? 's' : ''}`)
+            btn.setAttribute('aria-label', `${sourceLabel} · ${running} active Pi session${running > 1 ? 's' : ''}`)
           } else {
             dot.className = 'sb-pi-dot'
             btn.classList.remove('has-running')
-            btn.setAttribute('aria-label', 'No active Pi sessions')
+            btn.setAttribute('aria-label', `${sourceLabel} · No active Pi sessions`)
           }
         } catch {
-          count.textContent = '0'
-          dot.className = 'sb-pi-dot'
+          unavailable()
         }
       }
 

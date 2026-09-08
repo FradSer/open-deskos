@@ -1,0 +1,48 @@
+/* Border Beam: Libraries.dev/packages/border-beam's mono traveling perimeter,
+   adapted to the framework-free shell. Content, geometry and state colors stay
+   authoritative; only the optional theme owns decorative edge motion. */
+@property --odk-beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper) {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--odk-beam-angle),
+    transparent 0% 65%, var(--odk-secondary) 80%,
+    var(--odk-primary) 94%, transparent 100%);
+  mask: linear-gradient(var(--odk-primary) 0 0) content-box,
+    linear-gradient(var(--odk-primary) 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+  animation: odk-beam-travel 6s linear infinite;
+}
+
+[data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper):nth-child(even)::after {
+  animation-delay: -3s;
+}
+
+@keyframes odk-beam-travel {
+  to { --odk-beam-angle: 360deg; }
+}
+
+[data-theme-paused='true'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme='border-beam'] :is(.widget, .dash, .quota-card, .pi-app-wrapper)::after {
+    animation: none;
+  }
+}

@@ -33,8 +33,7 @@
     return new Map([...feed.querySelectorAll('[data-session-key]')].map(card => {
       const focused = card.contains(document.activeElement) ? document.activeElement : null
       return [card.dataset.sessionKey, {
-        filesOpen: card.querySelector('.pi-files-toggle')?.getAttribute('aria-expanded') === 'true',
-        focus: focused?.matches('.pi-files-toggle') ? '.pi-files-toggle' : null,
+        focus: focused && !focused.matches('article') ? '.' + focused.className.split(' ')[0] : null,
       }]
     }))
   }
@@ -85,8 +84,6 @@
       for (const card of feed.querySelectorAll('[data-session-key]')) {
         const saved = state.get(card.dataset.sessionKey)
         if (!saved) continue
-        const files = card.querySelector('.pi-files-toggle')
-        if (files) setFilesExpanded(files, saved.filesOpen)
         if (saved.focus) card.querySelector(saved.focus)?.focus({ preventScroll: true })
       }
       surface.scrollTop = scrollTop
@@ -99,6 +96,51 @@
         }
       }
     }
+  }
+
+  function normalizeInline(text) {
+    return text ? text.replace(/\s+/g, ' ').trim() : ''
+  }
+
+  function renderMarkdownInline(text) {
+    if (!text || typeof text !== 'string') return ''
+    let escaped = escapeHtml(text)
+    // Inline code `code`
+    escaped = escaped.replace(/`([^`]+)`/g, '<code class="pi-inline-code">$1</code>')
+    // Bold **text** or __text__
+    escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    escaped = escaped.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    // Italic *text*
+    escaped = escaped.replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1<em>$2</em>$3')
+    return escaped
+  }
+
+  function parseSkillTag(text) {
+    if (!text || typeof text !== 'string') return null
+    const match = text.match(/<skill\s+name="([^"]+)"[^>]*>/)
+    if (!match) return null
+    const skillName = match[1]
+    const endTag = '</skill>'
+    const endIndex = text.indexOf(endTag)
+    const prompt = endIndex !== -1 ? text.slice(endIndex + endTag.length).trim() : ''
+    return { skillName, prompt }
+  }
+
+  function renderGoalHtml(text) {
+    const skill = parseSkillTag(text)
+    if (skill) {
+      return `<span class="pi-skill-tag"><strong class="pi-skill-bracket">[skill]</strong> <span class="pi-skill-name">${escapeHtml(skill.skillName)}</span></span>${skill.prompt ? ` <span class="pi-skill-prompt">${renderMarkdownInline(skill.prompt)}</span>` : ''}`
+    }
+    return renderMarkdownInline(text)
+  }
+
+  function renderActivityHtml(text) {
+    const normalized = normalizeInline(text)
+    const skill = parseSkillTag(normalized)
+    if (skill) {
+      return `<span class="pi-skill-tag"><strong class="pi-skill-bracket">[skill]</strong> <span class="pi-skill-name">${escapeHtml(skill.skillName)}</span></span>${skill.prompt ? ` <span class="pi-skill-prompt">${renderMarkdownInline(skill.prompt)}</span>` : ''}`
+    }
+    return renderMarkdownInline(normalized)
   }
 
   function lifecycleFor(mount) {
@@ -130,8 +172,8 @@
             <span class="pi-widget-tag-label">IDLE</span>
           </div>
           <div class="pi-widget-context odk-col items-center">
-            <span class="pi-widget-summary">0 workspaces</span>
             <span class="w-state">Pi Sessions</span>
+            <span class="pi-widget-summary">0 workspaces</span>
           </div>
         </div>`
 
@@ -153,7 +195,7 @@
             dotEl.className = 'pi-indicator-dot pi-indicator-idle'
             tagLabelEl.textContent = 'OFFLINE'
             tagLabelEl.className = 'pi-widget-tag-label'
-            summaryEl.textContent = res?.source?.label ? `${res.source.label} · Unavailable` : 'Scanner unavailable'
+            summaryEl.textContent = res?.source?.label || 'Scanner unavailable'
             stateEl.textContent = 'Unavailable'
             return
           }
@@ -277,11 +319,6 @@
       const updateFeed = createFeedUpdater(feedEl)
       const orderSessions = createSessionOrder()
 
-      feedEl.addEventListener('click', (event) => {
-        const button = event.target.closest('.pi-files-toggle')
-        if (button) setFilesExpanded(button, button.getAttribute('aria-expanded') !== 'true')
-      })
-
       function renderFeed() {
         if (sessionData?.ok === false) {
           const message = `${sourceEl.textContent} unavailable. Select Refresh to try again.`
@@ -303,6 +340,8 @@
             (s.workspaceName && s.workspaceName.toLowerCase().includes(query)) ||
             (s.cwd && s.cwd.toLowerCase().includes(query)) ||
             (s.latestGoal && s.latestGoal.toLowerCase().includes(query)) ||
+            (s.activity && s.activity.toLowerCase().includes(query)) ||
+            (s.recap && s.recap.toLowerCase().includes(query)) ||
             (s.pid && String(s.pid).includes(query)) ||
             (s.uuid && s.uuid.toLowerCase().includes(query))
           )
@@ -331,7 +370,6 @@
         const sessionCard = (s) => {
           const statusClass = `pi-status-${s.status}`
           const statusDisplay = s.status === 'running' ? 'WORKING' : s.status.toUpperCase()
-          const modifiedCount = s.modifiedFiles ? s.modifiedFiles.length : 0
           return `
             <article class="pi-session-card pi-card-${s.status}" data-session-key="${escapeHtml(sessionKey(s))}">
               <div class="pi-card-header odk-row items-center justify-between">
@@ -340,7 +378,6 @@
                     ${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}
                     ${statusDisplay}
                   </span>
-                  <span class="pi-card-pid">PID ${s.pid || '-'}</span>
                   ${groupedView ? '' : `<span class="pi-card-workspace" title="${escapeHtml(s.cwd || '')}"><svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>${escapeHtml(s.workspaceName || s.cwd || 'Unknown workspace')}</span>`}
                 </div>
                 <div class="pi-card-meta odk-row items-center gap-2">
@@ -350,21 +387,14 @@
 
               <div class="pi-card-goal">
                 <span class="pi-goal-label">Goal:</span>
-                <p class="pi-goal-text">${escapeHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
+                <p class="pi-goal-text">${renderGoalHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
               </div>
 
-              ${modifiedCount > 0 ? `
-                <div class="pi-card-files">
-                  <button type="button" class="pi-files-toggle odk-row items-center gap-1" aria-expanded="false">
-                    <svg data-tabler="file-code" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M10 13l-1 2l1 2" /><path d="M14 13l1 2l-1 2" /></svg>
-                    <span>${modifiedCount} modified file${modifiedCount > 1 ? 's' : ''}</span>
-                    <svg data-tabler="chevron-down" class="pi-chevron-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6" /></svg>
-                  </button>
-                  <div class="pi-files-list" hidden>
-                    ${s.modifiedFiles.map(f => `<div class="pi-file-item"><code>${escapeHtml(f)}</code></div>`).join('')}
-                  </div>
-                </div>
-              ` : ''}
+              ${(s.activity || s.recap || s.status === 'running') ? `
+                <div class="pi-card-activity">
+                  <span class="pi-activity-label">Model:</span>
+                  <p class="pi-activity-text">${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${renderActivityHtml(s.activity || (s.status === 'running' ? 'Working...' : (s.recap || 'Settled')))}</p>
+                </div>` : ''}
             </article>`
         }
 

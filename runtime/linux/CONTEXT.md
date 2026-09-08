@@ -20,6 +20,22 @@ _Avoid_: adapting P4 serial commands as CM5 product interfaces.
 
 ## Language
 
+**Open DeskOS Workspace**:
+The shared writable project workspace used by Open DeskOS development and automation capabilities. Voice is one entry point into it, not its owner. It is distinct from the active runtime release and each agent's conversation history.
+_Avoid_: voice workspace, active release directory, Pi session storage
+
+**Voice Agent**:
+The CM5-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
+_Avoid_: Pi Sessions widget, microphone on the Remote, a new monitored session per button click
+
+**Voice Capability**:
+An installed action available to the Voice Agent, such as building a Widget/App or sending a prompt to a specific live Pi session. Additional applications can expose capabilities without owning recording or transcription.
+_Avoid_: keyword-only command routing, arbitrary renderer code execution
+
+**Controllable Pi Session**:
+A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed.
+_Avoid_: editing session history to inject a prompt, terminal keystroke simulation, treating observed processes as control endpoints
+
 ## Experimental Owner Recognition
 
 **Physical Owner Enrollment**:
@@ -62,17 +78,37 @@ _Avoid_: serial command, custom USB protocol, global keyboard interception
 The Remote Control's paired large previous/next touch targets, which also recognize a horizontal swipe across the screen as the same navigation intent.
 _Avoid_: gesture-only navigation, button-only navigation
 
+**Remote Touchpad**:
+The Remote Control input surface that emits directional movement, a primary press, and a secondary press to the focused Display Shell.
+_Avoid_: keyboard, controller, navigation buttons
+
+**Secondary Action**:
+A Remote Touchpad long-press request offered to the currently focused App control. A control that does not explicitly support it leaves the App unchanged.
+_Avoid_: back, cancel, universal context menu
+
+**App Initial Focus**:
+The first Remote Touchpad focus target for an App. An App may declare it; otherwise the first visible enabled interactive control is the target.
+_Avoid_: arbitrary focus, page-level focus
+
+**App Focus Mode**:
+The input mode while a focused App page is active: all four Remote Touchpad directions move among that App's controls, and none requests page navigation. Bounded Paging resumes when the App is no longer active.
+_Avoid_: edge-to-page navigation, mixed page and App focus
+
 **Remote Firmware**:
 A standalone ESP-IDF project under `peripherals/esp32-s3-remote/` that exposes only the Remote Control experience plus HID Navigation. It is a required architecture peripheral with its own hardware acceptance gate; direct shell input remains available before that gate passes.
 _Avoid_: keyboard firmware, multi-app shell, PlatformIO firmware, P4 firmware component
 
 **Bounded Paging**:
-Display Shell navigation that stops at the first and last page; navigation input at either boundary leaves the current page unchanged.
+Display Shell navigation that stops at the first and last page; navigation input at either boundary leaves the current page unchanged. On a non-interactive page, only left and right request bounded paging; up, down, primary, and secondary leave the page unchanged.
 _Avoid_: wraparound paging, circular paging
 
 **Remote State Feedback**:
-The Display Shell's authoritative current-page and boundary state presented back on the Remote Control after navigation. Before the first state arrives, Remote Control shows an explicit connecting or disconnected state instead of a guessed page. Remote Link state remains available to the Remote Control and its dedicated runtime surface; the Display Shell State Bar stays limited to its network indicator.
+The Display Shell's authoritative current-page, interaction mode, and available control-strip actions presented back on the Remote Control after navigation. Before the first state arrives, Remote Control shows an explicit connecting or disconnected state instead of a guessed page. Remote Link state remains available to the Remote Control and its dedicated runtime surface; the Display Shell State Bar stays limited to its network indicator.
 _Avoid_: send-only feedback, assumed page state, stale page display, fabricated telemetry
+
+**Remote Control Strip**:
+The Remote Control's plugin-owned contextual action bar. Browse mode offers Previous and Next; App Focus Mode offers directional movement and Select; Back is persistent in every mode.
+_Avoid_: universal touchpad, fixed controller layout, remote shell
 
 **Remote Bridge**:
 A Node.js systemd user service that owns the active Remote Link and relays Display Shell state to the Remote Control independently of whether the link is wired USB or wireless ESP-NOW. It communicates with the Electron main process over a permission-restricted Unix domain socket and starts with the CM5 graphical user's session.

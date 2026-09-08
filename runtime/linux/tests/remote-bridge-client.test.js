@@ -100,6 +100,22 @@ test('forwards only valid C6 navigation records to subscribers', async () => {
   client.stop()
 })
 
+test('forwards only valid Remote Touchpad inputs to subscribers', () => {
+  const socket = new FakeSocket()
+  const inputs = []
+  const client = createRemoteBridgeClient({
+    socketPath: '/tmp/open-deskos-remote-test.sock',
+    createConnection: () => socket,
+  })
+  client.onInput((input) => inputs.push(input))
+  client.start()
+  socket.emit('data', Buffer.from('{"v":1,"type":"input","input":"down"}\n'))
+  socket.emit('data', Buffer.from('{"v":1,"type":"input","input":"diagonal"}\n'))
+  socket.emit('data', Buffer.from('{"v":2,"type":"input","input":"primary"}\n'))
+  assert.deepEqual(inputs, ['down'])
+  client.stop()
+})
+
 test('actual Remote Bridge synchronizes Shell state, link state, and C6 navigation', async (t) => {
   const runtimeDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'odk-shell-remote-'))
   const socketPath = path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock')

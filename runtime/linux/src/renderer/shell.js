@@ -46,6 +46,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   let startX = null
   let dx = 0
   let suppressClick = false
+  let activePointerId = null
 
   function pageCount() {
     return track.children.length
@@ -55,7 +56,10 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     return viewport.clientWidth
   }
 
-  function setIndex(next) {
+  function setIndex(next, animate = true) {
+    cancelDrag()
+    track.classList.toggle('instant', !animate)
+    document.getElementById('dots').classList.toggle('instant', !animate)
     index = Math.max(0, Math.min(pageCount() - 1, next))
     track.style.transform = `translateX(${-index * pageWidth()}px)`
     renderDots()
@@ -63,7 +67,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   function refresh() {
-    setIndex(index)
+    setIndex(index, false)
   }
 
   function renderDots() {
@@ -82,14 +86,15 @@ function createPager(viewport, track, pageNames, onIndexChange) {
       dot.type = 'button'
       dot.className = 'dot'
       dot.setAttribute('aria-label', `Page ${i + 1}, ${pageNames[i] ?? ''}`)
-      dot.addEventListener('click', () => setIndex(i))
+      dot.addEventListener('click', (event) => setIndex(i, event.detail > 0))
       container.append(dot)
     }
     renderDots()
   }
 
   viewport.addEventListener('pointerdown', (event) => {
-    if (!event.isPrimary) return
+    if (!event.isPrimary || track.children[index]?.dataset.surface === 'app') return
+    activePointerId = event.pointerId
     startX = event.clientX
     dx = 0
     track.classList.add('dragging')
@@ -101,25 +106,38 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   })
 
   viewport.addEventListener('pointermove', (event) => {
-    if (startX === null || !event.isPrimary) return
+    if (startX === null || !event.isPrimary || event.pointerId !== activePointerId) return
     dx = event.clientX - startX
     track.style.transform = `translateX(${dx - index * pageWidth()}px)`
   })
 
-  function endDrag(wasCancelled) {
+  function cancelDrag() {
     if (startX === null) return
     track.classList.remove('dragging')
-    suppressClick = !wasCancelled && Math.abs(dx) > DRAG_SUPPRESS_PX
-    const threshold = pageWidth() * SWIPE_THRESHOLD_RATIO
-    if (dx < -threshold) setIndex(index + 1)
-    else if (dx > threshold) setIndex(index - 1)
-    else setIndex(index)
     startX = null
     dx = 0
+    activePointerId = null
   }
 
-  viewport.addEventListener('pointerup', () => endDrag(false))
-  viewport.addEventListener('pointercancel', () => endDrag(true))
+  function endDrag(wasCancelled) {
+    if (startX === null) return
+    suppressClick = !wasCancelled && Math.abs(dx) > DRAG_SUPPRESS_PX
+    const threshold = pageWidth() * SWIPE_THRESHOLD_RATIO
+    const target = dx < -threshold ? index + 1 : dx > threshold ? index - 1 : index
+    cancelDrag()
+    setIndex(target)
+  }
+
+  viewport.addEventListener('pointerup', (event) => {
+    if (event.pointerId === activePointerId) endDrag(false)
+  })
+  viewport.addEventListener('pointercancel', (event) => {
+    if (event.pointerId === activePointerId) endDrag(true)
+  })
+  viewport.addEventListener('lostpointercapture', (event) => {
+    if (event.pointerId === activePointerId) endDrag(true)
+  })
+  window.addEventListener('blur', () => endDrag(true))
 
   window.addEventListener('pointerdown', () => { suppressClick = false }, true)
 
@@ -311,7 +329,7 @@ function main() {
   }
 
   function dialogControls() {
-    return [...appView.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+    return [...appView.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
       .filter((control) => !control.hidden && control.getClientRects().length > 0)
   }
 
@@ -367,7 +385,8 @@ function main() {
   }
 
   // Status-bar plugins own the persistent state visible outside the pages;
-  // the skeleton only provides empty slots.
+  // the skeleton only provides empty slots. A disabled or failed status plugin
+  // must never take down the shell, so failures render a truthful error state.
   window.addEventListener('odk-connection-announcement', (event) => {
     document.getElementById('status-announcement').textContent = event.detail
   })
@@ -417,15 +436,25 @@ function main() {
     window.odkRemote?.publishPageState(currentPageState)?.catch(() => {})
   }
 
+  let appFocusMode = false
+
   function updatePageContext(index) {
     const page = index + 1
     const name = pageNames[index] ?? 'Page'
+    const pageDef = effectiveLayout.pages[index]
+    const actions = Array.isArray(pageDef?.actions) ? pageDef.actions :
+                    Array.isArray(pageDef?.remoteActions) ? pageDef.remoteActions : []
+    appFocusMode = false
     currentPageState = {
       page,
       pages: pageNames.length,
       name,
       canPrev: page > 1,
       canNext: page < pageNames.length,
+      mode: 'browse',
+      surface: track.children[index]?.dataset.surface || 'display',
+      canFocus: track.children[index]?.dataset.surface === 'app',
+      actions,
     }
     document.getElementById('page-context').textContent = `${name} · ${page}/${pageNames.length}`
     publishPageState()
@@ -438,11 +467,104 @@ function main() {
 
   function navigate(direction) {
     if (!appView.hidden) return
-    pagerRef.setIndex(pagerRef.currentIndex() + direction)
+    pagerRef.setIndex(pagerRef.currentIndex() + direction, false)
+  }
+
+  function interactiveControls() {
+    const page = track.children[pagerRef.currentIndex()]
+    if (page?.dataset.surface !== 'app') return []
+    return [...page.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
+      .filter((control) => !control.disabled && !control.hidden && control.getClientRects().length > 0)
+  }
+
+  function focusInitialAppControl() {
+    const controls = interactiveControls()
+    const initial = controls.find((control) => control.dataset.remoteInitialFocus !== undefined)
+    ;(initial || controls[0])?.focus()
+  }
+
+  function moveAppFocus(input) {
+    const controls = interactiveControls()
+    const current = document.activeElement
+    if (!controls.includes(current)) {
+      focusInitialAppControl()
+      return
+    }
+    const origin = current.getBoundingClientRect()
+    const horizontal = input === 'left' || input === 'right'
+    const sign = input === 'left' || input === 'up' ? -1 : 1
+    const candidates = controls
+      .filter((control) => control !== current)
+      .map((control) => ({ control, rect: control.getBoundingClientRect() }))
+      .filter(({ rect }) => sign * (horizontal ? rect.left - origin.left : rect.top - origin.top) > 0)
+      .map(({ control, rect }) => ({
+        control,
+        score: Math.abs(horizontal ? rect.left - origin.left : rect.top - origin.top) +
+          Math.abs(horizontal ? rect.top - origin.top : rect.left - origin.left) * 2,
+      }))
+      .sort((a, b) => a.score - b.score)
+    candidates[0]?.control.focus()
+  }
+
+  function handleRemoteInput(input, action) {
+    if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'].includes(input)) return
+    if (input === 'action') {
+      const actionId = typeof action === 'string' ? action : action?.action || action?.id
+      if (actionId) {
+        document.dispatchEvent(new CustomEvent('odk-remote-action', { detail: actionId, bubbles: true }))
+      }
+      return
+    }
+    if (input === 'mic') {
+      return
+    }
+    if (input === 'back') {
+      if (!appView.hidden) {
+        document.getElementById('app-back').click()
+      } else if (appFocusMode) {
+        appFocusMode = false
+        document.activeElement?.blur()
+        currentPageState.mode = 'browse'
+        publishPageState()
+      }
+      return
+    }
+    if (!appFocusMode) {
+      if (input === 'left') navigate(-1)
+      if (input === 'right') navigate(1)
+      if (input === 'primary' && interactiveControls().length > 0) {
+        appFocusMode = true
+        focusInitialAppControl()
+        currentPageState.mode = 'focus'
+        publishPageState()
+      }
+      return
+    }
+    if (input === 'primary') {
+      if (!interactiveControls().includes(document.activeElement)) focusInitialAppControl()
+      else document.activeElement.click()
+      return
+    }
+    if (input === 'secondary') {
+      const focused = document.activeElement
+      if (interactiveControls().includes(focused) && focused.dataset.remoteSecondary !== undefined) {
+        focused.dispatchEvent(new CustomEvent('odk-secondary-action', { bubbles: true }))
+      }
+      return
+    }
+    moveAppFocus(input)
   }
 
   window.odkRemote?.subscribeNavigation((direction) => {
     navigate(direction === 'previous' ? -1 : 1)
+  })
+  window.odkRemote?.subscribeInput(handleRemoteInput)
+  window.addEventListener('odk-remote-input', (event) => {
+    if (typeof event.detail === 'object' && event.detail !== null) {
+      handleRemoteInput(event.detail.input, event.detail.action)
+    } else {
+      handleRemoteInput(event.detail)
+    }
   })
 
   window.addEventListener('keydown', (event) => {
@@ -457,15 +579,23 @@ function main() {
       trapDialogFocus(event)
       return
     }
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
     if (event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      const page = track.children[pagerRef.currentIndex()]
+      if (page?.dataset.surface === 'display') {
+        event.preventDefault()
+        page.scrollBy({ top: event.key === 'ArrowDown' ? 80 : -80, behavior: 'instant' })
+      }
+      return
+    }
     event.preventDefault()
     if (event.repeat) return
     if (event.key === 'ArrowLeft') return navigate(-1)
     if (event.key === 'ArrowRight') return navigate(1)
     const dots = [...document.querySelectorAll('#dots .dot')]
-    if (event.key === 'Home') pagerRef.setIndex(0)
-    else pagerRef.setIndex(dots.length - 1)
+    if (event.key === 'Home') pagerRef.setIndex(0, false)
+    else pagerRef.setIndex(dots.length - 1, false)
   })
 }
 

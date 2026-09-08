@@ -20,23 +20,21 @@
 
   function compute(width, height, widgetCount = 11) {
     const isWidescreen = width >= 1000 && width > height
-    const cols = isWidescreen ? 5 : width >= 720 ? 3 : 2
-    // Compact windows scroll rather than shrinking eleven instruments below readable size.
-    const rows = isWidescreen ? 3 : Math.ceil(widgetCount / cols)
 
     const fit = Math.min(width / (isWidescreen ? 1920 : REF.w), height / (isWidescreen ? 1280 : REF.h))
     const gutter = isWidescreen ? 28 : Math.max(8, Math.min(24, Math.floor(REF.gutter * fit + 0.5)))
+    const cols = isWidescreen ? 5 : Math.max(1, Math.min(3, Math.floor((width - gutter) / (200 + gutter))))
+    // Compact windows scroll rather than shrinking eleven instruments below readable size.
+    const rows = isWidescreen ? 3 : Math.ceil(widgetCount / cols)
     const statusH = isWidescreen
       ? Math.max(76, Math.min(104, Math.floor(height * 0.075)))
       : Math.max(72, Math.min(88, Math.floor((REF.barIcon + 12) * fit + 8.5)))
     // Vertical budget available for grid rows below the State Bar.
     const availableV = height - statusH - 3 * gutter
     const maxCellH = Math.max(24, Math.floor((availableV - (rows - 1) * gutter) / rows))
-    const maxCellW = Math.max(24, Math.floor((width - (cols - 1) * gutter) / cols))
+    const maxCellW = Math.max(24, Math.floor((width - (cols - 1) * gutter - (isWidescreen ? 0 : 2 * gutter)) / cols))
 
-    // Strict square cell constraint: cellW === cellH === cellDim
-    const targetDim = Math.min(maxCellW, maxCellH)
-    const cellDim = Math.min(maxCellW, maxCellH, targetDim)
+    const cellDim = isWidescreen ? Math.min(maxCellW, maxCellH) : maxCellW
     const cellW = cellDim
     const cellH = cellDim
     const colW = cellDim

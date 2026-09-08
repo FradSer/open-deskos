@@ -1,0 +1,32 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const { createHash } = require('node:crypto')
+
+const renderer = path.resolve(__dirname, '../src/renderer')
+
+test('Pixel packages a local Zpix Regular WOFF2 with provenance and licensing', () => {
+  const font = fs.readFileSync(path.join(renderer, 'fonts/zpix.woff2'))
+  assert.equal(font.toString('ascii', 0, 4), 'wOF2')
+  const css = fs.readFileSync(path.join(renderer, 'themes/pixel.css'), 'utf8')
+  assert.match(css, /@font-face\s*\{[^}]*font-family:\s*["']Zpix["'][^}]*src:\s*url\(["']\.\.\/fonts\/zpix\.woff2["']\)[^}]*font-weight:\s*400/s)
+  assert.match(css, /font-synthesis:\s*none/)
+  assert.match(css, /font-weight:\s*400\s*!important/)
+  const notice = fs.readFileSync(path.join(renderer, 'fonts/ZPIX-NOTICE.md'), 'utf8')
+  assert.match(notice, /v3\.2\.0/)
+  assert.match(notice, /Personal Product/)
+  assert.match(notice, /Commercial\/Business Product/)
+  const digest = createHash('sha256').update(font).digest('hex')
+  assert.match(notice, new RegExp(`SHA-256: .*${digest}`))
+})
+
+test('Pixel removes Silkscreen while other theme fonts remain available', () => {
+  const css = fs.readFileSync(path.join(renderer, 'shell.css'), 'utf8')
+  const pixel = fs.readFileSync(path.join(renderer, 'themes/pixel.css'), 'utf8')
+  assert.doesNotMatch(css + pixel, /Silkscreen/)
+  assert.equal(fs.existsSync(path.join(renderer, 'fonts/Silkscreen-Regular.ttf')), false)
+  assert.equal(fs.existsSync(path.join(renderer, 'fonts/Silkscreen-Bold.ttf')), false)
+  assert.match(css, /font-family:\s*"Noto Sans SC"/)
+  assert.match(css, /font-family:\s*"Montserrat"/)
+})

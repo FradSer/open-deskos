@@ -3,6 +3,7 @@ const path = require('node:path')
 
 const REMOTE_LINK_STATES = new Set(['disconnected', 'usb', 'wireless', 'syncing'])
 const REMOTE_NAVIGATION_DIRECTIONS = new Set(['previous', 'next'])
+const REMOTE_INPUTS = new Set(['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'])
 const DEFAULT_RECONNECT_DELAY_MS = 1000
 
 function resolveRemoteBridgeSocketPath(env = process.env) {
@@ -32,6 +33,10 @@ function normalizePageState(state) {
     name,
     canPrev: page > 1,
     canNext: page < pages,
+    ...(state?.mode ? { mode: state.mode } : {}),
+    ...(state?.surface ? { surface: state.surface } : {}),
+    ...(state?.canFocus === true ? { canFocus: true } : {}),
+    ...(Array.isArray(state?.actions) ? { actions: state.actions } : {}),
   }
 }
 
@@ -41,7 +46,8 @@ function parseBridgeRecords(chunk, remainder) {
   const pending = lines.pop()
   const linkStates = []
   const navigations = []
-  if (pending.length > 512) return { pending: '', linkStates, navigations }
+  const inputs = []
+  if (pending.length > 512) return { pending: '', linkStates, navigations, inputs }
   for (const line of lines) {
     if (!line || line.length > 512) continue
     try {
@@ -50,12 +56,14 @@ function parseBridgeRecords(chunk, remainder) {
         linkStates.push(record.state)
       } else if (record?.v === 1 && record.type === 'navigate' && REMOTE_NAVIGATION_DIRECTIONS.has(record.direction)) {
         navigations.push(record.direction)
+      } else if (record?.v === 1 && record.type === 'input' && REMOTE_INPUTS.has(record.input)) {
+        inputs.push(record.input === 'action' && (record.action || record.id) ? { input: 'action', action: record.action || record.id } : record.input)
       }
     } catch {
       // Invalid Bridge records never affect shell state.
     }
   }
-  return { pending, linkStates, navigations }
+  return { pending, linkStates, navigations, inputs }
 }
 
 function createRemoteBridgeClient({
@@ -73,6 +81,7 @@ function createRemoteBridgeClient({
   let lastPageState = null
   const linkSubscribers = new Set()
   const navigationSubscribers = new Set()
+  const inputSubscribers = new Set()
 
   function notifyLinkState(next) {
     if (!REMOTE_LINK_STATES.has(next) || currentLinkState === next) return
@@ -82,6 +91,10 @@ function createRemoteBridgeClient({
 
   function notifyNavigation(direction) {
     for (const listener of navigationSubscribers) listener(direction)
+  }
+
+  function notifyInput(input) {
+    for (const listener of inputSubscribers) listener(input)
   }
 
   function writeState() {
@@ -119,6 +132,7 @@ function createRemoteBridgeClient({
       inboundRemainder = parsed.pending
       for (const state of parsed.linkStates) notifyLinkState(state)
       for (const direction of parsed.navigations) notifyNavigation(direction)
+      for (const input of parsed.inputs) notifyInput(input)
     })
     activeSocket.on('error', () => {})
     activeSocket.once('close', () => {
@@ -160,12 +174,17 @@ function createRemoteBridgeClient({
       navigationSubscribers.add(listener)
       return () => navigationSubscribers.delete(listener)
     },
+    onInput(listener) {
+      inputSubscribers.add(listener)
+      return () => inputSubscribers.delete(listener)
+    },
   }
 }
 
 module.exports = {
   REMOTE_LINK_STATES,
   REMOTE_NAVIGATION_DIRECTIONS,
+  REMOTE_INPUTS,
   createRemoteBridgeClient,
   resolveRemoteBridgeSocketPath,
 }
