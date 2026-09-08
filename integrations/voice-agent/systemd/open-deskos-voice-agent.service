@@ -1,0 +1,20 @@
+[Unit]
+Description=Open DeskOS resident voice coding agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__OPEN_DESKOS_VOICE_AGENT_DIR__
+EnvironmentFile=-%h/.config/open-deskos/voice-agent.env
+Environment=PATH=__OPEN_DESKOS_NODE_BIN__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__OPEN_DESKOS_NODE_BIN__/node __OPEN_DESKOS_VOICE_AGENT_DIR__/src/main.mjs
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+ReadOnlyPaths=/opt/open-deskos
+
+[Install]
+WantedBy=default.target
