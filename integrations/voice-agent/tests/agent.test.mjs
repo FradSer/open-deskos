@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:net'
 import { sessionRequest, loadCapabilities, sessionCommand } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createResourceLoader } from '../src/agent.mjs'
 
@@ -36,6 +37,31 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.ok(loader.getSkills().skills.some(skill => skill.name === 'open-deskos-widget'))
   assert.match(loader.getAppendSystemPrompt().join('\n'), /Never edit active/)
   assert.equal(loader.getExtensions().extensions.length, 0)
+})
+
+test('user application lifecycle tools use the bounded shell control protocol', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-apps-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const socketPath = join(dir, 'control.sock')
+  process.env.ODESK_APPS_CONTROL_SOCKET = socketPath
+  t.after(() => delete process.env.ODESK_APPS_CONTROL_SOCKET)
+  const server = createServer(connection => {
+    connection.setEncoding('utf8')
+    connection.once('data', data => {
+      const request = JSON.parse(data.trim())
+      connection.end(JSON.stringify({ v: 1, id: request.id, ok: true, apps: [] }) + '\n')
+    })
+  })
+  await new Promise(resolve => server.listen(socketPath, resolve))
+  t.after(() => server.close())
+  const tools = await loadCapabilities()
+  const list = tools.find(tool => tool.name === 'user_apps_list')
+  const install = tools.find(tool => tool.name === 'user_app_install')
+  assert.ok(list && install)
+  const listed = await list.execute('call', {}, undefined)
+  assert.deepEqual(JSON.parse(listed.content[0].text).apps, [])
+  const installed = await install.execute('call', { id: 'hello-widget' }, undefined)
+  assert.equal(JSON.parse(installed.content[0].text).ok, true)
 })
 
 test('trusted capability modules augment real coding tools and resume dedicated sessions', async t => {

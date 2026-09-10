@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createConnection } from 'node:net'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { isAbsolute } from 'node:path'
@@ -41,8 +42,66 @@ export async function sessionRequest(request, signal, executable = process.env.P
   return result
 }
 
+const APP_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+function appSocket() {
+  return process.env.ODESK_APPS_CONTROL_SOCKET || `${process.env.XDG_RUNTIME_DIR || '/run/user/' + process.getuid()}/open-deskos-apps/control.sock`
+}
+
+async function userAppsRequest(command, appId, signal) {
+  const request = { v: 1, id: randomUUID(), command, ...(appId ? { appId } : {}) }
+  const timeout = command === 'install' ? 30_000 : 10_000
+  return await new Promise((resolve, reject) => {
+    let settled = false
+    let output = ''
+    const socket = createConnection(appSocket())
+    const finish = (error, value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+      socket.destroy()
+      error ? reject(error) : resolve(value)
+    }
+    const abort = () => finish(Error('Application lifecycle request aborted'))
+    const timer = setTimeout(() => finish(Error('Application lifecycle request timed out')), timeout)
+    socket.setEncoding('utf8')
+    socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`))
+    socket.on('data', chunk => {
+      output += chunk
+      if (Buffer.byteLength(output) > 512 * 1024) return finish(Error('Application lifecycle response too large'))
+      const newline = output.indexOf('\n')
+      if (newline < 0) return
+      let response
+      try { response = JSON.parse(output.slice(0, newline)) } catch { return finish(Error('Invalid application lifecycle response')) }
+      if (response.v !== 1 || response.id !== request.id || typeof response.ok !== 'boolean') return finish(Error('Invalid application lifecycle response'))
+      if (!response.ok) return finish(Error(typeof response.error === 'string' ? response.error : 'Application lifecycle request rejected'))
+      finish(null, response)
+    })
+    socket.on('error', () => finish(Error('Application lifecycle control unavailable')))
+    if (signal?.aborted) return abort()
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+}
+
+function userAppTool(command, description, needsAppId = true) {
+  return defineTool({
+    name: command === 'list' ? 'user_apps_list' : `user_app_${command}`,
+    label: `User app ${command}`,
+    description,
+    parameters: needsAppId ? Type.Object({ id: Type.String({ pattern: APP_ID.source, minLength: 1, maxLength: 64 }) }) : Type.Object({}),
+    execute: async (_id, params, signal) => {
+      const id = needsAppId && 'id' in params && typeof params.id === 'string' ? params.id : undefined
+      return result(await userAppsRequest(command, id, signal))
+    },
+  })
+}
+
 function coreCapabilities() {
   return [
+    userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
+    userAppTool('install', 'Install a resident user application draft through the shell lifecycle backend.', true),
+    userAppTool('rollback', 'Roll back a resident user application through the shell lifecycle backend.', true),
+    userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true),
     defineTool({
       name: 'live_sessions', label: 'Live sessions', description: 'List currently reachable Pi sessions. Never infer live sessions from history files.',
       parameters: Type.Object({}),

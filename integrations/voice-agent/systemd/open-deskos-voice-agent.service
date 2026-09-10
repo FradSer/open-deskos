@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=__OPEN_DESKOS_VOICE_AGENT_DIR__
 EnvironmentFile=-%h/.config/open-deskos/voice-agent.env
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
 Environment=PATH=__OPEN_DESKOS_NODE_BIN__:/usr/local/bin:/usr/bin:/bin
 ExecStart=__OPEN_DESKOS_NODE_BIN__/node __OPEN_DESKOS_VOICE_AGENT_DIR__/src/main.mjs
 Restart=on-failure

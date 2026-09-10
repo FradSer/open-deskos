@@ -46,12 +46,25 @@ Feature: Resident push-to-talk coding agent
     And oversized audio, oversized responses and empty transcripts are rejected
     And provider errors never reveal credentials or response bodies
 
+  Scenario: Device-local loopback transcription
+    Given a device-local speech service on the loopback interface and a credential file
+    When the resident service starts with its plain HTTP loopback URL
+    Then the loopback URL is accepted for transcription
+    And plain HTTP URLs outside loopback are rejected before any request
+
   Scenario: Persistent coding and extensible capabilities
     Given a configured writable checkout and trusted local capability modules
     When the resident Pi session starts
     Then it resumes its own durable session with real coding tools and the widget skill
     And live session list and send tools use the bounded session-control JSON protocol
     And coding instructions require tests before staged activation and forbid editing active releases
+
+  Scenario: Manage resident user applications through the shell lifecycle
+    Given the shell application control socket is available
+    When the agent lists, installs, rolls back or removes an application by ID
+    Then each lifecycle request uses the bounded version one JSONL protocol
+    And install drafts follow the ODESK_WORKSPACE/apps/<id> manifest contract and are verified by the system tool
+    And application UI runs in a strict scripts-only sandbox without network or parent access
 
   Scenario: Deliver to live sessions on the configured SSH host
     Given an operator-configured SSH host and absolute session-control executable

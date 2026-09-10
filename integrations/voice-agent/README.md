@@ -13,25 +13,47 @@ pnpm test
 pnpm typecheck
 ```
 
-Create `~/.config/open-deskos/voice-agent.env` with mode 0600. Values are paths/configuration, never literal keys:
+Create `~/.config/open-deskos/runtime.env` with mode 0600 for shared runtime configuration. Both the Shell and voice agent read `ODESK_WORKSPACE` from this file:
 
 ```sh
 ODESK_WORKSPACE=/home/orangepi/Developer/open-deskos
+```
+
+Create `~/.config/open-deskos/voice-agent.env` with mode 0600 for voice-only settings. Values are paths/configuration, never literal keys:
+
+```sh
 ODESK_VOICE_STT_KEY_FILE=/home/orangepi/.config/open-deskos/stt.key
 ODESK_VOICE_STT_URL=https://api.openai.com/v1/audio/transcriptions
 ODESK_VOICE_STT_MODEL=whisper-1
 ODESK_VOICE_AUDIO_DEVICE=default
 ```
 
+For device-local speech without cloud credentials, run an OpenAI-compatible
+transcription service on loopback (for example `integrations/local-stt-bridge`)
+and point the URL at it: plain HTTP is accepted only for loopback hosts
+(`localhost`, `127.0.0.0/8`, `::1`); every other host still requires HTTPS.
+The key file must still exist and be non-empty; its bearer value is verified by
+the local service. Example:
+
+```sh
+ODESK_VOICE_STT_URL=http://127.0.0.1:17840/inference
+```
+
 Provision `stt.key` separately with mode 0600. Authenticate Pi under the same service user using Pi's `/login` or its supported provider environment configuration; do not copy root's credentials. Optional `ODESK_VOICE_MODEL=provider/model-id` selects a model, otherwise Pi uses its configured default/available model. Pi configuration/auth follows `PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 
-`ODESK_WORKSPACE` identifies the shared Open DeskOS development workspace, not a voice-owned workspace. Voice consumes this system-level setting; other Open DeskOS entry points should use the same setting. The obsolete voice-specific workspace variable is not supported.
+`ODESK_WORKSPACE` identifies the shared Open DeskOS development workspace, not a voice-owned workspace. It is loaded from `~/.config/open-deskos/runtime.env`; voice-only settings remain in `voice-agent.env`. Other Open DeskOS entry points use the same shared runtime setting. The obsolete voice-specific workspace variable is not supported.
 
 The workspace must be an existing writable Git checkout containing `.agents/skills/open-deskos-widget/SKILL.md`, outside `/opt/open-deskos`. Install its runtime dependencies separately. Voice edits this checkout using real Pi read/write/edit/bash tools. It never substitutes canned widget templates. The service unit makes `/opt/open-deskos` read-only; instructions require feature-first tests and passing tests/typecheck before staged activation. This is a trusted coding harness with the service user's normal filesystem/network access, not a general sandbox. It cannot activate releases itself under the read-only service unit; use the operator deployment workflow after verification.
 
 Missing configuration/auth leaves the daemon reachable with an error status and capture disabled. After provisioning or changing the env file, restart it. A successful startup checks availability, not whether remote credentials remain valid forever.
 
 Deployment uses `systemd/open-deskos-voice-agent.service` with directory placeholders substituted by the CM5 deployment scripts. See @runtime/linux/docs/VOICE_AGENT_DEPLOYMENT.md. Foreground development: `pnpm start` with the environment exported.
+
+## Resident user applications
+
+For user requests to create an installable Widget or App, use the user application lifecycle rather than editing Shell plugins. Follow @runtime/linux/docs/USER_APPLICATIONS.md: write a draft under `ODESK_WORKSPACE/apps/<id>` with `manifest.json` and self-contained `index.html`, then call the system lifecycle verifier through `user_app_install`. User-application draft instructions take precedence over the older built-in widget engineering skill; do not inject generated scripts into the Shell or run arbitrary install scripts. Applications are restricted to a strict `allow-scripts` sandbox with no parent/preload access, network, Node APIs, or persistent app-data API in this slice.
+
+The resident tools `user_apps_list`, `user_app_install(id)`, `user_app_rollback(id)`, and `user_app_remove(id)` use the private `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock` JSONL protocol. Install has a 30-second deadline; other operations have a 10-second deadline; responses are capped at 512 KiB. Mutation operations are never retried automatically. If a timeout or transport failure leaves the outcome unknown, report that uncertainty and ask for operator verification before attempting another mutation.
 
 ## Protocol and limits
 

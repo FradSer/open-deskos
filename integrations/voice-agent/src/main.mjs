@@ -7,15 +7,24 @@ import { transcribe } from './transcribe.mjs'
 import { VoiceService } from './service.mjs'
 import { listen } from './socket.mjs'
 
+function isLoopbackHttp(url) {
+  if (url.protocol !== 'http:') return false
+  const host = url.hostname.toLowerCase()
+  if (host === 'localhost' || host === 'localhost.' || host === '::1' || host === '[::1]') return true
+  const octets = host.split('.')
+  return octets.length === 4 && octets[0] === '127' && octets.every(octet => /^\d{1,3}$/.test(octet) && Number(octet) < 256)
+}
+
 async function initialize(env, report) {
   report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
   if (!env.ODESK_WORKSPACE) throw Error('Workspace missing')
   report('Set ODESK_VOICE_STT_KEY_FILE to a readable credential file; restart service')
   if (!env.ODESK_VOICE_STT_KEY_FILE) throw Error('Credential missing')
   await access(env.ODESK_VOICE_STT_KEY_FILE)
-  report('Set ODESK_VOICE_STT_URL to an HTTPS transcription endpoint without URL credentials')
+  report('Set ODESK_VOICE_STT_URL to an HTTPS transcription endpoint, or plain HTTP loopback for device-local speech; no URL credentials')
   const url = new URL(env.ODESK_VOICE_STT_URL || 'https://api.openai.com/v1/audio/transcriptions')
-  if (url.protocol !== 'https:' || url.username || url.password) throw Error('Invalid transcription URL')
+  if (url.username || url.password) throw Error('Invalid transcription URL')
+  if (url.protocol !== 'https:' && !isLoopbackHttp(url)) throw Error('Invalid transcription URL')
   report('Check writable checkout and widget skill, Pi user authentication/model, and trusted capability paths; restart service')
   const agent = await createVoiceAgent({
     workspace: env.ODESK_WORKSPACE,

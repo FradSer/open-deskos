@@ -8,7 +8,7 @@ Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. It
 
 ## Users
 
-Personal developers and knowledge workers using a fixed desk display. They glance at current time, focus, network, and explicitly configured account state, then use direct touch, keyboard, or the accepted Remote Control to enter a focused view. The system must remain useful during peripheral, network-provider, or experimental-service degradation.
+Personal developers and knowledge workers using a fixed desk display. They glance at current time, focus, network, and explicitly configured account state, then use direct touch, keyboard, or the accepted Remote Control to enter a focused view. The system must remain useful during peripheral, network-provider, or experimental-service degradation. It also supports a local user-application lifecycle: self-contained Widget/App packages can be drafted, verified, installed, updated, rolled back, and removed independently of the built-in Shell release.
 
 ## Product Purpose
 
@@ -45,3 +45,4 @@ The CM5 shell inherits the semantic Open DeskOS token palette: black field, char
 4. **Experiments do not become prerequisites.** Face Agent, owner recognition, C6/S31 gateways, and future packages remain opt-in until a product decision promotes them.
 5. **Preserve research without inheriting its constraints.** The P4+C6 device OS and Apple companion stay reproducible in research and do not define the active product.
 6. **Escape is guaranteed.** Back returns to the source context; direct touch and keyboard remain usable when Remote Link is unavailable.
+7. **User packages stay bounded.** Local user Widgets/Apps are opaque, self-contained HTML packages managed through verification; this is not a marketplace, native-extension, background-service, or network-permission platform.

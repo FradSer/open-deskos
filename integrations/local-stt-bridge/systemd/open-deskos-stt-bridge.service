@@ -1,0 +1,14 @@
+[Unit]
+Description=Open DeskOS device-local speech-to-text bridge
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/tmp
+ExecStart=/opt/stt-bridge/whisper-server -m /opt/stt-bridge/ggml-base.bin --host 127.0.0.1 --port 17840
+Restart=always
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=default.target

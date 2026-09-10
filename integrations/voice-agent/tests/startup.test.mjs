@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
@@ -39,4 +39,30 @@ test('voice uses the system workspace and advances to transcription configuratio
 test('obsolete voice-specific workspace is not a fallback', async t => {
   const status = await startupStatus(t, { ODESK_VOICE_WORKSPACE: '/obsolete/checkout' })
   assert.match(status.message, /Set ODESK_WORKSPACE /)
+})
+
+async function keyFile(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-key-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const path = join(dir, 'stt.key')
+  await writeFile(path, 'device-local-bearer', { mode: 0o600 })
+  return path
+}
+
+test('plain HTTP loopback STT URL is accepted for device-local speech', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: await keyFile(t),
+    ODESK_VOICE_STT_URL: 'http://127.0.0.1:17840/inference',
+  })
+  assert.match(status.message, /writable checkout/)
+})
+
+test('plain HTTP STT URL outside loopback is rejected', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: await keyFile(t),
+    ODESK_VOICE_STT_URL: 'http://192.168.1.10:17840/inference',
+  })
+  assert.match(status.message, /ODESK_VOICE_STT_URL/)
 })
