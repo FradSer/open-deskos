@@ -1,8 +1,10 @@
+const { resolvePages } = require('./helpers/pages')
 async function run(win, check) {
-  await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[2].click()`)
+  const pages = await resolvePages(win)
+  await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${pages.dot('pi-sessions')}].click()`)
   await new Promise(resolve => setTimeout(resolve, 350))
   const results = await win.webContents.executeJavaScript(`(async () => {
-    const surface = document.querySelector('.page[data-page="2"] .pi-app-wrapper')
+    const surface = document.querySelector('${pages.surface("pi-sessions")} .pi-app-wrapper')
     const find = selector => surface.querySelector(selector)
     const fixture = await window.odkPlatform.getPiSessions()
     const refresh = async () => {

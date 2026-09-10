@@ -135,6 +135,13 @@
   font-size: max(12px, 4.6cqi);
 }
 
+/* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
+   the countdown caption scales with the tile like every other supporting line
+   and keeps 12px only as its floor. */
+[data-theme='pixel'] .w-preorder .preorder-label {
+  font-size: max(12px, 3.6cqi);
+}
+
 [data-theme='pixel'] .pi-skill-bracket {
   color: var(--odk-accent-green) !important;
 }
@@ -271,4 +278,25 @@
   [data-theme='pixel'] .hydra-badge {
     font-size: 7cqi;
   }
+}
+
+[data-theme='pixel'] .w-weread .weread-cover-wrap {
+  border-right-color: var(--odk-secondary-strong);
+}
+
+/* WeRead cover uses a pixel-only treatment; instrument and other themes keep the original image. */
+[data-theme='pixel'] .w-weread .weread-cover {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: contrast(1.4) saturate(0.72);
+}
+
+[data-theme='pixel'] .w-weread .weread-text {
+  font-size: 48px;
+  line-height: 1.35;
+}
+
+[data-theme='pixel'] .w-weread .weread-title {
+  font-size: clamp(18px, 6cqi, 28px);
+  color: var(--odk-secondary-strong);
 }

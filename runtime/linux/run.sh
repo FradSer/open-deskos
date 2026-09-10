@@ -4,6 +4,14 @@ set -euo pipefail
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null && pwd -P)"
 cd "$DIR"
 
+# Local secrets stay outside version control and are excluded from CM5 releases.
+if [ -f .env.local ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env.local
+  set +a
+fi
+
 if [ ! -x node_modules/.bin/electron ] || [ ! -x node_modules/.bin/unocss ]; then
   echo "dependencies not installed; run: pnpm install (or npm install)" >&2
   exit 1

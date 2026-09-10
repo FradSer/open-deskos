@@ -1,8 +1,10 @@
+const { resolvePages } = require('./helpers/pages')
 async function run(win, check, setSessions) {
+  const pages = await resolvePages(win)
   win.setContentSize(1920, 1280)
   await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
   await new Promise(resolve => setTimeout(resolve, 350))
-  await win.webContents.executeJavaScript(`document.querySelector('.page[data-page="2"] .pi-filter-btn[data-filter="all"]')?.click()`)
+  await win.webContents.executeJavaScript(`document.querySelector('${pages.surface("pi-sessions")} .pi-filter-btn[data-filter="all"]')?.click()`)
   const startedAt = Date.now() - 60000
   const session = (id, cwd, status = 'running') => ({ uuid: id, pid: id, startedAt, cwd, workspaceName: cwd, status, latestGoal: 'Read this goal.', modifiedFiles: ['src/example.js'] })
   const a = session('a', '/alpha')
@@ -11,12 +13,12 @@ async function run(win, check, setSessions) {
   const d = session('d', '/gamma', 'settled')
   const refresh = async (items) => {
     setSessions({ summary: { running: items.filter(s => s.status === 'running').length, total: items.length, workspacesCount: 3 }, sessions: items })
-    await win.webContents.executeJavaScript(`document.querySelector('.page[data-page="2"] #pi-refresh-btn').click()`)
+    await win.webContents.executeJavaScript(`document.querySelector('${pages.surface("pi-sessions")} #pi-refresh-btn').click()`)
     await new Promise(resolve => setTimeout(resolve, 250))
   }
   await refresh([a, b, c, d])
   const before = await win.webContents.executeJavaScript(`(() => {
-    const surface = document.querySelector('.page[data-page="2"] .pi-app-wrapper')
+    const surface = document.querySelector('${pages.surface("pi-sessions")} .pi-app-wrapper')
     const feed = surface.querySelector('.pi-sessions-feed')
     const cards = surface.querySelectorAll('.pi-session-card')
     const card = cards[2]
@@ -33,7 +35,7 @@ async function run(win, check, setSessions) {
   })()`)
   await refresh([d, c, b, { ...a, latestGoal: 'A preceding goal grew.\n'.repeat(18) }, session('new', '/alpha'), session('extra', '/extra')])
   const result = await win.webContents.executeJavaScript(`(() => {
-    const surface = document.querySelector('.page[data-page="2"] .pi-app-wrapper')
+    const surface = document.querySelector('${pages.surface("pi-sessions")} .pi-app-wrapper')
     const feed = surface.querySelector('.pi-sessions-feed')
     const cards = [...surface.querySelectorAll('.pi-session-card')]
     const card = cards.find(el => JSON.parse(el.dataset.sessionKey)[0] === 'c')

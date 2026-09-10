@@ -25,6 +25,38 @@ test('hydra store parses environment and node readings', () => {
   assert.equal(snapshot.nodes[1].pump, true)
 })
 
+test('hydra store hydrates env from the retained summary topic', () => {
+  const store = createHydraStore()
+  const now = 1000
+  assert.equal(store.applyMessage('hydra/main/env', 'v=1;l=1;t=24.5;h=61.2;p=1002.6;x=12340.0;d=1.23', now), true)
+  const snapshot = store.snapshot(now)
+  assert.equal(snapshot.env.tempC, 24.5)
+  assert.equal(snapshot.env.humidity, 61.2)
+  assert.equal(snapshot.env.pressureHpa, 1002.6)
+  assert.equal(snapshot.env.lux, 12340)
+  assert.equal(snapshot.env.vpdKpa, 1.23)
+  assert.equal(snapshot.env.stale, false)
+})
+
+test('hydra summary without valid lux leaves lux unknown', () => {
+  const store = createHydraStore()
+  const now = 1000
+  assert.equal(store.applyMessage('hydra/main/env', 'v=1;l=0;t=24.5;h=61.2;p=1002.6;x=0.0001;d=1.23', now), true)
+  const snapshot = store.snapshot(now)
+  assert.equal(snapshot.env.tempC, 24.5)
+  assert.equal(snapshot.env.lux, undefined)
+  assert.equal(snapshot.env.vpdKpa, 1.23)
+})
+
+test('hydra summary with invalid version never fabricates env', () => {
+  const store = createHydraStore()
+  const now = 1000
+  assert.equal(store.applyMessage('hydra/main/env', 'v=0', now), true)
+  assert.equal(store.snapshot(now).env, null)
+  assert.equal(store.applyMessage('hydra/main/env', 'v=1;t=junk', now), false)
+  assert.equal(store.snapshot(now).env, null)
+})
+
 test('hydra store rejects foreign topics and malformed payloads', () => {
   const store = createHydraStore()
   const now = 1000

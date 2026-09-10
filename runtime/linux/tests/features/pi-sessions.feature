@@ -13,12 +13,12 @@ Feature: Local Pi Sessions Monitoring
     Then the widget displays the number of running sessions and an active status badge
     And the widget is non-interactive and does not open an App on click
 
-  Scenario: Linux shell includes running Pi processes even without session metadata
+  Scenario: Linux shell ignores live Pi processes without session metadata
     Given a running direct or supported-wrapper `pi` process is visible to the local process table
     And no matching session metadata exists for its PID
     When the shell queries active Pi sessions
-    Then it includes the process with its PID, working directory, and elapsed runtime
-    And it marks the process as running without inventing a goal or modified files
+    Then it excludes the process from the session list instead of inventing a session
+    And it reports the unmatched process only as a hidden-worker count for diagnostics
 
   Scenario: Linux shell merges process facts into a matching metadata record
     Given a live Pi process and session metadata share the same PID
@@ -36,14 +36,21 @@ Feature: Local Pi Sessions Monitoring
   Scenario: Linux shell refuses to merge indistinguishable live PID metadata
     Given two live Pi metadata records share one PID and have near-identical start times
     When the shell queries active Pi sessions
-    Then it retains the process record and does not choose one metadata record arbitrarily
+    Then it does not choose one metadata record arbitrarily
     And the ambiguous metadata records remain historical rather than being marked as the live process
+    And no synthetic process session is created for the live PID
+
+  Scenario: Linux shell hides Pi worker processes spawned by another live Pi session
+    Given a live Pi process whose parent process is also a live Pi session
+    When the shell queries active Pi sessions
+    Then the worker process never appears as its own session
+    And only metadata-registered session leaders are listed
 
   Scenario: Pi Sessions App page displays workspaces and session goals without modified file badges
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
     Then sessions are grouped by workspace directory
-    And each session card shows its process status, PID, elapsed time, and latest goal
+    And each session card shows its process status, elapsed time, and latest goal without raw PID or field label prefixes
     And each session card omits secondary modified file badges for a compact view
     And users can filter sessions by status or trigger a manual refresh
 
@@ -80,4 +87,6 @@ Feature: Local Pi Sessions Monitoring
   Scenario: Pi Sessions App displays active model activity
     Given an active Pi session is running
     When the session card is rendered
-    Then the card displays a model activity message indicating current work
+    Then the card displays a single-line model activity message truncated with an ellipsis
+    And running cards display Working... instead of uppercase WORKING
+    And goal and model labels are omitted, distinguished by typography

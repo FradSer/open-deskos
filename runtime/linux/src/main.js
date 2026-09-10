@@ -14,6 +14,8 @@ const { fetchFaceAgentStatus } = require('./face-agent-status')
 const { createPiSessionsSource } = require('./pi-sessions-source')
 const { createHydraSource } = require('./hydra-mqtt')
 const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
+const { createWeReadSource } = require('./weread-source')
+const { registerUserAppScheme, startUserAppSystem } = require('./user-app-system')
 const scanPiSessions = createPiSessionsSource()
 
 function configureGpuSwitches(targetApp = app, env = process.env) {
@@ -77,6 +79,9 @@ function createWindow(options) {
 
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.on('will-frame-navigate', (event) => {
+    if (!event.isMainFrame && !event.url.startsWith('odk-user-app://app/')) event.preventDefault()
+  })
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error(`renderer gone (${details.reason}); exiting for restart`)
     app.exit(1)
@@ -121,9 +126,11 @@ function runSmokeCheck(win, expected) {
   })
 }
 
-function main() {
+async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+  session.defaultSession.setPermissionCheckHandler(() => false)
   const smokeMode = process.argv.includes('--smoke')
+  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode })
   let remoteSocketPath = null
   if (!smokeMode) {
     try {
@@ -187,6 +194,13 @@ function main() {
       topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
     })
   ipcMain.handle('odk-hydra-status', () => hydraSource.snapshot())
+  const wereadSource = createWeReadSource({
+    cacheFile: require('node:path').join(app.getPath('userData'), 'weread-highlights.json'),
+  })
+  ipcMain.handle('odk-weread-highlight', async () => {
+    await wereadSource.refresh()
+    return wereadSource.snapshot()
+  })
 
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-list', () => appManager.list())
@@ -216,6 +230,7 @@ function main() {
 
 if (app && typeof app.on === 'function') {
   configureGpuSwitches(app, process.env)
+  registerUserAppScheme(electron.protocol)
 
   app.on('child-process-gone', (_event, details) => {
     console.error(`child process gone: ${details.type} (${details.reason})`)

@@ -305,26 +305,23 @@ function markMetadataExited(session) {
   session.status = 'exited'
 }
 
-function processSession(processInfo) {
+function isDirectPiChild(pid, ppidByPid, piPids) {
+  const ppid = normalizePid(ppidByPid.get(pid))
+  return ppid !== null && ppid !== pid && piPids.has(ppid)
+}
+
+function normalizeProcessEntry(processInfo) {
   const pid = normalizePid(processInfo?.pid)
   if (pid === null) return null
   const cwd = typeof processInfo.cwd === 'string' ? processInfo.cwd : ''
   const startedAt = Number.isFinite(processInfo.startedAt) ? processInfo.startedAt : 0
   return {
-    sessionId: `process-${pid}`,
-    uuid: `process-${pid}`,
     pid,
+    ppid: normalizePid(processInfo?.ppid),
     cwd,
     workspaceName: resolveWorkspaceName(cwd),
-    status: 'running',
     isAlive: processInfo.isAlive !== false,
     startedAt,
-    updatedAt: startedAt,
-    latestGoal: '',
-    modifiedFiles: [],
-    activity: 'Working...',
-    recap: '',
-    source: 'process',
     command: processInfo.command || processInfo.comm || 'pi',
   }
 }
@@ -421,6 +418,38 @@ async function scanPiSessions(options = {}) {
     })
   }
 
+  let rawProcessEntries = []
+  try {
+    rawProcessEntries = listProcesses(now) || []
+  } catch (error) {
+    if (options.strictProcessInspection) throw error
+    rawProcessEntries = []
+  }
+  // The process table is a liveness and enrichment oracle only: sessions come
+  // exclusively from directory-sessions metadata. Processes without metadata
+  // (transient workers, nested helpers, unregistered roots) are counted for
+  // diagnostics and never synthesized into sessions.
+  const processEntries = []
+  const piPids = new Set()
+  const ppidByPid = new Map()
+  for (const raw of rawProcessEntries) {
+    const entry = normalizeProcessEntry(raw)
+    if (!entry || !entry.isAlive) continue
+    processEntries.push(entry)
+    piPids.add(entry.pid)
+    if (entry.ppid !== null) ppidByPid.set(entry.pid, entry.ppid)
+  }
+
+  // Worker processes spawned by another live Pi session (teammates, isolated
+  // research children) are implementation details of their parent session.
+  // Their metadata registrations, if any, must not appear as top-level sessions.
+  const leaderSessions = sessions.filter((session) => {
+    if (!session.isAlive || session.pid === null) return true
+    return !isDirectPiChild(session.pid, ppidByPid, piPids)
+  })
+  sessions.length = 0
+  sessions.push(...leaderSessions)
+
   const metadataByPid = new Map()
   for (const session of sessions) {
     if (!session.isAlive || session.pid === null) continue
@@ -428,34 +457,26 @@ async function scanPiSessions(options = {}) {
     candidates.push(session)
     metadataByPid.set(session.pid, candidates)
   }
-  let processEntries = []
-  try {
-    processEntries = listProcesses(now) || []
-  } catch (error) {
-    if (options.strictProcessInspection) throw error
-    processEntries = []
-  }
+  let orphanProcessCount = 0
   for (const processInfo of processEntries) {
-    const session = processSession(processInfo)
-    if (!session || !session.isAlive) continue
-    const candidates = metadataByPid.get(session.pid) || []
-    const metadataSession = selectMetadataSession(candidates, session)
+    const candidates = metadataByPid.get(processInfo.pid) || []
+    const metadataSession = selectMetadataSession(candidates, processInfo)
     if (metadataSession) {
       for (const candidate of candidates) {
         if (candidate !== metadataSession) markMetadataExited(candidate)
       }
-      if (!metadataSession.cwd && session.cwd) {
-        metadataSession.cwd = session.cwd
-        metadataSession.workspaceName = session.workspaceName
+      if (!metadataSession.cwd && processInfo.cwd) {
+        metadataSession.cwd = processInfo.cwd
+        metadataSession.workspaceName = processInfo.workspaceName
       }
-      if (!metadataSession.command && session.command) metadataSession.command = session.command
-      if (!metadataSession.startedAt && session.startedAt) metadataSession.startedAt = session.startedAt
-      metadataByPid.delete(session.pid)
+      if (!metadataSession.command && processInfo.command) metadataSession.command = processInfo.command
+      if (!metadataSession.startedAt && processInfo.startedAt) metadataSession.startedAt = processInfo.startedAt
+      metadataByPid.delete(processInfo.pid)
       continue
     }
     for (const candidate of candidates) markMetadataExited(candidate)
-    metadataByPid.delete(session.pid)
-    sessions.push(session)
+    metadataByPid.delete(processInfo.pid)
+    orphanProcessCount += 1
   }
 
   // Sort by running state first; latest activity breaks ties deterministically.
@@ -509,6 +530,7 @@ async function scanPiSessions(options = {}) {
       exited: exitedCount,
       workspacesCount: workspaces.length,
     },
+    orphanProcesses: orphanProcessCount,
     workspaces,
     sessions,
   }

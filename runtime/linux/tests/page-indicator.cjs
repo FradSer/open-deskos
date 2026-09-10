@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-page-indicator-'))
@@ -26,6 +27,8 @@ ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', unlocked:
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
+ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 
 async function waitFor(win, expression) {
   const end = Date.now() + (process.arch === 'arm64' ? 15000 : 5000)
@@ -109,7 +112,10 @@ async function capture(win, theme, width, height) {
 async function sizeChecks(win, theme, width, height) {
   await resize(win, width, height)
   let footprint
-  for (let index = 0; index < 4; index += 1) {
+  // Walk every declared page: a hardcoded count silently stops covering the
+  // indicator once a page is added to the layout.
+  const pageCount = await js(win, `window.DESKTOP_LAYOUT.pages.length`)
+  for (let index = 0; index < pageCount; index += 1) {
     await pointerSelect(win, index)
     const result = await inspect(win)
     const label = `${theme} ${width}x${height} page ${index + 1}`
@@ -143,8 +149,12 @@ async function keyboardChecks(win, theme) {
     check(`${theme} ${keyCode}: immediate activation with focus`, result.instant && result.focused && result.visible && parseFloat(result.outline) >= 2, result)
   }
   win.webContents.send('odk-remote-input', { input: 'right' })
-  await waitFor(win, `document.querySelectorAll('.dot')[3].getAttribute('aria-current') === 'page'`)
-  check(`${theme}: Remote selection updates marker and announcement`, await js(win, `document.querySelector('#page-context').textContent === 'Usage · 4/4' && getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s'`))
+  const pages = await resolvePages(win)
+  const total = Object.keys(pages.index).length
+  const target = pages.dot('pi-sessions')
+  await waitFor(win, `document.querySelectorAll('.dot')[${target}].getAttribute('aria-current') === 'page'`)
+  const announcement = `Pi Sessions · ${target + 1}/${total}`
+  check(`${theme}: Remote selection updates marker and announcement`, await js(win, `document.querySelector('#page-context').textContent === '${announcement}' && getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s'`))
 }
 
 async function themeChecks(win) {
@@ -212,6 +222,10 @@ async function main() {
   console.log('PAGE_INDICATOR_PASS')
 }
 
-const timeout = setTimeout(() => { console.error('Page indicator timed out'); app.exit(1) }, process.arch === 'arm64' ? 300000 : 60000)
+// The matrix is themes x sizes x pages, so its cost grows with the layout. On
+// the CM5's arm64 a five-page budget killed the run mid-matrix, and app.exit
+// destroyed the window inside an await (surfacing as "Object has been
+// destroyed") before the gate could report a verdict.
+const timeout = setTimeout(() => { console.error('Page indicator timed out'); app.exit(1) }, process.arch === 'arm64' ? 900000 : 60000)
 process.once('exit', () => fs.rmSync(profile, { recursive: true, force: true }))
 app.whenReady().then(main).then(() => { clearTimeout(timeout); app.exit(0) }).catch(error => { console.error(error); app.exit(1) })

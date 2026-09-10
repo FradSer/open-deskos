@@ -18,6 +18,8 @@ ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', unlocked:
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
+ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 ipcMain.handle('odk-app-manager-list', () => endpoint.list())
 ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
 ipcMain.handle('odk-app-manager-state', (_event, id) => endpoint.get(id))
@@ -98,6 +100,14 @@ async function themeLayoutCheck(win) {
 async function layoutCheck(win, width, height) {
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
   await js(win, `window.dispatchEvent(new Event('resize'))`)
+  // Wait for the shell's grid math to reach the requested viewport. A fixed
+  // delay measures a stale intermediate layout, which makes tiles sized for the
+  // previous viewport report spurious text overflow.
+  const settled = Date.now() + 5000
+  while (Date.now() < settled) {
+    if (await js(win, `window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)) break
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
   await new Promise(resolve => setTimeout(resolve, 120))
   const result = await js(win, `(() => {
     const badFonts = []

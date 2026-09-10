@@ -28,7 +28,57 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
     return entry
   }
 
+  function applyEnvSummary(value, now) {
+    if (typeof value !== 'string') return false
+    const fields = {}
+    for (const part of value.split(';')) {
+      const separator = part.indexOf('=')
+      if (separator <= 0) return false
+      fields[part.slice(0, separator)] = part.slice(separator + 1)
+    }
+    if (fields.v === '0') return true
+    if (fields.v !== '1') return false
+    const temp = parseNumber(fields.t)
+    const humidity = parseNumber(fields.h)
+    const pressure = parseNumber(fields.p)
+    if (temp === undefined || humidity === undefined || pressure === undefined) return false
+    const vpd = fields.d === undefined ? undefined : parseNumber(fields.d)
+    if (fields.d !== undefined && vpd === undefined) return false
+    let lux
+    if (fields.l === '1') {
+      lux = parseNumber(fields.x)
+      if (lux === undefined) return false
+    } else if (fields.l !== '0') {
+      return false
+    }
+    if (!env) env = {}
+    env.updatedAt = now
+    env.tempC = temp
+    env.humidity = humidity
+    env.pressureHpa = pressure
+    if (lux === undefined) delete env.lux
+    else env.lux = lux
+    if (vpd === undefined) delete env.vpdKpa
+    else env.vpdKpa = vpd
+    return true
+  }
+
   function applyEnv(leaf, value, now) {
+    if (leaf === 'env') return applyEnvSummary(value, now)
+    if (leaf === 'vpd') {
+      if (value === 'NC') {
+        if (!env) env = {}
+        env.updatedAt = now
+        delete env.vpdKpa
+        return true
+      }
+      const vpd = parseNumber(value)
+      if (vpd === undefined) return false
+      if (!env) env = {}
+      env.updatedAt = now
+      env.vpdKpa = vpd
+      return true
+    }
     const number = parseNumber(value)
     if (number === undefined) return false
     if (!env) env = {}
@@ -102,37 +152,63 @@ function createHydraSource({ url, topicPrefix } = {}) {
 
   const store = createHydraStore({ topicPrefix })
   let client = null
-  try {
-    const mqtt = require('mqtt')
-    client = mqtt.connect(url, {
-      clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
-      reconnectPeriod: 5000,
-      connectTimeout: 10000,
-    })
-    client.on('connect', () => {
-      store.markConnected(true)
-      client.subscribe(`${(topicPrefix || 'hydra').split('/')[0]}/#`)
-    })
-    client.on('reconnect', () => store.markConnected(false))
-    client.on('close', () => store.markConnected(false))
-    client.on('error', (error) => {
-      console.error(`hydra mqtt: ${error.message}`)
-    })
-    client.on('message', (topic, payload) => {
-      store.applyMessage(topic, payload.toString(), Date.now())
-    })
-  } catch (error) {
-    console.error(`hydra mqtt source disabled: ${error.message}`)
-    return {
-      configured: false,
-      snapshot: () => ({ configured: false, connected: false, env: null, nodes: [] }),
-      stop() {},
+  let lastAttempt = 0
+  const RETRY_MS = 30000
+  function dropCachedMqttResolution() {
+    try {
+      const Module = require('node:module')
+      const pathCache = Module._pathCache
+      if (pathCache) {
+        for (const key of Object.keys(pathCache)) {
+          if (key.includes('mqtt')) delete pathCache[key]
+        }
+      }
+      const loaded = require.cache
+      if (loaded) {
+        for (const key of Object.keys(loaded)) {
+          if (key.includes('/mqtt/') || key.includes('mqtt-packet')) delete loaded[key]
+        }
+      }
+    } catch { /* best effort; require below will report the real error */ }
+  }
+  function ensureClient() {
+    if (client) return
+    const now = Date.now()
+    if (now - lastAttempt < RETRY_MS) return
+    lastAttempt = now
+    dropCachedMqttResolution()
+    try {
+      const mqtt = require('mqtt')
+      client = mqtt.connect(url, {
+        clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
+        reconnectPeriod: 5000,
+        connectTimeout: 10000,
+      })
+      client.on('connect', () => {
+        store.markConnected(true)
+        client.subscribe(`${(topicPrefix || 'hydra').split('/')[0]}/#`)
+      })
+      client.on('reconnect', () => store.markConnected(false))
+      client.on('close', () => store.markConnected(false))
+      client.on('error', (error) => {
+        console.error(`hydra mqtt: ${error.message}`)
+      })
+      client.on('message', (topic, payload) => {
+        store.applyMessage(topic, payload.toString(), Date.now())
+      })
+    } catch (error) {
+      console.error(`hydra mqtt unavailable, retrying: ${error.message}`)
+      client = null
     }
   }
+  ensureClient()
 
   return {
     configured: true,
-    snapshot: (now = Date.now()) => store.snapshot(now),
+    snapshot: (now = Date.now()) => {
+      ensureClient()
+      return store.snapshot(now)
+    },
     stop: () => client?.end(true),
   }
 }

@@ -2,10 +2,13 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
 const longPath = `/workspace/${'long-workspace-segment/'.repeat(8)}project`
 let quota = { state: 'unconfigured' }
+// Layout ids resolve to page positions once the renderer is loaded.
+let PAGES = { dot: () => { throw new Error('pages not resolved') }, surface: () => { throw new Error('pages not resolved') } }
 let completeQuotaRefresh = null
 let scannerFails = false
 let sessions = {
@@ -32,6 +35,8 @@ ipcMain.handle('odk-app-manager-list', () => endpoint.list())
 ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
 ipcMain.handle('odk-app-manager-state', (_event, id) => endpoint.get(id))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
+ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let failures = 0
@@ -47,7 +52,9 @@ async function resize(win, width, height) {
   win.setContentSize(width, height)
   await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
   for (let i = 0; i < 100; i += 1) {
-    if (await win.webContents.executeJavaScript(`window.__odkGrid?.width === ${width}`)) break
+    // Both axes must settle: waiting on width alone measures a stale row height,
+    // which reports spurious text overflow against not-yet-resized tiles.
+    if (await win.webContents.executeJavaScript(`window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)) break
     await delay(20)
   }
   await delay(300)
@@ -59,7 +66,7 @@ async function page(win, index) {
 }
 
 async function widgets(win, label) {
-  await page(win, 1)
+  await page(win, PAGES.dot('home'))
   const result = await win.webContents.executeJavaScript(`(() => {
     const failures = []
     const tiles = [...document.querySelectorAll('.widget')]
@@ -78,9 +85,13 @@ async function widgets(win, label) {
       const r = dot.getBoundingClientRect()
       return [r.top + r.height / 2, r.top + 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === dot)
     })
-    return { failures, indicators, count: tiles.length, scrollable: page.scrollHeight <= page.clientHeight + 1 || getComputedStyle(page).overflowY === 'auto' }
+    // Every grid page contributes tiles; the shell renders them all, so the
+    // declared set is the union across grid pages, not just the first one.
+    const expected = window.DESKTOP_LAYOUT.pages.filter(page => page.kind === 'grid').flatMap(page => page.widgets.map(widget => widget.id)).sort()
+    const actual = tiles.map(tile => tile.dataset.widget).sort()
+    return { failures, indicators, identitiesMatch: JSON.stringify(actual) === JSON.stringify(expected), scrollable: page.scrollHeight <= page.clientHeight + 1 || getComputedStyle(page).overflowY === 'auto' }
   })()`)
-  check(`${label}: ten readable Widgets: ${result.failures.join(', ')}`, result.count === 10 && result.failures.length === 0)
+  check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
   check(`${label}: page indicators have distinct pointer targets`, result.indicators)
 }
@@ -123,7 +134,7 @@ async function appPage(win, index, label) {
 }
 
 async function contrastAndMotion(win) {
-  await page(win, 2)
+  await page(win, PAGES.dot('pi-sessions'))
   const ratios = await win.webContents.executeJavaScript(`(() => {
     const luma = value => {
       const rgb = value.match(/[\\d.]+/g).slice(0, 3).map(Number).map(v => {
@@ -132,7 +143,7 @@ async function contrastAndMotion(win) {
       })
       return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2]
     }
-    return ['.pi-filter-btn:not(.active)', '.pi-card-time', '.pi-goal-label', '.pi-search-input'].map(selector => {
+    return ['.pi-filter-btn:not(.active)', '.pi-card-time', '.pi-goal-text', '.pi-search-input'].map(selector => {
       const el = document.querySelector(selector)
       const fg = luma(getComputedStyle(el, selector === '.pi-search-input' ? '::placeholder' : null).color)
       let bg = el
@@ -180,8 +191,8 @@ async function scrollState(win, selector) {
 
 async function keyboardScrolling(win) {
   await resize(win, 320, 480)
-  await page(win, 1)
-  const selector = '.page[data-page="1"]'
+  await page(win, PAGES.dot('home'))
+  const selector = PAGES.surface('home')
   await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); document.querySelector('${selector}').scrollTop = 0`)
   const initial = await scrollState(win, selector)
   for (const keyCode of ['Down', 'Up']) {
@@ -193,7 +204,7 @@ async function keyboardScrolling(win) {
 }
 
 async function editableKeyboard(win) {
-  await page(win, 2)
+  await page(win, PAGES.dot('pi-sessions'))
   const selector = '.pi-app-wrapper'
   await win.webContents.executeJavaScript(`const input = document.querySelector('#pi-search-input'); input.value = 'abcdef'; input.focus()`)
   const initial = await scrollState(win, selector)
@@ -212,7 +223,7 @@ async function editableKeyboard(win) {
 }
 
 async function nativeAppScrolling(win) {
-  await page(win, 3)
+  await page(win, PAGES.dot('quota'))
   await win.webContents.executeJavaScript(`document.querySelector('#quota-refresh').focus(); document.querySelector('.quota-card').scrollTop = 100`)
   const initial = await scrollState(win, '.quota-card')
   let previous = initial
@@ -231,7 +242,7 @@ async function remoteInput(win, input) {
 }
 
 async function remoteScrollingIsolation(win) {
-  for (const [index, selector] of [[1, '.page[data-page="1"]'], [2, '.pi-app-wrapper']]) {
+  for (const [index, selector] of [[PAGES.dot('home'), PAGES.surface('home')], [PAGES.dot('pi-sessions'), '.pi-app-wrapper']]) {
     await page(win, index)
     await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); document.querySelector('${selector}').scrollTop = 160`)
     const initial = await scrollState(win, selector)
@@ -256,7 +267,7 @@ async function processIdentityContinuity(win) {
     sessions = structuredClone(original)
     delete sessions.sessions[0].uuid
     sessions.sessions[0].id = 'process-with-local-id'
-    await page(win, 2)
+    await page(win, PAGES.dot('pi-sessions'))
     const refresh = async () => {
       await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
       await delay(100)
@@ -282,7 +293,7 @@ async function processIdentityContinuity(win) {
 }
 
 async function quotaRefreshFeedback(win) {
-  await page(win, 3)
+  await page(win, PAGES.dot('quota'))
   completeQuotaRefresh = () => {}
   try {
     const feedback = await win.webContents.executeJavaScript(`(() => {
@@ -306,7 +317,7 @@ async function quotaRefreshFeedback(win) {
 }
 
 async function scannerRecovery(win) {
-  await page(win, 2)
+  await page(win, PAGES.dot('pi-sessions'))
   sessions = null
   for (const fails of [false, true]) {
     scannerFails = fails
@@ -339,12 +350,13 @@ async function main() {
   })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.executeJavaScript('document.fonts.ready')
+  PAGES = await resolvePages(win)
   for (const [width, height] of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
     await resize(win, width, height)
     const label = `${width}x${height}`
     await widgets(win, label)
-    await appPage(win, 2, label)
-    await appPage(win, 3, label)
+    await appPage(win, PAGES.dot('pi-sessions'), label)
+    await appPage(win, PAGES.dot('quota'), label)
   }
   await resize(win, 1920, 1280)
   await require('./pi-design-refinement.cjs').run(win, check)
@@ -358,15 +370,15 @@ async function main() {
   win.webContents.setZoomFactor(2)
   await delay(350)
   await widgets(win, '200% zoom')
-  await appPage(win, 2, '200% zoom')
-  await appPage(win, 3, '200% zoom')
+  await appPage(win, PAGES.dot('pi-sessions'), '200% zoom')
+  await appPage(win, PAGES.dot('quota'), '200% zoom')
   win.webContents.setZoomFactor(1)
   await resize(win, 320, 480)
   quota = { state: 'available', snapshot: { rollingPct: 42, rollingResetMin: 185, weekPct: 63, monthPct: 28, zen: '$12.00' } }
   await win.webContents.executeJavaScript('window.odkServices.subscription.refresh()')
-  await appPage(win, 3, '320x480 configured usage')
+  await appPage(win, PAGES.dot('quota'), '320x480 configured usage')
   sessions = { summary: {}, sessions: [] }
-  await page(win, 2)
+  await page(win, PAGES.dot('pi-sessions'))
   await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
   await delay(50)
   check('empty sessions remain readable', await win.webContents.executeJavaScript(`document.querySelector('.pi-empty-state').scrollWidth <= document.querySelector('.pi-sessions-feed').clientWidth`))

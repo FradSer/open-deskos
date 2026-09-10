@@ -1,8 +1,8 @@
 Feature: Optional Border Beam theme
-  Scenario: Preserve the original appearance
+  Scenario: First run uses the Pixel default without a status-bar switcher
     Given no saved theme preference
     When the shell starts
-    Then the Instrument theme is selected
+    Then the Pixel theme is selected
     And the status bar contains no theme switcher
 
   Scenario: Choose and restore Border Beam

@@ -35,7 +35,7 @@ Feature: Optional authenticated Mac Pi monitoring
     And the session metadata has been written while the current process was alive
     When the collector scans sessions
     Then the process and its metadata are merged into one live session
-    And the session keeps its goal instead of "Live Pi process; session metadata unavailable."
+    And the session keeps its goal instead of an unavailable-metadata placeholder.
 
   Scenario: Session files without a recorded start time still match their live process
     Given a live Pi process whose metadata file records no startedAt
@@ -47,7 +47,7 @@ Feature: Optional authenticated Mac Pi monitoring
     Given a live Pi process whose PID matches metadata last written before the process started
     When the collector scans sessions
     Then the historical metadata is reported exited
-    And the live process is shown without session metadata
+    And the live process without metadata is excluded from the session list
 
   Scenario: All Pi surfaces identify a disconnected Mac
     Given the Mac source was previously active

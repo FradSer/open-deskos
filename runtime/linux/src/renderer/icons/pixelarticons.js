@@ -8,6 +8,7 @@
    * icon swap (core/icons.js). Pure data. See PIXELARTICONS-NOTICE.md.
    */
   root.PIXELARTICON_PATHS = {
+    'book-open': '<path d="M11 5h2v14h-2zM3 4h5a4 4 0 0 1 4 4v11a4 4 0 0 0-4-4H3zm18 0h-5a4 4 0 0 0-4 4v11a4 4 0 0 1 4-4h5z"/>',
     'bolt': '<path d="M4 6h7v2H4zm0 10h7v2H4zM2 8h2v8H2zm18-2h-7v2h7zm0 10h-7v2h7zm2-8h-2v8h2zM7 11h10v2H7z"/>',
     'chevron-down': '<path d="M13 16h-2v-2h2v2Zm-2-2H9v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2H7v-2h2v2Zm8 0h-2v-2h2v2ZM7 10H5V8h2v2Zm12 0h-2V8h2v2Z"/>',
     'chevron-left': '<path d="M8 13v-2h2v2H8Zm2-2V9h2v2h-2Zm0 4v-2h2v2h-2Zm2-6V7h2v2h-2Zm0 8v-2h2v2h-2Zm2-10V5h2v2h-2Zm0 12v-2h2v2h-2Z"/>',

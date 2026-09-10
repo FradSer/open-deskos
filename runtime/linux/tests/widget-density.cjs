@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const { DEFAULTS, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
+const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
 const value = key => process.argv.find(arg => arg.startsWith(`${key}=`))?.slice(key.length + 1)
@@ -21,6 +22,10 @@ if (!['unavailable', 'live'].includes(fixtureState)) throw new Error(`Invalid fi
 
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
+ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
+ipcMain.handle('odk-weread-highlight', () => fixtureState === 'live'
+  ? { status: 'live', highlight: { title: 'Reading notes', markText: 'A useful idea becomes clearer when we return to it and put it into practice.' } }
+  : { status: 'unconfigured', highlight: null })
 ipcMain.handle('odk-face-agent-status', () => fixtureState === 'live'
   ? { state: 'online', unlocked: true, facesCount: 1, emotion: { primary: 'happiness', confidence: 92 } }
   : { state: 'unavailable', unlocked: false })
@@ -43,8 +48,9 @@ async function measureSize(win, width, height) {
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
   await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
   await waitFor(win, `window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)
-  await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[1].click(); document.querySelector('.page[data-page="1"]').scrollTop = 0`)
-  await waitFor(win, `Math.abs(document.querySelector('.page[data-page="1"]').getBoundingClientRect().left) < 1`)
+  const home = (await resolvePages(win)).dot('home')
+  await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${home}].click(); document.querySelector('.page[data-page="${home}"]').scrollTop = 0`)
+  await waitFor(win, `Math.abs(document.querySelector('.page[data-page="${home}"]').getBoundingClientRect().left) < 1`)
   await waitFor(win, `Math.abs(document.querySelector('.widget').getBoundingClientRect().width - window.__odkGrid.cellW) < 2`)
   await win.webContents.executeJavaScript(`Promise.all([
       document.fonts.load('700 32px "Montserrat"'),
@@ -53,7 +59,9 @@ async function measureSize(win, width, height) {
     ]).then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
   await new Promise(resolve => setTimeout(resolve, 300))
   const widgets = await win.webContents.executeJavaScript(`(${collectWidgetContent.toString()})()`)
-  const expected = await win.webContents.executeJavaScript(`window.DESKTOP_LAYOUT.pages.find(page => page.kind === 'grid').widgets.map(widget => widget.id)`)
+  // Tiles from every grid page are present in the DOM, so the expected set is
+  // their union: a page beyond the first grid page must not read as missing.
+  const expected = await win.webContents.executeJavaScript(`window.DESKTOP_LAYOUT.pages.filter(page => page.kind === 'grid').flatMap(page => page.widgets.map(widget => widget.id))`)
   const missing = expected.filter(id => !widgets.some(widget => widget.id === id))
   const results = widgets.map(widget => {
     // Numeric glanceable instruments: sparse ink by design; keep the fill/empty-band gate, relax per-widget.
@@ -63,6 +71,14 @@ async function measureSize(win, width, height) {
       'odk.tile.almanac': { target: 0.58, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.28 },
       'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.07, maxEmptyBand: 0.35 },
       'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.20, minOccupied: 0.08, maxEmptyBand: 0.32 },
+      // Pre-order countdown: an image-led instrument. The hero figure is a
+      // canvas, which collectWidgetContent does not count as ink, so the
+      // measured band is only the panel text (~35% of the tile height). The
+      // profile encodes that measurement limitation rather than hiding it.
+      'odk.tile.preorder': { target: 0.18, tolerance: 0.18, minOccupied: 0.05, maxEmptyBand: 0.75 },
+      // WeRead is the same shape: a canvas cover that the collector cannot see
+      // as ink, beside a quote that fills its own copy area.
+      'odk.tile.weread': { target: 0.65, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.55 },
     }
     const settings = profiles[widget.id]
     const result = measureDensity(widget.frame, widget.boxes, settings)

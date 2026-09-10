@@ -72,11 +72,13 @@ const DRIVER_SCRIPT = `
 
   out.pageCount = document.querySelectorAll('#pages-track .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
+  out.userAppsPage = document.querySelector('#pages-track .page[data-page="5"]')?.textContent.includes('User applications')
   out.pageContext = $('#page-context').textContent
   out.surfaceSeparation =
     document.querySelector('#pages-track .page[data-page="1"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'app' &&
-    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app'
+    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'display' &&
+    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
+    document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app'
   out.fontsLoaded = document.fonts.check('400 20px Zpix') || (document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"'))
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
@@ -96,24 +98,26 @@ const DRIVER_SCRIPT = `
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
   const apps = [...document.querySelectorAll('.widget')].map((w) => w.dataset.app)
+  const declaredWidgets = window.DESKTOP_LAYOUT.pages.filter(page => page.kind === 'grid').flatMap(page => page.widgets.map(widget => widget.id)).sort()
+  const renderedWidgets = [...document.querySelectorAll('.widget')].map(widget => widget.dataset.widget).sort()
+  out.widgetIdentitiesMatch = JSON.stringify(declaredWidgets) === JSON.stringify(renderedWidgets)
   out.widgetCount = apps.length
   out.uniqueApps = new Set(apps).size === apps.length
   out.widgetsDeclaredViaDataAttr =
-    document.querySelectorAll('.widget[data-widget]').length === 10 &&
+    document.querySelectorAll('.widget[data-widget]').length === declaredWidgets.length &&
     [...document.querySelectorAll('.widget[data-widget]')].every((widget) => widget.dataset.widget.startsWith('odk.tile.'))
   out.experimentalVisionDoesNotBlockShell =
     $('#privacy-shield').hidden &&
     !$('#pages-viewport').inert &&
     !$('#status-bar').inert
   out.widgetStatesAreHonest =
-    /^\\d{1,2}$/.test($('.w-almanac .al-day')?.textContent || '') &&
+    /^[0-9]{1,2}$/.test($('.w-almanac .al-day')?.textContent || '') &&
     $('.w-pomodoro .w-state')?.textContent === 'Not started'
   out.widgetsUseFlexibleAnatomy = Boolean(
     $('.w-almanac .al-day') &&
     $('.w-year .year-signal-line') &&
     $('.w-pomodoro .pomodoro-state') &&
-    $('.w-chat .widget-status-value') &&
-    $('.w-settings .widget-status-value') &&
+    $('.w-weread .weread-body') &&
     $('.w-face-presence .vision-status-layout') &&
     $('.w-current-emotion .vision-status-layout') &&
     $('.w-pi-sessions .pi-widget-count') &&
@@ -167,8 +171,8 @@ const DRIVER_SCRIPT = `
   out.gridFlushEdges =
     gridRect.left >= gridPageRect.left - 2 &&
     gridRect.right <= gridPageRect.right + 2
-  const piAppRect = document.querySelector('#pages-track .page[data-page="2"] .pi-app-wrapper').getBoundingClientRect()
-  const quotaCardRect = document.querySelector('#pages-track .page[data-page="3"] .quota-card').getBoundingClientRect()
+  const piAppRect = document.querySelector('#pages-track .page[data-page="3"] .pi-app-wrapper').getBoundingClientRect()
+  const quotaCardRect = document.querySelector('#pages-track .page[data-page="4"] .quota-card').getBoundingClientRect()
   const appSurfaceWidth = Math.min(metrics.gridW, window.innerWidth)
   out.appSurfacesMatchGridFootprint =
     approx(piAppRect.width, appSurfaceWidth) &&
@@ -188,9 +192,9 @@ const DRIVER_SCRIPT = `
   out.piSessionIdsAreComplete = [...document.querySelectorAll('.pi-card-uuid')].every((el) => el.textContent.length > 8)
   const monitoredSurfaces = [
     ...document.querySelectorAll('.widget'),
-    ...document.querySelectorAll('#pages-track .page[data-surface="app"] > .runtime-app, #pages-track .page[data-surface="app"] > .card'),
+    ...document.querySelectorAll('#pages-track .page[data-surface="app"] > div'),
   ]
-  out.monitoredSurfacesStayInBounds = monitoredSurfaces.length === 12 && monitoredSurfaces.every((surface) => {
+  out.monitoredSurfacesStayInBounds = monitoredSurfaces.length === declaredWidgets.length + window.DESKTOP_LAYOUT.pages.filter(page => page.surface === 'app').length && monitoredSurfaces.every((surface) => {
     const rect = surface.getBoundingClientRect()
     const page = surface.closest('.page').getBoundingClientRect()
     return rect.left >= page.left - 2 && rect.right <= page.right + 2 && rect.top >= page.top - 2 && rect.bottom <= page.bottom + 2
@@ -212,11 +216,11 @@ const DRIVER_SCRIPT = `
   window.odkRemote.subscribeInput((input) => {})
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'up' }))
   out.remoteDisplayPageIgnoresVerticalInput = document.querySelectorAll('#dots .dot')[0].classList.contains('active')
-  pageIndex(2)
+  pageIndex(3)
   await new Promise((resolve) => setTimeout(resolve, 300))
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))
   await new Promise((resolve) => setTimeout(resolve, 20))
-  out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page="2"]')?.contains(document.activeElement)
+  out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page="3"]')?.contains(document.activeElement)
   const pageBeforeFocusMove = document.querySelector('#page-context').textContent
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'right' }))
   out.remoteAppDirectionStaysOnPage = document.querySelector('#page-context').textContent === pageBeforeFocusMove
@@ -293,44 +297,48 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = $('#page-context').textContent === 'Pi Sessions · 3/4'
+  out.thirdPageContext = $('#page-context').textContent === 'Reading · 3/6'
   out.piPageIsInteractiveAppSurface =
-    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'app' &&
-    Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-app-wrapper'))
+    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
+    Boolean(document.querySelector('#pages-track .page[data-page="3"] .pi-app-wrapper'))
   out.piPageHasAppControls =
-    Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')) &&
-    Boolean(document.querySelector('#pages-track .page[data-page="2"] .pi-filter-btn')) &&
-    Boolean(document.querySelector('#pages-track .page[data-page="2"] #pi-refresh-btn'))
-  const piPage = document.querySelector('#pages-track .page[data-page="2"]')
+    Boolean(document.querySelector('#pages-track .page[data-page="3"] #pi-search-input')) &&
+    Boolean(document.querySelector('#pages-track .page[data-page="3"] .pi-filter-btn')) &&
+    Boolean(document.querySelector('#pages-track .page[data-page="3"] #pi-refresh-btn'))
+  const piPage = document.querySelector('#pages-track .page[data-page="3"]')
   out.piPageShowsProcessState = Boolean(piPage?.querySelector('.pi-session-card, .pi-empty-state'))
   const piPageText = piPage?.textContent || ''
   out.piPageRendersSessionDetails =
     !piPageText.includes('PID 4102') &&
     piPageText.includes('Refactor the desk UI') &&
-    piPageText.includes('Live Pi process; session metadata unavailable.') &&
+    !piPageText.includes('metadata unavailable') &&
+    !piPageText.includes('automation') &&
     /\\d+[mh] elapsed/.test(piPageText)
   out.piFilesOmittedForCompactness = piPage?.querySelector('.pi-files-toggle') === null
-  const piSearch = document.querySelector('#pages-track .page[data-page="2"] #pi-search-input')
+  const piSearch = document.querySelector('#pages-track .page[data-page="3"] #pi-search-input')
   piSearch.focus()
   piSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.piSearchKeepsPagerPosition = $('#page-context').textContent === 'Pi Sessions · 3/4'
-  const runningFilter = document.querySelector('#pages-track .page[data-page="2"] .pi-filter-btn[data-filter="running"]')
+  out.piSearchKeepsPagerPosition = $('#page-context').textContent === 'Reading · 3/6'
+  const runningFilter = document.querySelector('#pages-track .page[data-page="3"] .pi-filter-btn[data-filter="running"]')
   runningFilter.click()
   out.piFilterIsInteractive = runningFilter.classList.contains('active') && runningFilter.getAttribute('aria-pressed') === 'true'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Home · 2/4'
+  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Home · 2/6'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToQuota = $('#page-context').textContent === 'Usage · 4/4'
+  out.endJumpsToYourApps = $('#page-context').textContent === 'Your apps · 6/6'
   out.usageIsInteractiveAppSurface =
-    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
-    Boolean(document.querySelector('#pages-track .page[data-page="3"] #quota-refresh'))
+    document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app' &&
+    Boolean(document.querySelector('#pages-track .page[data-page="4"] #quota-refresh'))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/4'
+  out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/6'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 4/4'
-  document.querySelectorAll('#dots .dot')[3].click()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 5/6'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  out.arrowRightReachesYourApps = $('#page-context').textContent === 'Your apps · 6/6'
+  document.querySelectorAll('#dots .dot')[4].click()
   out.quotaStateIsHonest = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Check status again'
   out.quotaHelpLabel = $('#quota-help').textContent === 'Navigation help'
@@ -349,7 +357,7 @@ const DRIVER_SCRIPT = `
   $('#quota-refresh').click()
   out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('OpenCode Go not configured')
   out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('Last checked')
-  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[3].classList.contains('active')
+  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[4].classList.contains('active')
 
   // Return to the grid page so the geometry sweep measures on-screen rects.
   document.querySelectorAll('#dots .dot')[1].click()
@@ -402,7 +410,7 @@ function check(results) {
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.chat', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.face-presence', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.tile.settings', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.clock', 'odk.tile.current-emotion', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.face-presence', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -412,9 +420,10 @@ function check(results) {
     ['status bar holds dots', results.dotsInsideStatusBar],
     ['bolt left of dots', results.boltLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
-    ['four pages', results.pageCount === 4],
-    ['four dots', results.dotCount === 4],
-    ['page context is tracked', results.pageContext === 'Today · 1/4'],
+    ['six pages', results.pageCount === 6],
+    ['six dots', results.dotCount === 6],
+    ['Your apps page is available after Usage', results.userAppsPage],
+    ['page context is tracked', results.pageContext === 'Today · 1/6'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
@@ -424,7 +433,7 @@ function check(results) {
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 3', results.tablerCount >= 3],
-    ['ten state widgets with unique identities', results.widgetCount === 10 && results.uniqueApps],
+    ['declared state widgets have unique identities', results.widgetIdentitiesMatch && results.uniqueApps],
     ['experimental vision does not block the shell', results.experimentalVisionDoesNotBlockShell],
     ['widgets declare truthful signals without forced template anatomy', results.widgetStatesAreHonest && results.widgetsUseFlexibleAnatomy && results.widgetsAreDisplayOnly && results.surfaceSeparation],
     ['Hydra plants widget mounts truthfully on the Home grid', results.hydraTileMounted && results.hydraTilePlacement && results.hydraStateIsHonest],
@@ -477,9 +486,10 @@ function check(results) {
     ['third dot active after jump', results.thirdDotActive],
     ['third page context is visible', results.thirdPageContext],
     ['ArrowLeft returns to grid', results.arrowLeftReturnsToGrid],
-    ['End jumps to quota', results.endJumpsToQuota],
+    ['End jumps to Your apps', results.endJumpsToYourApps],
     ['Home jumps to Today', results.homeJumpsToToday],
     ['consecutive ArrowRight presses reach Usage', results.consecutiveArrowRightsReachUsage],
+    ['ArrowRight reaches Your apps after Usage', results.arrowRightReachesYourApps],
     ['quota status is native and honest', results.quotaStateIsHonest && results.quotaHasNoFabricatedUsage && results.quotaMetricsAreLabeled],
     ['quota exposes check state', results.quotaCheckedVisible],
     ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],
@@ -535,10 +545,10 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
-    await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[2].click()", true)
+    await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[3].click()", true)
     await new Promise((resolve) => setTimeout(resolve, 350))
     const piProbe = await win.webContents.executeJavaScript(`(() => {
-      const page = document.querySelector('#pages-track .page[data-page="2"]')
+      const page = document.querySelector('#pages-track .page[data-page="3"]')
       const pageRect = page.getBoundingClientRect()
       const controls = [...page.querySelectorAll('.pi-app-toolbar, .pi-filter-group, #pi-refresh-btn, .pi-header-actions')]
       const inside = (rect, parent) => rect.left >= parent.left - 1 && rect.right <= parent.right + 1
@@ -665,6 +675,9 @@ async function main() {
     endpointCalls.list += 1
     return appManager.list()
   })
+  ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+  ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
+  ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'fixture does not install applications' }))
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
   ipcMain.handle('odk-app-manager-intent', (_event, intent) => {
     endpointCalls.intent += 1
@@ -719,9 +732,11 @@ async function main() {
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
-    remotePageStates.some((state) => state.page === 1 && state.pages === 4 && state.name === 'Today' && !state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 3 && state.pages === 4 && state.name === 'Pi Sessions' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 4 && state.pages === 4 && state.name === 'Usage' && state.canPrev && !state.canNext)
+    remotePageStates.some((state) => state.page === 1 && state.pages === 6 && state.name === 'Today' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 3 && state.pages === 6 && state.name === 'Reading' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 4 && state.pages === 6 && state.name === 'Pi Sessions' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 5 && state.pages === 6 && state.name === 'Usage' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 6 && state.pages === 6 && state.name === 'Your apps' && state.canPrev && !state.canNext)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
@@ -747,17 +762,17 @@ async function main() {
   )
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToToday = await pageContext() === 'Today · 1/4'
+  const movedToToday = await pageContext() === 'Today · 1/6'
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const heldAtFirstPage = await pageContext() === 'Today · 1/4'
+  const heldAtFirstPage = await pageContext() === 'Today · 1/6'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToHome = await pageContext() === 'Home · 2/4'
+  const movedToHome = await pageContext() === 'Home · 2/6'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const repeatedRemoteMovesOnce = await pageContext() === 'Usage · 4/4'
+  const repeatedRemoteMovesOnce = await pageContext() === 'Reading · 3/6'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.repeatedRemoteMovesOnce = repeatedRemoteMovesOnce
   const driverFailures = check(results)

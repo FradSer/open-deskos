@@ -28,8 +28,19 @@
           { id: 'odk.tile.hydra', col: '5', row: '2 / 4' },
         ],
       },
+      {
+        id: 'reading',
+        name: 'Reading',
+        kind: 'grid',
+        surface: 'display',
+        widgets: [
+          { id: 'odk.tile.weread', col: '1 / 4', row: '1 / 3' },
+          { id: 'odk.tile.preorder', col: '4 / 6', row: '1 / 3' },
+        ],
+      },
       { id: 'pi-sessions', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi-sessions' },
       { id: 'quota', name: 'Usage', kind: 'page', surface: 'app', plugin: 'odk.page.quota' },
+      { id: 'user-apps', name: 'Your apps', kind: 'page', surface: 'app', plugin: 'odk.page.user-apps' },
     ],
   }
 })(typeof window !== 'undefined' ? window : globalThis)

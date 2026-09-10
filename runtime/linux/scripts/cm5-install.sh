@@ -233,6 +233,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
 ExecStart=${RUNTIME_ROOT}/current/scripts/start-kiosk.sh
 Restart=always
 RestartSec=3

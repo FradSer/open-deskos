@@ -165,14 +165,15 @@
         <div class="pi-widget-body odk-col items-center justify-center w-full">
           <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
             <span class="pi-widget-count">--</span>
-            <span class="pi-widget-unit">WORKING</span>
+            <span class="pi-widget-unit" hidden></span>
           </div>
           <div class="pi-widget-live-tag odk-row items-center gap-1">
             <span class="pi-indicator-dot pi-indicator-idle"></span>
             <span class="pi-widget-tag-label">IDLE</span>
           </div>
-          <div class="pi-widget-context odk-col items-center">
-            <span class="w-state">Pi Sessions</span>
+          <div class="pi-widget-context odk-col items-center w-full">
+            <div class="w-state">Pi Sessions</div>
+            <div class="pi-widget-activity" hidden></div>
             <span class="pi-widget-summary">0 workspaces</span>
           </div>
         </div>`
@@ -182,6 +183,7 @@
       const tagLabelEl = el.querySelector('.pi-widget-tag-label')
       const summaryEl = el.querySelector('.pi-widget-summary')
       const stateEl = el.querySelector('.w-state')
+      const activityEl = el.querySelector('.pi-widget-activity')
 
       let tickCount = 0
 
@@ -197,6 +199,10 @@
             tagLabelEl.className = 'pi-widget-tag-label'
             summaryEl.textContent = res?.source?.label || 'Scanner unavailable'
             stateEl.textContent = 'Unavailable'
+            if (activityEl) {
+              activityEl.hidden = true
+              activityEl.textContent = ''
+            }
             return
           }
           const running = res?.summary?.running ?? 0
@@ -206,18 +212,36 @@
           countEl.textContent = String(running)
           summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${total} total`
 
+          const activeSession = res.sessions?.find((s) => s.status === 'running')
+
           if (running > 0) {
             dotEl.className = 'pi-indicator-dot pi-indicator-running'
-            tagLabelEl.textContent = 'ACTIVE'
+            tagLabelEl.textContent = 'Working...'
             tagLabelEl.className = 'pi-widget-tag-label text-odk-green'
 
-            if (stateEl) stateEl.textContent = `${running} working`
+            if (activeSession && (activeSession.latestGoal || activeSession.activity)) {
+              if (stateEl) stateEl.innerHTML = renderGoalHtml(activeSession.latestGoal || `${running} working`)
+              if (activityEl) {
+                activityEl.hidden = false
+                activityEl.innerHTML = `<span class="pi-pulse-dot"></span>${renderActivityHtml(activeSession.activity || 'Working...')}`
+              }
+            } else {
+              if (stateEl) stateEl.textContent = `${running} working`
+              if (activityEl) {
+                activityEl.hidden = true
+                activityEl.textContent = ''
+              }
+            }
           } else {
             dotEl.className = 'pi-indicator-dot pi-indicator-idle'
             tagLabelEl.textContent = 'IDLE'
             tagLabelEl.className = 'pi-widget-tag-label'
+            if (activityEl) {
+              activityEl.hidden = true
+              activityEl.textContent = ''
+            }
 
-            if (total > 0 && res.sessions.length > 0) {
+            if (total > 0 && res.sessions && res.sessions.length > 0) {
               if (stateEl) stateEl.textContent = `${total} recent`
             } else {
               if (stateEl) stateEl.textContent = 'Idle'
@@ -230,6 +254,10 @@
           tagLabelEl.className = 'pi-widget-tag-label'
           summaryEl.textContent = 'Scan failed'
           stateEl.textContent = 'Unavailable'
+          if (activityEl) {
+            activityEl.hidden = true
+            activityEl.textContent = ''
+          }
         }
       }
 
@@ -327,7 +355,7 @@
           return
         }
         if (!sessionData || !sessionData.sessions || sessionData.sessions.length === 0) {
-          updateFeed('<div class="pi-empty-state"><p>No running or recorded Pi processes found.</p><small>Checked source process state and <code>~/.pi/agent/directory-sessions/</code>.</small></div>')
+          updateFeed('<div class="pi-empty-state"><p>No running or recorded Pi sessions found.</p><small>Checked <code>~/.pi/agent/directory-sessions/</code>.</small></div>')
           statusEl.textContent = 'No Pi sessions found.'
           return
         }
@@ -369,7 +397,7 @@
 
         const sessionCard = (s) => {
           const statusClass = `pi-status-${s.status}`
-          const statusDisplay = s.status === 'running' ? 'WORKING' : s.status.toUpperCase()
+          const statusDisplay = s.status === 'running' ? 'Working...' : (s.status.charAt(0).toUpperCase() + s.status.slice(1))
           return `
             <article class="pi-session-card pi-card-${s.status}" data-session-key="${escapeHtml(sessionKey(s))}">
               <div class="pi-card-header odk-row items-center justify-between">
@@ -386,13 +414,11 @@
               </div>
 
               <div class="pi-card-goal">
-                <span class="pi-goal-label">Goal:</span>
-                <p class="pi-goal-text">${renderGoalHtml(s.latestGoal || (s.source === 'process' ? 'Live Pi process; session metadata unavailable.' : 'No goal stated'))}</p>
+                <p class="pi-goal-text">${renderGoalHtml(s.latestGoal || 'No goal stated')}</p>
               </div>
 
               ${(s.activity || s.recap || s.status === 'running') ? `
                 <div class="pi-card-activity">
-                  <span class="pi-activity-label">Model:</span>
                   <p class="pi-activity-text">${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${renderActivityHtml(s.activity || (s.status === 'running' ? 'Working...' : (s.recap || 'Settled')))}</p>
                 </div>` : ''}
             </article>`

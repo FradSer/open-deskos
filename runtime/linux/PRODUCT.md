@@ -14,7 +14,7 @@ Personal developers and knowledge workers using a fixed CM5 desk display. They g
 
 ## Product Purpose
 
-CM5 Desk Companion feasibility vertical slice: validate a trustworthy, local desk shell in a kiosk Electron window. Its primary proof is useful operation without a Mac or experimental hardware: current time, network state, focus status, explicitly configured OpenCode Go status, direct touch/keyboard navigation, and an optional Remote Bridge that never blocks use. Widget → focused built-in view continuation and its main-process intent seam remain validation infrastructure, not a claim of an installable app platform.
+CM5 Desk Companion runtime: validate a trustworthy, local desk shell in a kiosk Electron window, including the supported local user-application lifecycle. Its primary proof is useful operation without a Mac or experimental hardware: current time, network state, focus status, explicitly configured OpenCode Go status, direct touch/keyboard navigation, optional Remote Bridge that never blocks use, and independently verified self-contained Widget/App packages. User packages are local and bounded; this is not a marketplace, native-extension, background-service, or network-permission platform.
 
 ## Positioning
 
@@ -37,7 +37,7 @@ Confirmed capabilities:
 - The State Bar uses a bolt-only network reachability indicator; OpenCode Go and Remote Link states remain available in their dedicated surfaces without duplicating status text in the bar.
 - The State Bar is a larger glanceable orientation surface with Pi Sessions, network reachability, page position, and time. The shell has no dock or desktop icon pile; built-in view discovery and lifecycle validation live in the Built-in views surface.
 - Pi Sessions combines local `ps` process discovery with `~/.pi/agent/directory-sessions` metadata. Processes without metadata remain visible with their PID, working directory, status, and elapsed runtime, while goals and modified files stay explicitly unavailable.
-- Widget taps use `open-app` intent only for declared built-in views; `display-only` Widgets remain truthful and do not pretend to be launchers. Back and Escape always return to the exact source page and context.
+- Widget taps use `open-app` intent only for declared built-in views; `display-only` Widgets remain truthful and do not pretend to be launchers. The Your apps page manages separately installed local user Widgets/Apps through the application lifecycle service. Back and Escape always return to the exact source page and context.
 - Runtime geometry: `layout.js` keeps the desktop grid inside the panel and computes compact columns from a 200px cell floor, with CSS custom properties as the geometry contract. Compact Home supports touch, wheel, and Up/Down keyboard scrolling; App interiors use the available width within page margins.
 - Noto Sans SC Regular and Montserrat Bold are bundled locally under `src/renderer/fonts/` so CM5 rendering does not depend on host-installed fonts.
 
@@ -49,8 +49,8 @@ Hard constraints:
 - Optional experiments may enrich a Widget but can never lock, hide, or make the core desk shell inert.
 
 Deliberately undecided:
-- Whether CM5 becomes a supported Open DeskOS line after hardware acceptance; this slice now owns active implementation but does not claim a shipping commitment.
-- Which optional experiment—Face Agent/P4 camera, C6 gateway, or installable packages—earns a supported provider contract after its own acceptance gate.
+- Whether CM5 becomes a supported Open DeskOS line after hardware acceptance; this runtime owns active implementation but does not claim hardware deployment or a shipping commitment.
+- Which optional experiment—Face Agent/P4 camera or C6 gateway—earns a supported provider contract after its own acceptance gate. The local user-application lifecycle is implemented and supported within its package limits; it does not imply marketplace, native, background, or network capabilities.
 - CM5 real-device validation (GPU, touch, autostart) remains a separate acceptance gate; do not treat host-green as device-green.
 
 ## Brand Commitments
@@ -71,11 +71,12 @@ calm / precise / companion — inherited unchanged from the product family. Open
 1. **Glance first, dive second.** The State Bar, Today, and Widgets state what is true; focused built-in views add depth only when needed.
 2. **Unified entry over icon piles.** Built-in view discovery and lifecycle-seam validation belong in one searchable entry, not a dock or desktop icon grid.
 3. **Intent over direct action.** UI emits intent; the main-process endpoint and renderer runtime own the current built-in-view lifecycle seam.
-4. **Core before experiment.** The shell remains usable without Face Agent, P4 camera, C6 gateway, Remote Bridge, or installable packages.
+4. **Core before experiment.** The shell remains usable without Face Agent, P4 camera, C6 gateway, or Remote Bridge; local user packages are optional and independently managed.
 5. **Tokens are law.** Color changes happen in root `DESIGN.md` and flow through the checker, never through ad-hoc hex values; the test is the contract, not the review eye.
 6. **Honest instrument.** Show unavailable and live state truthfully; no decorative fake data, ever.
 7. **Escape is guaranteed.** Back always works and restores the exact page the user left.
 8. **Geometry adapts, never crops.** Runtime grid recomputation keeps the desktop footprint stable and compact Widgets horizontally contained. Vertical scrolling preserves readable content instead of shrinking an entire compact grid into the viewport.
+9. **User applications are isolated.** Installed packages are self-contained HTML served in opaque, sandboxed frames and activated only after verifier acceptance; built-in plugins remain trusted static runtime code.
 
 ## Accessibility & Inclusion
 

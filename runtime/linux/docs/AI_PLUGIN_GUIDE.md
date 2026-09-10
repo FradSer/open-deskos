@@ -1,7 +1,9 @@
 # Open DeskOS Linux Shell — Built-in View Extension Guide
 
-This CM5 Desk Companion slice uses plugins for pages, Widgets, status indicators, and focused built-in views. Placement is declarative.
-**The only supported way to add a visible capability is a plugin file plus a placement declaration. UI emits an intent; the current main-process endpoint and renderer runtime own the built-in-view seam. This is not an installable app platform. Plugins must implement the complete lifecycle and must not bypass the core seam.**
+This guide covers trusted built-in runtime plugins, not user-created application packages. The resident Agent should use the [user application lifecycle](USER_APPLICATIONS.md) for user requests to create installable Widgets/Apps; it must not inject generated scripts into the Shell.
+
+This CM5 Desk Companion slice uses trusted built-in plugins for pages, Widgets, status indicators, and focused built-in views. Placement is declarative. This guide covers the built-in runtime surface only; for local user-created Widget/App packages, use [USER_APPLICATIONS.md](USER_APPLICATIONS.md).
+**The supported way to add a built-in visible capability is a plugin file plus a placement declaration. UI emits an intent; the current main-process endpoint and renderer runtime own the built-in-view seam. Built-in plugins are verified static runtime code, not user-installable packages. Plugins must implement the complete lifecycle and must not bypass the core seam.**
 
 ## 文件地图
 
@@ -160,6 +162,6 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - UI copy and code must not use emoji. All user-visible CM5 shell copy and catalog values are English.
 - Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, and `app`; status slots are only `left` or `right`. Tile plugins cannot declare an App continuation; interactive controls belong to App pages or App plugins.
 - Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Keep display widgets and interactive App surfaces as separate modules. Do not describe it as an installable app platform.
-- Plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code.
+- Built-in plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code; user packages follow the separate sandboxed lifecycle in `USER_APPLICATIONS.md`.
 - 持续状态优先进入 State Bar、Today 或 Usage;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

@@ -43,7 +43,7 @@ test('scanPiSessions returns empty summary when agent directory does not exist',
   assert.deepEqual(result.workspaces, [])
 })
 
-test('scanPiSessions includes running Pi processes without metadata', async () => {
+test('scanPiSessions ignores running Pi processes without metadata', async () => {
   const nonExistentDir = path.join(os.tmpdir(), `pi-process-agent-${Date.now()}`)
   const result = await scanPiSessions({
     agentDir: nonExistentDir,
@@ -58,15 +58,53 @@ test('scanPiSessions includes running Pi processes without metadata', async () =
     }],
   })
 
-  assert.equal(result.summary.total, 1)
+  assert.equal(result.ok, true)
+  assert.equal(result.summary.total, 0)
+  assert.equal(result.summary.running, 0)
+  assert.equal(result.summary.workspacesCount, 0)
+  assert.deepEqual(result.sessions, [])
+  assert.deepEqual(result.workspaces, [])
+  assert.equal(result.orphanProcesses, 1)
+})
+
+test('scanPiSessions hides Pi worker processes spawned by another live Pi session', async () => {
+  const tmpAgentDir = path.join(os.tmpdir(), `pi-worker-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const wsDir = path.join(tmpAgentDir, 'directory-sessions', '--Users-test-worker--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'worker.json'), JSON.stringify({
+    sessionId: 'worker-01a062fe-a0a6-7922-a757-abb790ef9977',
+    pid: 4322,
+    cwd: '/Users/test/worker-workspace',
+    startedAt: 1_699_999_990_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: 'Worker goal',
+    modifiedFiles: [],
+  }))
+  fs.writeFileSync(path.join(wsDir, 'leader.json'), JSON.stringify({
+    sessionId: 'leader-02b062fe-b0a6-7922-a757-abb790ef8888',
+    pid: 4321,
+    cwd: '/Users/test/worker-workspace',
+    startedAt: 1_699_999_940_000,
+    updatedAt: 1_700_000_000_000,
+    status: 'running',
+    latestGoal: 'Leader goal',
+    modifiedFiles: [],
+  }))
+
+  const result = await scanPiSessions({
+    agentDir: tmpAgentDir,
+    checkProcessAlive: () => true,
+    listProcesses: () => [
+      { pid: 4321, ppid: 1, cwd: '/Users/test/worker-workspace', command: 'pi', startedAt: 1_699_999_940_000, isAlive: true },
+      { pid: 4322, ppid: 4321, cwd: '/Users/test/worker-workspace', command: 'pi', startedAt: 1_699_999_990_000, isAlive: true },
+    ],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions[0].latestGoal, 'Leader goal')
   assert.equal(result.summary.running, 1)
-  assert.equal(result.summary.workspacesCount, 1)
-  assert.equal(result.sessions[0].sessionId, 'process-4321')
-  assert.equal(result.sessions[0].workspaceName, 'desk-app')
-  assert.equal(result.sessions[0].startedAt, 1_699_999_940_000)
-  assert.equal(result.sessions[0].latestGoal, '')
-  assert.deepEqual(result.sessions[0].modifiedFiles, [])
-  assert.equal(result.sessions[0].source, 'process')
+  fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
 test('scanPiSessions merges process facts into a matching metadata record', async () => {
@@ -224,10 +262,10 @@ test('scanPiSessions refuses indistinguishable live PID metadata candidates', as
     }],
   })
 
-  assert.equal(result.sessions.length, 3)
-  assert.equal(result.summary.running, 1)
+  assert.equal(result.sessions.length, 2)
+  assert.equal(result.summary.running, 0)
   assert.equal(result.summary.exited, 2)
-  assert.equal(result.sessions.filter((session) => session.source === 'process').length, 1)
+  assert.equal(result.orphanProcesses, 1)
   assert.equal(result.sessions.filter((session) => session.status === 'exited').length, 2)
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
@@ -256,11 +294,11 @@ test('scanPiSessions does not merge ambiguous metadata without a start time', as
     }],
   })
 
-  assert.equal(result.sessions.length, 2)
-  assert.equal(result.summary.running, 1)
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.summary.running, 0)
   assert.equal(result.summary.exited, 1)
+  assert.equal(result.orphanProcesses, 1)
   assert.equal(result.sessions.find((session) => session.latestGoal === 'Possibly stale goal').status, 'exited')
-  assert.equal(result.sessions.find((session) => session.source === 'process').cwd, '/Users/test/new-workspace')
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
@@ -401,6 +439,7 @@ test('scanPiSessions marks unmatched settled metadata as exited', async () => {
 
   assert.equal(result.summary.exited, 1)
   assert.equal(result.sessions.find((session) => session.latestGoal === 'Stale settled goal').status, 'exited')
+  assert.equal(result.orphanProcesses, 1)
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
@@ -707,7 +746,10 @@ test('pi-sessions App formats skill invocation goals as [skill] name and display
   assert.ok(feedHtml.includes('[skill]'))
   assert.ok(feedHtml.includes('marketing'))
   assert.ok(!feedHtml.includes('<skill name='))
-  assert.ok(feedHtml.includes('Model:'))
+  assert.ok(!feedHtml.includes('Goal:'))
+  assert.ok(!feedHtml.includes('Model:'))
+  assert.ok(!feedHtml.includes('PID'))
+  assert.ok(feedHtml.includes('Working...'))
   assert.ok(feedHtml.includes('bash: pnpm build'))
 })
 

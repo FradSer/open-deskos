@@ -16,8 +16,10 @@ a missing STT key, or failed voice activation does not stop the shell.
 ## Device-local configuration
 
 Provision configuration as the kiosk user, not root. Create
-`~/.config/open-deskos/voice-agent.env` with mode `0600`; the installer deliberately
-does not create or overwrite it. Set these to actual absolute paths on the CM5:
+`~/.config/open-deskos/runtime.env` with mode `0600` for `ODESK_WORKSPACE`;
+both Shell and Voice Agent read it. Keep the voice-specific settings below in
+`~/.config/open-deskos/voice-agent.env`, also mode `0600`. The installer deliberately
+does not create or overwrite either file. Set actual absolute paths on the CM5:
 
 - `ODESK_WORKSPACE`: the shared Open DeskOS writable Git checkout, consumed by
   voice and other system entry points rather than owned by voice. It is explicitly provisioned,
@@ -30,7 +32,10 @@ does not create or overwrite it. Set these to actual absolute paths on the CM5:
 - `ODESK_VOICE_AUDIO_DEVICE=default`: uses the user's ALSA default input. Override
   only after verifying the actual capture device as that user.
 - `ODESK_VOICE_STT_URL`: optional; defaults to
-  `https://api.openai.com/v1/audio/transcriptions`.
+  `https://api.openai.com/v1/audio/transcriptions`. Plain HTTP is accepted only
+  for loopback hosts when a device-local speech service (for example
+  `integrations/local-stt-bridge`) handles transcription; remote hosts still
+  require HTTPS and URLs never carry credentials.
 - `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1`.
 - `ODESK_VOICE_MODEL`: optional Pi `provider/id` model selection. Configure provider
   authentication separately on the CM5 under the kiosk user's Pi auth storage

@@ -20,6 +20,18 @@ _Avoid_: adapting P4 serial commands as CM5 product interfaces.
 
 ## Language
 
+**User Application**:
+A locally authored, versioned Widget or interactive App installed and managed by Open DeskOS. It is distinct from trusted built-in Shell plugins and from its editable draft.
+_Avoid_: generated file equals installed app, arbitrary Shell plugin injection
+
+**Application Candidate**:
+An exact snapshot of a draft awaiting system-owned verification. Failed verification cannot replace the installed revision.
+_Avoid_: agent self-certified installation, mutable installed workspace
+
+**Installed Revision**:
+The application version selected by the system catalog for presentation, independently of the Shell runtime release. Closing its interface does not uninstall it; uninstalling does not delete its draft.
+_Avoid_: running process, active Shell release, draft version
+
 **Open DeskOS Workspace**:
 The shared writable project workspace used by Open DeskOS development and automation capabilities. Voice is one entry point into it, not its owner. It is distinct from the active runtime release and each agent's conversation history.
 _Avoid_: voice workspace, active release directory, Pi session storage

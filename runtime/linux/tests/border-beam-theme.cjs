@@ -1,7 +1,13 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow } = require('electron')
+const { resolvePages } = require('./helpers/pages')
+
+// An isolated profile keeps this gate from reading — and overwriting — the
+// theme the running kiosk has persisted.
+app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'odk-border-beam-test-')))
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 1920, height: 1280, show: false,
@@ -10,13 +16,14 @@ app.whenReady().then(async () => {
   await win.loadFile(file)
   await win.webContents.executeJavaScript(`localStorage.removeItem('odk.theme')`)
   await win.loadFile(file)
-  assert.equal(await win.webContents.executeJavaScript('odkTheme.get()'), 'instrument')
+  assert.equal(await win.webContents.executeJavaScript('odkTheme.get()'), 'pixel')
   await win.webContents.executeJavaScript(`odkTheme.set('border-beam')`)
   await win.loadFile(file)
   assert.equal(await win.webContents.executeJavaScript('odkTheme.get()'), 'border-beam')
   for (const [width, height] of [[1920, 1280], [480, 854]]) {
     win.setContentSize(width, height)
-    await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[1].click()`)
+    const home = (await resolvePages(win)).dot('home')
+    await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${home}].click()`)
     await new Promise(resolve => setTimeout(resolve, 400))
     const state = await win.webContents.executeJavaScript(`(() => {
       const effect = getComputedStyle(document.querySelector('.widget'), '::after')

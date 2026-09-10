@@ -39,6 +39,6 @@ Feature: A calm and precise desk instrument
 
   Scenario: Design refinement preserves the shell contract
     Given every provider and peripheral is unavailable
-    Then Today, Home, Pi Sessions, Usage, and built-in App views remain available
+    Then Today, Home, Pi Sessions, Usage, Your apps, and built-in App views remain available
     And direct keyboard, touch, and Remote navigation retain their established boundaries
     And the desktop footprint and compact scrolling remain unchanged

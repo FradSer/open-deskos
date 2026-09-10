@@ -1,9 +1,9 @@
 Feature: Theme-aware Apple-style State Bar page control
 
   Scenario: Page navigation stays visually quiet
-    Given the shell has four configured pages
+    Given the shell has six configured pages
     When the State Bar renders at desktop or compact width
-    Then a centered subtle capsule contains four evenly spaced markers
+    Then a centered subtle capsule contains six evenly spaced markers
     And the current page is a brighter short bar while other pages are points
     And no visible page labels or segmented text buttons are shown
     And page names and the current position remain available to assistive technology

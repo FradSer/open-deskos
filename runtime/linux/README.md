@@ -95,6 +95,12 @@ Wayland 会话在 `run.sh` 中自动追加 `--ozone-platform-hint=auto`；root �
 
 默认仍监控本机；可通过认证 SSH 切换为 Mac 数据源。部署采集器、配置 SSH 密钥和持久化 kiosk 服务环境变量的步骤见 [Mac Pi monitoring](docs/PI_SESSIONS_REMOTE.md)。远端不可用时不会回退本机或显示为空闲。
 
+## 用户应用生命周期
+
+新增 **Your apps** 页面，管理 `ODESK_WORKSPACE/apps/<id>` 下的本地应用草稿。系统验证确切候选内容后安装，支持更新、失败保留旧版本、回滚和卸载；安装状态独立于 Shell release 持久化。Widget 为只读展示，App 在受限 iframe 中交互。内置 Agent 使用同一个系统安装入口，不以“文件已写入”冒充安装成功。
+
+首版仅支持自包含、离线 HTML/CSS/JavaScript，无 Node、网络、后台服务或持久化应用数据 API。完整格式、限制和验收见 [用户应用](docs/USER_APPLICATIONS.md)。
+
 ## Remote 语音 Agent
 
 Remote 的 MIC 由主进程直接交给独立常驻的 Voice Agent，不经过 Pi Sessions 监控 app/widget。再次点击停止录音并提交，30 秒自动结束；使用 CM5 Linux 默认录音设备，不读取 Remote 音频。桌面独立反馈录音、转写、执行和错误状态。

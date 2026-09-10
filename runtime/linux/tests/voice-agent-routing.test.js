@@ -14,6 +14,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
   }
   const app = {
     on() {}, once() {}, commandLine: { appendSwitch() {} },
+    getPath: () => '/test',
     requestSingleInstanceLock: () => true,
     whenReady: () => Promise.resolve(),
   }
@@ -21,7 +22,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
     electron: {
       app, BrowserWindow: Object.assign(function () { return win }, { getAllWindows: () => [win] }),
       ipcMain: { handle: (id, fn) => handlers.set(id, fn) },
-      session: { defaultSession: { setPermissionRequestHandler() {} } },
+      session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
     },
     './remote-bridge-client': {
       resolveRemoteBridgeSocketPath: () => null,
@@ -33,8 +34,10 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
       resolveVoiceSocketPath: () => '/test.sock',
       createVoiceAgentClient: () => ({ subscribe() {}, start() {}, stop() {}, toggle: () => { toggles++; return true }, snapshot: () => ({ state: 'idle' }) }),
     },
+    './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {} },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
     './hydra-mqtt': { createHydraSource: () => ({ snapshot() {} }) },
+    './weread-source': { createWeReadSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unconfigured' }) }) },
     './app-manager-endpoint': { createAppManagerEndpoint: () => ({}) },
     './opencode-go': {}, './face-agent-status': {},
   }
@@ -42,7 +45,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
     require: (id) => modules[id] || require(id), process: { argv: [], env: {} },
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams,
   })
-  await Promise.resolve()
+  await new Promise(resolve => setImmediate(resolve))
   onInput('mic')
   assert.equal(toggles, 1)
   assert.deepEqual(sent, [])

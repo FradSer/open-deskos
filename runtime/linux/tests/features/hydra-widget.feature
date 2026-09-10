@@ -38,6 +38,13 @@ Feature: Hydra plant and environment widget on the Home grid
     And it keeps showing the last known readings dimmed under the stale badge
     And it never presents the stale readings as live
 
+  Scenario: Environment summary topic hydrates the widget
+    Given the Hydra MQTT bridge is configured and connected
+    And the main node publishes the retained environment summary
+    When the Hydra widget refreshes
+    Then the environment section shows the summary temperature, humidity, pressure and lux
+    And the widget states a live data status
+
   Scenario: Plant rows carry a soil moisture meter
     Given the Hydra MQTT bridge is configured and connected
     And node 1 reports soil 62 percent and node 2 reports soil 44 percent

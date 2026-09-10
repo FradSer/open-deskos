@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=1920, initial-scale=1, user-scalable=no" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; frame-src odk-user-app:" />
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="uno.css" />
   <link rel="stylesheet" href="shell.css" />
   <link rel="stylesheet" href="voice-status.css" />
+  <link rel="stylesheet" href="user-apps.css" />
   <link rel="stylesheet" href="themes/border-beam.css" />
   <link rel="stylesheet" href="themes/pixel.css" />
   <script src="core/theme.js"></script>
@@ -73,8 +74,10 @@
   <script src="plugins/almanac.js"></script>
   <script src="plugins/clock.js"></script>
   <script src="plugins/chat.js"></script>
-  <script src="plugins/pomodoro.js"></script>
   <script src="plugins/settings.js"></script>
+  <script src="plugins/weread.js"></script>
+  <script src="plugins/preorder.js"></script>
+  <script src="plugins/pomodoro.js"></script>
   <script src="plugins/hydra.js"></script>
   <script src="plugins/year.js"></script>
   <script src="plugins/face-presence.js"></script>
@@ -85,6 +88,8 @@
   <script src="plugins/status-pi-sessions.js"></script>
   <script src="plugins/apps.js"></script>
   <script src="plugins/pi-sessions.js"></script>
+  <script src="core/user-app-frame.js"></script>
+  <script src="plugins/user-apps.js"></script>
   <script src="config/desktop_layout.js"></script>
   <script src="shell.js"></script>
 </body>
