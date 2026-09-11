@@ -6,6 +6,7 @@
     id: 'odk.tile.weread',
     manifest: { schemaVersion: 1 },
     kind: 'tile',
+    css: 'plugins/weread.css',
     app: 'WeRead',
     state: 'Loading',
     interaction: 'display-only',

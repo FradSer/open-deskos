@@ -1495,104 +1495,7 @@ body.kiosk {
 
 /* ---- Pi Sessions Widget & App ---- */
 
-/* WeRead is a wide instrument on desktop and a square instrument in compact
-   grids. Keep all rendered content inside the tile's padded frame. */
-.widget.w-weread {
-  padding: 0;
-}
-
-.w-weread .weread-body {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 0;
-  margin: 0;
-  overflow: hidden;
-}
-
-.w-weread .weread-content {
-  display: flex;
-  align-items: stretch;
-  gap: clamp(24px, 4cqi, 48px);
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  flex: 1;
-}
-
-.w-weread .weread-cover-wrap {
-  width: 48%;
-  height: 100%;
-  flex: 0 0 48%;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-  border-right: 1px solid var(--odk-stroke);
-  overflow: hidden;
-  background: var(--odk-surface);
-}
-
-.w-weread .weread-cover {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
-  object-fit: cover;
-  object-position: center center;
-  border: 0;
-  border-radius: 0;
-  image-rendering: auto;
-}
-
-.w-weread .weread-copy {
-  min-width: 0;
-  max-width: 100%;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: clamp(24px, 4cqi, 48px);
-  padding: clamp(12px, 2cqi, 24px) clamp(16px, 3cqi, 32px) clamp(12px, 2cqi, 24px) 0;
-  margin: 0;
-  overflow: hidden;
-}
-
-.w-weread .weread-text {
-  min-width: 0;
-  margin: 0;
-  color: var(--odk-primary);
-  max-width: 100%;
-  font-size: 48px;
-  font-weight: 700;
-  line-height: 1.35;
-  display: block;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-.w-weread .weread-title {
-  min-width: 0;
-  margin: 0;
-  color: var(--odk-secondary-strong);
-  max-width: 100%;
-  font-size: clamp(18px, 6cqi, 28px);
-  font-weight: 700;
-  line-height: 1.35;
-  overflow: visible;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.w-weread .weread-unconfigured { opacity: 0.55; }
-.w-weread .weread-unconfigured .weread-title { max-width: 14ch; }
-.w-weread .weread-unconfigured .weread-text { max-width: 16ch; }
+/* WeRead styles live in plugins/weread.css (scoped plugin stylesheet). */
 
 /* ---- Pre-order countdown: the product photo owns the upper figure and the
    countdown reads from the tile's own charcoal surface below, separated by a
@@ -1674,9 +1577,10 @@ body.kiosk {
   font-weight: 700;
 }
 
-/* The unit is a suffix, not a competitor: baseline-aligned, small, muted. */
+/* The unit is the numeral divided by phi: a golden-ratio suffix that stays
+   subordinate at every density, baseline-aligned and muted. */
 .w-preorder .preorder-unit {
-  font-size: 0.26em;
+  font-size: 0.618em;
   font-weight: 500;
   letter-spacing: 0;
   margin-left: 0.14em;
