@@ -91,11 +91,18 @@ check('preorder photo carries no scrim', !preorderCss.includes('linear-gradient'
 check('preorder type carries no drop shadow', !preorderCss.includes('text-shadow'), 'text-shadow reintroduced')
 check('preorder panel separates with a stroke', /\.preorder-panel\s*\{[^}]*border-top:\s*1px solid var\(--odk-stroke\)/.test(preorderCss))
 
+// The unit is the numeral divided by phi: em-relative, so count/unit is
+// exactly the golden ratio at every density, compact tiles included.
+const preorderUnitEm = Number((preorderCss.match(/\.preorder-unit\s*\{[^}]*font-size:\s*([\d.]+)em/) || [])[1])
+check('preorder units follow the golden ratio', Math.abs(preorderUnitEm - 1 / 1.6180339887) < 0.005, `unit ratio is ${preorderUnitEm}em`)
+
 // Zpix is a bitmap face: a flat 12px never reads as pixel art. Pixel-theme type
 // sizing scales with the tile and keeps 12px only as its floor.
 const pixelCss = require('node:fs').readFileSync(require('node:path').join(new URL('.', import.meta.url).pathname, '../src/renderer/themes/pixel.css'), 'utf8')
 const preorderLabelPixel = pixelCss.match(/\[data-theme='pixel'\] \.w-preorder \.preorder-label\s*\{([^}]*)\}/)
 check('preorder caption scales in the pixel theme', Boolean(preorderLabelPixel) && /font-size:\s*max\(12px,\s*\d+(\.\d+)?cqi\)/.test(preorderLabelPixel[1]), preorderLabelPixel ? preorderLabelPixel[1].trim() : 'no pixel override for .preorder-label')
+const preorderLabelCqi = Number(((preorderLabelPixel?.[1] || '').match(/max\(12px,\s*([\d.]+)cqi\)/) || [])[1])
+check('preorder caption clears the text floor at desk density', preorderLabelCqi >= 5.2, `caption scales at ${preorderLabelCqi}cqi`)
 
 if (failures > 0) {
   console.error(`layout harness: ${failures} failure(s)`)
