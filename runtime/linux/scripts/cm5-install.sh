@@ -245,6 +245,16 @@ GRAPHICAL_DISPLAY="$(loginctl show-session "$(loginctl list-sessions --no-legend
 if [ -n "${GRAPHICAL_DISPLAY}" ]; then
   run_as_target_user env DISPLAY="${GRAPHICAL_DISPLAY}" systemctl --user import-environment DISPLAY
 fi
+KIOSK_XAUTHORITY=""
+if [ -f "${TARGET_HOME}/.Xauthority" ]; then
+  KIOSK_XAUTHORITY="${TARGET_HOME}/.Xauthority"
+fi
+if [ -z "${DISPLAY:-}" ] && [ -n "${GRAPHICAL_DISPLAY}" ]; then
+  export DISPLAY="${GRAPHICAL_DISPLAY}"
+fi
+if [ -z "${XAUTHORITY:-}" ] && [ -n "${KIOSK_XAUTHORITY}" ]; then
+  export XAUTHORITY="${KIOSK_XAUTHORITY}"
+fi
 
 if [ -d "${RUNTIME_ROOT}/current" ]; then
   $SUDO env \
@@ -255,6 +265,8 @@ if [ -d "${RUNTIME_ROOT}/current" ]; then
     ODK_KIOSK_HOME="${TARGET_HOME}" \
     ODK_KIOSK_NODE_BIN="${NODE_BIN}" \
     ODK_KIOSK_BIN_DIR="${KIOSK_BIN}" \
+    ODK_KIOSK_DISPLAY="${GRAPHICAL_DISPLAY:-}" \
+    ODK_KIOSK_XAUTHORITY="${KIOSK_XAUTHORITY}" \
     node "${DIR}/scripts/update-runtime.js"
 else
   if [ -x "${COREPACK_PNPM}" ]; then
