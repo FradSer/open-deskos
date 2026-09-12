@@ -8,6 +8,7 @@ const migrator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'migrate-
 const validator = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'validate-release.js'), 'utf8')
 const releaseVerifier = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'verify-release.sh'), 'utf8')
 const stageRelease = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-stage-release.sh'), 'utf8')
+const installer = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
 
 test('CM5 updater serializes transactions and preflights before activating a release', () => {
   assert.match(updater, /openSync\(lockPath, 'wx'\)/)
@@ -29,6 +30,15 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /chmod', \['-R', 'a-w'/)
   assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
   assert.match(updater, /\['pnpm', 'verify-release'\], kiosk/)
+})
+
+test('device preflight inherits the kiosk graphical session instead of ambient SSH environment', () => {
+  assert.match(updater, /ODK_KIOSK_DISPLAY/)
+  assert.match(updater, /ODK_KIOSK_XAUTHORITY/)
+  assert.match(updater, /DISPLAY=\$\{/)
+  assert.match(updater, /XAUTHORITY=\$\{/)
+  assert.match(installer, /ODK_KIOSK_DISPLAY="\$\{GRAPHICAL_DISPLAY:-\}"/)
+  assert.match(installer, /ODK_KIOSK_XAUTHORITY/)
 })
 
 test('kiosk identity retains names while resolving only filesystem paths', () => {

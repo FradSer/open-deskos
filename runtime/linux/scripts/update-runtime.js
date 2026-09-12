@@ -21,6 +21,11 @@ function requiredValue(name) {
   return value
 }
 
+function optionalValue(name) {
+  const value = process.env[name]
+  return value || null
+}
+
 function runtimePaths(root) {
   const stateDir = path.join(root, 'state')
   return {
@@ -54,8 +59,10 @@ function withLock(lockPath, work) {
 function runReleaseCommand(releasePath, command, runAs = null) {
   const [file, ...args] = command
   const executable = runAs ? 'runuser' : file
+  const sessionDisplay = runAs && runAs.display ? [`DISPLAY=${runAs.display}`] : []
+  const sessionAuthority = runAs && runAs.xauthority ? [`XAUTHORITY=${runAs.xauthority}`] : []
   const executableArgs = runAs
-    ? ['-u', runAs.user, '--', 'env', `HOME=${runAs.home}`, `XDG_RUNTIME_DIR=/run/user/${runAs.uid}`, `PATH=${runAs.binDir}:${runAs.nodeBin}:/usr/local/bin:/usr/bin:/bin`, 'COREPACK_ENABLE_PROJECT_SPEC=0', file, ...args]
+    ? ['-u', runAs.user, '--', 'env', `HOME=${runAs.home}`, `XDG_RUNTIME_DIR=/run/user/${runAs.uid}`, `PATH=${runAs.binDir}:${runAs.nodeBin}:/usr/local/bin:/usr/bin:/bin`, 'COREPACK_ENABLE_PROJECT_SPEC=0', ...sessionDisplay, ...sessionAuthority, file, ...args]
     : args
   const result = spawnSync(executable, executableArgs, {
     cwd: releasePath,
@@ -91,7 +98,9 @@ function kioskIdentity() {
   const home = requiredValue('ODK_KIOSK_HOME')
   const nodeBin = requiredValue('ODK_KIOSK_NODE_BIN')
   const binDir = requiredValue('ODK_KIOSK_BIN_DIR')
-  return { user, uid, home, nodeBin, binDir }
+  const display = optionalValue('ODK_KIOSK_DISPLAY')
+  const xauthority = optionalValue('ODK_KIOSK_XAUTHORITY')
+  return { user, uid, home, nodeBin, binDir, display, xauthority }
 }
 
 function sealRelease(releasePath) {
