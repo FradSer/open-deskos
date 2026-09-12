@@ -280,10 +280,6 @@
   }
 }
 
-[data-theme='pixel'] .w-weread .weread-cover-wrap {
-  border-right-color: var(--odk-secondary-strong);
-}
-
 /* WeRead cover uses a pixel-only treatment; instrument and other themes keep the original image. */
 [data-theme='pixel'] .w-weread .weread-cover {
   image-rendering: pixelated;
@@ -294,9 +290,4 @@
 [data-theme='pixel'] .w-weread .weread-text {
   font-size: 48px;
   line-height: 1.35;
-}
-
-[data-theme='pixel'] .w-weread .weread-title {
-  font-size: clamp(18px, 6cqi, 28px);
-  color: var(--odk-secondary-strong);
 }

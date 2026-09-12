@@ -75,6 +75,38 @@ check('reading page hosts WeRead and pre-order tiles', readingPage?.widgets?.len
 check('weread tile spans 3x2 top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 3', `col=${readingPage?.widgets?.[0]?.col} row=${readingPage?.widgets?.[0]?.row}`)
 check('preorder tile spans 2x2 beside weread', readingPage?.widgets?.[1]?.col === '4 / 6' && readingPage?.widgets?.[1]?.row === '1 / 3', `col=${readingPage?.widgets?.[1]?.col} row=${readingPage?.widgets?.[1]?.row}`)
 
+// WeRead meta: title/author/date step down by phi, the date carries an
+// underline, and the cover is a narrow right rail instead of a half panel.
+const wereadCssPath = require('node:path').join(new URL('.', import.meta.url).pathname, '../src/renderer/plugins/weread.css')
+const wereadCss = require('node:fs').readFileSync(wereadCssPath, 'utf8')
+const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(12px,\\s*)?([\\d.]+)cqi')) || [])[1])
+const wereadTitleCqi = wereadSize('\\.weread-title')
+const wereadAuthorCqi = wereadSize('\\.weread-author')
+const wereadDateCqi = wereadSize('\\.weread-date')
+check('weread title/author step down by phi and author/date share one size', [wereadTitleCqi, wereadAuthorCqi, wereadDateCqi].every(Number.isFinite) && Math.abs(wereadTitleCqi / wereadAuthorCqi - 1.6180339887) < 0.03 && wereadAuthorCqi === wereadDateCqi, `title/author/date cqi is ${wereadTitleCqi}/${wereadAuthorCqi}/${wereadDateCqi}`)
+check('weread date carries no underline', !/\.weread-date\s*\{[^}]*text-decoration:\s*underline/.test(wereadCss), 'underlined .weread-date rule still present')
+check('weread date separates by spacing alone', /\.weread-date\s*\{[^}]*margin-top:/.test(wereadCss), 'no spacing separation on .weread-date')
+check('weread cover sits beside the meta block', /\.weread-foot\s*\{[^}]*display:\s*flex/.test(wereadCss), 'no .weread-foot flex row')
+check('weread cover keeps its original aspect', /\.weread-cover\s*\{[^}]*object-fit:\s*contain/.test(wereadCss) && !wereadCss.includes('flex: 0 0 48%'), 'cover is cropped or still a half panel')
+// The canvas bitmap itself is fitted by ratio in JS, never stretched.
+const wereadJs = require('node:fs').readFileSync(require('node:path').join(new URL('.', import.meta.url).pathname, '../src/renderer/plugins/weread.js'), 'utf8')
+check('weread cover bitmap is fitted by ratio', wereadJs.includes('aspectRatio'), 'drawCover stretches the bitmap')
+// The hero text breathes above the meta row: a hairline separates them like
+// the pre-order panel split, so the meta never visually merges into the text.
+check('weread foot separates with a stroke', /\.weread-foot\s*\{[^}]*border-top:\s*1px solid var\(--odk-stroke\)/.test(wereadCss), 'no hairline between text and meta')
+// Meta lines breathe in proportion to their size: the row gap must clear
+// 1cqi so the enlarged title never crowds the author line.
+const wereadMetaGap = Number((wereadCss.match(/\.weread-meta\s*\{[^}]*gap:\s*clamp\([^,]+,\s*([\d.]+)cqi/) || [])[1])
+check('weread meta lines breathe', wereadMetaGap >= 1, `meta gap is ${wereadMetaGap}cqi`)
+// Best practice: multi-line passages read at >=1.4 leading with pretty
+// wrapping, short headings balance, and numeric dates stay tabular.
+check('weread text uses passage leading and wrapping', /\.weread-text\s*\{[^}]*line-height:\s*1\.45/.test(wereadCss) && /\.weread-text\s*\{[^}]*text-wrap:\s*pretty/.test(wereadCss), 'text lacks 1.45/pretty passage treatment')
+check('weread title balances and date stays tabular', /\.weread-title\s*\{[^}]*text-wrap:\s*balance/.test(wereadCss) && /\.weread-date\s*\{[^}]*font-variant-numeric:\s*tabular-nums/.test(wereadCss), 'title/date lack balance/tabular treatment')
+// Meta sizing lives in the scoped sheet for every theme: no theme file may
+// re-cap it (a stale pixel cap once shrank the title below the author).
+const wereadPixelCss = require('node:fs').readFileSync(require('node:path').join(new URL('.', import.meta.url).pathname, '../src/renderer/themes/pixel.css'), 'utf8')
+check('pixel theme leaves weread meta sizing to the scoped sheet', !/\.weread-(title|author|date)\s*\{[^}]*(font-size|color)\s*:/.test(wereadPixelCss), 'stale pixel override on weread meta')
+
 // Grid pages pin their tiles to the top edge instead of floating
 // vertically centered in the page. This holds for every grid page — not only
 // single-tile ones: the base .widget-grid rule carries margin: 0 auto, and

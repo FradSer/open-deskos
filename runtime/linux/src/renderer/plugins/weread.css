@@ -2,8 +2,8 @@
    Loaded by the registry style seam via css: 'plugins/weread.css' in
    plugins/weread.js — after shell.css, before themes/*. Only --odk-* tokens. */
 
-/* WeRead is a wide instrument on desktop and a square instrument in compact
-   grids. Keep all rendered content inside the tile's padded frame. */
+/* The excerpt centers above a compact source row. The cover keeps its
+   original aspect beside the title, author, and date. */
 .widget.w-weread {
   padding: 0;
 }
@@ -24,37 +24,11 @@
 .w-weread .weread-content {
   display: flex;
   align-items: stretch;
-  gap: clamp(24px, 4cqi, 48px);
   min-height: 0;
   min-width: 0;
   width: 100%;
   height: 100%;
   flex: 1;
-}
-
-.w-weread .weread-cover-wrap {
-  width: 48%;
-  height: 100%;
-  flex: 0 0 48%;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-  border-right: 1px solid var(--odk-stroke);
-  overflow: hidden;
-  background: var(--odk-surface);
-}
-
-.w-weread .weread-cover {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
-  object-fit: cover;
-  object-position: center center;
-  border: 0;
-  border-radius: 0;
-  image-rendering: auto;
 }
 
 .w-weread .weread-copy {
@@ -64,39 +38,104 @@
   flex: 1;
   flex-direction: column;
   justify-content: space-between;
-  gap: clamp(24px, 4cqi, 48px);
-  padding: clamp(12px, 2cqi, 24px) clamp(16px, 3cqi, 32px) clamp(12px, 2cqi, 24px) 0;
+  gap: clamp(16px, 3cqi, 36px);
+  padding: clamp(20px, 4cqi, 44px);
   margin: 0;
   overflow: hidden;
+  text-align: left;
 }
 
 .w-weread .weread-text {
   min-width: 0;
-  margin: 0;
+  margin: auto 0;
   color: var(--odk-primary);
   max-width: 100%;
   font-size: 48px;
-  font-weight: 700;
-  line-height: 1.35;
+  font-weight: 400;
+  line-height: 1.45;
   display: block;
   overflow: hidden;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.w-weread .weread-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(4px, 1cqi, 10px);
+  min-width: 0;
 }
 
 .w-weread .weread-title {
-  min-width: 0;
+  margin: 0;
+  color: var(--odk-primary);
+  max-width: 100%;
+  font-size: max(12px, 2.6cqi);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.w-weread .weread-author {
   margin: 0;
   color: var(--odk-secondary-strong);
   max-width: 100%;
-  font-size: clamp(18px, 6cqi, 28px);
-  font-weight: 700;
+  font-size: max(12px, 1.6cqi);
+  font-weight: 400;
   line-height: 1.35;
-  overflow: visible;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w-weread .weread-date {
+  margin: 0;
+  margin-top: clamp(2px, 0.8cqi, 8px);
+  color: var(--odk-secondary-strong);
+  max-width: 100%;
+  font-size: max(12px, 1.6cqi);
+  font-weight: 400;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w-weread .weread-foot {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 3cqi, 32px);
+  min-width: 0;
+  flex: none;
+  border-top: 1px solid var(--odk-stroke);
+  padding-top: clamp(12px, 2cqi, 24px);
+}
+
+.w-weread .weread-cover-wrap {
+  flex: 0 0 auto;
+  order: -1;
+  width: clamp(48px, 9cqi, 100px);
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.w-weread .weread-cover {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  object-position: center center;
+  border: 0;
+  border-radius: 0;
+  image-rendering: auto;
 }
 
 .w-weread .weread-unconfigured { opacity: 0.55; }
-.w-weread .weread-unconfigured .weread-title { max-width: 14ch; }
-.w-weread .weread-unconfigured .weread-text { max-width: 16ch; }
+.w-weread .weread-unconfigured .weread-title { max-width: 16ch; }
+.w-weread .weread-unconfigured .weread-text { max-width: 18ch; }

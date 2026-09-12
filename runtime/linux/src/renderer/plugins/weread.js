@@ -14,12 +14,18 @@
       el.innerHTML = `
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
-            <div class="weread-cover-wrap" hidden>
-              <canvas class="weread-cover"></canvas>
-            </div>
             <div class="weread-copy">
               <p class="weread-text">Syncing highlights...</p>
-              <strong class="weread-title">Loading</strong>
+              <div class="weread-foot">
+                <div class="weread-meta">
+                  <strong class="weread-title">Loading</strong>
+                  <span class="weread-author" hidden></span>
+                  <span class="weread-date" hidden></span>
+                </div>
+                <div class="weread-cover-wrap" hidden>
+                  <canvas class="weread-cover"></canvas>
+                </div>
+              </div>
             </div>
           </div>
         </div>`
@@ -28,48 +34,56 @@
       const cover = el.querySelector('.weread-cover')
       const copy = el.querySelector('.weread-copy')
       const textEl = () => el.querySelector('.weread-text')
-      const titleEl = () => el.querySelector('.weread-title')
+      const footEl = () => el.querySelector('.weread-foot')
       const MIN_TEXT_SIZE = 14
-      const MAX_TEXT_SIZE = 84
+      const MAX_TEXT_SIZE = 64
       const FIT_GAP = 28
-      const baseTextSize = (length) => {
-        if (length <= 12) return 84
-        if (length <= 30) return 68
-        if (length <= 60) return 56
-        if (length <= 100) return 46
-        if (length <= 160) return 38
-        return 30
+      // Fluid hero base: characters per line grow sublinearly with length,
+      // normalized by the copy width so every density converges near its
+      // final size before the shrink-to-fit loop backstops it.
+      const fitBaseSize = (length, width) => {
+        const unit = width > 0 ? width : 900
+        const perLine = Math.max(4, Math.sqrt(Math.max(1, length)) * 2.2)
+        return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, unit / perLine))
       }
-      const fitText = (text, title) => {
-        if (!el || !copy || !text || !title) return
+      const stripBrackets = (value) => String(value || '').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim()
+      const formatDate = (createTime) => {
+        if (!createTime) return ''
+        const ms = createTime < 1e12 ? createTime * 1000 : createTime
+        const at = new Date(ms)
+        if (Number.isNaN(at.getTime())) return ''
+        const pad = (n) => String(n).padStart(2, '0')
+        return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
+      }
+      const fitText = (text) => {
+        const foot = footEl()
+        if (!el || !copy || !text || !foot) return
         const copyStyles = getComputedStyle(copy)
         const copyGaps = (Number.parseFloat(copyStyles.paddingTop) || 0)
           + (Number.parseFloat(copyStyles.paddingBottom) || 0)
-        const maxH = el.clientHeight - copyGaps - FIT_GAP
+        const maxH = copy.clientHeight - copyGaps - foot.offsetHeight - FIT_GAP
         if (maxH <= 0) return
-        let size = Math.min(MAX_TEXT_SIZE, baseTextSize(text.textContent.length))
+        let size = fitBaseSize(text.textContent.length, copy.clientWidth)
         text.style.fontSize = `${size}px`
         let guard = 60
         while (guard-- > 0 && size > MIN_TEXT_SIZE) {
-          const needed = text.scrollHeight + title.offsetHeight + FIT_GAP
-          if (needed <= maxH) break
+          if (text.scrollHeight <= maxH) break
           size -= 2
           text.style.fontSize = `${size}px`
         }
       }
       const scheduleFit = () => {
         const text = textEl()
-        const title = titleEl()
-        fitText(text, title)
+        fitText(text)
         if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => fitText(textEl(), titleEl()))
+          requestAnimationFrame(() => fitText(textEl()))
         }
       }
       const observeResize = () => {
         if (typeof ResizeObserver === 'undefined' || !el) return
         if (el.__wereadResizeObserver) return
         el.__wereadResizeObserver = new ResizeObserver(() => {
-          fitText(textEl(), titleEl())
+          fitText(textEl())
         })
         el.__wereadResizeObserver.observe(el)
       }
@@ -78,7 +92,7 @@
       const drawCover = () => {
         if (!currentCoverSrc) {
           coverWrap.hidden = true
-          fitText(textEl(), titleEl())
+          fitText(textEl())
           return
         }
         const img = new Image()
@@ -90,10 +104,14 @@
           const naturalH = img.naturalHeight || 346
           const ratio = naturalW / naturalH
           coverWrap.hidden = false
-          const targetH = Math.max(1, Math.round(coverWrap.clientHeight || 724))
-          const targetW = Math.max(1, Math.round(coverWrap.clientWidth || targetH * ratio))
+          // Fit the bitmap to the rail width by ratio: the cover keeps its
+          // original aspect and the canvas box matches, so neither the
+          // bitmap draw nor the CSS box distorts it.
+          const targetW = Math.max(1, Math.round(coverWrap.clientWidth || 168))
+          const targetH = Math.max(1, Math.round(targetW / ratio))
           cover.width = targetW
           cover.height = targetH
+          cover.style.aspectRatio = `${naturalW} / ${naturalH}`
           const ctx = cover.getContext('2d')
           ctx.imageSmoothingEnabled = true
           ctx.drawImage(img, 0, 0, targetW, targetH)
@@ -131,18 +149,20 @@
             } catch { /* fallback to standard drawImage on security/buffer error */ }
           }
           coverWrap.hidden = false
-          fitText(textEl(), titleEl())
+          fitText(textEl())
         }
         img.onerror = () => {
           coverWrap.hidden = true
-          fitText(textEl(), titleEl())
+          fitText(textEl())
         }
         img.src = currentCoverSrc
       }
       const render = (state) => {
         const title = el.querySelector('.weread-title')
-        const text = el.querySelector('.weread-text')
-        if (!title || !text) return
+        const text = textEl()
+        const author = el.querySelector('.weread-author')
+        const date = el.querySelector('.weread-date')
+        if (!title || !text || !author || !date) return
         const highlight = state.highlight
         body.classList.toggle('weread-unconfigured', state.status === 'unconfigured')
         const newCover = highlight?.cover || ''
@@ -152,14 +172,22 @@
         }
         if (state.status === 'unconfigured') {
           title.textContent = 'Not configured'
+          author.textContent = ''
+          date.textContent = ''
           text.textContent = 'Set WEREAD_API_KEY to sync'
         } else if (highlight) {
-          title.textContent = `——《${highlight.title}》${highlight.author ? `· ${highlight.author}` : ''}`
+          title.textContent = stripBrackets(highlight.title) || 'WeRead'
+          author.textContent = highlight.author || ''
+          date.textContent = formatDate(highlight.createTime)
           text.textContent = highlight.markText
         } else {
           title.textContent = state.status === 'error' ? 'Sync unavailable' : 'No highlights'
+          author.textContent = ''
+          date.textContent = ''
           text.textContent = state.error || 'No highlights available'
         }
+        author.hidden = !author.textContent
+        date.hidden = !date.textContent
         scheduleFit()
       }
       const refresh = () => root.odkPlatform?.getWeReadHighlight?.().then(render).catch(() => render({ status: 'error', error: 'Sync failed' }))
