@@ -51,5 +51,12 @@ Feature: WeRead highlight widget
     Given a short highlight on the wide reading page
     When the widget fits its text
     Then the excerpt font size is at most 64 pixels
-    And the cover and book details form one adjacent source group
+    And the cover appears to the right of the book details
     And the source cover remains subordinate to the excerpt
+
+  Scenario: Reading uses at most three responsive text sizes
+    Given a highlight with a title, author, and date
+    When the reading widget changes width
+    Then the excerpt font size adapts to the available space
+    And the title has one supporting size
+    And the author and date share the same smallest size

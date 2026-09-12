@@ -3,7 +3,7 @@
    plugins/weread.js — after shell.css, before themes/*. Only --odk-* tokens. */
 
 /* The excerpt centers above a compact source row. The cover keeps its
-   original aspect beside the title, author, and date. */
+   original aspect to the right of the title, author, and date. */
 .widget.w-weread {
   padding: 0;
 }
@@ -50,7 +50,7 @@
   margin: auto 0;
   color: var(--odk-primary);
   max-width: 100%;
-  font-size: 48px;
+  font-size: clamp(14px, 6cqi, 64px);
   font-weight: 400;
   line-height: 1.45;
   display: block;
@@ -117,7 +117,6 @@
 
 .w-weread .weread-cover-wrap {
   flex: 0 0 auto;
-  order: -1;
   width: clamp(48px, 9cqi, 100px);
   min-height: 0;
   overflow: hidden;

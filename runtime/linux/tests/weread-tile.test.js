@@ -36,7 +36,7 @@ function createTile() {
   return { el, nodes }
 }
 
-async function mountWith(highlightResult) {
+async function mountWith(highlightResult, width = 900) {
   const root = {}
   const sandbox = {
     window: root,
@@ -47,6 +47,7 @@ async function mountWith(highlightResult) {
   root.odkPlatform = { getWeReadHighlight: () => Promise.resolve(highlightResult) }
   vm.runInContext(wereadSource, vm.createContext(sandbox))
   const { el, nodes } = createTile()
+  el.querySelector('.weread-copy').clientWidth = width
   root.odkPlugins.activate(root.odkPlugins.get('odk.tile.weread'), el, { onTick: () => () => {} })
   await new Promise((resolve) => setImmediate(resolve))
   const text = (selector) => nodes.get(selector)?.textContent
@@ -90,4 +91,21 @@ test('unconfigured state stays honest across the new lines', async () => {
   assert.equal(text('.weread-text'), 'Set WEREAD_API_KEY to sync')
   assert.equal(nodes.get('.weread-author').hidden, true)
   assert.equal(nodes.get('.weread-date').hidden, true)
+})
+
+test('excerpt responds to available width while author and date share a size', async () => {
+  const state = { status: 'ok', highlight: { title: 'Book', markText: 'Responsive reading '.repeat(4) } }
+  const wide = await mountWith(state, 900)
+  const narrow = await mountWith(state, 300)
+  assert.ok(parseFloat(wide.nodes.get('.weread-text').style.fontSize) > parseFloat(narrow.nodes.get('.weread-text').style.fontSize))
+  const css = fs.readFileSync('src/renderer/plugins/weread.css', 'utf8')
+  const size = role => css.match(new RegExp('\\.weread-' + role + ' \\{[^}]*font-size: ([^;]+)'))?.[1]
+  assert.ok(size('author'))
+  assert.equal(size('author'), size('date'))
+})
+
+test('cover follows book details on the right', () => {
+  const css = fs.readFileSync('src/renderer/plugins/weread.css', 'utf8')
+  assert.ok(wereadSource.indexOf('class="weread-meta"') < wereadSource.indexOf('class="weread-cover-wrap"'))
+  assert.doesNotMatch(css, /order:\s*-1/)
 })
