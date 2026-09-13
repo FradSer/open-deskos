@@ -374,7 +374,7 @@ async function main() {
   await appPage(win, PAGES.dot('quota'), '200% zoom')
   win.webContents.setZoomFactor(1)
   await resize(win, 320, 480)
-  quota = { state: 'available', snapshot: { rollingPct: 42, rollingResetMin: 185, weekPct: 63, monthPct: 28, zen: '$12.00' } }
+  quota = { state: 'available', snapshot: { accounts: [{ id: 'codex-test', provider: 'codex', fileName: 'codex-test.json', account: 'test@example.com', plan: 'Pro', resetCredits: { available: 2, expiresAt: ['2027-01-01T00:00:00Z'] }, groups: [{ title: 'Codex limits', description: null, quotas: [{ label: '5 hour limit', remainingPct: 58, resetAt: '2027-01-01T05:00:00Z', description: null }, { label: 'Weekly limit', remainingPct: 37, resetAt: '2027-01-07T00:00:00Z', description: null }] }] }] } }
   await win.webContents.executeJavaScript('window.odkServices.subscription.refresh()')
   await appPage(win, PAGES.dot('quota'), '320x480 configured usage')
   sessions = { summary: {}, sessions: [] }

@@ -149,3 +149,7 @@ _Avoid_: USB-only architecture, full wireless delivery
 **Remote Message**:
 A versioned JSON Lines command or state record shared across wired and wireless Remote Link adapters. In wired operation, HID alone requests navigation and CDC carries authoritative state; in wireless operation, `navigate` records request Display Shell navigation through Remote Bridge rather than keyboard emulation.
 _Avoid_: transport-specific payload, unversioned serial text
+
+**Continuous-Slide Scroll**:
+A Remote Touchpad finger-down slide that keeps emitting one directional input per additional scroll step without lifting, used for fast vertical list scrolling inside a fullscreen App. A single short swipe still moves App focus by one control; only the unlifted continuation scrolls.
+_Avoid_: one input per gesture, lift-and-swipe repetition, new protocol input type

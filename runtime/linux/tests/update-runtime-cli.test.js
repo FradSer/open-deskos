@@ -10,6 +10,14 @@ const releaseVerifier = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'v
 const stageRelease = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-stage-release.sh'), 'utf8')
 const installer = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
 
+test('CM5 staging isolates concurrent development sessions', () => {
+  assert.match(stageRelease, /STAGING_ID=/)
+  assert.match(stageRelease, /STAGING_DIR=/)
+  assert.match(stageRelease, /trap cleanup EXIT/)
+  assert.doesNotMatch(stageRelease, /staging\/runtime-linux\//)
+  assert.match(stageRelease, /STAGING_ROOT=/)
+})
+
 test('CM5 updater serializes transactions and preflights before activating a release', () => {
   assert.match(updater, /openSync\(lockPath, 'wx'\)/)
   assert.match(updater, /preflightRelease/)
@@ -61,12 +69,12 @@ test('immutable runtime smoke can skip generated stylesheet writes', () => {
 
 test('CM5 staging command delegates release construction and verification to the device', () => {
   assert.match(stageRelease, /ODK_CM5_TARGET:-cm5/)
-  assert.match(stageRelease, /mkdir -p '\$\{REMOTE_ROOT\}\/staging' '\$\{REMOTE_ROOT\}\/releases' '\$\{REMOTE_ROOT\}\/state'/)
+  assert.match(stageRelease, /mkdir -p '\$\{STAGING_ROOT\}\/runtime\/linux'.*'\$\{REMOTE_ROOT\}\/releases' '\$\{REMOTE_ROOT\}\/state'/)
   assert.match(stageRelease, /rsync -a --delete --exclude node_modules/)
-  assert.match(stageRelease, /"\$\{ROOT\}\/integrations\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/integrations\/"/)
-  assert.match(stageRelease, /"\$\{ROOT\}\/experiments\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/experiments\/"/)
-  assert.match(stageRelease, /"\$\{ROOT\}\/peripherals\/" "\$\{TARGET\}:\$\{REMOTE_ROOT\}\/peripherals\/"/)
-  assert.match(stageRelease, /ssh "\$\{TARGET\}" "cd '\$\{REMOTE_ROOT\}\/staging\/runtime-linux' && bash scripts\/cm5-install\.sh"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/integrations\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/integrations\/"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/experiments\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/experiments\/"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/peripherals\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/peripherals\/"/)
+  assert.match(stageRelease, /ssh "\$\{TARGET\}" "cd '\$\{STAGING_ROOT\}\/runtime\/linux' && bash scripts\/cm5-install\.sh"/)
 })
 
 test('release validator fails closed when packaged composition is invalid', () => {

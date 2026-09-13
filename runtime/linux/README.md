@@ -111,16 +111,16 @@ Remote 的 MIC 由主进程直接交给独立常驻的 Voice Agent，不经过 P
 
 ## OpenCode Go Linux 配置
 
-Linux 外壳不读取 macOS Keychain，也不依赖外部 companion。首次使用前，在 CM5 的用户会话中配置：
+Linux 外壳通过 CLIProxyAPI 已保存的认证文件读取 Codex、Antigravity 和 xAI 配额，不复制 OAuth token，也不读取 macOS Keychain。首次使用前，在 CM5 的用户会话中配置：
 
 ```sh
-export ODK_OPENCODE_GO_URL=https://opencode.ai
-export ODK_OPENCODE_COOKIE_FILE=/etc/open-deskos/opencode-go.cookie
+export ODK_CLIPROXY_URL=https://cliproxy.internal.example
+export ODK_CLIPROXY_MANAGEMENT_KEY_FILE=/etc/open-deskos/cliproxy-management.key
 ```
 
-也可以使用 `ODK_OPENCODE_COOKIE` 临时传入 cookie。推荐使用权限为 `0600` 的 cookie 文件，并通过 systemd/user 环境或 kiosk 启动会话注入，不要把凭据写入仓库或日志。
+也可以使用 `ODK_CLIPROXY_MANAGEMENT_KEY` 临时传入管理密钥。推荐使用权限为 `0600` 的密钥文件，并通过 systemd/user 环境或 kiosk 启动会话注入，不要把管理密钥或 CLIProxyAPI 认证文件写入仓库或日志。
 
-`ODK_OPENCODE_GO_URL` 必须显式设置；请求在 Electron 主进程完成，renderer 只收到脱敏后的状态和用量快照。renderer CSP 不允许远程连接，凭据不会通过 preload 暴露。
+CLIProxyAPI 的 Management API 必须允许 CM5 访问。远程地址必须使用 HTTPS；只有同机 `127.0.0.1`、`::1` 或 `localhost` 可以使用明文 HTTP。请求和 provider token 替换全部在 Electron 主进程与 CLIProxyAPI 中完成；renderer 只收到账号名、认证文件名、套餐、额度百分比和重置时间等脱敏快照。renderer CSP 不允许远程连接，管理密钥和 OAuth token 均不会通过 preload 暴露。单个 provider 获取失败时，其卡片显示不可用，其它账号仍继续展示。
 
 ## Experimental Face Agent (ESP32-P4 metadata adapter)
 

@@ -1,17 +1,34 @@
 Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
-  Scenario: Linux shell fetches OpenCode Go usage natively
-    Given the Linux OpenCode Go endpoint and cookie are configured explicitly
-    When the shell refreshes native subscription status
-    Then the main process requests the endpoint without exposing the cookie to the renderer
-    And the quota page displays rolling, weekly, monthly and Zen usage values
-    And rejected credentials show an honest unavailable state without placeholder usage
+  Scenario: Concurrent CM5 deployments keep each source snapshot isolated
+    Given multiple development sessions can deploy the Linux runtime
+    When their deployments overlap
+    Then each deployment uses a unique remote staging directory
+    And one session cannot replace another session's staged source before release activation
 
-  Scenario: Unconfigured OpenCode Go status remains honest
-    Given no OpenCode Go endpoint or cookie is configured
+  Scenario: Linux shell reads provider quotas through CLIProxyAPI
+    Given the CLIProxyAPI management endpoint and key are configured explicitly
+    And CLIProxyAPI already stores Codex, Antigravity, and xAI authentication files
+    When the shell refreshes native subscription status
+    Then the main process lists enabled authentication files without exposing credentials to the renderer
+    And it refuses a plaintext remote Management API transport
+    And it retrieves Codex windows and reset credits through the authenticated management proxy
+    And it retrieves Antigravity grouped model limits and xAI billing limits when their providers return them
+    And the Usage page does not render a separate quota-service status instrument
+    And the page heading names the task as AI usage and quotas
+    And refresh failures appear within the quota results instead of a separate credentials banner
+    And the page has no redundant navigation-help action
+    And refresh and last-check provenance stay beside the title without creating a second header row
+    And each quota card header restores the authentication filename as its single title
+    And the plan appears in the card body instead of the title
+    And the status instrument does not repeat the OpenCode Go name
+    And one unavailable provider does not hide the other provider quotas
+
+  Scenario: Unconfigured CLIProxyAPI status remains honest
+    Given no CLIProxyAPI management key is configured
     When the Linux shell starts
     Then the quota page says OpenCode Go is not configured
-    And no usage value is fabricated
+    And no quota value is fabricated
     And the shell does not render a platform connection guide
 
   Scenario: Consecutive HID navigation presses advance consecutive pages
@@ -229,6 +246,13 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the displayed page remains unchanged
     When it sends secondary input to a control without a Secondary Action
     Then the App remains unchanged
+
+  Scenario: Continuous-slide burst scrolls the App list while a single step moves focus
+    Given the focused shell is in App Focus Mode on an App with a vertical list
+    When the Remote Touchpad sends a single down input in isolation
+    Then focus moves by one App control
+    When the Remote Touchpad sends a continuous burst of down inputs
+    Then the App list scrolls instead of stepping focus one by one
 
   Scenario: Remote Back exits App Focus Mode
     Given the focused shell is in App Focus Mode

@@ -207,7 +207,7 @@ const DRIVER_SCRIPT = `
   out.pomodoroSpansTwoSquare =
     approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
-  out.subscriptionInitialStatus = $('#quota-state').textContent.includes('OpenCode Go not configured')
+  out.subscriptionInitialStatus = $('#quota-state').textContent.includes('Quota service not configured')
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const pageIndex = (index) => document.querySelectorAll('#dots .dot')[index].click()
@@ -339,23 +339,14 @@ const DRIVER_SCRIPT = `
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   out.arrowRightReachesYourApps = $('#page-context').textContent === 'Your apps · 6/6'
   document.querySelectorAll('#dots .dot')[4].click()
-  out.quotaStateIsHonest = $('#quota-state').textContent.includes('OpenCode Go not configured')
-  out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Check status again'
-  out.quotaHelpLabel = $('#quota-help').textContent === 'Navigation help'
+  out.quotaStateIsHonest = $('#quota-state').textContent.includes('Quota service not configured')
+  out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Refresh quotas'
+  out.quotaHelpRemoved = $('#quota-help') === null
   out.quotaCheckedVisible = $('#quota-checked').textContent.includes('Last checked')
-  out.quotaHasNoFabricatedUsage = $('#quota-metrics').textContent.includes('Actual usage has not been retrieved')
-  out.quotaMetricsAreLabeled = $('#quota-metrics').querySelectorAll('dt').length > 0 && $('#quota-metrics').querySelectorAll('dd').length > 0
-  $('#quota-help').click()
-  out.helpViewVisible = !$('#app-view').hidden && $('#app-help').textContent.includes('Swipe')
-  out.helpBackgroundHidden = $('#pages-viewport').getAttribute('aria-hidden') === 'true' && $('#pages-viewport').inert
-  // Electron under headless X11 can legitimately report BODY when focus is
-  // requested by a visible, modal dialog. The dialog's tabbable Back control
-  // is the durable accessibility contract; keyboard focus is covered by the
-  // tab trap exercised in production.
-  out.helpDialogBackIsTabbable = !$('#app-back').hidden && $('#app-back').tabIndex >= 0
-  $('#app-back').click()
+  out.quotaHasNoFabricatedUsage = $('#quota-metrics').textContent.includes('Actual quotas have not been retrieved')
+  out.quotaMetricsAreLabeled = Boolean($('#quota-metrics').classList.contains('provider-quota-grid'))
   $('#quota-refresh').click()
-  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('OpenCode Go not configured')
+  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Quota service not configured')
   out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('Last checked')
   out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[4].classList.contains('active')
 
@@ -492,12 +483,9 @@ function check(results) {
     ['ArrowRight reaches Your apps after Usage', results.arrowRightReachesYourApps],
     ['quota status is native and honest', results.quotaStateIsHonest && results.quotaHasNoFabricatedUsage && results.quotaMetricsAreLabeled],
     ['quota exposes check state', results.quotaCheckedVisible],
-    ['quota has operation guide', results.quotaHelpLabel && results.helpViewVisible],
-    ['dialog hides pages from assistive tech', results.helpBackgroundHidden],
-    ['dialog exposes a tabbable back action', results.helpDialogBackIsTabbable],
-
+    ['quota omits redundant navigation help', results.quotaHelpRemoved],
     ['quota refresh preserves truth', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
-    ['quota page remains selected after help', results.quotaPageAfterEscape],
+    ['quota page remains selected after refresh', results.quotaPageAfterEscape],
   ]
   if (!results.piPageRendersSessionDetails || !results.piPageRendersModifiedFiles) {
   }
@@ -646,7 +634,7 @@ async function main() {
   const piFixture = createPiFixture()
   const cleanupPiFixture = () => fs.rmSync(piFixture.root, { recursive: true, force: true })
   process.once('exit', cleanupPiFixture)
-  ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_OPENCODE_GO_URL', 'ODK_OPENCODE_COOKIE or ODK_OPENCODE_COOKIE_FILE'] }))
+  ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_CLIPROXY_MANAGEMENT_KEY or ODK_CLIPROXY_MANAGEMENT_KEY_FILE'] }))
   ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false }))
   ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
   ipcMain.handle('odk-pi-sessions', (_event) => scanPiSessions({

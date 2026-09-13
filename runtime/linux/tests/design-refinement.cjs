@@ -17,17 +17,33 @@ async function usage(win, check) {
   const result = await win.webContents.executeJavaScript(`(() => {
     const card = document.querySelector('.quota-card')
     const actions = card.querySelector('.quota-actions')
-    const metrics = card.querySelector('.quota-metrics')
+    const metrics = card.querySelector('.provider-quota-grid')
     return {
       actionsFirst: Boolean(actions.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING),
-      statusGroup: card.querySelector('.quota-status-group')?.contains(card.querySelector('#quota-checked')),
+      noStatusCard: !card.querySelector('.quota-status-card') && !card.querySelector('#quota-state'),
+      checkedInHeader: card.querySelector('.quota-page-head')?.contains(card.querySelector('#quota-checked')),
+      compactHeader: card.querySelector('.quota-page-head')?.children.length === 2 && card.querySelector('.quota-header-controls')?.querySelectorAll(':scope > *').length === 2,
+      singlePageTitle: card.querySelector('.quota-page-head h1')?.textContent === 'AI usage & quotas' && card.querySelectorAll('.quota-page-head h1, .quota-page-head p').length === 1,
+      noStatusLabel: !card.querySelector('.quota-status-label'),
+      noNavigationHelp: !card.querySelector('#quota-help'),
+      conciseCardTitles: [...card.querySelectorAll('.provider-quota-card-head')].every(head => head.querySelectorAll('.provider-quota-identity > *').length === 1 && head.querySelector('strong')?.textContent.endsWith('.json')),
+      plansInBody: [...card.querySelectorAll('.provider-quota-card')].every(providerCard => !providerCard.querySelector('.provider-quota-card-head .provider-plan') && providerCard.querySelector('.provider-quota-card-body .provider-plan')),
       noBadge: !card.querySelector('.widget-glance-badge'),
+      hasQuotaGrid: Boolean(metrics),
       quietDial: getComputedStyle(document.querySelector('.ring-arc')).stroke === getComputedStyle(document.querySelector('.ring-track')).stroke,
     }
   })()`)
-  check('Usage puts recovery actions before metric details', result.actionsFirst)
-  check('Usage groups current state with last-check provenance', result.statusGroup)
+  check('Usage puts recovery actions before quota details', result.actionsFirst)
+  check('Usage omits the separate quota-service status instrument', result.noStatusCard)
+  check('Usage keeps last-check provenance in its header', result.checkedInHeader)
+  check('Usage keeps refresh controls beside the title in one compact row', result.compactHeader)
+  check('Usage page heading names AI usage and quotas in one line', result.singlePageTitle)
+  check('Usage status instrument omits its redundant label', result.noStatusLabel)
+  check('Usage omits redundant navigation help', result.noNavigationHelp)
+  check('Usage quota cards use the authentication filename as one title', result.conciseCardTitles)
+  check('Usage quota plans live in the card body', result.plansInBody)
   check('Usage omits its redundant provider badge', result.noBadge)
+  check('Usage exposes the provider quota grid', result.hasQuotaGrid)
   check('inactive focus has a quiet neutral dial', result.quietDial)
 }
 

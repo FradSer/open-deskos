@@ -13,10 +13,10 @@
     syncing: 'Synchronizing',
   }
   const SUBSCRIPTION_LABELS = {
-    unconfigured: 'OpenCode Go not configured',
-    available: 'OpenCode Go synchronized',
-    unauthorized: 'OpenCode Go credentials invalid',
-    unavailable: 'OpenCode Go unavailable',
+    unconfigured: 'Quota service not configured',
+    available: 'Quotas synchronized',
+    unauthorized: 'Quota service credentials invalid',
+    unavailable: 'Quotas unavailable',
   }
   let subscriptionStatus = { state: 'unconfigured', missing: [] }
   let checkInFlight = false
