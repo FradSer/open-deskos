@@ -109,3 +109,9 @@ test('cover follows book details on the right', () => {
   assert.ok(wereadSource.indexOf('class="weread-meta"') < wereadSource.indexOf('class="weread-cover-wrap"'))
   assert.doesNotMatch(css, /order:\s*-1/)
 })
+
+test('excerpt uses the shared widget inset without an oversized horizontal gutter', () => {
+  const css = fs.readFileSync('src/renderer/plugins/weread.css', 'utf8')
+  const copy = css.match(/\.weread-copy\s*\{([^}]+)\}/)[1]
+  assert.match(copy, /padding:\s*var\(--odk-widget-inset\)/)
+})

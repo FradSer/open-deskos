@@ -284,7 +284,7 @@
 [data-theme='pixel'] .w-weread .weread-cover {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: contrast(1.4) saturate(0.72);
+  filter: contrast(1.1) saturate(0.9);
 }
 
 [data-theme='pixel'] .w-weread .weread-text {

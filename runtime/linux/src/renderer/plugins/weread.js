@@ -114,9 +114,10 @@
           cover.style.aspectRatio = `${naturalW} / ${naturalH}`
           const ctx = cover.getContext('2d')
           ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
           ctx.drawImage(img, 0, 0, targetW, targetH)
           if (isPixel) {
-            const blockSize = 4
+            const blockSize = 2
             try {
               const imgData = ctx.getImageData(0, 0, targetW, targetH)
               const data = imgData.data

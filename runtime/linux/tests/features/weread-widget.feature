@@ -60,3 +60,19 @@ Feature: WeRead highlight widget
     Then the excerpt font size adapts to the available space
     And the title has one supporting size
     And the author and date share the same smallest size
+
+  Scenario: Reading excerpt uses the shared widget inset
+    Given the reading widget is displayed on the desktop
+    Then the excerpt and source row use the shared widget inset
+    And neither side reserves more than 28 pixels of padding
+
+  Scenario: Book attribution remains legible at desk distance
+    Given the reading widget is approximately 1100 pixels wide
+    Then the book title is approximately 36 pixels
+    And the author and date share an approximately 22 pixel size
+    And the right-side cover is approximately 132 pixels wide with its original aspect ratio
+
+  Scenario: Pixel cover preserves finer book details
+    Given the book cover is rendered in the Pixel theme
+    Then the pixel treatment uses 2 pixel blocks
+    And the cover uses a mild contrast and saturation treatment
