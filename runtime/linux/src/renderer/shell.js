@@ -506,33 +506,8 @@ function main() {
     candidates[0]?.control.focus()
   }
 
-  function isEffectiveScroller(element) {
-    if (!(element instanceof Element)) return false
-    const overflowY = getComputedStyle(element).overflowY
-    return (overflowY === 'auto' || overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
-  }
-
-  function nearestScroller(node) {
-    let element = node instanceof Element ? node : null
-    while (element) {
-      if (isEffectiveScroller(element)) return element
-      element = element.parentElement
-    }
-    return null
-  }
-
-  function pageScroller(page) {
-    if (!(page instanceof Element)) return null
-    let deepest = null
-    for (const element of page.querySelectorAll('*')) {
-      if (isEffectiveScroller(element)) deepest = element
-    }
-    return deepest
-  }
-
   function handleRemoteInput(input, action) {
     if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'].includes(input)) return
-    const scrollBurst = window.odkRemoteBurst?.observe(input) === true
     if (input === 'action') {
       const actionId = typeof action === 'string' ? action : action?.action || action?.id
       if (actionId) {
@@ -576,14 +551,6 @@ function main() {
         focused.dispatchEvent(new CustomEvent('odk-secondary-action', { bubbles: true }))
       }
       return
-    }
-    if (scrollBurst) {
-      const page = track.children[pagerRef.currentIndex()]
-      const scroller = nearestScroller(document.activeElement) ?? pageScroller(page)
-      if (scroller) {
-        scroller.scrollBy({ top: input === 'down' ? 80 : -80, behavior: 'instant' })
-        return
-      }
     }
     moveAppFocus(input)
   }
