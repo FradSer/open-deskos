@@ -57,8 +57,6 @@ typedef struct {
     bool active;
     bool waiting_for_release;
     bool secondary_sent;
-    bool scroll_repeat;
-    remote_input_t scroll_dir;
     uint8_t release_samples;
     int16_t start_x;
     int16_t start_y;

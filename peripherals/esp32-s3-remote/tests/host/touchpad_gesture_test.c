@@ -246,49 +246,5 @@ int main(void)
     assert(log.count == 20);
     assert(log.inputs[19] == REMOTE_INPUT_RIGHT);
 
-    // 12. Continuous-slide scroll: finger stays down, one input per extra 40px step
-    // Start at y=30, slide down in 40px steps without lifting.
-    touchpad_gesture_touch(&gesture, 120, 30, 2400, record_input, &log);
-    touchpad_gesture_touch(&gesture, 120, 70, 2420, record_input, &log);
-    assert(log.count == 21);
-    assert(log.inputs[20] == REMOTE_INPUT_DOWN);
-    touchpad_gesture_touch(&gesture, 120, 110, 2440, record_input, &log);
-    assert(log.count == 22);
-    assert(log.inputs[21] == REMOTE_INPUT_DOWN);
-    touchpad_gesture_touch(&gesture, 120, 150, 2460, record_input, &log);
-    assert(log.count == 23);
-    assert(log.inputs[22] == REMOTE_INPUT_DOWN);
-    // Lifting ends the burst with no extra input; debounce still applies.
-    touchpad_gesture_release(&gesture, 2470, record_input, &log);
-    assert(log.count == 23);
-    for (unsigned i = 0; i < 5; ++i) {
-        touchpad_gesture_release(&gesture, 2480, record_input, &log);
-    }
-    touchpad_gesture_touch(&gesture, 120, 30, 2490, record_input, &log);
-    assert(log.count == 23);
-    release(&gesture, &log, 2500);
-    assert(log.count == 24);
-    assert(log.inputs[23] == REMOTE_INPUT_UP);
-
-    // 13. Continuous slide crossing into the system row keeps scrolling
-    touchpad_gesture_touch(&gesture, 120, 100, 2600, record_input, &log);
-    touchpad_gesture_touch(&gesture, 120, 140, 2620, record_input, &log);
-    assert(log.count == 25);
-    assert(log.inputs[24] == REMOTE_INPUT_DOWN);
-    touchpad_gesture_touch(&gesture, 120, 185, 2640, record_input, &log);
-    assert(log.count == 26);
-    assert(log.inputs[25] == REMOTE_INPUT_DOWN);
-    release(&gesture, &log, 2650);
-    assert(log.count == 26);
-
-    // 14. Holding still after a center-crossing scroll emits no secondary
-    touchpad_gesture_touch(&gesture, 82, 84, 2700, record_input, &log);
-    touchpad_gesture_touch(&gesture, 122, 84, 2720, record_input, &log);
-    assert(log.count == 27);
-    assert(log.inputs[26] == REMOTE_INPUT_RIGHT);
-    touchpad_gesture_touch(&gesture, 122, 84, 3400, record_input, &log);
-    release(&gesture, &log, 3410);
-    assert(log.count == 27);
-
     return 0;
 }

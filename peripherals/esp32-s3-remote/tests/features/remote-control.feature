@@ -19,19 +19,6 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
     And repeated touch reports for that gesture do not send another input record
     And six stable touch-release polls are required before the next gesture
 
-  Scenario: Continuous slide without lifting emits one input per extra step
-    Given the CDC link is ready
-    When I keep my finger down and slide down three 40-pixel steps on the touchpad
-    Then the host receives three versioned down input records
-    And lifting my finger sends no further input record
-    And six stable touch-release polls are required before the next gesture
-
-  Scenario: Continuous slide keeps scrolling past the touchpad edge
-    Given the CDC link is ready
-    When I start on the touchpad and keep sliding down past the system row without lifting
-    Then the host keeps receiving versioned down input records
-    And no back or mic input record is sent until I lift my finger
-
   Scenario: Touchpad directional navigation is always available via cardinal ring taps
     Given the CDC link is ready
     When I tap the top outer ring of the touchpad
