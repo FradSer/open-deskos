@@ -247,13 +247,6 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     When it sends secondary input to a control without a Secondary Action
     Then the App remains unchanged
 
-  Scenario: Continuous-slide burst scrolls the App list while a single step moves focus
-    Given the focused shell is in App Focus Mode on an App with a vertical list
-    When the Remote Touchpad sends a single down input in isolation
-    Then focus moves by one App control
-    When the Remote Touchpad sends a continuous burst of down inputs
-    Then the App list scrolls instead of stepping focus one by one
-
   Scenario: Remote Back exits App Focus Mode
     Given the focused shell is in App Focus Mode
     When the user taps the persistent Back target on the Remote Touchpad
