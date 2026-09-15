@@ -133,37 +133,92 @@ function isOpenDeskOsRemoteDevice(name) {
 }
 
 class CdcConnection extends EventEmitter {
-  constructor(devicePath) {
+  constructor(devicePath, {
+    io = fs,
+    fd = io.openSync(devicePath, io.constants.O_RDWR | io.constants.O_NOCTTY | io.constants.O_NONBLOCK),
+    pollIntervalMs = 10,
+    closeTimeoutMs = 100,
+  } = {}) {
     super()
     this.devicePath = devicePath
+    this.io = io
+    this.fd = fd
+    this.pollIntervalMs = pollIntervalMs
+    this.closeTimeoutMs = closeTimeoutMs
     this.closed = false
-    this.input = fs.createReadStream(devicePath, { autoClose: true })
-    this.output = fs.createWriteStream(devicePath, { autoClose: true })
-    const reader = createJsonLineReader((line) => this.#receive(line))
-    this.input.on('data', (chunk) => reader.push(chunk))
-    this.input.once('end', () => {
-      reader.end()
-      this.#end('read-ended')
-    })
-    this.input.once('error', () => this.#end('read-failed'))
-    this.output.once('error', () => this.#end('write-failed'))
+    this.closing = null
+    this.pollTimer = null
+    this.readPending = false
+    this.writeQueue = Promise.resolve()
+    this.reader = createJsonLineReader((line) => this.#receive(line))
+    this.buffer = Buffer.allocUnsafe(512)
+    this.#scheduleRead(0)
   }
 
   send(record) {
     if (this.closed) return Promise.reject(new Error('USB CDC Remote Control is disconnected'))
+    const data = Buffer.from(encodeJsonLine(record))
+    const operation = this.writeQueue.then(() => this.#writeAll(data))
+    this.writeQueue = operation.catch(() => {})
+    return operation
+  }
+
+  close() {
+    if (this.closing) return this.closing
+    this.closed = true
+    clearTimeout(this.pollTimer)
+    this.pollTimer = null
+    this.closing = this.readPending
+      ? Promise.race([
+        new Promise((resolve) => this.once('read-idle', resolve)),
+        new Promise((resolve) => setTimeout(resolve, this.closeTimeoutMs)),
+      ]).then(() => this.#closeFd())
+      : this.#closeFd()
+    return this.closing
+  }
+
+  #scheduleRead(delay = this.pollIntervalMs) {
+    if (this.closed) return
+    this.pollTimer = setTimeout(() => this.#readOnce(), delay)
+    this.pollTimer.unref?.()
+  }
+
+  #readOnce() {
+    if (this.closed || this.readPending) return
+    this.readPending = true
+    this.io.read(this.fd, this.buffer, 0, this.buffer.length, null, (error, bytesRead) => {
+      this.readPending = false
+      this.emit('read-idle')
+      if (this.closed) return
+      if (error) {
+        if (isRetryable(error)) return this.#scheduleRead()
+        this.#end('read-failed')
+        return
+      }
+      if (bytesRead > 0) this.reader.push(this.buffer.subarray(0, bytesRead))
+      this.#scheduleRead(bytesRead > 0 ? 0 : undefined)
+    })
+  }
+
+  #writeAll(data, offset = 0) {
+    if (this.closed) return Promise.reject(new Error('USB CDC Remote Control is disconnected'))
     return new Promise((resolve, reject) => {
-      this.output.write(encodeJsonLine(record), (error) => {
-        if (error) reject(error)
-        else resolve()
+      this.io.write(this.fd, data, offset, data.length - offset, null, (error, written) => {
+        if (error && isRetryable(error)) {
+          setTimeout(() => this.#writeAll(data, offset).then(resolve, reject), this.pollIntervalMs).unref?.()
+          return
+        }
+        if (error) return reject(error)
+        if (offset + written < data.length) return this.#writeAll(data, offset + written).then(resolve, reject)
+        resolve()
       })
     })
   }
 
-  async close() {
-    if (this.closed) return
-    this.closed = true
-    this.input.destroy()
-    this.output.destroy()
+  #closeFd() {
+    return new Promise((resolve) => {
+      this.io.close(this.fd, () => resolve())
+    })
   }
 
   #receive(line) {
@@ -173,17 +228,18 @@ class CdcConnection extends EventEmitter {
 
   #end(reason) {
     if (this.closed) return
-    this.closed = true
-    this.input.destroy()
-    this.output.destroy()
-    this.emit('disconnect', reason)
+    void this.close().then(() => this.emit('disconnect', reason))
   }
+}
+
+function isRetryable(error) {
+  return error?.code === 'EAGAIN' || error?.code === 'EWOULDBLOCK'
 }
 
 async function createCdcConnection(devicePath) {
   try {
     const { execFileSync } = require('node:child_process')
-    execFileSync('stty', ['-F', devicePath, 'raw', '-echo', 'min', '1', 'time', '0'], { stdio: 'ignore' })
+    execFileSync('stty', ['-F', devicePath, 'raw', '-echo', 'min', '0', 'time', '0'], { stdio: 'ignore' })
   } catch {
     // Non-fatal if stty is unavailable or devicePath is mock/test path
   }

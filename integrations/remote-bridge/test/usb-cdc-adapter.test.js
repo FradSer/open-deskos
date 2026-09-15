@@ -35,6 +35,44 @@ test('requires an exactly one by-id Remote Control device', async () => {
   }
 })
 
+test('closing a CDC connection completes when a nonblocking read callback is still pending', async () => {
+  let closed = false
+  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+    io: {
+      read() {},
+      write(_fd, _buffer, _offset, length, _position, callback) { queueMicrotask(() => callback(null, length)) },
+      close(_fd, callback) { closed = true; queueMicrotask(() => callback(null)) },
+    },
+    fd: 41,
+    pollIntervalMs: 1,
+    closeTimeoutMs: 5,
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+
+  await connection.close()
+
+  assert.equal(closed, true)
+})
+
+test('closing a CDC connection cancels nonblocking polling before service shutdown', async () => {
+  let closed = false
+  const connection = new (require('../lib/usb-cdc-adapter').CdcConnection)('/dev/mock', {
+    io: {
+      read(_fd, _buffer, _offset, _length, _position, callback) {
+        queueMicrotask(() => callback(Object.assign(new Error('try again'), { code: 'EAGAIN' })))
+      },
+      write(_fd, _buffer, _offset, length, _position, callback) { queueMicrotask(() => callback(null, length)) },
+      close(_fd, callback) { closed = true; queueMicrotask(() => callback(null)) },
+    },
+    fd: 42,
+    pollIntervalMs: 1,
+  })
+
+  await connection.close()
+
+  assert.equal(closed, true)
+})
+
 test('connects, reports device absence, relays valid messages, reconnects, and does not use ttyACM', async () => {
   const discoveries = [
     { reason: 'device-not-found' },

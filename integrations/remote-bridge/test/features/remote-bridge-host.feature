@@ -14,6 +14,12 @@
     Then the active transport transitions to wireless with link state wireless
     And the Unix domain socket connection is not closed
 
+  Scenario: Remote Bridge stops even when a serial read is pending
+    Given the USB CDC Remote connection has an active read stream
+    When systemd stops or restarts the Remote Bridge
+    Then both serial streams close before the stop deadline
+    And the service can immediately start and reconnect
+
   Scenario: Remote Bridge relays versioned Remote Touchpad input
     Given a Display Shell client is connected to the Remote Bridge
     When a Remote Link adapter sends a direction, primary, or secondary Remote Touchpad record
