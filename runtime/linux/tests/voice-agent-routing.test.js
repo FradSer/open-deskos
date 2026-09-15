@@ -52,7 +52,14 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
   await new Promise(resolve => setImmediate(resolve))
   onRemoteMic()
   assert.equal(toggles, 1)
-  assert.deepEqual(sent, [])
+  assert.equal(sent[0][0], 'odk-voice-status')
+  assert.equal(sent[0][1].state, 'starting')
+  sent.length = 0
+  const toggle = handlers.get('odk-voice-toggle')
+  const result = toggle()
+  assert.equal(result.accepted, true)
+  assert.equal(sent[0][1].state, 'starting')
+  sent.length = 0
   onInput('right')
   assert.equal(sent[0][0], 'odk-remote-input')
   assert.equal(sent[0][1].input, 'right')

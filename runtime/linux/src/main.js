@@ -146,17 +146,24 @@ async function main() {
   voiceAgent.subscribe(broadcastVoiceStatus)
   if (!smokeMode) voiceAgent.start()
   ipcMain.handle('odk-voice-status', () => voiceAgent.snapshot())
-  ipcMain.handle('odk-voice-toggle', () => {
+  const toggleVoiceAgent = () => {
+    const current = voiceAgent.snapshot()
     const sent = voiceAgent.toggle()
-    if (!sent) broadcastVoiceStatus(voiceAgent.snapshot())
-    return { accepted: sent }
-  })
+    if (sent) {
+      broadcastVoiceStatus({
+        state: current.state === 'recording' ? 'sending' : 'starting',
+        message: '',
+      })
+    } else {
+      broadcastVoiceStatus(current)
+    }
+    return sent
+  }
+  ipcMain.handle('odk-voice-toggle', () => ({ accepted: toggleVoiceAgent() }))
   app.once('before-quit', () => voiceAgent.stop())
   const remoteBridge = createRemoteBridgeClient({
     socketPath: remoteSocketPath,
-    onRemoteMic: () => {
-      if (!voiceAgent.toggle()) broadcastVoiceStatus(voiceAgent.snapshot())
-    },
+    onRemoteMic: toggleVoiceAgent,
   })
   let remoteSequence = 0
   const broadcastRemoteLinkState = (state) => {
@@ -212,7 +219,7 @@ async function main() {
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
   win.webContents.once('did-finish-load', () => {
-    if (voiceAgent.snapshot().state !== 'unavailable') broadcastVoiceStatus(voiceAgent.snapshot())
+    broadcastVoiceStatus(voiceAgent.snapshot())
     win.webContents.send('odk-remote-link-state', {
       state: remoteBridge.getLinkState(),
       sequence: remoteSequence,

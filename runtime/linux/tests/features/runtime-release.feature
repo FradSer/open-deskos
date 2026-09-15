@@ -9,9 +9,9 @@ Feature: Immutable runtime release deployment
     Then the Electron verifier inherits the session display
     And activation never depends on ambient SSH environment variables
 
-  Scenario: Staged candidate carries its peripheral and experiment sources
+  Scenario: Staged candidate carries its repository-local workflow sources
     Given a staged candidate release
     When the installer seals the candidate
-    Then the candidate contains the staged peripherals, integrations, and experiments trees
+    Then the candidate contains the staged peripherals, integrations, experiments, and agent skills trees
     And device preflight resolves repository sources from inside the candidate
     And preflight never reads ambient copies outside the candidate

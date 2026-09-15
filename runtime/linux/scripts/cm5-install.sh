@@ -204,7 +204,7 @@ $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
 if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
   run_as_target_user cp -a "${DIR}/." "${RELEASE_DIR}/"
   echo "== sealing staged peripheral and experiment sources into the release =="
-  for tree in peripherals integrations experiments; do
+  for tree in peripherals integrations experiments .agents; do
     if [ -d "${REPOSITORY_ROOT}/${tree}" ]; then
       run_as_target_user cp -a "${REPOSITORY_ROOT}/${tree}" "${RELEASE_DIR}/${tree}"
     fi

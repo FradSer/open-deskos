@@ -69,11 +69,12 @@ test('immutable runtime smoke can skip generated stylesheet writes', () => {
 
 test('CM5 staging command delegates release construction and verification to the device', () => {
   assert.match(stageRelease, /ODK_CM5_TARGET:-cm5/)
-  assert.match(stageRelease, /mkdir -p '\$\{STAGING_ROOT\}\/runtime\/linux'.*'\$\{REMOTE_ROOT\}\/releases' '\$\{REMOTE_ROOT\}\/state'/)
+  assert.match(stageRelease, /mkdir -p '\$\{STAGING_ROOT\}\/runtime\/linux'.*'\$\{STAGING_ROOT\}\/\.agents'.*'\$\{REMOTE_ROOT\}\/releases' '\$\{REMOTE_ROOT\}\/state'/)
   assert.match(stageRelease, /rsync -a --delete --exclude node_modules/)
   assert.match(stageRelease, /"\$\{ROOT\}\/integrations\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/integrations\/"/)
   assert.match(stageRelease, /"\$\{ROOT\}\/experiments\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/experiments\/"/)
   assert.match(stageRelease, /"\$\{ROOT\}\/peripherals\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/peripherals\/"/)
+  assert.match(stageRelease, /"\$\{ROOT\}\/\.agents\/" "\$\{TARGET\}:\$\{STAGING_ROOT\}\/\.agents\/"/)
   assert.match(stageRelease, /ssh "\$\{TARGET\}" "cd '\$\{STAGING_ROOT\}\/runtime\/linux' && bash scripts\/cm5-install\.sh"/)
 })
 

@@ -16,9 +16,17 @@ Feature: Independent resident voice agent
     When malformed or oversized status records arrive
     Then they are not displayed as valid agent state
 
+  Scenario: Starting and stopping Voice Agent acknowledge immediately
+    Given the resident voice service is connected and idle
+    When MIC starts or stops a voice request
+    Then the shell shows starting or sending feedback before the next service status arrives
+    And the feedback distinguishes listening, transcription, Pi execution, completion, and failure with persistent text
+
   Scenario: The shell displays recording and execution feedback
     Given the voice service publishes recording or thinking state
     When the shell receives the status
-    Then a separate voice status surface displays the state
+    Then a separate stable voice status instrument displays a short title and supporting detail
+    And state updates reuse the same bounded surface without rebuilding its contents
     And the Pi Sessions app remains a monitor
     And voice feedback never intercepts touch navigation
+    And reduced motion removes spatial movement without removing state feedback

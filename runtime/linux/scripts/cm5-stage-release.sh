@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/linux' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
+ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/linux' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${STAGING_ROOT}/.agents' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
 
 rsync -a --delete --exclude node_modules --exclude .DS_Store \
   "${ROOT}/runtime/linux/" "${TARGET}:${STAGING_ROOT}/runtime/linux/"
@@ -25,5 +25,7 @@ rsync -a --delete --exclude .DS_Store \
   "${ROOT}/experiments/" "${TARGET}:${STAGING_ROOT}/experiments/"
 rsync -a --delete --exclude .DS_Store --exclude 'build/' --exclude 'managed_components/' --exclude 'node_modules' \
   "${ROOT}/peripherals/" "${TARGET}:${STAGING_ROOT}/peripherals/"
+rsync -a --delete --exclude .DS_Store \
+  "${ROOT}/.agents/" "${TARGET}:${STAGING_ROOT}/.agents/"
 rsync -a "${ROOT}/DESIGN.md" "${TARGET}:${STAGING_ROOT}/DESIGN.md"
 ssh "${TARGET}" "cd '${STAGING_ROOT}/runtime/linux' && bash scripts/cm5-install.sh"

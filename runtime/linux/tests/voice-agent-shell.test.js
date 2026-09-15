@@ -28,18 +28,42 @@ test('voice preload exposes bounded control and status separately from monitorin
   assert.equal(listeners.size, 0)
 })
 
-test('voice feedback shows recording instructions and uses text, not HTML, for service messages', () => {
+test('voice feedback reuses one structured instrument and safely renders service messages', async () => {
   let listener
-  const node = { hidden: true, dataset: {}, textContent: '' }
+  const title = { textContent: '' }
+  const detail = { textContent: '' }
+  const meter = { hidden: true }
+  const node = {
+    hidden: true,
+    dataset: {},
+    classList: { add() {}, remove() {} },
+    querySelector(selector) {
+      return { '.voice-status-title': title, '.voice-status-detail': detail, '.voice-status-meter': meter }[selector]
+    },
+  }
+  const calls = []
   vm.runInNewContext(fs.readFileSync('src/renderer/core/voice-status.js', 'utf8'), {
     document: { getElementById: () => node },
-    window: { odkVoice: { subscribe: (fn) => { listener = fn } } },
+    window: { odkVoice: {
+      subscribe: (fn) => { listener = fn },
+      toggle: async () => { calls.push('toggle'); return { accepted: true } },
+    } },
   })
+  listener({ state: 'starting' })
+  assert.equal(title.textContent, 'Starting Voice Agent')
+  assert.equal(node.hidden, false)
   listener({ state: 'recording' })
   assert.equal(node.hidden, false)
-  assert.match(node.textContent, /MIC.*stop/i)
+  assert.match(title.textContent, /Listening/i)
+  assert.match(detail.textContent, /MIC.*stop/i)
+  listener({ state: 'thinking' })
+  assert.equal(meter.hidden, false)
   listener({ state: 'error', message: '<script>bad</script>' })
-  assert.match(node.textContent, /<script>bad<\/script>/)
+  assert.equal(detail.textContent, '<script>bad</script>')
+  listener({ state: 'idle', message: 'Request complete' })
+  assert.equal(node.hidden, false)
+  assert.equal(title.textContent, 'Complete')
   listener({ state: 'idle' })
   assert.equal(node.hidden, true)
+  assert.equal(calls.length, 0)
 })
