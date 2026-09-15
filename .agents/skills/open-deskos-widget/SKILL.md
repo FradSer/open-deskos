@@ -1,278 +1,208 @@
 ---
 name: open-deskos-widget
 description: >-
-  Develop, style, verify, and deploy Open DeskOS CM5 widgets and visual plugins on the Linux Electron runtime.
-  Use when creating or refactoring widgets, tuning layout density and typography, isolating plugin faults,
-  managing git-agent shared worktrees, staging releases on the CM5 hardware, or applying the complete embedded interface-quality reference workflow.
+  Design and develop Open DeskOS CM5 Widgets and Apps on the Linux Electron runtime. Use whenever a request creates,
+  redesigns, styles, refactors, debugs, or verifies a built-in tile/page/app/status plugin or an installable user Widget/App,
+  including responsive layout, typography, themes, truthful states, accessibility, density, and renderer interaction.
 metadata:
-  short-description: Open DeskOS CM5 widget engineering, layout density, and deployment workflow
+  short-description: Open DeskOS Widget and App design-development workflow
 ---
 
-# Open DeskOS CM5 Widget Engineering & Operational Workflow
+# Open DeskOS Widget and App Design Development
 
-This skill documents the engineering patterns, architectural contracts, design principles, testing harnesses, git protocols, and CM5 deployment procedures established during Open DeskOS runtime development.
+Use this skill to take an Open DeskOS Widget or App from product intent through verified runtime implementation. Its boundary is the interface artifact: architecture, data seams, interaction, visual craft, tests, and post-creation review. Git commits, shared-worktree recovery, CM5 release staging, service operations, and device deployment belong to their dedicated workflows.
 
-## 1. Architectural Contracts & Plugin Lifecycle
+## 1. Route the surface
 
-Widgets in Open DeskOS are glanceable, read-only instruments. They live under `runtime/linux/src/renderer/plugins/` and mount declaratively via `config/desktop_layout.js`.
+Classify the requested artifact before editing. The two architecture paths are intentionally separate.
 
-### Plugin Declaration Contract
+### Trusted built-in runtime surface
 
-```javascript
-;(function (root) {
-  'use strict'
+Use for Shell-owned tiles, pages, status indicators, and built-in Apps under `runtime/linux/src/renderer/plugins/`.
 
-  root.odkPlugins.register({
-    id: 'odk.tile.example',          // Controlled odk. namespace; auto-classes element as .w-example
-    manifest: { schemaVersion: 1 },  // Mandatory manifest version
-    kind: 'tile',                    // 'tile' | 'page' | 'status' | 'app'
-    app: 'Example',                  // English diagnostic name
-    state: 'Live',                   // Default truthful state
-    interaction: 'display-only',     // Mandatory for tiles; tiles never declare app continuations
-    mount(el, ctx) {
-      el.innerHTML = `...`
-      ctx.onTick((now) => { /* 1-second tick callback; never create private setInterval */ })
-    },
-    unmount(el, ctx) {
-      /* Optional cleanup; scopedContext automatically tears down onTick subscriptions */
-    },
-  })
-})(typeof window !== 'undefined' ? window : globalThis)
+- Read `runtime/linux/docs/AI_PLUGIN_GUIDE.md` completely before implementation.
+- Register through `odkPlugins`; place pages and tiles through `config/desktop_layout.js`.
+- Keep a Widget (`kind: 'tile'`) display-only and glanceable.
+- Put controls and multi-step interaction in an App/page surface.
+- Route privileged behavior through the existing main/preload/application seam; renderer plugins do not read disk or call remote services directly.
+
+### Installable user application
+
+Use when the request is for a locally installable user-created Widget or App under `ODESK_WORKSPACE/apps/<id>/`.
+
+- Read `runtime/linux/docs/USER_APPLICATIONS.md` completely before implementation.
+- A user Widget is display-only; a user App is interactive.
+- Author the bounded `manifest.json` plus self-contained `index.html` package.
+- Work within the sandbox: no network, Node, filesystem, parent/preload API, external assets, background service, or persistent app data.
+- Creating draft files is not installation. Verification and installation use the supported user-application lifecycle.
+
+If the request says only “Widget” or “App,” infer the path from its intended ownership and capabilities. Prefer an installable user application for user-generated standalone functionality; use a built-in plugin only when the capability must be part of the trusted Shell or use privileged platform seams.
+
+## 2. Product and architecture contracts
+
+Read `PRODUCT.md`, `DESIGN.md`, and `runtime/linux/CONTEXT.md` before changing the interface. Preserve these invariants:
+
+- Open DeskOS is a calm, precise desk instrument, not a generic AI interface or analytics dashboard.
+- State is truthful. Loading, empty, unavailable, unauthorized, stale, malformed, and error states never masquerade as live data.
+- Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens. Installable packages cannot inherit Shell custom properties, so they carry a small self-contained palette derived from `DESIGN.md` values inside their own HTML. In both paths, color communicates functional state rather than decoration.
+- Inactive surfaces stay quiet: black/charcoal field, transparent sub-rows, structural outlines, no glow or decorative tinted cards.
+- Supporting text remains at least `12px`; changing numeric values use tabular numerals.
+- Montserrat display numerals may use `letter-spacing: -0.02em`; Pixel/Zpix overrides reset it to `normal`.
+- Direct touch and keyboard stay usable when optional services or peripherals are absent.
+- A broken built-in plugin remains contained by the registry and shared-service fault boundaries; do not bypass them.
+
+## 3. Shape behavior with BDD
+
+Start every behavior change in the corresponding `.feature` file using Given/When/Then. For a bug, add a regression scenario that describes the failing user-visible state. Then create a failing automated test through a public seam before changing implementation.
+
+Define the reachable state matrix before styling:
+
+- live/success
+- loading or in-progress
+- empty
+- unavailable or disconnected
+- unauthorized/configuration required
+- stale
+- malformed input
+- error with recovery
+- long English text and CJK
+- compact and widescreen geometry
+- Instrument, Pixel, and Border Beam themes when the surface inherits Shell themes
+- keyboard, touch, reduced motion, and screen-reader announcements for interactive Apps
+
+The scenario and tests must state what is true, what action is available, and what remains usable when the dependency fails.
+
+## 4. Design-development workflow
+
+Follow this workflow only after the BDD-first scenario and red test in section 3 exist. The inherited interface entries under `references/` are mandatory inputs. Read every linked reference in its assigned phase. Read linked supporting documents when the selected surface exercises that concern. Every local Markdown link must resolve within the skill reference tree. `PRODUCT.md`, `DESIGN.md`, the selected runtime guide, and machine-readable contracts override general advice.
+
+### Phase A: Recon and intent
+
+1. Read [explain-interface](references/explain-interface.md) to map the existing component, surrounding surface, token use, theme behavior, layout, and effects.
+2. Read [better-writing](references/better-writing.md) and nearby product copy. Define concise, consistent live, empty, unavailable, stale, error, and recovery text.
+3. Inspect representative plugins or user apps with the same kind and density instead of inventing a parallel pattern.
+
+Completion criterion: the selected architecture path, user task, data provenance, state matrix, neighboring conventions, and verification seams are explicit.
+
+### Phase B: Design the real surface
+
+1. Read [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md).
+2. For a materially new direction, read [variant](references/variant.md) and build meaningful candidates in the real surface. Vary structure, density, emphasis, type, or voice—not cosmetic tints. Remove the variant harness after promotion.
+3. Use shared alignment edges and semantic spacing. Group with space before adding borders or nested surfaces.
+4. For vertical metrics, stack label above value/unit. Keep status/header placement from displacing the geometric center of the primary reading.
+5. Build responsive geometry from actual content and layout spans. Compact layouts retain readable cells and scroll rather than shrinking the full page.
+
+Completion criterion: the design works in its real page/app context, expresses hierarchy without fabricated decoration, and has a defensible compact behavior.
+
+### Phase C: Implement the architecture path
+
+For built-in plugins:
+
+- Keep the plugin self-contained and register the correct `kind`.
+- Add a dedicated plugin stylesheet when styles are substantial; scope selectors to the plugin surface.
+- Add the script to the verified renderer composition and declare placement when required.
+- Use `ctx.onTick` and scoped subscriptions rather than private intervals.
+- Add or extend a narrow main/preload IPC seam for external data; normalize, bound, and cache untrusted sources in the main process.
+- Use `textContent` for untrusted strings. Validate remote images in main and pass only bounded safe assets/data URLs.
+- Implement cleanup for subscriptions, listeners, frames, or resources not automatically owned by scoped context.
+
+For installable user applications:
+
+- Keep the package self-contained and within the documented size and sandbox limits.
+- Define local CSS variables from the current `DESIGN.md` palette inside the package; do not reference unresolved Shell `--odk-*` properties from the opaque iframe. Keep the local palette limited to roles the package actually renders.
+- Make Widget packages display-only. Interactive behavior belongs only to `kind: "app"`.
+- Treat state as ephemeral unless the platform explicitly adds a persistence contract.
+- Do not modify Shell composition to install one user package.
+
+For both paths, read [better-accessibility](references/better-accessibility.md). Use native controls, visible focus, meaningful names, logical DOM order, 44px touch targets where possible, reduced-motion behavior, and stable live regions. Do not put high-frequency counters inside an atomic live region.
+
+Completion criterion: behavior passes the focused tests, architecture dependencies point through supported seams, and every reachable state renders truthful text without breaking adjacent surfaces.
+
+### Phase D: Stress real states
+
+Read [break](references/break.md) and [break scenarios](references/break-scenarios.md). Exercise the real component with deterministic fixtures for every applicable state in the matrix. Prefer existing Electron/DOM harnesses; temporary stress routes do not ship.
+
+Measure geometry instead of accepting screenshots as proof:
+
+```js
+const host = document.querySelector('[data-widget="odk.tile.example"]')
+const rect = host.getBoundingClientRect()
+JSON.stringify({
+  contained: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+  overflows: host.scrollWidth > host.clientWidth + 1 || host.scrollHeight > host.clientHeight + 1,
+})
 ```
 
-### Critical Rules
+Use screenshots only for human communication. Bounds, overflow, font size, wrapping, focus, state, and density must be asserted through live DOM/runtime evidence.
 
-- **Display-only**: Tiles never expose direct app continuations or interactive clicks; interactive controls belong on dedicated App pages.
-- **Seam integrity**: Never make raw network calls or disk reads from plugins. External data flows through main process background sources and is exposed over narrow preload IPC channels (`window.odkPlatform.*`).
-- **Truthful states**: Never fabricate placeholder telemetry. Unconnected, waiting, or stale states must be explicitly stated.
+Completion criterion: applicable worst-case content, failure, theme, input, and resolution cases are represented by deterministic tests or fixtures, with no temporary diagnostic artifact left in the product.
 
----
+## 5. Verification
 
-## 2. Integration and Deployment Boundaries
+Run the smallest relevant tests first, then the gates affected by the change.
 
-### External data sources
+### Built-in Widget/App baseline
 
-- Treat third-party APIs as untrusted, slow, and schema-changing. Read the source/API skill documentation before calling an endpoint; validate the real response shape with a minimal request before designing the widget.
-- Keep API keys in a device-local `EnvironmentFile` or ignored `.env.local`; never copy secrets into a release, source file, screenshot, log, or commit. Confirm the service user can read the file and inspect the running process environment when debugging authentication.
-- Separate data freshness from presentation rotation: cache a bounded, versioned dataset in the main process user-data directory, refresh it on an explicit interval, and choose the next item from the cache without calling the network on every tick. Add deterministic tests for cache load/save, corrupt-cache recovery, filtering, random selection, no-immediate-repeat, and cooldown by source/book.
-- Download remote images in the main process, validate content type and size, and pass a bounded data URL or local safe asset to the renderer. If using `data:` images, update the renderer CSP explicitly (`img-src ... data:`) and test the actual Electron renderer rather than relying on curl.
-
-### Immutable release discipline
-
-- The active release is sealed and must never be edited in place. Do not live-patch `/opt/open-deskos/releases/*`; it creates a release that cannot be reproduced and can leave `main.js`, dependencies, generated assets, and tests from different revisions.
-- Before deployment, verify the target checkout is coherent (`main.js` imports exist, renderer scripts and plugin registrations agree, generated CSS is current). Stage one complete release through `cm5-stage-release.sh` and let device preflight decide activation.
-- If preflight fails, stop and report the exact blocker. Do not bypass validation or manually copy selected files into the active release. Fix the source or the device preflight environment, then redeploy atomically. A screenshot of a manually patched process is not deployment evidence.
-- After activation, verify `readlink -f /opt/open-deskos/current`, the kiosk service PID/app path, service environment, and release metadata. Confirm the running process loaded the active release before trusting any behavioral claim about it.
-- Keep deployment diagnostics separate from product behavior. Existing unrelated preflight failures, missing display servers, dependency-store corruption, or service configuration errors must not be “fixed” by changing widget code.
-
-## 3. Fault Isolation & Hardening (System Resilience)
-
-A single broken widget must never crash or block the Open DeskOS shell.
-
-### Three Load-Bearing Hardening Seams
-
-1. **Mount & Unmount Containment (`core/registry.js`)**:
-   `activate` must catch mount exceptions, clean any partial DOM (`el?.replaceChildren?.()`), log the failure to `console.error`, and mark `container.dataset.state = 'Error'` with a fallback `.widget-error` label. It returns `false` instead of re-throwing into `composer.build`.
-2. **Shared Tick Isolation (`core/services.js`)**:
-   `notify(subs, arg)` and the initial subscription callback in `onTick` must wrap each subscriber invocation in `try / catch`. One throwing widget callback must not starve subsequent widgets or spam uncaught errors each second.
-3. **Operational Bypass (`ODESK_DISABLED_PLUGINS`)**:
-   Operators can exclude problematic plugins at startup without blocking the shell:
-   ```bash
-   ODESK_DISABLED_PLUGINS="odk.tile.broken odk.page.faulty" ./run.sh --kiosk
-   ```
-   - Passed to renderer via URL query `?disabledPlugins=`.
-   - `core/composer.js` filters the layout via `filterLayout(layout, disabled)` before validation and rendering.
-   - Disabled tiles are omitted, status slots stay empty, and disabled pages are pruned from pagination (dots adjust automatically).
-
----
-
-## 4. Layout Geometry & Dynamic Grid Math
-
-### Dynamic Compact Row Calculation (`layout.js`)
-
-In narrow or compact development windows (<1000px width), tiles collapse into auto-placed 1x1 cells. The compact row count must **never** be hardcoded:
-
-```javascript
-function gridWidgetCount(layout) {
-  const grid = layout?.pages?.find((page) => page.kind === 'grid')
-  return grid?.widgets?.length ?? 0
-}
-
-function compute(width, height, widgetCount = 10) {
-  const isWidescreen = width >= 1000 && width > height
-  const cols = isWidescreen ? 5 : Math.max(1, Math.min(3, Math.floor((width - gutter) / (200 + gutter))))
-  // Derive rows from actual widget count, not a static constant:
-  const rows = isWidescreen ? 3 : Math.ceil(widgetCount / cols)
-  // ...
-}
+```bash
+cd runtime/linux
+node --test tests/<focused>.test.js
+pnpm styles
+bash tests/smoke.sh
+pnpm exec electron tests/widget-app-styles.cjs
+pnpm exec electron tests/widget-density.cjs
 ```
 
-### Grid placement contract
+Use `pnpm e2e` when page composition, navigation, App interaction, theme behavior, or shared Shell surfaces change. Use `references/density-and-styling.md` when creating a density profile or debugging font-settling and IPC fixture issues.
 
-The layout harness is authoritative for placement. Display widgets must begin at the page's top-left content edge unless a page-specific placement contract says otherwise. A dedicated single-widget page must declare its span explicitly (for example `col: '1 / 4', row: '1 / 3'`) and the harness must assert the start line, span, page surface, and widget count. Update responsive geometry and E2E page-index expectations whenever adding a page.
+Density defaults:
 
-### True Geometric Centering
+- content envelope: 54–70%, centered on 62%
+- occupied area union: at least 20%, unless a justified instrument profile defines another bound
+- maximum full-width empty band: 28%
 
-When centering content inside a tall or square slot with a status header:
-- **The Gotcha**: Setting `justify-content: space-between` on the tile with `.widget-state` at the top causes `.widget-body` to center only in the *remaining* height. The visual center is shifted upward by half the header's height.
-- **The Solution**: Anchor the status/header line absolutely:
-  ```css
-  .widget-tile {
-    position: relative;
-    justify-content: center; /* Body occupies full height */
-  }
-  .widget-header-state {
-    position: absolute;
-    top: var(--odk-widget-inset);
-    left: 0;
-    right: 0;
-    text-align: center;
-  }
-  ```
-  This guarantees mathematical and optical centering (`dX = 0, dY = 0`).
+### Installable user Widget/App baseline
 
----
+```bash
+cd runtime/linux
+node --test tests/user-app*.test.js
+pnpm exec electron tests/user-app-lifecycle.cjs
+pnpm test
+bash tests/smoke.sh
+```
 
-## 5. Visual Craft & Design Discipline
+Add product-specific tests for the package’s behavior within its sandbox. The verifier proves bounded loading and visibility, not complete business correctness.
 
-All styling must adhere to `../../DESIGN.md` semantic tokens (`--odk-*`).
+### External-data additions
 
-### Core Aesthetic Rules
+Add deterministic fixtures for success, unavailable, malformed, slow, unauthorized, empty, corrupt cache, and stale cache. Confirm renderer CSP and actual Electron asset loading when remote images become bounded local/data assets.
 
-1. **No Colored Backgrounds / Inactive is Quiet**:
-   Do not introduce tinted surfaces (`--odk-elevated`) or solid-filled badge backgrounds for cards or sub-rows. Inactive cards and sub-rows remain transparent charcoal.
-2. **Color Exclusively for State**:
-   Color is reserved for functional state indication (green for healthy/live, red for dry/warning, blue for in-progress action). In-progress action states always take precedence over threshold alerts.
-3. **Status Badges**:
-   Badges are outlined pills (`border: 1px solid color-mix(...)`, colored text, transparent background). Solid color fields look noisy on the desk companion.
-4. **Stacked Metric Hierarchy**:
-   For vertical tiles, stack the label above large tabular numerals (`label` above `value + unit`) rather than horizontal key-value rows. This fills the vertical column naturally and prevents truncation.
-5. **Display Numeral Tracking (`letter-spacing`)**:
-   - Apply `-0.02em` negative tracking to large display numerals in vector fonts (`Montserrat`) so digits tighten as they grow.
-   - **Crucial**: Explicitly reset `letter-spacing: normal` (or `0`) on bitmap pixel fonts (`Zpix` in Pixel theme). Negative letter-spacing on a fixed bitmap font distorts glyph alignment on the pixel grid.
-6. **Accessible Text Floor**:
-   Every rendered span and supporting label must maintain at least `12px` font size to pass `widget-app-styles.cjs` automated inspections.
+Report exactly which commands passed and which device-only or assistive-technology checks remain unverified. Host-green does not establish CM5 hardware acceptance.
 
----
+## 6. Post-creation interface review
 
-## 6. Interface-quality workflow
+Run this only after implementation and required verification are complete. It reports quality and does not commit or deploy.
 
-Every widget change follows this workflow. The original upstream entries inherited as flat documents under [references](references/interface-references-source.md) are mandatory inputs, not optional inspiration. Read every linked reference in its assigned phase. Read the linked supporting documents before applying their parent guidance when the widget or its states exercise that concern. `DESIGN.md`, this skill, product behavior, and machine-checkable runtime contracts remain authoritative when a general recommendation conflicts with Open DeskOS decisions.
+1. Read [interface-review](references/interface-review.md) and [interface-review scope resolution](references/interface-review-scope-resolution.md).
+2. Read [better-interface](references/better-interface.md) and [review format](references/better-interface-review-format.md).
+3. Consolidate evidence from accessibility, colors, layout, typography, UI, writing, stress states, and runtime geometry.
+4. Classify introduced regressions separately from pre-existing findings. Preserve deliberate Open DeskOS decisions.
+5. If an introduced regression needs correction, return to the BDD workflow and verify the corrective change.
 
-1. **Recon and intent**: Read [explain-interface](references/explain-interface.md) to identify the existing widget, theme, token, layout, and effect system before altering it. Read [better-writing](references/better-writing.md) to preserve nearby terminology and make missing, stale, and error states clear and truthful.
-2. **Design before implementation**: Read [variant](references/variant.md), [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md). For a materially new visual direction, implement meaningful candidates in the real widget surface and select against Open DeskOS density, display-only, and token contracts; do not invent visual variants where the product specification fixes the answer.
-3. **Implement accessible, truthful states**: Read [better-accessibility](references/better-accessibility.md) and apply its relevant semantics, focus, motion, zoom, and screen-reader guidance to any interactive app surface. Tiles remain display-only regardless of generic control guidance. Apply the design references while retaining the seams, states, and style rules in sections 1–5.
-4. **Stress real states**: Read [break](references/break.md) and its scenarios reference. Exercise every reachable live, loading, unavailable, stale, malformed, unauthorized, empty, long-text, CJK, compact-resolution, and theme state. Translate the observed cases into deterministic runtime tests and density fixtures; do not leave a temporary stress page in the release.
-5. **Verify implementation**: Run the machine-readable gates in section 8. When they pass, the widget implementation is complete and may enter the deployment procedure in section 10.
+## Reference inventory
 
----
-
-## 7. Post-creation interface review
-
-Run this separate review only after the widget implementation and its required verification are complete. It evaluates the completed change; it is not an implementation phase and does not prescribe a release sequence.
-
-1. Read [interface-review](references/interface-review.md) and [interface-review-scope-resolution](references/interface-review-scope-resolution.md). Resolve the actual change and its affected widget surfaces before forming an opinion.
-2. Read [better-interface](references/better-interface.md) and [better-interface-review-format](references/better-interface-review-format.md). Consolidate evidence from accessibility, colors, layout, typography, UI, and writing.
-3. Classify introduced regressions separately from pre-existing findings. Report observed breaks with scope and evidence; do not elevate deliberate Open DeskOS decisions into findings.
-
-The review reports quality; it does not reopen implementation or block deployment. If it identifies an introduced regression, a new corrective change follows the implementation workflow and can receive its own post-creation review.
-
-### Reference inventory
+Implementation references:
 
 - [better-accessibility](references/better-accessibility.md)
 - [better-colors](references/better-colors.md)
-- [better-interface](references/better-interface.md)
 - [better-layout](references/better-layout.md)
 - [better-typography](references/better-typography.md)
 - [better-ui](references/better-ui.md)
 - [better-writing](references/better-writing.md)
 - [break](references/break.md)
 - [explain-interface](references/explain-interface.md)
-- [interface-review](references/interface-review.md)
 - [variant](references/variant.md)
 
----
+Post-creation review references:
 
-## 8. Verification Harnesses & Density Gates
-
-Verify through observable, machine-readable output — never by looking at a rendered image. The session model may be text-only and a screenshot cannot be asserted, diffed, or trusted for exact geometry. Measure the live DOM instead.
-
-For focused widget changes, run the smallest relevant tests first, then the full gates. Network-backed widgets also need fixtures for unavailable, malformed, slow, unauthorized, and empty API responses.
-
-```bash
-cd runtime/linux
-pnpm test                               # unit + integration tests
-bash tests/smoke.sh                     # skeleton purity, token parity, layout harness
-npx electron tests/widget-app-styles.cjs # 12px text floor, container bounds, no truncation
-npx electron tests/widget-density.cjs --report-only # multi-theme, 5-resolution density suite
-```
-
-### Measure layout, do not eyeball it
-
-When a visual defect is reported (clipped text, wrong gap, cover not filling its box), reproduce it as numbers over CDP rather than screenshotting pixels. Attach to the running renderer's `--remote-debugging-port` and evaluate geometry:
-
-```js
-// Run via CDP Runtime.evaluate against the widget tile:
-const t = document.querySelector('[data-widget="odk.tile.weread"]')
-const box = t.getBoundingClientRect()
-const cover = t.querySelector('.weread-cover-wrap').getBoundingClientRect()
-const text = t.querySelector('.weread-text')
-JSON.stringify({
-  tile: { h: Math.round(box.height) },
-  coverFillsHeight: Math.abs(cover.height - box.height) <= 2,
-  textOverflows: text.scrollHeight > text.clientHeight + 1,
-  fontSizePx: getComputedStyle(text).fontSize,
-})
-```
-
-This is faster and more reliable than capturing a PNG and sampling colors with PIL. A screenshot is only a human-facing artifact; it is never the acceptance check. If the numbers already prove the fix, no screenshot is needed.
-
-### Density Harness Targets (`widget-density.cjs`)
-
-- **Content Envelope Fill**: 62% target (accepted band: 54% to 70%).
-- **Occupied Area Union**: >= 20% (relaxed via custom profile for sparse numeric instruments).
-- **Max Empty Band**: <= 28%.
-- For content-heavy widgets, test long strings, CJK wrapping, image load completion, and the smallest supported font size. Never use line clamping to hide overflow when the requirement is to show all content; fit against a fixed container after fonts and images settle.
-- For detailed density tuning, custom widget profiles, and font-settling race conditions, see [references/density-and-styling.md](references/density-and-styling.md).
-
----
-
-## 9. Shared Dirty Worktree Git Protocol
-
-When collaborating in a working directory where other agents have uncommitted changes:
-- **Never run raw `git add` or `git commit`** (blocked by repository workflow).
-- **The `git-agent commit --no-stage` trap**: `git-agent commit --no-stage` will re-stage dirty files from the worktree, sweeping other agents' in-flight hunks into your commit.
-- **The Worktree Neutralization Pattern**: Reconstruct HEAD + own hunks in the index, temporarily swap worktree files with staged copies, commit with `git-agent`, and immediately restore worktree files.
-- Full step-by-step procedure is documented in [references/shared-worktree-git.md](references/shared-worktree-git.md).
-
----
-
-## 10. CM5 Device Deployment & Operational Health
-
-Deployment stages an immutable release to the CM5 and updates the atomic symlink:
-
-```bash
-bash runtime/linux/scripts/cm5-stage-release.sh
-```
-
-### Operational Traps
-
-1. **Release Disk Accumulation (`No space left on device`)**:
-   Each release directory under `/opt/open-deskos/releases/` consumes ~410MB (including Electron arm64 and node_modules). After ~20 deploys, the 28GB root partition hits 100%. Old releases must be pruned regularly while keeping `current` and the immediate rollback release.
-2. **MQTT Client ID Conflicts**:
-   Always suffix client IDs with process PID or random hex (`open-deskos-shell-${pid}-${rand}`). Fixed client IDs cause mutual connection eviction between the active kiosk service and testing processes.
-3. **Active-release verification**:
-   Never assume a release ID discussed earlier in a session is still active. Check `readlink -f /opt/open-deskos/current` immediately before copying files or restarting. The process app path, `current` symlink, and service environment must agree.
-4. **Headless X11 navigation (last resort)**:
-   Prefer a CDP geometry probe (see section 8). Only when CDP is unavailable, drive the panel with X11 keys and read state back programmatically rather than inspecting a captured image:
-   ```bash
-   DISPLAY=:0 XAUTHORITY=/var/run/lightdm/root/:0 xdotool key Right
-   ```
-- For complete deployment runbooks and systemd override instructions, see [references/cm5-deployment.md](references/cm5-deployment.md).
-
-### Retrospective failure patterns
-
-- A successful `curl` proves only host connectivity; it does not prove the Electron service has the API key, correct CSP, usable module resolution, or a renderer that can load the returned asset.
-- A failed preflight is not permission to copy files into a sealed release. Fix missing source files, dependency installation, display-server assumptions, or verifier configuration in the source/deployment path, then redeploy atomically.
-- Normalize known API variants at the source boundary, version the cache when its shape changes, and keep the widget honest when data is missing.
-- Iterating on a widget by screenshotting it and sampling pixels is the slowest, least reliable loop here. Drive the fix from CDP-measured geometry and the existing harnesses; reserve a screenshot for a final human handoff, never as the verification itself.
+- [better-interface](references/better-interface.md)
+- [interface-review](references/interface-review.md)
