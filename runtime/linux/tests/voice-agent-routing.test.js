@@ -5,6 +5,7 @@ const vm = require('node:vm')
 
 test('Remote MIC reaches the independent agent once, never the Pi monitor or renderer navigation', async () => {
   let onInput
+  let onRemoteMic
   let toggles = 0
   const sent = []
   const handlers = new Map()
@@ -26,9 +27,12 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
     },
     './remote-bridge-client': {
       resolveRemoteBridgeSocketPath: () => null,
-      createRemoteBridgeClient: () => ({
-        onLinkState() {}, onNavigation() {}, onInput: (fn) => { onInput = fn }, start() {}, getLinkState: () => 'disconnected',
-      }),
+      createRemoteBridgeClient: (options) => {
+        onRemoteMic = options.onRemoteMic
+        return {
+          onLinkState() {}, onNavigation() {}, onInput: (fn) => { onInput = fn }, start() {}, getLinkState: () => 'disconnected',
+        }
+      },
     },
     './voice-agent-client': {
       resolveVoiceSocketPath: () => '/test.sock',
@@ -46,7 +50,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams,
   })
   await new Promise(resolve => setImmediate(resolve))
-  onInput('mic')
+  onRemoteMic()
   assert.equal(toggles, 1)
   assert.deepEqual(sent, [])
   onInput('right')

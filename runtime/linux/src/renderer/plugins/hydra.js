@@ -41,11 +41,12 @@
       return
     }
     const offline = entry.online === false
-    const watering = entry.pump === true && !offline
-    plant.root.className = `hydra-plant${offline ? ' hydra-offline' : ''}${watering ? ' hydra-watering' : ''}`
+    const stale = entry.stale === true
+    const watering = entry.pump === true && !offline && !stale
+    plant.root.className = `hydra-plant${offline ? ' hydra-offline' : ''}${stale ? ' hydra-stale' : ''}${watering ? ' hydra-watering' : ''}`
     plant.soil.textContent = formatSoil(entry)
     plant.soil.classList.toggle('hydra-soil-watering', watering)
-    const percent = offline || entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
+    const percent = entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
     plant.meterFill.style.width = `${percent}%`
     plant.meterFill.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
   }
@@ -128,6 +129,9 @@
         if (!snapshot.connected) {
           badge.textContent = 'Waiting'
           badge.className = 'hydra-badge hydra-badge-muted'
+        } else if (snapshot.mainOnline === false) {
+          badge.textContent = 'Offline'
+          badge.className = 'hydra-badge hydra-badge-warn'
         } else {
           const envStale = snapshot.env?.stale !== false
           badge.textContent = envStale ? 'Stale env' : 'Live'

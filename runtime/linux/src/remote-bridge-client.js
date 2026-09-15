@@ -72,6 +72,7 @@ function createRemoteBridgeClient({
   createConnection = net.createConnection,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
+  onRemoteMic,
 } = {}) {
   let socket = null
   let reconnectTimer = null
@@ -94,6 +95,10 @@ function createRemoteBridgeClient({
   }
 
   function notifyInput(input) {
+    if (input === 'mic' && typeof onRemoteMic === 'function') {
+      onRemoteMic()
+      return
+    }
     for (const listener of inputSubscribers) listener(input)
   }
 

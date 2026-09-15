@@ -152,7 +152,12 @@ async function main() {
     return { accepted: sent }
   })
   app.once('before-quit', () => voiceAgent.stop())
-  const remoteBridge = createRemoteBridgeClient({ socketPath: remoteSocketPath })
+  const remoteBridge = createRemoteBridgeClient({
+    socketPath: remoteSocketPath,
+    onRemoteMic: () => {
+      if (!voiceAgent.toggle()) broadcastVoiceStatus(voiceAgent.snapshot())
+    },
+  })
   let remoteSequence = 0
   const broadcastRemoteLinkState = (state) => {
     remoteSequence += 1
@@ -167,10 +172,6 @@ async function main() {
     }
   })
   remoteBridge.onInput((input) => {
-    if (input === 'mic') {
-      if (!voiceAgent.toggle()) broadcastVoiceStatus(voiceAgent.snapshot())
-      return
-    }
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('odk-remote-input', { input })
     }

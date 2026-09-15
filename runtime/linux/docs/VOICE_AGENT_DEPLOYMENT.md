@@ -85,23 +85,28 @@ and voice state are outside the runtime release rollback transaction.
 Host deployment-contract tests do not establish CM5 hardware acceptance. No
 hardware deployment is performed by those tests.
 
-## Current acceptance limits
+## Current hardware acceptance
 
-Read-only device inspection for this implementation found Node 22.14.0 under
-kiosk user `orangepi`, below the supported minimum. That user had no Pi auth,
-voice env file, or suitable developer checkout. Root's separate Pi authentication
-was not read or copied. `arecord -l` enumerated a capture device; that does not
-prove the default input records usable speech.
+The OSPTEK ESP32-P4C6 baseboard microphone is accepted as the CM5 Voice Agent
+input. The P4 enumerates over its native USB2.0 data Type-C port as composite
+USB device `303a:7002`, with CDC camera metadata and a standard UAC2 microphone.
+Linux binds `cdc_acm` and `snd-usb-audio`; the stable capture configuration is:
 
-Host runtime unit tests and smoke pass, as do voice-service tests/typecheck,
-companion session-control tests/typecheck and dedicated Electron voice-status
-checks. Full runtime E2E did not pass: Pi Sessions density at 960×640 reported
-24% fill outside its configured band, and the App interiors subtest failed.
-These failures are outside the voice status selectors, but still block claiming
-a verified release. No CM5 release was activated during this implementation.
+```sh
+ODESK_VOICE_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0
+```
 
-Before device acceptance: provision a supported Node, a kiosk-owned checkout and
-model/STT authentication, install session-control on the intended session host,
-clear release verification failures, then stage and test a real voice request.
-The already-running interactive Pi sessions must explicitly load the extension;
-monitor visibility alone never grants a control endpoint.
+Device acceptance passed repeated signed 16-bit mono 16 kHz captures while the
+Face Agent continued receiving monotonic on-device inference metadata. The
+kiosk user's recorder path also produced a complete WAV capture. Raw acceptance
+audio is piped into aggregate analysis and is not written to disk. Re-run the
+hardware gate after firmware, kernel, cable, or board changes:
+
+```sh
+/usr/local/bin/open-deskos-p4-microphone-acceptance
+```
+
+The P4 native USB2.0 data port is distinct from the CH343P debug/flash Type-C
+port. Both may remain connected: the native port carries CDC+UAC, while CH343P
+carries firmware logs and flashing. Model/STT authentication and optional
+session-control remain separately provisioned device-local concerns.

@@ -1,0 +1,40 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-migrate-models-to-ssd.sh'), 'utf8')
+
+test('model storage migration keeps stable runtime paths through bind mounts', () => {
+  assert.match(script, /\/opt\/rkllama\/models/)
+  assert.match(script, /\/opt\/qwen3-asr-1\.7b\/rknn/)
+  assert.match(script, /SSD_MOUNT="\$\{ODK_MODEL_SSD_MOUNT:-\/mnt\/ssd\}"/)
+  assert.match(script, /SSD_ROOT="\$\{ODK_MODEL_SSD_ROOT:-\$\{SSD_MOUNT\}\/open-deskos\/models\}"/)
+  assert.match(script, /"\$\{SSD_ROOT\}\/rkllama"/)
+  assert.match(script, /"\$\{SSD_ROOT\}\/qwen3-asr-1\.7b-rknn"/)
+  assert.match(script, /mount --bind/)
+  assert.match(script, /mount -o remount,bind,ro/)
+  assert.match(script, /bind,ro,nofail/)
+  assert.match(script, /x-systemd\.requires-mounts-for=\$\{SSD_MOUNT\}/)
+  assert.match(script, /nofail/)
+})
+
+test('model storage migration verifies the SSD copy before removing root data', () => {
+  assert.match(script, /rsync -rt --delete --checksum/)
+  assert.match(script, /rsync -rni --delete --checksum/)
+  assert.match(script, /migration verification failed/)
+  assert.match(script, /findmnt -T/)
+  assert.match(script, /findmnt -T "\$source" -n -o FSROOT/)
+  assert.match(script, /expected_fsroot/)
+  assert.match(script, /mv "\$source" "\$backup"/)
+  assert.match(script, /rm -rf -- "\$backup"/)
+})
+
+test('model migration is idempotent and limited to model payloads', () => {
+  assert.match(script, /BEGIN open-deskos model storage/)
+  assert.match(script, /END open-deskos model storage/)
+  assert.doesNotMatch(script, /mv \/opt\/rkllama /)
+  assert.doesNotMatch(script, /mv \/opt\/qwen3-asr-1\.7b /)
+  assert.match(script, /patch_ssd_fstab/)
+  assert.match(script, /"fmask=0133", "dmask=0022"/)
+})

@@ -127,7 +127,7 @@ const DRIVER_SCRIPT = `
   out.hydraTileMounted = Boolean(hydraTile?.querySelector('.hydra-head'))
   out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '5' &&
     getComputedStyle(hydraTile).gridRowStart === '2' && getComputedStyle(hydraTile).gridRowEnd === '4'
-  out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
+  out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Offline', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
   out.widgetsAreDisplayOnly =
     [...document.querySelectorAll('.widget')].every((widget) =>
       widget.tagName === 'DIV' && widget.dataset.interaction === 'display-only') &&

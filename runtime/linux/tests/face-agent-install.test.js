@@ -1,8 +1,10 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const path = require('node:path')
+const { findRepositoryRoot } = require('./helpers/repo-root')
 
-const service = fs.readFileSync('../../experiments/vision/face-agent/systemd/open-deskos-face-agent.service', 'utf8')
+const service = fs.readFileSync(path.join(findRepositoryRoot(__dirname), 'experiments', 'vision', 'face-agent', 'systemd', 'open-deskos-face-agent.service'), 'utf8')
 const installer = fs.readFileSync('scripts/cm5-install.sh', 'utf8')
 
 test('defines a restartable user service for the installed Face Agent', () => {
@@ -26,6 +28,9 @@ test('provisions experimental ESP32-P4 Face Agent dependencies only when opted i
   assert.match(installer, /ODESK_INSTALL_EXPERIMENTAL_VISION:-0/)
   assert.match(installer, /skipping experimental Face Agent and ESP32-P4 camera provisioning/)
   assert.match(installer, /BRIDGE_UNIT_DIR="\$\{TARGET_HOME\}\/\.config\/systemd\/user"/)
+  assert.match(installer, /REMOTE_BRIDGE_RELEASE="\$\{RUNTIME_ROOT\}\/current\/integrations\/remote-bridge"/)
+  assert.match(installer, /__OPEN_DESKOS_REMOTE_BRIDGE_DIR__\|\$\{REMOTE_BRIDGE_RELEASE\}/)
+  assert.doesNotMatch(installer, /__OPEN_DESKOS_REMOTE_BRIDGE_DIR__\|\$\{REMOTE_BRIDGE_SOURCE\}/)
   assert.match(installer, /run_as_target_user systemctl --user enable --now open-deskos-remote-bridge\.service/)
 
   const experimentalInstall = installer.indexOf('install_experimental_vision')

@@ -1,4 +1,6 @@
 const ENV_STALE_MS = 5 * 60 * 1000 // the main node republishes env readings every minute
+const MAIN_ONLINE_STALE_MS = 3 * 60 * 1000
+const NODE_STALE_MS = 3 * 60 * 1000
 const MAX_NODES = 6 // FleetRoster::kMaxNodes
 
 function parseBool(value) {
@@ -16,19 +18,25 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
   const root = topicPrefix.split('/')[0]
   const prefix = `${root}/`
   let connected = false
+  let mainOnline
+  let mainOnlineUpdatedAt = 0
+  let mainOnlineLive = false
   let env = null
+  let envLive = false
+  const diagnostics = {}
+  let diagnosticsUpdatedAt = 0
   const nodes = new Map()
 
   function node(id) {
     let entry = nodes.get(id)
     if (!entry) {
-      entry = { id, online: undefined, pump: undefined, soilPercent: undefined, soilUpdatedAt: 0 }
+      entry = { id, online: undefined, pump: undefined, soilPercent: undefined, soilUpdatedAt: 0, updatedAt: 0, live: false }
       nodes.set(id, entry)
     }
     return entry
   }
 
-  function applyEnvSummary(value, now) {
+  function applyEnvSummary(value, now, retained) {
     if (typeof value !== 'string') return false
     const fields = {}
     for (const part of value.split(';')) {
@@ -36,7 +44,11 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
       if (separator <= 0) return false
       fields[part.slice(0, separator)] = part.slice(separator + 1)
     }
-    if (fields.v === '0') return true
+    if (fields.v === '0') {
+      env = null
+      envLive = !retained
+      return true
+    }
     if (fields.v !== '1') return false
     const temp = parseNumber(fields.t)
     const humidity = parseNumber(fields.h)
@@ -53,6 +65,7 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
     }
     if (!env) env = {}
     env.updatedAt = now
+    envLive = !retained
     env.tempC = temp
     env.humidity = humidity
     env.pressureHpa = pressure
@@ -63,45 +76,59 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
     return true
   }
 
-  function applyEnv(leaf, value, now) {
-    if (leaf === 'env') return applyEnvSummary(value, now)
-    if (leaf === 'vpd') {
-      if (value === 'NC') {
-        if (!env) env = {}
-        env.updatedAt = now
-        delete env.vpdKpa
-        return true
+  function applyDiagnostic(leaf, value, now) {
+    const textFields = { firmware: 'firmware', build: 'build', boot: 'bootId', reset: 'resetReason' }
+    if (textFields[leaf]) {
+      if (typeof value !== 'string' || value.length === 0 || value.length > 63) return false
+      diagnostics[textFields[leaf]] = value
+    } else if (leaf === 'uptime_s' || leaf === 'last_publish_s') {
+      if (leaf === 'last_publish_s' && value === 'never') {
+        diagnostics.lastPublishSeconds = null
+      } else if (!/^\d+$/.test(value)) {
+        return false
+      } else {
+        diagnostics[leaf === 'uptime_s' ? 'uptimeSeconds' : 'lastPublishSeconds'] = Number.parseInt(value, 10)
       }
-      const vpd = parseNumber(value)
-      if (vpd === undefined) return false
-      if (!env) env = {}
-      env.updatedAt = now
-      env.vpdKpa = vpd
-      return true
+    } else {
+      return false
     }
-    const number = parseNumber(value)
-    if (number === undefined) return false
-    if (!env) env = {}
-    env.updatedAt = now
-    if (leaf === 'temp') env.tempC = number
-    else if (leaf === 'humidity') env.humidity = number
-    else if (leaf === 'pressure') env.pressureHpa = number
-    else if (leaf === 'lux') env.lux = number
-    else return false
+    diagnosticsUpdatedAt = now
     return true
   }
 
-  function applyNodeMessage(rest, value, now) {
-    const match = /^node(\d+)\/(soil|pump|online)$/.exec(rest)
+  function applyMainMessage(leaf, value, now, retained) {
+    if (leaf.startsWith('diag/')) return applyDiagnostic(leaf.slice(5), value, now)
+    if (leaf === 'env') return applyEnvSummary(value, now, retained)
+    if (leaf !== 'online') return false
+    const online = parseBool(value)
+    if (online === undefined) return false
+    mainOnline = online
+    mainOnlineUpdatedAt = now
+    mainOnlineLive = !retained
+    return true
+  }
+
+  function applyNodeMessage(rest, value, now, retained) {
+    const match = /^node(\d+)\/(soil|pump|online|status)$/.exec(rest)
     if (!match) return false
     const id = Number.parseInt(match[1], 10)
     if (id < 1 || id > MAX_NODES) return false
     const leaf = match[2]
+    if (leaf === 'status') {
+      if (!['IDLE', 'PULSE', 'SOAK', 'WATER', 'PAUSE', 'WAIT', 'DORM', 'FAULT'].includes(value)) return false
+      const entry = node(id)
+      entry.status = value
+      entry.updatedAt = now
+      if (!retained) entry.live = true
+      return true
+    }
     if (leaf === 'soil') {
       if (value === 'NC') {
         const entry = node(id)
         entry.soilPercent = null
         entry.soilUpdatedAt = now
+        entry.updatedAt = now
+        if (!retained) entry.live = true
         return true
       }
       const number = parseNumber(value)
@@ -109,11 +136,16 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
       const entry = node(id)
       entry.soilPercent = Math.min(100, Math.max(0, number))
       entry.soilUpdatedAt = now
+      entry.updatedAt = now
+      if (!retained) entry.live = true
       return true
     }
     const flag = parseBool(value)
     if (flag === undefined) return false
-    node(id)[leaf] = flag
+    const entry = node(id)
+    entry[leaf] = flag
+    entry.updatedAt = now
+    if (!retained) entry.live = true
     return true
   }
 
@@ -121,21 +153,33 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
     markConnected(value) {
       connected = value === true
     },
-    applyMessage(topic, payload, now = Date.now()) {
+    applyMessage(topic, payload, now = Date.now(), { retained = false } = {}) {
       if (typeof topic !== 'string' || !topic.startsWith(prefix)) return false
       const rest = topic.slice(prefix.length)
-      if (rest.startsWith('main/')) return applyEnv(rest.slice(5), payload, now)
-      return applyNodeMessage(rest, payload, now)
+      if (rest.startsWith('main/')) return applyMainMessage(rest.slice(5), payload, now, retained)
+      return applyNodeMessage(rest, payload, now, retained)
     },
     snapshot(now = Date.now()) {
-      const envStale = !env || now - env.updatedAt > ENV_STALE_MS
+      const envStale = !envLive || !env || now - env.updatedAt > ENV_STALE_MS
+      const mainIsOnline = mainOnlineLive && mainOnline === true && now - mainOnlineUpdatedAt <= MAIN_ONLINE_STALE_MS
+      const mainIsOffline = mainOnline !== undefined && !mainIsOnline
+      const updatedAt = Math.max(env?.updatedAt || 0, mainOnlineUpdatedAt, ...[...nodes.values()].map((entry) => entry.updatedAt))
       return {
         configured: true,
         connected,
+        ...(updatedAt === 0 ? {} : { updatedAt }),
+        ...(mainOnline === undefined ? {} : { mainOnline: mainIsOnline }),
+        ...(diagnosticsUpdatedAt === 0 ? {} : { diagnostics: { ...diagnostics, updatedAt: diagnosticsUpdatedAt } }),
         env: env ? { ...env, stale: envStale } : null,
         nodes: [...nodes.values()]
           .sort((a, b) => a.id - b.id)
-          .map((entry) => ({ ...entry })),
+          .map(({ live, ...entry }) => ({
+            ...entry,
+            pump: entry.status === undefined
+              ? entry.pump
+              : entry.status === 'PULSE' || entry.status === 'WATER',
+            stale: !live || mainIsOffline || now - entry.updatedAt > NODE_STALE_MS,
+          })),
       }
     },
   }
@@ -154,29 +198,11 @@ function createHydraSource({ url, topicPrefix } = {}) {
   let client = null
   let lastAttempt = 0
   const RETRY_MS = 30000
-  function dropCachedMqttResolution() {
-    try {
-      const Module = require('node:module')
-      const pathCache = Module._pathCache
-      if (pathCache) {
-        for (const key of Object.keys(pathCache)) {
-          if (key.includes('mqtt')) delete pathCache[key]
-        }
-      }
-      const loaded = require.cache
-      if (loaded) {
-        for (const key of Object.keys(loaded)) {
-          if (key.includes('/mqtt/') || key.includes('mqtt-packet')) delete loaded[key]
-        }
-      }
-    } catch { /* best effort; require below will report the real error */ }
-  }
   function ensureClient() {
     if (client) return
     const now = Date.now()
     if (now - lastAttempt < RETRY_MS) return
     lastAttempt = now
-    dropCachedMqttResolution()
     try {
       const mqtt = require('mqtt')
       client = mqtt.connect(url, {
@@ -193,8 +219,8 @@ function createHydraSource({ url, topicPrefix } = {}) {
       client.on('error', (error) => {
         console.error(`hydra mqtt: ${error.message}`)
       })
-      client.on('message', (topic, payload) => {
-        store.applyMessage(topic, payload.toString(), Date.now())
+      client.on('message', (topic, payload, packet) => {
+        store.applyMessage(topic, payload.toString(), Date.now(), { retained: packet?.retain === true })
       })
     } catch (error) {
       console.error(`hydra mqtt unavailable, retrying: ${error.message}`)
@@ -213,4 +239,4 @@ function createHydraSource({ url, topicPrefix } = {}) {
   }
 }
 
-module.exports = { createHydraStore, createHydraSource, ENV_STALE_MS }
+module.exports = { createHydraStore, createHydraSource, ENV_STALE_MS, MAIN_ONLINE_STALE_MS, NODE_STALE_MS }

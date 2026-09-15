@@ -100,19 +100,23 @@ test('forwards only valid C6 navigation records to subscribers', async () => {
   client.stop()
 })
 
-test('forwards only valid Remote Touchpad inputs to subscribers', () => {
+test('forwards valid Remote inputs and routes MIC directly to the resident agent callback', () => {
   const socket = new FakeSocket()
   const inputs = []
+  let micToggles = 0
   const client = createRemoteBridgeClient({
     socketPath: '/tmp/open-deskos-remote-test.sock',
     createConnection: () => socket,
+    onRemoteMic: () => { micToggles++ },
   })
   client.onInput((input) => inputs.push(input))
   client.start()
   socket.emit('data', Buffer.from('{"v":1,"type":"input","input":"down"}\n'))
+  socket.emit('data', Buffer.from('{"v":1,"type":"input","input":"mic"}\n'))
   socket.emit('data', Buffer.from('{"v":1,"type":"input","input":"diagonal"}\n'))
   socket.emit('data', Buffer.from('{"v":2,"type":"input","input":"primary"}\n'))
   assert.deepEqual(inputs, ['down'])
+  assert.equal(micToggles, 1)
   client.stop()
 })
 

@@ -3081,8 +3081,16 @@ body.kiosk {
 }
 
 .hydra-offline .hydra-plant-soil,
-.hydra-offline .hydra-plant-name {
+.hydra-offline .hydra-plant-name,
+.hydra-plant.hydra-stale .hydra-plant-soil,
+.hydra-plant.hydra-stale .hydra-plant-name {
   color: var(--odk-secondary);
+}
+
+.hydra-plant.hydra-stale .hydra-plant-soil,
+.hydra-plant.hydra-stale .hydra-plant-name,
+.hydra-plant.hydra-stale .hydra-meter {
+  opacity: 0.58;
 }
 
 .hydra-unconfigured .hydra-env,

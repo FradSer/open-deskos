@@ -130,10 +130,11 @@ install_face_agent() {
 install_experimental_vision() {
   install_face_agent
 
-  echo "== configuring the experimental ESP32-P4 camera serial link =="
-  # The P4 board's USB-UART bridge presents its console/metadata link as 1a86:55d3.
+  echo "== configuring the experimental ESP32-P4 camera and microphone link =="
+  # The P4 native composite USB device exposes CDC metadata and a UAC microphone.
   $SUDO tee /etc/udev/rules.d/99-open-deskos-p4-camera.rules >/dev/null <<'EOF'
-SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="open-deskos-p4-camera", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="7002", SYMLINK+="open-deskos-p4-camera", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="open-deskos-p4-debug", GROUP="dialout", MODE="0660"
 EOF
   $SUDO udevadm control --reload-rules
   $SUDO udevadm trigger --subsystem-match=tty
@@ -164,22 +165,6 @@ if [ "$(id -u)" = "0" ]; then
   SANDBOX_FLAG="--no-sandbox"
 fi
 echo "electron $(run_as_target_user "${DIR}/node_modules/.bin/electron" --version $SANDBOX_FLAG 2>/dev/null || echo '?') on $(uname -m)"
-
-if [ -d "${REMOTE_BRIDGE_SOURCE}" ]; then
-  echo "== installing Remote Bridge user service =="
-  BRIDGE_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
-  run_as_target_user mkdir -p "$BRIDGE_UNIT_DIR"
-  sed "s|__OPEN_DESKOS_REMOTE_BRIDGE_DIR__|${REMOTE_BRIDGE_SOURCE}|g" \
-    "${REMOTE_BRIDGE_SOURCE}/systemd/open-deskos-remote-bridge.service" \
-    > "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
-  chown "${TARGET_UID}:${TARGET_GID}" "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
-  chmod 0644 "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
-  if ! run_as_target_user systemctl --user daemon-reload \
-    || ! run_as_target_user systemctl --user enable --now open-deskos-remote-bridge.service; then
-    echo "Remote Bridge user service could not be activated for ${TARGET_USER}; verify the graphical user session and retry:" >&2
-    echo "  systemctl --user enable --now open-deskos-remote-bridge.service" >&2
-  fi
-fi
 
 echo "== configuring borderless Openbox kiosk window manager =="
 $SUDO mkdir -p /usr/share/themes/OpenDeskOS/openbox-3
@@ -218,6 +203,15 @@ RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RELEASE_DIR}"
 if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${RELEASE_DIR}" >/dev/null && pwd -P)" ]; then
   run_as_target_user cp -a "${DIR}/." "${RELEASE_DIR}/"
+  echo "== sealing staged peripheral and experiment sources into the release =="
+  for tree in peripherals integrations experiments; do
+    if [ -d "${REPOSITORY_ROOT}/${tree}" ]; then
+      run_as_target_user cp -a "${REPOSITORY_ROOT}/${tree}" "${RELEASE_DIR}/${tree}"
+    fi
+  done
+  if [ -f "${REPOSITORY_ROOT}/DESIGN.md" ]; then
+    run_as_target_user cp -a "${REPOSITORY_ROOT}/DESIGN.md" "${RELEASE_DIR}/DESIGN.md"
+  fi
 fi
 prepare_voice_agent_release
 run_as_target_user node -e "require('node:fs').writeFileSync('${RELEASE_DIR}/release.json', JSON.stringify({ id: '${RELEASE_ID}', schemaVersion: 1, createdAt: new Date().toISOString() }) + '\\n')"
@@ -281,6 +275,23 @@ else
 fi
 run_as_target_user env ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" ODK_KIOSK_USER="${TARGET_USER}" \
   node "${RUNTIME_ROOT}/current/scripts/migrate-runtime.js"
+
+REMOTE_BRIDGE_RELEASE="${RUNTIME_ROOT}/current/integrations/remote-bridge"
+if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
+  echo "== installing Remote Bridge user service from active release =="
+  BRIDGE_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
+  run_as_target_user mkdir -p "$BRIDGE_UNIT_DIR"
+  sed "s|__OPEN_DESKOS_REMOTE_BRIDGE_DIR__|${REMOTE_BRIDGE_RELEASE}|g" \
+    "${REMOTE_BRIDGE_RELEASE}/systemd/open-deskos-remote-bridge.service" \
+    > "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
+  chown "${TARGET_UID}:${TARGET_GID}" "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
+  chmod 0644 "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
+  if ! run_as_target_user systemctl --user daemon-reload \
+    || ! run_as_target_user systemctl --user enable --now open-deskos-remote-bridge.service; then
+    echo "Remote Bridge user service could not be activated for ${TARGET_USER}; verify the graphical user session and retry:" >&2
+    echo "  systemctl --user enable --now open-deskos-remote-bridge.service" >&2
+  fi
+fi
 
 install_voice_agent_service || echo "Voice Agent unavailable; base shell remains active. Check device-local voice configuration and ALSA access." >&2
 

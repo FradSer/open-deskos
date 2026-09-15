@@ -5,7 +5,10 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-const source = fs.readFileSync('../../experiments/vision/face-agent/face_service.py', 'utf8')
+const { findRepositoryRoot } = require('./helpers/repo-root')
+
+const FACE_SERVICE_PATH = path.join(findRepositoryRoot(__dirname), 'experiments', 'vision', 'face-agent', 'face_service.py')
+const source = fs.readFileSync(FACE_SERVICE_PATH, 'utf8')
 
 test('Face Agent accepts inference only from the stable ESP32-P4 serial device', () => {
   assert.match(source, /DEFAULT_DEVICE = "\/dev\/open-deskos-p4-camera"/)
@@ -45,7 +48,7 @@ test('Face Agent serial mode forwards only on-device inference metadata', () => 
 test('Face Agent service overlay remains valid Python without local vision dependencies', () => {
   const pycachePrefix = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-pycache-'))
   try {
-    const result = childProcess.spawnSync('python3', ['-m', 'py_compile', '../../experiments/vision/face-agent/face_service.py'], {
+    const result = childProcess.spawnSync('python3', ['-m', 'py_compile', FACE_SERVICE_PATH], {
       encoding: 'utf8',
       env: { ...process.env, PYTHONPYCACHEPREFIX: pycachePrefix },
     })

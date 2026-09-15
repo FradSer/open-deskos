@@ -23,7 +23,7 @@ rsync -a --delete --exclude .DS_Store --exclude 'node_modules' --exclude '.env*'
   "${ROOT}/integrations/" "${TARGET}:${STAGING_ROOT}/integrations/"
 rsync -a --delete --exclude .DS_Store \
   "${ROOT}/experiments/" "${TARGET}:${STAGING_ROOT}/experiments/"
-rsync -a --delete --exclude .DS_Store \
+rsync -a --delete --exclude .DS_Store --exclude 'build/' --exclude 'managed_components/' --exclude 'node_modules' \
   "${ROOT}/peripherals/" "${TARGET}:${STAGING_ROOT}/peripherals/"
 rsync -a "${ROOT}/DESIGN.md" "${TARGET}:${STAGING_ROOT}/DESIGN.md"
 ssh "${TARGET}" "cd '${STAGING_ROOT}/runtime/linux' && bash scripts/cm5-install.sh"
