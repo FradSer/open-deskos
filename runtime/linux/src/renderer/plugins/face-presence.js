@@ -6,11 +6,13 @@
     unavailable: '<svg data-tabler="user-off" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 0 1 5.3 -3.8"/><path d="M16 10a4 4 0 0 1 -6.6 3"/><path d="M11 15h-1a4 4 0 0 0 -4 4v2"/><path d="M15 15h1a4 4 0 0 1 4 4v2"/><path d="M3 3l18 18"/></svg>',
   }
 
-  function text(className, value) {
-    const node = document.createElement('span')
-    node.className = className
-    node.textContent = value
-    return node
+  function presenceLabel(status) {
+    if (status.unlocked === true) return String(status.facesCount)
+    if (status.state === 'no-face') return 'No face'
+    if (status.state === 'unknown-face') return 'Unknown'
+    if (status.state === 'starting') return 'Starting'
+    if (status.state === 'no-frame') return 'No frame'
+    return 'Offline'
   }
 
   function stateLabel(status, recognized) {
@@ -31,7 +33,7 @@
         <span class="widget-status-name">Face presence</span>
         <div class="widget-signal widget-icon-body">
           ${recognized ? ICONS.detected : ICONS.unavailable}
-          <span class="w-vision-value">${recognized ? String(status.facesCount) : 'Offline'}</span>
+          <span class="w-vision-value">${presenceLabel(status)}</span>
         </div>
         <span class="w-state vision-status-detail">${state}</span>
       </div>`

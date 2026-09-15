@@ -59,6 +59,9 @@
       const query = search.value.trim().toLowerCase()
       const entries = items.filter((item) =>
         !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
+      status.textContent = entries.length ? '' : items.length
+        ? 'No matching built-in views. Clear search to see all views.'
+        : 'No built-in views available.'
       list.innerHTML = entries.map((item) =>
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }

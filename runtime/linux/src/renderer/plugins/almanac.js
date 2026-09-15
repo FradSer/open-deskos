@@ -22,7 +22,11 @@
       const weekday = el.querySelector('.al-weekday')
       const day = el.querySelector('.al-day')
       const month = el.querySelector('.al-month')
+      let renderedDate = ''
       ctx.onTick((now) => {
+        const date = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
+        if (date === renderedDate) return
+        renderedDate = date
         weekday.textContent = WEEKDAYS[now.getDay()]
         day.textContent = now.getDate()
         day.classList.toggle('al-day-wide', now.getDate() >= 10)

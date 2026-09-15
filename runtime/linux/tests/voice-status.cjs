@@ -32,20 +32,24 @@ app.whenReady().then(async () => {
           const node = document.getElementById('voice-status'); const r = node.getBoundingClientRect();
           const content = node.querySelector('.voice-status-content');
           const title = node.querySelector('.voice-status-title'); const stage = node.querySelector('.voice-status-stage');
-          const button = node.querySelector('button'); const b = button.getBoundingClientRect();
+          const detail = node.querySelector('.voice-status-detail');
           content.scrollTop = content.scrollHeight;
           return { hidden: node.hidden, title: title.textContent, titleHidden: title.hidden,
             contained: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight,
             overflow: content.scrollWidth > content.clientWidth + 1, scroll: content.scrollTop,
-            buttonHeight: b.height, buttonContained: b.bottom <= r.bottom && b.right <= r.right,
+            hasButton: !!node.querySelector('button'), detailFont: parseFloat(getComputedStyle(detail).fontSize),
             titleFont: parseFloat(getComputedStyle(title).fontSize), stageFont: parseFloat(getComputedStyle(stage).fontSize),
             compact: r.height <= 110, outside: !node.contains(document.elementFromPoint(5, 5)) };
         })()`)
         assert.equal(result.hidden, false)
         assert.equal(result.contained, true)
         assert.equal(result.overflow, false)
-        assert.equal(result.buttonContained, true)
-        assert.ok(result.buttonHeight >= 44)
+        assert.equal(result.hasButton, false)
+        assert.ok(result.detailFont >= 18)
+        if (width === 1920) {
+          assert.ok(result.stageFont >= 24)
+          assert.ok(result.titleFont >= 32)
+        }
         assert.equal(result.outside, true)
         assert.ok(result.stageFont >= 12 && result.stageFont < result.titleFont)
         assert.equal(result.titleHidden, state !== 'idle')
@@ -58,30 +62,34 @@ app.whenReady().then(async () => {
       win.show()
       win.focus()
       await pause()
-      await evaluate('document.querySelector(".voice-status-dismiss").focus()')
-      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' })
-      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' })
+      await evaluate('document.activeElement.blur()')
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
       await pause()
       assert.equal(await evaluate('document.getElementById("voice-status").hidden'), true)
       await send({ state: 'idle', message: 'Repeated result' })
       assert.equal(await evaluate('document.getElementById("voice-status").hidden'), true)
       await send({ state: 'unavailable', activated: true })
       assert.equal(await evaluate('document.getElementById("voice-status").hidden'), false)
-      await evaluate('document.querySelector(".voice-status-dismiss").click()')
+      await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
     }
   }
   await evaluate(`document.getElementById('app-view').hidden = false`)
   await send({ state: 'starting' })
   assert.equal(await evaluate(`document.getElementById('app-view').contains(document.getElementById('voice-status'))`), true)
-  await evaluate(`document.querySelector('.voice-status-dismiss').focus()`)
+  await evaluate(`document.querySelector('.voice-status-content').focus()`)
   const trapped = await evaluate(`(() => { const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); document.activeElement.dispatchEvent(event); return event.defaultPrevented && document.activeElement.id === 'app-back' })()`)
   assert.equal(trapped, true, 'Voice controls join the App Tab cycle')
-  await evaluate(`document.querySelector('.voice-status-dismiss').focus()`)
+  await evaluate(`document.getElementById('app-back').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
   await pause()
   assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true)
-  await evaluate(`document.getElementById('app-view').hidden = true`)
+  await send({ state: 'starting' })
+  await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
+  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true, 'Remote Back closes feedback before the App')
+  await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
+  assert.equal(await evaluate(`document.getElementById('app-view').hidden`), true, 'The next Back closes the App')
   await pause()
   assert.equal(await evaluate(`document.getElementById('voice-status').parentElement === document.body`), true)
   win.webContents.debugger.attach('1.3')

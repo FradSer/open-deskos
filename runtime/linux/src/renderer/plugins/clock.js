@@ -16,12 +16,15 @@
     mount(el, ctx) {
       el.innerHTML = `
         <div class="widget-signal clock-body">
-          <span class="w-clock-time">--:--</span>
+          <time class="w-clock-time">--:--</time>
         </div>`
 
       const time = el.querySelector('.w-clock-time')
       ctx.onTick((now) => {
-        time.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+        const reading = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+        if (time.textContent === reading) return
+        time.textContent = reading
+        time.dateTime = reading
       })
     },
   })

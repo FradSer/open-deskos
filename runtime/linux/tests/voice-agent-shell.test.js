@@ -31,7 +31,6 @@ test('voice preload exposes bounded control and status separately from monitorin
 test('voice feedback reuses one structured instrument and safely renders service messages', async () => {
   let listener
   const elements = Object.fromEntries([
-    '.voice-status-dismiss',
     '.voice-status-stage',
     '.voice-status-icon',
     '.voice-status-title',
@@ -48,17 +47,19 @@ test('voice feedback reuses one structured instrument and safely renders service
       return elements[selector]
     },
   }
+  const window = { addEventListener() {}, odkVoice: { subscribe: (fn) => { listener = fn } } }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/voice-status.js', 'utf8'), {
     document: { getElementById: () => node },
-    window: { addEventListener() {}, odkVoice: { subscribe: (fn) => { listener = fn } } },
+    window,
   })
+  assert.equal(window.odkVoiceStatus.close(), false, 'Hidden feedback must not consume Back')
   for (const state of ['idle', 'unavailable', 'error']) {
     listener({ state, message: 'Previous status' })
     assert.equal(node.hidden, true, `${state} must not open background feedback`)
   }
   listener({ state: 'unavailable', activated: true })
   assert.equal(node.hidden, false)
-  elements['.voice-status-dismiss'].click()
+  assert.equal(window.odkVoiceStatus.close(), true)
   assert.equal(node.hidden, true)
   listener({ state: 'starting' })
   assert.equal(elements['.voice-status-stage'].textContent, 'Preparing')
@@ -68,7 +69,7 @@ test('voice feedback reuses one structured instrument and safely renders service
   listener({ state: 'recording' })
   assert.equal(node.hidden, false)
   assert.equal(elements['.voice-status-stage'].textContent, 'Listening')
-  assert.match(elements['.voice-status-detail'].textContent, /MIC.*send/i)
+  assert.match(elements['.voice-status-detail'].textContent, /MIC.*submit/i)
   assert.equal(elements['.voice-status-limit'].textContent, 'Stops automatically after 30 seconds')
   listener({ state: 'thinking' })
   assert.equal(elements['.voice-status-stage'].textContent, 'Working')
@@ -85,12 +86,12 @@ test('voice feedback reuses one structured instrument and safely renders service
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, false)
   assert.equal(elements['.voice-status-title'].textContent, 'Request complete')
-  elements['.voice-status-dismiss'].click()
+  window.odkVoiceStatus.close()
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, true)
   listener({ state: 'starting' })
   assert.equal(node.hidden, false)
-  elements['.voice-status-dismiss'].click()
+  window.odkVoiceStatus.close()
   listener({ state: 'recording' })
   listener({ state: 'thinking' })
   listener({ state: 'unavailable' })

@@ -519,6 +519,7 @@ function main() {
       return
     }
     if (input === 'back') {
+      if (window.odkVoiceStatus?.close()) return
       if (!appView.hidden) {
         document.getElementById('app-back').click()
       } else if (appFocusMode) {
@@ -568,6 +569,10 @@ function main() {
   })
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && window.odkVoiceStatus?.close()) {
+      event.preventDefault()
+      return
+    }
     if (!appView.hidden) {
       if (event.key === 'Escape') {
         event.preventDefault()

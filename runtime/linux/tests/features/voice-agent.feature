@@ -31,8 +31,8 @@ Feature: Independent resident voice agent
     And state updates reuse the same bounded surface without rebuilding its contents
     And the Pi Sessions app remains a monitor
     And voice feedback leaves navigation outside its bounds usable
-    And a keyboard and touch accessible dismiss action hides feedback without cancelling the request
-    And Escape dismisses feedback when focus is inside the voice surface
+    And no Dismiss button occupies the feedback surface
+    And Remote Back or keyboard Escape hides feedback without cancelling the request regardless of focus
     And reduced motion removes spatial movement and looping animation without removing state feedback
 
   Scenario: Voice feedback distinguishes outcomes without color alone
@@ -62,5 +62,14 @@ Feature: Independent resident voice agent
   Scenario: Voice feedback remains keyboard accessible over an App
     Given a built-in App dialog is open
     When voice feedback is activated
-    Then its content and dismiss action belong to the dialog focus scope
+    Then its scrollable content belongs to the dialog focus scope
+    And Remote Back or keyboard Escape closes feedback before the underlying App
+    And the next Back or Escape retains normal App navigation
     And closing the App returns the feedback to the Shell
+
+  Scenario: Voice feedback is readable at desk distance
+    Given the shell runs at the CM5 native 1920 by 1280 resolution
+    When recording guidance or a response is displayed
+    Then stage labels are at least 24 pixels and response text is at least 32 pixels
+    And recording guidance says MIC submits the recording
+    And compact windows retain at least 18 pixel guidance and scroll long results without horizontal overflow

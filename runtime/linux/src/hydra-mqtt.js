@@ -204,7 +204,8 @@ function createHydraSource({ url, topicPrefix } = {}) {
     if (now - lastAttempt < RETRY_MS) return
     lastAttempt = now
     try {
-      const mqtt = require('mqtt')
+      const mqttEntry = require.resolve('mqtt')
+      const mqtt = require(require('node:fs').realpathSync(mqttEntry))
       client = mqtt.connect(url, {
         clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
         reconnectPeriod: 5000,

@@ -27,11 +27,19 @@
 
       const fill = el.querySelector('.meter-fill')
       const pct = el.querySelector('.year-pct')
+      let renderedWidth = ''
       ctx.onTick((now) => {
         const ratio = yearRatio(now)
-        fill.style.width = `${(ratio * 100).toFixed(2)}%`
-        pct.textContent = `${Math.round(ratio * 100)}%`
-        pct.classList.toggle('year-pct-wide', Math.round(ratio * 100) === 100)
+        const width = `${(ratio * 100).toFixed(2)}%`
+        const reading = `${Math.round(ratio * 100)}%`
+        if (renderedWidth !== width) {
+          fill.style.width = width
+          renderedWidth = width
+        }
+        if (pct.textContent !== reading) {
+          pct.textContent = reading
+          pct.classList.toggle('year-pct-wide', Math.round(ratio * 100) === 100)
+        }
       })
     },
   })

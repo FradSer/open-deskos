@@ -5,7 +5,6 @@
   if (!surface || !window.odkVoice) return
 
   const elements = {
-    dismiss: surface.querySelector('.voice-status-dismiss'),
     stage: surface.querySelector('.voice-status-stage'),
     icon: surface.querySelector('.voice-status-icon'),
     title: surface.querySelector('.voice-status-title'),
@@ -19,7 +18,7 @@
   const presentation = {
     starting: { stage: 'Preparing', icon: 'microphone', title: '', detail: '', progress: false },
     sending: { stage: 'Submitting', icon: 'arrow-up', title: '', detail: '', progress: true },
-    recording: { stage: 'Listening', icon: 'microphone', title: '', detail: 'Press MIC again to stop and send', progress: false },
+    recording: { stage: 'Listening', icon: 'microphone', title: '', detail: 'Press MIC again to submit', progress: false },
     transcribing: { stage: 'Transcribing', icon: 'wave-sine', title: '', detail: '', progress: true },
     thinking: { stage: 'Working', icon: 'arrow-right', title: '', detail: '', progress: true },
     error: { stage: 'Needs attention', icon: 'alert-triangle', title: '', detail: 'Check the Voice Agent configuration and try again', progress: false },
@@ -38,18 +37,17 @@
   let active = false
   let dismissed = false
   const busyStates = new Set(['starting', 'recording', 'sending', 'transcribing', 'thinking'])
-  elements.dismiss.addEventListener('click', () => {
+  function close() {
+    if (surface.hidden) return false
     dismissed = true
     surface.hidden = true
-  })
+    return true
+  }
+  window.odkVoiceStatus = { close }
 
   surface.addEventListener('keydown', (event) => {
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
       event.stopPropagation()
-    }
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      elements.dismiss.click()
     }
   })
 
