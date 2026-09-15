@@ -4,3 +4,4 @@
 - [open-deskos-cm5-wifi-kernel-constraint.md](open-deskos-cm5-wifi-kernel-constraint.md)
 - [open-deskos-cm5-workspace-runtime.md](open-deskos-cm5-workspace-runtime.md)
 - [open-deskos-user-application-lifecycle.md](open-deskos-user-application-lifecycle.md)
+- [project-widget-skill-inheritance.md](project-widget-skill-inheritance.md)
