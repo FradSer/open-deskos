@@ -157,13 +157,25 @@ All styling must adhere to `../../DESIGN.md` semantic tokens (`--odk-*`).
 
 ## 6. Interface-quality workflow
 
-Every widget change follows this workflow. The original upstream entries inherited as flat documents under [references](references/interface-references-source.md) are mandatory inputs, not optional inspiration. Read every linked reference in its assigned phase; open its linked supporting document when the widget or its states exercise that concern. `DESIGN.md`, this skill, product behavior, and machine-checkable runtime contracts remain authoritative when a general recommendation conflicts with Open DeskOS decisions.
+Every widget change follows this workflow. The original upstream entries inherited as flat documents under [references](references/interface-references-source.md) are mandatory inputs, not optional inspiration. Read every linked reference in its assigned phase. Read the linked supporting documents before applying their parent guidance when the widget or its states exercise that concern. `DESIGN.md`, this skill, product behavior, and machine-checkable runtime contracts remain authoritative when a general recommendation conflicts with Open DeskOS decisions.
 
 1. **Recon and intent**: Read [explain-interface](references/explain-interface.md) to identify the existing widget, theme, token, layout, and effect system before altering it. Read [better-writing](references/better-writing.md) to preserve nearby terminology and make missing, stale, and error states clear and truthful.
 2. **Design before implementation**: Read [variant](references/variant.md), [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md). For a materially new visual direction, implement meaningful candidates in the real widget surface and select against Open DeskOS density, display-only, and token contracts; do not invent visual variants where the product specification fixes the answer.
 3. **Implement accessible, truthful states**: Read [better-accessibility](references/better-accessibility.md) and apply its relevant semantics, focus, motion, zoom, and screen-reader guidance to any interactive app surface. Tiles remain display-only regardless of generic control guidance. Apply the design references while retaining the seams, states, and style rules in sections 1–5.
 4. **Stress real states**: Read [break](references/break.md) and its scenarios reference. Exercise every reachable live, loading, unavailable, stale, malformed, unauthorized, empty, long-text, CJK, compact-resolution, and theme state. Translate the observed cases into deterministic runtime tests and density fixtures; do not leave a temporary stress page in the release.
-5. **Review and verify**: Read [interface-review](references/interface-review.md) to resolve the widget change scope, then [better-interface](references/better-interface.md) to consolidate evidence from accessibility, colors, layout, typography, UI, and writing. Address introduced regressions, run the machine-readable gates in section 7, and only then begin the deployment procedure in section 9.
+5. **Verify implementation**: Run the machine-readable gates in section 8. When they pass, the widget implementation is complete and may enter the deployment procedure in section 10.
+
+---
+
+## 7. Post-creation interface review
+
+Run this separate review only after the widget implementation and its required verification are complete. It evaluates the completed change; it is not an implementation phase and does not prescribe a release sequence.
+
+1. Read [interface-review](references/interface-review.md) and [interface-review-scope-resolution](references/interface-review-scope-resolution.md). Resolve the actual change and its affected widget surfaces before forming an opinion.
+2. Read [better-interface](references/better-interface.md) and [better-interface-review-format](references/better-interface-review-format.md). Consolidate evidence from accessibility, colors, layout, typography, UI, and writing.
+3. Classify introduced regressions separately from pre-existing findings. Report observed breaks with scope and evidence; do not elevate deliberate Open DeskOS decisions into findings.
+
+The review reports quality; it does not reopen implementation or block deployment. If it identifies an introduced regression, a new corrective change follows the implementation workflow and can receive its own post-creation review.
 
 ### Reference inventory
 
@@ -181,7 +193,7 @@ Every widget change follows this workflow. The original upstream entries inherit
 
 ---
 
-## 7. Verification Harnesses & Density Gates
+## 8. Verification Harnesses & Density Gates
 
 Verify through observable, machine-readable output — never by looking at a rendered image. The session model may be text-only and a screenshot cannot be asserted, diffed, or trusted for exact geometry. Measure the live DOM instead.
 
@@ -225,7 +237,7 @@ This is faster and more reliable than capturing a PNG and sampling colors with P
 
 ---
 
-## 8. Shared Dirty Worktree Git Protocol
+## 9. Shared Dirty Worktree Git Protocol
 
 When collaborating in a working directory where other agents have uncommitted changes:
 - **Never run raw `git add` or `git commit`** (blocked by repository workflow).
@@ -235,7 +247,7 @@ When collaborating in a working directory where other agents have uncommitted ch
 
 ---
 
-## 9. CM5 Device Deployment & Operational Health
+## 10. CM5 Device Deployment & Operational Health
 
 Deployment stages an immutable release to the CM5 and updates the atomic symlink:
 
@@ -252,7 +264,7 @@ bash runtime/linux/scripts/cm5-stage-release.sh
 3. **Active-release verification**:
    Never assume a release ID discussed earlier in a session is still active. Check `readlink -f /opt/open-deskos/current` immediately before copying files or restarting. The process app path, `current` symlink, and service environment must agree.
 4. **Headless X11 navigation (last resort)**:
-   Prefer a CDP geometry probe (see section 7). Only when CDP is unavailable, drive the panel with X11 keys and read state back programmatically rather than inspecting a captured image:
+   Prefer a CDP geometry probe (see section 8). Only when CDP is unavailable, drive the panel with X11 keys and read state back programmatically rather than inspecting a captured image:
    ```bash
    DISPLAY=:0 XAUTHORITY=/var/run/lightdm/root/:0 xdotool key Right
    ```
