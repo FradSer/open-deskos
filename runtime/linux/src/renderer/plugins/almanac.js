@@ -26,6 +26,7 @@
         weekday.textContent = WEEKDAYS[now.getDay()]
         day.textContent = now.getDate()
         day.classList.toggle('al-day-wide', now.getDate() >= 10)
+        day.classList.toggle('al-day-narrow', now.getDate() === 1)
         month.textContent = now.toLocaleString('en-US', { month: 'short' })
       })
     },

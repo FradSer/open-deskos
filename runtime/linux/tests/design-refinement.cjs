@@ -16,7 +16,7 @@ async function today(win, check) {
 async function usage(win, check) {
   const result = await win.webContents.executeJavaScript(`(() => {
     const card = document.querySelector('.quota-card')
-    const actions = card.querySelector('.quota-actions')
+    const actions = card.querySelector('.quota-header-controls')
     const metrics = card.querySelector('.provider-quota-grid')
     return {
       actionsFirst: Boolean(actions.compareDocumentPosition(metrics) & Node.DOCUMENT_POSITION_FOLLOWING),

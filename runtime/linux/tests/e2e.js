@@ -16,6 +16,11 @@ const EXTRA_SIZES = [
 const DRIVER_SCRIPT = `
 (async () => {
   const $ = (selector) => document.querySelector(selector)
+  const text = (selector) => {
+    const element = $(selector)
+    if (!element) throw new Error('Required E2E element missing: ' + selector)
+    return element.textContent
+  }
   const out = {}
   const viewport = $('#pages-viewport')
   const track = $('#pages-track')
@@ -73,7 +78,7 @@ const DRIVER_SCRIPT = `
   out.pageCount = document.querySelectorAll('#pages-track .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
   out.userAppsPage = document.querySelector('#pages-track .page[data-page="5"]')?.textContent.includes('User applications')
-  out.pageContext = $('#page-context').textContent
+  out.pageContext = text('#page-context')
   out.surfaceSeparation =
     document.querySelector('#pages-track .page[data-page="1"]')?.dataset.surface === 'display' &&
     document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'display' &&
@@ -81,17 +86,17 @@ const DRIVER_SCRIPT = `
     document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app'
   out.fontsLoaded = document.fonts.check('400 20px Zpix') || (document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"'))
 
-  out.clockFormatted = /^\\d{2}:\\d{2}$/.test($('.sb-time').textContent)
-  out.dashWeekday = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/.test($('#dash-wd').textContent)
-  out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test($('#dash-md').textContent)
-  out.dashYearCurrent = $('#dash-y').textContent === String(new Date().getFullYear())
+  out.clockFormatted = /^\\d{2}:\\d{2}$/.test(text('.sb-time'))
+  out.dashWeekday = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/.test(text('#dash-wd'))
+  out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test(text('#dash-md'))
+  out.dashYearCurrent = text('#dash-y') === String(new Date().getFullYear())
   out.narrativeGroups = document.querySelectorAll('.dash-narrative > span').length
-  out.narrativeText = document.querySelector('.dash-narrative').textContent
+  out.narrativeText = text('.dash-narrative')
   out.todayStatesAreTruthful =
     out.narrativeGroups === 3 &&
-    $('#dash-network').textContent.includes('Network') &&
-    $('#dash-focus').textContent === 'Focus is not started.' &&
-    $('#dash-usage').textContent.includes('OpenCode Go') &&
+    text('#dash-network').includes('Network') &&
+    text('#dash-focus') === 'Focus is not started.' &&
+    text('#dash-usage') === 'Quota service not configured' &&
     !/\b(?:\d+ meetings|\d+ tasks|\d+ habits|steps|hours)\b/.test(out.narrativeText)
   const requiredIcons = ['bolt', 'chevron-left', 'folder']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
@@ -152,16 +157,16 @@ const DRIVER_SCRIPT = `
   const dotTransform = getComputedStyle(dots[0]).transform
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
-  const signalSelector = '.w-state, .al-day, .w-clock-time, .year-pct, .widget-status-value, .w-vision-value, .w-emotion, .pi-widget-count, .ring-mmss, .hydra-plant-soil'
+  const signalSelector = '.w-state, .al-day, .w-clock-time, .year-pct, .widget-status-value, .w-vision-value, .w-emotion, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .preorder-count'
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
-  out.clockIsAvailable = /^\\d{2}:\\d{2}$/.test($('.w-clock-time').textContent)
-  out.pomodoroNotRunning = $('.ring-mmss').textContent === '--:--' && $('.w-pomodoro .w-state').textContent === 'Not started'
+  out.clockIsAvailable = /^\\d{2}:\\d{2}$/.test(text('.w-clock-time'))
+  out.pomodoroNotRunning = text('.ring-mmss') === '--:--' && text('.w-pomodoro .w-state') === 'Not started'
   window.dispatchEvent(new Event('offline'))
   out.boltGreyOffline = !$('#sb-net').classList.contains('on')
-  out.offlineAnnounced = $('#status-announcement').textContent.includes('Network disconnected')
+  out.offlineAnnounced = text('#status-announcement').includes('Network disconnected')
   window.dispatchEvent(new Event('online'))
   out.boltLitOnline = $('#sb-net').classList.contains('on')
-  out.onlineAnnounced = $('#status-announcement').textContent.includes('Network connected')
+  out.onlineAnnounced = text('#status-announcement').includes('Network connected')
 
   const grid = $('.widget-grid')
   const gridRect = grid.getBoundingClientRect()
@@ -207,7 +212,7 @@ const DRIVER_SCRIPT = `
   out.pomodoroSpansTwoSquare =
     approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
 
-  out.subscriptionInitialStatus = $('#quota-state').textContent.includes('Quota service not configured')
+  out.subscriptionInitialStatus = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const pageIndex = (index) => document.querySelectorAll('#dots .dot')[index].click()
@@ -221,9 +226,9 @@ const DRIVER_SCRIPT = `
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))
   await new Promise((resolve) => setTimeout(resolve, 20))
   out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page="3"]')?.contains(document.activeElement)
-  const pageBeforeFocusMove = document.querySelector('#page-context').textContent
+  const pageBeforeFocusMove = text('#page-context')
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'right' }))
-  out.remoteAppDirectionStaysOnPage = document.querySelector('#page-context').textContent === pageBeforeFocusMove
+  out.remoteAppDirectionStaysOnPage = text('#page-context') === pageBeforeFocusMove
 
   const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
   const x0 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.8
@@ -273,7 +278,7 @@ const DRIVER_SCRIPT = `
     appId: 'pomodoro', widgetId: 'e2e-separate-app', route: 'home',
   })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  out.appSurfaceShowsRuntimeContent = !$('#app-view').hidden && $('#app-title').textContent === 'Pomodoro' && $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
+  out.appSurfaceShowsRuntimeContent = !$('#app-view').hidden && text('#app-title') === 'Pomodoro' && $('#app-runtime .runtime-app h2')?.textContent === 'Pomodoro'
   out.appSurfacePreservesSourceContext = $('#app-view').dataset.sourceWidget === 'e2e-separate-app' && $('#app-view').dataset.route === 'home'
   out.platformIntentTrace = JSON.stringify(window.odkAppPlatform?.events?.slice(-3).map((event) => event.layer)) === JSON.stringify(['installer', 'app-manager', 'app-runtime'])
   $('#app-back').click()
@@ -297,7 +302,7 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = $('#page-context').textContent === 'Reading · 3/6'
+  out.thirdPageContext = text('#page-context') === 'Reading · 3/6'
   out.piPageIsInteractiveAppSurface =
     document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
     Boolean(document.querySelector('#pages-track .page[data-page="3"] .pi-app-wrapper'))
@@ -318,36 +323,36 @@ const DRIVER_SCRIPT = `
   const piSearch = document.querySelector('#pages-track .page[data-page="3"] #pi-search-input')
   piSearch.focus()
   piSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.piSearchKeepsPagerPosition = $('#page-context').textContent === 'Reading · 3/6'
+  out.piSearchKeepsPagerPosition = text('#page-context') === 'Reading · 3/6'
   const runningFilter = document.querySelector('#pages-track .page[data-page="3"] .pi-filter-btn[data-filter="running"]')
   runningFilter.click()
   out.piFilterIsInteractive = runningFilter.classList.contains('active') && runningFilter.getAttribute('aria-pressed') === 'true'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = $('#page-context').textContent === 'Home · 2/6'
+  out.arrowLeftReturnsToGrid = text('#page-context') === 'Home · 2/6'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToYourApps = $('#page-context').textContent === 'Your apps · 6/6'
+  out.endJumpsToYourApps = text('#page-context') === 'Your apps · 6/6'
   out.usageIsInteractiveAppSurface =
     document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app' &&
     Boolean(document.querySelector('#pages-track .page[data-page="4"] #quota-refresh'))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = $('#page-context').textContent === 'Today · 1/6'
+  out.homeJumpsToToday = text('#page-context') === 'Today · 1/6'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachUsage = $('#page-context').textContent === 'Usage · 5/6'
+  out.consecutiveArrowRightsReachUsage = text('#page-context') === 'Usage · 5/6'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.arrowRightReachesYourApps = $('#page-context').textContent === 'Your apps · 6/6'
+  out.arrowRightReachesYourApps = text('#page-context') === 'Your apps · 6/6'
   document.querySelectorAll('#dots .dot')[4].click()
-  out.quotaStateIsHonest = $('#quota-state').textContent.includes('Quota service not configured')
-  out.quotaRefreshLabel = $('#quota-refresh').textContent === 'Refresh quotas'
+  out.quotaStateIsHonest = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
+  out.quotaRefreshLabel = text('#quota-refresh') === 'Refresh quotas'
   out.quotaHelpRemoved = $('#quota-help') === null
-  out.quotaCheckedVisible = $('#quota-checked').textContent.includes('Last checked')
-  out.quotaHasNoFabricatedUsage = $('#quota-metrics').textContent.includes('Actual quotas have not been retrieved')
-  out.quotaMetricsAreLabeled = Boolean($('#quota-metrics').classList.contains('provider-quota-grid'))
+  out.quotaCheckedVisible = text('#quota-checked').includes('Last checked')
+  out.quotaHasNoFabricatedUsage = !$('#quota-metrics .provider-quota-card, #quota-metrics [role="meter"]') && !/\\d+%/.test(text('#quota-metrics'))
+  out.quotaMetricsAreLabeled = $('#quota-metrics').classList.contains('provider-quota-grid') && $('#quota-metrics').getAttribute('role') === 'status' && $('#quota-metrics').getAttribute('aria-live') === 'polite'
   $('#quota-refresh').click()
-  out.quotaRefreshPreservesTruth = $('#quota-state').textContent.includes('Quota service not configured')
-  out.quotaRefreshShowsCheck = $('#quota-checked').textContent.includes('Last checked')
+  out.quotaRefreshPreservesTruth = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
+  out.quotaRefreshShowsCheck = text('#quota-checked').includes('Last checked')
   out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[4].classList.contains('active')
 
   // Return to the grid page so the geometry sweep measures on-screen rects.
@@ -362,15 +367,16 @@ const GEOMETRY_PROBE = `
   (() => {
     const $ = (selector) => document.querySelector(selector)
     const m = window.__odkGrid
-    const viewport = $('#pages-viewport').getBoundingClientRect()
     let widgetsInside = 0
     const widgets = [...document.querySelectorAll('.widget')]
     for (const el of widgets) {
       const r = el.getBoundingClientRect()
+      const page = el.closest('.page')
+      const bounds = page.getBoundingClientRect()
       if (
-        r.left >= viewport.left - 2 &&
-        r.right <= viewport.right + 2 &&
-        (r.bottom <= viewport.bottom + 2 || getComputedStyle(el.closest('.page')).overflowY === 'auto')
+        r.left >= bounds.left - 2 &&
+        r.right <= bounds.right + 2 &&
+        (r.bottom <= bounds.bottom + 2 || getComputedStyle(page).overflowY === 'auto')
       ) { widgetsInside += 1 }
     }
     const overflowingTexts = []
@@ -434,7 +440,7 @@ function check(results) {
     ['pager publishes complete authoritative Remote state', results.remotePageStatePublishesAuthoritativeBoundaries],
     ['Remote Link service retains USB, wireless, and synchronizing states', results.stateShowsUsbRemote && results.stateShowsWirelessRemote && results.stateShowsSyncingRemote],
     ['Remote Link navigation moves only an unoccluded bounded pager', results.remoteNavigationMovesPager],
-    ['duplicate Remote Link navigation moves only one page', results.repeatedRemoteMovesOnce],
+    ['consecutive Remote Link navigation preserves both inputs', results.consecutiveRemoteMovesTwice],
     ['Remote Touchpad ignores vertical input on display pages', results.remoteDisplayPageIgnoresVerticalInput],
     ['Remote Touchpad establishes App focus with primary input', results.remoteAppPrimaryEstablishesFocus],
     ['Remote Touchpad directions retain App Focus Mode', results.remoteAppDirectionStaysOnPage],
@@ -549,7 +555,7 @@ async function runGeometrySweep(win) {
     await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
     await new Promise((resolve) => setTimeout(resolve, 350))
     const checks = [
-      ['all widgets horizontally contained and vertically reachable', probe.widgetsInside === probe.widgetsTotal || probe.widgetsTotal === 0],
+      ['all widgets horizontally contained and vertically reachable', probe.widgetsTotal > 0 && probe.widgetsInside === probe.widgetsTotal],
       ['State Bar summary remains removed', probe.stateSummaryRemoved],
       ['Pi App controls wrap inside the scrollable portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.filterButtonsInside],
       ['widget text fits tiles', probe.textsFit],
@@ -760,9 +766,9 @@ async function main() {
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const repeatedRemoteMovesOnce = await pageContext() === 'Reading · 3/6'
+  const consecutiveRemoteMovesTwice = await pageContext() === 'Pi Sessions · 4/6'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
-  results.repeatedRemoteMovesOnce = repeatedRemoteMovesOnce
+  results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)
   const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)

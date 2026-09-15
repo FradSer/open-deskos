@@ -3,7 +3,10 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..', '..')
+const RUNTIME_ROOT = path.resolve(__dirname, '..')
+const REPOSITORY_ROOT = fs.existsSync(path.join(RUNTIME_ROOT, 'release.json'))
+  ? RUNTIME_ROOT
+  : path.resolve(RUNTIME_ROOT, '..', '..')
 const SKILL_ROOT = path.join(REPOSITORY_ROOT, '.agents', 'skills', 'open-deskos-widget')
 const SKILL = path.join(SKILL_ROOT, 'SKILL.md')
 const FEATURE = path.join(__dirname, 'features', 'open-deskos-widget-skill.feature')

@@ -71,7 +71,7 @@ test('highlight meta splits into bracket-free title, author, and date lines', as
   assert.match(text('.weread-date'), /^\d{4}-\d{2}-\d{2}$/)
   assert.equal(nodes.get('.weread-date').hidden, false)
   assert.equal(text('.weread-text'), '道可道，非常道')
-  assert.equal(nodes.get('.weread-text').style.fontSize, '64px')
+  assert.equal(nodes.get('.weread-text').style.fontSize, '72px')
 })
 
 test('missing author and date collapse their lines without breaking fit', async () => {

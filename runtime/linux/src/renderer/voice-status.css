@@ -1,49 +1,45 @@
 #voice-status {
   position: fixed;
   z-index: 100;
-  pointer-events: none;
   inset-block-end: var(--odk-space-4);
   inset-inline-start: 50%;
-  display: grid;
-  grid-template-columns: 6px minmax(0, 1fr);
-  column-gap: var(--odk-space-4);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--odk-space-3);
   transform: translateX(-50%);
-  width: min(720px, calc(100% - 48px));
-  max-height: 40vh;
-  overflow: auto;
-  padding: 22px 26px 24px;
-  border: 1px solid var(--odk-stroke-focus);
+  width: min(560px, calc(100% - 24px));
+  padding: var(--odk-space-3);
+  border: 1px solid var(--odk-stroke);
   border-radius: var(--odk-radius-card);
   background: var(--odk-surface);
   color: var(--odk-primary);
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
-#voice-status[hidden] {
+#voice-status[hidden],
+#voice-status [hidden] {
   display: none;
-}
-
-.voice-status-meter {
-  align-self: stretch;
-  min-height: 96px;
-  border-radius: var(--odk-radius-pill);
-  background: var(--odk-secondary-strong);
 }
 
 .voice-status-content {
   display: grid;
+  flex: 1;
   min-width: 0;
+  max-height: 40vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  user-select: text;
   row-gap: var(--odk-space-2);
-}
-
-.voice-status-heading,
-.voice-status-timing {
-  display: flex;
-  align-items: center;
+  padding: var(--odk-space-1);
 }
 
 .voice-status-heading {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
   gap: var(--odk-space-2);
   color: var(--odk-secondary-strong);
 }
@@ -79,152 +75,89 @@
   display: block;
 }
 
-.voice-status-stage {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
+.voice-status-stage,
+.voice-status-detail,
+.voice-status-timing {
+  color: var(--odk-secondary-strong);
+  font-size: 14px;
+  font-weight: 400;
 }
 
 .voice-status-title {
-  font-family: inherit;
-  font-size: clamp(24px, 1.8vw, 32px);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
+  font-size: clamp(18px, 1.2vw, 22px);
+  font-weight: 400;
+  line-height: 1.5;
 }
 
+.voice-status-title,
 .voice-status-detail {
-  max-width: 58ch;
-  color: var(--odk-secondary-strong);
-  font-size: clamp(14px, 1vw, 18px);
-  line-height: 1.45;
   white-space: pre-wrap;
-  text-wrap: pretty;
+}
+
+.voice-status-timing {
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-status-dismiss {
+  flex: none;
+  min-height: 44px;
+  padding: var(--odk-space-2) var(--odk-space-3);
+  border: 1px solid var(--odk-stroke);
+  border-radius: var(--odk-radius-pill);
+  background: transparent;
+  color: var(--odk-secondary-strong);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.voice-status-dismiss:focus-visible,
+.voice-status-content:focus-visible {
+  outline: 2px solid var(--odk-stroke-focus);
+  outline-offset: 2px;
+}
+
+.voice-status-dismiss:active {
+  background: var(--odk-button);
+  color: var(--odk-primary);
+}
+
+@media (hover: hover) {
+  .voice-status-dismiss:hover {
+    background: var(--odk-elevated);
+    color: var(--odk-primary);
+  }
 }
 
 .voice-status-progress {
-  position: relative;
-  height: 3px;
-  margin-block-start: var(--odk-space-1);
+  height: 2px;
   overflow: hidden;
-  border-radius: var(--odk-radius-pill);
   background: var(--odk-stroke);
 }
 
 .voice-status-progress span {
-  position: absolute;
-  inset: 0 auto 0 0;
+  display: block;
   width: 34%;
-  border-radius: inherit;
-  background: var(--odk-accent-blue);
+  height: 100%;
+  background: var(--odk-secondary-strong);
 }
 
-.voice-status-timing {
-  margin-block-start: var(--odk-space-1);
-  color: var(--odk-secondary-strong);
-  font-size: 14px;
-}
-
-#voice-status[data-state="recording"],
-#voice-status[data-state="error"] {
-  border-color: color-mix(in srgb, var(--odk-accent-red) 55%, var(--odk-stroke));
-}
-
-#voice-status[data-state="recording"] .voice-status-meter,
-#voice-status[data-state="error"] .voice-status-meter {
-  background: var(--odk-accent-red);
-}
-
-#voice-status[data-state="recording"] .voice-status-heading,
-#voice-status[data-state="error"] .voice-status-heading {
+#voice-status[data-state="recording"] .voice-status-icon,
+#voice-status[data-state="error"] .voice-status-icon {
   color: var(--odk-accent-red);
 }
 
-#voice-status[data-state="starting"],
-#voice-status[data-state="sending"],
-#voice-status[data-state="transcribing"],
-#voice-status[data-state="thinking"] {
-  border-color: color-mix(in srgb, var(--odk-accent-blue) 55%, var(--odk-stroke));
-}
-
-#voice-status[data-state="starting"] .voice-status-meter,
-#voice-status[data-state="sending"] .voice-status-meter,
-#voice-status[data-state="transcribing"] .voice-status-meter,
-#voice-status[data-state="thinking"] .voice-status-meter {
-  background: var(--odk-accent-blue);
-}
-
-#voice-status[data-state="starting"] .voice-status-heading,
-#voice-status[data-state="sending"] .voice-status-heading,
-#voice-status[data-state="transcribing"] .voice-status-heading,
-#voice-status[data-state="thinking"] .voice-status-heading {
-  color: var(--odk-accent-blue);
-}
-
-#voice-status[data-state="idle"] .voice-status-meter {
-  background: var(--odk-accent-green);
-}
-
-#voice-status[data-state="idle"] .voice-status-heading {
+#voice-status[data-state="idle"] .voice-status-icon {
   color: var(--odk-accent-green);
 }
 
-[data-theme='pixel'] .voice-status-title {
-  letter-spacing: normal;
-}
-
-@media (max-width: 600px) {
-  #voice-status {
-    inset-block-end: var(--odk-space-3);
-    width: calc(100% - 24px);
-    padding: 18px 18px 20px;
-    column-gap: var(--odk-space-3);
-  }
-
-  .voice-status-meter {
-    min-height: 88px;
-  }
-
-  .voice-status-title {
-    font-size: 22px;
-  }
-
-  .voice-status-detail {
-    font-size: 14px;
-  }
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  #voice-status:not([hidden]) {
-    animation: voice-status-enter 180ms cubic-bezier(0.23, 1, 0.32, 1);
-  }
-
   .voice-status-progress:not([hidden]) span {
     animation: voice-status-progress 1.2s linear infinite;
   }
 }
 
-@keyframes voice-status-enter {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-
 @keyframes voice-status-progress {
-  from {
-    transform: translateX(-110%);
-  }
-
-  to {
-    transform: translateX(310%);
-  }
+  from { transform: translateX(-110%); }
+  to { transform: translateX(310%); }
 }

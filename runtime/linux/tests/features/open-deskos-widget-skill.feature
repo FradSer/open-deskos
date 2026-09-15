@@ -1,4 +1,9 @@
 Feature: Open DeskOS Widget and App design-development skill
+  Scenario: Skill checks run inside an immutable CM5 release
+    Given a release containing release.json, tests, and its own .agents skill tree
+    And no repository-level skill tree exists above the release
+    When the release preflight runs the Widget and App skill tests
+    Then all skill checks pass using only the packaged skill tree
   Scenario: The skill routes work to the correct product surface
     Given a request to design or develop an Open DeskOS Widget or App
     When the skill starts

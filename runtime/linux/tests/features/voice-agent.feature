@@ -25,16 +25,42 @@ Feature: Independent resident voice agent
   Scenario: The shell displays recording and execution feedback
     Given the voice service publishes recording or thinking state
     When the shell receives the status
-    Then a separate stable voice status instrument displays a stage label, short title, and supporting detail
+    Then a separate compact voice surface displays a secondary stage label without a process headline
     And recording feedback states the 30 second automatic stop limit without inventing elapsed time
     And processing feedback shows an explicit progress treatment without fabricating completion percentage
     And state updates reuse the same bounded surface without rebuilding its contents
     And the Pi Sessions app remains a monitor
-    And voice feedback never intercepts touch navigation
+    And voice feedback leaves navigation outside its bounds usable
+    And a keyboard and touch accessible dismiss action hides feedback without cancelling the request
+    And Escape dismisses feedback when focus is inside the voice surface
     And reduced motion removes spatial movement and looping animation without removing state feedback
 
   Scenario: Voice feedback distinguishes outcomes without color alone
-    Given the voice service publishes unavailable, error, or completion state
+    Given a voice interaction has been activated
+    And the voice service publishes unavailable, error, or completion state
     When the shell receives the status
     Then the instrument uses persistent stage text and a state symbol
     And the recovery copy names the next action when voice is unavailable or fails
+
+  Scenario: Background voice service status does not open feedback
+    Given no voice interaction has been activated
+    When idle, unavailable, or error snapshots arrive including previous result text
+    Then the voice surface remains hidden
+    When MIC is pressed while the service is unavailable
+    Then the shell marks the feedback as explicitly activated and shows recovery guidance
+
+  Scenario: Results take precedence over process metadata
+    Given a voice interaction is active
+    When the service is thinking without response content
+    Then only a compact secondary processing label is shown without a large headline
+    When the service returns a response
+    Then the response is the primary reading and remains scrollable until dismissed
+    And arrow keys inside voice feedback scroll its content without navigating the underlying page
+    And repeated terminal snapshots do not reopen dismissed feedback
+    And reconnecting during a dismissed request does not reopen feedback
+
+  Scenario: Voice feedback remains keyboard accessible over an App
+    Given a built-in App dialog is open
+    When voice feedback is activated
+    Then its content and dismiss action belong to the dialog focus scope
+    And closing the App returns the feedback to the Shell

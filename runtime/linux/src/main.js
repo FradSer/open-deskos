@@ -155,7 +155,7 @@ async function main() {
         message: '',
       })
     } else {
-      broadcastVoiceStatus(current)
+      broadcastVoiceStatus({ ...current, activated: true })
     }
     return sent
   }

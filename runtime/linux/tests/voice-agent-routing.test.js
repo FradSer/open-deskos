@@ -7,6 +7,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
   let onInput
   let onRemoteMic
   let toggles = 0
+  let connected = true
   const sent = []
   const handlers = new Map()
   const win = {
@@ -36,7 +37,7 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
     },
     './voice-agent-client': {
       resolveVoiceSocketPath: () => '/test.sock',
-      createVoiceAgentClient: () => ({ subscribe() {}, start() {}, stop() {}, toggle: () => { toggles++; return true }, snapshot: () => ({ state: 'idle' }) }),
+      createVoiceAgentClient: () => ({ subscribe() {}, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? 'idle' : 'unavailable' }) }),
     },
     './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {} },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
@@ -59,6 +60,11 @@ test('Remote MIC reaches the independent agent once, never the Pi monitor or ren
   const result = toggle()
   assert.equal(result.accepted, true)
   assert.equal(sent[0][1].state, 'starting')
+  sent.length = 0
+  connected = false
+  assert.equal(toggle().accepted, false)
+  assert.equal(sent[0][1].state, 'unavailable')
+  assert.equal(sent[0][1].activated, true)
   sent.length = 0
   onInput('right')
   assert.equal(sent[0][0], 'odk-remote-input')

@@ -42,9 +42,8 @@
   </section>
 
   <div id="system-overlay-root" class="system-overlay-container" aria-live="polite"></div>
-  <div id="voice-status" role="status" aria-atomic="true" hidden>
-    <span class="voice-status-meter" aria-hidden="true"></span>
-    <div class="voice-status-content">
+  <div id="voice-status" role="region" aria-label="Voice request" hidden>
+    <div class="voice-status-content" role="status" tabindex="0">
       <div class="voice-status-heading">
         <span class="voice-status-icon" aria-hidden="true">
           <svg data-state-icon-name="microphone" viewBox="0 0 24 24"><path d="M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1 -6 0z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2" /><path d="M8 21h8" /><path d="M12 19v2" /></svg>
@@ -57,13 +56,14 @@
         </span>
         <span class="voice-status-stage"></span>
       </div>
-      <strong class="voice-status-title"></strong>
+      <div class="voice-status-title" dir="auto" hidden></div>
       <span class="voice-status-detail"></span>
       <div class="voice-status-progress" aria-hidden="true" hidden><span></span></div>
       <div class="voice-status-timing" hidden>
         <span class="voice-status-limit">Stops automatically after 30 seconds</span>
       </div>
     </div>
+    <button type="button" class="voice-status-dismiss" aria-label="Dismiss voice feedback">Dismiss</button>
   </div>
   <script src="core/voice-status.js"></script>
 

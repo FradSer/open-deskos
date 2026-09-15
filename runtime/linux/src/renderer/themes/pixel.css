@@ -95,6 +95,10 @@
   letter-spacing: normal;
 }
 
+[data-theme='pixel'] .al-day-narrow + .al-month {
+  font-size: 22cqi;
+}
+
 [data-theme='pixel'] .year-pct {
   font-size: 46cqi;
 }

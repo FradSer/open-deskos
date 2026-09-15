@@ -16,11 +16,12 @@ Feature: A calm and precise desk instrument
     And both experimental vision Widgets keep visible names
     And no placeholder capability uses a primary-action appearance
 
-  Scenario: Usage keeps recovery actions beside the status explanation
+  Scenario: Usage keeps recovery actions in its compact header
     Given OpenCode Go is unconfigured or unavailable
     When the user opens Usage in a compact window
-    Then the provider state and last-check time form one group
-    And refresh and navigation help appear before optional metric details
+    Then the last-check time and refresh action appear beside the page title in one compact header
+    And the header controls appear before optional metric details
+    And no redundant navigation help is rendered
     And empty-state prose is separated from numerical metrics
     And no redundant provider badge is rendered
     When the user requests a refresh

@@ -36,7 +36,7 @@
       const textEl = () => el.querySelector('.weread-text')
       const footEl = () => el.querySelector('.weread-foot')
       const MIN_TEXT_SIZE = 14
-      const MAX_TEXT_SIZE = 64
+      const MAX_TEXT_SIZE = 72
       const FIT_GAP = 28
       // Fluid hero base: characters per line grow sublinearly with length,
       // normalized by the copy width so every density converges near its
