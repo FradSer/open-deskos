@@ -25,8 +25,16 @@ Feature: Independent resident voice agent
   Scenario: The shell displays recording and execution feedback
     Given the voice service publishes recording or thinking state
     When the shell receives the status
-    Then a separate stable voice status instrument displays a short title and supporting detail
+    Then a separate stable voice status instrument displays a stage label, short title, and supporting detail
+    And recording feedback states the 30 second automatic stop limit without inventing elapsed time
+    And processing feedback shows an explicit progress treatment without fabricating completion percentage
     And state updates reuse the same bounded surface without rebuilding its contents
     And the Pi Sessions app remains a monitor
     And voice feedback never intercepts touch navigation
-    And reduced motion removes spatial movement without removing state feedback
+    And reduced motion removes spatial movement and looping animation without removing state feedback
+
+  Scenario: Voice feedback distinguishes outcomes without color alone
+    Given the voice service publishes unavailable, error, or completion state
+    When the shell receives the status
+    Then the instrument uses persistent stage text and a state symbol
+    And the recovery copy names the next action when voice is unavailable or fails

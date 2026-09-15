@@ -2,20 +2,16 @@
   position: fixed;
   z-index: 100;
   pointer-events: none;
-  bottom: var(--odk-space-4);
-  left: 50%;
+  inset-block-end: var(--odk-space-4);
+  inset-inline-start: 50%;
   display: grid;
-  grid-template-columns: 4px minmax(0, 1fr);
-  grid-template-areas:
-    "meter title"
-    "meter detail";
-  column-gap: var(--odk-space-3);
-  row-gap: var(--odk-space-1);
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: var(--odk-space-4);
   transform: translateX(-50%);
-  width: min(680px, calc(100% - 48px));
-  max-height: 35vh;
+  width: min(720px, calc(100% - 48px));
+  max-height: 40vh;
   overflow: auto;
-  padding: 18px 24px;
+  padding: 22px 26px 24px;
   border: 1px solid var(--odk-stroke-focus);
   border-radius: var(--odk-radius-card);
   background: var(--odk-surface);
@@ -29,32 +25,111 @@
 }
 
 .voice-status-meter {
-  grid-area: meter;
   align-self: stretch;
-  width: 4px;
-  min-height: 44px;
+  min-height: 96px;
   border-radius: var(--odk-radius-pill);
   background: var(--odk-secondary-strong);
 }
 
+.voice-status-content {
+  display: grid;
+  min-width: 0;
+  row-gap: var(--odk-space-2);
+}
+
+.voice-status-heading,
+.voice-status-timing {
+  display: flex;
+  align-items: center;
+}
+
+.voice-status-heading {
+  gap: var(--odk-space-2);
+  color: var(--odk-secondary-strong);
+}
+
+.voice-status-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  color: currentColor;
+  line-height: 1;
+}
+
+.voice-status-icon svg {
+  display: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.voice-status-icon[data-state-icon="microphone"] [data-state-icon-name="microphone"],
+.voice-status-icon[data-state-icon="arrow-up"] [data-state-icon-name="arrow-up"],
+.voice-status-icon[data-state-icon="wave-sine"] [data-state-icon-name="wave-sine"],
+.voice-status-icon[data-state-icon="arrow-right"] [data-state-icon-name="arrow-right"],
+.voice-status-icon[data-state-icon="alert-triangle"] [data-state-icon-name="alert-triangle"],
+.voice-status-icon[data-state-icon="microphone-off"] [data-state-icon-name="microphone-off"],
+.voice-status-icon[data-state-icon="check"] [data-state-icon-name="check"] {
+  display: block;
+}
+
+.voice-status-stage {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .voice-status-title {
-  grid-area: title;
   font-family: inherit;
-  font-size: clamp(20px, 1.5vw, 28px);
+  font-size: clamp(24px, 1.8vw, 32px);
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .voice-status-detail {
-  grid-area: detail;
+  max-width: 58ch;
   color: var(--odk-secondary-strong);
   font-size: clamp(14px, 1vw, 18px);
-  line-height: 1.4;
+  line-height: 1.45;
   white-space: pre-wrap;
+  text-wrap: pretty;
 }
 
-#voice-status[data-state="recording"] {
+.voice-status-progress {
+  position: relative;
+  height: 3px;
+  margin-block-start: var(--odk-space-1);
+  overflow: hidden;
+  border-radius: var(--odk-radius-pill);
+  background: var(--odk-stroke);
+}
+
+.voice-status-progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  border-radius: inherit;
+  background: var(--odk-accent-blue);
+}
+
+.voice-status-timing {
+  margin-block-start: var(--odk-space-1);
+  color: var(--odk-secondary-strong);
+  font-size: 14px;
+}
+
+#voice-status[data-state="recording"],
+#voice-status[data-state="error"] {
   border-color: color-mix(in srgb, var(--odk-accent-red) 55%, var(--odk-stroke));
 }
 
@@ -63,20 +138,38 @@
   background: var(--odk-accent-red);
 }
 
+#voice-status[data-state="recording"] .voice-status-heading,
+#voice-status[data-state="error"] .voice-status-heading {
+  color: var(--odk-accent-red);
+}
+
+#voice-status[data-state="starting"],
+#voice-status[data-state="sending"],
 #voice-status[data-state="transcribing"],
-#voice-status[data-state="thinking"],
-#voice-status[data-state="sending"] {
+#voice-status[data-state="thinking"] {
   border-color: color-mix(in srgb, var(--odk-accent-blue) 55%, var(--odk-stroke));
 }
 
+#voice-status[data-state="starting"] .voice-status-meter,
+#voice-status[data-state="sending"] .voice-status-meter,
 #voice-status[data-state="transcribing"] .voice-status-meter,
-#voice-status[data-state="thinking"] .voice-status-meter,
-#voice-status[data-state="sending"] .voice-status-meter {
+#voice-status[data-state="thinking"] .voice-status-meter {
   background: var(--odk-accent-blue);
 }
 
-#voice-status[data-state="error"] {
-  border-color: color-mix(in srgb, var(--odk-accent-red) 55%, var(--odk-stroke));
+#voice-status[data-state="starting"] .voice-status-heading,
+#voice-status[data-state="sending"] .voice-status-heading,
+#voice-status[data-state="transcribing"] .voice-status-heading,
+#voice-status[data-state="thinking"] .voice-status-heading {
+  color: var(--odk-accent-blue);
+}
+
+#voice-status[data-state="idle"] .voice-status-meter {
+  background: var(--odk-accent-green);
+}
+
+#voice-status[data-state="idle"] .voice-status-heading {
+  color: var(--odk-accent-green);
 }
 
 [data-theme='pixel'] .voice-status-title {
@@ -85,14 +178,18 @@
 
 @media (max-width: 600px) {
   #voice-status {
-    bottom: var(--odk-space-3);
+    inset-block-end: var(--odk-space-3);
     width: calc(100% - 24px);
-    padding: 14px 16px;
-    column-gap: var(--odk-space-2);
+    padding: 18px 18px 20px;
+    column-gap: var(--odk-space-3);
+  }
+
+  .voice-status-meter {
+    min-height: 88px;
   }
 
   .voice-status-title {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .voice-status-detail {
@@ -103,6 +200,10 @@
 @media (prefers-reduced-motion: no-preference) {
   #voice-status:not([hidden]) {
     animation: voice-status-enter 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .voice-status-progress:not([hidden]) span {
+    animation: voice-status-progress 1.2s linear infinite;
   }
 }
 
@@ -115,5 +216,15 @@
   to {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+}
+
+@keyframes voice-status-progress {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(310%);
   }
 }

@@ -30,40 +30,49 @@ test('voice preload exposes bounded control and status separately from monitorin
 
 test('voice feedback reuses one structured instrument and safely renders service messages', async () => {
   let listener
-  const title = { textContent: '' }
-  const detail = { textContent: '' }
-  const meter = { hidden: true }
+  const elements = Object.fromEntries([
+    '.voice-status-stage',
+    '.voice-status-icon',
+    '.voice-status-title',
+    '.voice-status-detail',
+    '.voice-status-limit',
+    '.voice-status-progress',
+    '.voice-status-timing',
+  ].map((selector) => [selector, { textContent: '', hidden: false, dataset: {}, style: { setProperty() {} } }]))
   const node = {
     hidden: true,
     dataset: {},
-    classList: { add() {}, remove() {} },
     querySelector(selector) {
-      return { '.voice-status-title': title, '.voice-status-detail': detail, '.voice-status-meter': meter }[selector]
+      return elements[selector]
     },
   }
-  const calls = []
   vm.runInNewContext(fs.readFileSync('src/renderer/core/voice-status.js', 'utf8'), {
     document: { getElementById: () => node },
-    window: { odkVoice: {
-      subscribe: (fn) => { listener = fn },
-      toggle: async () => { calls.push('toggle'); return { accepted: true } },
-    } },
+    window: { odkVoice: { subscribe: (fn) => { listener = fn } } },
   })
   listener({ state: 'starting' })
-  assert.equal(title.textContent, 'Starting Voice Agent')
+  assert.equal(elements['.voice-status-stage'].textContent, 'Preparing')
+  assert.equal(elements['.voice-status-icon'].dataset.stateIcon, 'microphone')
+  assert.equal(elements['.voice-status-title'].textContent, 'Opening microphone')
   assert.equal(node.hidden, false)
   listener({ state: 'recording' })
   assert.equal(node.hidden, false)
-  assert.match(title.textContent, /Listening/i)
-  assert.match(detail.textContent, /MIC.*stop/i)
+  assert.equal(elements['.voice-status-stage'].textContent, 'Listening')
+  assert.match(elements['.voice-status-detail'].textContent, /MIC.*send/i)
+  assert.equal(elements['.voice-status-limit'].textContent, 'Stops automatically after 30 seconds')
   listener({ state: 'thinking' })
-  assert.equal(meter.hidden, false)
+  assert.equal(elements['.voice-status-stage'].textContent, 'Executing')
+  assert.equal(elements['.voice-status-progress'].hidden, false)
   listener({ state: 'error', message: '<script>bad</script>' })
-  assert.equal(detail.textContent, '<script>bad</script>')
+  assert.match(elements['.voice-status-detail'].textContent, /^<script>bad<\/script>/)
+  assert.match(elements['.voice-status-detail'].textContent, /configuration.*try again/i)
+  assert.equal(elements['.voice-status-stage'].textContent, 'Needs attention')
+  assert.equal(elements['.voice-status-icon'].dataset.stateIcon, 'alert-triangle')
+  listener({ state: 'unavailable', message: 'Voice service unavailable' })
+  assert.match(elements['.voice-status-detail'].textContent, /service.*configuration/i)
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, false)
-  assert.equal(title.textContent, 'Complete')
+  assert.equal(elements['.voice-status-title'].textContent, 'Request complete')
   listener({ state: 'idle' })
   assert.equal(node.hidden, true)
-  assert.equal(calls.length, 0)
 })
