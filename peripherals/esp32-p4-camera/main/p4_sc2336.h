@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "driver/i2c_master.h"
 #include "esp_err.h"
 
 typedef struct {
@@ -35,7 +36,9 @@ typedef void (*p4_sc2336_frame_callback_t)(const uint8_t *frame_data, size_t fra
  * @param pins Pin configuration.
  * @return esp_err_t ESP_OK on success.
  */
-esp_err_t p4_sc2336_init_hardware(const p4_sc2336_pin_config_t *pins);
+esp_err_t p4_peripheral_i2c_init(i2c_master_bus_handle_t *bus_handle);
+esp_err_t p4_sc2336_init_hardware(const p4_sc2336_pin_config_t *pins,
+                                  i2c_master_bus_handle_t bus_handle);
 
 /**
  * @brief Start SC2336 video capture pipeline.

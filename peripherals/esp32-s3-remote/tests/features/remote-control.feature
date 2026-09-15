@@ -10,12 +10,15 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
   Scenario: USB Serial/JTAG carries the Remote protocol
     When the firmware starts
     Then the host sees the ESP32-S3 USB JTAG serial device
-    And that serial device carries newline-delimited Remote state and input records
+    And that serial device is owned exclusively by newline-delimited Remote state and input records
+    And firmware console logs do not share or corrupt the Remote protocol stream
 
   Scenario: Touchpad directional navigation is always available via swipe
     Given the CDC link is ready
+    And the CST328 touch interrupt can recover a malformed frame by returning the controller to normal mode
     When I swipe up, down, left, or right across at least 40 pixels on the touchpad
     Then the host receives one versioned input record with the matching direction
+    And full-frame polling never clears a touch frame through a separate status read
     And repeated touch reports for that gesture do not send another input record
     And six stable touch-release polls are required before the next gesture
 
@@ -44,7 +47,13 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
     Then the host receives one versioned back input record
     When I tap the Voice button below the touchpad
     Then the host receives one versioned mic input record
-    And voice audio interaction remains inactive
+    And the CM5 starts the resident Pi Voice Agent recording through the configured P4 microphone
+
+  Scenario: Remote input remains available after release cleanup
+    Given the Remote Bridge was installed from an isolated staging snapshot
+    When that staging directory is removed after release activation
+    Then the Remote Bridge starts from the active immutable release
+    And touch and MIC input continue to reach the CM5
 
   Scenario: Dynamic Touch Bar at the bottom renders plugin-customizable action buttons
     Given the CDC link is ready

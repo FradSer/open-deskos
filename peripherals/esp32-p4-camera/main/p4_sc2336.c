@@ -89,9 +89,26 @@ static void camera_task(void *arg)
     vTaskDelete(NULL);
 }
 
-esp_err_t p4_sc2336_init_hardware(const p4_sc2336_pin_config_t *pins)
+esp_err_t p4_peripheral_i2c_init(i2c_master_bus_handle_t *bus_handle)
 {
-    if (pins == NULL) {
+    if (bus_handle == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const i2c_master_bus_config_t config = {
+        .i2c_port = CONFIG_APP_CAMERA_SCCB_I2C_PORT,
+        .scl_io_num = CONFIG_APP_CAMERA_MIPI_SCCB_SCL_PIN,
+        .sda_io_num = CONFIG_APP_CAMERA_MIPI_SCCB_SDA_PIN,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    return i2c_new_master_bus(&config, bus_handle);
+}
+
+esp_err_t p4_sc2336_init_hardware(const p4_sc2336_pin_config_t *pins,
+                                  i2c_master_bus_handle_t bus_handle)
+{
+    if (pins == NULL || bus_handle == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -100,18 +117,14 @@ esp_err_t p4_sc2336_init_hardware(const p4_sc2336_pin_config_t *pins)
 
     static esp_video_init_csi_config_t csi_config[1];
     memset(csi_config, 0, sizeof(csi_config));
-    csi_config[0].sccb_config.init_sccb = true;
-    csi_config[0].sccb_config.i2c_config.port = pins->i2c_port;
-    csi_config[0].sccb_config.i2c_config.scl_pin = pins->scl_pin;
-    csi_config[0].sccb_config.i2c_config.sda_pin = pins->sda_pin;
+    csi_config[0].sccb_config.init_sccb = false;
+    csi_config[0].sccb_config.i2c_handle = bus_handle;
     csi_config[0].sccb_config.freq = pins->i2c_freq;
     csi_config[0].reset_pin = pins->reset_pin;
     csi_config[0].pwdn_pin = pins->pwdn_pin;
 
     const esp_video_init_config_t cam_config = {
         .csi = csi_config,
-        .dvp = NULL,
-        .jpeg = NULL,
     };
 
     esp_err_t ret = esp_video_init(&cam_config);

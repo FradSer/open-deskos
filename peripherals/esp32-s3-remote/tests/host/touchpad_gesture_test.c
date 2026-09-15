@@ -1,8 +1,11 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "cst328_frame.h"
 #include "font5x7.h"
 #include "touchpad_gesture.h"
 
@@ -31,6 +34,69 @@ static void release(touchpad_gesture_t *gesture, input_log_t *log, uint32_t now_
     for (unsigned i = 0; i < 6; ++i) {
         touchpad_gesture_release(gesture, now_ms, record_input, log);
     }
+}
+
+static void test_touch_controller_initialization_contract(void)
+{
+    FILE *file = fopen(REMOTE_SOURCE, "rb");
+    assert(file != NULL);
+    assert(fseek(file, 0, SEEK_END) == 0);
+    long length = ftell(file);
+    assert(length > 0);
+    rewind(file);
+    char *source = malloc((size_t)length + 1);
+    assert(source != NULL);
+    assert(fread(source, 1, (size_t)length, file) == (size_t)length);
+    source[length] = '\0';
+    fclose(file);
+
+    const char *high_first = strstr(source, "gpio_set_level(PIN_TOUCH_RST, 1)");
+    const char *low = strstr(source, "gpio_set_level(PIN_TOUCH_RST, 0)");
+    const char *high_last = low == NULL ? NULL : strstr(low + 1, "gpio_set_level(PIN_TOUCH_RST, 1)");
+    assert(high_first != NULL && low != NULL && high_last != NULL);
+    assert(high_first < low && low < high_last);
+    assert(strstr(source, "TOUCH_COMMAND_DEBUG_INFO 0xD101") != NULL);
+    assert(strstr(source, "TOUCH_COMMAND_NORMAL_MODE 0xD109") != NULL);
+    assert(strstr(source, "touch_write(TOUCH_COMMAND_DEBUG_INFO, NULL, 0)") != NULL);
+    assert(strstr(source, "touch_write(TOUCH_COMMAND_NORMAL_MODE, NULL, 0)") != NULL);
+    assert(strstr(source, "i2c_master_transmit(s_touch, command, sizeof(command), 50)") != NULL);
+    assert(strstr(source, "i2c_master_receive(s_touch, data, length, 50)") != NULL);
+    assert(strstr(source, "i2c_master_transmit_receive(s_touch") == NULL);
+    assert(strstr(source, "TOUCH_CONFIG_SIGNATURE 0xCACA") != NULL);
+    assert(strstr(source, "PIN_TOUCH_INT GPIO_NUM_4") != NULL);
+    assert(strstr(source, "usb_serial_jtag_vfs_use_driver") == NULL);
+    assert(strstr(source, "GPIO_INTR_ANYEDGE") != NULL);
+    assert(strstr(source, "s_touch_interrupt_pending") != NULL);
+    assert(strstr(source, "touch_read(TOUCH_REGISTER_POINTS, point_data, sizeof(point_data))") != NULL);
+    assert(strstr(source, "cst328_decode_first_point") != NULL);
+    free(source);
+}
+
+static void test_cst328_frame_decoder(void)
+{
+    uint8_t frame[CST328_FRAME_BYTES] = {0};
+    frame[0] = 0x06;
+    frame[1] = 0x0B;
+    frame[2] = 0x11;
+    frame[3] = 0x47;
+    frame[4] = 0x31;
+    frame[5] = 0x01;
+    frame[6] = CST328_FRAME_SIGNATURE;
+    cst328_point_t point;
+    assert(cst328_decode_first_point(frame, sizeof(frame), &point));
+    assert(point.x == 180);
+    assert(point.y == 279);
+    assert(point.strength == 0x31);
+
+    frame[6] = 0;
+    assert(!cst328_decode_first_point(frame, sizeof(frame), &point));
+    frame[6] = CST328_FRAME_SIGNATURE;
+    frame[5] = 0;
+    assert(!cst328_decode_first_point(frame, sizeof(frame), &point));
+    frame[5] = 1;
+    frame[0] = 0;
+    assert(!cst328_decode_first_point(frame, sizeof(frame), &point));
+    assert(!cst328_decode_first_point(frame, sizeof(frame) - 1, &point));
 }
 
 static void test_font_glyphs(void)
@@ -94,6 +160,8 @@ static void test_font_glyphs(void)
 
 int main(void)
 {
+    test_touch_controller_initialization_contract();
+    test_cst328_frame_decoder();
     test_font_glyphs();
 
     touchpad_gesture_t gesture;

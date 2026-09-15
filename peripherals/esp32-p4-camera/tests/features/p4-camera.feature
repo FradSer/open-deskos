@@ -64,6 +64,29 @@ Feature: ESP32-P4 SC2336 camera subsystem for Open DeskOS Linux
     And the CM5 stores that still only in `/tmp` for inspection
     And the production image does not expose a camera preview or diagnostic snapshot
 
+  Scenario: USB microphone is available to the CM5 as a standard audio input
+    Given the OSPTEK ESP32-P4C6 module baseboard V1.3 schematic is the board wiring authority
+    And the ES8311 uses I2S0 MCLK GPIO 13, BCLK GPIO 12, LRCK GPIO 10, and ADC output into P4 GPIO 11
+    And the existing camera metadata link remains enabled
+    When the ESP32-P4 connects to the CM5 through the native USB data Type-C port
+    Then Linux enumerates one composite device with CDC metadata and a USB Audio Class microphone
+    And the microphone streams signed 16-bit mono PCM at 16 kHz
+    And disconnecting or an unavailable codec never blocks camera capture or the base CM5 shell
+
+  Scenario: Hardware microphone capture proves a live signal without storing speech
+    Given the ES8311 microphone device opened successfully
+    When the firmware starts its one-shot hardware audio self-test
+    Then it reads a bounded PCM window before USB streaming begins
+    And it logs only aggregate level statistics
+    And it never logs or stores raw microphone samples
+
+  Scenario: CM5 accepts the P4 as a live standard audio source
+    Given the P4 native USB2.0 data Type-C port is connected to the CM5
+    When the CM5 hardware acceptance check runs
+    Then it verifies the composite USB identity, CDC metadata interface, and ALSA capture device
+    And it analyzes a bounded live PCM stream without writing an audio file
+    And it rejects silence, constant samples, excessive clipping, or a truncated capture
+
   Scenario: Structured face recognition metadata protocol for edge inference
     Given face analysis or emotion inference is performed on the ESP32-P4
     When face metadata is generated

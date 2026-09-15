@@ -25,6 +25,7 @@
 #include "p4_camera_protocol.h"
 #include "p4_face_inference.h"
 #include "p4_sc2336.h"
+#include "p4_usb_microphone.h"
 #include "sdkconfig.h"
 
 #ifndef CONFIG_APP_CAMERA_OWNER_NAME
@@ -271,15 +272,20 @@ static void on_camera_frame(const uint8_t *frame_data,
     }
 }
 
-static void usb_init(void)
+static esp_err_t usb_init(void)
 {
-    const tinyusb_config_t usb_config = TINYUSB_DEFAULT_CONFIG();
-    ESP_ERROR_CHECK(tinyusb_driver_install(&usb_config));
+    tinyusb_config_t usb_config = TINYUSB_DEFAULT_CONFIG();
+    usb_config.port = TINYUSB_PORT_HIGH_SPEED_0;
+#if CONFIG_APP_USB_MICROPHONE
+    usb_config.descriptor = *p4_usb_composite_descriptors();
+#endif
+    ESP_RETURN_ON_ERROR(tinyusb_driver_install(&usb_config), TAG, "install TinyUSB driver");
 
     tinyusb_config_cdcacm_t cdc_config = {0};
     cdc_config.cdc_port = TINYUSB_CDC_ACM_0;
-    ESP_ERROR_CHECK(tinyusb_cdcacm_init(&cdc_config));
+    ESP_RETURN_ON_ERROR(tinyusb_cdcacm_init(&cdc_config), TAG, "initialize metadata CDC interface");
     ESP_LOGI(TAG, "TinyUSB initialized for CM5 metadata link");
+    return ESP_OK;
 }
 
 void app_main(void)
@@ -292,7 +298,9 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(mount_face_storage());
     ESP_ERROR_CHECK(configure_owner_confirm_button());
-    usb_init();
+
+    i2c_master_bus_handle_t peripheral_i2c = NULL;
+    ESP_ERROR_CHECK(p4_peripheral_i2c_init(&peripheral_i2c));
 
     const p4_sc2336_pin_config_t pins = {
         .sda_pin = CONFIG_APP_CAMERA_MIPI_SCCB_SDA_PIN,
@@ -302,7 +310,11 @@ void app_main(void)
         .i2c_port = CONFIG_APP_CAMERA_SCCB_I2C_PORT,
         .i2c_freq = CONFIG_APP_CAMERA_SCCB_I2C_FREQ,
     };
-    ESP_ERROR_CHECK(p4_sc2336_init_hardware(&pins));
+    ESP_ERROR_CHECK(p4_sc2336_init_hardware(&pins, peripheral_i2c));
+    ESP_ERROR_CHECK(usb_init());
+#if CONFIG_APP_USB_MICROPHONE
+    ESP_ERROR_CHECK(p4_usb_microphone_init(peripheral_i2c));
+#endif
 
     s_analysis_queue = xQueueCreate(ANALYSIS_QUEUE_DEPTH, sizeof(frame_job_t));
     if (s_analysis_queue == NULL) {

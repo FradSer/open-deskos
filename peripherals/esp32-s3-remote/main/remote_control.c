@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "cst328_frame.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
@@ -38,9 +39,14 @@
 #define PIN_TOUCH_SDA GPIO_NUM_1
 #define PIN_TOUCH_SCL GPIO_NUM_3
 #define PIN_TOUCH_RST GPIO_NUM_2
+#define PIN_TOUCH_INT GPIO_NUM_4
 #define TOUCH_I2C_ADDRESS 0x1A
 #define TOUCH_REGISTER_COUNT 0xD005
 #define TOUCH_REGISTER_POINTS 0xD000
+#define TOUCH_COMMAND_DEBUG_INFO 0xD101
+#define TOUCH_COMMAND_NORMAL_MODE 0xD109
+#define TOUCH_REGISTER_CONFIG 0xD1F4
+#define TOUCH_CONFIG_SIGNATURE 0xCACA
 
 #define TOUCH_POLL_INTERVAL_MS 16
 #define CDC_STATE_MAX_BYTES 512
@@ -86,6 +92,7 @@ static touchpad_gesture_t s_touchpad;
 static char s_cdc_line[CDC_STATE_MAX_BYTES + 1];
 static size_t s_cdc_line_length;
 static bool s_cdc_line_overflow;
+static volatile bool s_touch_interrupt_pending;
 
 static esp_err_t display_power_init(void)
 {
@@ -199,7 +206,15 @@ static esp_err_t touch_read(uint16_t register_address, uint8_t *data, size_t len
         (uint8_t)(register_address >> 8),
         (uint8_t)register_address,
     };
-    return i2c_master_transmit_receive(s_touch, command, sizeof(command), data, length, 50);
+    ESP_RETURN_ON_ERROR(i2c_master_transmit(s_touch, command, sizeof(command), 50), TAG,
+                        "touch register select");
+    return i2c_master_receive(s_touch, data, length, 50);
+}
+
+static void IRAM_ATTR touch_interrupt_handler(void *context)
+{
+    (void)context;
+    s_touch_interrupt_pending = true;
 }
 
 static esp_err_t touch_init(void)
@@ -223,10 +238,32 @@ static esp_err_t touch_init(void)
     ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(touch_bus, &touch_config, &s_touch), TAG, "CST328");
 
     ESP_RETURN_ON_ERROR(gpio_set_direction(PIN_TOUCH_RST, GPIO_MODE_OUTPUT), TAG, "touch reset GPIO");
+    ESP_RETURN_ON_ERROR(gpio_set_level(PIN_TOUCH_RST, 1), TAG, "touch reset initial high");
+    vTaskDelay(pdMS_TO_TICKS(50));
     ESP_RETURN_ON_ERROR(gpio_set_level(PIN_TOUCH_RST, 0), TAG, "touch reset low");
     vTaskDelay(pdMS_TO_TICKS(5));
     ESP_RETURN_ON_ERROR(gpio_set_level(PIN_TOUCH_RST, 1), TAG, "touch reset high");
     vTaskDelay(pdMS_TO_TICKS(50));
+    ESP_RETURN_ON_ERROR(touch_write(TOUCH_COMMAND_DEBUG_INFO, NULL, 0), TAG, "touch debug mode command");
+    uint8_t config[24] = {0};
+    ESP_RETURN_ON_ERROR(touch_read(TOUCH_REGISTER_CONFIG, config, sizeof(config)), TAG, "touch config read");
+    const uint16_t signature = ((uint16_t)config[11] << 8) | config[10];
+    ESP_RETURN_ON_FALSE(signature == TOUCH_CONFIG_SIGNATURE, ESP_ERR_INVALID_RESPONSE, TAG,
+                        "unexpected CST328 config signature 0x%04x", signature);
+    ESP_RETURN_ON_ERROR(touch_write(TOUCH_COMMAND_NORMAL_MODE, NULL, 0), TAG, "touch normal mode command");
+    const gpio_config_t interrupt_config = {
+        .pin_bit_mask = 1ULL << PIN_TOUCH_INT,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_ANYEDGE,
+    };
+    ESP_RETURN_ON_ERROR(gpio_config(&interrupt_config), TAG, "touch interrupt GPIO");
+    ESP_RETURN_ON_ERROR(gpio_install_isr_service(0), TAG, "touch interrupt service");
+    ESP_RETURN_ON_ERROR(gpio_isr_handler_add(PIN_TOUCH_INT, touch_interrupt_handler, NULL), TAG,
+                        "touch interrupt handler");
+    ESP_LOGI(TAG, "CST328 ready: I2C1 SDA=%d SCL=%d INT=%d RST=%d addr=0x%02x",
+             PIN_TOUCH_SDA, PIN_TOUCH_SCL, PIN_TOUCH_INT, PIN_TOUCH_RST, TOUCH_I2C_ADDRESS);
     return ESP_OK;
 }
 
@@ -235,22 +272,22 @@ static bool touch_read_point(int16_t *x, int16_t *y)
     if (s_touch == NULL) {
         return false;
     }
-    uint8_t count = 0;
-    uint8_t point_data[27] = {0};
-    const uint8_t clear = 0;
-    if (touch_read(TOUCH_REGISTER_COUNT, &count, sizeof(count)) != ESP_OK) {
-        return false;
-    }
-    if ((count & 0x0F) == 0) {
-        touch_write(TOUCH_REGISTER_COUNT, &clear, sizeof(clear));
-        return false;
-    }
+    uint8_t point_data[CST328_FRAME_BYTES] = {0};
     if (touch_read(TOUCH_REGISTER_POINTS, point_data, sizeof(point_data)) != ESP_OK) {
         return false;
     }
-    touch_write(TOUCH_REGISTER_COUNT, &clear, sizeof(clear));
-    *x = ((int16_t)point_data[1] << 4) | ((point_data[3] & 0xF0) >> 4);
-    *y = ((int16_t)point_data[2] << 4) | (point_data[3] & 0x0F);
+
+    cst328_point_t point;
+    if (!cst328_decode_first_point(point_data, sizeof(point_data), &point)) {
+        if (s_touch_interrupt_pending) {
+            s_touch_interrupt_pending = false;
+            touch_write(TOUCH_COMMAND_NORMAL_MODE, NULL, 0);
+        }
+        return false;
+    }
+    s_touch_interrupt_pending = false;
+    *x = (int16_t)point.x;
+    *y = (int16_t)point.y;
     return *x >= 0 && *x < DISPLAY_WIDTH && *y >= 0 && *y < DISPLAY_HEIGHT;
 }
 

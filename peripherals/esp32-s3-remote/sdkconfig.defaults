@@ -9,7 +9,9 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 
-# The board exposes USB-Serial/JTAG only; it carries the Remote protocol.
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# The board's USB-Serial/JTAG stream is reserved exclusively for the Remote protocol.
+CONFIG_ESP_CONSOLE_NONE=y
+# CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is not set
 # CONFIG_ESP_CONSOLE_UART_DEFAULT is not set
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 # CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set

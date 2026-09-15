@@ -58,6 +58,41 @@ menu "ESP32-P4 SC2336 Camera Configuration"
             that face under this local P4 owner label. Host processes cannot
             set this value or initiate enrollment.
 
+    config APP_USB_MICROPHONE
+        bool "Expose the board microphone as a USB Audio Class input"
+        default y
+
+    config APP_AUDIO_I2S_PORT
+        int "ES8311 I2S port"
+        default 0
+        depends on APP_USB_MICROPHONE
+
+    config APP_AUDIO_I2S_MCLK_PIN
+        int "ES8311 I2S MCLK GPIO"
+        default 13
+        depends on APP_USB_MICROPHONE
+
+    config APP_AUDIO_I2S_BCLK_PIN
+        int "ES8311 I2S BCLK GPIO"
+        default 12
+        depends on APP_USB_MICROPHONE
+
+    config APP_AUDIO_I2S_WS_PIN
+        int "ES8311 I2S WS/LRCLK GPIO"
+        default 10
+        depends on APP_USB_MICROPHONE
+
+    config APP_AUDIO_I2S_DIN_PIN
+        int "ES8311 ASDOUT to P4 I2S DIN GPIO"
+        default 11
+        depends on APP_USB_MICROPHONE
+
+    config APP_AUDIO_INPUT_GAIN_DB
+        int "ES8311 microphone input gain in dB"
+        range 0 42
+        default 30
+        depends on APP_USB_MICROPHONE
+
     config APP_CAMERA_DIAGNOSTIC_SNAPSHOT
         bool "Emit one diagnostic camera snapshot over the serial console"
         default n

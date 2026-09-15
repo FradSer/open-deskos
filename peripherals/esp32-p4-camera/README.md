@@ -7,10 +7,10 @@ ESP32-P4 + SC2336 MIPI CSI Camera Peripheral for the CM5/Linux Open DeskOS archi
 ```text
 SC2336 BGGR RAW8 → ESP32-P4 MIPI CSI → bounded PSRAM frame copy
   → BGGR-to-RGB565 conversion → ESP-DL face detection / owner feature match
-  → newline-delimited metadata on USB-UART → CM5 Face Agent → Electron widgets
+  → newline-delimited metadata on native USB CDC → CM5 Face Agent → Electron widgets
 ```
 
-The P4 reports metadata only. It never sends full camera frames to the CM5.
+The P4 reports camera metadata rather than full image frames. Its native USB device port also exposes the board microphone as a standard USB Audio Class input while retaining the CDC metadata interface.
 
 ## Hardware Pinout
 
@@ -25,7 +25,26 @@ The P4 reports metadata only. It never sends full camera frames to the CM5.
 | Power Down | -1 | Unconnected |
 | Owner confirmation | GPIO 0 / BOOT | Active-low; required for physical enrollment |
 
-The implementation follows the SC2336 MIPI CSI configuration demonstrated by [osptek/camera-mipi-csi-sc2336](https://github.com/osptek/camera-mipi-csi-sc2336), retaining its compatible SC2336 pins and `esp_video` capture boundary.
+## USB Microphone
+
+The native ESP32-P4 USB device port enumerates as a composite device:
+
+- CDC ACM carries the existing newline-delimited camera metadata.
+- UAC2 exposes signed 16-bit mono PCM at 16 kHz for standard Linux ALSA capture.
+
+The OSPTEK V1.3 baseboard schematic defines the ES8311 wiring: I2S0 MCLK GPIO 13, BCLK/SCLK GPIO 12, WS/LRCK GPIO 10, and ES8311 `ASDOUT` into the P4 capture input on GPIO 11. GPIO 9 is the opposite playback direction (`DSDIN`) and is not used by this microphone-only implementation. ES8311 and SC2336 share I2C SDA GPIO 7 and SCL GPIO 8; the codec uses the Espressif driver's `0x30` wire-format address, corresponding to 7-bit address `0x18`.
+
+The P4 native USB pair uses GPIO 24/25 through the TS3USB221ARSER mux. Connect the CM5 to the board's native USB **data** Type-C connector; the separate CH343P debug Type-C connector cannot carry UAC audio.
+
+On the CM5, run the live hardware acceptance check as the kiosk user or root:
+
+```sh
+bash runtime/linux/scripts/p4-microphone-acceptance.sh
+```
+
+The check requires USB identity `303a:7002`, resolves the ALSA card, streams bounded raw PCM through a pipe, and rejects silence, constant data, clipping, or a truncated capture without writing speech to disk. After acceptance, set `ODESK_VOICE_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0` in the device-local Voice Agent environment rather than hardcoding a numeric card index in a release.
+
+The board-level wiring authority is the OSPTEK [`esp32-p4c6-module-dev-board`](https://gitee.com/osptek/esp32-p4c6-module-dev-board) repository at the reviewed V1.3 baseboard schematic. The camera implementation follows the SC2336 MIPI CSI configuration demonstrated by [osptek/camera-mipi-csi-sc2336](https://github.com/osptek/camera-mipi-csi-sc2336), retaining its compatible SC2336 pins and `esp_video` capture boundary.
 
 ## Experimental Owner Recognition
 
@@ -99,7 +118,7 @@ eim run 'idf.py build' v6.0.1
 eim run 'idf.py -p PORT flash monitor' v6.0.1
 ```
 
-`idf.py flash` includes the firmware, partition table, and both model partitions. When the USB-UART bridge is unreliable for the roughly 5 MB complete image, use `esptool` at 115200 baud and keep the Face Agent stopped while flashing.
+`idf.py flash` includes the firmware, partition table, and both model partitions. When the USB-UART bridge is unreliable for the roughly 5 MB complete image, use `esptool` at 115200 baud and keep the Face Agent stopped while flashing. Flashing may still use the USB-UART bridge, but the CM5 microphone connection must use the P4 native USB device port.
 
 ## BDD Contract
 

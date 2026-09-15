@@ -3,7 +3,7 @@
 Required architecture peripheral for the active CM5/Linux runtime. It is distinct from the preserved prior P4+C6 DeskOS device OS.
 
 Standalone ESP-IDF firmware for the **Waveshare ESP32-S3 Touch LCD 2.8**. It
-uses the board's USB-Serial/JTAG port as a high-speed bidirectional protocol interface. It receives newline-delimited authoritative v1 state JSON and sends versioned Remote Touchpad input records.
+uses the board's USB-Serial/JTAG port as an exclusive bidirectional protocol interface. Firmware console output is disabled so logs cannot corrupt newline-delimited authoritative v1 state JSON or versioned Remote Touchpad input records.
 
 ## Interaction Architecture (Apple TV Remote + Contextual Touch Bar)
 
@@ -21,7 +21,7 @@ The remote interface is divided into three functional vertical sections:
 2. **Middle Section: Dedicated System Controls**
    - Directly below the touchpad:
      - **`< BACK`**: Tapping emits `back` (returns from focused controls, closes modals, or goes back).
-     - **`MIC`**: Emits `mic` to the CM5 resident Voice Agent. Click once to record from the CM5 Linux default microphone, then again to stop and submit; recording also ends after 30 seconds. The Remote transports button input, not audio. The independent service transcribes through a configured OpenAI-compatible endpoint and invokes Pi capabilities; missing microphone, credentials, or service is reported by the shell rather than treated as success. See [Voice Agent](../../integrations/voice-agent/README.md) for setup and verification limits.
+     - **`MIC`**: Emits `mic` to the CM5 resident Voice Agent. Click once to record from the configured Voice Agent microphone, then again to stop and submit; recording also ends after 30 seconds. The accepted CM5 configuration uses the P4 UAC input `plughw:CARD=Microphone,DEV=0`. The Remote transports button input, not audio. The independent service transcribes through a configured OpenAI-compatible endpoint and invokes Pi capabilities; missing microphone, credentials, or service is reported by the shell rather than treated as success. See [Voice Agent](../../integrations/voice-agent/README.md) for setup and verification limits.
 
 3. **Bottom Section: Contextual Touch Bar**
    - A dynamic action bar at the bottom of the screen (similar to MacBook Touch Bar).
@@ -61,7 +61,7 @@ The Remote sends each user interaction to the host as one JSON Lines record:
 | --- | --- |
 | ST7789 SPI display | MOSI GPIO45, SCLK GPIO40, CS GPIO42, DC GPIO41, RST GPIO39 |
 | Display backlight | GPIO5, LEDC 20 kHz |
-| CST328 touch | I2C1 SDA GPIO1, SCL GPIO3, RST GPIO2, address `0x1A` |
+| CST328 touch | I2C1 SDA GPIO1, SCL GPIO3, RST GPIO2, INT GPIO4, address `0x1A` |
 | Panel power latch | key GPIO6, control GPIO7 |
 | Serial Link | ESP32-S3 USB-Serial/JTAG |
 
