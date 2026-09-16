@@ -86,7 +86,7 @@ Completion criterion: the selected architecture path, user task, data provenance
 
 ### Phase B: Design the real surface
 
-1. Read [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md).
+1. Read [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md). For a built-in tile, copy the matching example in [tile-examples](references/tile-examples.md) instead of inventing a parallel pattern.
 2. For a materially new direction, read [variant](references/variant.md) and build meaningful candidates in the real surface. Vary structure, density, emphasis, type, or voice—not cosmetic tints. Remove the variant harness after promotion.
 3. Use shared alignment edges and semantic spacing. Group with space before adding borders or nested surfaces.
 4. For vertical metrics, stack label above value/unit. Keep status/header placement from displacing the geometric center of the primary reading.
@@ -198,6 +198,7 @@ Implementation references:
 - [better-typography](references/better-typography.md)
 - [better-ui](references/better-ui.md)
 - [better-writing](references/better-writing.md)
+- [tile-examples](references/tile-examples.md)
 - [break](references/break.md)
 - [explain-interface](references/explain-interface.md)
 - [variant](references/variant.md)
