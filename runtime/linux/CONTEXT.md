@@ -40,6 +40,14 @@ _Avoid_: voice workspace, active release directory, Pi session storage
 The CM5-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
 _Avoid_: Pi Sessions widget, microphone on the Remote, a new monitored session per button click
 
+**Managed Coding Task**:
+An explicitly targeted Pi coding request owned by a configured CM5 or Mac host independently of voice feedback and control-connection lifetime. Its durable identity distinguishes acceptance, execution, termination, and verification. Closing voice feedback does not cancel it.
+_Avoid_: monitored terminal session, accepted means completed, finished means tests passed
+
+**Coding Target**:
+An operator-configured machine and development-root scope available to the Voice Agent. An ambiguous target requires clarification; a configured target is not proof of current connectivity or a filesystem sandbox.
+_Avoid_: arbitrary SSH host, unrestricted machine access, configured means online
+
 **Voice Capability**:
 An installed action available to the Voice Agent, such as building a Widget/App or sending a prompt to a specific live Pi session. Additional applications can expose capabilities without owning recording or transcription.
 _Avoid_: keyword-only command routing, arbitrary renderer code execution

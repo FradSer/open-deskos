@@ -781,6 +781,11 @@ async function main() {
     timeout: 120000,
   })
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)
+  const sequential = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-sequential-refinement.cjs')], {
+    stdio: 'inherit',
+    timeout: 120000,
+  })
+  if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
   const densityRuns = [
     ['--state=unavailable', '--theme=instrument'],
     ['--state=live', '--theme=instrument'],
@@ -800,6 +805,7 @@ async function main() {
   const subStatuses = {
     driverFailures, motionFailures, sweepFailures,
     interiors: interiors.status,
+    sequential: sequential.status,
     density: densityRuns.map(r => r.status),
     theme: themeUiRuns.map(r => r.status),
   }

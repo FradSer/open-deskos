@@ -6,7 +6,13 @@ Feature: Built-in App interiors
     And its title is inside an App surface header with an App surface heading
     And explanatory copy uses the App detail anatomy
     And truthful live or pending information uses the runtime value or runtime state anatomy
-    And Pomodoro retains its Start timer control
+    And Pomodoro explains that its timer is unavailable without a Start control
+
+  Scenario: Pomodoro does not pretend to run an unsupported timer
+    Given the built-in Pomodoro App has no timer service
+    When the App is mounted
+    Then it says "Timer unavailable"
+    And no Start timer control or timer action handler is offered
 
   Scenario: Built-in view search has a visible accessible label
     Given a user opens Built-in views

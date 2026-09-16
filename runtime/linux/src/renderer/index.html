@@ -42,7 +42,7 @@
   </section>
 
   <div id="system-overlay-root" class="system-overlay-container" aria-live="polite"></div>
-  <div id="voice-status" role="region" aria-label="Voice request" hidden>
+  <div id="voice-status" role="dialog" aria-modal="true" aria-label="Voice request" hidden>
     <div class="voice-status-content" role="status" tabindex="0">
       <div class="voice-status-heading">
         <span class="voice-status-icon" aria-hidden="true">
@@ -52,7 +52,6 @@
           <svg data-state-icon-name="arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M13 6l6 6l-6 6" /></svg>
           <svg data-state-icon-name="alert-triangle" viewBox="0 0 24 24"><path d="M12 3l9 16H3z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
           <svg data-state-icon-name="microphone-off" viewBox="0 0 24 24"><path d="M9 5a3 3 0 0 1 5.7 -1.3" /><path d="M15 9v3a3 3 0 0 1 -.3 1.3" /><path d="M5 10v2a7 7 0 0 0 11.2 5.6" /><path d="M8 21h8" /><path d="M12 19v2" /><path d="M3 3l18 18" /></svg>
-          <svg data-state-icon-name="check" viewBox="0 0 24 24"><path d="M5 12l4 4l10 -10" /></svg>
         </span>
         <span class="voice-status-stage"></span>
       </div>

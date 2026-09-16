@@ -31,6 +31,8 @@ test('voice preload exposes bounded control and status separately from monitorin
 test('voice feedback reuses one structured instrument and safely renders service messages', async () => {
   let listener
   const elements = Object.fromEntries([
+    '.voice-status-content',
+    '.voice-status-heading',
     '.voice-status-stage',
     '.voice-status-icon',
     '.voice-status-title',
@@ -38,7 +40,7 @@ test('voice feedback reuses one structured instrument and safely renders service
     '.voice-status-limit',
     '.voice-status-progress',
     '.voice-status-timing',
-  ].map((selector) => [selector, { textContent: '', hidden: false, dataset: {}, addEventListener(type, fn) { this[type] = fn }, style: { setProperty() {} } }]))
+  ].map((selector) => [selector, { textContent: '', hidden: false, dataset: {}, focus() {}, addEventListener(type, fn) { this[type] = fn }, style: { setProperty() {} } }]))
   const node = {
     hidden: true,
     dataset: {},
@@ -47,9 +49,10 @@ test('voice feedback reuses one structured instrument and safely renders service
       return elements[selector]
     },
   }
-  const window = { addEventListener() {}, odkVoice: { subscribe: (fn) => { listener = fn } } }
+  const window = { addEventListener() {}, dispatchEvent() {}, odkVoice: { subscribe: (fn) => { listener = fn } } }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/voice-status.js', 'utf8'), {
-    document: { getElementById: () => node },
+    document: { getElementById: () => node, body: { children: [] } },
+    CustomEvent: class {},
     window,
   })
   assert.equal(window.odkVoiceStatus.close(), false, 'Hidden feedback must not consume Back')
@@ -86,6 +89,10 @@ test('voice feedback reuses one structured instrument and safely renders service
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, false)
   assert.equal(elements['.voice-status-title'].textContent, 'Request complete')
+  assert.equal(elements['.voice-status-heading'].hidden, true)
+  assert.equal(elements['.voice-status-stage'].textContent, '')
+  assert.equal(elements['.voice-status-icon'].dataset.stateIcon, '')
+  assert.equal(elements['.voice-status-progress'].hidden, true)
   window.odkVoiceStatus.close()
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, true)

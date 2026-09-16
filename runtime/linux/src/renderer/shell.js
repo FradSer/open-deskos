@@ -57,6 +57,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   function setIndex(next, animate = true) {
+    if (window.odkVoiceStatus?.visible() && next !== index) return
     cancelDrag()
     track.classList.toggle('instant', !animate)
     document.getElementById('dots').classList.toggle('instant', !animate)
@@ -93,7 +94,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   viewport.addEventListener('pointerdown', (event) => {
-    if (!event.isPrimary || track.children[index]?.dataset.surface === 'app') return
+    if (window.odkVoiceStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
     activePointerId = event.pointerId
     startX = event.clientX
     dx = 0
@@ -114,9 +115,11 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   function cancelDrag() {
     if (startX === null) return
     track.classList.remove('dragging')
+    const pointerId = activePointerId
     startX = null
     dx = 0
     activePointerId = null
+    if (viewport.hasPointerCapture(pointerId)) viewport.releasePointerCapture(pointerId)
   }
 
   function endDrag(wasCancelled) {
@@ -138,6 +141,12 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     if (event.pointerId === activePointerId) endDrag(true)
   })
   window.addEventListener('blur', () => endDrag(true))
+  window.addEventListener('odk-voice-visibility', () => {
+    if (!window.odkVoiceStatus?.visible()) return
+    cancelDrag()
+    track.classList.add('instant')
+    track.style.transform = `translateX(${-index * pageWidth()}px)`
+  })
 
   window.addEventListener('pointerdown', () => { suppressClick = false }, true)
 
@@ -433,7 +442,10 @@ function main() {
 
   function publishPageState() {
     if (!currentPageState) return
-    window.odkRemote?.publishPageState(currentPageState)?.catch(() => {})
+    const state = window.odkVoiceStatus?.visible()
+      ? { ...currentPageState, canPrev: false, canNext: false, canFocus: false, mode: 'browse', actions: [] }
+      : currentPageState
+    window.odkRemote?.publishPageState(state)?.catch(() => {})
   }
 
   let appFocusMode = false
@@ -464,9 +476,10 @@ function main() {
   pagerRef.buildDots(document.getElementById('dots'))
   updatePageContext(0)
   setInterval(publishPageState, 5000)
+  window.addEventListener('odk-voice-visibility', publishPageState)
 
   function navigate(direction) {
-    if (!appView.hidden) return
+    if (window.odkVoiceStatus?.visible() || !appView.hidden) return
     pagerRef.setIndex(pagerRef.currentIndex() + direction, false)
   }
 
@@ -508,6 +521,7 @@ function main() {
 
   function handleRemoteInput(input, action) {
     if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'].includes(input)) return
+    if (window.odkVoiceStatus?.handleInput(input)) return
     if (input === 'action') {
       const actionId = typeof action === 'string' ? action : action?.action || action?.id
       if (actionId) {

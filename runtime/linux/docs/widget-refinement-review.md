@@ -23,28 +23,34 @@ Trusted Linux built-ins, reviewed in the requested order. No shared visual redes
 | 13 | Today | Retained: local date and truthful status narrative; existing wrapping test passes. No network changes. |
 | 14 | Pi Sessions App | Retained: existing anchored refresh, search/filter, disclosure stability, keyboard and recovery tests pass. |
 | 15 | Usage App | Retained based on existing real-DOM verification: wrapping, refresh busy/recovery state, action ordering, touch targets and zoom. No new provider behavior. |
-| 16 | Your apps | Inspected existing lifecycle and native form controls; retained. Full failure/focus lifecycle re-audit not performed. Existing user-app unit suite passes. |
-| 17 | Built-in views | Adds explicit empty-catalog and no-match search status with a clear-search recovery instruction. Regression and real-DOM tests. |
+| 16 | Your apps | Retained native controls. Sequential Electron coverage now checks pending catalog, unavailable response, recovery through catalog-change notification, horizontal containment, initial separate-App Back focus, and return to the Application ID input after Back/Escape at both sizes in all three themes. Actual candidate failure, preserved installed revision, restart, rollback/remove/open/close remain covered by the passing lifecycle harness. Manual retry after an initial catalog failure is not provided; recovery here depends on a change notification. |
+| 17 | Built-in views | Empty-catalog/no-match recovery plus corrected search handling during pending/failed requests: search no longer overwrites loading/error status. Reload retains the search. Routed Electron tests assert public `endpoint-unavailable` normalization rather than the private IPC error message. |
 
-Additional registered built-in views in `apps.js`: Calendar, Clock, Pomodoro and Year progress; `pi-sessions.js` also supplies the Pi Sessions view. Existing built-in-view containment tests pass. Calendar/Year remain informational, and Pomodoro's existing Start action only changes runtime state: a real countdown implementation is not part of this interface pass. Status plugins are the clock, connection and Pi Sessions indicators; no status-bar redesign was made.
+| 18 | Calendar App | Independently displays a semantic local date, updates at month rollover, and explicitly states calendar events are unavailable. |
+| 19 | Clock App | Independently displays semantic 24-hour local time, preserves unchanged minute text, and updates at midnight without live announcements. |
+| 20 | Pomodoro App | Removes the unsupported Start action and false Running state; explicitly says Timer unavailable and that no countdown is provided. |
+| 21 | Year progress App | Independently computes elapsed local-year percentage and year description; resets at New Year. |
+
+Calendar, Clock, Pomodoro and Year are checked for routed runtime containment and minimum text sizes at 1920×1280 and 320×480 in Instrument, Pixel and Border Beam. Status plugins are the clock, connection and Pi Sessions indicators; no status-bar redesign was made.
 
 ## Verification
 
-BDD scenarios were added before each corresponding failing test. Six public registration/mount regression tests demonstrated failures before implementation and now pass.
+Historical RED logs from prior workers did not survive; their red-first provenance cannot be independently established. The finishing pass observed a RED regression for missing sequential checks in the recurring e2e gate, then added that subprocess and required its exit status. Additional Your apps coverage verifies existing behavior without a production change. An initial finishing-pass sequential run failed during a rapid close/open transition; the harness now awaits the public close operation instead of racing asynchronous Back clicks between unrelated cases. Actual Back/Escape interactions are verified separately.
 
 Commands run from `runtime/linux`:
 
-- `node --test tests/widget-sequential-refinement.test.js tests/calendar-density.test.js`
+- `node --test tests/widget-sequential-refinement.test.js tests/app-interiors.test.js tests/user-app*.test.js`: 48/48 passing in the finishing pass.
 - `pnpm exec electron tests/widget-sequential-refinement.cjs`: six theme/viewport combinations, face-state containment and minimum text size, semantic Clock reading, offline Hydra geometry, catalog search recovery.
 - `pnpm styles`
 - `bash tests/smoke.sh`
 - `pnpm exec electron tests/widget-app-styles.cjs`
 - `pnpm exec electron tests/widget-density.cjs --sizes=1920x1280,320x480 --theme=instrument`
-- Same density command with `--theme=pixel` and `--theme=border-beam`.
-- `pnpm test`: 244 passing tests.
-- `pnpm e2e`: zero driver, motion, sweep, interior, density or theme failures, including all six density runs and three theme runs.
+- Pixel and Border Beam density checks ran in the full e2e gate (not separate finishing-pass standalone commands).
+- `pnpm exec electron tests/user-app-lifecycle.cjs`: `USER_APP_LIFECYCLE_PASS`.
+- `pnpm test`: 256/256 passing tests in the finishing pass.
+- `pnpm e2e`: `E2E_SUB_STATUS: {"driverFailures":0,"motionFailures":0,"sweepFailures":0,"interiors":0,"sequential":0,"density":[0,0,0,0,0,0],"theme":[0,0,0]}`. Sequential verification is now a recurring required gate.
 
-Two earlier standalone `--state=live` density invocations timed out waiting for grid geometry to settle. The final full e2e density runs passed; the earlier timeouts are recorded rather than treated as successful checks.
+The inherited ledger records two earlier standalone `--state=live` density timeouts; those historical logs were not available to this finishing worker. The finishing-pass standalone Instrument density check and all six full-e2e density runs passed. Expected injected catalog/scanner errors appear on stderr in passing recovery tests.
 
 ## Review coverage and limits
 

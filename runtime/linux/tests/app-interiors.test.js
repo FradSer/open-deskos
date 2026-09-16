@@ -26,12 +26,12 @@ test('simple built-in App interiors use the shared semantic anatomy', () => {
   assert.match(calendar, /class="runtime-state app-detail"/)
 
   const clock = markupFor('clock')
-  assert.match(clock, /<p class="runtime-value">--:--<\/p>/)
+  assert.match(clock, /<time class="runtime-value">--:--<\/time>/)
   assert.match(clock, /class="runtime-state app-detail"/)
 
   const pomodoro = markupFor('pomodoro')
-  assert.match(pomodoro, /class="runtime-state app-detail">Not started<\/p>/)
-  assert.match(pomodoro, /class="button-pill button-primary" type="button">Start timer<\/button>/)
+  assert.match(pomodoro, /class="runtime-state app-detail">Timer unavailable<\/p>/)
+  assert.doesNotMatch(pomodoro, /Start timer/)
 })
 
 test('Built-in views provides a visible associated search label and shared list anatomy', () => {

@@ -1,16 +1,13 @@
 #voice-status {
   position: fixed;
   z-index: 100;
-  inset-block-end: var(--odk-space-4);
-  inset-inline-start: 50%;
+  inset: 0;
   display: flex;
-  align-items: flex-start;
-  gap: var(--odk-space-3);
-  transform: translateX(-50%);
-  width: min(880px, calc(100% - 24px));
-  padding: var(--odk-space-3);
-  border: 1px solid var(--odk-stroke);
-  border-radius: var(--odk-radius-card);
+  justify-content: center;
+  padding: var(--odk-space-4);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   background: var(--odk-surface);
   color: var(--odk-primary);
   font-size: clamp(18px, 1.25vw, 24px);
@@ -25,9 +22,11 @@
 
 .voice-status-content {
   display: grid;
+  align-content: start;
   flex: 1;
   min-width: 0;
-  max-height: 40vh;
+  min-height: 0;
+  max-width: 75ch;
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -119,10 +118,6 @@
 #voice-status[data-state="recording"] .voice-status-icon,
 #voice-status[data-state="error"] .voice-status-icon {
   color: var(--odk-accent-red);
-}
-
-#voice-status[data-state="idle"] .voice-status-icon {
-  color: var(--odk-accent-green);
 }
 
 @media (prefers-reduced-motion: no-preference) {

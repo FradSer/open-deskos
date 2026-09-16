@@ -23,30 +23,42 @@
     lifecycle: lifecycleFor(mount),
   })
 
-  root.odkPlugins.register(app('calendar', 'Calendar', (el) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Calendar</h2></header><p class="app-detail">Today\'s date is available.</p><p class="runtime-state app-detail">Awaiting local calendar data.</p></div>'
-  }))
-  root.odkPlugins.register(app('clock', 'Clock', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Clock</h2></header><p class="runtime-value">--:--</p><p class="runtime-state app-detail">View local time in real time.</p></div>'
-    const value = el.querySelector('.runtime-value')
+  root.odkPlugins.register(app('calendar', 'Calendar', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Calendar</h2></header><time class="runtime-date app-detail"></time><p class="runtime-state app-detail">Calendar events unavailable. Date uses the local clock.</p></div>'
+    const date = el.querySelector('.runtime-date')
     ctx.onTick((now) => {
-      value.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      if (date.dateTime === day) return
+      date.dateTime = day
+      date.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     })
   }))
-  root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><p class="runtime-state app-detail">Not started</p><button class="button-pill button-primary" type="button">Start timer</button></div>'
-    el.querySelector('button').addEventListener('click', () => ctx.emitIntent({
-      type: 'action', appId: 'pomodoro', action: 'start',
-    }))
-  }, [], (intent, context) => {
-    if (intent.action !== 'start') return false
-    context.platform.setState('pomodoro', 'Running')
-    const status = context.runtimeRoot().querySelector('.runtime-state')
-    if (status) status.textContent = 'Running'
-    return true
+  root.odkPlugins.register(app('clock', 'Clock', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Clock</h2></header><time class="runtime-value">--:--</time><p class="runtime-state app-detail">Local time</p></div>'
+    const value = el.querySelector('.runtime-value')
+    ctx.onTick((now) => {
+      const reading = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      if (value.textContent === reading) return
+      value.textContent = reading
+      value.dateTime = reading
+    })
   }))
-  root.odkPlugins.register(app('year', 'Year progress', (el) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Year progress</h2></header><p class="app-detail">Year progress updates in the Widget in real time.</p></div>'
+  root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el) => {
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><p class="runtime-state app-detail">Timer unavailable</p><p class="app-detail">This view does not provide a countdown timer.</p></div>'
+  }))
+  root.odkPlugins.register(app('year', 'Year progress', (el, ctx) => {
+    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Year progress</h2></header><p class="runtime-value">--%</p><p class="runtime-state app-detail"></p></div>'
+    const value = el.querySelector('.runtime-value')
+    const status = el.querySelector('.runtime-state')
+    ctx.onTick((now) => {
+      const year = now.getFullYear()
+      const start = new Date(year, 0, 1)
+      const end = new Date(year + 1, 0, 1)
+      const reading = `${Math.round((now - start) / (end - start) * 100)}%`
+      const detail = `of ${year} elapsed · Local time`
+      if (value.textContent !== reading) value.textContent = reading
+      if (status.textContent !== detail) status.textContent = detail
+    })
   }))
   root.odkPlugins.register(app('app-manager', 'Built-in views', (el, ctx) => {
     el.innerHTML = '<div class="runtime-app app-manager"><header class="app-surface-header"><h2 class="app-surface-heading">Built-in views</h2></header><label class="app-search-label" for="app-search">Search built-in views</label><input id="app-search" class="app-search" type="search" aria-label="Search built-in views" placeholder="Search built-in views" /><p class="app-manager-status runtime-state app-detail" role="status" aria-live="polite"></p><button class="button-pill button-secondary app-manager-retry" type="button" hidden>Reload</button><ul class="app-list"></ul></div>'
@@ -55,7 +67,9 @@
     const retry = el.querySelector('.app-manager-retry')
     const list = el.querySelector('.app-list')
     let items = []
+    let loaded = false
     const render = () => {
+      if (!loaded) return
       const query = search.value.trim().toLowerCase()
       const entries = items.filter((item) =>
         !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
@@ -66,10 +80,12 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     const load = async () => {
+      loaded = false
       status.textContent = 'Loading built-in views.'
       retry.hidden = true
       try {
         items = await ctx.platform.listApps()
+        loaded = true
         status.textContent = ''
         render()
       } catch (error) {
