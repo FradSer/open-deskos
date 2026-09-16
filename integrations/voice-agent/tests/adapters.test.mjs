@@ -24,6 +24,7 @@ test('transcription sends multipart and rejects unsafe provider results', async 
   const fetcher = async (url, options) => {
     assert.equal(options.headers.Authorization, 'Bearer private-key')
     assert.equal(options.body.get('model'), 'whisper-1')
+    assert.equal(options.body.get('language'), 'zh')
     assert.equal(options.body.get('file').name, 'audio.wav')
     return new Response(JSON.stringify({ text: ' hello ' }))
   }
@@ -32,6 +33,70 @@ test('transcription sends multipart and rejects unsafe provider results', async 
   await assert.rejects(transcribe(path, config, undefined, async () => new Response(JSON.stringify({ text: '' }))), /Empty transcript/)
   await assert.rejects(transcribe(path, config, undefined, async () => new Response('x'.repeat(70_000))), /Response too large/)
   await assert.rejects(transcribe(path, { ...config, maxAudioBytes: 2 }, undefined, fetcher), /Audio too large/)
+})
+
+test('Chinese transcription preserves mixed project names and configurable languages', async t => {
+  const dir = await temp(t)
+  const path = join(dir, 'audio.wav')
+  const keyFile = join(dir, 'key')
+  await writeFile(path, 'RIFFaudio')
+  await writeFile(keyFile, 'private-key')
+  const text = '请在 Open DeskOS 中用 pi-session-control 查看会话，不要改名。'
+  for (const language of [undefined, 'zh', 'zh-CN', 'en', 'auto']) {
+    const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile, language }
+    const fetcher = async (_url, options) => {
+      assert.equal(options.body.get('language'), language === 'auto' ? null : language ?? 'zh')
+      return new Response(JSON.stringify({ text }))
+    }
+    assert.equal(await transcribe(path, config, undefined, fetcher), text)
+  }
+})
+
+test('invalid transcription languages fail before I/O without revealing configuration', async () => {
+  for (const language of ['', 'ZH', 'chinese', 'zh_CN', 'zh\r\nprivate-value', 'auto-private-value']) {
+    await assert.rejects(transcribe('/missing/audio', {
+      url: 'https://example.com/transcribe', model: 'whisper-1', keyFile: '/missing/key', language,
+    }, undefined, async () => { throw Error('Network must not be used') }), {
+      message: 'Invalid transcription language',
+    })
+  }
+})
+
+test('transcription transport and malformed provider errors are sanitized', async t => {
+  const dir = await temp(t)
+  const path = join(dir, 'audio.wav')
+  const keyFile = join(dir, 'key')
+  await writeFile(path, 'RIFFaudio')
+  await writeFile(keyFile, 'private-key')
+  const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile }
+  for (const fetcher of [
+    async () => { throw Error('private-key transport details') },
+    async () => new Response('private-key provider details'),
+    async () => new Response('null'),
+    async () => new Response(new ReadableStream({
+      start(controller) { controller.error(Error('private-key streaming details')) },
+    })),
+    async () => new Response(new ReadableStream({
+      cancel() { throw Error('private-key cancellation details') },
+    }), { status: 401 }),
+  ]) {
+    await assert.rejects(transcribe(path, config, undefined, fetcher), { message: 'Transcription failed' })
+  }
+})
+
+test('voice service forwards Chinese requests and replies unchanged', async () => {
+  const text = '请检查 Open DeskOS 和 pi-session-control。'
+  const reply = '已检查 Open DeskOS 和 pi-session-control，尚未部署。'
+  const service = new VoiceService({
+    record: async () => ({ stop: async () => 'audio.wav', cleanup: async () => {}, done: new Promise(() => {}) }),
+    transcribe: async () => text,
+    prompt: async received => { assert.equal(received, text); return reply },
+  })
+  await service.toggle()
+  await service.toggle()
+  assert.equal(service.status.state, 'idle')
+  assert.equal(service.status.message, reply)
+  await service.close()
 })
 
 test('private socket accepts JSONL and rejects invalid framing', async t => {

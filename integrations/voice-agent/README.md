@@ -25,6 +25,7 @@ Create `~/.config/open-deskos/voice-agent.env` with mode 0600 for voice-only set
 ODESK_VOICE_STT_KEY_FILE=/home/orangepi/.config/open-deskos/stt.key
 ODESK_VOICE_STT_URL=https://api.openai.com/v1/audio/transcriptions
 ODESK_VOICE_STT_MODEL=whisper-1
+ODESK_VOICE_STT_LANGUAGE=zh
 ODESK_VOICE_AUDIO_DEVICE=default
 ```
 
@@ -51,7 +52,7 @@ Deployment uses `systemd/open-deskos-voice-agent.service` with directory placeho
 
 ## Resident user applications
 
-For user requests to create an installable Widget or App, use the user application lifecycle rather than editing Shell plugins. Follow @runtime/linux/docs/USER_APPLICATIONS.md: write a draft under `ODESK_WORKSPACE/apps/<id>` with `manifest.json` and self-contained `index.html`, then call the system lifecycle verifier through `user_app_install`. User-application draft instructions take precedence over the older built-in widget engineering skill; do not inject generated scripts into the Shell or run arbitrary install scripts. Applications are restricted to a strict `allow-scripts` sandbox with no parent/preload access, network, Node APIs, or persistent app-data API in this slice.
+For user requests to create an installable Widget or App, use the user application lifecycle rather than editing Shell plugins. Follow @runtime/linux/docs/USER_APPLICATIONS.md: write a draft under `ODESK_WORKSPACE/apps/<id>` with `manifest.json` and self-contained `index.html`, then run the available project checks. Call `user_app_install` only after the user explicitly authorizes installation or update. User-application draft instructions take precedence over the older built-in widget engineering skill; do not inject generated scripts into the Shell or run arbitrary install scripts. Applications are restricted to a strict `allow-scripts` sandbox with no parent/preload access, network, Node APIs, or persistent app-data API in this slice.
 
 The resident tools `user_apps_list`, `user_app_install(id)`, `user_app_rollback(id)`, and `user_app_remove(id)` use the private `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock` JSONL protocol. Install has a 30-second deadline; other operations have a 10-second deadline; responses are capped at 512 KiB. Mutation operations are never retried automatically. If a timeout or transport failure leaves the outcome unknown, report that uncertainty and ask for operator verification before attempting another mutation.
 
@@ -74,11 +75,15 @@ States: `idle`, `recording`, `transcribing`, `thinking`, `error`. The final plai
 
 Temporary audio lives only in private `capture-*` directories beside the socket. It is removed on success/failure/shutdown; a replacement socket owner also removes captures left by an interrupted process. Pi transcripts, tool calls and results persist independently under `$XDG_STATE_HOME/open-deskos-voice/sessions` (default `~/.local/state`). These contain user speech and coding context: protect and retain/delete them according to local privacy policy.
 
-## Live session capability
+## Managed Pi tasks on CM5 and Mac
 
-Install the companion `session-control` Pi package from the `pi-packages` repository into target Pi sessions and expose its `bin/pi-session-control.mjs` executable on PATH. Set `PI_SESSION_CONTROL_COMMAND` to its absolute executable path if needed. Its private discovery directory can be overridden with `PI_SESSION_CONTROL_DIR`; it must match target sessions. No shell command string or argument interpolation is used.
+The voice coordinator exposes `coding_targets`, `coding_task_start`, `coding_task_status`, `coding_tasks_list`, and `coding_task_cancel`. Each configured host owns an independent task daemon; SSH carries bounded control requests, not the coding task lifetime. Closing voice feedback does not cancel a task. See @docs/MANAGED_TASKS.md for installation and configuration.
 
-Tools `live_sessions` and `send_to_session` exchange one version-1 JSONL request/reply with the CLI via stdin/stdout, with generated `requestId`, a 10-second timeout and 256KiB output cap. A target `sessionId` is an opaque live-instance ID from the list, not the durable `piSessionId`; reload/resume invalidates old live IDs. Default delivery is `followUp`. `accepted`/`queued` never means completion. For the current Pi sessions on a Mac or another SSH host, set `PI_SESSION_CONTROL_SSH_HOST=user@mac.local` and set `PI_SESSION_CONTROL_COMMAND` to the absolute installed remote executable path. The service invokes `ssh -T` with batch authentication, strict host-key checking and a five-second connection timeout; the overall request deadline remains ten seconds. Provision the kiosk user's SSH key and known_hosts separately. The host/path are operator configuration, never model arguments; the remote executable is shell-quoted and the JSON request goes only through stdin. Authentication/host-key/transport failures are reported as failed delivery, never success. The remote extension and executable must use the same remote discovery directory. This service never mutates another session's history.
+The obsolete `pi-session-control` executable bridge has been removed. Managed tasks create their own Pi SDK sessions rather than impersonating or editing another interactive session. They do not imply access to all existing terminal sessions.
+
+Task acceptance is not completion. A finished run is not verified success: verification stays `not_run` unless a separate verifier supplies evidence. An unknown start outcome includes the task ID for reconciliation through status; never retry it as a new task. Unfinished records become `interrupted` after daemon restart and are never automatically replayed.
+
+Chinese transcription defaults to `zh`; set `ODESK_VOICE_STT_LANGUAGE=auto` to omit the language hint or specify a supported language code. Chinese and mixed-language transcripts are preserved. Replies default to Chinese unless the request asks otherwise. Real speech recognition quality remains dependent on the configured provider and microphone.
 
 ## Trusted capability modules
 
@@ -86,4 +91,4 @@ Set `ODESK_VOICE_CAPABILITIES` to a JSON array of absolute local `.mjs` module p
 
 ## Verification scope
 
-Tests exercise state transitions, busy/retry/deadline/shutdown behavior, audio cleanup failures, bounded authenticated multipart STT with a fake transport, private JSONL sockets, unconfigured process startup, actual SDK resource loading, persistent-session options and executable session-control framing. They do not contact an LLM/STT provider or require a physical microphone. Hardware acceptance still requires a real microphone recording, authorized transcription, one verified coding request in the writable checkout, and delivery to a live session with the companion extension loaded.
+Tests exercise state transitions, busy/retry/deadline/shutdown behavior, audio cleanup failures, bounded authenticated multipart STT with a fake transport, private JSONL sockets, unconfigured process startup, actual SDK resource loading, persistent-session options and managed-task JSON framing. They do not contact an LLM/STT provider or require a physical microphone. Hardware acceptance still requires a real microphone recording, authorized Chinese transcription, one verified coding request in an approved checkout, and managed-task start/status/cancel acceptance on each configured host.

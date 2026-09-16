@@ -1,46 +1,10 @@
-import { spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { isAbsolute } from 'node:path'
 import { Type } from 'typebox'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-
-export function sessionCommand(executable, host) {
-  if (!host) return { executable, args: [] }
-  if (!/^(?:[a-zA-Z0-9_][a-zA-Z0-9_.-]*@)?[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(host)) throw Error('Invalid SSH host')
-  if (!isAbsolute(executable)) throw Error('SSH session-control executable must be absolute')
-  if (/[\x00-\x1f\x7f]/.test(executable)) throw Error('Invalid SSH executable')
-  const quoted = `'${executable.replaceAll("'", "'\\''")}'`
-  return { executable: 'ssh', args: ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '--', host, quoted] }
-}
-
-export async function sessionRequest(request, signal, executable = process.env.PI_SESSION_CONTROL_COMMAND || 'pi-session-control', host = process.env.PI_SESSION_CONTROL_SSH_HOST) {
-  const command = sessionCommand(executable, host)
-  const payload = { ...request, version: 1, requestId: randomUUID() }
-  const failure = message => Error(request.command === 'send' ? 'Session-control delivery outcome unknown; do not retry automatically' : message)
-  const result = await new Promise((resolve, reject) => {
-    const child = spawn(command.executable, command.args, { stdio: ['pipe', 'pipe', 'ignore'], signal })
-    let output = ''
-    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(failure('Session-control timeout')) }, 10_000)
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', chunk => {
-      output += chunk
-      if (Buffer.byteLength(output) > 262_144) { child.kill('SIGKILL'); reject(failure('Session-control response too large')) }
-    })
-    child.on('error', () => { clearTimeout(timer); reject(failure('Session-control unavailable')) })
-    child.stdin.on('error', () => {})
-    child.once('close', code => {
-      clearTimeout(timer)
-      if (code !== 0) return reject(failure('Session-control failed'))
-      try { resolve(JSON.parse(output.trim())) } catch { reject(failure('Invalid session-control response')) }
-    })
-    child.stdin.end(`${JSON.stringify(payload)}\n`)
-  })
-  if (result.version !== 1 || result.requestId !== payload.requestId || typeof result.ok !== 'boolean') throw failure('Invalid session-control response')
-  if (!result.ok) throw Error('Session-control request rejected')
-  return result
-}
+import { loadTargets, taskRequest } from './task-client.mjs'
 
 const APP_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 function appSocket() {
@@ -96,22 +60,36 @@ function userAppTool(command, description, needsAppId = true) {
   })
 }
 
-function coreCapabilities() {
+function codingTaskTool(command, targets) {
+  return defineTool({
+    name: command === 'list' ? 'coding_tasks_list' : `coding_task_${command}`, label: `Coding task ${command}`,
+    description: `${command} an independent Pi task on an explicit configured target and project. Accepted is not completed or verified. Never retry mutations after unknown outcomes; reconcile with status.`,
+    parameters: Type.Object({
+      target: Type.Union([Type.Literal('cm5'), Type.Literal('mac')]),
+      project: Type.String({ minLength: 1 }),
+      ...(command === 'start' ? { prompt: Type.String({ minLength: 1, maxLength: 16_384 }) } : {}),
+      ...(['status', 'cancel'].includes(command) ? { taskId: Type.String({ minLength: 36, maxLength: 36 }) } : {}),
+    }, { additionalProperties: false }),
+    execute: async (_id, params, signal) => {
+      const target = targets.find(target => target.id === params.target)
+      if (!target) throw Error('Target is not configured; use coding_targets and ask the user')
+      return result(await taskRequest(target, { ...params, command }, signal))
+    },
+  })
+}
+
+function coreCapabilities(targets) {
   return [
     userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
     userAppTool('install', 'Install a resident user application draft through the shell lifecycle backend.', true),
     userAppTool('rollback', 'Roll back a resident user application through the shell lifecycle backend.', true),
     userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true),
     defineTool({
-      name: 'live_sessions', label: 'Live sessions', description: 'List currently reachable Pi sessions. Never infer live sessions from history files.',
-      parameters: Type.Object({}),
-      execute: async (_id, _params, signal) => result(await sessionRequest({ command: 'list' }, signal)),
+      name: 'coding_targets', label: 'Coding targets', description: 'List configured target IDs, names and development roots. Configuration is not a network health or availability check.',
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async () => result({ targets: targets.map(({ id, name, roots }) => ({ id, name, roots })) }),
     }),
-    defineTool({
-      name: 'send_to_session', label: 'Send to live session', description: 'Send to an exact ID from live_sessions. Accepted or queued means delivery, not completion. Never retry automatically after an unknown delivery outcome.',
-      parameters: Type.Object({ sessionId: Type.String({ minLength: 1 }), text: Type.String({ minLength: 1, maxLength: 16_384 }), deliverAs: Type.Optional(Type.Union([Type.Literal('steer'), Type.Literal('followUp')])) }),
-      execute: async (_id, params, signal) => result(await sessionRequest({ command: 'send', ...params, deliverAs: params.deliverAs ?? 'followUp' }, signal)),
-    }),
+    ...['start', 'status', 'list', 'cancel'].map(command => codingTaskTool(command, targets)),
   ]
 }
 
@@ -120,7 +98,7 @@ function result(value) {
 }
 
 export async function loadCapabilities(paths = []) {
-  const tools = coreCapabilities()
+  const tools = coreCapabilities(await loadTargets())
   const names = new Set(['read', 'write', 'edit', 'bash', ...tools.map(tool => tool.name)])
   for (const path of paths) {
     if (!isAbsolute(path)) throw Error('Capability paths must be absolute')

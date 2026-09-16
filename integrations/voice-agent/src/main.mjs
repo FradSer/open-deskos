@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createVoiceAgent } from './agent.mjs'
 import { record } from './recorder.mjs'
-import { transcribe } from './transcribe.mjs'
+import { transcribe, transcriptionLanguage } from './transcribe.mjs'
 import { VoiceService } from './service.mjs'
 import { listen } from './socket.mjs'
 
@@ -25,6 +25,8 @@ async function initialize(env, report) {
   const url = new URL(env.ODESK_VOICE_STT_URL || 'https://api.openai.com/v1/audio/transcriptions')
   if (url.username || url.password) throw Error('Invalid transcription URL')
   if (url.protocol !== 'https:' && !isLoopbackHttp(url)) throw Error('Invalid transcription URL')
+  report('Set ODESK_VOICE_STT_LANGUAGE to a language code such as zh or zh-CN, or auto; restart service')
+  const language = transcriptionLanguage(env.ODESK_VOICE_STT_LANGUAGE)
   report('Check writable checkout and widget skill, Pi user authentication/model, and trusted capability paths; restart service')
   const agent = await createVoiceAgent({
     workspace: env.ODESK_WORKSPACE,
@@ -32,7 +34,7 @@ async function initialize(env, report) {
     model: env.ODESK_VOICE_MODEL,
     capabilityPaths: env.ODESK_VOICE_CAPABILITIES ? JSON.parse(env.ODESK_VOICE_CAPABILITIES) : [],
   })
-  return { agent, stt: { url: url.href, model: env.ODESK_VOICE_STT_MODEL || 'whisper-1', keyFile: env.ODESK_VOICE_STT_KEY_FILE } }
+  return { agent, stt: { url: url.href, model: env.ODESK_VOICE_STT_MODEL || 'whisper-1', keyFile: env.ODESK_VOICE_STT_KEY_FILE, language } }
 }
 
 async function main() {
