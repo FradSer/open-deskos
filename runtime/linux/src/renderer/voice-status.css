@@ -4,11 +4,12 @@
   inset: 0;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
   padding: var(--odk-space-4);
   overflow: hidden;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  background: var(--odk-surface);
+  background: transparent;
   color: var(--odk-primary);
   font-size: clamp(18px, 1.25vw, 24px);
   line-height: 1.5;
@@ -26,13 +27,18 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  max-width: 75ch;
+  max-width: 960px;
+  max-height: 70vh;
+  box-sizing: border-box;
+  background: var(--odk-surface);
+  border: 2px solid var(--odk-stroke);
+  border-radius: var(--odk-radius-card);
   overflow: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
   user-select: text;
   row-gap: var(--odk-space-2);
-  padding: var(--odk-space-1);
+  padding: var(--odk-space-3);
 }
 
 .voice-status-heading {

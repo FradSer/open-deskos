@@ -85,6 +85,18 @@ Feature: Independent resident voice agent
     And Remote actions cannot activate hidden App controls
     And Remote page state disables previous and next while feedback is visible
 
+  Scenario: Voice feedback floats above a visible but blocked desk
+    Given the shell uses Instrument, Pixel, or Border Beam at 1920 by 1280, 480 by 854, or 320 by 480
+    When a voice interaction starts
+    Then the fullscreen input shield is transparent and consumes hits outside the panel
+    And a charcoal outlined panel sits inset at the bottom center with bounded width and at most 70 percent viewport height
+    And the underlying desk remains visible but inert and cannot navigate by keyboard, pointer, or Remote
+    When a long English and CJK response arrives
+    Then the same panel scrolls vertically without horizontal overflow
+    And no Complete label or Dismiss control is shown
+    When Remote Back closes voice feedback
+    Then the original page and focus are restored and the desk is no longer inert
+
   Scenario: Voice feedback is readable at desk distance
     Given the shell runs at the CM5 native 1920 by 1280 resolution
     When recording guidance or a response is displayed
