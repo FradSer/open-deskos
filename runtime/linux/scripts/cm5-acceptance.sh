@@ -199,7 +199,6 @@ else
   check "kiosk-process" "false" "true" "runtime" "no active Electron kiosk process found"
 fi
 service_evidence "open-deskos-remote-bridge.service" "false" "peripheral"
-service_evidence "open-deskos-face-agent.service" "false" "experiment"
 
 MEM_TOTAL="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
 MEM_AVAIL="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"

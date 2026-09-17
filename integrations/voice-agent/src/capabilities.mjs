@@ -11,8 +11,8 @@ function appSocket() {
   return process.env.ODESK_APPS_CONTROL_SOCKET || `${process.env.XDG_RUNTIME_DIR || '/run/user/' + process.getuid()}/open-deskos-apps/control.sock`
 }
 
-async function userAppsRequest(command, appId, signal) {
-  const request = { v: 1, id: randomUUID(), command, ...(appId ? { appId } : {}) }
+async function userAppsRequest(command, appId, signal, placement) {
+  const request = { v: 1, id: randomUUID(), command, ...(appId ? { appId } : {}), ...(placement ? { placement } : {}) }
   const timeout = command === 'install' ? 30_000 : 10_000
   return await new Promise((resolve, reject) => {
     let settled = false
@@ -48,14 +48,23 @@ async function userAppsRequest(command, appId, signal) {
 }
 
 function userAppTool(command, description, needsAppId = true) {
+  const placement = Type.Object({
+    pageId: Type.String({ minLength: 1, maxLength: 64 }),
+    col: Type.String({ pattern: '^[1-5](?: / [2-6])?$' }),
+    row: Type.String({ pattern: '^[1-3](?: / [2-4])?$' }),
+  }, { additionalProperties: false })
   return defineTool({
-    name: command === 'list' ? 'user_apps_list' : `user_app_${command}`,
+    name: ['list', 'desktop'].includes(command) ? `user_apps_${command}` : `user_app_${command}`,
     label: `User app ${command}`,
     description,
-    parameters: needsAppId ? Type.Object({ id: Type.String({ pattern: APP_ID.source, minLength: 1, maxLength: 64 }) }) : Type.Object({}),
+    parameters: needsAppId ? Type.Object({
+      id: Type.String({ pattern: APP_ID.source, minLength: 1, maxLength: 64 }),
+      ...(command === 'install' ? { placement: Type.Optional(placement) } : {}),
+      ...(command === 'place' ? { placement } : {}),
+    }, { additionalProperties: false }) : Type.Object({}),
     execute: async (_id, params, signal) => {
       const id = needsAppId && 'id' in params && typeof params.id === 'string' ? params.id : undefined
-      return result(await userAppsRequest(command, id, signal))
+      return result(await userAppsRequest(command, id, signal, 'placement' in params ? params.placement : undefined))
     },
   })
 }
@@ -81,7 +90,9 @@ function codingTaskTool(command, targets) {
 function coreCapabilities(targets) {
   return [
     userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
-    userAppTool('install', 'Install a resident user application draft through the shell lifecycle backend.', true),
+    userAppTool('desktop', 'List desktop page IDs, one-based page numbers, grid dimensions and occupied cells before selecting a widget location. Only grid pages accept widgets.', false),
+    userAppTool('install', 'Verify and install a resident user application draft. Optional widget placement uses pageId and CSS grid line strings col/row (for example 2 / 4). Occupied locations are rejected, never overwritten.', true),
+    userAppTool('place', 'Move or resize an installed widget using pageId and CSS grid line strings col/row without changing its verified revision. List desktop locations first; occupied cells are rejected.', true),
     userAppTool('rollback', 'Roll back a resident user application through the shell lifecycle backend.', true),
     userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true),
     defineTool({

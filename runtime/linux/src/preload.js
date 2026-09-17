@@ -2,8 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('odkPlatform', {
   getOpenCodeGoStatus: () => ipcRenderer.invoke('odk-opencode-go-status'),
-  getFaceAgentStatus: () => ipcRenderer.invoke('odk-face-agent-status'),
+  getCameraFrame: () => ipcRenderer.invoke('odk-camera-frame'),
   getPiSessions: () => ipcRenderer.invoke('odk-pi-sessions'),
+  getPiSessionEvents: (request) => ipcRenderer.invoke('odk-pi-session-events', request),
   getHydraStatus: () => ipcRenderer.invoke('odk-hydra-status'),
   getWeReadHighlight: () => ipcRenderer.invoke('odk-weread-highlight'),
   listApps: () => ipcRenderer.invoke('odk-app-manager-list'),
@@ -22,6 +23,11 @@ contextBridge.exposeInMainWorld('odkUserApps', {
 })
 
 contextBridge.exposeInMainWorld('odkVoice', {
+  onMic(listener) {
+    const handler = () => listener()
+    ipcRenderer.on('odk-voice-mic', handler)
+    return () => ipcRenderer.removeListener('odk-voice-mic', handler)
+  },
   toggle: () => ipcRenderer.invoke('odk-voice-toggle'),
   getStatus: () => ipcRenderer.invoke('odk-voice-status'),
   subscribe(listener) {

@@ -10,13 +10,15 @@ const DEFAULT_WIDTH = 1920
 const DEFAULT_HEIGHT = 1280
 const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
-const { fetchFaceAgentStatus } = require('./face-agent-status')
+const { createCameraSource } = require('./camera-source')
 const { createPiSessionsSource } = require('./pi-sessions-source')
+const { readSessionEvents } = require('./pi-sessions')
 const { createHydraSource } = require('./hydra-mqtt')
 const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
 const { createWeReadSource } = require('./weread-source')
 const { registerUserAppScheme, startUserAppSystem } = require('./user-app-system')
 const scanPiSessions = createPiSessionsSource()
+const cameraSource = createCameraSource()
 
 function configureGpuSwitches(targetApp = app, env = process.env) {
   const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
@@ -143,15 +145,23 @@ async function main() {
   const broadcastVoiceStatus = (status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-status', status)
   }
-  voiceAgent.subscribe(broadcastVoiceStatus)
+  let pendingVoiceToggle = null
+  voiceAgent.subscribe((status) => {
+    if (pendingVoiceToggle === 'starting' && status.state === 'idle') return
+    if (pendingVoiceToggle === 'sending' && status.state === 'recording') return
+    pendingVoiceToggle = null
+    broadcastVoiceStatus(status)
+  })
   if (!smokeMode) voiceAgent.start()
   ipcMain.handle('odk-voice-status', () => voiceAgent.snapshot())
   const toggleVoiceAgent = () => {
     const current = voiceAgent.snapshot()
+    if (pendingVoiceToggle || ['transcribing', 'thinking'].includes(current.state)) return false
     const sent = voiceAgent.toggle()
     if (sent) {
+      pendingVoiceToggle = current.state === 'recording' ? 'sending' : 'starting'
       broadcastVoiceStatus({
-        state: current.state === 'recording' ? 'sending' : 'starting',
+        state: pendingVoiceToggle,
         message: '',
       })
     } else {
@@ -163,7 +173,9 @@ async function main() {
   app.once('before-quit', () => voiceAgent.stop())
   const remoteBridge = createRemoteBridgeClient({
     socketPath: remoteSocketPath,
-    onRemoteMic: toggleVoiceAgent,
+    onRemoteMic: () => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-mic')
+    },
   })
   let remoteSequence = 0
   const broadcastRemoteLinkState = (state) => {
@@ -193,8 +205,15 @@ async function main() {
     const openCodeGoConfig = resolveOpenCodeGoConfig()
     return fetchOpenCodeGo(openCodeGoConfig)
   })
-  ipcMain.handle('odk-face-agent-status', fetchFaceAgentStatus)
+  ipcMain.handle('odk-camera-frame', async () => {
+    await cameraSource.refresh()
+    return cameraSource.snapshot()
+  })
   ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
+  ipcMain.handle('odk-pi-session-events', (_event, request) => readSessionEvents({
+    cwd: typeof request?.cwd === 'string' ? request.cwd : '',
+    sessionId: typeof request?.sessionId === 'string' ? request.sessionId : '',
+  }))
   const hydraSource = smokeMode
     ? createHydraSource({})
     : createHydraSource({

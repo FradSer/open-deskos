@@ -22,7 +22,6 @@ ipcMain.handle('odk-app-manager-list', () => {
 
 for (const [channel, result] of Object.entries({
   'odk-opencode-go-status': { state: 'unconfigured' },
-  'odk-face-agent-status': { state: 'unavailable', unlocked: false },
   'odk-hydra-status': { configured: false, connected: false, env: null, nodes: [] },
   'odk-pi-sessions': { summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] },
   'odk-weread-highlight': { status: 'unconfigured', highlight: null },
@@ -44,18 +43,7 @@ app.whenReady().then(async () => {
           window.dispatchEvent(new Event('resize'))
           await document.fonts.ready
           await new Promise(resolve => setTimeout(resolve, 400))
-          const host = document.querySelector('[data-widget="odk.tile.face-presence"]')
           const failures = []
-          const plugin = odkPlugins.get('odk.tile.face-presence')
-          for (const state of ['no-face', 'unknown-face', 'starting', 'no-frame', 'camera-unavailable', 'unavailable']) {
-            plugin.mount(host, { faceAgent: { subscribe(callback) { callback({ state, unlocked: false, facesCount: 0 }) } } })
-            const box = host.getBoundingClientRect()
-            for (const node of host.querySelectorAll('span')) {
-              const rect = node.getBoundingClientRect()
-              if (rect.left < box.left - 1 || rect.right > box.right + 1 || rect.top < box.top - 1 || rect.bottom > box.bottom + 1 || node.scrollWidth > node.clientWidth + 1) failures.push(state + ': ' + node.className)
-              if (parseFloat(getComputedStyle(node).fontSize) < 12) failures.push(state + ': text too small')
-            }
-          }
           const hydra = document.querySelector('[data-widget="odk.tile.hydra"]')
           let hydraTick
           const platform = window.odkPlatform
@@ -126,21 +114,21 @@ app.whenReady().then(async () => {
         assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('#app-runtime li').length`), 1)
         await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
         console.log(`PASS routed catalog pending/error/reload: ${theme} ${width}x${height}`)
-        await win.webContents.executeJavaScript(`document.querySelectorAll('#dots .dot')[5].click()`)
+        await win.webContents.executeJavaScript(`document.querySelectorAll('#dots .dot')[1].click()`)
         userCatalogMode = 'pending'
         win.webContents.send('odk-user-apps-changed')
         await new Promise(resolve => setTimeout(resolve, 100))
-        assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.user-apps-status').textContent`), 'Loading applications.')
+        assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#user-app-desktop-status').textContent`), 'Loading installed applications.')
         pendingUserCatalog({ ok: false, error: 'Catalog unavailable' })
         await new Promise(resolve => setTimeout(resolve, 100))
-        assert.match(await win.webContents.executeJavaScript(`document.querySelector('.user-apps-status').textContent`), /Applications unavailable/)
+        assert.match(await win.webContents.executeJavaScript(`document.querySelector('#user-app-desktop-status').textContent`), /applications unavailable/i)
         userCatalogMode = 'success'
         win.webContents.send('odk-user-apps-changed')
         await new Promise(resolve => setTimeout(resolve, 100))
-        assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.user-apps-status').textContent`), 'No installed applications.')
+        assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#user-app-desktop-status').textContent`), '')
         for (const close of ['back', 'escape']) {
           await win.webContents.executeJavaScript(`(async () => {
-            document.querySelector('.user-apps-input').focus()
+            document.querySelectorAll('#dots .dot')[1].focus()
             await odkAppPlatform.openApp({ appId: 'clock' })
           })()`)
           assert.equal(await win.webContents.executeJavaScript(`document.activeElement.id`), 'app-back')
@@ -148,13 +136,13 @@ app.whenReady().then(async () => {
             ? `document.querySelector('#app-back').click()`
             : `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
           await new Promise(resolve => setTimeout(resolve, 100))
-          assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#app-view').hidden && document.activeElement.classList.contains('user-apps-input')`), true)
+          assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#app-view').hidden && document.activeElement === document.querySelectorAll('#dots .dot')[1]`), true)
         }
         assert.equal(await win.webContents.executeJavaScript(`(() => {
-          const surface = document.querySelector('.user-apps')
-          return surface.scrollWidth <= surface.clientWidth + 1
+          const surface = document.querySelector('#user-app-desktop-status')
+          return !document.querySelector('.user-apps') && surface.scrollWidth <= surface.clientWidth + 1
         })()`), true)
-        console.log(`PASS Your apps loading/recovery/focus/Back/Escape: ${theme} ${width}x${height}`)
+        console.log(`PASS desktop catalog loading/recovery/focus/Back/Escape: ${theme} ${width}x${height}`)
       }
     }
   } finally {

@@ -11,7 +11,7 @@ const CATALOG = 'user-apps.json'
 const validId = id => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id)
 const validRevision = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value)
 const failure = error => ({ ok: false, error })
-const metadata = ({ id, name, version, kind, revision }) => ({ id, name, version, kind, revision })
+const metadata = ({ id, name, version, kind, revision, placement, placementError }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}) })
 const digestOf = (manifest, html) => crypto.createHash('sha256').update(manifest).update(html).digest('hex')
 
 function parseManifest(bytes, id) {
@@ -22,7 +22,29 @@ function parseManifest(bytes, id) {
   return manifest
 }
 
-function createUserAppStore({ workspace, stateDir, verify } = {}) {
+function loadDesktopLayout() {
+  const context = {}
+  require('node:vm').runInNewContext(require('node:fs').readFileSync(path.join(__dirname, 'renderer/config/desktop_layout.js'), 'utf8'), context)
+  return context.DESKTOP_LAYOUT
+}
+
+function gridAxis(value, limit) {
+  const match = /^(\d+)(?:\s*\/\s*(\d+))?$/.exec(String(value))
+  if (!match) throw Error('invalid-placement')
+  const start = Number(match[1]), end = match[2] ? Number(match[2]) : start + 1
+  if (start < 1 || end <= start || end > limit + 1) throw Error('invalid-placement')
+  return { start, end, text: end === start + 1 ? String(start) : `${start} / ${end}` }
+}
+
+function rectangle(placement) {
+  return { col: gridAxis(placement?.col, 5), row: gridAxis(placement?.row, 3) }
+}
+
+function overlaps(a, b) {
+  return a.col.start < b.col.end && b.col.start < a.col.end && a.row.start < b.row.end && b.row.start < a.row.end
+}
+
+function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopLayout() } = {}) {
   let pending = Promise.resolve()
   function serial(action) {
     const result = pending.then(action)
@@ -56,10 +78,61 @@ function createUserAppStore({ workspace, stateDir, verify } = {}) {
           || !entry.history.every(validRevision)) throw Error('invalid-catalog')
         const bundle = await snapshot(entry.id, entry.revision)
         if (bundle.digest !== entry.digest || ['name', 'version', 'kind'].some(key => entry[key] !== bundle.manifest[key])) throw Error('invalid-catalog')
+        if (entry.placement !== undefined) {
+          if (entry.kind !== 'widget' || !entry.placement || typeof entry.placement.col !== 'string' || typeof entry.placement.row !== 'string') throw Error('invalid-catalog')
+          choosePlacement(entries, entry.id, entry.placement)
+        }
         ids.add(entry.id)
       }
       return entries
     } catch { throw Error('catalog-corrupt') }
+  }
+
+  function desktop(entries) {
+    return layout.pages.map((page, index) => ({
+      id: page.id, name: page.name, kind: page.kind, surface: page.surface, index: index + 1,
+      ...(page.kind === 'grid' ? { columns: 5, rows: 3, occupied: [
+        ...(page.widgets || []).map(({ id, col, row }) => ({ id, col, row })),
+        ...entries.filter(entry => entry.placement?.pageId === page.id).map(entry => ({ id: entry.id, col: entry.placement.col, row: entry.placement.row })),
+      ] } : {}),
+    }))
+  }
+
+  function choosePlacement(entries, id, target) {
+    const pages = desktop(entries.filter(entry => entry.id !== id))
+    if (target !== undefined) {
+      const page = pages.find(page => page.id === target?.pageId && page.kind === 'grid')
+      if (!page) throw Error('invalid-page')
+      const rect = rectangle(target)
+      if (page.occupied.some(item => overlaps(rect, rectangle(item)))) throw Error('occupied-placement')
+      return { pageId: page.id, col: rect.col.text, row: rect.row.text }
+    }
+    for (const page of pages.filter(page => page.kind === 'grid')) {
+      for (let row = 1; row <= page.rows; row++) for (let col = 1; col <= page.columns; col++) {
+        const candidate = { pageId: page.id, col: String(col), row: String(row) }
+        if (!page.occupied.some(item => overlaps(rectangle(candidate), rectangle(item)))) return candidate
+      }
+    }
+    throw Error('desktop-full')
+  }
+
+  async function placedCatalog() {
+    const entries = await catalog()
+    let changed = false
+    for (const entry of entries) {
+      if (entry.kind === 'widget' && !entry.placement) {
+        try {
+          entry.placement = choosePlacement(entries, entry.id)
+          delete entry.placementError
+          changed = true
+        } catch (error) {
+          if (error.message !== 'desktop-full') throw error
+          entry.placementError = 'desktop-full'
+        }
+      }
+    }
+    if (changed) await commit(entries)
+    return entries
   }
 
   async function prepareState() {
@@ -132,15 +205,15 @@ function createUserAppStore({ workspace, stateDir, verify } = {}) {
 
   function mutate(action) {
     return serial(async () => {
-      try { return await action(await catalog()) } catch (error) {
-        const known = ['catalog-corrupt', 'workspace-not-configured', 'package-not-found', 'unsafe-package', 'invalid-manifest', 'invalid-identifier', 'manifest-too-large', 'package-too-large']
+      try { return await action(await placedCatalog()) } catch (error) {
+        const known = ['catalog-corrupt', 'workspace-not-configured', 'package-not-found', 'unsafe-package', 'invalid-manifest', 'invalid-identifier', 'manifest-too-large', 'package-too-large', 'invalid-placement', 'invalid-page', 'occupied-placement', 'desktop-full', 'placement-requires-widget']
         return failure(known.includes(error.message) ? error.message : 'persistence-failed')
       }
     })
   }
 
-  async function publish(entries, id, bundle, previous) {
-    const entry = { ...metadata({ ...bundle.manifest, revision: bundle.revision }), digest: bundle.digest, history: previous ? [previous] : [] }
+  async function publish(entries, id, bundle, previous, placement) {
+    const entry = { ...metadata({ ...bundle.manifest, revision: bundle.revision, placement }), digest: bundle.digest, history: previous ? [previous] : [] }
     try {
       await persist(bundle)
       await commit(entries.filter(app => app.id !== id).concat(entry))
@@ -153,14 +226,16 @@ function createUserAppStore({ workspace, stateDir, verify } = {}) {
     return { ok: true, app: metadata(entry), ...(!cleaned ? { warning: 'revision-cleanup-failed' } : {}) }
   }
 
-  function install(id) {
+  function install(id, placement) {
     return mutate(async entries => {
       const bundle = await draft(id)
       const previous = entries.find(entry => entry.id === id)
       if (!previous && entries.length >= MAX_APPS) return failure('catalog-limit')
+      if (bundle.manifest.kind !== 'widget' && placement !== undefined) return failure('placement-requires-widget')
+      const target = bundle.manifest.kind === 'widget' ? choosePlacement(entries, id, placement === undefined ? previous?.placement : placement) : undefined
       if (!await verifyBundle(bundle)) return failure('verification-failed')
       const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
-      return publish(entries, id, bundle, rollback)
+      return publish(entries, id, bundle, rollback, target)
     })
   }
 
@@ -172,12 +247,24 @@ function createUserAppStore({ workspace, stateDir, verify } = {}) {
       let bundle
       try { bundle = await snapshot(id, current.history[0]) } catch { return failure('invalid-snapshot') }
       if (!await verifyBundle(bundle)) return failure('verification-failed')
-      return publish(entries, id, bundle, current.revision)
+      const placement = bundle.manifest.kind === 'widget' ? choosePlacement(entries, id, current.placement) : undefined
+      return publish(entries, id, bundle, current.revision, placement)
     })
   }
 
   return {
-    list: () => serial(async () => (await catalog()).map(metadata)),
+    list: () => serial(async () => (await placedCatalog()).map(metadata)),
+    desktop: () => serial(async () => desktop(await placedCatalog())),
+    place: (id, placement) => mutate(async entries => {
+      const entry = entries.find(entry => entry.id === id)
+      if (!entry) return failure('not-found')
+      if (entry.kind !== 'widget') return failure('placement-requires-widget')
+      if (placement === undefined) return failure('invalid-placement')
+      entry.placement = choosePlacement(entries, id, placement)
+      delete entry.placementError
+      await commit(entries)
+      return { ok: true, app: metadata(entry) }
+    }),
     getContent: id => serial(async () => {
       try {
         const entry = (await catalog()).find(app => app.id === id)

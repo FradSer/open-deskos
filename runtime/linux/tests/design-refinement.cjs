@@ -2,15 +2,14 @@ async function today(win, check) {
   const result = await win.webContents.executeJavaScript(`(() => {
     const surface = document.querySelector('.dash')
     const box = surface.getBoundingClientRect()
-    const fits = [...surface.querySelectorAll('.dash-wd, .dash-date, .dash-narrative > span')].every(el => {
+    const fits = [...surface.querySelectorAll('.dash-wd, .dash-date, .dash-clause')].every(el => {
       const r = el.getBoundingClientRect()
       return r.left >= box.left && r.right <= box.right && el.scrollWidth <= el.clientWidth + 1
     })
-    return { fits, noDot: !document.querySelector('.dash-status-dot'), names: document.querySelectorAll('.vision-status-layout .widget-status-name').length }
+    return { fits, noDot: !document.querySelector('.dash-status-dot') }
   })()`)
-  check('Today wraps the date and all three status statements', result.fits)
+  check('Today wraps the date and every contributed statement', result.fits)
   check('Today has no decorative active-state dot', result.noDot)
-  check('vision Widgets retain visible identities', result.names === 2)
 }
 
 async function usage(win, check) {
@@ -67,8 +66,62 @@ async function pagerMotion(win, check) {
   check('page indicators never animate layout width', !pointer.dot.includes('width'))
 }
 
+async function briefing(win, check) {
+  const result = await win.webContents.executeJavaScript(`(() => {
+    const services = window.odkServices.briefing
+    const narrative = () => document.querySelector('#dash-narrative')
+    const clauses = () => [...narrative().querySelectorAll('.dash-clause')].map(clause => ({
+      id: clause.dataset.briefing || null,
+      text: clause.textContent,
+      signalText: [...clause.querySelectorAll('b')].map(signal => signal.textContent),
+      signalIcons: [...clause.querySelectorAll('b')].reduce((total, signal) => total + signal.querySelectorAll('svg[data-tabler]').length, 0),
+    }))
+    const ICON = '<svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 4h4l3 3h7" /></svg>'
+    const before = clauses()
+    const rejectedEmpty = services.contribute({ id: 'odk.briefing.harness-empty', parts: [{ text: '' }] })
+    const afterReject = clauses()
+    services.contribute({ id: 'odk.briefing.harness-second', order: 30, parts: [{ text: 'Second ' }, { text: 'signal', emphasis: true, icon: ICON }] })
+    services.contribute({ id: 'odk.briefing.harness-first', order: 10, parts: [{ text: 'First ' }, { text: 'signal', emphasis: true, icon: ICON }, { text: '.' }] })
+    const ordered = clauses()
+    const signal = narrative().querySelector('.dash-clause b')
+    const clause = signal && signal.closest('.dash-clause')
+    const styles = signal ? {
+      signalWeight: Number(getComputedStyle(signal).fontWeight),
+      connectiveWeight: Number(getComputedStyle(clause).fontWeight),
+      signalColor: getComputedStyle(signal).color,
+      connectiveColor: getComputedStyle(clause).color,
+      iconSize: signal.querySelector('svg').getBoundingClientRect().width,
+      signalSize: parseFloat(getComputedStyle(signal).fontSize),
+    } : null
+    services.withdraw('odk.briefing.harness-first')
+    services.withdraw('odk.briefing.harness-second')
+    return { before, afterReject, ordered, restored: clauses(), rejectedEmpty, styles }
+  })()`)
+
+  const ids = result.ordered.map((clause) => clause.id)
+  const first = ids.indexOf('odk.briefing.harness-first')
+  const second = ids.indexOf('odk.briefing.harness-second')
+  const added = result.ordered.filter((clause) => ids.indexOf(clause.id) >= 0 && /harness/.test(clause.id))
+
+  check('an invalid briefing contribution is refused', result.rejectedEmpty === false)
+  check('a refused contribution adds no statement', JSON.stringify(result.afterReject) === JSON.stringify(result.before))
+  check('briefing statements render in ascending order', first >= 0 && second >= 0 && first < second)
+  check('every harness statement renders one emphasized signal with an icon',
+    added.length === 2 && added.every((clause) => clause.signalIcons === 1 && clause.signalText.length === 1))
+  check('withdrawing a contribution removes its statement', JSON.stringify(result.restored) === JSON.stringify(result.before))
+  // Pixel runs Zpix at a single Regular weight with font-synthesis disabled, so
+  // emphasis must survive on the brighter signal color alone.
+  check('signals read louder than connectives without outgrowing the line',
+    Boolean(result.styles) &&
+    result.styles.signalColor !== result.styles.connectiveColor &&
+    result.styles.signalWeight >= result.styles.connectiveWeight &&
+    result.styles.iconSize > 0 &&
+    result.styles.iconSize < result.styles.signalSize)
+}
+
 module.exports = async function run(win, check) {
   await today(win, check)
+  await briefing(win, check)
   await usage(win, check)
   await pagerMotion(win, check)
 }

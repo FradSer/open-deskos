@@ -17,9 +17,9 @@ Feature: One system-owned application lifecycle
     Then no application mutation runs
     And the connection is closed
 
-  Scenario: Fifth page remains reachable on the compact display
-    Given a 320 pixel wide Shell with six pages
-    When the user selects the Your apps page marker
+  Scenario: Installed App pages remain reachable on the compact display
+    Given a 320 pixel wide Shell with five base pages and independently installed App pages
+    When the user selects an installed App page marker
     Then all page hit targets remain distinct and clear of the Pi status control
 
   Scenario: Voice and Shell share system workspace configuration

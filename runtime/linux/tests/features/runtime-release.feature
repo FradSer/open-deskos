@@ -28,6 +28,12 @@ Feature: Immutable runtime release deployment
       | an ambient NODE_PATH directory |
       | an external pnpm symlink       |
 
+  Scenario: Renderer dependencies are sealed inside the candidate
+    Given a candidate whose renderer loads a local Markdown browser bundle
+    When that script is missing or resolves outside the candidate
+    Then composition validation rejects the candidate
+    And an installed browser bundle inside the candidate passes
+
   Scenario: Device preflight uses the kiosk graphical session
     Given a staged candidate release
     And a kiosk user with an active graphical session

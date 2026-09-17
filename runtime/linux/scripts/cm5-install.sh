@@ -11,7 +11,6 @@ fi
 
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null && pwd -P)"
 REPOSITORY_ROOT="$(CDPATH= cd -- "${DIR}/../.." >/dev/null && pwd -P)"
-FACE_AGENT_SOURCE="${REPOSITORY_ROOT}/experiments/vision/face-agent"
 REMOTE_BRIDGE_SOURCE="${REPOSITORY_ROOT}/integrations/remote-bridge"
 VOICE_AGENT_SOURCE="${REPOSITORY_ROOT}/integrations/voice-agent"
 source "${DIR}/scripts/cm5-voice-agent.sh"
@@ -32,9 +31,6 @@ if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 uncl
   echo "retrying with libasound2t64 (Ubuntu 24.04 naming)"
   $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2
 fi
-
-FACE_AGENT_DIR="/opt/face-agent"
-FACE_AGENT_VENV="/opt/face-agent-venv"
 
 resolve_target_user() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -62,7 +58,6 @@ fi
 TARGET_HOME="$(getent passwd "${TARGET_USER}" | cut -d: -f6)"
 TARGET_UID="$(id -u "${TARGET_USER}")"
 TARGET_GID="$(id -g "${TARGET_USER}")"
-FACE_AGENT_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
 
 # Ensure target user has access to DRM/GPU render nodes (/dev/dri/card*, /dev/dri/renderD128)
 for group in video render; do
@@ -106,50 +101,23 @@ EOF
 $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${KIOSK_BIN}/pnpm"
 $SUDO chmod 0755 "${KIOSK_BIN}/pnpm"
 
-install_face_agent() {
-  if [ ! -f "${FACE_AGENT_DIR}/face_service.py" ]; then
-    echo "Face Agent source is missing at ${FACE_AGENT_DIR}; install it before running this installer." >&2
-    return 1
-  fi
-  echo "== provisioning Face Agent =="
-  $SUDO apt-get install -y python3-venv python3-aiohttp python3-serial
-  if [ ! -x "${FACE_AGENT_VENV}/bin/python3" ]; then
-    $SUDO python3 -m venv --system-site-packages "${FACE_AGENT_VENV}"
-  fi
-  $SUDO "${FACE_AGENT_VENV}/bin/pip" install --upgrade pyserial
-  $SUDO install -o root -g root -m 0644 "${FACE_AGENT_SOURCE}/face_service.py" "${FACE_AGENT_DIR}/face_service.py"
-  $SUDO chown -R "${TARGET_UID}:${TARGET_GID}" "${FACE_AGENT_DIR}/data"
-
-  run_as_target_user mkdir -p "${FACE_AGENT_UNIT_DIR}"
-  run_as_target_user install -m 0644 "${FACE_AGENT_SOURCE}/systemd/open-deskos-face-agent.service" \
-    "${FACE_AGENT_UNIT_DIR}/open-deskos-face-agent.service"
-  run_as_target_user systemctl --user daemon-reload
-  run_as_target_user systemctl --user enable --now open-deskos-face-agent.service
-}
-
-install_experimental_vision() {
-  install_face_agent
-
-  echo "== configuring the experimental ESP32-P4 camera and microphone link =="
-  # The P4 native composite USB device exposes CDC metadata and a UAC microphone.
+install_p4_camera_mic() {
+  echo "== configuring the ESP32-P4 camera and microphone link =="
+  # The P4 native composite USB device exposes a UVC camera and a UAC microphone.
   $SUDO tee /etc/udev/rules.d/99-open-deskos-p4-camera.rules >/dev/null <<'EOF'
-SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="7002", SYMLINK+="open-deskos-p4-camera", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="7002", SYMLINK+="open-deskos-p4-camera", GROUP="video", MODE="0660"
 SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="open-deskos-p4-debug", GROUP="dialout", MODE="0660"
 EOF
   $SUDO udevadm control --reload-rules
+  $SUDO udevadm trigger --subsystem-match=video4linux
   $SUDO udevadm trigger --subsystem-match=tty
 
   if [ ! -e /dev/open-deskos-p4-camera ]; then
-    echo "ESP32-P4 camera serial adapter not detected yet; connect it and rerun udevadm trigger before starting the Face Agent." >&2
+    echo "ESP32-P4 camera video device not detected yet; connect the native USB data port and rerun udevadm trigger." >&2
   fi
 }
 
-if [ "${ODESK_INSTALL_EXPERIMENTAL_VISION:-0}" = "1" ]; then
-  install_experimental_vision
-else
-  echo "== skipping experimental Face Agent and ESP32-P4 camera provisioning =="
-  echo "Set ODESK_INSTALL_EXPERIMENTAL_VISION=1 to install the optional vision integration."
-fi
+install_p4_camera_mic
 
 echo "== installing node modules (downloads linux-arm64 Electron) =="
 $SUDO chown -R "${TARGET_UID}:${TARGET_GID}" "${DIR}"

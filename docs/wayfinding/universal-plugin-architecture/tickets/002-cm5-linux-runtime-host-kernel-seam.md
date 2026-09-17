@@ -54,9 +54,10 @@ Monolithic code from `src/main.js` is partitioned into modular plugins under `sr
 2. **`odk.main.opencode-go`** (`kind: 'service'`):
    - Manifest: `provides: ["odk.ipc.opencode-go/v1"]`, `permissions: ["network:http:external"]`.
    - Fetches truthful subscription quotas and rolling usage.
-3. **`odk.main.face-agent-status`** (`kind: 'integration'`):
+3. ~~**`odk.main.face-agent-status`** (`kind: 'integration'`):
    - Manifest: `provides: ["odk.ipc.face-agent/v1"]`, `permissions: ["network:http:loopback"]`.
-   - Polls loopback Face Agent endpoint (`http://127.0.0.1:8790/status`).
+   - Polls loopback Face Agent endpoint (`http://127.0.0.1:8790/status`).~~
+   - WITHDRAWN with the Face Agent removal (see runtime/linux/docs/adr/0004-p4-generic-uvc-camera.md).
 4. **`odk.main.app-manager`** (`kind: 'service'`):
    - Manifest: `provides: ["odk.ipc.app-manager/v1"]`.
    - Authoritative app registry, transactional state transitions, and rollback mechanisms.

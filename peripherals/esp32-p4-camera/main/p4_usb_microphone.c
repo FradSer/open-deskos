@@ -176,7 +176,7 @@ esp_err_t p4_usb_microphone_init(i2c_master_bus_handle_t i2c_bus)
     uac_device_config_t config = {
         .skip_tinyusb_init = true,
         .input_cb = microphone_input,
-        .mic_itf_num = 3,
+        .mic_itf_num = P4_USB_MIC_INTERFACE_NUMBER,
         .spk_itf_num = -1,
     };
     ESP_RETURN_ON_ERROR(uac_device_init(&config), TAG, "initialize USB Audio Class microphone");

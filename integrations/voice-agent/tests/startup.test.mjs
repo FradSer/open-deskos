@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
@@ -26,6 +26,17 @@ async function startupStatus(t, env = {}) {
   client.write('{"v":1,"type":"status"}\n')
   return reply
 }
+
+test('main prompt wiring forwards the live response snapshot callback', async () => {
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const wiring = source.match(/prompt:\s*([^\n]+),\n/)[1]
+  let received
+  const runtime = { agent: { prompt: (...args) => { received = args; return Promise.resolve('done') } } }
+  const prompt = Function('runtime', `return (${wiring})`)(runtime)
+  const snapshot = () => {}
+  assert.equal(await prompt('request', snapshot), 'done')
+  assert.deepEqual(received, ['request', snapshot])
+})
 
 test('unconfigured resident stays reachable and reports configuration error', async t => {
   assert.equal((await startupStatus(t)).state, 'error')
@@ -56,6 +67,42 @@ test('plain HTTP loopback STT URL is accepted for device-local speech', async t 
     ODESK_VOICE_STT_URL: 'http://127.0.0.1:17840/inference',
   })
   assert.match(status.message, /writable checkout/)
+})
+
+test('region language tags are rejected with supported language guidance', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: await keyFile(t),
+    ODESK_VOICE_STT_LANGUAGE: 'zh-CN',
+  })
+  assert.match(status.message, /ODESK_VOICE_STT_LANGUAGE/)
+  assert.doesNotMatch(status.message, /zh-CN/)
+})
+
+test('oversize transcription prompts fail startup with safe guidance', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: await keyFile(t),
+    ODESK_VOICE_STT_PROMPT: 'private-context'.repeat(100),
+  })
+  assert.match(status.message, /ODESK_VOICE_STT_PROMPT/)
+  assert.match(status.message, /1024/)
+  assert.doesNotMatch(status.message, /private-context/)
+})
+
+test('main wires validated transcription context including empty opt-out', async () => {
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const initializeSource = source.match(/async function initialize\(env, report\) \{[\s\S]*?\n\}/)[0]
+  const { transcriptionLanguage, transcriptionPrompt } = await import('../src/transcribe.mjs')
+  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', `return (${initializeSource})`)(
+    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt,
+  )
+  for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
+    const runtime = await initialize({
+      ODESK_WORKSPACE: '/test-checkout', ODESK_VOICE_STT_KEY_FILE: '/test-key', ODESK_VOICE_STT_PROMPT: prompt,
+    }, () => {})
+    assert.equal(runtime.stt.prompt, transcriptionPrompt(prompt))
+  }
 })
 
 test('plain HTTP STT URL outside loopback is rejected', async t => {

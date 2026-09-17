@@ -1,6 +1,6 @@
 # User applications
 
-User applications are installed local packages, separate from trusted built-in Shell plugins. Creating a file does not install it. The Shell owns the installed catalog and verification; the resident Agent and the Your apps page use the same lifecycle operations.
+User applications are installed local packages, separate from trusted built-in Shell plugins. Creating a file does not install it. The Shell owns the installed catalog and verification; the resident Agent invokes the Shell-owned lifecycle service. Widgets share ordinary desktop grid pages with built-in instruments; interactive Apps have individual pages. There is no separate Your apps collection page.
 
 ## Author a draft
 
@@ -23,15 +23,21 @@ The first version does not provide persistent per-app data or background service
 
 ## Install and manage
 
-Open **Your apps**, enter the draft ID and choose **Install**. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged.
+Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged.
 
-The page shows installed widgets and allows opening/closing interactive apps. **Update** verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/open-deskos/user-apps`, outside the runtime release.
+Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/open-deskos/user-apps`, outside the runtime release.
 
 A fresh Shell process reads the installed catalog. Applications do not require modifying `index.html`, built-in layout or plugin registry, nor rebuilding the Shell release for each update. The runtime feature itself must first be deployed.
 
 ## Agent operations
 
-The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
+The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
+
+Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based page indices (Home is page 2, Reading page 3), kinds, and for grids `columns: 5`, `rows: 3`, and occupied built-in/user rectangles. Only grid pages accept Widgets. Built-in cells remain reserved even when a development URL disables their plugin.
+
+`user_app_install` accepts optional `placement: {pageId, col, row}`. `user_app_place` requires the same placement and moves/resizes an installed Widget without changing or reverifying its revision. The renderer may remount its frame, resetting ephemeral state. Columns and rows are CSS grid line strings: `"2"` is one cell, `"2 / 5"` spans three cells. For example, `{ "pageId": "reading", "col": "1 / 3", "row": "3" }` occupies two bottom-row cells on page 3. The private protocol uses commands `desktop`, `install`, and `place`, with `appId` rather than the tools' `id` parameter.
+
+Explicit placements outside the grid, on non-grid pages, or overlapping built-in/installed Widgets are rejected; nothing is silently overwritten or relocated. Omitted placements retain an existing Widget's location or select the first free cell. Placement survives restart, update and rollback independently of revision bytes. Existing unplaced Widgets receive free cells when listed. If there is no capacity, they remain listed with `placementError: "desktop-full"`; removal and other lifecycle operations remain available. Interactive Apps do not accept grid placement.
 
 Desktop preload exposes only list/dispatch and change subscription. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
 
@@ -53,9 +59,4 @@ bash tests/smoke.sh
 
 The lifecycle integration test actually installs, renders an opaque-origin frame, updates, rejects a broken revision, restores state after restart, rolls back and removes a temporary package. Tests use temporary directories, never the user's installed application state. Host checks do not establish CM5 hardware acceptance.
 
-Current verification: scoped lifecycle tests, runtime unit tests, smoke and the
-real Electron lifecycle sequence pass. The five-page marker test also passes,
-including 320px layouts. Full desktop E2E remains red on the concurrent WeRead /
-Pi widget composition, density and interiors checks; it is not a release pass.
-No device deployment or model-generated real application has been claimed from
-these deterministic host tests.
+Placement tests cover exact spans, occupied/out-of-bounds rejection, concurrent installation, persistence through revision changes, existing unplaced Widgets, desktop capacity recovery, and corrupt catalog metadata. Voice tests exercise the actual private socket request contract. Host checks do not establish CM5 hardware acceptance.

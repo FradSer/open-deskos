@@ -105,7 +105,7 @@ async function checkSize(width, height) {
 
 app.whenReady().then(async () => {
   ipcMain.handle('odk-remote-publish-page-state', (_event, state) => { pageState = state; return { ok: true } })
-  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-user-apps-list', 'odk-face-agent-status']) {
+  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-user-apps-list', 'odk-camera-frame']) {
     ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [] }))
   }
   win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: {

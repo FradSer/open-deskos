@@ -20,12 +20,11 @@ Open DeskOS is a truthful desk companion: a CM5 display runtime that makes the c
 CM5 Linux / Electron runtime
   ├─ direct touch and keyboard
   ├─ ESP32-S3 Remote Control peripheral
-  ├─ ESP32-P4 SC2336 Camera Peripheral
-  ├─ Remote Bridge integration
-  └─ opt-in Face Agent experiment
+  ├─ ESP32-P4 SC2336 Camera Peripheral (generic UVC webcam + UAC microphone)
+  └─ Remote Bridge integration
 ```
 
-The S3 Remote and P4 Camera are intended system components. Their hardware acceptance is independent from the CM5 base-shell acceptance. Face Agent/owner recognition is experimental and cannot make the base shell inert or hidden.
+The S3 Remote and P4 Camera are intended system components. Their hardware acceptance is independent from the CM5 base-shell acceptance. The P4 Camera performs no face recognition, expression analysis, or identity storage: it is a standard webcam and microphone.
 
 ## Preserved Research
 
@@ -42,7 +41,7 @@ The CM5 shell inherits the semantic Open DeskOS token palette: black field, char
 1. **CM5 owns the runtime.** Linux services, display, local data, and application orchestration live on CM5.
 2. **Truth before detail.** Show locally known or provider-sourced state with provenance; never invent personal activity, health, calendar, or usage data.
 3. **Peripheral gates are independent.** S3 Remote and P4 Camera have dedicated hardware acceptance; missing hardware cannot block base-shell operation.
-4. **Experiments do not become prerequisites.** Face Agent, owner recognition, C6/S31 gateways, and future packages remain opt-in until a product decision promotes them.
+4. **Experiments do not become prerequisites.** C6/S31 gateways and future packages remain opt-in until a product decision promotes them.
 5. **Preserve research without inheriting its constraints.** The P4+C6 device OS and Apple companion stay reproducible in research and do not define the active product.
 6. **Escape is guaranteed.** Back returns to the source context; direct touch and keyboard remain usable when Remote Link is unavailable.
 7. **User packages stay bounded.** Local user Widgets/Apps are opaque, self-contained HTML packages managed through verification; this is not a marketplace, native-extension, background-service, or network-permission platform.

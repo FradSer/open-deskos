@@ -10,7 +10,7 @@ const pause = () => new Promise((resolve) => setTimeout(resolve, 30))
 app.whenReady().then(async () => {
   let pageState
   ipcMain.handle('odk-remote-publish-page-state', (_event, state) => { pageState = state; return { ok: true } })
-  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-user-apps-list', 'odk-face-agent-status']) {
+  for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-user-apps-list', 'odk-camera-frame']) {
     ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [] }))
   }
   const win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: {
@@ -180,7 +180,8 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))`)
   assert.equal(await evaluate(`window.voiceControlClicks`), 1, 'Remote primary activates the restored control')
   await evaluate(`document.getElementById('app-view').hidden = false`)
-  await send({ state: 'starting' })
+  win.webContents.send('odk-voice-mic')
+  await pause()
   assert.equal(await evaluate(`document.getElementById('voice-status').parentElement === document.body && document.getElementById('app-view').inert`), true)
   await evaluate(`document.querySelector('.voice-status-content').focus()`)
   const trapped = await evaluate(`(() => { const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); document.activeElement.dispatchEvent(event); return event.defaultPrevented && document.activeElement.classList.contains('voice-status-content') })()`)
@@ -190,7 +191,8 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
   await pause()
   assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true)
-  await send({ state: 'starting' })
+  win.webContents.send('odk-voice-mic')
+  await pause()
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
   assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true, 'Remote Back closes feedback before the App')
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
@@ -201,7 +203,8 @@ app.whenReady().then(async () => {
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
   })
-  await send({ state: 'starting' })
+  win.webContents.send('odk-voice-mic')
+  await pause()
   await send({ state: 'thinking' })
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".voice-status-progress span")).animationName'), 'none')
   win.webContents.setZoomFactor(2)

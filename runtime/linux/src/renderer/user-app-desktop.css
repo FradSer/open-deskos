@@ -1,0 +1,10 @@
+.installed-widget { padding: 0; }
+.user-app-frame { display: block; width: 100%; height: 100%; min-height: 0; border: 0; flex: 1; background: transparent; }
+.installed-widget .user-app-frame { pointer-events: none; }
+.installed-app { gap: var(--odk-space-3); }
+.installed-app > .user-app-frame { width: min(100%, var(--grid-w)); align-self: center; }
+.installed-app-message { padding: var(--odk-space-3); margin: 0; color: var(--odk-secondary-strong); font-size: var(--odk-text-label); line-height: 1.5; overflow-wrap: anywhere; }
+.installed-app-message[hidden] { display: none; }
+#user-app-desktop-notice { position: fixed; inset-inline: var(--gutter); bottom: var(--gutter); z-index: 10; display: flex; align-items: center; gap: var(--odk-space-3); padding: var(--odk-space-3); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-card); }
+#user-app-desktop-notice:has(#user-app-desktop-status[hidden]) { display: none; }
+#user-app-desktop-status { margin: 0; color: var(--odk-secondary-strong); font-size: var(--odk-text-label); line-height: 1.5; }

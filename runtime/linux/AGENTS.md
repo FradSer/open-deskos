@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/main.js` owns Electron windowing, kiosk/smoke modes, IPC, OpenCode Go, Remote Bridge, and fixed-loopback Face Agent status. It denies navigation, popups, permissions, and kiosk DevTools.
+- `src/main.js` owns Electron windowing, kiosk/smoke modes, IPC, OpenCode Go, Remote Bridge, and the UVC camera frame endpoint. It denies navigation, popups, permissions, and kiosk DevTools.
 - `src/renderer/` is a framework-free DOM shell. `core/` owns composition, plugin lifecycle, and the built-in-view intent seam; `plugins/` own visible surfaces; `config/desktop_layout.js` is the placement authority. Follow `docs/AI_PLUGIN_GUIDE.md`.
 - `tests/` contains Gherkin features (`tests/features/`), Node test contracts (`tests/*.test.js`), smoke/layout checks (`tests/smoke.sh`), and Electron E2E (`tests/e2e.js`).
 - `scripts/start-kiosk.sh`, `scripts/cm5-install.sh`, and `scripts/cm5-acceptance.sh` own launch, CM5 deployment, and on-device acceptance.

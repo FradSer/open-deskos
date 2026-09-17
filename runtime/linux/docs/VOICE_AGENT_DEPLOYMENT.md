@@ -97,7 +97,7 @@ ODESK_VOICE_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0
 ```
 
 Device acceptance passed repeated signed 16-bit mono 16 kHz captures while the
-Face Agent continued receiving monotonic on-device inference metadata. The
+P4 UVC camera continued streaming MJPEG frames. The
 kiosk user's recorder path also produced a complete WAV capture. Raw acceptance
 audio is piped into aggregate analysis and is not written to disk. Re-run the
 hardware gate after firmware, kernel, cable, or board changes:
@@ -107,6 +107,6 @@ hardware gate after firmware, kernel, cable, or board changes:
 ```
 
 The P4 native USB2.0 data port is distinct from the CH343P debug/flash Type-C
-port. Both may remain connected: the native port carries CDC+UAC, while CH343P
+port. Both may remain connected: the native port carries UVC+UAC, while CH343P
 carries firmware logs and flashing. Model/STT authentication and optional
 session-control remain separately provisioned device-local concerns.

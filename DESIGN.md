@@ -44,7 +44,7 @@ This is the semantic design system for the active CM5/Linux runtime. It governs 
 
 ## Visual intent
 
-A CM5 display is a quiet, truthful instrument at a desk. It opens on states the system can substantiate: local time, focus state, network state, configured provider state, and peripheral connection state. The interface should make a status legible at a glance and one next action obvious, without fabricating personal calendar, health, activity, or account data.
+A CM5 display is a quiet, truthful instrument at a desk. It opens on the states the system can substantiate: the local date, plus whatever a plugin has backed with a real source. Local time, network reachability, and peripheral connection state live in the State Bar and their dedicated surfaces instead of being restated on the first page. The interface should make a status legible at a glance and one next action obvious, without fabricating personal calendar, health, activity, or account data.
 
 The visual vocabulary is a black field, charcoal surfaces, outlined widgets, heavy tabular numerals, and state accents used with deliberate intensity. Live states can carry a stronger red, green, or blue field inside a clearly bounded instrument; inactive surfaces remain quiet. Every control owns a visible rest, focus, and active state, and transitions describe a specific state change instead of adding ambient motion. It must not look like an analytics dashboard, a generic AI interface, or a neon/glassmorphism experiment.
 
@@ -83,9 +83,9 @@ selection locally. New installations currently use Pixel; an explicit selection 
 
 ## Interaction rules
 
-- **Today first.** The initial page reports truthful local and provider-backed status, not a synthetic briefing.
+- **Today first.** The initial page reports only statements a plugin has substantiated from local or provider-backed facts; it never fabricates a synthetic briefing and it never restates network, focus, or provider configuration that already lives in the State Bar or its dedicated surface.
 - **Glance first, dive second.** A Widget can open a focused built-in view; Back and Escape restore the source page.
-- **Direct input always works.** Touch and keyboard never depend on Remote Link, camera state, Face Agent, or owner recognition.
+- **Direct input always works.** Touch and keyboard never depend on Remote Link or camera state.
 - **Peripheral state is explicit.** Remote and Camera hardware may be architecturally required, but each has a separate acceptance gate and must expose unavailable or synchronizing states honestly.
 - **Reduced motion is respected.** Pointer paging uses a short spatial transition; keyboard and Remote page changes are immediate. Page markers crossfade point/bar opacity without scaling targets or animating layout width. No ambient movement is added to idle Widgets.
 - **State Bar capsules align.** Pi status and page navigation share `--odk-status-control-h: 44px` for their visible surfaces and hit heights. Pagination is graphical at every size: points for other pages, a short bar for the current page, with page names exposed only to assistive technology. Instrument/Border Beam use rounded marks; Pixel uses square marks and its semantic active color. Theme changes never resize the targets or replace controls.

@@ -77,24 +77,38 @@ function formatToolCall(toolName, args) {
   return toolName
 }
 
-function extractLatestActivity(agentDir, cwd, sessionId) {
+const LATEST_ACTIVITY_MAX_BYTES = 65536
+const SESSION_EVENT_MAX_BYTES = 262144
+const SESSION_EVENT_MAX_EVENTS = 60
+const SESSION_EVENT_MAX_LINE = 200
+
+function resolveSessionLogPath(agentDir, cwd, sessionId) {
   if (!agentDir || !cwd || !sessionId) return ''
+  const dirName = '--' + cwd.replace(/^[/\\]+/, '').replace(/[/\\]+/g, '-').replace(/-+$/, '') + '--'
+  const sessionsDir = path.join(agentDir, 'sessions', dirName)
+  if (!fs.existsSync(sessionsDir)) return ''
+  const match = fs.readdirSync(sessionsDir).find((file) => file.includes(sessionId) && file.endsWith('.jsonl'))
+  return match ? path.join(sessionsDir, match) : ''
+}
+
+function openLogTail(filePath, maxBytes) {
+  const stat = fs.statSync(filePath)
+  const size = Math.min(stat.size, maxBytes)
+  const fd = fs.openSync(filePath, 'r')
   try {
-    const dirName = '--' + cwd.replace(/^[/\\]+/, '').replace(/[/\\]+/g, '-').replace(/-+$/, '') + '--'
-    const sessionsDir = path.join(agentDir, 'sessions', dirName)
-    if (!fs.existsSync(sessionsDir)) return ''
-    const files = fs.readdirSync(sessionsDir)
-    const match = files.find((f) => f.includes(sessionId) && f.endsWith('.jsonl'))
-    if (!match) return ''
-    const filePath = path.join(sessionsDir, match)
-    const stat = fs.statSync(filePath)
-    const bufSize = Math.min(stat.size, 65536)
-    const fd = fs.openSync(filePath, 'r')
-    const buffer = Buffer.alloc(bufSize)
-    fs.readSync(fd, buffer, 0, bufSize, Math.max(0, stat.size - bufSize))
+    const buffer = Buffer.alloc(size)
+    fs.readSync(fd, buffer, 0, size, Math.max(0, stat.size - size))
+    return { text: buffer.toString('utf8'), truncated: stat.size > size }
+  } finally {
     fs.closeSync(fd)
-    const text = buffer.toString('utf8')
-    const lines = text.trim().split('\n')
+  }
+}
+
+function extractLatestActivity(agentDir, cwd, sessionId) {
+  try {
+    const filePath = resolveSessionLogPath(agentDir, cwd, sessionId)
+    if (!filePath) return ''
+    const lines = openLogTail(filePath, LATEST_ACTIVITY_MAX_BYTES).text.trim().split('\n')
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const entry = JSON.parse(lines[i])
@@ -120,6 +134,93 @@ function extractLatestActivity(agentDir, cwd, sessionId) {
     }
   } catch {}
   return ''
+}
+
+function boundEventLine(text, maxLength = SESSION_EVENT_MAX_LINE) {
+  if (!text || typeof text !== 'string') return ''
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, ' ').trim()
+    if (!line) continue
+    return line.length > maxLength ? `${line.slice(0, maxLength - 1)}…` : line
+  }
+  return ''
+}
+
+// A Session Event is one bounded line: the session's own log entries never
+// become a transcript, and a tool result contributes only its first line.
+function sessionEventsFromEntry(entry) {
+  if (!entry || entry.type !== 'message') return []
+  const message = entry.message
+  if (!message || typeof message !== 'object') return []
+  const content = Array.isArray(message.content) ? message.content : []
+  const events = []
+  for (const part of content) {
+    if (!part || typeof part !== 'object') continue
+    if (message.role === 'user' && part.type === 'text') {
+      const text = boundEventLine(part.text)
+      if (text) events.push({ kind: 'user', text })
+      continue
+    }
+    if (message.role === 'assistant' && part.type === 'thinking') {
+      const text = boundEventLine(part.thinking)
+      if (text) events.push({ kind: 'thinking', text })
+      continue
+    }
+    if (message.role === 'assistant' && part.type === 'toolCall') {
+      const text = boundEventLine(formatToolCall(part.name, part.arguments))
+      if (text) events.push({ kind: 'tool', text })
+      continue
+    }
+    if (message.role === 'assistant' && part.type === 'text') {
+      const text = boundEventLine(part.text)
+      if (text) events.push({ kind: 'assistant', text })
+      continue
+    }
+    if (message.role === 'toolResult' && part.type === 'text') {
+      const body = boundEventLine(part.text)
+      if (!body) continue
+      const toolName = typeof message.toolName === 'string' && message.toolName ? message.toolName : ''
+      events.push({ kind: 'result', text: boundEventLine(toolName ? `${toolName}: ${body}` : body) })
+    }
+  }
+  return events
+}
+
+function readSessionEvents(options = {}) {
+  const agentDir = options.agentDir || process.env.PI_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
+  const { cwd, sessionId } = options
+  const maxBytes = Number.isFinite(options.maxBytes) && options.maxBytes > 0 ? options.maxBytes : SESSION_EVENT_MAX_BYTES
+  const maxEvents = Number.isFinite(options.maxEvents) && options.maxEvents > 0 ? options.maxEvents : SESSION_EVENT_MAX_EVENTS
+  if (!cwd || !sessionId) return { ok: false, reason: 'session-identity-required' }
+
+  let filePath = ''
+  let tail = null
+  try {
+    filePath = resolveSessionLogPath(agentDir, cwd, sessionId)
+    if (filePath) tail = openLogTail(filePath, maxBytes)
+  } catch {
+    return { ok: false, reason: 'session-log-unreadable' }
+  }
+  if (!tail) return { ok: false, reason: 'session-log-missing' }
+
+  const lines = tail.text.split('\n')
+  // A tail read can start mid-record; that partial first line is not an entry.
+  if (tail.truncated) lines.shift()
+
+  const collected = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    let entry
+    try {
+      entry = JSON.parse(line)
+    } catch {
+      continue
+    }
+    for (const event of sessionEventsFromEntry(entry)) collected.push(event)
+  }
+
+  const events = collected.slice(-maxEvents)
+  return { ok: true, events, truncated: tail.truncated || collected.length > events.length }
 }
 
 function resolveWorkspaceName(cwd) {
@@ -538,6 +639,7 @@ async function scanPiSessions(options = {}) {
 
 module.exports = {
   scanPiSessions,
+  readSessionEvents,
   extractUuid,
   resolveWorkspaceName,
   parseElapsedSeconds,

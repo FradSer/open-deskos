@@ -25,9 +25,9 @@ app.whenReady().then(async () => {
   assert.equal(pixelState.stroked.length, 0, 'pixel theme must not keep Tabler stroke icons')
   assert.equal(pixelState.hasPath.length, pixelState.count, 'pixel icons must render path data')
 
-  const boltIsLink = await win.webContents.executeJavaScript(
-    `document.querySelector('svg[data-tabler="bolt"]').innerHTML.includes('M4 6h7v2H4')`)
-  assert.equal(boltIsLink, true, 'bolt must render the pixel link icon under the pixel theme')
+  const wifiIsPixel = await win.webContents.executeJavaScript(
+    `document.querySelector('svg[data-tabler="wifi"]').innerHTML.includes('M11 19h2v2h-2z')`)
+  assert.equal(wifiIsPixel, true, 'the network indicator must render the pixel wifi icon under the pixel theme')
 
   await win.webContents.executeJavaScript(`odkTheme.set('instrument')`)
   await new Promise((resolve) => setTimeout(resolve, 100))

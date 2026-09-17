@@ -1,5 +1,10 @@
 Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
 
+  Scenario: Desktop placement remains in the recurring Electron gate
+    Given the runtime end-to-end gate is run
+    When its subprocess checks execute
+    Then real sandboxed installed widget placement and live movement must pass
+
   Scenario: Concurrent CM5 deployments keep each source snapshot isolated
     Given multiple development sessions can deploy the Linux runtime
     When their deployments overlap
@@ -32,7 +37,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the shell does not render a platform connection guide
 
   Scenario: Consecutive HID navigation presses advance consecutive pages
-    Given the Display Shell is focused on the first of four pages
+    Given the Display Shell is focused on the first of five pages
     When it receives an ArrowRight key press
     And it receives another ArrowRight key press after the prior navigation completes
     Then it displays the third page
@@ -40,21 +45,37 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
   Scenario: Linux network status remains concise
     Given the Linux shell is running
     Then the State Bar shows only a network reachability indicator
+    And the indicator draws a wifi glyph while the network is reachable
+    And it draws a struck wifi glyph while the network is unreachable
     And it does not render Network connected, OpenCode Go readiness, or Remote Link text
     When the network changes offline then online
-    Then the indicator and assistive status announcement update accordingly
+    Then the indicator glyph, its accessible name, and the assistive status announcement update accordingly
 
-  Scenario: Today starts as a truthful, usable desk surface
+  Scenario: Today briefs the desk only from plugin contributions
     Given the shell starts at 1920 by 1280
-    Then the first page is Today and shows the current weekday, date, and local time
-    And Today states the current network, focus, and OpenCode Go configuration status
+    Then the first page is Today and shows the current weekday, date, and year
+    And Today renders one statement per contributed briefing
+    And every statement signal is emphasized inside the statement while connectives stay quiet
+    And Today never states network, focus, or quota-service status
     And Today does not claim meetings, tasks, habits, steps, sleep, or other personal data without a configured provider
+    And Today states that no desk briefing is available when no plugin contributes one
     And Today remains usable when optional experimental integrations are unavailable
+
+  Scenario: Briefing contributions stay ordered, honest, and withdrawable
+    Given the shell is running
+    When a plugin contributes briefing parts
+    Then Today renders them in ascending contribution order
+    When a contribution repeats unchanged
+    Then Today does not re-render that statement
+    When a contribution carries empty or malformed parts
+    Then the shell drops those parts instead of rendering fabricated text
+    When a plugin withdraws its contribution
+    Then Today no longer renders that statement
 
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
     Then the State Bar and five-column by three-row widget grid are visible
-    And the shell exposes four navigable pages with Pi Sessions on page three and Usage on page four
+    And the shell exposes Today, Home, Reading, Pi Sessions, and Usage without a separate User Applications page
     And every visible widget states a truthful status before any App opens
     And the widget grid has five columns and three rows
     And the State Bar is large enough for the Pi Sessions running state to be legible
@@ -167,33 +188,25 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the main process configures Chromium to ignore the GPU blocklist and enable GPU rasterization
     And setting ODESK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
 
-  Scenario: Experimental vision never blocks the desk surface
-    Given the Face Agent user service is stopped, starting, has no camera frame, or cannot capture from its camera
+  Scenario: The desk surface never depends on peripheral gates
+    Given the ESP32-P4 camera or the Remote Control is disconnected
     When the Linux shell starts
     Then Today, Home, Pi Sessions, Usage, direct touch, and keyboard navigation remain available
-    And experimental Face Agent and P4 owner-recognition integrations do not reveal personal status or gate the shell
+    And no peripheral integration gates the shell
 
-  Scenario: Experimental Face Agent consumes only ESP32-P4 inference metadata
-    Given the ESP32-P4 camera serial device is unavailable, reconnecting, or sends stale metadata
-    When the Face Agent runs on CM5
-    Then it opens only the configured ESP32-P4 serial device and never opens a local video device
-    And status starts as starting, reports no-frame while the P4 link has no valid record, and reports camera-unavailable after a failed or stale P4 link
-    And an online zero-face result remains a truthful no-face result and an online P4 detection remains available to Electron
+  Scenario: Home shows the latest camera frame on a 1x1 tile
+    Given the ESP32-P4 camera is accepted as a generic UVC webcam
+    When the Home page mounts its 1x1 camera tile
+    Then the tile shows the latest captured frame with its capture time
+    And it refreshes the frame on a bounded interval without blocking shell input
+    And a missing camera or failed capture renders a truthful unavailable state instead of a frame
 
-  Scenario: Experimental vision provisioning is opt-in
-    Given Face Agent source code is present under /opt/face-agent
-    When the CM5 installer runs with ODESK_INSTALL_EXPERIMENTAL_VISION=1
-    Then it provisions the Face Agent virtual environment and P4 camera udev rule
-    And it installs and enables the Face Agent user systemd service before kiosk autostart
-    But a base CM5 installation succeeds without Face Agent source, models, or P4 hardware
-
-  Scenario: Experimental ESP32-P4 SC2336 camera sub-device connects over USB
+  Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
     Given an ESP32-P4 sub-device runs the SC2336 camera firmware
     And the sub-device captures video over 2-lane MIPI CSI-2 with SCCB control
     When the ESP32-P4 connects to the CM5 Linux host over USB
-    Then the structured face recognition metadata produced by on-device inference is available to the host
-    And the Face Agent passes source-tagged detection, identity, and emotion data through its stable loopback status endpoint
-    And experimental consumers may render only validated on-device inference results
+    Then the CM5 sees a standard UVC MJPEG camera and a standard USB audio microphone
+    And no face recognition, expression, identity, or emotion data is produced or consumed
     And the sub-device has its own hardware acceptance path and does not block the Linux shell
 
 

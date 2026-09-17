@@ -29,7 +29,7 @@ One device acceptance command is the highest integration seam. It emits a struct
 5. As a CM5 desk owner, I want an activation failure to restore the preceding release automatically, so that recovery does not require shell access to a broken kiosk.
 6. As a CM5 desk owner, I want a recorded active release and rollback candidate, so that a device acceptance report explains exactly what is running.
 7. As a CM5 desk owner, I want the kiosk launcher to resolve the active release rather than a mutable source directory, so that autostart and manual launches run the same release.
-8. As a CM5 desk owner, I want Open DeskOS service units to restart only after a successful activation, so that Remote Bridge and the optional Face Agent do not become update dependencies.
+8. As a CM5 desk owner, I want Open DeskOS service units to restart only after a successful activation, so that Remote Bridge does not become an update dependency.
 9. As a CM5 desk owner, I want only Open DeskOS-owned state migrated during an update, so that my desktop and operating-system configuration are not changed unexpectedly.
 10. As a CM5 desk owner, I want each migration to be safe when retried, so that interrupted updates and recovery attempts do not leave duplicate or partial configuration.
 11. As an operator, I want a fresh installation to establish the current migration baseline, so that obsolete migrations are not replayed on a new CM5.
@@ -135,7 +135,7 @@ Feature: Desk instrument experience
     And the Usage and Remote Control surfaces identify unavailable provider and Remote Link state without fabricated personal activity
 
   Scenario: Renderer status presentation preserves independent peripheral gates
-    Given Remote Link or experimental Face Agent is unavailable
+    Given Remote Link is unavailable
     When the user navigates with direct touch or keyboard
     Then Today, Home, Usage, focused views, and bounded paging remain usable
     And no unavailable peripheral state blocks or obscures core shell data
@@ -145,7 +145,7 @@ Feature: Unified acceptance evidence
   Scenario: Device acceptance reports runtime and hardware facts together
     Given an installed Open DeskOS CM5 runtime
     When the acceptance command runs on the device
-    Then it emits one JSON report with active release, rollback candidate, updater state, migration state, kiosk service, Remote Bridge, optional Face Agent, Electron smoke, display, touch, and input checks
+    Then it emits one JSON report with active release, rollback candidate, updater state, migration state, kiosk service, Remote Bridge, Electron smoke, display, touch, and input checks
     And each unavailable check is reported as unavailable or failed rather than successful
     And the command exits unsuccessfully when a required acceptance check fails
 
@@ -164,15 +164,15 @@ Feature: Unified acceptance evidence
 
 3. **Define one updater transaction.** A single CM5-only command owns staging validation, release selection, service restart, post-activation check, rollback, and structured logging. It uses an exclusive lock under Open DeskOS-owned device state. Lock failure is a normal, factual refusal and never changes release pointers.
 
-4. **Make preflight self-contained and fail-closed.** Candidate preflight verifies release structure, pinned dependency install, generated stylesheet generation, static plugin/layout validation, Node tests, renderer smoke, and any release metadata integrity check. It runs before activation. Preflight has no access to user credentials and does not require Remote Link, P4 camera, Face Agent, or a network provider to pass.
+4. **Make preflight self-contained and fail-closed.** Candidate preflight verifies release structure, pinned dependency install, generated stylesheet generation, static plugin/layout validation, Node tests, renderer smoke, and any release metadata integrity check. It runs before activation. Preflight has no access to user credentials and does not require Remote Link, P4 camera, or a network provider to pass.
 
 5. **Keep post-activation verification narrow and truthful.** After pointer activation, the updater starts the kiosk and Open DeskOS user services then verifies that the active release resolves, Electron's smoke seam succeeds, and required owned services reach their expected non-fabricated state. A missing optional bridge or experimental service is reported but does not cause base release rollback. A failed base kiosk check does.
 
-6. **Scope service ownership precisely.** Kiosk launching, Remote Bridge, and the opt-in Face Agent remain separate user services/processes. The updater may reload/restart Open DeskOS-owned units only. It must not manage generic desktop services, the display manager, system package updates, Openbox, unrelated user services, or host system configuration beyond explicitly installed Open DeskOS prerequisites.
+6. **Scope service ownership precisely.** Kiosk launching and Remote Bridge remain separate user services/processes. The updater may reload/restart Open DeskOS-owned units only. It must not manage generic desktop services, the display manager, system package updates, Openbox, unrelated user services, or host system configuration beyond explicitly installed Open DeskOS prerequisites.
 
 7. **Introduce versioned, idempotent runtime migrations.** Migrations are ordered by immutable version identifiers and operate solely on Open DeskOS-owned mutable state: runtime configuration schemas, Open DeskOS user services, release pointers, and explicitly opt-in experiment configuration. Completion markers are stored per kiosk user under Open DeskOS state. A fresh provisioner records the current migration baseline rather than replaying historical transformations.
 
-8. **Separate base from experimental migration paths.** Base migrations cannot install, enable, require, or infer acceptance of Face Agent, P4 camera, C6 Gateway, or Remote Control. Experiment migrations require the existing explicit opt-in state and preserve direct touch and keyboard as base control paths.
+8. **Separate base from experimental migration paths.** Base migrations cannot install, enable, require, or infer acceptance of P4 camera, C6 Gateway, or Remote Control. Experiment migrations require the existing explicit opt-in state and preserve direct touch and keyboard as base control paths.
 
 9. **Preserve the repository-controlled plugin model.** The renderer has built-in plugins packaged inside each release. It does not gain discovery from arbitrary user directories, repository URLs, Git, network downloads, dynamic import endpoints, or hot reload. The only active extension boundary remains a local, versioned, audited release.
 
@@ -221,7 +221,7 @@ Feature: Unified acceptance evidence
 - Downloading, installing, executing, or hot-reloading third-party plugins, themes, JavaScript, CSS, fonts, templates, shell hooks, or Git repositories.
 - Creating an installable application platform, arbitrary app marketplace, or changing the current built-in-view seam into a broader App Manager product claim.
 - Introducing fabricated calendar, task, health, activity, identity, emotion, or provider data to improve perceived completeness.
-- Making Remote Link, C6 Gateway, P4 camera, Face Agent, owner recognition, Mac companion, or preserved P4+C6 research required for update, installation, boot, or direct shell input.
+- Making Remote Link, C6 Gateway, P4 camera, Mac companion, or preserved P4+C6 research required for update, installation, boot, or direct shell input.
 - Automatic theme switching. A non-executable semantic-token theme format is only a future design constraint.
 - Promoting the CM5 feasibility slice to a supported product line before real-device acceptance evidence exists.
 

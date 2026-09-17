@@ -76,6 +76,29 @@ root.odkPlugins.register({
 })
 ```
 
+### Today 陈述(与 kind 无关的共享订阅)
+
+Today(首页)自己不陈述任何状态:它按 `order` 依次渲染已挂载插件发布的每一条陈述。
+任何 kind 的插件都可以通过 `ctx.briefing` 参与,因此首页内容由插件系统而不是页面自身决定。
+
+```js
+ctx.briefing.contribute({
+  id: 'odk.briefing.my-signal',   // odk. 命名空间;同一 id 覆盖而非追加
+  order: 20,                      // 越小越靠前;缺省 100
+  parts: [
+    { text: 'You have ' },                                  // 连接词:静音色
+    { text: '2 sessions', emphasis: true, icon: ICON_SVG }, // 信号:高亮 + 内联图标
+    { text: ', today.' },
+  ],
+})
+```
+
+- `parts` 是唯一的渲染契约:纯文本按连接词渲染,`emphasis: true` 用 `<b>` 高亮,`icon` 是完整的内联 `<svg data-tabler="..." viewBox="...">` 标记。图标必须带原始描边路径,`core/icons.js` 才能在内建与 Pixel 主题之间回切;缺少 `viewBox` 或带 `<script>`、`on*` 处理器的标记会被丢弃。
+- 排版归页面所有:插件只提供词句,不提供容器、卡片或布局,因此所有陈述读起来是同一个声音。
+- 空文本、非字符串文本和非法 icon 会被逐段丢弃;`parts` 全部无效时整条陈述被拒绝,绝不回退到编造文案。
+- 内容未变化的重复 `contribute` 不会触发重新渲染;`ctx.briefing.withdraw(id)` 撤回自己的陈述。
+- 陈述必须来自本机或已配置的提供方事实。没有提供方时,不得声称会议、任务、习惯、步数、睡眠等个人数据。没有任何陈述时 Today 只显示 `No desk briefing is available.`。
+
 ### 页面插件(kind = page)、App 插件(kind = app)
 
 ```js
@@ -116,6 +139,9 @@ ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
 |---|---|
 | `ctx.onTick(cb)` | 订阅共享 1s tick,订阅即首绘;返回退订函数 |
 | `ctx.connection.subscribe(cb)` | 网络状态(true/false),订阅即首绘;返回退订函数 |
+| `ctx.connection.labelFor(online)` | 网络状态的统一文案,供状态栏指示器与播报保持一致 |
+| `ctx.briefing.subscribe(cb)` / `.list()` | Today 陈述列表(按 `order` 排序),订阅即首绘 |
+| `ctx.briefing.contribute({ id, order, parts })` / `.withdraw(id)` | 发布或撤回一条 Today 陈述 |
 | `ctx.subscription.subscribe(cb)` | OpenCode Go 状态和用量快照,订阅即首绘;返回退订函数 |
 | `ctx.subscription.refresh()` | 手动从 Linux 主进程重读 OpenCode Go 状态 |
 | `ctx.SUBSCRIPTION_LABELS` / `ctx.NETWORK_LABELS` / `ctx.REMOTE_LINK_LABELS` | 统一状态文案,禁止自造 |
@@ -125,6 +151,19 @@ ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
 | `await ctx.platform.listApps()` | 从主进程 App Manager endpoint 读取权威 App 元数据; IPC 不可用时显示恢复错误 |
 | `ctx.platform.catalog()` | 仅供本地适配与测试使用的 renderer 插件目录,不是 App Manager 权威列表 |
 | `ctx.openNavigationHelp()` | 打开外壳操作说明视图 |
+| `ctx.publishPageRemote(el, remote)` | page 插件发布自带的 Remote Control Strip 按钮与焦点轴: `{ actions: [{ id, label }], focus: 'items' }`;`focus: 'items'` 表示该页自己拥有四个方向的输入。传 `null` 撤回。作用域绑定到 `el` 所在的页 |
+
+### 页面自有输入与 Remote 事件
+
+声明 `focus: 'items'` 的页面在 App Focus Mode 下自行处理方向输入,并接收三个挂在**当前页元素**上的事件(冒泡,监听写在页面根元素上即可,不会泄漏到其它页):
+
+| 事件 | detail | 说明 |
+|---|---|---|
+| `odk-remote-page-input` | `{ input }`,`input` 为 `left`/`right`/`up`/`down`/`primary`/`back` | 焦点模式下的方向、Select 与 Back。Back 同时会退出 App Focus Mode |
+| `odk-remote-action` | action id 字符串 | Strip 按钮被按下。当前页没有声明该 id 时不做任何事 |
+| `odk-page-shown` | 无 | 该页成为当前页时触发,用于进入页面即刷新而不是等下一次轮询 |
+
+在页面内容里标一个 `[data-page-focus]` 元素,作为进入 App Focus Mode 时的 DOM 焦点落点。
 
 ## 布局声明
 
@@ -163,5 +202,5 @@ pnpm run e2e          # 交互、可访问性、几何、插件注册表契约
 - Every plugin ID uses the `odk.` namespace. Supported kinds are `tile`, `page`, `status`, and `app`; status slots are only `left` or `right`. Tile plugins cannot declare an App continuation; interactive controls belong to App pages or App plugins.
 - Plugins must not bypass the built-in-view intent seam; the core owns composition, mounting, and routing. Keep display widgets and interactive App surfaces as separate modules. Do not describe it as an installable app platform.
 - Built-in plugins are packaged local scripts within a verified runtime release. Do not download, execute, or hot-reload third-party plugin or theme code; user packages follow the separate sandboxed lifecycle in `USER_APPLICATIONS.md`.
-- 持续状态优先进入 State Bar、Today 或 Usage;不要用 tooltip-only 控件承载完整状态。
+- 持续状态优先进入 State Bar、Usage 或 Today 陈述;不要用 tooltip-only 控件承载完整状态。
 - index.html 保持空骨架:任何页面/磁贴标记出现在其中即失败。

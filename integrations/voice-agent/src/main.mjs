@@ -3,17 +3,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createVoiceAgent } from './agent.mjs'
 import { record } from './recorder.mjs'
-import { transcribe, transcriptionLanguage } from './transcribe.mjs'
+import { transcribe, transcriptionLanguage, transcriptionPrompt, isLoopbackUrl } from './transcribe.mjs'
 import { VoiceService } from './service.mjs'
 import { listen } from './socket.mjs'
-
-function isLoopbackHttp(url) {
-  if (url.protocol !== 'http:') return false
-  const host = url.hostname.toLowerCase()
-  if (host === 'localhost' || host === 'localhost.' || host === '::1' || host === '[::1]') return true
-  const octets = host.split('.')
-  return octets.length === 4 && octets[0] === '127' && octets.every(octet => /^\d{1,3}$/.test(octet) && Number(octet) < 256)
-}
 
 async function initialize(env, report) {
   report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
@@ -24,9 +16,11 @@ async function initialize(env, report) {
   report('Set ODESK_VOICE_STT_URL to an HTTPS transcription endpoint, or plain HTTP loopback for device-local speech; no URL credentials')
   const url = new URL(env.ODESK_VOICE_STT_URL || 'https://api.openai.com/v1/audio/transcriptions')
   if (url.username || url.password) throw Error('Invalid transcription URL')
-  if (url.protocol !== 'https:' && !isLoopbackHttp(url)) throw Error('Invalid transcription URL')
-  report('Set ODESK_VOICE_STT_LANGUAGE to a language code such as zh or zh-CN, or auto; restart service')
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackUrl(url))) throw Error('Invalid transcription URL')
+  report('Set ODESK_VOICE_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
   const language = transcriptionLanguage(env.ODESK_VOICE_STT_LANGUAGE)
+  report('Set ODESK_VOICE_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')
+  const prompt = transcriptionPrompt(env.ODESK_VOICE_STT_PROMPT)
   report('Check writable checkout and widget skill, Pi user authentication/model, and trusted capability paths; restart service')
   const agent = await createVoiceAgent({
     workspace: env.ODESK_WORKSPACE,
@@ -34,7 +28,7 @@ async function initialize(env, report) {
     model: env.ODESK_VOICE_MODEL,
     capabilityPaths: env.ODESK_VOICE_CAPABILITIES ? JSON.parse(env.ODESK_VOICE_CAPABILITIES) : [],
   })
-  return { agent, stt: { url: url.href, model: env.ODESK_VOICE_STT_MODEL || 'whisper-1', keyFile: env.ODESK_VOICE_STT_KEY_FILE, language } }
+  return { agent, stt: { url: url.href, model: env.ODESK_VOICE_STT_MODEL || 'whisper-1', keyFile: env.ODESK_VOICE_STT_KEY_FILE, language, prompt } }
 }
 
 async function main() {
@@ -44,12 +38,12 @@ async function main() {
   const directory = join(env.XDG_RUNTIME_DIR, 'open-deskos-voice')
   let runtime
   const service = new VoiceService({
-    record: async () => {
+    record: async onLevel => {
       if (!runtime) throw Error('Configuration incomplete')
-      return record(directory, env.ODESK_VOICE_AUDIO_DEVICE || 'default')
+      return record(directory, env.ODESK_VOICE_AUDIO_DEVICE || 'default', onLevel)
     },
     transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
-    prompt: text => runtime.agent.prompt(text),
+    prompt: (text, onResponseSnapshot) => runtime.agent.prompt(text, onResponseSnapshot),
   })
   service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
   const server = await listen(join(directory, 'agent.sock'), service)

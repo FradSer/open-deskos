@@ -32,13 +32,10 @@
   .app-surface-card,
   .button-pill,
   .dot,
-  .pi-session-card,
+  .pi-detail-overview-btn,
+  .pi-overview-cell,
   .pi-filter-btn,
-  .pi-refresh-btn,
-  .pi-search-input,
   .app-search,
-  .pi-metric-pill,
-  .pi-ws-badge,
   .pi-status-badge,
   .widget-glance-badge,
   .meter,
@@ -49,14 +46,14 @@
 }
 
 /* Pixel input field styling */
-[data-theme='pixel'] :is(.pi-search-input, .app-search, input) {
+[data-theme='pixel'] :is(.app-search, input) {
   border: 2px solid var(--odk-stroke) !important;
   background: var(--odk-surface) !important;
   box-shadow: inset 1px 1px 0px #000000, 1px 1px 0px var(--odk-elevated) !important;
   letter-spacing: normal;
 }
 
-[data-theme='pixel'] :is(.pi-search-input:focus-visible, .app-search:focus-visible, input:focus-visible) {
+[data-theme='pixel'] :is(.app-search:focus-visible, input:focus-visible) {
   outline: none !important;
   border-color: var(--odk-accent-green) !important;
   box-shadow: 0 0 0 2px var(--odk-accent-green) !important;
@@ -205,11 +202,11 @@
 }
 
 /* Pixel buttons with retro 3D bevel / hard shadow */
-[data-theme='pixel'] :is(.button-pill, .pi-filter-btn.active, .pi-refresh-btn) {
+[data-theme='pixel'] :is(.button-pill, .pi-filter-btn.active, .pi-detail-overview-btn) {
   box-shadow: 2px 2px 0px var(--odk-button), -1px -1px 0px var(--odk-stroke) !important;
 }
 
-[data-theme='pixel'] :is(.button-pill:active, .pi-refresh-btn:active) {
+[data-theme='pixel'] :is(.button-pill:active, .pi-detail-overview-btn:active) {
   transform: translate(1px, 1px) !important;
   box-shadow: 1px 1px 0px var(--odk-button) !important;
 }

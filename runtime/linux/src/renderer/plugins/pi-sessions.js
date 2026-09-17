@@ -2,6 +2,16 @@
 (function (root) {
   'use strict'
 
+  const FILTERS = ['working', 'all', 'settled', 'exited']
+  const FILTER_DISPLAY_ORDER = ['all', 'working', 'settled', 'exited']
+  const FILTER_LABELS = { working: 'WORKING', all: 'ALL', settled: 'SETTLED', exited: 'EXITED' }
+  const FILTER_TITLES = { working: 'Working', all: 'All', settled: 'Settled', exited: 'Exited' }
+  const DEFAULT_FILTER = 'working'
+  const ACTION_FILTER = 'pi-session-filter'
+  const ACTION_OVERVIEW = 'pi-session-overview'
+  const SCROLL_STEP_PX = 140
+  const SCAN_TICK_INTERVAL = 5
+
   function escapeHtml(str) {
     if (!str) return ''
     return String(str)
@@ -12,6 +22,43 @@
       .replace(/'/g, '&#039;')
   }
 
+  function normalizeInline(text) {
+    return text ? text.replace(/\s+/g, ' ').trim() : ''
+  }
+
+  function renderMarkdownInline(text) {
+    if (!text || typeof text !== 'string') return ''
+    let escaped = escapeHtml(text)
+    escaped = escaped.replace(/`([^`]+)`/g, '<code class="pi-inline-code">$1</code>')
+    escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    escaped = escaped.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    escaped = escaped.replace(/(^|[^\*])\*([^\*]+)\*([^\*]*|$)/g, '$1<em>$2</em>$3')
+    return escaped
+  }
+
+  function parseSkillTag(text) {
+    if (!text || typeof text !== 'string') return null
+    const match = text.match(/<skill\s+name="([^"]+)"[^>]*>/)
+    if (!match) return null
+    const endTag = '</skill>'
+    const endIndex = text.indexOf(endTag)
+    const prompt = endIndex !== -1 ? text.slice(endIndex + endTag.length).trim() : ''
+    return { skillName: match[1], prompt }
+  }
+
+  // A goal that invoked a skill reads as the default TUI reads it: a bracketed
+  // skill name instead of the raw tag.
+  function renderSkillTaggedText(text) {
+    const normalized = normalizeInline(text)
+    const skill = parseSkillTag(normalized)
+    if (!skill) return renderMarkdownInline(normalized)
+    const prompt = skill.prompt ? ` <span class="pi-skill-prompt">${renderMarkdownInline(skill.prompt)}</span>` : ''
+    return `<span class="pi-skill-tag"><strong class="pi-skill-bracket">[skill]</strong> <span class="pi-skill-name">${escapeHtml(skill.skillName)}</span></span>${prompt}`
+  }
+
+  const renderGoalHtml = renderSkillTaggedText
+  const renderActivityHtml = renderSkillTaggedText
+
   function formatElapsed(timestamp, now = Date.now()) {
     const startedAt = typeof timestamp === 'string' ? Date.parse(timestamp) : Number(timestamp)
     if (!Number.isFinite(startedAt) || startedAt <= 0) return 'Elapsed unavailable'
@@ -21,21 +68,6 @@
     const hours = Math.floor(totalMinutes / 60)
     const minutes = totalMinutes % 60
     return minutes > 0 ? `${hours}h ${minutes}m elapsed` : `${hours}h elapsed`
-  }
-
-  function setFilesExpanded(button, expanded) {
-    button.setAttribute('aria-expanded', String(expanded))
-    button.classList.toggle('expanded', expanded)
-    button.nextElementSibling.hidden = !expanded
-  }
-
-  function captureFeedState(feed) {
-    return new Map([...feed.querySelectorAll('[data-session-key]')].map(card => {
-      const focused = card.contains(document.activeElement) ? document.activeElement : null
-      return [card.dataset.sessionKey, {
-        focus: focused && !focused.matches('article') ? '.' + focused.className.split(' ')[0] : null,
-      }]
-    }))
   }
 
   function sessionKey(session) {
@@ -60,87 +92,49 @@
     }
   }
 
-  function captureFeedAnchor(feed, surface) {
-    const top = Math.max(feed.getBoundingClientRect().top, surface.getBoundingClientRect().top)
-    const bottom = Math.min(feed.getBoundingClientRect().bottom, surface.getBoundingClientRect().bottom)
-    const card = [...feed.querySelectorAll('[data-session-key]')].find(node => {
-      const rect = node.getBoundingClientRect()
-      return rect.bottom > top && rect.top < bottom
-    })
-    return card ? { key: card.dataset.sessionKey, top: card.getBoundingClientRect().top } : null
+  function matchesFilter(session, filter) {
+    if (filter === 'all') return true
+    return session.status === (filter === 'working' ? 'running' : filter)
   }
 
-  function createFeedUpdater(feed) {
-    let previousHtml = null
-    return (html) => {
-      if (html === previousHtml) return
-      const state = captureFeedState(feed)
-      const surface = feed.closest('.pi-app-wrapper')
-      const scrollTop = surface.scrollTop
-      const feedScrollTop = feed.scrollTop
-      const anchor = captureFeedAnchor(feed, surface)
-      feed.innerHTML = html
-      previousHtml = html
-      for (const card of feed.querySelectorAll('[data-session-key]')) {
-        const saved = state.get(card.dataset.sessionKey)
-        if (!saved) continue
-        if (saved.focus) card.querySelector(saved.focus)?.focus({ preventScroll: true })
-      }
-      surface.scrollTop = scrollTop
-      feed.scrollTop = feedScrollTop
-      if (anchor) {
-        const card = [...feed.querySelectorAll('[data-session-key]')].find(node => node.dataset.sessionKey === anchor.key)
-        if (card) {
-          const scroller = feed.scrollHeight > feed.clientHeight ? feed : surface
-          scroller.scrollTop += card.getBoundingClientRect().top - anchor.top
-        }
-      }
-    }
+  function sessionSet(scan, filter) {
+    const sessions = Array.isArray(scan?.sessions) ? scan.sessions : []
+    return sessions.filter((session) => matchesFilter(session, filter))
   }
 
-  function normalizeInline(text) {
-    return text ? text.replace(/\s+/g, ' ').trim() : ''
+  function nextFilter(filter) {
+    return FILTERS[(FILTERS.indexOf(filter) + 1) % FILTERS.length]
   }
 
-  function renderMarkdownInline(text) {
-    if (!text || typeof text !== 'string') return ''
-    let escaped = escapeHtml(text)
-    // Inline code `code`
-    escaped = escaped.replace(/`([^`]+)`/g, '<code class="pi-inline-code">$1</code>')
-    // Bold **text** or __text__
-    escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    escaped = escaped.replace(/__([^_]+)__/g, '<strong>$1</strong>')
-    // Italic *text*
-    escaped = escaped.replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1<em>$2</em>$3')
-    return escaped
+  function statusLabel(status) {
+    return status === 'running' ? 'Working' : String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1)
   }
 
-  function parseSkillTag(text) {
-    if (!text || typeof text !== 'string') return null
-    const match = text.match(/<skill\s+name="([^"]+)"[^>]*>/)
-    if (!match) return null
-    const skillName = match[1]
-    const endTag = '</skill>'
-    const endIndex = text.indexOf(endTag)
-    const prompt = endIndex !== -1 ? text.slice(endIndex + endTag.length).trim() : ''
-    return { skillName, prompt }
+  function workspaceLabel(session) {
+    return session.workspaceName || session.cwd || 'Unknown workspace'
   }
 
-  function renderGoalHtml(text) {
-    const skill = parseSkillTag(text)
-    if (skill) {
-      return `<span class="pi-skill-tag"><strong class="pi-skill-bracket">[skill]</strong> <span class="pi-skill-name">${escapeHtml(skill.skillName)}</span></span>${skill.prompt ? ` <span class="pi-skill-prompt">${renderMarkdownInline(skill.prompt)}</span>` : ''}`
-    }
-    return renderMarkdownInline(text)
+  function overviewCellHtml(session, selectedKey) {
+    const key = sessionKey(session)
+    const isSelected = key === selectedKey
+    return `<button type="button" class="pi-overview-cell${isSelected ? ' is-selected' : ''}" data-session-key="${escapeHtml(key)}" aria-pressed="${isSelected}">
+      <span class="pi-overview-name">${escapeHtml(workspaceLabel(session))}</span>
+      <span class="pi-overview-state">${escapeHtml(statusLabel(session.status))}</span>
+      <span class="pi-overview-activity">${escapeHtml(session.activity || session.latestGoal || 'No activity reported')}</span>
+    </button>`
   }
 
-  function renderActivityHtml(text) {
-    const normalized = normalizeInline(text)
-    const skill = parseSkillTag(normalized)
-    if (skill) {
-      return `<span class="pi-skill-tag"><strong class="pi-skill-bracket">[skill]</strong> <span class="pi-skill-name">${escapeHtml(skill.skillName)}</span></span>${skill.prompt ? ` <span class="pi-skill-prompt">${renderMarkdownInline(skill.prompt)}</span>` : ''}`
-    }
-    return renderMarkdownInline(normalized)
+  const EVENT_NOTE = {
+    'session-log-missing': 'No session log is available for this session.',
+    'session-log-unreadable': 'This session log could not be read.',
+    'session-identity-required': 'This session has no readable identity.',
+  }
+
+  // Session Events are read from this machine's own session logs, so a source
+  // that keeps them elsewhere states that instead of showing nothing.
+  function eventNote(reason, sourceLabel) {
+    if (reason === 'source-unsupported') return `Session events are unavailable for ${sourceLabel}.`
+    return EVENT_NOTE[reason] || 'Session events are unavailable.'
   }
 
   function lifecycleFor(mount) {
@@ -212,7 +206,7 @@
           countEl.textContent = String(running)
           summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${total} total`
 
-          const activeSession = res.sessions?.find((s) => s.status === 'running')
+          const activeSession = res.sessions?.find((session) => session.status === 'running')
 
           if (running > 0) {
             dotEl.className = 'pi-indicator-dot pi-indicator-running'
@@ -275,7 +269,198 @@
   })
 
   /* ---------------------------------------------------------
-   * Fullscreen App: odk.app.pi-sessions
+   * Session Detail + Session Overview
+   * --------------------------------------------------------- */
+  function surfaceMarkup() {
+    return `
+      <div class="runtime-app pi-app-wrapper">
+        <header class="app-surface-header pi-app-header">
+          <div class="app-surface-heading">
+            <h1 id="pi-title">Pi Sessions</h1>
+          </div>
+        </header>
+
+        <p class="sr-only" id="pi-status" role="status" aria-live="polite"></p>
+
+        <section class="pi-detail" id="pi-detail" role="region" aria-label="Session detail" tabindex="0" data-page-focus>
+          <div class="pi-detail-body" id="pi-detail-body"></div>
+          <div class="pi-events-host" id="pi-events-host"></div>
+        </section>
+
+        <section class="pi-overview" id="pi-overview" aria-label="Session overview" hidden>
+          <div class="pi-overview-header">
+            <p class="pi-overview-summary" id="pi-overview-summary"></p>
+            <div class="pi-filter-group" role="group" aria-label="Session filter">
+              ${FILTER_DISPLAY_ORDER.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}">${FILTER_TITLES[value]}</button>`).join('')}
+            </div>
+          </div>
+          <div class="pi-overview-grid" id="pi-overview-grid"></div>
+        </section>
+      </div>`
+  }
+
+  function renderIdentity(session, selectedIndex, count) {
+    return `
+      <div class="pi-detail-header">
+        <div class="pi-detail-identity">
+          <span class="pi-status-badge pi-status-${escapeHtml(session.status)}">
+            ${session.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${statusLabel(session.status)}
+          </span>
+          <span class="pi-ws-title">${escapeHtml(workspaceLabel(session))}</span>
+          <span class="pi-card-time">${formatElapsed(session.startedAt)}</span>
+          <span class="pi-detail-position">${selectedIndex + 1} / ${count}</span>
+        </div>
+        <button type="button" class="pi-detail-overview-btn" id="pi-overview-open">All sessions</button>
+      </div>
+      <p class="pi-goal-text">${renderGoalHtml(session.latestGoal || 'No goal stated')}</p>
+      <p class="pi-activity-text">${session.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${renderActivityHtml(session.activity || (session.status === 'running' ? 'Working...' : session.recap || 'Settled'))}</p>`
+  }
+
+  function renderEvent(event) {
+    return `<li class="pi-event pi-event-${escapeHtml(event.kind)}">
+      <span class="pi-event-kind">${escapeHtml(event.kind)}</span>
+      <span class="pi-event-text">${escapeHtml(event.text)}</span>
+    </li>`
+  }
+
+  function renderEventList(state, sourceLabel) {
+    if (state.reason === 'loading') return '<p class="pi-detail-note">Reading session events...</p>'
+    if (!state.ok) return `<p class="pi-detail-note">${escapeHtml(eventNote(state.reason, sourceLabel))}</p>`
+    if (state.events.length === 0) return '<p class="pi-detail-note">No session events recorded yet.</p>'
+    return `<ol class="pi-events" id="pi-events">${state.events.map(renderEvent).join('')}</ol>`
+  }
+
+  /* ---------------------------------------------------------
+   * Selection and grid arithmetic (pure)
+   * --------------------------------------------------------- */
+
+  // Selection is remembered by session identity: a new session never takes the
+  // selection, and a selection that leaves the set hands over to the neighbour
+  // in the direction last requested.
+  function selectionIndex(set, selectedKey, hintedIndex, direction) {
+    const found = set.findIndex((session) => sessionKey(session) === selectedKey)
+    if (found >= 0) return found
+    const hinted = direction === 'left' ? hintedIndex - 1 : hintedIndex
+    return steppedIndex(hinted, 0, set.length)
+  }
+
+  function steppedIndex(index, step, length) {
+    return Math.min(Math.max(index + step, 0), Math.max(length - 1, 0))
+  }
+
+  function gridColumnsOf(cells) {
+    if (cells.length < 2) return 1
+    const firstTop = cells[0].offsetTop
+    const nextRow = cells.findIndex((cell) => cell.offsetTop !== firstTop)
+    return nextRow === -1 ? cells.length : nextRow
+  }
+
+  // One explicit mapping from Remote input to the page's own action, so the
+  // routing is a decision rather than a cascade.
+  const PAGE_INPUT = {
+    closed: { primary: 'open-overview', up: 'scroll-up', down: 'scroll-down', left: 'previous-session', right: 'next-session' },
+    open: { back: 'close-overview', primary: 'choose-cell', left: 'cell-left', right: 'cell-right', up: 'cell-up', down: 'cell-down' },
+  }
+
+  function pageInputAction(input, overviewIsOpen) {
+    return PAGE_INPUT[overviewIsOpen ? 'open' : 'closed'][input] || 'ignore'
+  }
+
+  // The Pi Sessions page's own copy for the states it can be in.
+  function emptyCopy({ scan, filterTitle, setSize, sourceLabel }) {
+    if (scan === null) return 'Loading Pi sessions...'
+    if (scan.ok === false) return `${sourceLabel || 'Pi sessions'} unavailable. Retrying automatically.`
+    if (setSize === 0) return `No session matches ${filterTitle}.`
+    return 'No session selected.'
+  }
+
+  function announcement(session, selectedIndex, setSize, fallback) {
+    return session
+      ? `Session ${selectedIndex + 1} of ${setSize}: ${workspaceLabel(session)}, ${statusLabel(session.status).toLowerCase()}.`
+      : fallback
+  }
+
+  function detailView({ detailEl, bodyEl, eventsHostEl }) {
+    let paintedHtml = null
+    let hasSession = false
+
+    const paint = (state, sourceLabel) => {
+      const html = hasSession ? renderEventList(state, sourceLabel) : ''
+      if (html === paintedHtml) return
+      const scrollTop = detailEl.scrollTop
+      eventsHostEl.innerHTML = html
+      paintedHtml = html
+      detailEl.scrollTop = scrollTop
+    }
+
+    return {
+      render(session, selectedIndex, count, state, sourceLabel, onOpenOverview) {
+        hasSession = Boolean(session)
+        paintedHtml = null
+        if (!session) {
+          bodyEl.innerHTML = ''
+          eventsHostEl.innerHTML = ''
+          return
+        }
+        bodyEl.innerHTML = renderIdentity(session, selectedIndex, count)
+        bodyEl.querySelector('#pi-overview-open')?.addEventListener('click', onOpenOverview)
+        paint(state, sourceLabel)
+      },
+      paint,
+      restart() {
+        paintedHtml = null
+        detailEl.scrollTop = 0
+      },
+      scroll(input) {
+        detailEl.scrollTop += input === 'down' ? SCROLL_STEP_PX : -SCROLL_STEP_PX
+      },
+      focus() {
+        detailEl.focus({ preventScroll: true })
+      },
+    }
+  }
+
+  function overviewView({ overviewEl, summaryEl, gridEl }) {
+    return {
+      render({ set, filterTitle, sourceLabel, unavailable, selectedKey, emptyCopy, onChoose }) {
+        summaryEl.textContent = unavailable
+          ? `${sourceLabel || 'Pi sessions'} unavailable`
+          : `${set.length} ${filterTitle.toLowerCase()} · ${sourceLabel || 'Pi sessions'}`
+        gridEl.innerHTML = set.length === 0
+          ? `<p class="pi-empty-state">${escapeHtml(emptyCopy)}</p>`
+          : set.map((session) => overviewCellHtml(session, selectedKey)).join('')
+        for (const cell of gridEl.querySelectorAll('.pi-overview-cell')) {
+          cell.addEventListener('click', () => onChoose(cell.dataset.sessionKey))
+        }
+      },
+      cells() {
+        return [...gridEl.querySelectorAll('.pi-overview-cell')]
+      },
+      columns() {
+        return gridColumnsOf(this.cells())
+      },
+      focusSelected(selectedKey) {
+        this.cells().find((cell) => cell.dataset.sessionKey === selectedKey)?.focus()
+      },
+      focusOffset(selectedKey, offset) {
+        const cells = this.cells()
+        if (cells.length === 0) return
+        const active = cells.findIndex((cell) => cell === document.activeElement)
+        const selected = cells.findIndex((cell) => cell.dataset.sessionKey === selectedKey)
+        const from = active === -1 ? Math.max(selected, 0) : active
+        cells[steppedIndex(from, offset, cells.length)]?.focus()
+      },
+      show(visible) {
+        overviewEl.hidden = !visible
+      },
+      isOpen() {
+        return !overviewEl.hidden
+      },
+    }
+  }
+
+  /* ---------------------------------------------------------
+   * Fullscreen App / Page: odk.app.pi-sessions
    * --------------------------------------------------------- */
   root.odkPlugins.register({
     id: 'odk.app.pi-sessions',
@@ -288,240 +473,269 @@
     source: 'builtin',
     capabilities: [],
     lifecycle: lifecycleFor((el, ctx) => {
-      el.innerHTML = `
-        <div class="runtime-app pi-app-wrapper">
-          <header class="app-surface-header pi-app-header">
-            <div class="app-surface-heading">
-              <h1>Pi Sessions</h1>
-              <p id="pi-source-label">All sessions across folders.</p>
-            </div>
-            <div class="pi-header-actions">
-              <div class="pi-search-box">
-                <label class="app-search-label" for="pi-search-input">Search sessions</label>
-                <input type="search" class="pi-search-input" id="pi-search-input" data-remote-initial-focus placeholder="Workspace, goal, or PID" aria-label="Search sessions" />
-              </div>
-              <button type="button" class="button-pill button-secondary pi-refresh-btn" id="pi-refresh-btn" aria-label="Refresh">
-                <svg data-tabler="refresh" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
-              </button>
-            </div>
-          </header>
-          <div class="pi-app-toolbar">
-            <div class="pi-app-metrics odk-row items-center gap-2">
-              <span class="pi-metric-pill pi-metric-running"><strong id="pi-metric-running">0</strong> working</span>
-              <span class="pi-metric-pill"><strong id="pi-metric-settled">0</strong> settled</span>
-              <span class="pi-metric-pill"><strong id="pi-metric-workspaces">0</strong> workspaces</span>
-            </div>
-            <div class="pi-app-actions odk-row items-center gap-2">
-              <button type="button" class="pi-view-toggle" id="pi-view-toggle" aria-pressed="true">By workspace</button>
-              <div class="pi-filter-group odk-row items-center" role="group" aria-label="Session status filter">
-                <button type="button" class="pi-filter-btn active" data-filter="all" aria-pressed="true">All</button>
-                <button type="button" class="pi-filter-btn" data-filter="running" aria-pressed="false">Working</button>
-                <button type="button" class="pi-filter-btn" data-filter="settled" aria-pressed="false">Settled</button>
-                <button type="button" class="pi-filter-btn" data-filter="exited" aria-pressed="false">Exited</button>
-              </div>
-            </div>
-          </div>
+      el.innerHTML = surfaceMarkup()
 
-          <p class="sr-only" id="pi-sessions-status" role="status" aria-live="polite"></p>
-          <div class="pi-sessions-feed w-full" id="pi-sessions-feed" role="region" aria-label="Sessions list">
-            <p class="pi-loading-hint">Loading Pi sessions...</p>
-          </div>
-        </div>`
+      const detailEl = el.querySelector('#pi-detail')
+      const bodyEl = el.querySelector('#pi-detail-body')
+      const statusEl = el.querySelector('#pi-status')
+      const filterBtns = [...el.querySelectorAll('.pi-filter-btn')]
+      const detail = detailView({ detailEl, bodyEl, eventsHostEl: el.querySelector('#pi-events-host') })
+      const overview = overviewView({
+        overviewEl: el.querySelector('#pi-overview'),
+        summaryEl: el.querySelector('#pi-overview-summary'),
+        gridEl: el.querySelector('#pi-overview-grid'),
+      })
 
-      const runningMetric = el.querySelector('#pi-metric-running')
-      const settledMetric = el.querySelector('#pi-metric-settled')
-      const wsMetric = el.querySelector('#pi-metric-workspaces')
-      const feedEl = el.querySelector('#pi-sessions-feed')
-      const statusEl = el.querySelector('#pi-sessions-status')
-      const sourceEl = el.querySelector('#pi-source-label')
-      const searchInput = el.querySelector('#pi-search-input')
-      const refreshBtn = el.querySelector('#pi-refresh-btn')
-      const filterBtns = el.querySelectorAll('.pi-filter-btn')
-      const viewToggle = el.querySelector('#pi-view-toggle')
-
-      let currentFilter = 'all'
-      let currentQuery = ''
-      let groupedView = false
-      let sessionData = null
+      let scan = null
+      let filter = DEFAULT_FILTER
+      let selectedKey = null
+      let selectedIndex = 0
+      let lastDirection = 'right'
+      let eventsState = { reason: 'loading', ok: false, events: [] }
+      let renderToken = 0
       let tickCount = 0
-      const updateFeed = createFeedUpdater(feedEl)
       const orderSessions = createSessionOrder()
 
-      function renderFeed() {
-        if (sessionData?.ok === false) {
-          const message = `${sourceEl.textContent} unavailable. Select Refresh to try again.`
-          updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
-          statusEl.textContent = message
-          return
-        }
-        if (!sessionData || !sessionData.sessions || sessionData.sessions.length === 0) {
-          updateFeed('<div class="pi-empty-state"><p>No running or recorded Pi sessions found.</p><small>Checked <code>~/.pi/agent/directory-sessions/</code>.</small></div>')
-          statusEl.textContent = 'No Pi sessions found.'
-          return
-        }
+      const currentSet = () => sessionSet(scan, filter)
+      const selected = () => currentSet().find((session) => sessionKey(session) === selectedKey) || null
+      const sourceLabel = () => scan?.source?.label || ''
+      const remoteSource = () => scan?.source?.kind === 'ssh'
 
-        const query = currentQuery.trim().toLowerCase()
-        const filtered = sessionData.sessions.filter((s) => {
-          if (currentFilter !== 'all' && s.status !== currentFilter) return false
-          if (!query) return true
-          return (
-            (s.workspaceName && s.workspaceName.toLowerCase().includes(query)) ||
-            (s.cwd && s.cwd.toLowerCase().includes(query)) ||
-            (s.latestGoal && s.latestGoal.toLowerCase().includes(query)) ||
-            (s.activity && s.activity.toLowerCase().includes(query)) ||
-            (s.recap && s.recap.toLowerCase().includes(query)) ||
-            (s.pid && String(s.pid).includes(query)) ||
-            (s.uuid && s.uuid.toLowerCase().includes(query))
-          )
+      function pageCopy() {
+        return emptyCopy({
+          scan,
+          filterTitle: FILTER_TITLES[filter],
+          setSize: currentSet().length,
+          sourceLabel: sourceLabel(),
         })
-
-        if (filtered.length === 0) {
-          updateFeed('<div class="pi-empty-state"><p>No matching Pi sessions found.</p></div>')
-          statusEl.textContent = 'No matching Pi sessions found.'
-          return
-        }
-
-        // Group filtered sessions by workspace
-        const wsGroups = new Map()
-        for (const s of filtered) {
-          const key = s.cwd || s.workspaceName || 'Default'
-          if (!wsGroups.has(key)) {
-            wsGroups.set(key, {
-              name: s.workspaceName,
-              cwd: s.cwd,
-              sessions: [],
-            })
-          }
-          wsGroups.get(key).sessions.push(s)
-        }
-
-        const sessionCard = (s) => {
-          const statusClass = `pi-status-${s.status}`
-          const statusDisplay = s.status === 'running' ? 'Working...' : (s.status.charAt(0).toUpperCase() + s.status.slice(1))
-          return `
-            <article class="pi-session-card pi-card-${s.status}" data-session-key="${escapeHtml(sessionKey(s))}">
-              <div class="pi-card-header odk-row items-center justify-between">
-                <div class="odk-row items-center gap-2">
-                  <span class="pi-status-badge ${statusClass}">
-                    ${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}
-                    ${statusDisplay}
-                  </span>
-                  ${groupedView ? '' : `<span class="pi-card-workspace" title="${escapeHtml(s.cwd || '')}"><svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>${escapeHtml(s.workspaceName || s.cwd || 'Unknown workspace')}</span>`}
-                </div>
-                <div class="pi-card-meta odk-row items-center gap-2">
-                  <span class="pi-card-time">${formatElapsed(s.startedAt)}</span>
-                </div>
-              </div>
-
-              <div class="pi-card-goal">
-                <p class="pi-goal-text">${renderGoalHtml(s.latestGoal || 'No goal stated')}</p>
-              </div>
-
-              ${(s.activity || s.recap || s.status === 'running') ? `
-                <div class="pi-card-activity">
-                  <p class="pi-activity-text">${s.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${renderActivityHtml(s.activity || (s.status === 'running' ? 'Working...' : (s.recap || 'Settled')))}</p>
-                </div>` : ''}
-            </article>`
-        }
-
-        let html = ''
-        if (groupedView) {
-          for (const ws of wsGroups.values()) {
-            const wsRunning = ws.sessions.filter(s => s.status === 'running').length
-            html += `
-            <div class="pi-workspace-section">
-              <div class="pi-workspace-header odk-row items-center justify-between">
-                <div class="odk-row items-center gap-2">
-                  <svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>
-                  <span class="pi-ws-title">${escapeHtml(ws.name)}</span>
-                  <span class="pi-ws-path" title="${escapeHtml(ws.cwd)}">${escapeHtml(ws.cwd)}</span>
-                </div>
-                <span class="pi-ws-badge">${wsRunning > 0 ? `<span class="pi-badge-dot"></span>${wsRunning} working · ` : ''}${ws.sessions.length} session${ws.sessions.length > 1 ? 's' : ''}</span>
-              </div>
-              <div class="pi-ws-cards odk-col gap-2">${ws.sessions.map(sessionCard).join('')}
-              </div>
-            </div>`
-          }
-        } else {
-          html = `<div class="pi-ws-cards odk-col gap-2">${filtered.map(sessionCard).join('')}</div>`
-        }
-
-        updateFeed(html)
-        statusEl.textContent = `${filtered.length} Pi session${filtered.length === 1 ? '' : 's'} shown${groupedView ? ' by workspace' : ' across all folders'}.`
       }
 
-      const load = async () => {
+      function publishRemote() {
+        ctx?.publishPageRemote?.(el, {
+          actions: [
+            { id: ACTION_FILTER, label: FILTER_LABELS[filter] },
+            { id: ACTION_OVERVIEW, label: 'OVERVIEW' },
+          ],
+          focus: 'items',
+        })
+      }
+
+      function announce() {
+        statusEl.textContent = announcement(selected(), selectedIndex, currentSet().length, pageCopy())
+      }
+
+      function renderFilterButtons() {
+        for (const button of filterBtns) {
+          const active = button.dataset.filter === filter
+          button.classList.toggle('active', active)
+          button.setAttribute('aria-pressed', String(active))
+        }
+      }
+
+      function renderDetail() {
+        const session = selected()
+        detail.render(session, selectedIndex, currentSet().length, eventsState, sourceLabel(), () => setOverview(true))
+        if (!session) bodyEl.innerHTML = `<p class="pi-empty-state">${escapeHtml(pageCopy())}</p>`
+      }
+
+      function renderOverview() {
+        overview.render({
+          set: currentSet(),
+          filterTitle: FILTER_TITLES[filter],
+          sourceLabel: sourceLabel(),
+          unavailable: scan?.ok === false,
+          selectedKey,
+          emptyCopy: pageCopy(),
+          onChoose: chooseCell,
+        })
+      }
+
+      function renderAll() {
+        renderFilterButtons()
+        renderDetail()
+        renderOverview()
+        announce()
+      }
+
+      function reconcileSelection() {
+        const set = currentSet()
+        if (set.length === 0) {
+          selectedKey = null
+          selectedIndex = 0
+          return
+        }
+        selectedIndex = selectionIndex(set, selectedKey, selectedIndex, lastDirection)
+        selectedKey = sessionKey(set[selectedIndex])
+      }
+
+      function setSelection(index, direction = lastDirection) {
+        const set = currentSet()
+        const target = set[steppedIndex(index, 0, set.length)]
+        if (!target) return
+        const nextKey = sessionKey(target)
+        if (nextKey === selectedKey) return
+        lastDirection = direction
+        selectedIndex = steppedIndex(index, 0, set.length)
+        selectedKey = nextKey
+        eventsState = { reason: 'loading', ok: false, events: [] }
+        detail.restart()
+        renderDetail()
+        renderOverview()
+        announce()
+        loadEvents()
+      }
+
+      function moveSelection(step) {
+        const set = currentSet()
+        if (set.length === 0) return
+        setSelection(steppedIndex(selectedIndex, step, set.length), step < 0 ? 'left' : 'right')
+        overview.focusSelected(selectedKey)
+      }
+
+      function chooseCell(key) {
+        const index = currentSet().findIndex((session) => sessionKey(session) === key)
+        if (index < 0) return
+        setSelection(index)
+        setOverview(false)
+      }
+
+      function setOverview(open) {
+        const next = typeof open === 'boolean' ? open : !overview.isOpen()
+        if (next === overview.isOpen()) return
+        overview.show(next)
+        detailEl.hidden = next
+        if (next) {
+          renderOverview()
+          overview.focusSelected(selectedKey)
+        } else {
+          detail.focus()
+        }
+      }
+
+      function setFilter(value) {
+        if (!FILTERS.includes(value)) return
+        filter = value
+        reconcileSelection()
+        eventsState = { reason: 'loading', ok: false, events: [] }
+        detail.restart()
+        renderAll()
+        publishRemote()
+        loadEvents()
+      }
+
+      async function loadEvents() {
+        const session = selected()
+        const token = ++renderToken
+        if (!session) {
+          eventsState = { reason: 'loading', ok: false, events: [] }
+          detail.paint(eventsState, sourceLabel())
+          return
+        }
+        if (remoteSource()) {
+          eventsState = { reason: 'source-unsupported', ok: false, events: [] }
+          detail.paint(eventsState, sourceLabel())
+          return
+        }
         try {
-          sessionData = typeof root.odkPlatform?.getPiSessions === 'function'
+          const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
+            ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid })
+            : null
+          if (token !== renderToken) return
+          eventsState = res?.ok
+            ? { reason: '', ok: true, events: res.events || [] }
+            : { reason: res?.reason || 'session-log-missing', ok: false, events: [] }
+        } catch {
+          if (token !== renderToken) return
+          eventsState = { reason: 'session-log-unreadable', ok: false, events: [] }
+        }
+        detail.paint(eventsState, sourceLabel())
+      }
+
+      async function load() {
+        const token = ++renderToken
+        try {
+          const response = typeof root.odkPlatform?.getPiSessions === 'function'
             ? await root.odkPlatform.getPiSessions()
             : null
-          sourceEl.textContent = sessionData?.source?.label || 'Local'
-          if (!sessionData || sessionData.ok === false) {
-            runningMetric.textContent = '--'
-            settledMetric.textContent = '--'
-            wsMetric.textContent = '--'
-            const message = `${sessionData?.source?.label || 'Platform service'} unavailable. Select Refresh to try again.`
-            updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
-            statusEl.textContent = message
-            return
-          }
-          sessionData = { ...sessionData, sessions: orderSessions(sessionData.sessions || []) }
-          runningMetric.textContent = String(sessionData?.summary?.running ?? 0)
-          settledMetric.textContent = String(sessionData?.summary?.settled ?? 0)
-          wsMetric.textContent = String(sessionData?.summary?.workspacesCount ?? 0)
-          renderFeed()
-        } catch (err) {
-          sessionData = { ok: false }
-          runningMetric.textContent = '--'
-          settledMetric.textContent = '--'
-          wsMetric.textContent = '--'
-          const message = `Unable to scan sessions: ${err.message}. Select Refresh to try again.`
-          updateFeed(`<div class="pi-empty-state"><p>${escapeHtml(message)}</p></div>`)
-          statusEl.textContent = message
+          // A missing or non-object answer is unavailable, never an empty
+          // successful scan.
+          scan = response && typeof response === 'object' ? response : { ok: false, source: scan?.source || null }
+        } catch {
+          scan = { ok: false, source: scan?.source || null }
         }
+        if (token !== renderToken) return
+        if (scan?.ok !== false && Array.isArray(scan?.sessions)) {
+          scan = { ...scan, sessions: orderSessions(scan.sessions) }
+        }
+        reconcileSelection()
+        renderAll()
+        // Every completed scan re-reads the selected session's events, so a
+        // changed source, a changed session, or new activity is never stale.
+        loadEvents()
       }
 
-      filterBtns.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          filterBtns.forEach((filterBtn) => {
-            filterBtn.classList.remove('active')
-            filterBtn.setAttribute('aria-pressed', 'false')
-          })
-          btn.classList.add('active')
-          btn.setAttribute('aria-pressed', 'true')
-          currentFilter = btn.dataset.filter || 'all'
-          renderFeed()
-        })
+      function onRemoteAction(event) {
+        const actionId = event?.detail
+        if (actionId === ACTION_FILTER) setFilter(nextFilter(filter))
+        else if (actionId === ACTION_OVERVIEW) setOverview()
+      }
+
+      function onRemotePageInput(event) {
+        const action = pageInputAction(event?.detail?.input, overview.isOpen())
+        if (action === 'close-overview') setOverview(false)
+        else if (action === 'open-overview') setOverview(true)
+        else if (action === 'choose-cell') {
+          const cell = overview.cells().find((candidate) => candidate === document.activeElement)
+          if (cell) chooseCell(cell.dataset.sessionKey)
+        } else if (action === 'cell-left') overview.focusOffset(selectedKey, -1)
+        else if (action === 'cell-right') overview.focusOffset(selectedKey, 1)
+        else if (action === 'cell-up') overview.focusOffset(selectedKey, -overview.columns())
+        else if (action === 'cell-down') overview.focusOffset(selectedKey, overview.columns())
+        else if (action === 'scroll-up') detail.scroll('up')
+        else if (action === 'scroll-down') detail.scroll('down')
+        else if (action === 'previous-session') moveSelection(-1)
+        else if (action === 'next-session') moveSelection(1)
+      }
+
+      function onKeydown(event) {
+        if (event.key !== 'Escape' || !overview.isOpen()) return
+        event.stopPropagation()
+        setOverview(false)
+      }
+
+      function onPageShown() {
+        load()
+      }
+
+      for (const button of filterBtns) {
+        button.addEventListener('click', () => setFilter(button.dataset.filter))
+      }
+
+      el.addEventListener('odk-remote-action', onRemoteAction)
+      el.addEventListener('odk-remote-page-input', onRemotePageInput)
+      el.addEventListener('odk-page-shown', onPageShown)
+      el.addEventListener('keydown', onKeydown)
+      ctx?.trackCleanup?.(() => {
+        el.removeEventListener('odk-remote-action', onRemoteAction)
+        el.removeEventListener('odk-remote-page-input', onRemotePageInput)
+        el.removeEventListener('odk-page-shown', onPageShown)
+        el.removeEventListener('keydown', onKeydown)
+        ctx?.publishPageRemote?.(el, null)
       })
 
-      searchInput.addEventListener('input', (e) => {
-        currentQuery = e.target.value
-        renderFeed()
-      })
-
-      viewToggle.addEventListener('click', () => {
-        groupedView = !groupedView
-        viewToggle.setAttribute('aria-pressed', String(!groupedView))
-        viewToggle.textContent = groupedView ? 'All folders' : 'By workspace'
-        sourceEl.textContent = groupedView ? 'Processes grouped by workspace.' : 'All sessions across folders.'
-        renderFeed()
-      })
-
-      refreshBtn.addEventListener('click', load)
+      publishRemote()
+      renderAll()
 
       if (ctx?.onTick) {
         ctx.onTick(() => {
           tickCount += 1
-          if (tickCount % 5 === 0) {
-            load()
-          }
+          if (tickCount % SCAN_TICK_INTERVAL === 0) load()
         })
       }
 
       load()
     }),
   })
-
   // The page is the direct interactive surface; the Home tile remains a
   // display-only summary and never opens an App.
   root.odkPlugins.register({

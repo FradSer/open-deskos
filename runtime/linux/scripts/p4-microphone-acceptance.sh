@@ -3,20 +3,11 @@ set -euo pipefail
 
 USB_ID="303a:7002"
 CAPTURE_SECONDS="${P4_MIC_CAPTURE_SECONDS:-3}"
-CDC_DEVICE="/dev/open-deskos-p4-camera"
 
 lsusb -d "$USB_ID" >/dev/null || {
   echo "P4 native USB microphone $USB_ID is not connected." >&2
   exit 1
 }
-
-[ -c "$CDC_DEVICE" ] || {
-  echo "P4 USB device is present but the CDC metadata interface is unavailable." >&2
-  exit 1
-}
-CDC_PROPERTIES="$(udevadm info -q property -n "$CDC_DEVICE")"
-printf '%s\n' "$CDC_PROPERTIES" | grep -q '^ID_VENDOR_ID=303a$' || exit 1
-printf '%s\n' "$CDC_PROPERTIES" | grep -q '^ID_MODEL_ID=7002$' || exit 1
 
 DEVICE_LINE="$(arecord -l | awk '/P4 Camera and Microphone/ { print; exit }')"
 [ -n "$DEVICE_LINE" ] || {

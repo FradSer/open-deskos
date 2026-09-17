@@ -3,7 +3,9 @@
 **ID**: `005-face-agent-python-host-contract`  
 **Type**: `wayfinder:grilling` (HITL)  
 **Parent Map**: [Universal Plugin Architecture Map](../MAP.md)  
-**Status**: Closed (Resolved)  
+**Status**: Withdrawn (2026-09-16) — the Face Agent experiment and all P4 on-device recognition were removed; the P4 is a generic UVC webcam and UAC microphone. See runtime/linux/docs/adr/0004-p4-generic-uvc-camera.md. The body below remains as exploration history.
+
+**Previous status**: Closed (Resolved)  
 **Assignee**: Agent / FradSer  
 **Resolution Date**: 2026-08-31  
 

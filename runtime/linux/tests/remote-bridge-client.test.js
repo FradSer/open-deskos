@@ -164,6 +164,65 @@ test('actual Remote Bridge synchronizes Shell state, link state, and C6 navigati
   assert.deepEqual(navigations, ['previous'])
 })
 
+test('carries page-owned Remote Control Strip actions in the state frame', async () => {
+  const sockets = []
+  const client = createRemoteBridgeClient({
+    socketPath: '/tmp/open-deskos-remote-test.sock',
+    reconnectDelayMs: 1,
+    createConnection() {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      queueMicrotask(() => socket.emit('connect'))
+      return socket
+    },
+  })
+  client.start()
+  await waitFor(() => sockets.length === 1)
+
+  await client.publishPageState({
+    page: 4,
+    pages: 5,
+    name: 'Pi Sessions',
+    mode: 'browse',
+    surface: 'app',
+    canFocus: true,
+    actions: [
+      { id: 'pi-session-filter', label: 'WORKING' },
+      { id: 'pi-session-overview', label: 'OVERVIEW' },
+    ],
+  })
+  assert.deepEqual(JSON.parse(sockets[0].writes.at(-1)), {
+    v: 1,
+    type: 'state',
+    page: 4,
+    pages: 5,
+    name: 'Pi Sessions',
+    canPrev: true,
+    canNext: true,
+    mode: 'browse',
+    surface: 'app',
+    canFocus: true,
+    actions: [
+      { id: 'pi-session-filter', label: 'WORKING' },
+      { id: 'pi-session-overview', label: 'OVERVIEW' },
+    ],
+  })
+
+  // The filter button's label is the live filter, so a filter change must reach
+  // the Remote as authoritative state on its own.
+  await client.publishPageState({
+    page: 4,
+    pages: 5,
+    name: 'Pi Sessions',
+    actions: [{ id: 'pi-session-filter', label: 'SETTLED' }],
+  })
+  const republished = JSON.parse(sockets[0].writes.at(-1))
+  assert.equal(republished.name, 'Pi Sessions')
+  assert.deepEqual(republished.actions, [{ id: 'pi-session-filter', label: 'SETTLED' }])
+
+  client.stop()
+})
+
 test('reconnects, resends complete authoritative state, and forwards only valid link records', async () => {
   const sockets = []
   const linkStates = []

@@ -23,8 +23,7 @@
           { id: 'odk.tile.settings', col: '5', row: '1' },
           { id: 'odk.tile.pi-sessions', col: '2 / 4', row: '2 / 4' },
           { id: 'odk.tile.pomodoro', col: '1', row: '2 / 4' },
-          { id: 'odk.tile.face-presence', col: '4', row: '2' },
-          { id: 'odk.tile.current-emotion', col: '4', row: '3' },
+          { id: 'odk.tile.camera', col: '4', row: '2' },
           { id: 'odk.tile.hydra', col: '5', row: '2 / 4' },
         ],
       },
@@ -40,7 +39,6 @@
       },
       { id: 'pi-sessions', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi-sessions' },
       { id: 'quota', name: 'Usage', kind: 'page', surface: 'app', plugin: 'odk.page.quota' },
-      { id: 'user-apps', name: 'Your apps', kind: 'page', surface: 'app', plugin: 'odk.page.user-apps' },
     ],
   }
 })(typeof window !== 'undefined' ? window : globalThis)

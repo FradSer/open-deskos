@@ -71,13 +71,13 @@ Feature: Independent instrument refinement
     When Reload succeeds
     Then the current search filters the recovered catalog
 
-  Scenario: Your apps remains usable during catalog failure and recovery
-    Given Your apps is visible at compact or widescreen geometry
-    When its catalog is loading and then fails
-    Then loading and unavailable states remain truthful
+  Scenario: Desktop remains usable during user application catalog failure and recovery
+    Given the desktop is visible at compact or widescreen geometry
+    When its user application catalog is loading and then fails
+    Then loading and unavailable states remain truthful without adding a management page
     When a catalog change notification arrives after recovery
     Then the empty installed catalog returns
-    And its input retains focus when a separate App closes by Back or Escape
+    And the page marker retains focus when a separate App closes by Back or Escape
 
   Scenario: Built-in views explains empty search results
     Given the built-in view catalog has loaded

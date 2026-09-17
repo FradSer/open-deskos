@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, stat, open } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
@@ -35,6 +35,55 @@ test('transcription sends multipart and rejects unsafe provider results', async 
   await assert.rejects(transcribe(path, { ...config, maxAudioBytes: 2 }, undefined, fetcher), /Audio too large/)
 })
 
+test('uploads accept up to 25000000 bytes and reject larger files before network or credentials', async t => {
+  const dir = await temp(t)
+  const path = join(dir, 'audio.wav')
+  const keyFile = join(dir, 'key')
+  await writeFile(keyFile, 'test-only-key')
+  const file = await open(path, 'w')
+  t.after(() => file.close())
+  const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile }
+  for (const size of [2_500_000, 25_000_000]) {
+    await file.truncate(size)
+    assert.equal(await transcribe(path, config, undefined, async (_url, options) => {
+      assert.equal(options.body.get('file').size, size)
+      return new Response(JSON.stringify({ text: 'long recording' }))
+    }), 'long recording')
+  }
+  await file.truncate(25_000_001)
+  await assert.rejects(transcribe(path, { ...config, keyFile: '/missing' }, undefined, async () => {
+    assert.fail('oversize audio must not be uploaded')
+  }), /Audio too large/)
+})
+
+test('status transport preserves maximally escaped bounded replies and transcripts together', async t => {
+  const dir = await temp(t)
+  const socketPath = join(dir, 'private', 'agent.sock')
+  const service = new VoiceService({ record: async () => { throw Error('no device') }, transcribe: async () => '', prompt: async () => '' })
+  const reply = '\u0000'.repeat(16_384)
+  const transcript = '\u0000'.repeat(4096)
+  service.setState('idle', reply, transcript)
+  const server = await listen(socketPath, service)
+  t.after(() => server.close())
+  const client = connect(socketPath)
+  t.after(() => client.destroy())
+  client.setEncoding('utf8')
+  const received = new Promise((resolve, reject) => {
+    let pending = ''
+    client.on('error', reject)
+    client.on('data', data => {
+      pending += data
+      if (pending.includes('\n')) resolve(JSON.parse(pending.trim()))
+    })
+  })
+  client.write('{"v":1,"type":"status"}\n')
+  const status = await received
+  assert.equal(status.message, reply)
+  assert.equal(status.transcript, transcript)
+  assert.equal(status.level, 0)
+  assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 123_000)
+})
+
 test('Chinese transcription preserves mixed project names and configurable languages', async t => {
   const dir = await temp(t)
   const path = join(dir, 'audio.wav')
@@ -42,7 +91,7 @@ test('Chinese transcription preserves mixed project names and configurable langu
   await writeFile(path, 'RIFFaudio')
   await writeFile(keyFile, 'private-key')
   const text = '请在 Open DeskOS 中用 pi-session-control 查看会话，不要改名。'
-  for (const language of [undefined, 'zh', 'zh-CN', 'en', 'auto']) {
+  for (const language of [undefined, 'zh', 'eng', 'en', 'auto']) {
     const config = { url: 'https://example.com/transcribe', model: 'whisper-1', keyFile, language }
     const fetcher = async (_url, options) => {
       assert.equal(options.body.get('language'), language === 'auto' ? null : language ?? 'zh')
@@ -53,7 +102,7 @@ test('Chinese transcription preserves mixed project names and configurable langu
 })
 
 test('invalid transcription languages fail before I/O without revealing configuration', async () => {
-  for (const language of ['', 'ZH', 'chinese', 'zh_CN', 'zh\r\nprivate-value', 'auto-private-value']) {
+  for (const language of ['', 'ZH', 'chinese', 'zh-CN', 'en-US', 'zh_CN', 'zh\r\nprivate-value', 'auto-private-value']) {
     await assert.rejects(transcribe('/missing/audio', {
       url: 'https://example.com/transcribe', model: 'whisper-1', keyFile: '/missing/key', language,
     }, undefined, async () => { throw Error('Network must not be used') }), {

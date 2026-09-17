@@ -23,7 +23,6 @@ function check(name, ok, detail) {
 }
 
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
-ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', unlocked: false }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))

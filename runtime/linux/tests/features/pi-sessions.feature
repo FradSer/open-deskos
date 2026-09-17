@@ -90,3 +90,35 @@ Feature: Local Pi Sessions Monitoring
     Then the card displays a single-line model activity message truncated with an ellipsis
     And running cards display Working... instead of uppercase WORKING
     And goal and model labels are omitted, distinguished by typography
+
+Scenario: Linux shell reads a bounded stream of session events on demand
+  Given a session's own message log is far larger than the read bound
+  When the shell reads that session's events
+  Then only a bounded tail of the log is read
+  And at most the bounded number of most recent events is returned
+  And the events stay in chronological order
+
+Scenario: Session events stay single-line and never carry a tool result body
+  Given a session log contains user prompts, thinking, tool calls, assistant text, and tool results
+  When the shell reads that session's events
+  Then every event is one bounded line
+  And every event names its kind
+  And a tool result contributes only its tool name and first line
+  And no event repeats a tool result body beyond its first line
+
+Scenario: Session events ignore entries that are not session messages
+  Given a session log contains session, model change, thinking level, and custom entries
+  When the shell reads that session's events
+  Then those entries produce no event
+
+Scenario: An unreadable session log is refused instead of reported empty
+  Given a session has no readable message log
+  When the shell reads that session's events
+  Then the read reports that no events are available
+  And it does not report an empty successful stream
+
+Scenario: The session scan stays lightweight
+  Given the Pi widget, the status indicator, and the Session Overview read the scan result
+  When the shell scans sessions
+  Then the scan result carries no session events
+  And session events are read only for a selected session on demand

@@ -9,10 +9,9 @@ runtime/linux/                         CM5 Electron 桌面运行时
 peripherals/esp32-s3-remote/           ESP32-S3 触控 Remote Control
 peripherals/esp32-p4-camera/           ESP32-P4 SC2336 Camera Peripheral
 integrations/remote-bridge/            CM5 ↔ Remote 传输服务
-experiments/vision/face-agent/         可选视觉与 owner-recognition 实验
 ```
 
-ESP32-S3 Remote Control 和 ESP32-P4 Camera Peripheral 是目标 CM5 系统架构的组成部分，但各自拥有独立硬件验收门。基础 CM5 安装和直接操作不会等待任一开发板。Face Agent 和 owner recognition 仍是显式启用的实验。
+ESP32-S3 Remote Control 和 ESP32-P4 Camera Peripheral 是目标 CM5 系统架构的组成部分，但各自拥有独立硬件验收门。基础 CM5 安装和直接操作不会等待任一开发板。P4 Camera 是通用 UVC webcam 与 UAC 麦克风，无人脸识别与身份存储。
 
 ## 开发 CM5 运行时
 

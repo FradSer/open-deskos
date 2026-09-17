@@ -34,9 +34,9 @@ test('resolves a sealed device release root from its tests directory', () => {
   const root = makeTree([
     'package.json',
     'scripts/cm5-install.sh',
-    'tests/p4-camera-protocol.test.js',
+    'tests/p4-camera-uvc.test.js',
     'peripherals/esp32-p4-camera/tests/features/p4-camera.feature',
-    'experiments/vision/face-agent/face_service.py',
+    'runtime/linux/scripts/p4-camera-acceptance.sh',
   ])
   try {
     const start = path.join(root, 'tests')

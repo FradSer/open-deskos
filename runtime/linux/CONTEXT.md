@@ -22,7 +22,8 @@ _Avoid_: adapting P4 serial commands as CM5 product interfaces.
 
 **User Application**:
 A locally authored, versioned Widget or interactive App installed and managed by Open DeskOS. It is distinct from trusted built-in Shell plugins and from its editable draft.
-_Avoid_: generated file equals installed app, arbitrary Shell plugin injection
+Widgets share desktop grid pages with built-in tiles; their persisted placement is independent of the installed revision. Interactive Apps own individual pages. There is no dedicated User Applications collection page.
+_Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
 
 **Application Candidate**:
 An exact snapshot of a draft awaiting system-owned verification. Failed verification cannot replace the installed revision.
@@ -40,6 +41,26 @@ _Avoid_: voice workspace, active release directory, Pi session storage
 The CM5-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
 _Avoid_: Pi Sessions widget, microphone on the Remote, a new monitored session per button click
 
+**Spoken Turn**:
+A Remote-triggered voice recording submitted by MIC or by local detection of silence after speech. Waiting without speech is not a completed turn.
+_Avoid_: fixed-duration clip, wake-word session, silence means a request
+
+**Hidden Voice Interaction**:
+An activated voice interaction whose feedback has been dismissed without cancelling its work. MIC restores that interaction before taking any recording action, even if it completed while hidden.
+_Avoid_: cancelled task, new recording, discarded conversation
+
+**Voice Transcript**:
+The recognized user speech sent to the resident Voice Agent for the current Spoken Turn. It remains distinct from the agent's response and is shown before execution output.
+_Avoid_: agent interpretation, generated reply, editable prompt history
+
+**Streaming Reply**:
+The current request's public assistant text shown while execution is still in progress. It is not a completed result until the request finishes, and excludes internal thinking and raw tool records.
+_Avoid_: simulated typing, tool logs, completion proof
+
+**Input Level**:
+The measured strength of microphone audio during a Spoken Turn. It describes input activity, not whether the audio is speech or how much of a request is complete.
+_Avoid_: speech probability, processing progress, decorative waveform
+
 **Managed Coding Task**:
 An explicitly targeted Pi coding request owned by a configured CM5 or Mac host independently of voice feedback and control-connection lifetime. Its durable identity distinguishes acceptance, execution, termination, and verification. Closing voice feedback does not cancel it.
 _Avoid_: monitored terminal session, accepted means completed, finished means tests passed
@@ -56,31 +77,45 @@ _Avoid_: keyword-only command routing, arbitrary renderer code execution
 A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed.
 _Avoid_: editing session history to inject a prompt, terminal keystroke simulation, treating observed processes as control endpoints
 
-## Experimental Owner Recognition
+## Pi Sessions Inspection
 
-**Physical Owner Enrollment**:
-The one-shot act of recording the configured owner from exactly one valid P4 camera observation after a physical confirmation. It is the only way to create a P4 owner identity.
-_Avoid_: remote enrollment, HTTP enrollment, serial enrollment
+**Running Session**:
+A live Pi session whose process is alive. It is the unit the Session Switcher rotates through.
+_Avoid_: agent, running agent, active task, controllable session
 
-**Experimental Owner-Locked Screen**:
-A future, opt-in privacy experiment in which selected content is covered until the current P4 observation recognizes the enrolled owner. It is not active CM5 shell behavior and cannot gate base operation.
-_Avoid_: making owner recognition a default boot requirement, guest-mode claims, optimistic unlock
+**Session Set**:
+The subset of Pi sessions currently selected by the Session Filter. It is the shared candidate set for the Session Switcher and the Session Overview. The Pi status-bar count is a separate, always-running reading and never follows the filter.
+_Avoid_: filtered list, active agents, candidate list
 
-**Owner Recognition**:
-A current P4 camera observation that identifies the enrolled owner strongly enough to release the Owner-Locked Screen.
-_Avoid_: face detected, assumed identity, host recognition
+**Session Filter**:
+The Pi Sessions page's selection of which sessions the Session Set contains: All, Working, Settled, or Exited. It defaults to Working and does not survive a shell restart.
+_Avoid_: search, workspace grouping, status toggle, remote view mode
 
-**Owner Recognition Verification**:
-The acceptance sequence for the opt-in privacy experiment: physically enroll one owner, then observe a fresh P4 owner-recognition result and the experiment's selected protected-content behavior.
-_Avoid_: enrollment-only validation, face-detection-only validation, treating it as base-shell acceptance
+**Session Switcher**:
+The Pi Sessions page's horizontal movement between the members of the Session Set during App Focus Mode. It stops at the first and last member instead of wrapping, and it remembers its selection by session identity rather than position.
+_Avoid_: carousel, tab switcher, session pager, agent switcher
 
-**Diagnostic Snapshot**:
-A temporarily enabled, CM5-local still image used only to align the P4 camera during hardware verification. It is disabled by default and is not a Display Shell data source or an unlock input.
-_Avoid_: camera preview, production video feed, recognition fallback
+**Session Detail**:
+The Pi Sessions page's single-session view: the selected session's identity plus its bounded stream of recent Session Events.
+_Avoid_: log viewer, transcript, agent panel, terminal
 
-**Camera-Usable Scene**:
-A P4 camera observation with sufficient visible detail for on-device face detection. A valid camera link that produces an effectively black frame is not a Camera-Usable Scene.
-_Avoid_: camera online, capture working, dark-frame ready
+**Session Event**:
+One bounded single-line entry in a Session Detail stream, derived from the session's own message log. It reports that the session did something, never the body of a tool result.
+_Avoid_: transcript line, log record, tool output
+
+**Session Overview**:
+The Pi Sessions page's grid of the current Session Set, opened from the Remote Control Strip. Choosing a cell returns to that session's Session Detail.
+_Avoid_: honeycomb, exposé, agent grid, tab overview, dashboard
+
+## P4 Camera Peripheral
+
+**Generic UVC Webcam**:
+The ESP32-P4 SC2336 peripheral exposes a standard USB Video Class MJPEG stream and a standard USB Audio Class microphone. It performs no face detection, owner recognition, expression classification, or biometric storage.
+_Avoid_: face detected, assumed identity, host recognition, emotion labels
+
+**Camera Acceptance**:
+The CM5 hardware acceptance sequence for the camera peripheral: verify the composite USB identity, resolve the V4L2 video device, and capture one bounded MJPEG frame without storing media.
+_Avoid_: treating it as base-shell acceptance
 
 **Remote Control**:
 The ESP32-S3 touchscreen device that turns direct touch interaction into navigation input for the Linux display.
@@ -111,8 +146,8 @@ The first Remote Touchpad focus target for an App. An App may declare it; otherw
 _Avoid_: arbitrary focus, page-level focus
 
 **App Focus Mode**:
-The input mode while a focused App page is active: all four Remote Touchpad directions move among that App's controls, and none requests page navigation. Bounded Paging resumes when the App is no longer active.
-_Avoid_: edge-to-page navigation, mixed page and App focus
+The input mode while a focused App page is active: directional input belongs to that App and never requests page navigation. An App may declare one axis as its primary movement — switching between the items it is showing — while the other axis moves within the current item. Bounded Paging resumes when the App is no longer active.
+_Avoid_: edge-to-page navigation, mixed page and App focus, App input that pages the shell
 
 **Remote Firmware**:
 A standalone ESP-IDF project under `peripherals/esp32-s3-remote/` that exposes only the Remote Control experience plus HID Navigation. It is a required architecture peripheral with its own hardware acceptance gate; direct shell input remains available before that gate passes.
@@ -127,8 +162,8 @@ The Display Shell's authoritative current-page, interaction mode, and available 
 _Avoid_: send-only feedback, assumed page state, stale page display, fabricated telemetry
 
 **Remote Control Strip**:
-The Remote Control's plugin-owned contextual action bar. Browse mode offers Previous and Next; App Focus Mode offers directional movement and Select; Back is persistent in every mode.
-_Avoid_: universal touchpad, fixed controller layout, remote shell
+The Remote Control's plugin-owned contextual action bar. Browse mode offers Previous and Next; App Focus Mode offers directional movement and Select; Back is persistent in every mode. A page that owns strip buttons publishes them as its own authoritative state instead of declaring them in the desktop layout.
+_Avoid_: universal touchpad, fixed controller layout, remote shell, fixed strip contents
 
 **Remote Bridge**:
 A Node.js systemd user service that owns the active Remote Link and relays Display Shell state to the Remote Control independently of whether the link is wired USB or wireless ESP-NOW. It communicates with the Electron main process over a permission-restricted Unix domain socket and starts with the CM5 graphical user's session.

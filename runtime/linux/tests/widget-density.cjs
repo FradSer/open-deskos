@@ -26,9 +26,6 @@ ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 ipcMain.handle('odk-weread-highlight', () => fixtureState === 'live'
   ? { status: 'live', highlight: { title: 'Reading notes', markText: 'A useful idea becomes clearer when we return to it and put it into practice.' } }
   : { status: 'unconfigured', highlight: null })
-ipcMain.handle('odk-face-agent-status', () => fixtureState === 'live'
-  ? { state: 'online', unlocked: true, facesCount: 1, emotion: { primary: 'happiness', confidence: 92 } }
-  : { state: 'unavailable', unlocked: false })
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: fixtureState === 'live' ? 3 : 0, total: fixtureState === 'live' ? 5 : 0, workspacesCount: fixtureState === 'live' ? 2 : 0 }, sessions: [] }))
 ipcMain.handle('odk-hydra-status', () => fixtureState === 'live'
   ? { configured: true, connected: true, env: { tempC: 31.3, humidity: 79.8, pressureHpa: 998.9, lux: 1234, updatedAt: Date.now(), stale: false }, nodes: [{ id: 1, online: true, pump: false, soilPercent: 62 }, { id: 2, online: true, pump: false, soilPercent: 48 }] }
@@ -142,7 +139,6 @@ async function main() {
     await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(fixtureTheme)})`)
     await waitFor(win, `document.documentElement.dataset.theme === ${JSON.stringify(fixtureTheme)}`)
   }
-  await win.webContents.executeJavaScript(`window.odkServices.faceAgent.refresh()`)
   await waitFor(win, `document.querySelector('.pi-widget-count').textContent === '${fixtureState === 'live' ? 3 : 0}'`)
   await require('./widget-density-dom.cjs').verifyCollector(win)
   const runs = []

@@ -10,31 +10,53 @@ let quota = { state: 'unconfigured' }
 // Layout ids resolve to page positions once the renderer is loaded.
 let PAGES = { dot: () => { throw new Error('pages not resolved') }, surface: () => { throw new Error('pages not resolved') } }
 let completeQuotaRefresh = null
-let scannerFails = false
+let scanFails = false
 let sessions = {
-  summary: { running: 1, settled: 0, total: 1, workspacesCount: 1 },
+  source: { kind: 'local', label: 'Local' },
+  summary: { running: 2, settled: 0, total: 2, workspacesCount: 2 },
   sessions: [{
     status: 'running', pid: 4102, uuid: 'session-identifier-'.repeat(6),
     workspaceName: 'Desk runtime', cwd: longPath, startedAt: Date.now() - 60000,
     latestGoal: 'Keep complete process details readable at every supported window size.',
     command: `pi --session ${longPath}/session.jsonl`,
     modifiedFiles: [`${longPath}/renderer/surface.js`],
+    activity: 'bash: pnpm test',
+  }, {
+    status: 'running', pid: 4207, uuid: 'second-session-identifier-'.repeat(4),
+    workspaceName: 'Second desk', cwd: '/workspace/second', startedAt: Date.now() - 120000,
+    latestGoal: '<skill name="marketing" location="/test/SKILL.md">\nInstructions\n</skill>\n\nLaunch the beta campaign.',
+    command: 'pi --resume',
+    modifiedFiles: [],
+    activity: 'thinking: reviewing the switcher',
   }],
+}
+const sessionEventKinds = ['user', 'thinking', 'tool', 'result', 'assistant']
+let sessionEvents = {
+  ok: true,
+  truncated: true,
+  events: Array.from({ length: 40 }, (_, index) => ({
+    kind: sessionEventKinds[index % sessionEventKinds.length],
+    text: `session event line ${index + 1} of a bounded operating stream`,
+  })),
 }
 const endpoint = createAppManagerEndpoint()
 ipcMain.handle('odk-opencode-go-status', () => completeQuotaRefresh
   ? new Promise(resolve => { completeQuotaRefresh = () => resolve(quota) })
   : quota)
-ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', unlocked: false }))
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
 ipcMain.handle('odk-pi-sessions', () => {
-  if (scannerFails) throw new Error('Scanner test failure')
+  if (scanFails) throw new Error('Scanner test failure')
   return sessions
+})
+ipcMain.handle('odk-pi-session-events', () => {
+  if (scanFails) throw new Error('Scanner test failure')
+  return sessionEvents
 })
 ipcMain.handle('odk-app-manager-list', () => endpoint.list())
 ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
 ipcMain.handle('odk-app-manager-state', (_event, id) => endpoint.get(id))
-ipcMain.handle('odk-remote-publish-page-state', () => true)
+let publishedRemoteState = null
+ipcMain.handle('odk-remote-publish-page-state', (_event, state) => { publishedRemoteState = state; return true })
 ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
 ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 
@@ -110,14 +132,12 @@ async function appPage(win, index, label) {
     return {
       failures,
       targets: controls.every(el => el === capsuleGroup || el.closest('.pi-filter-group') === capsuleGroup || el.getBoundingClientRect().height >= 44),
-      label: ${index} !== 2 || Boolean(surface.querySelector('label[for="pi-search-input"]')?.getClientRects().length && surface.querySelector('.pi-filter-group[role="group"][aria-label]')),
       selectable: getComputedStyle(surface).userSelect === 'text',
       filterLines: [...surface.querySelectorAll('.pi-filter-btn')].every(el => getComputedStyle(el).whiteSpace === 'nowrap'),
     }
   })()`)
   check(`${label}: App ${index} wraps all content: ${result.failures.join(', ')}`, result.failures.length === 0)
   check(`${label}: App ${index} uses touch-sized controls`, result.targets)
-  check(`${label}: App ${index} keeps a visible search label`, result.label)
   check(`${label}: App ${index} text is selectable`, result.selectable)
   check(`${label}: App ${index} filter labels stay on one line`, result.filterLines)
   const reachable = await win.webContents.executeJavaScript(`(() => {
@@ -143,9 +163,9 @@ async function contrastAndMotion(win) {
       })
       return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2]
     }
-    return ['.pi-filter-btn:not(.active)', '.pi-card-time', '.pi-goal-text', '.pi-search-input'].map(selector => {
+    return ['.pi-filter-btn:not(.active)', '.pi-card-time', '.pi-goal-text', '.pi-event-text'].map(selector => {
       const el = document.querySelector(selector)
-      const fg = luma(getComputedStyle(el, selector === '.pi-search-input' ? '::placeholder' : null).color)
+      const fg = luma(getComputedStyle(el).color)
       let bg = el
       while (getComputedStyle(bg).backgroundColor === 'rgba(0, 0, 0, 0)') bg = bg.parentElement
       const value = luma(getComputedStyle(bg).backgroundColor)
@@ -156,15 +176,15 @@ async function contrastAndMotion(win) {
   await win.webContents.debugger.attach('1.3')
   try {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
-    const reduced = await win.webContents.executeJavaScript(`['.pi-filter-btn', '.pi-search-input', '.button-pill'].every(s => !document.querySelector(s) || getComputedStyle(document.querySelector(s)).transitionDuration.split(', ').every(v => parseFloat(v) === 0))`)
+    const reduced = await win.webContents.executeJavaScript(`['.pi-filter-btn', '.pi-detail-overview-btn', '.button-pill'].every(s => !document.querySelector(s) || getComputedStyle(document.querySelector(s)).transitionDuration.split(', ').every(v => parseFloat(v) === 0))`)
     check('App controls respect reduced motion', reduced)
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] })
   } finally {
     await win.webContents.debugger.detach()
   }
-  await win.webContents.executeJavaScript(`document.querySelector('.pi-search-input').focus()`)
+  await win.webContents.executeJavaScript(`document.querySelector('.pi-detail-overview-btn').focus()`)
   const focus = await win.webContents.executeJavaScript(`parseFloat(getComputedStyle(document.activeElement).outlineWidth) >= 2`)
-  check('search has a complete keyboard focus ring', focus)
+  check('session detail control has a complete keyboard focus ring', focus)
 }
 
 async function pressKey(win, keyCode) {
@@ -204,22 +224,34 @@ async function keyboardScrolling(win) {
 }
 
 async function editableKeyboard(win) {
-  await page(win, PAGES.dot('pi-sessions'))
-  const selector = '.pi-app-wrapper'
-  await win.webContents.executeJavaScript(`const input = document.querySelector('#pi-search-input'); input.value = 'abcdef'; input.focus()`)
+  await win.webContents.executeJavaScript(`window.odkAppPlatform.openApp({ appId: 'app-manager' })`)
+  await delay(150)
+  const selector = '#app-runtime .runtime-app'
+  await win.webContents.executeJavaScript(`const input = document.querySelector('#app-runtime .app-search'); input.value = 'abcdef'; input.focus()`)
   const initial = await scrollState(win, selector)
   for (const keyCode of ['Up', 'Down', 'Left', 'Right']) {
-    await win.webContents.executeJavaScript(`document.querySelector('#pi-search-input').setSelectionRange(3, 3)`)
+    await win.webContents.executeJavaScript(`document.querySelector('#app-runtime .app-search').setSelectionRange(3, 3)`)
     const event = await pressKey(win, keyCode)
     const value = await win.webContents.executeJavaScript(`(() => {
-      const input = document.querySelector('#pi-search-input')
+      const input = document.querySelector('#app-runtime .app-search')
       return { text: input.value, caret: input.selectionStart, focused: document.activeElement === input }
     })()`)
     const state = await scrollState(win, selector)
     const caret = keyCode === 'Left' ? value.caret === 2 : keyCode === 'Right' ? value.caret === 4 : true
-    check(`search ${keyCode} stays native without paging`, event?.prevented === false && value.focused && value.text === 'abcdef' && caret && state.page === initial.page)
+    check(`an editable App control keeps ${keyCode} native without paging`, event?.prevented === false && value.focused && value.text === 'abcdef' && caret && state.page === initial.page)
   }
-  await win.webContents.executeJavaScript(`document.querySelector('#pi-search-input').value = ''`)
+  await win.webContents.executeJavaScript(`window.odkAppPlatform.closeApp()`)
+  await delay(120)
+
+  // The Pi Sessions page keeps no editable control, so page-level arrow keys
+  // stay bounded paging by design.
+  const detail = `${PAGES.surface('pi-sessions')} #pi-detail`
+  await page(win, PAGES.dot('pi-sessions'))
+  await win.webContents.executeJavaScript(`document.querySelector('${detail}').focus()`)
+  const before = await scrollState(win, detail)
+  const arrow = await pressKey(win, 'Right')
+  const after = await scrollState(win, detail)
+  check('a page without an editable control keeps bounded arrow paging', arrow?.prevented === true && after.page !== before.page)
 }
 
 async function nativeAppScrolling(win) {
@@ -241,24 +273,171 @@ async function remoteInput(win, input) {
   await delay(100)
 }
 
+async function remoteAction(win, action) {
+  win.webContents.send('odk-remote-input', { input: 'action', action })
+  await delay(100)
+}
+
 async function remoteScrollingIsolation(win) {
-  for (const [index, selector] of [[PAGES.dot('home'), PAGES.surface('home')], [PAGES.dot('pi-sessions'), '.pi-app-wrapper']]) {
-    await page(win, index)
-    await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); document.querySelector('${selector}').scrollTop = 160`)
-    const initial = await scrollState(win, selector)
-    for (const input of ['up', 'down']) {
-      await remoteInput(win, input)
-      const state = await scrollState(win, selector)
-      check(`Remote ${input} leaves page ${index} browsing state unchanged`, state.top === initial.top && state.page === initial.page && state.focus === initial.focus)
-    }
+  const original = sessions
+  const startedAt = Date.now() - 60000
+  sessions = {
+    source: { kind: 'local', label: 'Local' },
+    summary: { running: 2, settled: 0, total: 2, workspacesCount: 2 },
+    sessions: [
+      { status: 'running', pid: 4102, uuid: 'scroll-probe-a', workspaceName: 'Probe desk', cwd: '/workspace/probe', startedAt, latestGoal: 'Scroll this detail.', modifiedFiles: [], activity: 'bash: probe' },
+      { status: 'running', pid: 4207, uuid: 'scroll-probe-b', workspaceName: 'Second desk', cwd: '/workspace/second', startedAt: startedAt - 60000, latestGoal: 'Switch to this session.', modifiedFiles: [], activity: 'thinking' },
+    ],
   }
+  try {
+    await scrollingIsolationChecks(win)
+  } finally {
+    sessions = original
+    await page(win, PAGES.dot('pi-sessions'))
+  }
+}
+
+async function scrollingIsolationChecks(win) {
+  await page(win, PAGES.dot('home'))
+  const homeSelector = PAGES.surface('home')
+  await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); document.querySelector('${homeSelector}').scrollTop = 160`)
+  const homeInitial = await scrollState(win, homeSelector)
+  for (const input of ['up', 'down']) {
+    await remoteInput(win, input)
+    const state = await scrollState(win, homeSelector)
+    check(`Remote ${input} leaves Home browsing state unchanged`, state.top === homeInitial.top && state.page === homeInitial.page && state.focus === homeInitial.focus)
+  }
+
+  const detail = `${PAGES.surface('pi-sessions')} #pi-detail`
+  await page(win, PAGES.dot('pi-sessions'))
+  await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); document.querySelector('${detail}').scrollTop = 120`)
+  const browseInitial = await scrollState(win, detail)
+  for (const input of ['up', 'down']) {
+    await remoteInput(win, input)
+    const state = await scrollState(win, detail)
+    check(`Remote ${input} leaves Pi Sessions browsing state unchanged`, state.top === browseInitial.top && state.page === browseInitial.page)
+  }
+
+  // The Pi Sessions page declares its own primary axis: Select activates in
+  // place, vertical input scrolls the session detail, horizontal input switches
+  // sessions, and none of them pages the shell.
   await remoteInput(win, 'primary')
-  const initial = await scrollState(win, '.pi-app-wrapper')
+  const beforeScroll = await scrollState(win, detail)
   await remoteInput(win, 'down')
-  const moved = await scrollState(win, '.pi-app-wrapper')
-  const controlFocused = await win.webContents.executeJavaScript(`document.querySelector('.pi-app-wrapper').contains(document.activeElement) && document.activeElement.matches('button, input')`)
-  check('Remote App Focus Mode moves focus without paging', initial.focus === 'pi-search-input' && moved.focus !== initial.focus && controlFocused && moved.page === initial.page, { initial: initial.focus, moved: moved.focus })
+  const afterScroll = await scrollState(win, detail)
+  check('Remote App Focus Mode scrolls the session detail without paging',
+    afterScroll.top > beforeScroll.top && afterScroll.page === beforeScroll.page)
+
+  const position = () => win.webContents.executeJavaScript(`document.querySelector('${PAGES.surface('pi-sessions')} .pi-detail-position').textContent`)
+  const firstPosition = await position()
+  await remoteInput(win, 'right')
+  const secondPosition = await position()
+  const afterSwitch = await scrollState(win, detail)
+  check('Remote App Focus Mode switches sessions without paging',
+    secondPosition !== firstPosition && afterSwitch.page === beforeScroll.page)
+
   await remoteInput(win, 'back')
+  await remoteInput(win, 'right')
+  const afterBack = await scrollState(win, detail)
+  check('Remote Back restores bounded paging from the Pi Sessions page', afterBack.page !== beforeScroll.page)
+  await page(win, PAGES.dot('pi-sessions'))
+}
+
+async function selectionIdentityContinuity(win) {
+  const original = sessions
+  try {
+    sessions = structuredClone(original)
+    sessions.sessions[0].uuid = 'identity-only-session'
+    sessions.sessions[1].uuid = 'second-identity-only-session'
+    await page(win, PAGES.dot('pi-sessions'))
+    await remoteInput(win, 'primary')
+    await remoteInput(win, 'right')
+    const selected = () => win.webContents.executeJavaScript(`document.querySelector('${PAGES.surface('pi-sessions')} .pi-detail-position').textContent`)
+    const before = await selected()
+    await page(win, PAGES.dot('pi-sessions'))
+    await remoteInput(win, 'primary')
+    check('the selected session survives a scan by session identity', (await selected()) === before)
+    await remoteInput(win, 'back')
+  } finally {
+    sessions = original
+    await page(win, PAGES.dot('pi-sessions'))
+  }
+}
+
+async function remoteStripControls(win) {
+  const original = sessions
+  const startedAt = Date.now() - 60000
+  sessions = {
+    source: { kind: 'local', label: 'Local' },
+    summary: { running: 2, settled: 0, total: 2, workspacesCount: 2 },
+    sessions: [
+      { status: 'running', pid: 4102, uuid: 'strip-a', workspaceName: 'Strip desk', cwd: '/workspace/strip', startedAt, latestGoal: 'Filter me.', modifiedFiles: [], activity: 'bash: strip' },
+      { status: 'running', pid: 4207, uuid: 'strip-b', workspaceName: 'Second desk', cwd: '/workspace/second', startedAt: startedAt - 60000, latestGoal: 'Switch to me.', modifiedFiles: [], activity: 'thinking' },
+    ],
+  }
+  const surface = `${PAGES.surface('pi-sessions')} `
+  const readActions = () => (publishedRemoteState?.actions || [])
+  const position = () => win.webContents.executeJavaScript(`document.querySelector('${surface}.pi-detail-position').textContent`)
+  const overviewHidden = () => win.webContents.executeJavaScript(`document.querySelector('${surface}#pi-overview').hidden`)
+  try {
+    await page(win, PAGES.dot('pi-sessions'))
+    const actions = readActions()
+    // The Session Filter is transient page state, so an earlier harness step may
+    // have left it anywhere; the contract is the two buttons and a live label.
+    check('the Pi Sessions page publishes exactly two Strip buttons',
+      actions.length === 2 &&
+      actions[0].id === 'pi-session-filter' && ['ALL', 'WORKING', 'SETTLED', 'EXITED'].includes(actions[0].label) &&
+      actions[1].id === 'pi-session-overview' && actions[1].label === 'OVERVIEW',
+      { actions })
+
+    await remoteAction(win, 'pi-session-filter')
+    check('the Strip filter button advances the Session Filter and relabels itself',
+      readActions()[0]?.label === 'SETTLED' || readActions()[0]?.label === 'ALL',
+      { label: readActions()[0]?.label })
+    const label = readActions()[0]?.label
+    await remoteAction(win, 'pi-session-filter')
+    check('the Strip filter button labels the live filter on every press', readActions()[0]?.label !== label,
+      { before: label, after: readActions()[0]?.label })
+
+    // Return to the running-session set before checking the switcher bounds.
+    await win.webContents.executeJavaScript(`document.querySelector('${surface}.pi-filter-btn[data-filter="working"]').click()`)
+    await delay(80)
+    check('the screen-side filter agrees with the Strip label', readActions()[0]?.label === 'WORKING',
+      { label: readActions()[0]?.label })
+
+    await remoteInput(win, 'primary')
+    const first = await position()
+    await remoteInput(win, 'left')
+    check('session switching stops at the first member', (await position()) === first, { first, after: await position() })
+    await remoteInput(win, 'right')
+    const second = await position()
+    await remoteInput(win, 'right')
+    check('session switching stops at the last member', (await position()) === second, { second, after: await position() })
+
+    // A selected session that leaves the set hands the selection to a survivor.
+    sessions = {
+      ...sessions,
+      summary: { running: 1, settled: 0, total: 1, workspacesCount: 1 },
+      sessions: [sessions.sessions[1]],
+    }
+    await page(win, PAGES.dot('pi-sessions'))
+    check('a finished session hands the selection to a surviving member',
+      (await position()) === '1 / 1' &&
+      (await win.webContents.executeJavaScript(`document.querySelector('${surface}.pi-ws-title').textContent`)) === 'Second desk',
+      { position: await position() })
+
+    await remoteInput(win, 'back')
+    await remoteAction(win, 'pi-session-overview')
+    check('the Strip overview button opens the Session Overview', (await overviewHidden()) === false)
+    const pageWhileOpen = await win.webContents.executeJavaScript(`document.querySelector('#page-context').textContent`)
+    await remoteInput(win, 'back')
+    check('Back closes a Strip-opened Session Overview without leaving the page',
+      (await overviewHidden()) === true && (await win.webContents.executeJavaScript(`document.querySelector('#page-context').textContent`)) === pageWhileOpen,
+      { pageWhileOpen })
+  } finally {
+    sessions = original
+    await page(win, PAGES.dot('pi-sessions'))
+  }
 }
 
 async function processIdentityContinuity(win) {
@@ -268,27 +447,21 @@ async function processIdentityContinuity(win) {
     delete sessions.sessions[0].uuid
     sessions.sessions[0].id = 'process-with-local-id'
     await page(win, PAGES.dot('pi-sessions'))
-    const refresh = async () => {
-      await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
-      await delay(100)
-    }
-    await refresh()
-    const toggle = () => win.webContents.executeJavaScript(`document.querySelector('.pi-files-toggle')`)
-    if (await toggle()) {
-      await win.webContents.executeJavaScript(`document.querySelector('.pi-files-toggle').click()`)
-      sessions.sessions[0].latestGoal = 'Updated goal for the same local process'
-      await refresh()
-      check('id-only process retains an expanded files disclosure', await win.webContents.executeJavaScript(`document.querySelector('.pi-files-toggle')?.getAttribute('aria-expanded') === 'true'`))
-      sessions.sessions[0].startedAt += 1000
-      await refresh()
-      check('reused PID does not inherit prior files disclosure', await win.webContents.executeJavaScript(`document.querySelector('.pi-files-toggle')?.getAttribute('aria-expanded') === 'false'`))
-    } else {
-      check('session cards omit secondary file disclosure for compact reading', true)
-    }
+    await remoteInput(win, 'primary')
+    const position = () => win.webContents.executeJavaScript(`document.querySelector('${PAGES.surface('pi-sessions')} .pi-detail-position').textContent`)
+    const before = await position()
+    sessions.sessions[0].latestGoal = 'Updated goal for the same local process'
+    await page(win, PAGES.dot('pi-sessions'))
+    await remoteInput(win, 'primary')
+    check('a session without a uuid keeps its selection across a refresh', (await position()) === before)
+    await win.webContents.executeJavaScript(`document.querySelector('${PAGES.surface('pi-sessions')} .pi-detail-overview-btn').click()`)
+    await delay(60)
+    check('the session overview selects exactly one session',
+      await win.webContents.executeJavaScript(`document.querySelectorAll('${PAGES.surface('pi-sessions')} .pi-overview-cell.is-selected').length === 1`))
+    await remoteInput(win, 'back')
   } finally {
     sessions = original
-    await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
-    await delay(100)
+    await page(win, PAGES.dot('pi-sessions'))
   }
 }
 
@@ -317,17 +490,25 @@ async function quotaRefreshFeedback(win) {
 }
 
 async function scannerRecovery(win) {
-  await page(win, PAGES.dot('pi-sessions'))
-  sessions = null
-  for (const fails of [false, true]) {
-    scannerFails = fails
-    await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
-    await delay(100)
+  const original = sessions
+  try {
+    scanFails = true
+    await page(win, PAGES.dot('pi-sessions'))
+    await delay(120)
     const announced = await win.webContents.executeJavaScript(`(() => {
-      const message = document.querySelector('#pi-sessions-status').textContent
-      return message.includes('Refresh') && document.querySelector('.pi-empty-state').textContent.includes(message)
+      const detail = document.querySelector('${PAGES.surface('pi-sessions')} #pi-detail')
+      const summary = document.querySelector('${PAGES.surface('pi-sessions')} #pi-overview-summary')
+      return { message: detail.textContent, summary: summary.textContent }
     })()`)
-    check(`scanner ${fails ? 'error' : 'unavailable'} announces a recovery action`, announced)
+    check('a failed scan is named as unavailable without a Refresh instruction',
+      /unavailable/i.test(announced.message) && !/refresh/i.test(announced.message))
+    check('a failed scan never fabricates a session',
+      /unavailable/i.test(announced.summary) &&
+      await win.webContents.executeJavaScript(`document.querySelector('${PAGES.surface('pi-sessions')} .pi-detail-identity') === null`))
+  } finally {
+    sessions = original
+    scanFails = false
+    await page(win, PAGES.dot('pi-sessions'))
   }
 }
 
@@ -359,8 +540,9 @@ async function main() {
     await appPage(win, PAGES.dot('quota'), label)
   }
   await resize(win, 1920, 1280)
-  await require('./pi-design-refinement.cjs').run(win, check)
   const savedSessions = sessions
+  await require('./pi-design-refinement.cjs').run(win, check, value => { sessions = value })
+  sessions = savedSessions
   await require('./pi-reading-stability.cjs').run(win, check, value => { sessions = value })
   sessions = savedSessions
   await processIdentityContinuity(win)
@@ -377,17 +559,21 @@ async function main() {
   quota = { state: 'available', snapshot: { accounts: [{ id: 'codex-test', provider: 'codex', fileName: 'codex-test.json', account: 'test@example.com', plan: 'Pro', resetCredits: { available: 2, expiresAt: ['2027-01-01T00:00:00Z'] }, groups: [{ title: 'Codex limits', description: null, quotas: [{ label: '5 hour limit', remainingPct: 58, resetAt: '2027-01-01T05:00:00Z', description: null }, { label: 'Weekly limit', remainingPct: 37, resetAt: '2027-01-07T00:00:00Z', description: null }] }] }] } }
   await win.webContents.executeJavaScript('window.odkServices.subscription.refresh()')
   await appPage(win, PAGES.dot('quota'), '320x480 configured usage')
-  sessions = { summary: {}, sessions: [] }
+  sessions = { source: { kind: 'local', label: 'Local' }, summary: { running: 0, settled: 0, total: 0, workspacesCount: 0 }, sessions: [] }
   await page(win, PAGES.dot('pi-sessions'))
-  await win.webContents.executeJavaScript(`document.querySelector('#pi-refresh-btn').click()`)
-  await delay(50)
-  check('empty sessions remain readable', await win.webContents.executeJavaScript(`document.querySelector('.pi-empty-state').scrollWidth <= document.querySelector('.pi-sessions-feed').clientWidth`))
+  await delay(80)
+  check('an empty session set is stated honestly and stays readable', await win.webContents.executeJavaScript(`(() => {
+    const empty = document.querySelector('${PAGES.surface('pi-sessions')} .pi-empty-state')
+    const detail = document.querySelector('${PAGES.surface('pi-sessions')} #pi-detail')
+    return Boolean(empty) && empty.scrollWidth <= detail.clientWidth + 1 && /No session matches/i.test(empty.textContent)
+  })()`))
   await require('./design-refinement.cjs')(win, check)
   await quotaRefreshFeedback(win)
   await keyboardScrolling(win)
   await editableKeyboard(win)
   await nativeAppScrolling(win)
   await remoteScrollingIsolation(win)
+  await remoteStripControls(win)
   await scannerRecovery(win)
   assert.equal(failures, 0, `${failures} interior checks failed`)
   console.log('WIDGET_APP_STYLES_PASS')

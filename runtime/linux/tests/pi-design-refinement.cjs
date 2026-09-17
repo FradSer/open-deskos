@@ -1,62 +1,104 @@
 const { resolvePages } = require('./helpers/pages')
-async function run(win, check) {
+
+// The Pi Sessions page is a single-session instrument: the title row carries
+// only the title, one Session Detail fills the main area, and the Session
+// Overview is the screen-side chooser and filter entry.
+async function run(win, check, setSessions) {
   const pages = await resolvePages(win)
-  await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${pages.dot('pi-sessions')}].click()`)
-  await new Promise(resolve => setTimeout(resolve, 350))
+  const enterPage = async () => {
+    await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${pages.dot('pi-sessions')}].click()`)
+    await new Promise(resolve => setTimeout(resolve, 350))
+  }
+  await enterPage()
+  const localFixture = await win.webContents.executeJavaScript(`window.odkPlatform.getPiSessions()`)
   const results = await win.webContents.executeJavaScript(`(async () => {
-    const surface = document.querySelector('${pages.surface("pi-sessions")} .pi-app-wrapper')
+    const surface = document.querySelector('${pages.surface('pi-sessions')} .pi-app-wrapper')
     const find = selector => surface.querySelector(selector)
-    const fixture = await window.odkPlatform.getPiSessions()
-    const refresh = async () => {
-      find('#pi-refresh-btn').click()
-      await new Promise(resolve => setTimeout(resolve, 150))
-    }
+    const tick = () => new Promise(resolve => setTimeout(resolve, 60))
     const results = []
     const record = (name, value) => results.push([name, Boolean(value)])
-    const button = find('#pi-refresh-btn')
-    record('header has named Refresh icon without LOCAL badge', button.closest('header') && button.getAttribute('aria-label') === 'Refresh' && button.querySelector('[data-tabler="refresh"]') && !find('header .widget-glance-badge'))
-    const size = button.getBoundingClientRect()
-    record('Refresh is a compact 44px target', size.width >= 44 && size.width <= 48 && size.height >= 44 && size.height <= 48)
-    const searchInput = find('#pi-search-input')
-    const searchLabel = find('label[for="pi-search-input"]')
-    const searchRow = searchInput.closest('.pi-header-actions')
-    const searchRect = searchInput.getBoundingClientRect()
-    const refreshRect = button.getBoundingClientRect()
-    record('search input sits in the header row left of Refresh', Boolean(searchRow) && searchInput.closest('header') && searchRect.right <= refreshRect.left && searchRect.left >= find('.app-surface-heading').getBoundingClientRect().right && Boolean(searchLabel))
-    const toggle = find('#pi-view-toggle')
-    record('default view is cross-folder with workspace badges and working metric', (() => {
-      const cards = [...surface.querySelectorAll('.pi-session-card')].length
-      const headers = surface.querySelectorAll('.pi-workspace-section').length
-      const labeled = cards === fixture.sessions.length && headers === 0 && [...surface.querySelectorAll('.pi-card-workspace')].length === cards && toggle.getAttribute('aria-pressed') === 'true'
-      const workingLabel = find('.pi-metric-running').textContent.includes('working')
-      const workingBtn = find('.pi-filter-btn[data-filter="running"]').textContent === 'Working'
-      return labeled && workingLabel && workingBtn
-    })())
-    const card = find('.pi-session-card')
-    const details = card.querySelector('details.pi-process-details')
-    record('process details button and disclosure are removed', details === null)
-    record('status and elapsed stay in the session header without raw PID', Boolean(card.querySelector('.pi-status-badge')) && Boolean(card.querySelector('.pi-card-time')) && card.querySelector('.pi-card-pid') === null)
-    const files = card.querySelector('.pi-files-toggle')
-    if (files && files.getAttribute('aria-expanded') !== 'true') files.click()
-    if (files) files.focus({ preventScroll: true })
-    surface.scrollTop = 100
-    const scroll = surface.scrollTop
-    await refresh()
-    record('identical refresh keeps DOM file disclosure focus and scroll', find('.pi-session-card') === card && (!files || files.getAttribute('aria-expanded') === 'true') && (!files || document.activeElement === files) && surface.scrollTop === scroll)
-    const now = Date.now
-    const before = card.querySelector('.pi-card-time').textContent
-    try {
-      Date.now = () => now() + 120000
-      await new Promise(resolve => setTimeout(resolve, 5500))
-      const updated = find('.pi-session-card')
-      record('periodic elapsed update restores inspection context', updated !== card && updated.querySelector('.pi-card-time').textContent !== before && (!files || updated.querySelector('.pi-files-toggle').getAttribute('aria-expanded') === 'true') && (!files || document.activeElement === updated.querySelector('.pi-files-toggle')) && surface.scrollTop === scroll)
-    } finally {
-      Date.now = now
-      await refresh()
-    }
+
+    const header = find('.pi-app-header')
+    record('title row carries only the heading', Boolean(header) &&
+      header.querySelectorAll('h1').length === 1 &&
+      header.querySelectorAll('button, input, select, summary, .pi-metric-pill, .pi-filter-btn, #pi-source-label').length === 0)
+
+    record('removed page controls stay removed', ['#pi-search-input', '#pi-refresh-btn', '#pi-view-toggle',
+      '#pi-source-label', '.pi-sessions-feed', '.pi-session-card', '.pi-metric-pill', '.pi-workspace-section']
+      .every(selector => find(selector) === null))
+
+    const fixture = await window.odkPlatform.getPiSessions()
+    const detail = find('#pi-detail')
+    record('exactly one session detail is shown', Boolean(detail) && detail.hidden === false && surface.querySelectorAll('#pi-detail .pi-status-badge').length === 1)
+    record('detail identifies status workspace and elapsed time',
+      Boolean(find('.pi-detail-identity .pi-status-badge')) &&
+      Boolean(find('.pi-detail-identity .pi-ws-title')) &&
+      /elapsed/.test(find('.pi-detail-identity .pi-card-time').textContent))
+    record('detail reports position within the session set', /^\\d+ \\/ \\d+$/.test(find('.pi-detail-position').textContent.trim()))
+    record('detail states the session position honestly', find('.pi-detail-position').textContent.trim() !== '1 / 0' || fixture.sessions.length === 0)
+    record('the data source is not named in the session detail', !find('#pi-detail').textContent.includes(fixture.source.label))
+    record('detail offers no process identifier or file list', find('.pi-card-pid') === null && find('.pi-files-list') === null && find('.pi-files-toggle') === null)
+
+    const events = [...surface.querySelectorAll('#pi-events .pi-event')]
+    record('event stream renders kinds and bounded single lines', events.length > 0 &&
+      events.every(event => Boolean(event.querySelector('.pi-event-kind').textContent.trim())) &&
+      events.every(event => event.querySelector('.pi-event-text').textContent.length <= 200) &&
+      events.every(event => !event.querySelector('.pi-event-text').textContent.includes('\\n')))
+
+    const overview = find('#pi-overview')
+    record('session overview starts closed', overview.hidden === true && detail.hidden === false)
+
+    find('#pi-overview-open').click()
+    await tick()
+    record('session overview opens from the screen control', overview.hidden === false && detail.hidden === true)
+    record('session overview names the set size and the source',
+      find('#pi-overview-summary').textContent.includes(fixture.source.label))
+
+    const cells = [...surface.querySelectorAll('.pi-overview-cell')]
+    record('session overview renders one cell per member of the session set', cells.length === fixture.sessions.length)
+    record('session overview marks the selected session', surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1)
+    record('session overview carries the screen-side filter controls',
+      ['all', 'working', 'settled', 'exited'].every(value => Boolean(surface.querySelector('.pi-filter-btn[data-filter="' + value + '"]'))))
+
+    surface.querySelector('.pi-filter-btn[data-filter="all"]').click()
+    await tick()
+    record('the screen-side filter is applied and pressed', surface.querySelector('.pi-filter-btn[data-filter="all"]').getAttribute('aria-pressed') === 'true')
+
+    const skillCell = cells.find(cell => cell.querySelector('.pi-overview-name').textContent === 'Second desk')
+    skillCell.click()
+    await tick()
+    record('choosing a cell closes the overview', overview.hidden === true && detail.hidden === false)
+    record('choosing a cell selects that session', find('.pi-ws-title').textContent === 'Second desk')
+    const goalHtml = find('.pi-goal-text').innerHTML
+    record('a skill invocation goal renders as a bracketed skill tag',
+      goalHtml.includes('[skill]') && goalHtml.includes('marketing') && !goalHtml.includes('<skill name='))
+    record('the detail shows the latest model activity', find('.pi-activity-text').textContent.trim().length > 0)
+
+    const longStream = document.querySelectorAll('#pi-events .pi-event').length > 20
+    record('a long event stream stays reachable inside the detail',
+      getComputedStyle(detail).overflowY === 'auto' && (!longStream || detail.scrollHeight > detail.clientHeight))
     return results
   })()`)
   for (const [name, value] of results) check(`Pi refinement: ${name}`, value)
+
+  // A Mac over SSH source keeps no local session log, so the detail must state
+  // that this source provides no session events rather than render nothing.
+  setSessions({ source: { kind: 'ssh', label: 'Mac / SSH · test-mac' }, summary: localFixture.summary, sessions: localFixture.sessions })
+  await enterPage()
+  const remote = await win.webContents.executeJavaScript(`(() => {
+    const surface = document.querySelector('${pages.surface('pi-sessions')} .pi-app-wrapper')
+    return {
+      detail: surface.querySelector('#pi-events-host').textContent,
+      identity: surface.querySelector('.pi-detail-identity')?.textContent || '',
+      summary: surface.querySelector('#pi-overview-summary').textContent,
+    }
+  })()`)
+  check('Pi refinement: a Mac over SSH source states that session events are unavailable', /session events are unavailable for Mac \/ SSH/i.test(remote.detail))
+  check('Pi refinement: a Mac over SSH source still shows the session identity', remote.identity.length > 0)
+  check('Pi refinement: the session overview names the Mac source', remote.summary.includes('Mac / SSH'))
+
+  setSessions(localFixture)
+  await enterPage()
 }
 
 module.exports = { run }

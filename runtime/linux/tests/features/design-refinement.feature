@@ -1,11 +1,11 @@
 Feature: A calm and precise desk instrument
 
-  Scenario: Today groups date and truthful status without a decorative signal
+  Scenario: Today groups the date with plugin-contributed statements
     Given the local desk shell starts
     When Today is displayed at desktop or compact width
     Then the current weekday and date form one readable group
-    And network, focus, and configured-provider status form another readable group
-    And all three status statements wrap inside the surface
+    And every contributed briefing statement wraps inside the surface
+    And statement signals and their icons are emphasized while connectives stay quiet
     And no decorative active-status dot is shown
     And the surface shares the desktop grid edges
 
@@ -40,6 +40,6 @@ Feature: A calm and precise desk instrument
 
   Scenario: Design refinement preserves the shell contract
     Given every provider and peripheral is unavailable
-    Then Today, Home, Pi Sessions, Usage, Your apps, and built-in App views remain available
+    Then Today, Home, Reading, Pi Sessions, Usage, and built-in App views remain available
     And direct keyboard, touch, and Remote navigation retain their established boundaries
     And the desktop footprint and compact scrolling remain unchanged

@@ -111,6 +111,7 @@
       const surface = page.surface || (page.kind === 'page' ? root.odkPlugins.get(page.plugin).surface : 'display') || 'display'
       section.className = `page page-${surface} flex flex-col`
       section.dataset.page = String(index)
+      section.dataset.pageId = page.id
       section.dataset.surface = surface
       section.dataset.builtBy = 'composer'
       section.setAttribute('aria-label', page.name)

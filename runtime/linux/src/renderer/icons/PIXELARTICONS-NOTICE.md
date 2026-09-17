@@ -34,7 +34,6 @@ Replacements applied in the shell (free set, 24x24 grid):
 | Shell icon (`data-tabler`) | Pixelarticons icon |
 | --- | --- |
 | ai-scan replacement for `user-scan` | ai-scan |
-| `bolt` network indicator | link |
 | `chevron-down` | chevron-down |
 | `chevron-left` | chevron-left |
 | `file-code` | code |
@@ -46,3 +45,10 @@ Replacements applied in the shell (free set, 24x24 grid):
 | `settings` | settings-2 |
 | `mood-smile` | smile |
 | `user-off` | user-x |
+| `wifi` | wifi |
+| `wifi-off` | wifi + block diagonal (see below) |
+
+`user-scan` and `wifi-off` have no upstream pixel name. `user-scan` uses the
+upstream `ai-scan` artwork. `wifi-off` composes the upstream `wifi` artwork with
+a 2x2 block diagonal in the same `-off` idiom pixelarticons uses for `mic-off`
+and `eye-off`; no other pixel path in this file is modified.

@@ -1,7 +1,7 @@
 # Open DeskOS Universal Plugin Architecture Specification (v1.0)
 
 **Authority Status**: Approved Architectural Target & Implementation Reference  
-**Scope**: Entire active Open DeskOS Codebase (`runtime/linux/`, `integrations/remote-bridge/`, `peripherals/esp32-s3-remote/`, `peripherals/esp32-p4-camera/`, `experiments/vision/face-agent/`)  
+**Scope**: Entire active Open DeskOS Codebase (`runtime/linux/`, `integrations/remote-bridge/`, `peripherals/esp32-s3-remote/`, `peripherals/esp32-p4-camera/`)  
 **Derived From**: Wayfinding Map `docs/wayfinding/universal-plugin-architecture/MAP.md`
 
 ---
@@ -97,7 +97,7 @@ All runtimes implement identical transition states and cleanup semantics:
 ## 4. Subsystem Architecture Realization
 
 ### A. CM5 Linux Runtime (`runtime/linux/`)
-- **Main Host Kernel (`src/main/kernel.js`)**: Owns single-instance locks, GPU switches, Kiosk window management, strict CSP, and capability-gated IPC dispatch. Monolithic code is modularized into `src/main/plugins/` (`remote-bridge`, `opencode-go`, `face-agent-status`, `app-manager`).
+- **Main Host Kernel (`src/main/kernel.js`)**: Owns single-instance locks, GPU switches, Kiosk window management, strict CSP, and capability-gated IPC dispatch. Monolithic code is modularized into `src/main/plugins/` (`remote-bridge`, `opencode-go`, `app-manager`).
 - **Renderer Host Kernel (`src/renderer/core/kernel.js`)**: Dynamic ES Module loader (`import()`), DAG scheduler, and declarative layout composer (`desktop_layout.js`).
 - **Error Boundaries**: Uncaught plugin errors display truthful AIODI Degradation Cards (`.w-degraded`) without crashing neighboring widgets or window navigation.
 
@@ -108,12 +108,12 @@ All runtimes implement identical transition states and cleanup semantics:
 ### C. ESP-IDF Peripherals (`esp32-s3-remote` & `esp32-p4-camera`)
 - **Static C Descriptors (`odk_plugin_descriptor_t`)**: Generated pre-build by CMake (`tools/codegen_plugin_descriptor.py`) into `.rodata` with zero heap allocation.
 - **S3 Remote Modules**: `driver.st7789`, `driver.cst328`, `processor.gesture`, `transport.tinyusb-hid`, `transport.tinyusb-cdc`, `surface.remote-ui`.
-- **P4 Camera Modules**: `driver.sc2336`, `processor.face-inference`, `service.owner-enrollment`, `transport.tinyusb-cdc`, `diagnostic.snapshot`.
+- **P4 Camera Modules**: `driver.sc2336`, `processor.jpeg-encode`, `service.uvc-stream`, `transport.tinyusb-uvc-uac`.
 - **100% CTest Isolation**: Pure algorithms and protocol encoders/decoders testable on host without hardware.
 
-### D. Face Agent (`experiments/vision/face-agent/`)
-- **Functional Pipeline**: Partitioned into `transport.py`, `normalizer.py`, `state.py`, and `server.py`.
-- **Transitional Caveat**: Marked as an opt-in experimental sub-service; returns fail-closed `camera-unavailable`/`no-frame` status without blocking base CM5 operation.
+### D. P4 Camera Host *(Face Agent withdrawn — see runtime/linux/docs/adr/0004-p4-generic-uvc-camera.md)*
+
+The former Face Agent functional pipeline (`transport.py`, `normalizer.py`, `state.py`, `server.py`) was removed with all P4 on-device recognition. The CM5 consumes the P4 as a generic UVC webcam and UAC microphone with no metadata adapter.
 
 ### E. CLI Management & Packaging (`open-deskos plugin`)
 - **Discovery Scopes**: `plugins.dev/` (development symlinks), `~/.config/open-deskos/plugins/` (user installed), `/opt/open-deskos/runtime/plugins/` (system signed).

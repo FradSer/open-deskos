@@ -9,10 +9,9 @@ runtime/linux/                         CM5 Electron desk runtime
 peripherals/esp32-s3-remote/           ESP32-S3 touch Remote Control
 peripherals/esp32-p4-camera/           ESP32-P4 SC2336 Camera Peripheral
 integrations/remote-bridge/            CM5 ↔ Remote transport service
-experiments/vision/face-agent/         opt-in vision and owner-recognition experiment
 ```
 
-The ESP32-S3 Remote Control and ESP32-P4 Camera Peripheral are intended parts of the CM5 system architecture. A base CM5 installation and direct shell use do not wait for either board. Face Agent and owner recognition remain opt-in experiments.
+The ESP32-S3 Remote Control and ESP32-P4 Camera Peripheral are intended parts of the CM5 system architecture. A base CM5 installation and direct shell use do not wait for either board. The P4 Camera is a generic UVC webcam and UAC microphone with no face recognition or identity storage.
 
 ## Develop the CM5 runtime
 

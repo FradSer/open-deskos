@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import { loadCapabilities } from '../src/capabilities.mjs'
-import { agentOptions, validateWorkspace, createResourceLoader } from '../src/agent.mjs'
+import { agentOptions, validateWorkspace, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
 
 test('real SDK resource loader loads the widget skill without undefined agentDir', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
@@ -15,10 +15,188 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.match(loader.getAppendSystemPrompt().join('\n'), /Never edit active/)
   assert.equal(loader.getExtensions().extensions.length, 0)
   const instructions = loader.getAppendSystemPrompt().join('\n')
-  assert.match(instructions, /默认使用中文/)
+  assert.match(instructions, /默认使用简体中文/)
+  assert.match(instructions, /尊重用户明确指定的其他语言/)
   assert.match(instructions, /coding_targets/)
   assert.match(instructions, /Never automatically commit, push, install or deploy/)
   assert.doesNotMatch(instructions, /live sessions/)
+  assert.doesNotMatch(instructions, /without markdown/)
+  assert.match(instructions, /Markdown/)
+})
+
+test('Pi adapter preserves full Markdown for the service to bound once', async () => {
+  const reply = '# Result\n' + '中文结果\n'.repeat(4000)
+  const calls = []
+  const { adapter } = streamingSession(async (emit, ...args) => {
+    calls.push(args)
+    emit({ type: 'message_end', message: assistant(reply) })
+  })
+  assert.equal(await adapter.prompt('request'), reply)
+  assert.equal(calls.length, 1)
+})
+
+function assistant(text, stopReason = 'stop') {
+  return { role: 'assistant', stopReason, content: [
+    { type: 'thinking', thinking: 'private reasoning' },
+    { type: 'text', text },
+    { type: 'toolCall', id: 'tool', name: 'read', arguments: { path: 'private argument' } },
+  ] }
+}
+
+function streamingSession(run) {
+  let listener
+  let subscribed = false
+  let unsubscribed = 0
+  const session = {
+    messages: [assistant('old history must not leak')],
+    subscribe: callback => {
+      subscribed = true
+      listener = callback
+      return () => { subscribed = false; unsubscribed++ }
+    },
+    prompt: async (...args) => {
+      assert.equal(subscribed, true)
+      await run(event => listener(event), ...args)
+    },
+    abort: async () => {}, dispose: () => {},
+  }
+  return { adapter: sessionAdapter(session), emitLate: event => listener(event), unsubscribed: () => unsubscribed }
+}
+
+function update(emit, text, type = 'text_delta') {
+  const message = assistant(text)
+  emit({ type: 'message_update', message, assistantMessageEvent: { type, contentIndex: 1, delta: text, partial: message } })
+}
+
+test('SDK snapshots stream current-request visible text across tool turns with final authority', async () => {
+  const snapshots = []
+  const fixture = streamingSession(async (emit, text, options) => {
+    assert.equal(text, 'Voice request:\nrequest')
+    assert.equal(options.expandPromptTemplates, false)
+    emit({ type: 'message_start', message: assistant('') })
+    update(emit, '', 'thinking_delta')
+    update(emit, 'First')
+    assert.deepEqual(snapshots, ['First'])
+    update(emit, 'First', 'toolcall_delta')
+    emit({ type: 'message_end', message: assistant('First turn', 'toolUse') })
+    emit({ type: 'message_end', message: { role: 'toolResult', content: [{ type: 'text', text: 'raw secret' }] } })
+    emit({ type: 'tool_execution_update', partialResult: { content: [{ type: 'text', text: 'raw secret' }] } })
+    emit({ type: 'message_start', message: assistant('') })
+    update(emit, 'Second')
+    assert.equal(snapshots.at(-1), 'First turn\n\nSecond')
+    emit({ type: 'message_end', message: assistant('Second final') })
+  })
+  assert.equal(await fixture.adapter.prompt('request', text => snapshots.push(text)), 'First turn\n\nSecond final')
+  assert.equal(fixture.unsubscribed(), 1)
+  assert.equal(snapshots.at(-1), 'First turn\n\nSecond final')
+  const count = snapshots.length
+  update(fixture.emitLate, 'late')
+  assert.equal(snapshots.length, count)
+  assert.ok(snapshots.every(text => !/private|raw secret|old history/.test(text)))
+})
+
+test('SDK retries remove failed partial text and retain successful preceding turns', async () => {
+  const snapshots = []
+  const fixture = streamingSession(async emit => {
+    emit({ type: 'message_end', message: assistant('Plan', 'toolUse') })
+    emit({ type: 'message_start', message: assistant('') })
+    update(emit, 'failed attempt')
+    emit({ type: 'message_end', message: assistant('failed attempt', 'error') })
+    emit({ type: 'auto_retry_start', attempt: 1, maxAttempts: 3, delayMs: 100, errorMessage: 'private provider error' })
+    assert.equal(snapshots.at(-1), 'Plan')
+    emit({ type: 'message_start', message: assistant('') })
+    update(emit, 'Success')
+    emit({ type: 'message_end', message: assistant('Success') })
+    emit({ type: 'auto_retry_end', success: true, attempt: 1 })
+  })
+  assert.equal(await fixture.adapter.prompt('request', text => snapshots.push(text)), 'Plan\n\nSuccess')
+  assert.equal(fixture.unsubscribed(), 1)
+})
+
+test('SDK overflow recovery removes only the discarded attempt', async () => {
+  for (const stopReason of ['error', 'length']) {
+    const fixture = streamingSession(async emit => {
+      emit({ type: 'message_end', message: assistant('Plan', 'toolUse') })
+      emit({ type: 'message_end', message: assistant('discarded', stopReason) })
+      emit({ type: 'compaction_end', reason: 'overflow', result: undefined, aborted: false, willRetry: true })
+      emit({ type: 'message_end', message: assistant('Recovered') })
+    })
+    assert.equal(await fixture.adapter.prompt('request'), 'Plan\n\nRecovered')
+  }
+})
+
+test('SDK terminal overflow failures reject normally resolved prompts and discard truncated attempts', async t => {
+  for (const outcome of [
+    { aborted: false, errorMessage: 'private compaction error' },
+    { aborted: true },
+    { aborted: false, errorMessage: 'recovery exhausted', retried: true },
+  ]) {
+    await t.test(outcome.errorMessage || 'aborted compaction', async () => {
+      const snapshots = []
+      const fixture = streamingSession(async emit => {
+        emit({ type: 'message_end', message: assistant('Plan', 'toolUse') })
+        emit({ type: 'message_end', message: assistant('truncated', 'length') })
+        if (outcome.retried) {
+          emit({ type: 'compaction_end', reason: 'overflow', result: {}, aborted: false, willRetry: true })
+          emit({ type: 'message_end', message: assistant('still truncated', 'length') })
+        }
+        emit({ type: 'compaction_end', reason: 'overflow', result: undefined, willRetry: false, ...outcome })
+      })
+      await assert.rejects(fixture.adapter.prompt('request', text => snapshots.push(text)), /^Error: Agent request failed$/)
+      assert.equal(snapshots.at(-1), 'Plan')
+      assert.equal(fixture.unsubscribed(), 1)
+      const count = snapshots.length
+      update(fixture.emitLate, 'late')
+      assert.equal(snapshots.length, count)
+    })
+  }
+})
+
+test('SDK length termination without recovery events rejects an incomplete reply', async () => {
+  const fixture = streamingSession(async emit => {
+    emit({ type: 'message_end', message: assistant('Plan', 'toolUse') })
+    emit({ type: 'message_end', message: assistant('truncated', 'length') })
+  })
+  await assert.rejects(fixture.adapter.prompt('request'), /^Error: Agent request failed$/)
+  assert.equal(fixture.unsubscribed(), 1)
+})
+
+test('SDK successful overflow maintenance without retry keeps the completed reply', async () => {
+  const fixture = streamingSession(async emit => {
+    emit({ type: 'message_end', message: assistant('Completed') })
+    emit({ type: 'compaction_end', reason: 'overflow', result: {}, aborted: false, willRetry: false })
+  })
+  assert.equal(await fixture.adapter.prompt('request'), 'Completed')
+})
+
+test('SDK no-assistant, rejected, aborted and cancelled retry requests never reuse history and always unsubscribe', async () => {
+  const empty = streamingSession(async () => {})
+  assert.equal(await empty.adapter.prompt('request'), '')
+  assert.equal(empty.unsubscribed(), 1)
+  for (const run of [
+    async () => { throw Error('prompt rejected') },
+    async emit => emit({ type: 'message_end', message: assistant('partial', 'aborted') }),
+    async emit => emit({ type: 'message_end', message: assistant('partial', 'error') }),
+    async emit => {
+      emit({ type: 'message_end', message: assistant('partial', 'error') })
+      emit({ type: 'auto_retry_start', attempt: 1, maxAttempts: 3, delayMs: 100, errorMessage: 'private error' })
+      emit({ type: 'auto_retry_end', success: false, attempt: 1, finalError: 'private error' })
+    },
+  ]) {
+    const fixture = streamingSession(run)
+    await assert.rejects(fixture.adapter.prompt('request'))
+    assert.equal(fixture.unsubscribed(), 1)
+  }
+})
+
+test('SDK adapter rejects concurrent prompts without sharing subscriptions', async () => {
+  let finish
+  const fixture = streamingSession(() => new Promise(resolve => { finish = resolve }))
+  const pending = fixture.adapter.prompt('first')
+  await assert.rejects(fixture.adapter.prompt('second'), /progress/)
+  finish()
+  await pending
+  assert.equal(fixture.unsubscribed(), 1)
 })
 
 test('user application lifecycle tools use the bounded shell control protocol', async t => {

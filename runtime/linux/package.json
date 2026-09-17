@@ -21,6 +21,7 @@
     "unocss": "^66.8.1"
   },
   "dependencies": {
+    "markdown-it": "^15.0.2",
     "mqtt": "^5.15.2"
   }
 }

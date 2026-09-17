@@ -2,22 +2,23 @@ const net = require('node:net')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
-const COMMANDS = new Set(['install', 'rollback', 'remove'])
+const COMMANDS = new Set(['install', 'rollback', 'remove', 'place'])
 
 function createUserAppControl(store, onChange = () => {}) {
   return {
     async dispatch(request) {
-      if (request?.command !== 'list' && !COMMANDS.has(request?.command)) return { ok: false, error: 'invalid-command' }
-      if (request.command !== 'list' && (typeof request.appId !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(request.appId))) {
+      if (!['list', 'desktop'].includes(request?.command) && !COMMANDS.has(request?.command)) return { ok: false, error: 'invalid-command' }
+      if (COMMANDS.has(request.command) && (typeof request.appId !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(request.appId))) {
         return { ok: false, error: 'invalid-app-id' }
       }
       try {
+        if (request.command === 'desktop') return { ok: true, pages: await store.desktop() }
         if (request.command === 'list') {
           const apps = await store.list()
           if (!Array.isArray(apps)) return { ok: false, error: 'application-store-unavailable' }
           return { ok: true, apps }
         }
-        const result = await store[request.command](request.appId)
+        const result = await store[request.command](request.appId, request.placement)
         if (result.ok) onChange()
         return result
       } catch {

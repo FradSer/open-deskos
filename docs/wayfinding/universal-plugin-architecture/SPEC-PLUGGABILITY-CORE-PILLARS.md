@@ -112,7 +112,7 @@ And the underlying page and navigation remain intact and uncorrupted
 ### 1. Dynamic Service Bus Architecture
 - Introduce a dynamic `ServiceRegistry` in the renderer core.
 - Replace static `SERVICE_KEYS` iteration with a dynamic proxy/map lookup on `ctx.services.get(serviceId)`.
-- Core services (connection, remoteLink, subscription, faceAgent, piSessions) migrate to standard `kind: 'service'` registrations.
+- Core services (connection, remoteLink, subscription, piSessions) migrate to standard `kind: 'service'` registrations.
 - Services implement the standard 8-phase lifecycle: `install`, `enable`, `mount` (no-op for headless services), `start`, `pause`, `resume`, `stop`, `destroy`.
 
 ### 2. Universal Capability-Gated IPC Router

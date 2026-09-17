@@ -32,7 +32,7 @@ if (!exists('.git')) {
       'peripherals/esp32-s3-remote',
       'peripherals/esp32-p4-camera',
       'integrations/remote-bridge',
-      'experiments/vision/face-agent',
+      'experiments/cm5-s31-gateway',
       'research/esp32-p4-c6-deskos/firmware',
       'research/esp32-p4-c6-deskos/apple',
       'research/esp32-p4-c6-deskos/docs',

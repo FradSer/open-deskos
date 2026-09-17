@@ -46,8 +46,12 @@ export async function listen(path, service) {
         let command
         try { command = JSON.parse(line) } catch { return client.destroy() }
         if (command?.v !== 1 || !['toggle', 'status'].includes(command.type)) return client.destroy()
-        if (command.type === 'toggle') void service.toggle().catch(() => service.setState('error', 'Voice request failed'))
-        send(client, service.status)
+        if (command.type === 'toggle') {
+          void service.toggle().then(
+            () => send(client, service.status),
+            () => { service.setState('error', 'Voice request failed'); send(client, service.status) },
+          )
+        } else send(client, service.status)
       }
     })
   })
@@ -65,6 +69,8 @@ export async function listen(path, service) {
 }
 
 function send(client, status) {
-  if (client.writableLength > 65_536) client.destroy()
-  else client.write(`${JSON.stringify(status)}\n`)
+  if (client.destroyed) return
+  const frame = `${JSON.stringify(status)}\n`
+  if (client.writableLength + Buffer.byteLength(frame) > 131_072) client.destroy()
+  else client.write(frame)
 }

@@ -14,7 +14,6 @@ const endpoint = createAppManagerEndpoint()
 const samples = ['Desk runtime', '桌面运行状态 中文输入', '繁體中文 像素字體', '0123456789 13:12 100%']
 
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
-ipcMain.handle('odk-face-agent-status', () => ({ state: 'unavailable', unlocked: false }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
@@ -109,6 +108,19 @@ async function layoutCheck(win, width, height) {
     await new Promise(resolve => setTimeout(resolve, 20))
   }
   await new Promise(resolve => setTimeout(resolve, 120))
+  // The shell has no always-present input, and switching Apps would destroy the
+  // open surface this harness measures, so the placeholder rule is read from a
+  // temporary input that is removed immediately.
+  const placeholder = await js(win, `(() => {
+    const probe = document.createElement('input')
+    probe.type = 'search'
+    probe.className = 'app-search'
+    probe.placeholder = 'Search built-in views'
+    document.body.append(probe)
+    const value = getComputedStyle(probe, '::placeholder').fontFamily
+    probe.remove()
+    return value
+  })()`)
   const result = await js(win, `(() => {
     const badFonts = []
     if (document.documentElement.dataset.theme === 'pixel') {
@@ -125,13 +137,12 @@ async function layoutCheck(win, width, height) {
         return box.width && (box.left < r.left - 1 || box.right > r.right + 1 || box.bottom > r.bottom + 1 || box.top < r.top - 1)
       }).map(el => widget.dataset.app + ':' + el.className)
     })
-    const placeholder = getComputedStyle(document.querySelector('#pi-search-input'), '::placeholder').fontFamily
     const theme = document.documentElement.dataset.theme
-    return { badFonts, overflow, placeholder, theme }
+    return { badFonts, overflow, theme }
   })()`)
   assert.deepEqual(result.badFonts, [], 'All Pixel text uses Zpix Regular without synthesis')
   assert.deepEqual(result.overflow, [], `${width}x${height}: Widget text stays contained`)
-  if (result.theme === 'pixel') assert.ok(result.placeholder.startsWith('Zpix'), 'Input placeholder uses Zpix')
+  if (result.theme === 'pixel') assert.ok(placeholder.startsWith('Zpix'), 'Input placeholder uses Zpix')
   if (captureDir) {
     fs.mkdirSync(captureDir, { recursive: true })
     const image = await win.webContents.capturePage()

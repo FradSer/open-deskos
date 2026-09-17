@@ -118,6 +118,21 @@ function migrationMarker(runtime, user, migrationId) {
   return path.join(runtime.stateDir, 'migrations', user, `${migrationId}.done`)
 }
 
+function validateRendererScripts(releasePath) {
+  const renderer = path.join(releasePath, 'src', 'renderer')
+  const index = path.join(renderer, 'index.html')
+  if (!fs.existsSync(index)) return { ok: false, reason: 'renderer index is missing' }
+  const root = `${fs.realpathSync(releasePath)}${path.sep}`
+  const html = fs.readFileSync(index, 'utf8')
+  for (const match of html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/gi)) {
+    const script = path.resolve(renderer, match[1])
+    if (!fs.existsSync(script) || !fs.realpathSync(script).startsWith(root) || !fs.statSync(script).isFile()) {
+      return { ok: false, reason: 'renderer script is missing or outside the candidate release' }
+    }
+  }
+  return { ok: true }
+}
+
 function validateRuntimeComposition(releasePath) {
   const registryPath = path.join(releasePath, 'src', 'renderer', 'core', 'registry.js')
   const composerPath = path.join(releasePath, 'src', 'renderer', 'core', 'composer.js')
@@ -144,7 +159,7 @@ function validateRuntimeComposition(releasePath) {
     || !pluginSources.some((source) => /id:\s*['"]odk\.status\./.test(source))) {
     return { ok: false, reason: 'renderer plugin identities are incomplete' }
   }
-  return { ok: true }
+  return validateRendererScripts(releasePath)
 }
 
 function migrateUser({ runtime, user, migrations, experimental = false }) {

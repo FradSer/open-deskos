@@ -14,7 +14,9 @@ let geometryRaf = 0
 let pagerRef = null
 
 function applyGeometry() {
-  const m = odkLayout.compute(window.innerWidth, window.innerHeight, odkLayout.gridWidgetCount(effectiveLayout))
+  const grids = [...document.querySelectorAll('.widget-grid')]
+  const count = grids.length ? Math.max(...grids.map(grid => grid.children.length)) : odkLayout.gridWidgetCount(effectiveLayout)
+  const m = odkLayout.compute(window.innerWidth, window.innerHeight, count)
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
@@ -56,8 +58,8 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     return viewport.clientWidth
   }
 
-  function setIndex(next, animate = true) {
-    if (window.odkVoiceStatus?.visible() && next !== index) return
+  function setIndex(next, animate = true, reconcile = false) {
+    if (!reconcile && window.odkVoiceStatus?.visible() && next !== index) return
     cancelDrag()
     track.classList.toggle('instant', !animate)
     document.getElementById('dots').classList.toggle('instant', !animate)
@@ -182,7 +184,7 @@ function main() {
   let activeFrame = null
 
   function setBackgroundInert(inert) {
-    for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport')]) {
+    for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('user-app-desktop-notice')].filter(Boolean)) {
       element.inert = inert
       if (inert) element.setAttribute('aria-hidden', 'true')
       else element.removeAttribute('aria-hidden')
@@ -371,8 +373,9 @@ function main() {
     REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
     connection: odkServices.connection,
     subscription: odkServices.subscription,
-    faceAgent: odkServices.faceAgent,
+    camera: odkServices.camera,
     remoteLink: odkServices.remoteLink,
+    briefing: odkServices.briefing,
     services: odkServices,
     onTick: odkServices.onTick,
     openDialog: openInfoView,
@@ -390,6 +393,20 @@ function main() {
     navigateToPage(pageId) {
       const index = effectiveLayout.pages.findIndex((page) => page.id === pageId)
       if (index >= 0) pagerRef?.setIndex(index)
+    },
+    publishPageRemote(element, remote) {
+      const page = element?.closest?.('.page') || element
+      const index = Number(page?.dataset?.page)
+      if (!Number.isInteger(index)) return
+      if (remote) {
+        publishedPageRemote.set(index, {
+          actions: Array.isArray(remote.actions) ? remote.actions : [],
+          focus: remote.focus === 'items' ? 'items' : 'controls',
+        })
+      } else {
+        publishedPageRemote.delete(index)
+      }
+      refreshPageRemote(index)
     },
   }
 
@@ -427,6 +444,8 @@ function main() {
     }
   }
 
+  let currentPageState = null
+  const publishedPageRemote = new Map()
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
 
   document.getElementById('app-back').addEventListener('click', async () => {
@@ -438,7 +457,17 @@ function main() {
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
 
-  let currentPageState = null
+  // A page may publish its own Remote Control Strip buttons and declare how App
+  // Focus Mode moves on it. A page-published declaration always wins over the
+  // static desktop layout one, and is scoped to the page that published it.
+  function pageRemoteState(index) {
+    const published = publishedPageRemote.get(index)
+    if (published) return published
+    const pageDef = effectiveLayout.pages[index]
+    const declared = Array.isArray(pageDef?.actions) ? pageDef.actions
+      : Array.isArray(pageDef?.remoteActions) ? pageDef.remoteActions : []
+    return { actions: declared, focus: 'controls' }
+  }
 
   function publishPageState() {
     if (!currentPageState) return
@@ -453,9 +482,7 @@ function main() {
   function updatePageContext(index) {
     const page = index + 1
     const name = pageNames[index] ?? 'Page'
-    const pageDef = effectiveLayout.pages[index]
-    const actions = Array.isArray(pageDef?.actions) ? pageDef.actions :
-                    Array.isArray(pageDef?.remoteActions) ? pageDef.remoteActions : []
+    const remote = pageRemoteState(index)
     appFocusMode = false
     currentPageState = {
       page,
@@ -466,15 +493,58 @@ function main() {
       mode: 'browse',
       surface: track.children[index]?.dataset.surface || 'display',
       canFocus: track.children[index]?.dataset.surface === 'app',
-      actions,
+      focus: remote.focus,
+      actions: remote.actions,
     }
     document.getElementById('page-context').textContent = `${name} · ${page}/${pageNames.length}`
+    publishPageState()
+    // Entering a page is the moment its state matters most, so the page itself
+    // is told it is showing now instead of waiting for its next poll.
+    track.children[index]?.dispatchEvent(new CustomEvent('odk-page-shown', { bubbles: true }))
+  }
+
+  // A page-owned button label can change without a page change, so the
+  // authoritative state is republished without resetting the input mode.
+  function refreshPageRemote(index) {
+    if (!currentPageState || !pagerRef || pagerRef.currentIndex() !== index) return
+    const remote = pageRemoteState(index)
+    currentPageState.focus = remote.focus
+    currentPageState.actions = remote.actions
     publishPageState()
   }
 
   pagerRef = createPager(viewport, track, pageNames, updatePageContext)
   pagerRef.buildDots(document.getElementById('dots'))
   updatePageContext(0)
+  let pageIds = [...track.children].map(page => page.dataset.pageId)
+  const notice = document.createElement('aside')
+  notice.id = 'user-app-desktop-notice'
+  const catalogStatus = document.createElement('p')
+  catalogStatus.id = 'user-app-desktop-status'
+  catalogStatus.setAttribute('role', 'status')
+  const retryCatalog = document.createElement('button')
+  retryCatalog.type = 'button'
+  retryCatalog.className = 'button-pill button-secondary'
+  retryCatalog.textContent = 'Refresh'
+  notice.append(catalogStatus, retryCatalog)
+  document.body.append(notice)
+  const desktop = window.odkUserAppDesktop.mount({
+    track, layout: effectiveLayout, status: catalogStatus,
+    onCatalogChanged: applyGeometry,
+    onPagesChanged() {
+      const currentId = pageIds[pagerRef.currentIndex()]
+      pageIds = [...track.children].map((page, index) => {
+        page.dataset.page = String(index)
+        return page.dataset.pageId
+      })
+      pageNames.splice(0, pageNames.length, ...[...track.children].map(page => page.getAttribute('aria-label')))
+      pagerRef.buildDots(document.getElementById('dots'))
+      const next = pageIds.indexOf(currentId)
+      pagerRef.setIndex(next >= 0 ? next : Math.min(pagerRef.currentIndex(), pageIds.length - 1), false, true)
+    },
+  })
+  retryCatalog.addEventListener('click', () => { void desktop.refresh() })
+  window.addEventListener('beforeunload', () => desktop.dispose(), { once: true })
   setInterval(publishPageState, 5000)
   window.addEventListener('odk-voice-visibility', publishPageState)
 
@@ -519,13 +589,41 @@ function main() {
     candidates[0]?.control.focus()
   }
 
+  function pageOwnsFocusInput() {
+    return currentPageState?.focus === 'items'
+  }
+
+  function currentPageElement() {
+    return track.children[pagerRef?.currentIndex() ?? 0] || null
+  }
+
+  // A page that owns its focus input still needs DOM focus inside itself, so
+  // keyboard input continues from the page instead of the shell chrome.
+  function focusPageSurface() {
+    const page = currentPageElement()
+    const target = page?.querySelector('[data-page-focus]') || page
+    target?.focus?.({ preventScroll: true })
+  }
+
+  // An App that declares its own primary axis receives every focus-mode
+  // direction itself instead of moving shell focus between its controls. Both
+  // events are scoped to the current page so a page that is not showing cannot
+  // act on them, and they still bubble to document-level observers.
+  function dispatchPageFocusInput(input) {
+    currentPageElement()?.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input }, bubbles: true }))
+  }
+
+  function dispatchRemoteAction(actionId) {
+    currentPageElement()?.dispatchEvent(new CustomEvent('odk-remote-action', { detail: actionId, bubbles: true }))
+  }
+
   function handleRemoteInput(input, action) {
     if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'].includes(input)) return
     if (window.odkVoiceStatus?.handleInput(input)) return
     if (input === 'action') {
       const actionId = typeof action === 'string' ? action : action?.action || action?.id
       if (actionId) {
-        document.dispatchEvent(new CustomEvent('odk-remote-action', { detail: actionId, bubbles: true }))
+        dispatchRemoteAction(actionId)
       }
       return
     }
@@ -536,7 +634,12 @@ function main() {
       if (window.odkVoiceStatus?.close()) return
       if (!appView.hidden) {
         document.getElementById('app-back').click()
-      } else if (appFocusMode) {
+        return
+      }
+      // A page that owns its input can hold its own surface open in either
+      // mode, so Back always reaches it before focus mode changes.
+      if (pageOwnsFocusInput()) dispatchPageFocusInput('back')
+      if (appFocusMode) {
         appFocusMode = false
         document.activeElement?.blur()
         currentPageState.mode = 'browse'
@@ -547,15 +650,20 @@ function main() {
     if (!appFocusMode) {
       if (input === 'left') navigate(-1)
       if (input === 'right') navigate(1)
-      if (input === 'primary' && interactiveControls().length > 0) {
+      if (input === 'primary' && (pageOwnsFocusInput() || interactiveControls().length > 0)) {
         appFocusMode = true
-        focusInitialAppControl()
+        if (pageOwnsFocusInput()) focusPageSurface()
+        else focusInitialAppControl()
         currentPageState.mode = 'focus'
         publishPageState()
       }
       return
     }
     if (input === 'primary') {
+      if (pageOwnsFocusInput()) {
+        dispatchPageFocusInput(input)
+        return
+      }
       if (!interactiveControls().includes(document.activeElement)) focusInitialAppControl()
       else document.activeElement.click()
       return
@@ -565,6 +673,10 @@ function main() {
       if (interactiveControls().includes(focused) && focused.dataset.remoteSecondary !== undefined) {
         focused.dispatchEvent(new CustomEvent('odk-secondary-action', { bubbles: true }))
       }
+      return
+    }
+    if (pageOwnsFocusInput()) {
+      dispatchPageFocusInput(input)
       return
     }
     moveAppFocus(input)

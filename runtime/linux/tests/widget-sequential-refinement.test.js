@@ -98,22 +98,6 @@ test('Year progress preserves unchanged text and meter readings', () => {
   assert.equal(width, '0.00%')
 })
 
-test('Face presence distinguishes observation states from offline service', () => {
-  let plugin
-  let update
-  const el = { innerHTML: '' }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/face-presence.js'), 'utf8'), {
-    odkPlugins: { register(value) { plugin = value } },
-  })
-  plugin.mount(el, { faceAgent: { subscribe(callback) { update = callback } } })
-  for (const [state, reading] of [['no-face', 'No face'], ['unknown-face', 'Unknown'], ['starting', 'Starting'], ['no-frame', 'No frame'], ['camera-unavailable', 'Offline'], ['unavailable', 'Offline']]) {
-    update({ state, unlocked: false, facesCount: 0 })
-    assert.ok(el.innerHTML.includes(`<span class="w-vision-value">${reading}</span>`), state)
-  }
-  update({ state: 'online', unlocked: true, facesCount: 1 })
-  assert.match(el.innerHTML, /w-vision-value">1<\/span>/)
-})
-
 test('Hydra clears live plant visuals after offline and missing snapshots', async () => {
   let plugin
   let tick

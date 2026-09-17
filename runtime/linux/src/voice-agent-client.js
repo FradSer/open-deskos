@@ -2,6 +2,9 @@ const net = require('node:net')
 const path = require('node:path')
 
 const STATES = new Set(['idle', 'recording', 'transcribing', 'thinking', 'error'])
+const MAX_STATUS_BYTES = 131072
+const MAX_MESSAGE_CHARACTERS = 16384
+const MAX_TRANSCRIPT_CHARACTERS = 4096
 
 function resolveVoiceSocketPath(env = process.env) {
   const dir = env.XDG_RUNTIME_DIR
@@ -41,13 +44,22 @@ function createVoiceAgentClient({ socketPath, reconnectDelayMs = 1000 } = {}) {
       remainder += chunk
       const lines = remainder.split('\n')
       remainder = lines.pop()
-      if (Buffer.byteLength(remainder) > 8192) return active.destroy()
+      if (Buffer.byteLength(remainder) > MAX_STATUS_BYTES) return active.destroy()
       for (const line of lines) {
-        if (Buffer.byteLength(line) > 8192) return active.destroy()
+        if (Buffer.byteLength(line) > MAX_STATUS_BYTES) return active.destroy()
         let record
         try { record = JSON.parse(line) } catch { continue }
         if (record?.v !== 1 || record.type !== 'status' || !STATES.has(record.state)) continue
-        publish({ state: record.state, message: typeof record.message === 'string' ? record.message.slice(0, 1024) : '' })
+        const level = record.state === 'recording' && Number.isFinite(record.level)
+          && record.level >= 0 && record.level <= 1 ? record.level : 0
+        const transcript = ['thinking', 'idle', 'error'].includes(record.state) && typeof record.transcript === 'string'
+          ? record.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS) : ''
+        publish({
+          state: record.state,
+          message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
+          transcript,
+          level,
+        })
       }
     })
     active.on('error', () => {})

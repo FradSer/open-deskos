@@ -161,6 +161,31 @@ test('release preflight rejects a built-in plugin missing schema-versioned manif
   }
 })
 
+test('renderer browser dependencies must exist inside the candidate release', (t) => {
+  const runtime = makeRuntime()
+  t.after(() => cleanup(runtime))
+  const candidate = makeRelease(runtime, 'candidate')
+  const renderer = path.join(candidate, 'src', 'renderer')
+  fs.mkdirSync(path.join(renderer, 'core'), { recursive: true })
+  fs.mkdirSync(path.join(renderer, 'plugins'))
+  fs.writeFileSync(path.join(renderer, 'core', 'registry.js'), 'requires manifest schema version 1')
+  fs.writeFileSync(path.join(renderer, 'core', 'composer.js'), 'composition')
+  for (const kind of ['page', 'tile', 'status']) {
+    fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
+  }
+  const bundle = path.join(candidate, 'node_modules', 'markdown-it', 'dist', 'browser', 'markdown-it.umd.min.js')
+  fs.writeFileSync(path.join(renderer, 'index.html'), '<script src="../../node_modules/markdown-it/dist/browser/markdown-it.umd.min.js"></script>')
+  assert.deepEqual(validateRuntimeComposition(candidate), { ok: false, reason: 'renderer script is missing or outside the candidate release' })
+  fs.mkdirSync(path.dirname(bundle), { recursive: true })
+  const outside = path.join(runtime.root, 'outside.js')
+  fs.writeFileSync(outside, 'browser bundle')
+  fs.symlinkSync(outside, bundle)
+  assert.equal(validateRuntimeComposition(candidate).ok, false)
+  fs.unlinkSync(bundle)
+  fs.writeFileSync(bundle, 'browser bundle')
+  assert.deepEqual(validateRuntimeComposition(candidate), { ok: true })
+})
+
 test('user migrations are idempotent and base migration never enables experiments', () => {
   const runtime = makeRuntime()
   try {

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
-const { parseProcessTable, scanPiSessions } = require('../src/pi-sessions')
+const { parseProcessTable, scanPiSessions, readSessionEvents } = require('../src/pi-sessions')
 
 test('parseProcessTable finds Pi executables and derives elapsed start times', () => {
   const now = 1_700_000_000_000
@@ -630,9 +630,11 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
   }
 
   let navigated = null
+  const contributions = []
   const ctx = {
     navigateToPage(pageId) { navigated = pageId },
     onTick(fn) {},
+    briefing: { contribute(statement) { contributions.push(statement); return true } },
   }
 
   plugin.mount(fakeEl, ctx)
@@ -641,6 +643,17 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
   assert.equal(typeof btnListeners.click, 'function')
   btnListeners.click()
   assert.equal(navigated, 'pi-sessions')
+
+  return new Promise((resolve) => setImmediate(() => {
+    const [statement] = contributions
+    assert.equal(statement.id, 'odk.briefing.pi-sessions')
+    assert.equal(statement.order, 20)
+    assert.equal(statement.parts[0].text, 'You have ')
+    assert.equal(statement.parts[1].text, '2 Pi sessions')
+    assert.equal(statement.parts[1].emphasis, true)
+    assert.match(statement.parts[1].icon, /^<svg data-tabler="terminal-2"/)
+    resolve()
+  }))
 })
 
 test('scanPiSessions extracts model activity from session logs and metadata', async () => {
@@ -681,76 +694,132 @@ test('scanPiSessions extracts model activity from session logs and metadata', as
   fs.rmSync(tmpAgentDir, { recursive: true, force: true })
 })
 
-test('pi-sessions App formats skill invocation goals as [skill] name and displays model activity', async () => {
-  const vm = require('node:vm')
-  const pluginSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/pi-sessions.js'), 'utf8')
-  const registered = []
-  const root = {
-    odkPlugins: {
-      register(def) { registered.push(def) },
-    },
-    odkPlatform: {
-      getPiSessions: async () => ({
-        ok: true,
-        source: { label: 'Local' },
-        summary: { running: 1, total: 1, workspacesCount: 1 },
-        sessions: [{
-          sessionId: 'test-skill-sess',
-          uuid: 'test-skill-sess',
-          pid: 7788,
-          status: 'running',
-          cwd: '/workspace/project',
-          workspaceName: 'project',
-          startedAt: Date.now() - 30000,
-          latestGoal: '<skill name="marketing" location="/test/SKILL.md">\nInstructions\n</skill>\n\nLaunch beta',
-          activity: 'bash: pnpm build',
-        }],
-      }),
-    },
-  }
-  const context = vm.createContext({ window: root, globalThis: root })
-  vm.runInContext(pluginSrc, context)
+/* --- Session Detail event stream: bounded, single-line, on demand --- */
 
-  const plugin = registered.find((p) => p.id === 'odk.app.pi-sessions')
-  assert.ok(plugin)
+function writeSessionLog(agentDir, cwd, sessionId, entries) {
+  const dirName = '--' + String(cwd).replace(/^[/\\]+/, '').replace(/[/\\]+/g, '-').replace(/-+$/, '') + '--'
+  const dir = path.join(agentDir, 'sessions', dirName)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, `session_${sessionId}.jsonl`), entries.join('\n'))
+  return dir
+}
 
-  let feedHtml = ''
-  const fakeEl = {
-    innerHTML: '',
-    querySelector(sel) {
-      if (sel === '#pi-sessions-feed') return {
-        set innerHTML(val) { feedHtml = val },
-        get innerHTML() { return feedHtml },
-        addEventListener() {},
-        querySelectorAll() { return [] },
-        getBoundingClientRect() { return { top: 0, bottom: 100 } },
-        closest() { return { scrollTop: 0, getBoundingClientRect() { return { top: 0, bottom: 100 } } } },
-      }
-      if (sel === '#pi-sessions-status') return { textContent: '' }
-      if (sel === '#pi-source-label') return { textContent: '' }
-      if (sel === '#pi-search-input') return { addEventListener() {} }
-      if (sel === '#pi-refresh-btn') return { addEventListener() {} }
-      if (sel === '#pi-view-toggle') return { addEventListener() {}, setAttribute() {} }
-      if (sel === '#pi-metric-running' || sel === '#pi-metric-settled' || sel === '#pi-metric-workspaces') return { textContent: '' }
-      return null
-    },
-    querySelectorAll(sel) {
-      if (sel === '.pi-filter-btn') return []
-      return []
-    },
-  }
+function messageEntry(role, content) {
+  return JSON.stringify({ type: 'message', message: { role, content } })
+}
 
-  plugin.lifecycle.mount(fakeEl, {})
-  await new Promise((resolve) => setTimeout(resolve, 50))
+function toolResultEntry(toolName, text) {
+  return JSON.stringify({ type: 'message', message: { role: 'toolResult', toolName, isError: false, content: [{ type: 'text', text }] } })
+}
 
-  assert.ok(feedHtml.includes('[skill]'))
-  assert.ok(feedHtml.includes('marketing'))
-  assert.ok(!feedHtml.includes('<skill name='))
-  assert.ok(!feedHtml.includes('Goal:'))
-  assert.ok(!feedHtml.includes('Model:'))
-  assert.ok(!feedHtml.includes('PID'))
-  assert.ok(feedHtml.includes('Working...'))
-  assert.ok(feedHtml.includes('bash: pnpm build'))
+test('readSessionEvents returns only a bounded, ordered tail of a session log', () => {
+  const agentDir = path.join(os.tmpdir(), `pi-events-tail-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const cwd = '/Users/test/events-workspace'
+  const sessionId = 'events-01a062fe-a0a6-7922-a757-abb790ef0001'
+  const entries = []
+  for (let i = 0; i < 400; i += 1) entries.push(messageEntry('user', [{ type: 'text', text: `prompt ${i}` }]))
+  writeSessionLog(agentDir, cwd, sessionId, entries)
+
+  const result = readSessionEvents({ agentDir, cwd, sessionId, maxEvents: 10 })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.events.length, 10)
+  assert.deepEqual(result.events.map((event) => event.text), [
+    'prompt 390', 'prompt 391', 'prompt 392', 'prompt 393', 'prompt 394',
+    'prompt 395', 'prompt 396', 'prompt 397', 'prompt 398', 'prompt 399',
+  ])
+  assert.deepEqual([...new Set(result.events.map((event) => event.kind))], ['user'])
+  assert.equal(result.truncated, true)
+  fs.rmSync(agentDir, { recursive: true, force: true })
 })
 
+test('readSessionEvents keeps every event to one bounded line and never a tool result body', () => {
+  const agentDir = path.join(os.tmpdir(), `pi-events-lines-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const cwd = '/Users/test/events-lines'
+  const sessionId = 'events-01a062fe-a0a6-7922-a757-abb790ef0002'
+  const body = ['first line of output', 'second line of output', 'x'.repeat(4000)].join('\n')
+  writeSessionLog(agentDir, cwd, sessionId, [
+    messageEntry('user', [{ type: 'text', text: 'why is the renderer empty' }]),
+    messageEntry('assistant', [{ type: 'thinking', thinking: 'checking the composer' }]),
+    messageEntry('assistant', [{ type: 'toolCall', name: 'bash', arguments: { command: 'pnpm test' } }]),
+    toolResultEntry('bash', body),
+    messageEntry('assistant', [{ type: 'text', text: 'the composer never ran' }]),
+  ])
 
+  const result = readSessionEvents({ agentDir, cwd, sessionId })
+
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.events.map((event) => event.kind), ['user', 'thinking', 'tool', 'result', 'assistant'])
+  const resultEvent = result.events[3]
+  assert.ok(resultEvent.text.includes('first line of output'), 'a tool result keeps its first line')
+  assert.ok(resultEvent.text.includes('bash'), 'a tool result names the tool that produced it')
+  assert.equal(resultEvent.text.includes('second line of output'), false, 'a tool result body is never rendered')
+  assert.equal(result.events.some((event) => event.text.includes('\n')), false)
+  assert.equal(result.events.every((event) => event.text.length <= 200), true)
+  assert.ok(result.events[2].text.includes('pnpm test'), 'a tool call keeps its command')
+  fs.rmSync(agentDir, { recursive: true, force: true })
+})
+
+test('readSessionEvents ignores entries that are not session messages', () => {
+  const agentDir = path.join(os.tmpdir(), `pi-events-nonmessage-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const cwd = '/Users/test/events-nonmessage'
+  const sessionId = 'events-01a062fe-a0a6-7922-a757-abb790ef0003'
+  writeSessionLog(agentDir, cwd, sessionId, [
+    JSON.stringify({ type: 'session', id: 's1' }),
+    JSON.stringify({ type: 'model_change', model: 'test-model' }),
+    JSON.stringify({ type: 'thinking_level_change', level: 'high' }),
+    JSON.stringify({ type: 'custom', customType: 'note' }),
+    JSON.stringify({ type: 'custom_message', content: 'injected' }),
+    messageEntry('user', [{ type: 'text', text: 'only real message' }]),
+  ])
+
+  const result = readSessionEvents({ agentDir, cwd, sessionId })
+
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.events.map((event) => event.kind), ['user'])
+  assert.deepEqual(result.events.map((event) => event.text), ['only real message'])
+  fs.rmSync(agentDir, { recursive: true, force: true })
+})
+
+test('readSessionEvents refuses an unreadable log instead of reporting an empty stream', () => {
+  const agentDir = path.join(os.tmpdir(), `pi-events-missing-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+
+  const missingLog = readSessionEvents({ agentDir, cwd: '/Users/test/nowhere', sessionId: 'nothing-here' })
+  assert.equal(missingLog.ok, false)
+  assert.equal(typeof missingLog.reason, 'string')
+  assert.ok(missingLog.reason.length > 0)
+  assert.equal(Array.isArray(missingLog.events), false, 'an unreadable log is not an empty successful stream')
+
+  const noRequest = readSessionEvents({ agentDir })
+  assert.equal(noRequest.ok, false)
+  assert.equal(Array.isArray(noRequest.events), false)
+})
+
+test('scanPiSessions carries no session events so the scan stays lightweight', async () => {
+  const agentDir = path.join(os.tmpdir(), `pi-events-scan-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const cwd = '/Users/test/events-scan'
+  const sessionId = 'events-01a062fe-a0a6-7922-a757-abb790ef0004'
+  const wsDir = path.join(agentDir, 'directory-sessions', '--Users-test-events-scan--')
+  fs.mkdirSync(wsDir, { recursive: true })
+  fs.writeFileSync(path.join(wsDir, 'scan.json'), JSON.stringify({
+    sessionId,
+    pid: 4321,
+    cwd,
+    startedAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_010_000,
+    status: 'running',
+    latestGoal: 'Keep the scan lightweight',
+    modifiedFiles: [],
+  }))
+  writeSessionLog(agentDir, cwd, sessionId, [messageEntry('user', [{ type: 'text', text: 'hello' }])])
+
+  const result = await scanPiSessions({
+    agentDir,
+    checkProcessAlive: (pid) => pid === 4321,
+    listProcesses: () => [{ pid: 4321, cwd, command: 'pi', startedAt: 1_700_000_000_000, isAlive: true }],
+  })
+
+  assert.equal(result.sessions.length, 1)
+  assert.equal(result.sessions.every((session) => session.events === undefined), true)
+  fs.rmSync(agentDir, { recursive: true, force: true })
+})

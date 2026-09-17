@@ -27,6 +27,10 @@ ODESK_VOICE_STT_URL=http://127.0.0.1:17840/inference
 ODESK_VOICE_STT_MODEL=whisper-1
 ```
 
+The Voice Agent defaults to Chinese (`zh`), supplies a short mixed-language vocabulary prompt, and normalizes Chinese transcription to Simplified Chinese while keeping Latin terms. `ODESK_VOICE_STT_PROMPT` overrides that context; an explicitly empty value disables it. Context is limited to 1024 characters. For this loopback `/inference` endpoint, `ODESK_VOICE_STT_LANGUAGE=auto` sends `language=auto` explicitly because omitting it uses whisper.cpp's English default. Local transcription sends `translate=false`; it must not translate English words into another language. Use `zh`, not the unsupported locale tag `zh-CN`.
+
+These changes correct request semantics and output script, not proven model accuracy. Compare actual Chinese/English commands before upgrading the model or claiming improved recognition.
+
 The key file must exist and be non-empty; the bridge ignores its bearer value on
 the loopback interface. Plain HTTP is accepted by the voice agent only for
 loopback hosts; remote transcription endpoints still require HTTPS. Restart the

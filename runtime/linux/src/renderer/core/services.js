@@ -23,14 +23,20 @@
   let checkPromise = null
   let lastCheckAt = null
   let remoteLinkState = 'disconnected'
-  const unavailableFaceAgentStatus = () => ({ state: 'unavailable', facesCount: null, emotion: null, unlocked: false })
-  let faceAgentStatus = unavailableFaceAgentStatus()
-  let faceAgentCheckInFlight = false
+  const unavailableCameraFrame = () => ({ status: 'unavailable', frame: null, capturedAt: null })
+  let cameraFrame = unavailableCameraFrame()
+  let cameraCheckInFlight = false
+  const DEFAULT_BRIEFING_ORDER = 100
+  const ICON_MARKUP = /^<svg\b(?=[^>]*\bdata-tabler="[a-z0-9-]+")[^>]*\bviewBox="[^"]+"[^>]*>[\s\S]*<\/svg>$/
+  const UNTRUSTED_MARKUP = /<script|on[a-z]+\s*=/i
   const remoteLinkSubs = new Set()
   const subscriptionSubs = new Set()
-  const faceAgentSubs = new Set()
+  const cameraSubs = new Set()
   const connSubs = new Set()
   const tickSubs = new Set()
+  const briefingSubs = new Set()
+  const briefings = new Map()
+  const briefingSignatures = new Map()
   let tickTimer = null
 
   function notify(subs, arg) {
@@ -67,7 +73,8 @@
 
   const connection = {
     online: () => navigator.onLine,
-    label: () => (navigator.onLine ? NETWORK_LABELS.connected : NETWORK_LABELS.disconnected),
+    label: () => NETWORK_LABELS[navigator.onLine ? 'connected' : 'disconnected'],
+    labelFor: (online) => NETWORK_LABELS[online ? 'connected' : 'disconnected'],
     subscribe(callback) {
       connSubs.add(callback)
       callback(navigator.onLine)
@@ -75,26 +82,26 @@
     },
   }
 
-  const faceAgent = {
-    status: () => faceAgentStatus,
+  const camera = {
+    status: () => cameraFrame,
     refresh: async () => {
-      if (faceAgentCheckInFlight) return faceAgentStatus
-      faceAgentCheckInFlight = true
+      if (cameraCheckInFlight) return cameraFrame
+      cameraCheckInFlight = true
       try {
-        const next = await root.odkPlatform.getFaceAgentStatus()
-        faceAgentStatus = next?.state ? next : unavailableFaceAgentStatus()
+        const next = await root.odkPlatform.getCameraFrame()
+        cameraFrame = next?.status ? next : unavailableCameraFrame()
       } catch {
-        faceAgentStatus = unavailableFaceAgentStatus()
+        cameraFrame = unavailableCameraFrame()
       } finally {
-        faceAgentCheckInFlight = false
+        cameraCheckInFlight = false
       }
-      notify(faceAgentSubs, faceAgentStatus)
-      return faceAgentStatus
+      notify(cameraSubs, cameraFrame)
+      return cameraFrame
     },
     subscribe(callback) {
-      faceAgentSubs.add(callback)
-      callback(faceAgentStatus)
-      return () => faceAgentSubs.delete(callback)
+      cameraSubs.add(callback)
+      callback(cameraFrame)
+      return () => cameraSubs.delete(callback)
     },
   }
 
@@ -130,6 +137,50 @@
 
   if (root.odkRemote?.subscribeLinkState) {
     root.odkRemote.subscribeLinkState(updateRemoteLinkState)
+  }
+
+  // Briefing store: Today renders statements, not markup. Any plugin can
+  // publish an ordered statement of plain connectives and emphasized signals;
+  // the page owns the typography so every contributor reads as one voice.
+  function normalizeBriefingParts(parts) {
+    if (!Array.isArray(parts)) return []
+    const normalized = []
+    for (const part of parts) {
+      if (!part || typeof part.text !== 'string' || part.text.length === 0) continue
+      const entry = { text: part.text }
+      if (part.emphasis === true) entry.emphasis = true
+      if (typeof part.icon === 'string' && ICON_MARKUP.test(part.icon) && !UNTRUSTED_MARKUP.test(part.icon)) {
+        entry.icon = part.icon
+      }
+      normalized.push(entry)
+    }
+    return normalized
+  }
+
+  const briefing = {
+    list: () => [...briefings.values()].sort((a, b) => a.order - b.order),
+    contribute(statement) {
+      const parts = normalizeBriefingParts(statement?.parts)
+      if (typeof statement?.id !== 'string' || !statement.id.startsWith('odk.') || parts.length === 0) return false
+      const order = Number.isFinite(statement.order) ? statement.order : DEFAULT_BRIEFING_ORDER
+      const signature = JSON.stringify([order, parts])
+      if (briefingSignatures.get(statement.id) === signature) return true
+      briefingSignatures.set(statement.id, signature)
+      briefings.set(statement.id, { id: statement.id, order, parts })
+      notify(briefingSubs, briefing.list())
+      return true
+    },
+    withdraw(id) {
+      briefingSignatures.delete(id)
+      if (!briefings.delete(id)) return false
+      notify(briefingSubs, briefing.list())
+      return true
+    },
+    subscribe(callback) {
+      briefingSubs.add(callback)
+      callback(briefing.list())
+      return () => briefingSubs.delete(callback)
+    },
   }
 
   if (typeof root.addEventListener === 'function') {
@@ -182,8 +233,9 @@
 
   registerService('odk.service.connection', connection)
   registerService('odk.service.subscription', subscription)
-  registerService('odk.service.faceAgent', faceAgent)
+  registerService('odk.service.camera', camera)
   registerService('odk.service.remoteLink', remoteLink)
+  registerService('odk.service.briefing', briefing)
 
   root.odkServices = {
     NETWORK_LABELS,
@@ -192,8 +244,9 @@
     formatCheckTime,
     connection,
     subscription,
-    faceAgent,
+    camera,
     remoteLink,
+    briefing,
     registerService,
     unregisterService,
     get: getService,
@@ -212,7 +265,7 @@
           const now = new Date()
           notify(tickSubs, now)
           tickCounter += 1
-          if (tickCounter % 2 === 0) void faceAgent.refresh()
+          if (tickCounter % 15 === 0) void camera.refresh()
           if (tickCounter % 60 === 0) void subscription.refresh()
         }, 1000)
       }

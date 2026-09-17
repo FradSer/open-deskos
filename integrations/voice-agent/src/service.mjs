@@ -1,20 +1,28 @@
+import { AudioLimitError } from './errors.mjs'
+
+function boundedText(text, limit, label) {
+  const notice = `\n\n[${label} truncated]`
+  return text.length <= limit ? text : text.slice(0, limit - notice.length) + notice
+}
+
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: () => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string) => Promise<string | void>, maxRecordingMs?: number}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>}} Dependencies */
 
 export class VoiceService {
   /** @param {Dependencies} dependencies */
   constructor(dependencies) {
     this.dependencies = dependencies
-    this.status = { v: 1, type: 'status', state: 'idle', message: '' }
+    this.status = { v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
     this.starting = false
     this.controller = new AbortController()
     /** @type {Recording | undefined} */
     this.recording = undefined
-    /** @type {ReturnType<typeof setTimeout> | undefined} */
-    this.timer = undefined
+    this.captureId = 0
+    this.closing = undefined
     this.pending = Promise.resolve()
+    this.cancelStreaming = () => {}
   }
 
   subscribe(listener) {
@@ -22,8 +30,12 @@ export class VoiceService {
     return () => this.listeners.delete(listener)
   }
 
-  setState(state, message = '') {
-    this.status = { v: 1, type: 'status', state, message }
+  setState(state, message = '', transcript = this.status.transcript) {
+    this.status = {
+      v: 1, type: 'status', state, level: 0,
+      message: boundedText(message, 16_384, 'Response'),
+      transcript: boundedText(transcript, 4096, 'Transcript'),
+    }
     for (const listener of this.listeners) listener(this.status)
   }
 
@@ -37,14 +49,21 @@ export class VoiceService {
   }
 
   async start() {
+    this.status = { ...this.status, message: '', transcript: '' }
     try {
-      this.recording = await this.dependencies.record()
+      const captureId = ++this.captureId
+      this.recording = await this.dependencies.record(level => {
+        if (this.closed || captureId !== this.captureId || this.status.state !== 'recording') return
+        this.status = { ...this.status, level }
+        for (const listener of this.listeners) listener(this.status)
+      })
       if (this.closed) { await this.discard(); return }
       this.setState('recording')
-      this.timer = setTimeout(() => { void this.finish() }, this.dependencies.maxRecordingMs ?? 30_000)
-      void this.recording.done.then(() => this.finish(), () => this.failCapture())
+      void this.recording.done.then(() => this.finish(), () => {
+        if (!this.closed && this.status.state === 'recording') this.pending = this.failCapture()
+      })
     } catch {
-      this.setState('error', 'Microphone unavailable')
+      if (!this.closed) this.setState('error', 'Microphone unavailable')
     } finally {
       this.starting = false
     }
@@ -54,39 +73,62 @@ export class VoiceService {
     if (this.status.state !== 'recording' || this.closed) return
     this.setState('transcribing')
     await this.discard()
-    this.setState('error', 'Microphone unavailable')
+    if (!this.closed) this.setState('error', 'Microphone unavailable')
   }
 
   finish() {
     if (this.closed || this.status.state !== 'recording') return this.pending
     this.setState('transcribing')
-    clearTimeout(this.timer)
     this.pending = this.submit()
     return this.pending
   }
 
   async submit() {
-    let failed = false
+    let failure = ''
     let response = ''
     const recording = this.recording
     try {
       if (!recording) return
       const path = await recording.stop()
+      if (this.closed) return
       const text = await this.dependencies.transcribe(path, this.controller.signal)
       if (!this.closed) {
-        this.setState('thinking')
-        response = (await this.dependencies.prompt(text) || '').slice(0, 1024)
+        this.setState('thinking', '', text)
+        response = await this.promptResponse(text)
       }
-    } catch {
-      failed = true
+    } catch (error) {
+      failure = error instanceof AudioLimitError
+        ? `Recording exceeds the ${error.limit.toLocaleString('en-US')}-byte upload limit; record a shorter request`
+        : 'Voice request failed; try again'
     } finally {
-      if (!await this.discard()) failed = true
-      if (!this.closed) this.setState(failed ? 'error' : 'idle', failed ? 'Voice request failed; try again' : response)
+      if (!await this.discard()) failure = 'Voice request failed; try again'
+      if (!this.closed) this.setState(failure ? 'error' : 'idle', failure || response)
+    }
+  }
+
+  async promptResponse(text) {
+    let active = true
+    let latest = ''
+    let timer
+    const stop = () => { active = false; clearTimeout(timer); timer = undefined }
+    this.cancelStreaming = stop
+    try {
+      return await this.dependencies.prompt(text, snapshot => {
+        if (!active || this.closed) return
+        latest = boundedText(snapshot, 16_384, 'Response')
+        if (timer || latest === this.status.message) return
+        timer = setTimeout(() => {
+          timer = undefined
+          if (active && !this.closed && latest !== this.status.message) this.setState('thinking', latest)
+        }, 100)
+      }) || ''
+    } finally {
+      stop()
+      this.cancelStreaming = () => {}
     }
   }
 
   async discard() {
-    clearTimeout(this.timer)
     const recording = this.recording
     this.recording = undefined
     try {
@@ -97,9 +139,16 @@ export class VoiceService {
     }
   }
 
-  async close() {
+  close() {
+    this.closing ??= this.shutdown()
+    return this.closing
+  }
+
+  async shutdown() {
     this.closed = true
     this.controller.abort()
+    this.cancelStreaming()
+    this.setState('idle', '', '')
     await this.discard()
     await this.pending
   }
