@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
+const { boundedEvent, retainEvents } = require('./pi-session-events')
 
 function normalizePid(value) {
   const pid = Number(value)
@@ -62,25 +63,38 @@ function formatToolCall(toolName, args) {
   const parsed = typeof args === 'string'
     ? (() => { try { return JSON.parse(args) } catch { return {} } })()
     : (args || {})
+  // The call is kept as Pi issued it: a multi-line command or a heredoc is
+  // content, and collapsing it to one line is the omission this surface no
+  // longer makes. The overview's one-line activity stays a summary.
   if (parsed.command && typeof parsed.command === 'string') {
-    return `bash: ${parsed.command.replace(/\s+/g, ' ').trim()}`
+    return `bash: ${parsed.command.trim()}`
   }
   if (parsed.path && typeof parsed.path === 'string') {
-    return `${toolName}: ${path.basename(parsed.path.trim())}`
+    return `${toolName}: ${parsed.path.trim()}`
   }
   if (parsed.query && typeof parsed.query === 'string') {
-    return `search: ${parsed.query.replace(/\s+/g, ' ').trim()}`
+    return `search: ${parsed.query.trim()}`
   }
   if (parsed.subject && typeof parsed.subject === 'string') {
-    return `${toolName}: ${parsed.subject.replace(/\s+/g, ' ').trim()}`
+    return `${toolName}: ${parsed.subject.trim()}`
   }
   return toolName
 }
 
 const LATEST_ACTIVITY_MAX_BYTES = 65536
-const SESSION_EVENT_MAX_BYTES = 262144
-const SESSION_EVENT_MAX_EVENTS = 60
-const SESSION_EVENT_MAX_LINE = 200
+const SESSION_EVENT_MAX_BYTES = 2 * 1024 * 1024
+const SESSION_EVENT_MAX_EVENTS = 300
+// Pi renders every event it produces; the desk keeps each body and bounds it per
+// kind instead of flattening it to one line, so a bash command, a prompt, or a
+// result is read in full within its own limit.
+const SESSION_EVENT_BODY_BYTES = {
+  result: 64 * 1024,
+  assistant: 16 * 1024,
+  user: 8 * 1024,
+  thinking: 4 * 1024,
+  tool: 4 * 1024,
+}
+const SESSION_EVENT_MAX_BODY_BYTES = SESSION_EVENT_BODY_BYTES.result
 
 function resolveSessionLogPath(agentDir, cwd, sessionId) {
   if (!agentDir || !cwd || !sessionId) return ''
@@ -136,54 +150,69 @@ function extractLatestActivity(agentDir, cwd, sessionId) {
   return ''
 }
 
-function boundEventLine(text, maxLength = SESSION_EVENT_MAX_LINE) {
-  if (!text || typeof text !== 'string') return ''
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/\s+/g, ' ').trim()
-    if (!line) continue
-    return line.length > maxLength ? `${line.slice(0, maxLength - 1)}…` : line
-  }
-  return ''
+function boundEventBody(text, maxBytes = SESSION_EVENT_MAX_BODY_BYTES) {
+  if (!text || typeof text !== 'string') return { text: '' }
+  const bytes = Buffer.from(text)
+  if (bytes.length <= maxBytes) return { text }
+  let end = maxBytes
+  // A byte limit must never bisect a UTF-8 code point.
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1
+  return { text: bytes.subarray(0, end).toString('utf8').replace(/\s+$/, ''), truncated: true }
 }
 
-// A Session Event is one bounded line: the session's own log entries never
-// become a transcript, and a tool result contributes only its first line.
+// Every event keeps its body for safe Markdown rendering, with explicit
+// per-kind truncation.
 function sessionEventsFromEntry(entry) {
   if (!entry || entry.type !== 'message') return []
   const message = entry.message
   if (!message || typeof message !== 'object') return []
   const content = Array.isArray(message.content) ? message.content : []
   const events = []
+  if (message.role === 'toolResult') {
+    const text = content.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n')
+    if (!text.trim()) return []
+    // The body is bounded once, when the event is emitted, so a second pass
+    // cannot drop the tool name or lose the truncation flag.
+    const toolName = typeof message.toolName === 'string' ? message.toolName.trim() : ''
+    return [{ kind: 'result', text, ...(toolName ? { toolName } : {}) }]
+  }
   for (const part of content) {
     if (!part || typeof part !== 'object') continue
     if (message.role === 'user' && part.type === 'text') {
-      const text = boundEventLine(part.text)
+      const text = typeof part.text === 'string' ? part.text.trim() : ''
       if (text) events.push({ kind: 'user', text })
       continue
     }
     if (message.role === 'assistant' && part.type === 'thinking') {
-      const text = boundEventLine(part.thinking)
+      const text = typeof part.thinking === 'string' ? part.thinking.trim() : ''
       if (text) events.push({ kind: 'thinking', text })
       continue
     }
     if (message.role === 'assistant' && part.type === 'toolCall') {
-      const text = boundEventLine(formatToolCall(part.name, part.arguments))
-      if (text) events.push({ kind: 'tool', text })
+      const text = formatToolCall(part.name, part.arguments)
+      if (text && text.trim()) events.push({ kind: 'tool', text })
       continue
     }
-    if (message.role === 'assistant' && part.type === 'text') {
-      const text = boundEventLine(part.text)
-      if (text) events.push({ kind: 'assistant', text })
-      continue
-    }
-    if (message.role === 'toolResult' && part.type === 'text') {
-      const body = boundEventLine(part.text)
-      if (!body) continue
-      const toolName = typeof message.toolName === 'string' && message.toolName ? message.toolName : ''
-      events.push({ kind: 'result', text: boundEventLine(toolName ? `${toolName}: ${body}` : body) })
-    }
+    // The reply body is added once, after its thinking and tool calls.
+  }
+  if (message.role === 'assistant') {
+    // One reply may stream as several text parts; Pi reads them as one body.
+    const said = content.filter(part => part?.type === 'text' && typeof part.text === 'string' && part.text.trim())
+    if (said.length > 0) events.push({ kind: 'assistant', text: said.map(part => part.text).join('\n\n') })
   }
   return events
+}
+
+function boundEventBodyOf(event) {
+  const body = boundEventBody(event.text, SESSION_EVENT_BODY_BYTES[event.kind] || SESSION_EVENT_MAX_BODY_BYTES)
+  if (!body.text) return null
+  const toolName = typeof event.toolName === 'string' ? event.toolName.trim() : ''
+  return {
+    kind: event.kind,
+    text: body.text,
+    ...(toolName ? { toolName } : {}),
+    ...(body.truncated ? { truncated: true } : {}),
+  }
 }
 
 function readSessionEvents(options = {}) {
@@ -219,7 +248,9 @@ function readSessionEvents(options = {}) {
     for (const event of sessionEventsFromEntry(entry)) collected.push(event)
   }
 
-  const events = collected.slice(-maxEvents)
+  const events = retainEvents(collected.map(boundEventBodyOf).filter(Boolean),
+    Math.min(maxEvents, SESSION_EVENT_MAX_EVENTS))
+  if (events.length === 0 && tail.truncated) return { ok: false, reason: 'session-log-tail-limit' }
   return { ok: true, events, truncated: tail.truncated || collected.length > events.length }
 }
 

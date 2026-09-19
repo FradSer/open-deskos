@@ -733,7 +733,7 @@ test('readSessionEvents returns only a bounded, ordered tail of a session log', 
   fs.rmSync(agentDir, { recursive: true, force: true })
 })
 
-test('readSessionEvents keeps every event to one bounded line and never a tool result body', () => {
+test('readSessionEvents keeps every event body and bounds each kind instead of flattening it', () => {
   const agentDir = path.join(os.tmpdir(), `pi-events-lines-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const cwd = '/Users/test/events-lines'
   const sessionId = 'events-01a062fe-a0a6-7922-a757-abb790ef0002'
@@ -751,13 +751,133 @@ test('readSessionEvents keeps every event to one bounded line and never a tool r
   assert.equal(result.ok, true)
   assert.deepEqual(result.events.map((event) => event.kind), ['user', 'thinking', 'tool', 'result', 'assistant'])
   const resultEvent = result.events[3]
-  assert.ok(resultEvent.text.includes('first line of output'), 'a tool result keeps its first line')
-  assert.ok(resultEvent.text.includes('bash'), 'a tool result names the tool that produced it')
-  assert.equal(resultEvent.text.includes('second line of output'), false, 'a tool result body is never rendered')
-  assert.equal(result.events.some((event) => event.text.includes('\n')), false)
-  assert.equal(result.events.every((event) => event.text.length <= 200), true)
-  assert.ok(result.events[2].text.includes('pnpm test'), 'a tool call keeps its command')
+  assert.equal(resultEvent.text, body, 'all result lines reach the renderer')
+  assert.equal(resultEvent.toolName, 'bash')
+  // Every kind keeps the body Pi produced; only its own byte limit applies.
+  assert.deepEqual(result.events.map((event) => event.truncated), [undefined, undefined, undefined, undefined, undefined])
+  assert.equal(result.events[0].text, 'why is the renderer empty')
+  assert.equal(result.events[1].text, 'checking the composer')
+  assert.equal(result.events[2].text, 'bash: pnpm test')
+  assert.equal(result.events[4].text, 'the composer never ran')
   fs.rmSync(agentDir, { recursive: true, force: true })
+})
+
+test('readSessionEvents keeps an assistant reply as one bounded multiline Markdown body', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-assistant-body-'))
+  const cwd = '/Users/test/assistant-body'
+  const sessionId = 'assistant-body-session'
+  const reply = '# Findings\n\nFirst paragraph.\n\n| File | Status |\n| --- | --- |\n| a.js | ok |'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('assistant', [{ type: 'text', text: reply }]),
+    ])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.events.map((event) => event.kind), ['assistant'])
+    assert.equal(result.events[0].text, reply, 'line structure and Markdown survive')
+    assert.equal(result.events[0].truncated, undefined)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+test('readSessionEvents bounds an over-limit assistant body at 16 KiB without splitting a code point', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-assistant-limit-'))
+  const cwd = '/Users/test/assistant-limit'
+  const sessionId = 'assistant-limit-session'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('assistant', [{ type: 'text', text: '\u4e2d'.repeat(20000) }]),
+    ])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    const [event] = result.events
+    assert.equal(event.kind, 'assistant')
+    assert.equal(event.truncated, true)
+    assert.ok(Buffer.byteLength(event.text) <= 16 * 1024)
+    assert.ok(event.text.length > 200)
+    assert.equal(event.text.includes('\uFFFD'), false)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+test('readSessionEvents joins every assistant text part into one body', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-assistant-parts-'))
+  const cwd = '/Users/test/assistant-parts'
+  const sessionId = 'assistant-parts-session'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('assistant', [
+        { type: 'text', text: 'First part.' },
+        { type: 'thinking', thinking: 'considering the request' },
+        { type: 'text', text: 'Second part.' },
+      ]),
+    ])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    assert.deepEqual(result.events.map((event) => event.kind), ['thinking', 'assistant'])
+    assert.equal(result.events[1].text, 'First part.\n\nSecond part.')
+    assert.equal(result.events.filter((event) => event.kind === 'assistant').length, 1)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+test('a multi-line tool call keeps its own lines instead of being collapsed', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-command-lines-'))
+  const cwd = '/Users/test/command-lines'
+  const sessionId = 'command-lines-session'
+  const command = "python3 - <<'PY'\nprint('one')\nprint('two')\nPY"
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('assistant', [{ type: 'toolCall', name: 'bash', arguments: { command } }]),
+    ])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    assert.equal(result.events.length, 1)
+    assert.equal(result.events[0].text, `bash: ${command}`)
+    assert.equal(result.events[0].truncated, undefined)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+test('readSessionEvents keeps multi-line user prompts, thinking, and tool calls instead of flattening them', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-summaries-'))
+  const cwd = '/Users/test/event-summaries'
+  const sessionId = 'event-summaries-session'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('user', [{ type: 'text', text: 'prompt line one\nprompt line two' }]),
+      messageEntry('assistant', [{ type: 'thinking', thinking: 'first thought\n' + 'x'.repeat(500) }]),
+      messageEntry('assistant', [{ type: 'toolCall', name: 'bash', arguments: { command: 'pnpm test' } }]),
+    ])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    assert.deepEqual(result.events.map((event) => event.kind), ['user', 'thinking', 'tool'])
+    // The prompt keeps the lines the user typed rather than its first line.
+    assert.equal(result.events[0].text, 'prompt line one\nprompt line two')
+    assert.ok(result.events[1].text.includes('\n'))
+    assert.equal(result.events[2].text, 'bash: pnpm test')
+    // A multi-line command is content, so it is not collapsed to one line.
+    assert.equal(result.events.every((event) => event.truncated === undefined || event.truncated === true), true)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+test('readSessionEvents preserves tables and explicitly bounds large results', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-events-markdown-'))
+  const cwd = '/example/markdown'
+  const sessionId = 'markdown-session'
+  const table = '# Results\n\n| File | Status |\n| --- | --- |\n| a.js | Passed |\n\nSecond paragraph.\n\n```js\nconst value = 1\n```'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [toolResultEntry('bash', table), toolResultEntry('read', '长'.repeat(30000))])
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+    assert.equal(result.events[0].text, table)
+    assert.equal(result.events[1].truncated, true)
+    assert.ok(Buffer.byteLength(result.events[1].text) <= 65536)
+    assert.equal(result.events[1].text.includes('\uFFFD'), false)
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
 })
 
 test('readSessionEvents ignores entries that are not session messages', () => {

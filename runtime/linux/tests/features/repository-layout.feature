@@ -12,3 +12,9 @@ Feature: Open DeskOS repository architecture
     Then it uses concise scopes for CM5, hardware, link, vision, S31, P4, and Mac work
     And it does not retain scopes for the removed app or firmware roots
     But a deployed runtime slice does not require preserved research source trees or Git metadata
+
+  Scenario: No test harness activates a window on the desk
+    Given the Electron test harnesses in the runtime
+    When the repository layout is checked
+    Then every harness configures its window without showing or focusing it
+    And a harness that would show a window fails the check

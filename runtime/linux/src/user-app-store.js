@@ -10,16 +10,41 @@ const MAX_CATALOG_BYTES = 1024 * 1024
 const CATALOG = 'user-apps.json'
 const validId = id => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id)
 const validRevision = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value)
+const PLACEMENT_SHAPE = /^\d+(?:\s*\/\s*\d+)?$/
 const failure = error => ({ ok: false, error })
-const metadata = ({ id, name, version, kind, revision, placement, placementError }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}) })
+const metadata = ({ id, name, version, kind, revision, placement, placementError, service }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}) })
 const digestOf = (manifest, html) => crypto.createHash('sha256').update(manifest).update(html).digest('hex')
+
+function parseService(service) {
+  if (service === undefined) return undefined
+  if (!service || typeof service !== 'object' || Array.isArray(service)) throw Error('invalid-manifest')
+  const { id, exec, version, secrets, egress, socket } = service
+  if (!validId(id) || typeof exec !== 'string' || !exec || exec.startsWith('/') || /(^|\/)\.\.(\/|$)/.test(exec)
+    || typeof version !== 'string' || !version.trim() || version.length > 64
+    || typeof socket !== 'string' || !/^[a-z][a-z0-9-]{0,63}\.sock$/.test(socket)) throw Error('invalid-manifest')
+  if (!Array.isArray(egress) || egress.length === 0 || egress.length > 8) throw Error('invalid-manifest')
+  for (const rule of egress) {
+    if (!rule || typeof rule !== 'object' || typeof rule.host !== 'string' || !rule.host
+      || !Number.isInteger(rule.port) || rule.port < 1 || rule.port > 65535) throw Error('invalid-manifest')
+  }
+  const names = secrets === undefined ? [] : secrets
+  if (!Array.isArray(names) || names.length > 8) throw Error('invalid-manifest')
+  for (const name of names) {
+    if (typeof name !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(name)) throw Error('invalid-manifest')
+  }
+  for (const key of Object.keys(service)) {
+    if (!['id', 'exec', 'version', 'secrets', 'egress', 'socket'].includes(key)) throw Error('invalid-manifest')
+  }
+  return { id, exec, version, secrets: [...names], egress: egress.map(rule => ({ ...rule })), socket }
+}
 
 function parseManifest(bytes, id) {
   const manifest = JSON.parse(bytes.toString('utf8'))
   if (manifest?.id !== id || manifest.schemaVersion !== 1 || !['widget', 'app'].includes(manifest.kind)
     || typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 128
     || typeof manifest.version !== 'string' || !manifest.version.trim() || manifest.version.length > 64) throw Error('invalid-manifest')
-  return manifest
+  const service = parseService(manifest.service)
+  return service === undefined ? manifest : { ...manifest, service }
 }
 
 function loadDesktopLayout() {
@@ -80,7 +105,10 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
         if (bundle.digest !== entry.digest || ['name', 'version', 'kind'].some(key => entry[key] !== bundle.manifest[key])) throw Error('invalid-catalog')
         if (entry.placement !== undefined) {
           if (entry.kind !== 'widget' || !entry.placement || typeof entry.placement.col !== 'string' || typeof entry.placement.row !== 'string') throw Error('invalid-catalog')
-          choosePlacement(entries, entry.id, entry.placement)
+          // Shape is corruption; availability is not. A release can legitimately declare a
+          // built-in tile in a cell an installed package already holds, and that must
+          // degrade to a per-widget placement error instead of hiding the whole catalog.
+          if (!PLACEMENT_SHAPE.test(entry.placement.col) || !PLACEMENT_SHAPE.test(entry.placement.row)) throw Error('invalid-catalog')
         }
         ids.add(entry.id)
       }
@@ -116,11 +144,29 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
     throw Error('desktop-full')
   }
 
+  /*
+   * Why a stored placement can no longer be used. Unavailable geometry is a widget's
+   * own problem: the desk reports it, keeps the package's bytes, and leaves removal
+   * and re-placement available.
+   */
+  function placementIssue(entry) {
+    const page = layout.pages.find(candidate => candidate.id === entry.placement.pageId)
+    if (!page || page.kind !== 'grid') return 'unavailable-page'
+    try {
+      const rect = rectangle(entry.placement)
+      if ((page.widgets || []).some(widget => overlaps(rect, rectangle(widget)))) return 'occupied-placement'
+      return null
+    } catch {
+      return 'invalid-placement'
+    }
+  }
+
   async function placedCatalog() {
     const entries = await catalog()
     let changed = false
     for (const entry of entries) {
-      if (entry.kind === 'widget' && !entry.placement) {
+      if (entry.kind !== 'widget') continue
+      if (!entry.placement) {
         try {
           entry.placement = choosePlacement(entries, entry.id)
           delete entry.placementError
@@ -129,6 +175,16 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
           if (error.message !== 'desktop-full') throw error
           entry.placementError = 'desktop-full'
         }
+        continue
+      }
+      // A release can add a built-in tile where an installed package already sits. The
+      // package reports the conflict instead of painting over the built-in cell, and the
+      // error clears itself if that built-in tile is removed again.
+      const error = placementIssue(entry) || undefined
+      if (entry.placementError !== error) {
+        if (error) entry.placementError = error
+        else delete entry.placementError
+        changed = true
       }
     }
     if (changed) await commit(entries)

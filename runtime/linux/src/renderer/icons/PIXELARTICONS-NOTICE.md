@@ -48,6 +48,18 @@ Replacements applied in the shell (free set, 24x24 grid):
 | `wifi` | wifi |
 | `wifi-off` | wifi + block diagonal (see below) |
 
+| `weather-sun` | sun |
+| `weather-cloud` | cloud |
+| `weather-rain` | cloud + drops (see below) |
+| `weather-snow` | snowflake |
+| `weather-thunder` | zap |
+| `weather-unavailable` | square-alert |
+
+Every `weather-*` entry above is upstream artwork except `weather-rain`, which pixelarticons
+has no icon for: it is the upstream `cloud` artwork with three 2x3 drops appended below it,
+drawn in the same 2-unit rhythm and the same `-off`-style composition route `wifi-off` takes.
+No upstream path is otherwise modified.
+
 `user-scan` and `wifi-off` have no upstream pixel name. `user-scan` uses the
 upstream `ai-scan` artwork. `wifi-off` composes the upstream `wifi` artwork with
 a 2x2 block diagonal in the same `-off` idiom pixelarticons uses for `mic-off`

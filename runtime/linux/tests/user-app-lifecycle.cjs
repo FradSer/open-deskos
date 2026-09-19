@@ -7,7 +7,8 @@ const { createUserAppStore } = require('../src/user-app-store')
 const { createUserAppVerifier } = require('../src/user-app-verifier')
 const { createUserAppResponse } = require('../src/user-app-protocol')
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
-protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: { standard: true, secure: true } }])
+const { USER_APP_SCHEME_PRIVILEGES } = require('../src/user-app-system')
+protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 let directory
 let win
 const deadline = setTimeout(() => { console.error('USER_APP_LIFECYCLE_TIMEOUT'); app.exit(1) }, 40000)

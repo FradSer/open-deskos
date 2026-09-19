@@ -32,6 +32,13 @@ if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 uncl
   $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2t64 unclutter mesa-utils libgl1-mesa-dri libegl1 libgles2
 fi
 
+echo "== installing Mali GPU userspace (firmware + libmali blob) =="
+if [ "${ODESK_SKIP_GPU_USERSPACE:-0}" = "1" ]; then
+  echo "skipped (ODESK_SKIP_GPU_USERSPACE=1); the shell will render through llvmpipe"
+elif ! "${DIR}/scripts/cm5-gpu-userspace.sh" install; then
+  echo "warning: Mali userspace not installed; the shell will render through llvmpipe" >&2
+fi
+
 resolve_target_user() {
   if [ "$(id -u)" -ne 0 ]; then
     id -un

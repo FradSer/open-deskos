@@ -1,0 +1,221 @@
+/* A subscription is the reading unit. All quota windows stay visible;
+   administrative detail is secondary and never displaces the allowance. */
+.quota-card {
+  container-type: inline-size;
+  gap: var(--odk-space-4);
+}
+
+.quota-card > * { flex-shrink: 0; }
+
+.quota-card .quota-page-head {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.quota-heading { flex: 1 1 24rem; }
+.quota-description, .provider-quota-availability { overflow-wrap: anywhere; }
+
+.quota-description {
+  margin-top: var(--odk-space-2);
+  font-size: clamp(24px, 2.6vw, 36px);
+  line-height: 1.3;
+  color: var(--odk-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.quota-card .quota-header-controls {
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: var(--odk-space-2);
+}
+
+.quota-service-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--odk-space-2) var(--odk-space-4);
+  color: var(--odk-secondary-strong);
+  font-size: var(--odk-text-label);
+  line-height: 1.5;
+}
+
+.quota-source { font-size: 12px; }
+
+.quota-card .provider-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr));
+  grid-auto-rows: max-content;
+  align-items: start;
+  gap: var(--odk-space-4);
+}
+
+.quota-card .provider-quota-card {
+  display: inline-block;
+  vertical-align: top;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: var(--odk-space-4);
+  border: 1px solid var(--odk-stroke);
+  border-radius: calc(var(--radius) * 0.62);
+  background: var(--odk-bg);
+  overflow: visible;
+  break-inside: avoid;
+}
+
+.quota-card .provider-quota-card-head {
+  align-items: flex-start;
+  padding: 0 0 var(--odk-space-4);
+  border-bottom: 1px solid var(--odk-stroke);
+}
+
+.quota-card .provider-quota-icon {
+  border: none;
+  border-radius: 0;
+  flex-basis: 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.provider-quota-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--odk-space-2) var(--odk-space-3);
+}
+
+.provider-quota-identity h2 {
+  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.3;
+  color: var(--odk-primary);
+  overflow-wrap: anywhere;
+}
+
+.provider-plan-name,
+.provider-quota-account,
+.provider-quota-file {
+  font-size: var(--odk-text-label);
+  line-height: 1.5;
+  color: var(--odk-secondary-strong);
+  overflow-wrap: anywhere;
+}
+
+.provider-quota-availability {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--odk-secondary-strong);
+}
+
+.is-low .provider-quota-availability,
+.is-unavailable .provider-quota-availability { color: var(--odk-accent-red); }
+
+.quota-card .provider-quota-card-body {
+  padding: var(--odk-space-4) 0 0;
+  gap: var(--odk-space-4);
+}
+
+.quota-card .provider-quota-group { gap: var(--odk-space-4); }
+
+.quota-card .provider-quota-group-head h3 {
+  font-family: inherit;
+  font-size: var(--odk-text-body);
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.quota-card .provider-quota-row { gap: var(--odk-space-2); }
+
+.quota-card .provider-quota-row-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--odk-space-2);
+}
+
+.quota-card .provider-quota-label {
+  color: var(--odk-secondary-strong);
+  font-size: var(--odk-text-body);
+}
+
+.provider-quota-reading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--odk-space-2);
+}
+
+.quota-card .provider-quota-value {
+  font-size: clamp(36px, 3.2vw, 52px);
+  line-height: 1.15;
+}
+
+.quota-card .provider-quota-value.is-unknown {
+  font-family: inherit;
+  font-size: var(--odk-text-body);
+  font-weight: 400;
+  color: var(--odk-secondary-strong);
+  letter-spacing: normal;
+}
+
+.provider-quota-unit { font-size: 14px; color: var(--odk-secondary-strong); }
+.quota-card .provider-quota-meter { height: 8px; }
+.quota-card .provider-quota-fill.is-normal { background: var(--odk-secondary-strong); }
+.provider-quota-unknown-rule { height: 8px; border-top: 1px dashed var(--odk-stroke); }
+
+.quota-card :is(.provider-quota-reset, .provider-quota-error, .provider-quota-group-head p, .provider-reset-expiry b) {
+  overflow-wrap: anywhere;
+}
+
+.provider-details {
+  border-top: 1px solid var(--odk-stroke);
+  color: var(--odk-secondary-strong);
+  font-size: var(--odk-text-label);
+}
+
+.provider-details summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.provider-details[open] > :not(summary) { margin-top: var(--odk-space-3); }
+.quota-card .provider-reset-expiry span { flex-wrap: wrap; }
+.quota-card .provider-reset-credits > strong { font-variant-numeric: tabular-nums; }
+.quota-card .provider-quota-empty { padding-block: var(--odk-space-4); max-width: 60ch; }
+
+.quota-card :is(summary, #quota-refresh):focus-visible {
+  outline: 2px solid var(--odk-stroke-focus);
+  outline-offset: 4px;
+}
+
+.quota-card #quota-refresh { transform: none; transition: background-color 140ms ease; }
+.quota-card #quota-refresh:disabled {
+  opacity: 1;
+  color: var(--odk-secondary-strong);
+  background: var(--odk-button);
+  cursor: wait;
+}
+
+@container (width < 36rem) {
+  .quota-card .quota-header-controls {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    margin-inline-start: 0;
+  }
+  .quota-card .quota-checked { text-align: start; }
+  .quota-card #quota-refresh { padding-inline: var(--odk-space-3); }
+}
+
+html[data-theme="pixel"] .quota-card :is(h2, .provider-quota-value) {
+  font-family: "Zpix", monospace;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-meter) { border-radius: 0; }

@@ -29,6 +29,52 @@ function validate(root) {
   return spawnSync(process.execPath, [validator, root], { encoding: 'utf8' })
 }
 
+// Browser-asset dependency: shipped inside the release and loaded by a script
+// tag, with no main or exports entry for Node to resolve.
+function assetCandidate(t, { external = false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-assets-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { '@highlightjs/cdn-assets': '11.12.0' } }))
+  const modules = path.join(root, 'node_modules')
+  fs.mkdirSync(modules, { recursive: true })
+  let packageDir
+  if (external) {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-assets-external-'))
+    t.after(() => fs.rmSync(outside, { recursive: true, force: true }))
+    packageDir = path.join(outside, 'cdn-assets')
+  } else {
+    packageDir = path.join(modules, '.pnpm/@highlightjs+cdn-assets@11.12.0/node_modules/@highlightjs/cdn-assets')
+  }
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@highlightjs/cdn-assets', version: '11.12.0' }))
+  fs.writeFileSync(path.join(packageDir, 'highlight.min.js'), '/* asset */\n')
+  const link = path.join(modules, '@highlightjs/cdn-assets')
+  fs.mkdirSync(path.dirname(link), { recursive: true })
+  fs.symlinkSync(packageDir, link)
+  return root
+}
+
+test('accepts an asset-only dependency shipped inside the candidate', (t) => {
+  const result = validate(assetCandidate(t))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('still rejects an asset-only dependency that resolves outside the candidate', (t) => {
+  const result = validate(assetCandidate(t, { external: true }))
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /@highlightjs\/cdn-assets resolves outside the candidate release/)
+})
+
+test('rejects a declared dependency that is not installed at all', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-missing-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { '@highlightjs/cdn-assets': '11.12.0' } }))
+  fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true })
+  const result = validate(root)
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /@highlightjs\/cdn-assets/)
+})
+
 test('rejects a pnpm candidate whose direct dependency has a missing transitive package', (t) => {
   const result = validate(candidate(t, false))
   assert.equal(result.status, 1)

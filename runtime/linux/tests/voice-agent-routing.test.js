@@ -44,15 +44,20 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {} },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
     './pi-sessions': { readSessionEvents: () => { throw new Error('MIC must not read monitor session events') } },
+    './pi-session-events-source': { createPiSessionEventsSource: () => () => { throw new Error('MIC must not read monitor session events') } },
+    './desk-link-client': { createDeskLinkClient: () => ({ machines: async () => [], snapshot: async () => null, sessionEvents: async () => ({ ok: false }) }) },
+    './desk-link-service': { SESSION_LOG_MISSING: 'session-log-missing' },
     './hydra-mqtt': { createHydraSource: () => ({ snapshot() {} }) },
     './weread-source': { createWeReadSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unconfigured' }) }) },
+    './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }), snapshot: () => ({ status: 'unconfigured' }) }) },
+    './futu-source': { createFutuSource: () => ({ refreshServices: async () => {}, snapshot: () => ({ state: 'unconfigured' }) }), STALE_MS: 60000 },
     './app-manager-endpoint': { createAppManagerEndpoint: () => ({}) },
     './opencode-go': {},
     './camera-source': { createCameraSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unavailable' }) }) },
   }
   vm.runInNewContext(fs.readFileSync('src/main.js', 'utf8'), {
     require: (id) => modules[id] || require(id), process: { argv: [], env: {} },
-    module: { exports: {} }, __dirname: '/test', console, URLSearchParams,
+    module: { exports: {} }, __dirname: '/test', console, URLSearchParams, setInterval, clearInterval,
   })
   await new Promise(resolve => setImmediate(resolve))
   onRemoteMic()

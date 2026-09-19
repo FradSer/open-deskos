@@ -20,7 +20,12 @@ _Avoid_: adapting P4 serial commands as CM5 product interfaces.
 
 ## Language
 
-**User Application**:
+**Widget / App (unified)**:
+The single plugin model going forward. A Widget shares desktop grid pages with other tiles; an App owns an individual page. Any Widget or App may additionally provide a Service Plugin for its data needs. There is no separate User Application concept: previously installed user packages are read as Widgets/Apps under this unified model.
+_Avoid_: user application, built-in versus user plugin tiers, generated file equals installed app, arbitrary Shell plugin injection
+
+**Retired: User Application**:
+The former term for locally authored Widgets/Apps is retired and must not appear in new features, manifests, or docs. The unified Widget/App terms above replace it. The entries below (Application Candidate, Installed Revision) are retained only as lifecycle vocabulary until renamed under the unified model.
 A locally authored, versioned Widget or interactive App installed and managed by Open DeskOS. It is distinct from trusted built-in Shell plugins and from its editable draft.
 Widgets share desktop grid pages with built-in tiles; their persisted placement is independent of the installed revision. Interactive Apps own individual pages. There is no dedicated User Applications collection page.
 _Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
@@ -32,6 +37,16 @@ _Avoid_: agent self-certified installation, mutable installed workspace
 **Installed Revision**:
 The application version selected by the system catalog for presentation, independently of the Shell runtime release. Closing its interface does not uninstall it; uninstalling does not delete its draft.
 _Avoid_: running process, active Shell release, draft version
+
+## Service Plugins
+
+**Service Plugin**:
+A CM5-resident service provided by a plugin: it runs as an independent process with its own lifecycle and supplies data to the Display Shell. It is distinct from a User Application, which is an opaque HTML package with no background-service or network capability, and from built-in Shell data sources, which ship inside the Shell release.
+_Avoid_: user application with network access, built-in shell source, background process without a declared contract
+
+**Service Credential**:
+A named secret a Service Plugin declares, the shell collects through system-owned UI, the user authorizes once, and the vault injects into the service process by name at runtime. The value never enters the package, the release, or plugin-drawn interface.
+_Avoid_: secret in the package, plugin-drawn password field, operator-only provisioning file
 
 **Open DeskOS Workspace**:
 The shared writable project workspace used by Open DeskOS development and automation capabilities. Voice is one entry point into it, not its owner. It is distinct from the active runtime release and each agent's conversation history.
@@ -61,8 +76,8 @@ _Avoid_: simulated typing, tool logs, completion proof
 The measured strength of microphone audio during a Spoken Turn. It describes input activity, not whether the audio is speech or how much of a request is complete.
 _Avoid_: speech probability, processing progress, decorative waveform
 
-**Managed Coding Task**:
-An explicitly targeted Pi coding request owned by a configured CM5 or Mac host independently of voice feedback and control-connection lifetime. Its durable identity distinguishes acceptance, execution, termination, and verification. Closing voice feedback does not cancel it.
+**Retired: Managed Coding Task**:
+The former term for a Pi coding request owned by a configured CM5 or Mac host is retired and must not appear in new features, manifests, or docs. **Hosted Pi** replaces it; that entry keeps the durable identity, host ownership, and non-cancellation-by-disconnect properties this term carried.
 _Avoid_: monitored terminal session, accepted means completed, finished means tests passed
 
 **Coding Target**:
@@ -74,38 +89,100 @@ An installed action available to the Voice Agent, such as building a Widget/App 
 _Avoid_: keyword-only command routing, arbitrary renderer code execution
 
 **Controllable Pi Session**:
-A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed.
+A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed. A Hosted Pi is one such session; a Reported Session is not.
 _Avoid_: editing session history to inject a prompt, terminal keystroke simulation, treating observed processes as control endpoints
 
 ## Pi Sessions Inspection
 
-**Running Session**:
-A live Pi session whose process is alive. It is the unit the Session Switcher rotates through.
-_Avoid_: agent, running agent, active task, controllable session
+**Desk Link**:
+A package-initiated, token-authenticated connection from one Pi machine to one Open DeskOS runtime. It is the only channel through which that machine's Reported Sessions are known, and it never requires Open DeskOS to reach the machine. Control travels on this same connection and is gated by a Control Credential, never by the reporting token.
+_Avoid_: SSH source, collector, polling scan, Remote Bridge
+
+**Reporting Machine**:
+A machine with at least one live Desk Link. It is identified by its Desk Link, never by a network address or an SSH alias.
+_Avoid_: remote host, SSH alias, monitored source, client
+
+**Reported Session**:
+A Pi session that Open DeskOS knows only through a Desk Link. It is inspected exactly like a scanned session, and visibility through a Desk Link never implies that it can be managed.
+_Avoid_: remote session, SSH session, imported session, controllable session
+
+**Desk Link Service**:
+The Open DeskOS runtime service that accepts Desk Links. It listens on the local network only and authenticates every Desk Link with a per-link token; its channel to the runtime is a Unix socket authenticated by filesystem ownership instead.
+_Avoid_: bridge, gateway, ingest API, HTTP server
+
+**Live Session**:
+A Pi session whose process is still running, whether it is working or idle at its prompt. It is the only kind the Pi Sessions page shows; an exited session is history and never appears there.
+_Avoid_: running session, all sessions, reported session, active task
+
+**Working Session**:
+A live session that is streaming a turn. The page states it as `Working...` beside Pi's own braille indicator, and its Session Detail follows the newest event.
+_Avoid_: running session, busy agent, active task
+
+**Idle Session**:
+A live session that is not streaming and is waiting for input. The page states it as `Idle` with no indicator. Its reported status name is `settled`, which is a wire value and not product language.
+_Avoid_: settled session, stopped session, dead session
+
+**Exited Session**:
+A Pi session whose process has ended. It is not listed on the Pi Sessions page; its reported status survives only for the scanner, the status bar, and diagnosis.
+_Avoid_: finished task, historical session, completed session
 
 **Session Set**:
-The subset of Pi sessions currently selected by the Session Filter. It is the shared candidate set for the Session Switcher and the Session Overview. The Pi status-bar count is a separate, always-running reading and never follows the filter.
-_Avoid_: filtered list, active agents, candidate list
+The subset of Pi sessions the Session Filter currently selects. It is the shared candidate set for the Session Switcher and the Session Overview. The Pi status-bar count is a separate, always-running reading and never follows the filter.
+_Avoid_: filtered list, all sessions, active agents
 
 **Session Filter**:
-The Pi Sessions page's selection of which sessions the Session Set contains: All, Working, Settled, or Exited. It defaults to Working and does not survive a shell restart.
-_Avoid_: search, workspace grouping, status toggle, remote view mode
+The Session Overview's own narrowing of the Session Set: Live, Working, Idle, Exited, or All. It defaults to Live, which is running plus settled, so the page lands on started sessions and history waits behind the Exited tab. Its tabs live in the Session Overview only — the Session Detail carries none — and the Remote Control Strip carries one filter button whose label is the current filter and which advances to the next on press. It is transient and does not survive a shell restart.
+_Avoid_: page-wide status toggle, search, workspace grouping, remote view mode, tab bar on the Session Detail
 
 **Session Switcher**:
-The Pi Sessions page's horizontal movement between the members of the Session Set during App Focus Mode. It stops at the first and last member instead of wrapping, and it remembers its selection by session identity rather than position.
+The Pi Sessions page's movement between the members of the Session Set with Remote horizontal input. It stops at the first and last member instead of wrapping, and it remembers its selection by session identity rather than position.
 _Avoid_: carousel, tab switcher, session pager, agent switcher
 
+**Session Title**:
+The Pi Sessions page's title while a session is shown: the session's own Pi state and the directory it works in, with the elapsed label at the right of that row. There is no page title above it and no control beside it.
+_Avoid_: page heading, workspace name, banner
+
 **Session Detail**:
-The Pi Sessions page's single-session view: the selected session's identity plus its bounded stream of recent Session Events.
+The Pi Sessions page's single-session view: the session's own Pi state as the title, its directory, how long it has been running, and its bounded stream of recent Session Events.
 _Avoid_: log viewer, transcript, agent panel, terminal
 
 **Session Event**:
-One bounded single-line entry in a Session Detail stream, derived from the session's own message log. It reports that the session did something, never the body of a tool result.
-_Avoid_: transcript line, log record, tool output
+One bounded entry in a Session Detail stream, derived from the session's own message log or Desk Link. Every kind keeps the body Pi produced, with its own byte limit and an explicit truncation flag: a tool result 64 KiB, an assistant reply 16 KiB, a prompt 8 KiB, and a thought or tool call 4 KiB. Nothing is flattened to a single line, so a bash command, a prompt, and a result read as Pi wrote them. The recent stream retains at most 300 entries and 1 MiB of text per session.
+_Avoid_: complete transcript, unbounded log, first-line-only summary
+
+**Pi Reading Palette**:
+The colour roles Pi's own theme uses for Markdown, syntax, and diffs, reproduced inside Session Event bodies so a transcript reads on the desk the way it reads in Pi. It is scoped to quoted Pi content and never governs the page's own surfaces, which stay on the DESIGN.md semantic tokens.
+_Avoid_: brand palette, theme override, accent decoration
 
 **Session Overview**:
-The Pi Sessions page's grid of the current Session Set, opened from the Remote Control Strip. Choosing a cell returns to that session's Session Detail.
+The Pi Sessions page's home view: the Session Filter's tabs above a single-column list of the Session Set, reachable with Remote Back from a Session Detail. It follows Pi's native session-list hierarchy with a state, goal, directory, and activity per row, and a selection cursor, while inheriting the Shell theme. Choosing a row shows that session's Session Detail.
 _Avoid_: honeycomb, exposé, agent grid, tab overview, dashboard
+
+## Hosted Pi Control
+
+**Hosted Pi**:
+A Pi coding session hosted by the Open DeskOS runtime and driven from another machine through a Console. It has a durable identity, keeps running when its Console disconnects, and publishes its own bounded event stream.
+_Avoid_: managed coding task, remote session, terminal window, monitored session, Reported Session
+
+**Console**:
+A Pi session on another machine that has attached to one Hosted Pi and directs its turns. One Console drives one Hosted Pi at a time.
+_Avoid_: remote, controller, Remote Control, Remote Bridge, client
+
+**Control Link**:
+The control side of an existing Desk Link: the authenticated path over which a Console launches Hosted Pi sessions, sends them prompts, cancels them, and receives their events. It is not a second connection, and a reporting-only link never carries it.
+_Avoid_: Remote Link, SSH source, second port, admin API, management API
+
+**Control Credential**:
+The secret that authorizes control on a Desk Link, held separately from the reporting token. A link that presents only the reporting token stays report-only, and a machine without a Control Credential never becomes a Console.
+_Avoid_: link token, reporting token, Service Credential, admin password
+
+**Attach**:
+A Console binding to one Hosted Pi to receive its events and direct its turns. Attaching replaces rather than shares any previous Console, is idempotent, and is repeatable by Hosted Pi identity; a replayed stream never repeats an event.
+_Avoid_: takeover, subscribe, connect, share a session, exclusive lease
+
+**Control Attribution**:
+The desk-visible statement of which Console currently drives a Hosted Pi. It stays visible for as long as that control exists and disappears when the Console disconnects; it never takes local touch or keyboard authority away.
+_Avoid_: hidden remote, silent control, local lockout, invisible driver
 
 ## P4 Camera Peripheral
 
@@ -192,3 +269,7 @@ _Avoid_: USB-only architecture, full wireless delivery
 **Remote Message**:
 A versioned JSON Lines command or state record shared across wired and wireless Remote Link adapters. In wired operation, HID alone requests navigation and CDC carries authoritative state; in wireless operation, `navigate` records request Display Shell navigation through Remote Bridge rather than keyboard emulation.
 _Avoid_: transport-specific payload, unversioned serial text
+
+**Mali Userspace**:
+The ARM libmali blob plus CSF firmware installed by `scripts/cm5-gpu-userspace.sh`, which lets the kernel's existing Rockchip kbase driver run the Mali-G610 through the vendor X11/GBM EGL platform. Its presence selects the Mali Chromium backend: ANGLE pinned to gles-egl with software display compositing, because the blob loses its GPU context when Chromium swaps an X11 window surface.
+_Avoid_: expecting Mesa to drive this GPU on this kernel, claiming GPU display compositing, treating llvmpipe as the accelerated path

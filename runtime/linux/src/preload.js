@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('odkPlatform', {
   getPiSessionEvents: (request) => ipcRenderer.invoke('odk-pi-session-events', request),
   getHydraStatus: () => ipcRenderer.invoke('odk-hydra-status'),
   getWeReadHighlight: () => ipcRenderer.invoke('odk-weread-highlight'),
+  getFutuHoldings: (request) => ipcRenderer.invoke('odk-futu-holdings', request),
+  getWeatherStatus: (request) => ipcRenderer.invoke('odk-weather-status', request),
   listApps: () => ipcRenderer.invoke('odk-app-manager-list'),
   getAppState: (appId) => ipcRenderer.invoke('odk-app-manager-state', appId),
   dispatchIntent: (intent) => ipcRenderer.invoke('odk-app-manager-intent', intent),

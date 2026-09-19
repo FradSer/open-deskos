@@ -32,11 +32,9 @@
   .app-surface-card,
   .button-pill,
   .dot,
-  .pi-detail-overview-btn,
   .pi-overview-cell,
   .pi-filter-btn,
   .app-search,
-  .pi-status-badge,
   .widget-glance-badge,
   .meter,
   .meter-fill,
@@ -202,11 +200,11 @@
 }
 
 /* Pixel buttons with retro 3D bevel / hard shadow */
-[data-theme='pixel'] :is(.button-pill, .pi-filter-btn.active, .pi-detail-overview-btn) {
+[data-theme='pixel'] .button-pill {
   box-shadow: 2px 2px 0px var(--odk-button), -1px -1px 0px var(--odk-stroke) !important;
 }
 
-[data-theme='pixel'] :is(.button-pill:active, .pi-detail-overview-btn:active) {
+[data-theme='pixel'] .button-pill:active {
   transform: translate(1px, 1px) !important;
   box-shadow: 1px 1px 0px var(--odk-button) !important;
 }
@@ -290,4 +288,31 @@
 
 [data-theme='pixel'] .w-weread .weread-text {
   line-height: 1.35;
+}
+
+/* Zpix's narrower digits can carry a larger primary reading. CSS grid snapping
+   follows resize and theme changes immediately, without a timer or inline sizes. */
+[data-theme='pixel'] .w-weather-content {
+  --w-weather-reading: 38cqi;
+  --w-weather-glyph: round(nearest, clamp(48px, 24cqi, 72px), 24px);
+}
+
+[data-theme='pixel'] .w-weather-value,
+[data-theme='pixel'] .w-weather-range {
+  letter-spacing: normal;
+}
+
+[data-theme='pixel'] .w-weather-value {
+  line-height: 1.2;
+}
+
+[data-theme='pixel'] .w-weather-glyph {
+  width: max(24px, round(down, min(var(--w-weather-glyph), 100cqb), 24px));
+  height: max(24px, round(down, min(var(--w-weather-glyph), 100cqb), 24px));
+}
+
+@container (max-width: 200px) {
+  [data-theme='pixel'] .w-weather-content {
+    --w-weather-reading: 32cqi;
+  }
 }

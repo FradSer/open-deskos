@@ -80,10 +80,10 @@ const DRIVER_SCRIPT = `
   out.noUserAppsPage = !document.querySelector('.user-apps') && window.DESKTOP_LAYOUT.pages.every(page => page.id !== 'user-apps')
   out.pageContext = text('#page-context')
   out.surfaceSeparation =
-    document.querySelector('#pages-track .page[data-page="1"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page="2"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page="3"]')?.dataset.surface === 'app' &&
-    document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app'
+    document.querySelector('#pages-track .page[data-page-id="home"]')?.dataset.surface === 'display' &&
+    document.querySelector('#pages-track .page[data-page-id="today"]')?.dataset.surface === 'display' &&
+    document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.dataset.surface === 'app' &&
+    document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app'
   out.fontsLoaded = document.fonts.check('400 20px Zpix') || (document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"'))
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test(text('.sb-time'))
@@ -190,8 +190,10 @@ const DRIVER_SCRIPT = `
   out.gridFlushEdges =
     gridRect.left >= gridPageRect.left - 2 &&
     gridRect.right <= gridPageRect.right + 2
-  const piAppRect = document.querySelector('#pages-track .page[data-page="3"] .pi-app-wrapper').getBoundingClientRect()
-  const quotaCardRect = document.querySelector('#pages-track .page[data-page="4"] .quota-card').getBoundingClientRect()
+  // Pages are addressed by layout id: inserting a display page must not retarget a
+  // positional selector onto the wrong surface (see tests/helpers/pages.js).
+  const piAppRect = document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-app-wrapper').getBoundingClientRect()
+  const quotaCardRect = document.querySelector('#pages-track .page[data-page-id="quota"] .quota-card').getBoundingClientRect()
   const appSurfaceWidth = Math.min(metrics.gridW, window.innerWidth)
   out.appSurfacesMatchGridFootprint =
     approx(piAppRect.width, appSurfaceWidth) &&
@@ -203,7 +205,7 @@ const DRIVER_SCRIPT = `
     const border = getComputedStyle(card)
     return before.content === 'none' && Number.parseFloat(border.borderLeftWidth) <= 3
   })
-  const appTextSelectors = '.pi-goal-text, .pi-event-text, .widget-status-detail'
+  const appTextSelectors = '.pi-goal-text, .pi-activity-text, .pi-event-text, .widget-status-detail'
   out.essentialTextDoesNotUseEllipsis = [...document.querySelectorAll(appTextSelectors)].every((el) => {
     const style = getComputedStyle(el)
     return style.textOverflow !== 'ellipsis' && style.whiteSpace !== 'nowrap'
@@ -230,16 +232,17 @@ const DRIVER_SCRIPT = `
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const pageIndex = (index) => document.querySelectorAll('#dots .dot')[index].click()
+  const jumpToPage = (id) => document.querySelectorAll('#dots .dot')[window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === id)].click()
   pageIndex(0)
   await new Promise((resolve) => setTimeout(resolve, 300))
   window.odkRemote.subscribeInput((input) => {})
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'up' }))
   out.remoteDisplayPageIgnoresVerticalInput = document.querySelectorAll('#dots .dot')[0].classList.contains('active')
-  pageIndex(3)
+  jumpToPage('pi-sessions')
   await new Promise((resolve) => setTimeout(resolve, 300))
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))
   await new Promise((resolve) => setTimeout(resolve, 20))
-  out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page="3"]')?.contains(document.activeElement)
+  out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.contains(document.activeElement)
   const pageBeforeFocusMove = text('#page-context')
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'right' }))
   out.remoteAppDirectionStaysOnPage = text('#page-context') === pageBeforeFocusMove
@@ -317,51 +320,93 @@ const DRIVER_SCRIPT = `
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
   out.thirdPageContext = text('#page-context') === 'Reading · 3/5'
-  const piPage = document.querySelector('#pages-track .page[data-page="3"]')
+  const piPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
   out.piPageIsInteractiveAppSurface =
     piPage?.dataset.surface === 'app' &&
     Boolean(piPage.querySelector('.pi-app-wrapper'))
   out.piPageHasAppControls =
     Boolean(piPage?.querySelector('#pi-detail')) &&
-    Boolean(piPage?.querySelector('.pi-detail-overview-btn')) &&
-    Boolean(piPage?.querySelector('.pi-filter-btn'))
+    Boolean(piPage?.querySelector('#pi-overview')) &&
+    Boolean(piPage?.querySelector('#pi-overview-filters')) &&
+    Boolean(piPage?.querySelector('.pi-overview-list'))
   out.piPageRemovedListControls =
     piPage?.querySelector('#pi-search-input') === null &&
     piPage?.querySelector('#pi-refresh-btn') === null &&
     piPage?.querySelector('#pi-view-toggle') === null &&
     piPage?.querySelector('#pi-source-label') === null &&
     piPage?.querySelector('.pi-session-card') === null &&
-    piPage?.querySelector('.pi-metric-pill') === null
-  out.piPageShowsSingleSession =
-    piPage?.querySelectorAll('#pi-detail .pi-status-badge').length === 1 &&
-    Boolean(piPage?.querySelector('.pi-detail-identity .pi-ws-title'))
+    piPage?.querySelector('.pi-metric-pill') === null &&
+    piPage?.querySelector('.pi-filter-group') === null &&
+    piPage?.querySelector('.pi-overview-open') === null &&
+    piPage?.querySelector('.pi-session-step') === null &&
+    piPage?.querySelector('.pi-overview-close') === null &&
+    piPage?.querySelector('.pi-status-badge') === null &&
+    piPage?.querySelector('.pi-ws-title') === null &&
+    piPage?.querySelector('.pi-detail-position') === null &&
+    piPage?.querySelector('#pi-overview-summary') === null &&
+    piPage?.querySelector('.pi-overview-grid') === null &&
+    piPage?.querySelector('.pi-overview-name') === null
+  out.piPageLandsOnTheLiveList =
+    piPage?.querySelector('#pi-overview')?.hidden === false &&
+    piPage?.querySelector('#pi-detail')?.inert === true &&
+    piPage?.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
+    piPage?.querySelector('.pi-overview-cell.is-selected[data-page-focus]') !== null
+  // The Session Overview owns the Session Filter; the Session Detail never does.
+  out.piPageOwnsTheSessionFilter =
+    piPage?.querySelector('#pi-overview-filters[role="group"][aria-label="Session status filter"]') !== null &&
+    [...piPage.querySelectorAll('#pi-overview-filters .pi-filter-btn')].map(button => button.dataset.filter).join(',') === 'live,working,idle,exited,all' &&
+    piPage.querySelector('.pi-filter-btn.active')?.dataset.filter === 'live' &&
+    piPage.querySelector('.pi-filter-btn.active').getAttribute('aria-pressed') === 'true' &&
+    [...piPage.querySelectorAll('.pi-filter-btn')].every(button => /^(\d+|--)$/.test(button.querySelector('.pi-filter-count').textContent)) &&
+    piPage.querySelector('#pi-detail .pi-filter-btn') === null
+  out.piPageFilterNarrowsTheList = (() => {
+    const live = piPage.querySelectorAll('.pi-overview-cell').length
+    piPage.querySelector('.pi-filter-btn[data-filter="working"]').click()
+    const working = piPage.querySelectorAll('.pi-overview-cell').length
+    piPage.querySelector('.pi-filter-btn[data-filter="exited"]').click()
+    const exited = piPage.querySelectorAll('.pi-overview-cell').length
+    piPage.querySelector('.pi-filter-btn[data-filter="live"]').click()
+    const restored = piPage.querySelectorAll('.pi-overview-cell').length
+    return live >= 1 && working >= 1 && working < live && exited === 0 && restored === live &&
+      piPage.querySelector('.pi-filter-btn[data-filter="live"]').getAttribute('aria-pressed') === 'true'
+  })()
+  // The live list is the page's home, and every row states its own Pi state and
+  // directory; the Session Detail never carries a session control.
+  out.piPageShowsLiveStateAndDirectory = (() => {
+    const cells = [...piPage.querySelectorAll('.pi-overview-cell')]
+    const selected = piPage.querySelector('.pi-overview-cell.is-selected')
+    return cells.length >= 1 &&
+      cells.every(cell => /^(Working\.\.\.|Idle|Exited)$/.test(cell.querySelector('.pi-overview-state .pi-state-text').textContent.trim())) &&
+      Boolean(selected) &&
+      (selected.querySelector('.pi-overview-path').textContent || '').includes('/')
+  })()
   const piPageText = piPage?.textContent || ''
   out.piPageRendersSessionDetails =
     !piPageText.includes('PID 4102') &&
-    piPageText.includes('Refactor the desk UI') &&
+    piPageText.includes('Refactor the desk UI layout') &&
     !piPageText.includes('metadata unavailable') &&
-    !piPageText.includes('automation') &&
-    /\\d+[mh] elapsed/.test(piPageText)
+    !piPageText.includes('automation')
   out.piFilesOmittedForCompactness = piPage?.querySelector('.pi-files-toggle') === null
-  out.piOverviewIsReachableWithoutRemote = (() => {
-    piPage.querySelector('.pi-detail-overview-btn').click()
-    const overview = piPage.querySelector('#pi-overview')
-    const opened = overview.hidden === false && piPage.querySelector('#pi-detail').hidden === true
-    piPage.querySelector('.pi-overview-cell')?.click()
-    return opened && overview.hidden === true && piPage.querySelector('#pi-detail').hidden === false
-  })()
-  out.piFilterIsInteractive = (() => {
-    const workingFilter = piPage.querySelector('.pi-filter-btn[data-filter="working"]')
-    workingFilter.click()
-    return workingFilter.classList.contains('active') && workingFilter.getAttribute('aria-pressed') === 'true'
+  out.piOverviewOpensTheDetailWithoutRemote = (() => {
+    const cell = piPage.querySelector('.pi-overview-cell')
+    cell.click()
+    const detail = piPage.querySelector('#pi-detail')
+    const opened = piPage.querySelector('#pi-overview').hidden === true && detail.inert === false &&
+      /^(Working\.\.\.|Idle)$/.test(piPage.querySelector('#pi-title-text').textContent) &&
+      piPage.querySelector('#pi-view-subtitle').textContent.includes('/') &&
+      /elapsed/.test(piPage.querySelector('#pi-view-facts').textContent) &&
+      piPage.querySelector('#pi-detail .pi-filter-btn') === null
+    // The page's own primary input returns to the live list.
+    piPage.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))
+    return opened && piPage.querySelector('#pi-overview').hidden === false && detail.inert === true
   })()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
   out.arrowLeftReturnsToGrid = text('#page-context') === 'Home · 2/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
   out.endJumpsToUsage = text('#page-context') === 'Usage · 5/5'
   out.usageIsInteractiveAppSurface =
-    document.querySelector('#pages-track .page[data-page="4"]')?.dataset.surface === 'app' &&
-    Boolean(document.querySelector('#pages-track .page[data-page="4"] #quota-refresh'))
+    document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app' &&
+    Boolean(document.querySelector('#pages-track .page[data-page-id="quota"] #quota-refresh'))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
   out.homeJumpsToToday = text('#page-context') === 'Today · 1/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
@@ -377,7 +422,7 @@ const DRIVER_SCRIPT = `
   out.quotaHelpRemoved = $('#quota-help') === null
   out.quotaCheckedVisible = text('#quota-checked').includes('Last checked')
   out.quotaHasNoFabricatedUsage = !$('#quota-metrics .provider-quota-card, #quota-metrics [role="meter"]') && !/\\d+%/.test(text('#quota-metrics'))
-  out.quotaMetricsAreLabeled = $('#quota-metrics').classList.contains('provider-quota-grid') && $('#quota-metrics').getAttribute('role') === 'status' && $('#quota-metrics').getAttribute('aria-live') === 'polite'
+  out.quotaMetricsAreLabeled = $('#quota-metrics').classList.contains('provider-quota-grid') && $('#quota-feedback').getAttribute('role') === 'status' && $('#quota-feedback').getAttribute('aria-live') === 'polite'
   $('#quota-refresh').click()
   out.quotaRefreshPreservesTruth = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
   out.quotaRefreshShowsCheck = text('#quota-checked').includes('Last checked')
@@ -502,7 +547,7 @@ function check(results) {
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
-    ['Pi Sessions is a direct single-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageShowsSingleSession && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewIsReachableWithoutRemote && results.piFilterIsInteractive],
+    ['Pi Sessions is a direct live-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar stays concise after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsRemoved],
@@ -569,17 +614,25 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
-    await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[3].click()", true)
+    await win.webContents.executeJavaScript(`(() => {
+      const index = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      document.querySelectorAll('#dots .dot')[index].click()
+    })()`, true)
     await new Promise((resolve) => setTimeout(resolve, 350))
     const piProbe = await win.webContents.executeJavaScript(`(() => {
-      const page = document.querySelector('#pages-track .page[data-page="3"]')
+      const page = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
       const pageRect = page.getBoundingClientRect()
-      const controls = [...page.querySelectorAll('#pi-detail, .pi-filter-group')]
+      const controls = [...page.querySelectorAll('#pi-detail, #pi-overview')]
       const inside = (rect, parent) => rect.left >= parent.left - 1 && rect.right <= parent.right + 1
       return {
         controlsPresent: controls.length === 2,
         controlsInside: controls.every((control) => inside(control.getBoundingClientRect(), pageRect)),
-        filterButtonsInside: [...page.querySelectorAll('.pi-filter-btn')].every((button) => inside(button.getBoundingClientRect(), page.querySelector('.pi-filter-group').getBoundingClientRect())),
+        rowsInside: [...page.querySelectorAll('.pi-overview-cell')].every((cell) => inside(cell.getBoundingClientRect(), pageRect)),
+        filtersInside: [...page.querySelectorAll('.pi-filter-btn')].every((button) => {
+          const group = button.closest('.pi-overview-filters')
+          return group !== null && inside(button.getBoundingClientRect(), group.getBoundingClientRect())
+        }),
+        retiredControlsAbsent: page.querySelectorAll('.pi-filter-group, .pi-overview-open, .pi-session-step').length === 0,
       }
     })()`, true)
     await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
@@ -587,7 +640,7 @@ async function runGeometrySweep(win) {
     const checks = [
       ['all widgets horizontally contained and vertically reachable', probe.widgetsTotal > 0 && probe.widgetsInside === probe.widgetsTotal],
       ['State Bar summary remains removed', probe.stateSummaryRemoved],
-      ['Pi App controls wrap inside the scrollable portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.filterButtonsInside],
+      ['Pi App controls wrap inside the scrollable portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.rowsInside && piProbe.filtersInside && piProbe.retiredControlsAbsent],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
       ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).cols],
@@ -711,6 +764,8 @@ async function main() {
     return appManager.list()
   })
   ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+  ipcMain.handle('odk-futu-holdings', () => ({ state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [ { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 }, { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 }, { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] }, updatedAt: Date.now() }))
+  ipcMain.handle('odk-weather-status', () => ({ status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }))
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'fixture does not install applications' }))
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
@@ -739,6 +794,7 @@ async function main() {
       sandbox: true,
       preload: path.join(APP_ROOT, 'src', 'preload.js'),
       backgroundThrottling: false,
+      offscreen: true,
     },
   })
 
@@ -754,6 +810,10 @@ async function main() {
   win.focus()
   win.webContents.focus()
   await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
+  // Hidden headless windows may be born at 1x1 before their first layout.
+  // Set the intended content size after loading, as the geometry sweep does.
+  win.setContentSize(1920, 1280)
+  await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
   let results
   try {
     results = await win.webContents.executeJavaScript(DRIVER_SCRIPT, true)

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, except the title-row decision, which ADR-0007 supersedes.
 
 ## Context
 
@@ -10,7 +10,7 @@ The Pi Sessions page was a multi-session monitor: a search field, a Refresh butt
 
 ## Decision
 
-- The Pi Sessions page renders one Session Detail at a time. Its title row carries the title and nothing else: no search field, no Refresh button, no metric pills, no workspace-grouping toggle, no status filter group, and no data-source label under the title.
+- The Pi Sessions page renders one Session Detail at a time. Its title row carries no search field, no Refresh button, no metric pills, no workspace-grouping toggle, and no data-source label under the title. _(Superseded by ADR-0007: the title row does carry the global session controls.)_
 - The Session Filter owns the Session Set that the Session Switcher and the Session Overview share. It defaults to Working and is transient — it does not survive a shell restart.
 - The Pi status-bar indicator keeps reporting Running Sessions regardless of the Session Filter: a persistent system indicator must not change meaning with a transient page filter.
 - The Remote Control Strip carries two Pi Sessions buttons: one Session Filter button whose label is the current filter value and which advances to the next filter on press, and one Session Overview button that opens the grid.
@@ -29,6 +29,6 @@ The Pi Sessions page was a multi-session monitor: a search field, a Refresh butt
 
 ## Considered options
 
-- Keeping the filter group on the screen title row was rejected because it contradicts the single-session view and duplicates a state the Remote Control already publishes.
+- Keeping the filter group on the screen title row was rejected because it contradicts the single-session view and duplicates a state the Remote Control already publishes. **Reversed by ADR-0007** after the running page showed that a two-step, hidden filter cost more than the duplicated state.
 - Rendering the Session Overview on the 240x320 Remote Control was rejected: a grid cell would be roughly 50x40 pixels and unreadable.
 - Carrying each session's events inside the regular scan result was rejected: it would read every session log on every poll for surfaces that never display events.

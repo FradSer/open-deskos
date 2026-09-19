@@ -33,6 +33,30 @@ test('mounts placed widgets without touching built-ins and reconciles only chang
   apps = []; env.change(); await tick(); assert.equal(env.disposed.length, 2)
   env.controller.dispose()
 })
+test('a widget whose cell was taken by a built-in tile is not mounted', async () => {
+  const conflicted = { ...widget(), placementError: 'occupied-placement' }
+  const env = setup(async () => ({ ok: true, apps: [conflicted, widget('r2', 'reading')] }))
+  await tick()
+  assert.equal(env.mounted.length, 1, 'only the widget with a free cell mounts')
+  assert.equal(env.mounted[0].revision, 'r2')
+  assert.match(env.status.textContent, /its desktop cell is now a built-in tile/)
+  assert.match(env.status.textContent, /move or remove the widget/)
+  assert.match(env.status.textContent, /<Note>/)
+  assert.equal(env.status.dataset.state, 'placement-error')
+  env.controller.dispose()
+})
+
+test('a full desktop and a taken cell are named differently', async () => {
+  const full = setup(async () => ({ ok: true, apps: [{ ...widget(), placementError: 'desktop-full' }] }))
+  await tick()
+  assert.match(full.status.textContent, /there is no free desktop cell/)
+  full.controller.dispose()
+  const generic = setup(async () => ({ ok: true, apps: [{ ...widget(), placementError: 'unavailable-page' }] }))
+  await tick()
+  assert.match(generic.status.textContent, /desktop placement unavailable/)
+  generic.controller.dispose()
+})
+
 test('newer catalog wins and failure preserves existing frames with truthful stale status', async () => {
   const pending = []; const env = setup(() => new Promise(resolve => pending.push(resolve)))
   env.change(); pending[1]({ ok: true, apps: [widget('new')] }); await tick(); pending[0]({ ok: true, apps: [widget('old')] }); await tick()
@@ -56,7 +80,7 @@ test('reports unplaced widgets while still rendering placed widgets', async () =
   await tick()
   assert.equal(env.mounted.length, 1)
   assert.equal(env.status.dataset.state, 'placement-error')
-  assert.match(env.status.textContent, /Overflow.*placement/i)
+  assert.match(env.status.textContent, /Overflow.*no free desktop cell/i)
   assert.equal(env.status.hidden, false)
   env.controller.dispose()
 })

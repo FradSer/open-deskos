@@ -6,10 +6,14 @@ import { record } from './recorder.mjs'
 import { transcribe, transcriptionLanguage, transcriptionPrompt, isLoopbackUrl } from './transcribe.mjs'
 import { VoiceService } from './service.mjs'
 import { listen } from './socket.mjs'
+import { loadPersonalConfig } from './personal-config.mjs'
+import { rideNotification } from './ride-notification.mjs'
 
-async function initialize(env, report) {
+async function initialize(env, report, onRideUpdate) {
+  report('Check ODESK_VOICE_AGENT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
+  const personal = await loadPersonalConfig(env)
   report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
-  if (!env.ODESK_WORKSPACE) throw Error('Workspace missing')
+  if (personal.profile === 'coding' && !env.ODESK_WORKSPACE) throw Error('Workspace missing')
   report('Set ODESK_VOICE_STT_KEY_FILE to a readable credential file; restart service')
   if (!env.ODESK_VOICE_STT_KEY_FILE) throw Error('Credential missing')
   await access(env.ODESK_VOICE_STT_KEY_FILE)
@@ -26,7 +30,8 @@ async function initialize(env, report) {
     workspace: env.ODESK_WORKSPACE,
     stateDir: join(env.XDG_STATE_HOME || join(homedir(), '.local/state'), 'open-deskos-voice'),
     model: env.ODESK_VOICE_MODEL,
-    capabilityPaths: env.ODESK_VOICE_CAPABILITIES ? JSON.parse(env.ODESK_VOICE_CAPABILITIES) : [],
+    capabilityPaths: personal.profile === 'coding' && env.ODESK_VOICE_CAPABILITIES ? JSON.parse(env.ODESK_VOICE_CAPABILITIES) : [],
+    personal, onRideUpdate,
   })
   return { agent, stt: { url: url.href, model: env.ODESK_VOICE_STT_MODEL || 'whisper-1', keyFile: env.ODESK_VOICE_STT_KEY_FILE, language, prompt } }
 }
@@ -38,6 +43,7 @@ async function main() {
   const directory = join(env.XDG_RUNTIME_DIR, 'open-deskos-voice')
   let runtime
   const service = new VoiceService({
+    failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
     record: async onLevel => {
       if (!runtime) throw Error('Configuration incomplete')
       return record(directory, env.ODESK_VOICE_AUDIO_DEVICE || 'default', onLevel)
@@ -59,12 +65,15 @@ async function main() {
     await server.close()
     await runtime?.agent.abort()
     await service.close()
-    runtime?.agent.close()
+    await runtime?.agent.close()
   }
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void close().catch(() => { process.exitCode = 1 }) })
   try {
-    runtime = await initialize(env, message => service.setState('error', message))
-    if (closing) runtime.agent.close()
+    runtime = await initialize(env, message => service.setState('error', message), snapshot => {
+      const message = rideNotification(snapshot)
+      if (message) service.notify(message)
+    })
+    if (closing) await runtime.agent.close()
     else service.setState('idle')
   } catch {
     // Keep the safe, actionable initialization-stage message; never expose SDK errors.

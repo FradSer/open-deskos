@@ -4,8 +4,9 @@ const path = require('node:path')
 const os = require('node:os')
 const assert = require('node:assert/strict')
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
+const { USER_APP_SCHEME_PRIVILEGES } = require('../src/user-app-system')
 const { createUserAppStore } = require('../src/user-app-store')
-protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: { standard: true, secure: true } }])
+protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 let win
 let profile
 let apps = []
@@ -27,6 +28,7 @@ for (const [channel, value] of Object.entries({
   'odk-opencode-go-status': { state: 'unconfigured' }, 'odk-pi-sessions': { summary: { running: 0 }, sessions: [] },
   'odk-hydra-status': { configured: false, connected: false, nodes: [] }, 'odk-weread-highlight': { status: 'unconfigured' },
   'odk-remote-publish-page-state': true, 'odk-camera-frame': { state: 'unavailable' },
+  'odk-weather-status': { status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: 'ODK_WEATHER_LAT', error: null },
 })) ipcMain.handle(channel, () => value)
 ipcMain.handle('odk-user-apps-list', () => failure ? { ok: false, error: 'offline' } : { ok: true, apps })
 const deadline = setTimeout(() => { console.error('USER_APP_DESKTOP_TIMEOUT'); app.exit(1) }, 30000)

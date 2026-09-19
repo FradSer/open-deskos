@@ -6,8 +6,13 @@ const { createUserAppControl, listenUserAppControl } = require('./user-app-contr
 const { createUserAppResponse } = require('./user-app-protocol')
 const { buildUserAppDocument, USER_APP_CSP } = require('./user-app-content')
 
+// supportFetchAPI + corsEnabled are what let a sandboxed frame (opaque origin) load the
+// appearance fonts this process serves; without them every font request is a network
+// error rather than a CORS-checked read.
+const USER_APP_SCHEME_PRIVILEGES = { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
+
 function registerUserAppScheme(protocol) {
-  protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: { standard: true, secure: true } }])
+  protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 }
 
 async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false }) {
@@ -31,4 +36,4 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   }
 }
 
-module.exports = { registerUserAppScheme, startUserAppSystem }
+module.exports = { registerUserAppScheme, startUserAppSystem, USER_APP_SCHEME_PRIVILEGES }

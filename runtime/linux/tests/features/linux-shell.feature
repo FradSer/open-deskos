@@ -200,6 +200,7 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     Then the tile shows the latest captured frame with its capture time
     And it refreshes the frame on a bounded interval without blocking shell input
     And a missing camera or failed capture renders a truthful unavailable state instead of a frame
+    And the tile keeps its framing marks and stays a filled instrument with or without a frame
 
   Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
     Given an ESP32-P4 sub-device runs the SC2336 camera firmware
@@ -371,3 +372,11 @@ Feature: Open DeskOS Linux 外壳(CM5 Electron 切片)
     And the listed page plugin is skipped and pagination counts only the built pages
     And plugin ids that are not declared are ignored
     And with no parameter set the shell builds the full declared layout
+
+  Scenario: Holdings tile shows the day ratio or an honest state
+    Given the futu-poller service is declared
+    When the Reading page mounts the Holdings tile
+    Then a live snapshot renders the signed day ratio with Today as its detail
+    And a missing service renders Not configured without numbers
+    And a missing trade unlock renders Trade unlock needed without numbers
+    And a failed poll renders Holdings unavailable without numbers

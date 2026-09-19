@@ -92,10 +92,10 @@ test('oversize transcription prompts fail startup with safe guidance', async t =
 
 test('main wires validated transcription context including empty opt-out', async () => {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
-  const initializeSource = source.match(/async function initialize\(env, report\) \{[\s\S]*?\n\}/)[0]
+  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate\) \{[\s\S]*?\n\}/)[0]
   const { transcriptionLanguage, transcriptionPrompt } = await import('../src/transcribe.mjs')
-  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', `return (${initializeSource})`)(
-    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt,
+  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', 'loadPersonalConfig', `return (${initializeSource})`)(
+    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt, async () => ({ profile: 'coding' }),
   )
   for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
     const runtime = await initialize({

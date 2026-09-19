@@ -1102,18 +1102,41 @@ body.kiosk {
   gap: calc(var(--cell-dim) * 0.035);
 }
 
-.w-camera-frame {
-  width: 100%;
-  height: 100%;
+/* The framing marks are the instrument: they stay whether or not a frame has
+   arrived, and the state line below says truthfully which of the two it is. */
+.w-camera-figure {
+  position: relative;
   flex: 1;
   min-height: 0;
-  object-fit: cover;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--odk-stroke);
   border-radius: calc(var(--radius) * 0.5);
-  background: #000;
+  background: var(--odk-bg);
+}
+
+.w-camera-frame {
+  position: absolute;
+  inset: 0;
+  /* The frame is content beneath the marks, not above them: a positioned
+     element paints over a static sibling, which hid the viewfinder. */
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .w-camera-frame[hidden] {
   display: none;
+}
+
+.w-camera-marks {
+  position: relative;
+  z-index: 1;
+  width: 76%;
+  height: 76%;
+  color: var(--odk-secondary-strong);
 }
 
 /* Pomodoro keeps its state above a proportionate, static focus dial. */
@@ -1825,70 +1848,91 @@ body.kiosk {
   text-align: left;
 }
 
-.pi-filter-group {
-  display: flex;
-  align-items: center;
-  height: var(--odk-status-control-h);
-  padding: 0 3px;
-  gap: 3px;
-  background: var(--odk-elevated);
-  border-radius: 999px;
-  border: 1px solid var(--odk-stroke);
-  box-sizing: border-box;
-}
-
-.pi-filter-btn {
-  appearance: none;
-  background: transparent;
-  border: none;
-  color: var(--odk-secondary-strong);
-  height: 36px;
-  padding: 0 16px;
-  font-family: "Montserrat", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  white-space: nowrap;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .pi-filter-btn:hover {
-    color: var(--odk-primary);
-  }
-}
-
-.pi-filter-btn.active {
-  background: var(--odk-button);
-  color: var(--odk-primary);
-}
-
-.pi-filter-btn:focus-visible {
-  outline: 2px solid var(--odk-stroke-focus);
-  outline-offset: 2px;
-}
-
+/* The Pi Sessions page states the live Pi state and nothing else: no page
+   title, no filter tabs, and no session-switching controls. The state line is
+   the title, so these are the roles this row styles. */
 .pi-app-header {
   align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--odk-space-2) var(--odk-space-3);
+  flex-wrap: wrap;
 }
 
 .pi-app-header .app-surface-heading {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Pi's own working indicator: a braille frame beside the state Pi reports. The
+   frame is decorative, so it never enters the heading's accessible name. */
+.pi-app-header h1 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--odk-space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pi-spinner {
+  flex: none;
+  font-family: monospace;
+  color: var(--odk-accent-green);
+}
+
+.pi-spinner[hidden] {
+  display: none;
+}
+
+/* The session's own reading sits in the title row, at its right edge. */
+.pi-view-facts {
+  margin: 0;
+  flex: none;
+  font-family: "Montserrat", sans-serif;
+  font-size: var(--odk-text-label);
+  font-weight: 700;
+  color: var(--odk-secondary-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pi-view-facts:empty {
+  display: none;
+}
+
+.pi-view-subtitle {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: var(--odk-text-label);
+  color: var(--odk-secondary-strong);
+  overflow-wrap: anywhere;
 }
 
 /* ---- Session Detail: one session at a time ---- */
 
+.pi-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
 .pi-detail {
   display: flex;
   flex-direction: column;
-  gap: var(--odk-space-2);
+  gap: var(--odk-space-4);
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding: 4px 8px 8px 4px;
+}
+
+.pi-detail.is-following {
+  overflow-y: scroll;
+  scroll-behavior: auto;
 }
 
 .pi-detail:focus-visible {
@@ -1899,109 +1943,64 @@ body.kiosk {
 .pi-detail-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--odk-space-3);
   min-width: 0;
-}
-
-.pi-detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--odk-stroke);
-}
-
-.pi-detail-identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.pi-detail-position {
-  font-family: "Montserrat", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-  font-variant-numeric: tabular-nums;
-}
-
-.pi-ws-title {
-  font-family: "Montserrat", sans-serif;
-  font-weight: 700;
-  font-size: var(--odk-text-body);
-  color: var(--odk-primary);
-  overflow-wrap: anywhere;
-}
-
-.pi-detail-overview-btn {
-  appearance: none;
-  border: 1px solid var(--odk-stroke);
-  border-radius: var(--odk-radius-pill);
-  background: var(--odk-elevated);
-  color: var(--odk-secondary-strong);
-  min-height: 44px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-family: "Montserrat", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  white-space: nowrap;
   flex: none;
-  transition: background 140ms ease, color 140ms ease;
-}
-
-.pi-detail-overview-btn:focus-visible {
-  outline: 2px solid var(--odk-stroke-focus);
-  outline-offset: 2px;
 }
 
 .pi-events-host {
   min-width: 0;
+  flex: none;
+}
+
+.pi-events-host .pi-stream-label {
+  margin: 0 0 var(--odk-space-3);
+  font-size: var(--odk-text-label);
+  color: var(--odk-secondary-strong);
 }
 
 .pi-events {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--odk-space-2);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-/* Event kind is carried by a fixed label column rather than an accent color:
-   the desk stays quiet, and the log reads as structure instead of decoration. */
-.pi-event {
-  display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--odk-stroke);
-}
-
-.pi-event:last-child {
-  border-bottom: none;
-}
-
-.pi-event-kind {
-  font-family: "Montserrat", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--odk-secondary-strong);
+/* Native Pi uses full-width user bands, plain replies and quiet tool output,
+   not a role table or chat bubbles. These are bounded summaries: event kind
+   alone never establishes a tool's pending/success/error state. */
+.pi-events .pi-event {
+  display: block;
+  padding: var(--odk-space-2) var(--odk-space-3);
+  border: 0;
+  min-width: 0;
+  background: transparent;
 }
 
 .pi-event-text {
+  display: block;
+  font-family: "Noto Sans SC", "Montserrat", sans-serif;
   min-width: 0;
-  font-size: var(--odk-text-label);
+  font-size: clamp(16px, 1.05vw, 20px);
   line-height: 1.5;
   color: var(--odk-primary);
   overflow-wrap: anywhere;
+}
+
+.pi-events .pi-event-user {
+  padding-block: var(--odk-space-3);
+  background: var(--odk-elevated);
+}
+
+.pi-events .pi-event-tool {
+  background: var(--odk-bg);
+}
+
+.pi-event-tool .pi-event-text,
+.pi-event-result .pi-event-text {
+  font-family: monospace;
 }
 
 .pi-event-thinking .pi-event-text,
@@ -2009,8 +2008,211 @@ body.kiosk {
   color: var(--odk-secondary-strong);
 }
 
-.pi-event-result .pi-event-text {
+.pi-events .pi-event-assistant {
+  padding-block: var(--odk-space-3);
+}
+
+/* ---- Quoted Pi content ----
+   Pi renders a reply and a tool result as Markdown with code, diff, and syntax
+   colour. The page itself stays on DESIGN.md's semantic tokens; the transcript
+   reproduces Pi's own reading palette so a session reads on the desk the way it
+   reads in Pi. Values are Pi's `dark` theme roles. */
+.pi-app-wrapper {
+  --pi-md-heading: #f0c674;
+  --pi-md-link: #81a2be;
+  --pi-md-code: #8abeb7;
+  --pi-md-code-block: #b5bd68;
+  --pi-md-quote: #808080;
+  --pi-md-rule: #808080;
+  --pi-md-bullet: #8abeb7;
+  --pi-diff-added: #b5bd68;
+  --pi-diff-removed: #cc6666;
+  --pi-diff-context: #808080;
+  --pi-diff-hunk: #00d7ff;
+  --pi-syntax-comment: #6a9955;
+  --pi-syntax-keyword: #569cd6;
+  --pi-syntax-function: #dcdcaa;
+  --pi-syntax-variable: #9cdcfe;
+  --pi-syntax-string: #ce9178;
+  --pi-syntax-number: #b5cea8;
+  --pi-syntax-type: #4ec9b0;
+  --pi-syntax-meta: #d4d4d4;
+}
+
+/* Results use the existing local markdown-it parser with HTML/assets disabled.
+   Override shared App list rules so Markdown lists/tables keep native flow. */
+.pi-markdown > :first-child { margin-block-start: 0; }
+.pi-markdown > :last-child { margin-block-end: 0; }
+
+.pi-markdown :is(p, ul, ol, blockquote, pre, table) {
+  margin-block: var(--odk-space-2);
+  font-size: inherit;
+  color: inherit;
+}
+
+.pi-markdown :is(ul, ol) {
+  display: block;
+  padding-inline-start: 1.5em;
+  list-style: revert;
+}
+
+.pi-markdown li {
+  display: list-item;
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.pi-markdown li::marker {
+  color: var(--pi-md-bullet);
+}
+
+.pi-markdown h3 {
+  margin-block: var(--odk-space-3) var(--odk-space-2);
+  font-size: 1.125em;
+  line-height: 1.4;
+  color: var(--pi-md-heading);
+}
+
+.pi-markdown a {
+  color: var(--pi-md-link);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.pi-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--pi-md-rule);
+  margin-block: var(--odk-space-3);
+}
+
+.pi-markdown pre {
+  padding: var(--odk-space-2);
+  background: var(--odk-bg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--pi-md-code-block);
+}
+
+.pi-markdown code {
   font-family: monospace;
+  font-size: 1em;
+}
+
+.pi-markdown :not(pre) > code {
+  color: var(--pi-md-code);
+}
+
+.pi-markdown blockquote {
+  margin-inline: 0;
+  padding-inline-start: var(--odk-space-3);
+  border-inline-start: 2px solid var(--pi-md-quote);
+  color: var(--pi-md-quote);
+}
+
+/* Pi's diff view colours a line by what it does to the file. */
+.pi-diff-block {
+  margin: 0;
+  padding: var(--odk-space-2);
+  background: var(--odk-bg);
+  font-family: monospace;
+  font-size: 1em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pi-diff-line {
+  display: inline;
+}
+
+.pi-diff-added { color: var(--pi-diff-added); }
+.pi-diff-removed { color: var(--pi-diff-removed); }
+.pi-diff-context { color: var(--pi-diff-context); }
+.pi-diff-hunk { color: var(--pi-diff-hunk); }
+.pi-diff-header { color: var(--pi-md-heading); }
+
+/* highlight.js scopes, mapped to the syntax roles Pi's theme defines. */
+.pi-markdown .hljs-comment,
+.pi-markdown .hljs-quote { color: var(--pi-syntax-comment); font-style: italic; }
+
+.pi-markdown .hljs-keyword,
+.pi-markdown .hljs-selector-tag,
+.pi-markdown .hljs-literal,
+.pi-markdown .hljs-doctag { color: var(--pi-syntax-keyword); }
+
+.pi-markdown .hljs-title,
+.pi-markdown .hljs-title.function_,
+.pi-markdown .hljs-section { color: var(--pi-syntax-function); }
+
+.pi-markdown .hljs-variable,
+.pi-markdown .hljs-params,
+.pi-markdown .hljs-attr,
+.pi-markdown .hljs-attribute,
+.pi-markdown .hljs-property { color: var(--pi-syntax-variable); }
+
+.pi-markdown .hljs-string,
+.pi-markdown .hljs-regexp,
+.pi-markdown .hljs-addition { color: var(--pi-syntax-string); }
+
+.pi-markdown .hljs-number,
+.pi-markdown .hljs-meta .hljs-number { color: var(--pi-syntax-number); }
+
+.pi-markdown .hljs-type,
+.pi-markdown .hljs-built_in,
+.pi-markdown .hljs-class .hljs-title,
+.pi-markdown .hljs-title.class_ { color: var(--pi-syntax-type); }
+
+.pi-markdown .hljs-meta,
+.pi-markdown .hljs-operator,
+.pi-markdown .hljs-punctuation,
+.pi-markdown .hljs-symbol,
+.pi-markdown .hljs-bullet { color: var(--pi-syntax-meta); }
+
+.pi-markdown .hljs-deletion { color: var(--pi-diff-removed); }
+
+.pi-markdown .hljs-emphasis { font-style: italic; }
+.pi-markdown .hljs-strong { font-weight: 700; }
+
+.pi-result-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+
+.pi-result-table-scroll:focus-visible {
+  outline: 2px solid var(--odk-stroke-focus);
+  outline-offset: -2px;
+}
+
+.pi-markdown table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-markdown :is(th, td) {
+  padding: var(--odk-space-2);
+  border: 1px solid var(--odk-stroke);
+  text-align: start;
+  vertical-align: top;
+  max-width: 40ch;
+}
+
+.pi-result-tool,
+.pi-result-truncated {
+  display: block;
+  margin: 0 0 var(--odk-space-2);
+  font-size: var(--odk-text-label);
+  color: var(--odk-secondary-strong);
+}
+
+[data-theme='pixel'] .pi-markdown :is(strong, em, h3, th) {
+  font-style: normal;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .pi-detail-note {
@@ -2024,68 +2226,116 @@ body.kiosk {
 /* ---- Session Overview: the grid of the current Session Set ---- */
 
 .pi-overview {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--odk-space-3);
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--odk-space-3);
-  border: 1px solid var(--odk-stroke);
-  border-radius: var(--radius);
-  background: var(--odk-elevated);
+  border: 0;
+  border-radius: 0;
+  background: var(--odk-surface);
+  scrollbar-gutter: stable;
 }
 
 .pi-overview[hidden] {
   display: none;
 }
 
-.pi-overview-header {
+/* The Session Overview owns the Session Filter: a status tab per filter, with
+   the default being the live set. The Session Detail carries none of this. */
+.pi-overview-filters {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: var(--odk-space-2) 4px;
   flex: none;
+  min-width: 0;
+  padding: 4px;
+  background: var(--odk-bg);
+  border: 1px solid var(--odk-stroke);
+  border-radius: var(--odk-radius-pill);
+  box-sizing: border-box;
 }
 
-.pi-overview-summary {
-  margin: 0;
+.pi-filter-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--odk-space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  color: var(--odk-secondary-strong);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
   font-family: "Montserrat", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
-  color: var(--odk-secondary-strong);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  border-radius: var(--odk-radius-pill);
+  line-height: 1.4;
+  cursor: pointer;
 }
 
-.pi-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 10px;
-  min-height: 0;
+.pi-filter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--odk-secondary-strong);
+}
+
+.pi-filter-btn.active {
+  background: var(--odk-button);
+  border-color: var(--odk-stroke-focus);
+  color: var(--odk-primary);
+}
+
+.pi-filter-btn:focus-visible {
+  outline: 2px solid var(--odk-stroke-focus);
+  outline-offset: -3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pi-filter-btn:not(.active):hover {
+    background: var(--odk-elevated);
+    color: var(--odk-primary);
+  }
+}
+
+/* One full-width row per session in the filtered set, in Pi's chooser shape. */
+.pi-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--odk-space-2);
+  flex: none;
+  min-width: 0;
 }
 
 .pi-overview-cell {
   appearance: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 1em minmax(0, 1fr);
+  align-items: start;
+  gap: var(--odk-space-2);
   min-width: 0;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: var(--odk-space-3);
   text-align: start;
-  border: 1px solid var(--odk-stroke);
-  border-radius: 14px;
-  background: var(--odk-surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--odk-primary);
+  font: inherit;
   cursor: pointer;
-  transition: border-color 140ms ease;
 }
 
 .pi-overview-cell.is-selected {
-  border-color: var(--odk-stroke-focus);
+  background: var(--odk-button);
 }
 
 .pi-overview-cell:focus-visible {
@@ -2093,28 +2343,50 @@ body.kiosk {
   outline-offset: 2px;
 }
 
-.pi-overview-name {
-  font-family: "Montserrat", sans-serif;
-  font-weight: 700;
-  font-size: var(--odk-text-label);
-  color: var(--odk-primary);
-  overflow-wrap: anywhere;
+.pi-overview-cursor {
+  visibility: hidden;
+  font-size: var(--odk-text-body);
+  line-height: 1.5;
+}
+
+.pi-overview-cell.is-selected .pi-overview-cursor {
+  visibility: visible;
+}
+
+.pi-overview-copy {
+  display: grid;
+  gap: var(--odk-space-2);
+  min-width: 0;
 }
 
 .pi-overview-state {
+  display: flex;
+  align-items: baseline;
+  gap: var(--odk-space-2);
   font-family: "Montserrat", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--odk-secondary-strong);
+  color: var(--odk-primary);
 }
 
+.pi-overview-goal {
+  font-size: var(--odk-text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pi-overview-path,
 .pi-overview-activity {
   font-size: var(--odk-text-label);
   line-height: 1.4;
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pi-overview-cell:not(.is-selected):hover {
+    background: var(--odk-elevated);
+  }
 }
 
 /* Shared App search anatomy, used by the built-in view manager. */
@@ -2151,38 +2423,6 @@ body.kiosk {
   color: var(--odk-secondary-strong);
 }
 
-.pi-status-badge {
-  font-family: "Montserrat", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  padding: 2px 8px;
-  white-space: nowrap;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
-}
-
-.pi-status-running {
-  background: var(--odk-button);
-  color: var(--odk-accent-green);
-  border: 1px solid var(--odk-accent-green);
-}
-
-.pi-status-settled {
-  background: var(--odk-button);
-  color: var(--odk-secondary-strong);
-  border: 1px solid var(--odk-stroke);
-}
-
-.pi-status-exited {
-  background: var(--odk-button);
-  color: var(--odk-secondary-strong);
-  border: 1px solid var(--odk-stroke);
-}
-
 .pi-pulse-dot {
   width: 6px;
   height: 6px;
@@ -2199,9 +2439,11 @@ body.kiosk {
 .pi-app-wrapper .pi-goal-text {
   font-size: clamp(20px, 1.4584vw, 28px);
   color: var(--odk-primary);
-  line-height: 1.35;
+  line-height: 1.5;
+  /* The prompt is data, not prose: it wraps to the container the detail gives
+     it instead of a fixed reading measure. */
   max-width: none;
-  flex: 1;
+  flex: none;
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2234,10 +2476,8 @@ body.kiosk {
 .pi-app-wrapper .pi-activity-text {
   font-size: clamp(15px, 1.05vw, 20px);
   color: var(--odk-secondary-strong);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   margin: 0;
   display: block;
 }
@@ -2435,26 +2675,15 @@ body.kiosk {
     text-align: start;
   }
 
+  /* The title row wraps rather than squeezing the title: a zero flex basis with
+     nowrap made the heading narrower than its own text at the smallest width. */
   .pi-app-header {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .pi-app-header .app-surface-heading {
-    flex: 1 1 0;
-  }
-
-  .pi-filter-group {
-    flex: 1 1 180px;
-    min-width: 0;
-    padding: 0;
-    justify-content: stretch;
-  }
-
-  .pi-filter-btn {
     flex: 1 1 auto;
-    min-width: max-content;
-    padding-inline: 6px;
-    font-size: 12px;
+    min-width: 0;
   }
 
 }
@@ -2495,17 +2724,6 @@ body.kiosk {
 
   .pi-app-header p {
     font-size: 14px;
-  }
-
-  .pi-filter-group {
-    flex: 0 0 auto;
-    flex-wrap: nowrap;
-    border-radius: 14px;
-    row-gap: 3px;
-  }
-
-  .pi-filter-btn {
-    padding-inline: 6px;
   }
 
   .app-search {

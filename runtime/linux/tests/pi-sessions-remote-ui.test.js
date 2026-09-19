@@ -43,6 +43,21 @@ test('widget identifies Mac source and cannot turn disconnected Mac into idle', 
   assert.match(view.node('.pi-widget-summary').textContent, /Mac \/ SSH/)
 })
 
+test('tile summary reads source, workspace count, and live count while idle states stay truthful', async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+  const settled = (sessionId) => ({ sessionId, status: 'settled', cwd: '/workspace/desk', workspaceName: 'desk', startedAt: 0, updatedAt: 1 })
+  const idle = { ok: true, source, summary: { running: 0, total: 2, workspacesCount: 1 }, sessions: [settled('a'), settled('b')], workspaces: [] }
+  await view.show(idle)
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 1 workspace · 2 live')
+  assert.equal(view.node('.w-state').textContent, '2 idle')
+  assert.equal(view.node('.pi-widget-tag-label').textContent, 'IDLE')
+
+  const empty = { ok: true, source, summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [], workspaces: [] }
+  await view.show(empty)
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 0 workspaces · 0 live')
+  assert.equal(view.node('.w-state').textContent, 'Idle')
+})
+
 test('status bar identifies Mac and reports unavailable after a successful scan', async () => {
   const view = mount('status-pi-sessions.js', 'odk.status.pi-sessions')
   await view.show(live)

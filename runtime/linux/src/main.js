@@ -12,31 +12,72 @@ const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { createCameraSource } = require('./camera-source')
 const { createPiSessionsSource } = require('./pi-sessions-source')
-const { readSessionEvents } = require('./pi-sessions')
+const { createDeskLinkClient } = require('./desk-link-client')
+const { createPiSessionEventsSource } = require('./pi-session-events-source')
 const { createHydraSource } = require('./hydra-mqtt')
 const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
 const { createWeReadSource } = require('./weread-source')
+const { createFutuSource } = require('./futu-source')
+const { createWeatherSource } = require('./weather-source')
 const { registerUserAppScheme, startUserAppSystem } = require('./user-app-system')
-const scanPiSessions = createPiSessionsSource()
+const deskLink = createDeskLinkClient()
+const scanPiSessions = createPiSessionsSource({ deskLink })
+const readPiSessionEvents = createPiSessionEventsSource({ deskLink })
 const cameraSource = createCameraSource()
 
-function configureGpuSwitches(targetApp = app, env = process.env) {
+// Mali userspace (ARM libmali blob plus CSF firmware) installed by
+// scripts/cm5-gpu-userspace.sh. Its presence marks a CM5 that can render
+// through the Mali-G610 instead of the llvmpipe software rasterizer.
+const MALI_USERSPACE_DIR = '/usr/lib/aarch64-linux-gnu/libmali'
+
+function hasMaliUserspace(dir = MALI_USERSPACE_DIR) {
+  try {
+    return fs.existsSync(dir)
+  } catch {
+    return false
+  }
+}
+
+function resolveGpuBackend(env = process.env, options = {}) {
+  const requested = env.ODESK_GPU_BACKEND
+  if (requested === 'mali' || requested === 'default') return requested
+  const platform = options.platform ?? process.platform
+  const arch = options.arch ?? process.arch
+  const maliUserspacePresent = options.maliUserspacePresent ?? hasMaliUserspace()
+  // The installed blob only serves the X11 and GBM EGL platforms, so a Wayland
+  // session keeps the default backend.
+  const x11Session = Boolean(env.DISPLAY) && !env.WAYLAND_DISPLAY
+  return platform === 'linux' && arch === 'arm64' && maliUserspacePresent && x11Session
+    ? 'mali'
+    : 'default'
+}
+
+function configureGpuSwitches(targetApp = app, env = process.env, options = {}) {
   const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
   if (forceSoftware) {
     if (targetApp?.commandLine?.appendSwitch) {
       targetApp.commandLine.appendSwitch('disable-gpu')
     }
-    return { hardwareAcceleration: false }
+    return { hardwareAcceleration: false, backend: 'software' }
   }
+  const backend = resolveGpuBackend(env, options)
   if (targetApp?.commandLine?.appendSwitch) {
     targetApp.commandLine.appendSwitch('ignore-gpu-blocklist')
     targetApp.commandLine.appendSwitch('enable-gpu-rasterization')
     targetApp.commandLine.appendSwitch('enable-zero-copy')
-    if (env.ODESK_USE_EGL === '1' || env.WAYLAND_DISPLAY) {
-      targetApp.commandLine.appendSwitch('use-gl', 'egl')
+    if (backend === 'mali') {
+      // Chromium rejects native GL implementations and only accepts the ANGLE
+      // one (`gl=egl-angle`), so ANGLE must be pinned to its GLES/EGL backend to
+      // reach the Mali blob.
+      targetApp.commandLine.appendSwitch('use-gl', 'angle')
+      targetApp.commandLine.appendSwitch('use-angle', 'gles-egl')
+      // The blob drops the GPU context when Chromium swaps an X11 window
+      // surface, which crash-loops the GPU process. Software display
+      // compositing keeps GPU rasterization and WebGL on the Mali GPU.
+      targetApp.commandLine.appendSwitch('disable-gpu-compositing')
     }
   }
-  return { hardwareAcceleration: true }
+  return { hardwareAcceleration: true, backend }
 }
 
 function resolveLaunchOptions(argv, env) {
@@ -210,10 +251,11 @@ async function main() {
     return cameraSource.snapshot()
   })
   ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
-  ipcMain.handle('odk-pi-session-events', (_event, request) => readSessionEvents({
-    cwd: typeof request?.cwd === 'string' ? request.cwd : '',
-    sessionId: typeof request?.sessionId === 'string' ? request.sessionId : '',
-  }))
+  ipcMain.handle('odk-pi-session-events', async (_event, request) => {
+    const cwd = typeof request?.cwd === 'string' ? request.cwd : ''
+    const sessionId = typeof request?.sessionId === 'string' ? request.sessionId : ''
+    return readPiSessionEvents({ cwd, sessionId })
+  })
   const hydraSource = smokeMode
     ? createHydraSource({})
     : createHydraSource({
@@ -228,6 +270,55 @@ async function main() {
     await wereadSource.refresh()
     return wereadSource.snapshot()
   })
+
+  // Service Plugin data seam (ADR 0009): each declared service owns one Unix
+  // socket; the shell never performs provider network I/O. The registry is
+  // rebuilt from the installed catalog so a service has no lifecycle apart
+  // from its package revision. ODESK_FUTU_SERVICE is the tracer bootstrap for
+  // first light before the installer (T3) drives the registry; it is not a
+  // second lifecycle.
+  const futuServiceDefs = {}
+  const futuRuntimeDir = (() => {
+    const base = process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir()
+    return require('node:path').join(base, 'open-deskos')
+  })()
+  const futuSource = createFutuSource({
+    runtimeDir: futuRuntimeDir,
+    services: () => ({ ...futuServiceDefs }),
+  })
+  const refreshFutuServices = async () => {
+    try {
+      const { createUserAppStore } = require('./user-app-store')
+      const store = createUserAppStore({
+        workspace: process.env.ODESK_WORKSPACE,
+        stateDir: require('node:path').join(process.env.XDG_STATE_HOME || require('node:os').homedir() + '/.local/state', 'open-deskos/user-apps'),
+      })
+      for (const entry of await store.list()) {
+        if (entry?.service && entry?.id && !futuServiceDefs[entry.service.id]) {
+          futuServiceDefs[entry.service.id] = { revision: entry.revision, socket: entry.service.socket }
+        }
+      }
+    } catch {}
+    if (process.env.ODESK_FUTU_SOCKET && !futuServiceDefs['futu-poller']) {
+      futuServiceDefs['futu-poller'] = { revision: 'dev', socket: process.env.ODESK_FUTU_SOCKET }
+    }
+    try { await futuSource.refreshServices() } catch (error) {
+      console.error(`futu services unavailable: ${error.message}`)
+    }
+  }
+  ipcMain.handle('odk-futu-holdings', (_event, request) => futuSource.snapshot(request?.service || 'futu-poller'))
+  void refreshFutuServices()
+  setInterval(refreshFutuServices, 60 * 1000).unref?.()
+
+  // The desk's weather instrument is the only surface allowed to reach a weather
+  // provider: the renderer asks for a snapshot and never performs network I/O.
+  // A smoke run stays offline by asking for an explicit empty location.
+  const weatherSource = smokeMode
+    ? createWeatherSource({ latitude: null, longitude: null })
+    : createWeatherSource({
+      cacheFile: require('node:path').join(app.getPath('userData'), 'weather-reading.json'),
+    })
+  ipcMain.handle('odk-weather-status', (_event, request) => weatherSource.refresh({ force: Boolean(request?.force) }))
 
   const appManager = createAppManagerEndpoint()
   ipcMain.handle('odk-app-manager-list', () => appManager.list())
@@ -284,6 +375,7 @@ if (app && typeof app.on === 'function') {
 
 module.exports = {
   configureGpuSwitches,
+  resolveGpuBackend,
   resolveLaunchOptions,
   resolveDisabledPlugins,
 }

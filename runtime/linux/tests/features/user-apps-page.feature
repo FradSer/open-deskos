@@ -41,6 +41,14 @@ Feature: Installed packages belong on the desktop
     Then the App has its own named interactive page
     And its frame retains state across unrelated catalog updates
 
+  Scenario: A release takes an installed widget's cell for a built-in tile
+    Given an installed widget is placed in a Home cell
+    When a release declares a built-in tile in that same cell
+    Then the installed widget reports a placement error instead of sharing the cell
+    And it is not mounted over the built-in tile
+    And the desktop status names the widget that needs moving or removing
+    And removal stays available while the cell is contested
+
   Scenario: An installed widget has no available desktop placement
     Given the catalog includes an unplaced widget with a placement error
     When the catalog is rendered

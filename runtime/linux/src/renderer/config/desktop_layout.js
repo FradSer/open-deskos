@@ -24,6 +24,7 @@
           { id: 'odk.tile.pi-sessions', col: '2 / 4', row: '2 / 4' },
           { id: 'odk.tile.pomodoro', col: '1', row: '2 / 4' },
           { id: 'odk.tile.camera', col: '4', row: '2' },
+          { id: 'odk.tile.weather', col: '4', row: '3' },
           { id: 'odk.tile.hydra', col: '5', row: '2 / 4' },
         ],
       },
@@ -35,6 +36,7 @@
         widgets: [
           { id: 'odk.tile.weread', col: '1 / 4', row: '1 / 3' },
           { id: 'odk.tile.preorder', col: '4 / 6', row: '1 / 3' },
+          { id: 'odk.tile.futu', col: '1', row: '3' },
         ],
       },
       { id: 'pi-sessions', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi-sessions' },

@@ -16,6 +16,9 @@
 
     function destination(app) {
       if (app.kind === 'app') return track
+      // A widget the catalog could not place - no free cell, or a built-in tile now
+      // claims its cell - waits in the desktop status instead of painting into it.
+      if (app.placementError) return null
       const page = layout.pages.find(page => page.id === app.placement?.pageId && page.kind === 'grid')
       if (!page) return null
       return [...track.children].find(section => section.dataset.pageId === page.id)?.querySelector('.widget-grid')
@@ -99,8 +102,15 @@
         hasCatalog = true
         const unplaced = result.apps.filter(app => app.kind === 'widget' && !destination(app))
         status.dataset.state = unplaced.length ? 'placement-error' : 'ready'
+        // Name the reason when the catalog has one: "its cell is taken" and "the desk is
+        // full" lead to the same action but read very differently to the person seeing it.
+        const reasons = {
+          'occupied-placement': 'its desktop cell is now a built-in tile',
+          'desktop-full': 'there is no free desktop cell',
+        }
+        const reason = unplaced.map(app => reasons[app.placementError]).find(Boolean)
         status.textContent = unplaced.length
-          ? `${unplaced.map(app => app.name).join(', ')}: desktop placement unavailable. Ask the Agent to place or remove the widget.`
+          ? `${unplaced.map(app => app.name).join(', ')}: ${reason || 'desktop placement unavailable'}. Ask the Agent to move or remove the widget.`
           : ''
         status.hidden = unplaced.length === 0
       } catch {

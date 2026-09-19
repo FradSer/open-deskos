@@ -1,0 +1,16 @@
+[Unit]
+Description=Open DeskOS Desk Link Service
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env node __OPEN_DESKOS_DESK_LINK_DIR__/scripts/desk-link-service.js
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+RestartForceExitStatus=SIGHUP
+
+[Install]
+WantedBy=default.target

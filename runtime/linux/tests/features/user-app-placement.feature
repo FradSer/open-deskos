@@ -19,9 +19,17 @@ Feature: Verified widgets share desktop grids
     And removal remains available to recover capacity
 
   Scenario: Persisted placement corruption fails closed
-    Given catalog placement overlaps a built-in or exceeds the grid
+    Given a catalog placement is missing a coordinate or is not a grid line
     When the installed catalog is read
     Then corrupt catalog metadata is rejected before presentation
+
+  Scenario: Unavailable geometry is one widget's problem, not the catalog's
+    Given a persisted placement now overlaps a built-in tile or exceeds the grid
+    When the installed catalog is read
+    Then that widget reports its placement error
+    And its revision, bytes, and removal stay available
+    And no other installed package is hidden by it
+    And the error clears once a layout leaves the cell free again
 
   Scenario: Concurrent placements cannot overlap
     Given two widget drafts target one free cell

@@ -37,6 +37,25 @@ test('every renderer icon name has a pixelarticons replacement for the Pixel the
   assert.deepEqual(missing, [], 'icon names used by the renderer but missing pixel replacements')
 })
 
+test('every renderer icon element uses the 24 grid its pixel replacement assumes', () => {
+  const offenders = []
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (/\.(js|html)$/.test(entry.name)) {
+        const text = fs.readFileSync(full, 'utf8')
+        for (const match of text.matchAll(/<svg[^>]*data-tabler="([a-z0-9-]+)"[^>]*>/g)) {
+          const tag = match[0]
+          if (!/viewBox="0 0 24 24"/.test(tag)) offenders.push(`${path.relative(RENDERER_DIR, full)}: ${match[1]}`)
+        }
+      }
+    }
+  }
+  walk(RENDERER_DIR)
+  assert.deepEqual(offenders, [], 'icon elements whose grid differs from the pixel replacement grid')
+})
+
 test('pixel replacements are non-empty pure path fill icons', () => {
   const paths = loadPixelPaths()
   for (const [name, body] of Object.entries(paths)) {

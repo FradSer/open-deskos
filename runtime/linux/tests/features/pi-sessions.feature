@@ -46,19 +46,20 @@ Feature: Local Pi Sessions Monitoring
     Then the worker process never appears as its own session
     And only metadata-registered session leaders are listed
 
-  Scenario: Pi Sessions App page displays workspaces and session goals without modified file badges
+  Scenario: Pi Sessions App page lists sessions with state, directory, and goals
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
-    Then sessions are grouped by workspace directory
-    And each session card shows its process status, elapsed time, and latest goal without raw PID or field label prefixes
-    And each session card omits secondary modified file badges for a compact view
-    And users can filter sessions by status or trigger a manual refresh
+    Then the list shows the sessions the active Session Filter selects, which starts as live only
+    And each row shows its Pi state, goal, directory, and activity without raw PID or field label prefixes
+    And each row omits secondary modified file badges for a compact view
+    And the Session Overview carries the status filter tabs while the Session Detail carries none
+    And the page offers no manual refresh control
 
-  Scenario: Pi Sessions controls reflow inside a narrow App page
+  Scenario: Pi Sessions live list reflows inside a narrow App page
     Given the user opens Pi Sessions in a narrow portrait window
-    When the App toolbar renders its filters and refresh action
-    Then every control stays inside the App surface without horizontal clipping
-    And the filters remain individually selectable
+    When the live session list renders
+    Then every row stays inside the App surface without horizontal clipping
+    And the page has no filter control to clip
 
   Scenario: Pi Sessions status bar indicator provides system-level glanceability
     Given the status plugin for Pi Sessions is registered
@@ -73,23 +74,23 @@ Feature: Local Pi Sessions Monitoring
     And the supporting source or workspace description text uses compact legible type
 
   Scenario: Pi Sessions fullscreen App renders a compact session list
-    Given multiple sessions are rendered in the Pi Sessions App feed
+    Given multiple sessions are rendered in the Pi Sessions live list
     When viewing the session list on desktop display
-    Then session cards use compact vertical padding and inline goal alignment
+    Then rows use compact vertical padding and inline goal alignment
     And multiple running sessions fit within the initial visible viewport
 
   Scenario: Pi Sessions App formats skill invocation goals as [skill] name
     Given a session goal contains a skill tag
-    When the session card is rendered
+    When the session row is rendered
     Then the skill name is displayed with a bracketed skill indicator similar to the default TUI style
     And raw skill XML tags are omitted
 
   Scenario: Pi Sessions App displays active model activity
     Given an active Pi session is running
-    When the session card is rendered
-    Then the card displays a single-line model activity message truncated with an ellipsis
-    And running cards display Working... instead of uppercase WORKING
-    And goal and model labels are omitted, distinguished by typography
+    When the session row is rendered
+    Then the row displays the model activity as supporting text without a label
+    And running rows display Working... instead of uppercase WORKING
+    And goal and activity are distinguished by typography rather than labels
 
 Scenario: Linux shell reads a bounded stream of session events on demand
   Given a session's own message log is far larger than the read bound
@@ -98,13 +99,15 @@ Scenario: Linux shell reads a bounded stream of session events on demand
   And at most the bounded number of most recent events is returned
   And the events stay in chronological order
 
-Scenario: Session events stay single-line and never carry a tool result body
-  Given a session log contains user prompts, thinking, tool calls, assistant text, and tool results
+Scenario: Session events bound their bodies by kind
+  Given a session log contains user prompts, thinking, tool calls, assistant replies, and tool results
   When the shell reads that session's events
-  Then every event is one bounded line
+  Then every event keeps its own lines rather than one flattened line
+  And a prompt stays within 8 KiB, a thought and a tool call within 4 KiB
+  And an assistant reply stays within 16 KiB and a tool result within 64 KiB
   And every event names its kind
-  And a tool result contributes only its tool name and first line
-  And no event repeats a tool result body beyond its first line
+  And a shortened body is marked truncated rather than silently cut
+  And no event is unbounded
 
 Scenario: Session events ignore entries that are not session messages
   Given a session log contains session, model change, thinking level, and custom entries

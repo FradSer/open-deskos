@@ -41,6 +41,27 @@ Explicit placements outside the grid, on non-grid pages, or overlapping built-in
 
 Desktop preload exposes only list/dispatch and change subscription. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
 
+## Appearance: theme, tokens, and fonts
+
+A package is served with the Shell's appearance, so a package can look native without vendoring a palette or a face:
+
+- `<html data-theme="instrument|pixel|border-beam">` names the active appearance.
+- `--odk-*` resolves the appearance's semantic tokens (`--odk-primary`, `--odk-surface`, `--odk-stroke`, `--odk-radius-card`, `--odk-space-*`, `--odk-text-label`, `--odk-text-body`, `--odk-cell`). Every appearance's values are present at once, so a switch needs no reload.
+- `--odk-radius-tile` is the radius the frame around the package actually renders with; use it for inner surfaces.
+- The appearance's own face is declared and applied: Zpix in Pixel, Noto Sans SC with Montserrat in Instrument and Border Beam. `--odk-font` names it.
+- `data-theme` follows a live theme change, published to the frame by the Shell. A package that branches on it needs no reload handling of its own.
+
+A minimal package that inherits everything:
+
+```html
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Desk note</title>
+<style>body{margin:0;background:var(--odk-bg);color:var(--odk-primary);font:var(--odk-text-body)/1.4 var(--odk-font);padding:var(--odk-widget-inset)}</style>
+<body><p style="border-radius:var(--odk-radius-tile);background:var(--odk-surface);padding:var(--odk-space-3)">Remember to take a break.</p></body></html>
+```
+
+Icon path data is not served: the Pixel icon set is MIT-licensed data a package may embed, and a package switches between its own stroke and pixel variants on `data-theme`. Nothing else changed — the sandbox still grants no network, no Shell DOM, and no preload API, and the appearance context cannot read files outside the running release.
+
 ## Runtime safety and limits
 
 The Shell keeps its strict script policy. A dedicated `odk-user-app` protocol serves only installed revision URLs with restrictive content policy. Frames use `sandbox="allow-scripts"` without same-origin authority. They cannot navigate the parent, create privileged windows, access Shell DOM/preload or fetch network data.

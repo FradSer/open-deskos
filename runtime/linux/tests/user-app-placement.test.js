@@ -82,14 +82,61 @@ test('full desktop reports unplaced widgets but removal remains usable', async t
   assert.equal(apps[0].placement, undefined)
   assert.equal((await full.remove('note')).ok, true)
 })
+test('a built-in tile landing on an installed cell reports a placement error', async t => {
+  const { store, options, draft } = await setup(t)
+  await draft('note')
+  assert.equal((await store.install('note', { pageId: 'home', col: '4', row: '3' })).ok, true)
+  assert.equal((await store.list())[0].placementError, undefined)
+
+  // The next release declares a built-in tile in that same cell.
+  const released = createUserAppStore({ ...options, layout: { pages: [
+    { id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [{ id: 'odk.tile.clock', col: '1', row: '1' }, { id: 'odk.tile.weather', col: '4', row: '3' }] },
+  ] } })
+  const conflicted = (await released.list())[0]
+  assert.equal(conflicted.placementError, 'occupied-placement')
+  assert.deepEqual(conflicted.placement, { pageId: 'home', col: '4', row: '3' })
+  assert.equal((await released.remove('note')).ok, true, 'removal stays available while the cell is contested')
+
+  // Reading the catalog with the layout that matches the stored placement clears it.
+  await draft('note')
+  assert.equal((await store.install('note', { pageId: 'home', col: '4', row: '3' })).ok, true)
+  assert.equal((await createUserAppStore({ ...options, layout: { pages: [{ id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [] }] } }).list())[0].placementError, undefined)
+})
+
 test('corrupt persisted placements fail closed', async t => {
   const { store, options, draft } = await setup(t)
   await draft('note'); await store.install('note')
   const catalogPath = path.join(options.stateDir, 'user-apps.json')
   const entries = JSON.parse(await fs.readFile(catalogPath))
-  for (const placement of [{ pageId: 'home', col: '6', row: '1' }, { pageId: 'home', col: '1', row: '1' }]) {
+  for (const placement of [
+    { pageId: 'home', col: 6, row: '1' },
+    { pageId: 'home', col: '1', row: 'one' },
+    { pageId: 'home', col: '1 / ', row: '1' },
+    { pageId: 'home', col: 'x', row: '1' },
+    { pageId: 'home', col: '1', row: '-1' },
+  ]) {
     entries[0].placement = placement
     await fs.writeFile(catalogPath, JSON.stringify(entries))
-    await assert.rejects(store.list(), /catalog-corrupt/)
+    await assert.rejects(store.list(), /catalog-corrupt/, JSON.stringify(placement))
   }
+  delete entries[0].placement
+  await fs.writeFile(catalogPath, JSON.stringify(entries))
+  assert.equal((await store.list())[0].placementError, undefined)
+})
+
+test('unavailable geometry is reported per widget and never hidden as corruption', async t => {
+  const { store, options, draft } = await setup(t)
+  await draft('note'); await draft('second')
+  await store.install('note', { pageId: 'home', col: '4', row: '3' })
+  await store.install('second', { pageId: 'reading', col: '1', row: '1' })
+  const catalogPath = path.join(options.stateDir, 'user-apps.json')
+  const entries = JSON.parse(await fs.readFile(catalogPath))
+  entries[0].placement = { pageId: 'home', col: '1', row: '1' }
+  await fs.writeFile(catalogPath, JSON.stringify(entries))
+
+  const apps = await store.list()
+  assert.equal(apps.length, 2, 'one contested widget must not hide the rest of the catalog')
+  assert.equal(apps.find(app => app.id === 'note').placementError, 'occupied-placement')
+  assert.equal(apps.find(app => app.id === 'second').placementError, undefined)
+  assert.equal((await store.remove('note')).ok, true)
 })

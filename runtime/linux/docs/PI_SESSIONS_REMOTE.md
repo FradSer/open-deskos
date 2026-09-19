@@ -1,5 +1,7 @@
 # Monitor Pi on a Mac over SSH
 
+> A machine that owns its sessions can report them itself instead of being scanned over SSH. That needs no inbound access, carries the session's operating events, and is preferred whenever a Desk Link is connected. See [DESK_LINK.md](DESK_LINK.md). This document covers the SSH source, which remains a separate, optional source.
+
 The default source remains local. Optional SSH configuration replaces it with one Mac source; it does not merge hosts. The existing collector runs on the Mac, so PIDs, process liveness, working directories, and session metadata belong to that Mac. No HTTP listener or Apple companion is required.
 
 ## 1. Prepare the Mac
@@ -8,13 +10,13 @@ Enable macOS **System Settings → General → Sharing → Remote Login**, allow
 
 ```sh
 mkdir -p "$HOME/.local/share/open-deskos/pi-monitor/src" "$HOME/.local/share/open-deskos/pi-monitor/scripts"
-cp runtime/linux/src/pi-sessions.js "$HOME/.local/share/open-deskos/pi-monitor/src/"
+cp runtime/linux/src/pi-sessions.js runtime/linux/src/pi-session-events.js "$HOME/.local/share/open-deskos/pi-monitor/src/"
 cp runtime/linux/scripts/pi-sessions-snapshot.js "$HOME/.local/share/open-deskos/pi-monitor/scripts/"
 command -v node
 node "$HOME/.local/share/open-deskos/pi-monitor/scripts/pi-sessions-snapshot.js"
 ```
 
-Keep both files from the same runtime version. Record the absolute Node executable path (version-manager paths work, but must be updated after removing that Node version). The collector reads this account's `~/.pi/agent/directory-sessions` and process table; a custom `PI_AGENT_DIR` must be set in the remote SSH command environment, not on CM5. Do not copy Pi authentication files or session trees to CM5. Session goals and file names are personal data transmitted through SSH and displayed on the desk screen.
+Keep the collector and both source modules from the same runtime version. Record the absolute Node executable path (version-manager paths work, but must be updated after removing that Node version). The collector reads this account's `~/.pi/agent/directory-sessions` and process table; a custom `PI_AGENT_DIR` must be set in the remote SSH command environment, not on CM5. Do not copy Pi authentication files or session trees to CM5. Session goals and file names are personal data transmitted through SSH and displayed on the desk screen.
 
 ## 2. Configure authentication on CM5
 

@@ -6,7 +6,7 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string}} Dependencies */
 
 export class VoiceService {
   /** @param {Dependencies} dependencies */
@@ -23,6 +23,7 @@ export class VoiceService {
     this.closing = undefined
     this.pending = Promise.resolve()
     this.cancelStreaming = () => {}
+    this.notification = ''
   }
 
   subscribe(listener) {
@@ -30,7 +31,17 @@ export class VoiceService {
     return () => this.listeners.delete(listener)
   }
 
+  notify(message) {
+    if (this.closed) return
+    this.notification = boundedText(message, 4096, 'Ride update')
+    if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message)
+  }
+
   setState(state, message = '', transcript = this.status.transcript) {
+    if (!this.closed && ['idle', 'error'].includes(state) && this.notification) {
+      message = [message, this.notification].filter(Boolean).join('\n\n')
+      this.notification = ''
+    }
     this.status = {
       v: 1, type: 'status', state, level: 0,
       message: boundedText(message, 16_384, 'Response'),
@@ -99,9 +110,9 @@ export class VoiceService {
     } catch (error) {
       failure = error instanceof AudioLimitError
         ? `Recording exceeds the ${error.limit.toLocaleString('en-US')}-byte upload limit; record a shorter request`
-        : 'Voice request failed; try again'
+        : this.dependencies.failureMessage || 'Voice request failed; try again'
     } finally {
-      if (!await this.discard()) failure = 'Voice request failed; try again'
+      if (!await this.discard()) failure = this.dependencies.failureMessage || 'Voice request failed; try again'
       if (!this.closed) this.setState(failure ? 'error' : 'idle', failure || response)
     }
   }

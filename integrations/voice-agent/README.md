@@ -1,5 +1,7 @@
 # Resident voice agent
 
+For configurable personal Skills, private `MEMORY.md`, and confirmed DiDi ride-hailing, see [Personal voice assistant](docs/PERSONAL_AGENT.md). Set `ODESK_VOICE_AGENT_CONFIG` to opt in; the coding profile below remains the default. The personal profile excludes native shell/filesystem tools and uses separate sessions and transaction state.
+
 Independent Linux user service: Remote MIC toggle → streamed ALSA WAV capture with local WebRTC endpointing → cloud speech-to-text → a persistent Pi SDK coding session. The Electron shell is a control/status client, not the agent host. No wake-word listener or text-to-speech is included.
 
 ## Install and configure

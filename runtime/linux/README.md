@@ -176,4 +176,4 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 1920x1280x24" \
 
 已验证：OpenCode Go 配置/解析单元测试、Linux 主进程 IPC 设计、renderer 沙盒约束、Remote Bridge 单元测试、host smoke 的 token 和布局检查；并已在真实 CM5 的 X11 `:0` HDMI 会话验证 active release、1920×1280 smoke、kiosk user service、Remote Bridge、原子 release 指针与 rollback candidate。CM5 运行时实际截图确认 State Bar 的网络可达指示器与 Today 首页的插件陈述可见。
 
-CM5 默认启用硬件 GPU 加速（Chromium 绕过 blocklist 并启用 GPU rasterization 与 zero-copy），并通过环境变量 `LIBGL_ALWAYS_SOFTWARE=1` 或 `ODESK_DISABLE_GPU=1` 保留软件 fallback。`scripts/cm5-acceptance.sh` 会报告实际的 GPU renderer（如 Panfrost / Mali G610 或 llvmpipe）。
+CM5 通过 `scripts/cm5-gpu-userspace.sh` 安装 ARM libmali 用户态 blob（Rockchip 6.1 SDK，DDK g24p0）与 CSF 固件 `mali_csffw.bin`：内核自带的 kbase 驱动已把 Mali-G610 探针为 `/dev/mali0`，Xorg 的 glamor 随后在该 blob 上初始化。Chromium 只接受 ANGLE 实现，因此外壳把 ANGLE 固定到 gles-egl 后端，并让显示合成器留在软件路径——GPU rasterization 与 WebGL 仍在 Mali 上执行。`ODESK_GPU_BACKEND=default|mali` 可显式选择后端，`ODESK_DISABLE_GPU=1` 或 `LIBGL_ALWAYS_SOFTWARE=1` 仍强制软件渲染。`scripts/cm5-acceptance.sh` 分别报告 Mesa GLX 的 `gpu-renderer`、真正的 EGL renderer（ARM Mali-G610）、Xorg glamor 状态与已安装的 Mali 用户态。安装或移除后必须重启图形会话。

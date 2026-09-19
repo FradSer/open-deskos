@@ -1,0 +1,134 @@
+.futu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Shell owns the shared inset, as it does for Weather and Hydra. */
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+  justify-content: space-between;
+  text-align: start;
+  height: 100%;
+}
+
+.futu-name {
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", sans-serif;
+  font-size: clamp(18px, 6.5cqi, 22px);
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: none;
+}
+
+.futu-ratio {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--odk-primary);
+  font-family: "Montserrat", sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+[data-theme='pixel'] .futu-ratio {
+  letter-spacing: normal;
+}
+
+.futu-ratio.is-stale {
+  color: var(--odk-secondary-strong);
+}
+
+.futu-ratio.is-stale.is-gain,
+.futu-ratio.is-stale.is-loss {
+  color: var(--odk-secondary-strong);
+}
+
+.futu-ratio.is-gain {
+  color: var(--odk-accent-green);
+}
+
+.futu-ratio.is-loss {
+  color: var(--odk-accent-red);
+}
+
+.futu-note {
+  color: var(--odk-secondary-strong);
+  font-size: 18px;
+  line-height: 1.4;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.futu-holdings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.futu-holding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--odk-primary);
+  font-size: clamp(20px, 6.5cqi, 24px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 1px 0;
+}
+
+.futu-holding + .futu-holding {
+  border-top: 1px solid var(--odk-stroke);
+}
+
+.futu-price {
+  text-align: end;
+  color: var(--odk-primary);
+}
+
+.futu-holdings.is-stale .futu-price {
+  color: var(--odk-secondary-strong);
+}
+
+.futu-sym {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.futu-pill {
+  flex: none;
+  color: var(--odk-secondary-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  padding: 1px 0;
+  background: transparent;
+}
+
+.futu-pill.is-gain {
+  color: var(--odk-accent-green);
+}
+
+.futu-pill.is-loss {
+  color: var(--odk-accent-red);
+}
+
+.futu-pill.is-flat,
+.futu-holdings.is-stale .futu-pill {
+  color: var(--odk-secondary-strong);
+}

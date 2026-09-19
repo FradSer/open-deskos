@@ -2,15 +2,20 @@
 (function (root) {
   'use strict'
 
-  const FILTERS = ['working', 'all', 'settled', 'exited']
-  const FILTER_DISPLAY_ORDER = ['all', 'working', 'settled', 'exited']
-  const FILTER_LABELS = { working: 'WORKING', all: 'ALL', settled: 'SETTLED', exited: 'EXITED' }
-  const FILTER_TITLES = { working: 'Working', all: 'All', settled: 'Settled', exited: 'Exited' }
-  const DEFAULT_FILTER = 'working'
-  const ACTION_FILTER = 'pi-session-filter'
-  const ACTION_OVERVIEW = 'pi-session-overview'
+  // Native Pi's own working indicator: ten braille frames at 80ms, taken from
+  // its Loader component. The desk reproduces the animation it can observe,
+  // never a state Pi did not report.
+  const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  const SPINNER_INTERVAL_MS = 80
   const SCROLL_STEP_PX = 140
   const SCAN_TICK_INTERVAL = 5
+  const LIVE_STATUSES = new Set(['running', 'settled'])
+  // The filter belongs to the Session Overview, not to the Session Detail: the
+  // page lands on the live set, and history is one deliberate press away.
+  const FILTERS = ['live', 'working', 'idle', 'exited', 'all']
+  const FILTER_LABELS = { live: 'Live', working: 'Working', idle: 'Idle', exited: 'Exited', all: 'All' }
+  const DEFAULT_FILTER = 'live'
+  const ACTION_FILTER = 'pi-session-filter'
 
   function escapeHtml(str) {
     if (!str) return ''
@@ -23,7 +28,7 @@
   }
 
   function normalizeInline(text) {
-    return text ? text.replace(/\s+/g, ' ').trim() : ''
+    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
   }
 
   function renderMarkdownInline(text) {
@@ -92,41 +97,71 @@
     }
   }
 
-  function matchesFilter(session, filter) {
-    if (filter === 'all') return true
-    return session.status === (filter === 'working' ? 'running' : filter)
+  // Only a Pi process that is still running is live; an exited session is
+  // history, and history is not what the page shows as current work.
+  function isLive(session) {
+    return LIVE_STATUSES.has(session.status)
   }
 
-  function sessionSet(scan, filter) {
-    const sessions = Array.isArray(scan?.sessions) ? scan.sessions : []
-    return sessions.filter((session) => matchesFilter(session, filter))
+  function matchesFilter(session, filter) {
+    if (filter === 'all') return true
+    if (filter === 'live') return isLive(session)
+    return session.status === (filter === 'working' ? 'running' : filter === 'idle' ? 'settled' : filter)
+  }
+
+  function filterTitle(filter) {
+    return FILTER_LABELS[filter] || 'Pi'
   }
 
   function nextFilter(filter) {
-    return FILTERS[(FILTERS.indexOf(filter) + 1) % FILTERS.length]
+    return FILTERS[(FILTERS.indexOf(filter) + 1) % FILTERS.length] || DEFAULT_FILTER
+  }
+
+  function sessionSet(scan, filter = DEFAULT_FILTER) {
+    const sessions = scan?.ok !== false && Array.isArray(scan?.sessions) ? scan.sessions : []
+    return sessions.filter((session) => matchesFilter(session, filter))
   }
 
   function statusLabel(status) {
-    return status === 'running' ? 'Working' : String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1)
+    if (status === 'running') return 'Working...'
+    if (status === 'settled') return 'Idle'
+    return String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1)
   }
 
   function workspaceLabel(session) {
     return session.workspaceName || session.cwd || 'Unknown workspace'
   }
 
-  function overviewCellHtml(session, selectedKey) {
-    const key = sessionKey(session)
-    const isSelected = key === selectedKey
-    return `<button type="button" class="pi-overview-cell${isSelected ? ' is-selected' : ''}" data-session-key="${escapeHtml(key)}" aria-pressed="${isSelected}">
-      <span class="pi-overview-name">${escapeHtml(workspaceLabel(session))}</span>
-      <span class="pi-overview-state">${escapeHtml(statusLabel(session.status))}</span>
-      <span class="pi-overview-activity">${escapeHtml(session.activity || session.latestGoal || 'No activity reported')}</span>
-    </button>`
+  function sessionPath(session) {
+    return session.cwd || session.workspaceName || 'Unknown directory'
+  }
+
+  function overviewGoal(session) {
+    const text = normalizeInline(session.latestGoal)
+    const skill = parseSkillTag(text)
+    return skill ? `[skill] ${skill.skillName}${skill.prompt ? ` ${skill.prompt}` : ''}` : text || 'No goal stated'
+  }
+
+  // The state Pi is reporting right now, rendered with Pi's own indicator.
+  function stateMarkup(session) {
+    const working = session.status === 'running'
+    const spinner = working
+      ? `<span class="pi-spinner" data-pi-spinner aria-hidden="true">${SPINNER_FRAMES[0]}</span>`
+      : ''
+    return `${spinner}<span class="pi-state-text">${escapeHtml(statusLabel(session.status))}</span>`
+  }
+
+  function validScan(response) {
+    return response && typeof response === 'object' && response.ok !== false &&
+      Array.isArray(response.sessions) && response.sessions.every((session) =>
+        session && typeof session === 'object' && ['running', 'settled', 'exited'].includes(session.status))
   }
 
   const EVENT_NOTE = {
+    'no-reported-events': 'This session has not reported any events yet.',
     'session-log-missing': 'No session log is available for this session.',
     'session-log-unreadable': 'This session log could not be read.',
+    'session-log-tail-limit': 'Recent output exceeds the 2 MiB log-reading limit. Read the full result in Pi.',
     'session-identity-required': 'This session has no readable identity.',
   }
 
@@ -200,11 +235,11 @@
             return
           }
           const running = res?.summary?.running ?? 0
-          const total = res?.summary?.total ?? 0
+          const live = sessionSet(res, 'live').length
           const wsCount = res?.summary?.workspacesCount ?? 0
 
           countEl.textContent = String(running)
-          summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${total} total`
+          summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${live} live`
 
           const activeSession = res.sessions?.find((session) => session.status === 'running')
 
@@ -234,12 +269,7 @@
               activityEl.hidden = true
               activityEl.textContent = ''
             }
-
-            if (total > 0 && res.sessions && res.sessions.length > 0) {
-              if (stateEl) stateEl.textContent = `${total} recent`
-            } else {
-              if (stateEl) stateEl.textContent = 'Idle'
-            }
+            if (stateEl) stateEl.textContent = live > 0 ? `${live} idle` : 'Idle'
           }
         } catch {
           countEl.textContent = '--'
@@ -269,69 +299,158 @@
   })
 
   /* ---------------------------------------------------------
-   * Session Detail + Session Overview
+   * Session Overview (the page) + Session Detail (one session)
    * --------------------------------------------------------- */
+
+  // The page carries no title and no controls: it states the live Pi state and
+  // nothing else. The Overview is the page's landing view, and Back, Escape, or
+  // any primary input returns to it.
   function surfaceMarkup() {
     return `
       <div class="runtime-app pi-app-wrapper">
         <header class="app-surface-header pi-app-header">
           <div class="app-surface-heading">
-            <h1 id="pi-title">Pi Sessions</h1>
+            <h1 id="pi-title"><span class="pi-spinner" data-pi-spinner aria-hidden="true" hidden>${SPINNER_FRAMES[0]}</span><span id="pi-title-text">Pi Sessions</span></h1>
+            <p class="pi-view-subtitle" id="pi-view-subtitle"></p>
           </div>
+          <p class="pi-view-facts" id="pi-view-facts"></p>
         </header>
 
         <p class="sr-only" id="pi-status" role="status" aria-live="polite"></p>
 
-        <section class="pi-detail" id="pi-detail" role="region" aria-label="Session detail" tabindex="0" data-page-focus>
-          <div class="pi-detail-body" id="pi-detail-body"></div>
-          <div class="pi-events-host" id="pi-events-host"></div>
-        </section>
+        <div class="pi-main">
+          <section class="pi-detail" id="pi-detail" role="region" aria-label="Session detail" tabindex="0" data-page-focus>
+            <div class="pi-detail-body" id="pi-detail-body"></div>
+            <div class="pi-events-host" id="pi-events-host"></div>
+          </section>
 
-        <section class="pi-overview" id="pi-overview" aria-label="Session overview" hidden>
-          <div class="pi-overview-header">
-            <p class="pi-overview-summary" id="pi-overview-summary"></p>
-            <div class="pi-filter-group" role="group" aria-label="Session filter">
-              ${FILTER_DISPLAY_ORDER.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}">${FILTER_TITLES[value]}</button>`).join('')}
+          <section class="pi-overview" id="pi-overview" role="region" aria-label="Session overview">
+            <div class="pi-overview-filters" id="pi-overview-filters" role="group" aria-label="Session status filter">
+              ${FILTERS.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}"><span>${FILTER_LABELS[value]}</span><span class="pi-filter-count" aria-hidden="true">--</span></button>`).join('')}
             </div>
-          </div>
-          <div class="pi-overview-grid" id="pi-overview-grid"></div>
-        </section>
+            <div class="pi-overview-list" id="pi-overview-list"></div>
+          </section>
+        </div>
       </div>`
   }
 
-  function renderIdentity(session, selectedIndex, count) {
-    return `
-      <div class="pi-detail-header">
-        <div class="pi-detail-identity">
-          <span class="pi-status-badge pi-status-${escapeHtml(session.status)}">
-            ${session.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${statusLabel(session.status)}
-          </span>
-          <span class="pi-ws-title">${escapeHtml(workspaceLabel(session))}</span>
-          <span class="pi-card-time">${formatElapsed(session.startedAt)}</span>
-          <span class="pi-detail-position">${selectedIndex + 1} / ${count}</span>
-        </div>
-        <button type="button" class="pi-detail-overview-btn" id="pi-overview-open">All sessions</button>
-      </div>
-      <p class="pi-goal-text">${renderGoalHtml(session.latestGoal || 'No goal stated')}</p>
-      <p class="pi-activity-text">${session.status === 'running' ? '<span class="pi-pulse-dot"></span>' : ''}${renderActivityHtml(session.activity || (session.status === 'running' ? 'Working...' : session.recap || 'Settled'))}</p>`
+  // The detail states what Pi is doing now. Its state and directory are the
+  // page title; this is the session's own reading.
+  function renderIdentity(session) {
+    return `<p class="pi-goal-text">${renderGoalHtml(session.latestGoal || 'No goal stated')}</p>
+      <p class="pi-activity-text">${renderActivityHtml(session.activity || (session.status === 'running' ? 'Working...' : statusLabel(session.status)))}</p>`
   }
 
+  // Pi highlights fenced code with highlight.js. Its scopes are mapped to Pi's
+  // own palette in CSS, so a fence reads here the way it reads in the terminal.
+  function highlightCode(code, language) {
+    const highlighter = root.hljs
+    if (!highlighter || typeof highlighter.getLanguage !== 'function' || typeof highlighter.highlight !== 'function') return ''
+    const name = String(language || '').trim().toLowerCase()
+    if (!name || !highlighter.getLanguage(name)) return ''
+    try {
+      // highlight.js escapes its own output, so this stays inert HTML.
+      return highlighter.highlight(code, { language: name, ignoreIllegals: true }).value
+    } catch {
+      return ''
+    }
+  }
+
+  let messageMarkdown = null
+  function renderMessageMarkdown(text) {
+    if (!messageMarkdown && typeof root.markdownit === 'function') {
+      messageMarkdown = root.markdownit({ html: false, linkify: false, breaks: true, highlight: highlightCode })
+      const escape = messageMarkdown.utils.escapeHtml
+      // This remains an inspection surface: no remote assets or navigation.
+      messageMarkdown.renderer.rules.link_open = (tokens, index, _options, env) => {
+        env.urls.push(tokens[index].attrGet('href') || '')
+        return ''
+      }
+      messageMarkdown.renderer.rules.link_close = (_tokens, _index, _options, env) => ` (${escape(env.urls.pop())})`
+      messageMarkdown.renderer.rules.image = (tokens, index, options, env, renderer) => escape(renderer.renderInlineAsText(tokens[index].children || [], options, env))
+      messageMarkdown.renderer.rules.table_open = () => '<div class="pi-result-table-scroll" role="region" aria-label="Result table" tabindex="0"><table>'
+      messageMarkdown.renderer.rules.table_close = () => '</table></div>'
+      // Headings belong below the page title, not parallel h1s.
+      messageMarkdown.renderer.rules.heading_open = () => '<h3>'
+      messageMarkdown.renderer.rules.heading_close = () => '</h3>'
+    }
+    if (!messageMarkdown) return `<pre class="pi-diff-block">${escapeHtml(text)}</pre>`
+    return `<div class="pi-message-markdown pi-markdown">${messageMarkdown.render(text, { urls: [] })}</div>`
+  }
+
+  // A unified diff is read by line, the way Pi's own diff view colours it.
+  // Detection stays conservative: a fenced body is Markdown, and a plain list
+  // of "- item" lines is not a diff.
+  function diffLines(text) {
+    const lines = String(text || '').split('\n')
+    if (lines.some((line) => /^\s*```/.test(line))) return null
+    const first = lines.find((line) => line.trim().length > 0) || ''
+    const opens = /^(diff --git |index |--- |\+\+\+ |@@ )/.test(first)
+    const hunked = lines.some((line) => /^@@ .+ @@/.test(line))
+    const added = lines.some((line) => /^\+/.test(line))
+    const removed = lines.some((line) => /^-/.test(line))
+    if (!hunked && !opens) return null
+    return added || removed ? lines : null
+  }
+
+  function diffKind(line) {
+    if (/^@@ /.test(line) || /^diff --git /.test(line) || /^index /.test(line)) return 'hunk'
+    if (/^(--- |\+\+\+ )/.test(line)) return 'header'
+    if (/^\+/.test(line)) return 'added'
+    if (/^-/.test(line)) return 'removed'
+    return 'context'
+  }
+
+  function renderDiff(text) {
+    return `<pre class="pi-diff-block pi-diff">${diffLines(text).map((line) => (line.length === 0
+      ? '\n'
+      : `<span class="pi-diff-line pi-diff-${diffKind(line)}">${escapeHtml(line)}</span>\n`)).join('')}</pre>`
+  }
+
+  // A body is rendered the way Pi reads it: a diff by line, anything else as
+  // Markdown.
+  function renderBody(text) {
+    return diffLines(text) ? renderDiff(text) : renderMessageMarkdown(text)
+  }
+
+  // Rendering a Markdown body is the expensive part of this page, and a scan
+  // re-renders the whole stream whenever one event is appended. The rendered
+  // markup depends only on the event, so it is memoized: a 300-event stream
+  // parses only the events that actually changed.
+  const EVENT_HTML_CACHE = new Map()
+  const EVENT_HTML_CACHE_MAX = 512
+  const BODY_LIMITS = { result: '64 KiB', assistant: '16 KiB', user: '8 KiB', thinking: '4 KiB', tool: '4 KiB' }
+
+  // Every event keeps the body Pi produced, so a command, a prompt, or a result
+  // reads in full within its own limit.
   function renderEvent(event) {
-    return `<li class="pi-event pi-event-${escapeHtml(event.kind)}">
-      <span class="pi-event-kind">${escapeHtml(event.kind)}</span>
-      <span class="pi-event-text">${escapeHtml(event.text)}</span>
+    const key = `${event.kind}\u0000${event.toolName || ''}\u0000${event.truncated ? 1 : 0}\u0000${event.text}`
+    const cached = EVENT_HTML_CACHE.get(key)
+    if (cached !== undefined) return cached
+    const label = event.toolName
+      ? `<span class="pi-result-tool">${escapeHtml(event.toolName)}</span>`
+      : `<span class="pi-event-kind sr-only">${escapeHtml(event.kind)}: </span>`
+    const html = `<li class="pi-event pi-event-${escapeHtml(event.kind)}">
+      ${label}
+      <div class="pi-event-text pi-event-body">${renderBody(event.text)}</div>
+      ${event.truncated ? `<p class="pi-result-truncated">Message truncated at the ${BODY_LIMITS[event.kind] || '64 KiB'} safety limit.</p>` : ''}
     </li>`
+    if (EVENT_HTML_CACHE.size >= EVENT_HTML_CACHE_MAX) {
+      EVENT_HTML_CACHE.delete(EVENT_HTML_CACHE.keys().next().value)
+    }
+    EVENT_HTML_CACHE.set(key, html)
+    return html
   }
 
   function renderEventList(state, sourceLabel) {
     if (state.reason === 'loading') return '<p class="pi-detail-note">Reading session events...</p>'
     if (!state.ok) return `<p class="pi-detail-note">${escapeHtml(eventNote(state.reason, sourceLabel))}</p>`
     if (state.events.length === 0) return '<p class="pi-detail-note">No session events recorded yet.</p>'
-    return `<ol class="pi-events" id="pi-events">${state.events.map(renderEvent).join('')}</ol>`
+    return `<p class="pi-stream-label">Recent session events</p><ol class="pi-events" id="pi-events" aria-label="Recent session events">${state.events.map(renderEvent).join('')}</ol>`
   }
 
   /* ---------------------------------------------------------
-   * Selection and grid arithmetic (pure)
+   * Selection arithmetic (pure)
    * --------------------------------------------------------- */
 
   // Selection is remembered by session identity: a new session never takes the
@@ -356,59 +475,118 @@
   }
 
   // One explicit mapping from Remote input to the page's own action, so the
-  // routing is a decision rather than a cascade.
+  // routing is a decision rather than a cascade. The live list is the page's
+  // home: Back and primary leave a session for it, and inside the list Back
+  // still belongs to the Shell.
   const PAGE_INPUT = {
-    closed: { primary: 'open-overview', up: 'scroll-up', down: 'scroll-down', left: 'previous-session', right: 'next-session' },
-    open: { back: 'close-overview', primary: 'choose-cell', left: 'cell-left', right: 'cell-right', up: 'cell-up', down: 'cell-down' },
+    list: { primary: 'select-cell', left: 'cell-left', right: 'cell-right', up: 'cell-up', down: 'cell-down' },
+    detail: { primary: 'show-list', back: 'show-list', left: 'previous-session', right: 'next-session', up: 'scroll-up', down: 'scroll-down' },
   }
 
-  function pageInputAction(input, overviewIsOpen) {
-    return PAGE_INPUT[overviewIsOpen ? 'open' : 'closed'][input] || 'ignore'
+  function pageInputAction(input, listIsOpen) {
+    return PAGE_INPUT[listIsOpen ? 'list' : 'detail'][input] || 'ignore'
   }
 
   // The Pi Sessions page's own copy for the states it can be in.
-  function emptyCopy({ scan, filterTitle, setSize, sourceLabel }) {
+  function emptyCopy({ scan, filter, setSize, sourceLabel }) {
     if (scan === null) return 'Loading Pi sessions...'
     if (scan.ok === false) return `${sourceLabel || 'Pi sessions'} unavailable. Retrying automatically.`
-    if (setSize === 0) return `No session matches ${filterTitle}.`
+    if (setSize === 0) return `No session matches ${filterTitle(filter)}.`
     return 'No session selected.'
   }
 
-  function announcement(session, selectedIndex, setSize, fallback) {
+  function announcement(session, filter, setSize, fallback) {
     return session
-      ? `Session ${selectedIndex + 1} of ${setSize}: ${workspaceLabel(session)}, ${statusLabel(session.status).toLowerCase()}.`
+      ? `Session ${statusLabel(session.status)} in ${sessionPath(session)}. ${setSize} ${filterTitle(filter).toLowerCase()} session${setSize === 1 ? '' : 's'}.`
       : fallback
   }
 
   function detailView({ detailEl, bodyEl, eventsHostEl }) {
     let paintedHtml = null
     let hasSession = false
+    let following = false
+    const followLatest = () => {
+      if (following) detailEl.scrollTop = detailEl.scrollHeight
+    }
+    detailEl.addEventListener('scroll', followLatest, { passive: true })
+    const observer = new ResizeObserver(followLatest)
+    observer.observe(detailEl)
+    observer.observe(bodyEl)
+    observer.observe(eventsHostEl)
+
+    // A reading position is a place in the stream, not a pixel offset: the
+    // identity block above the stream can grow between updates, and keeping
+    // scrollTop would slide the reader to a different line.
+    const readingAnchor = () => {
+      if (!hasSession || following) return null
+      const viewTop = detailEl.getBoundingClientRect().top
+      const row = [...eventsHostEl.querySelectorAll('.pi-event')].find((node) => node.getBoundingClientRect().bottom > viewTop)
+      if (!row) return null
+      return { text: row.querySelector('.pi-event-text')?.textContent ?? '', top: row.getBoundingClientRect().top - viewTop }
+    }
+
+    const restoreReadingAnchor = (anchor) => {
+      if (anchor === null) return
+      const viewTop = detailEl.getBoundingClientRect().top
+      const row = [...eventsHostEl.querySelectorAll('.pi-event')].find((node) => (node.querySelector('.pi-event-text')?.textContent ?? '') === anchor.text)
+      if (row === undefined) return
+      detailEl.scrollTop += (row.getBoundingClientRect().top - viewTop) - anchor.top
+    }
 
     const paint = (state, sourceLabel) => {
+      const anchor = readingAnchor()
       const html = hasSession ? renderEventList(state, sourceLabel) : ''
-      if (html === paintedHtml) return
+      if (html === paintedHtml) {
+        followLatest()
+        return
+      }
       const scrollTop = detailEl.scrollTop
+      const tableIdentity = (table) => {
+        const result = table.closest('.pi-event-result')
+        return JSON.stringify([result.textContent, [...result.querySelectorAll('.pi-result-table-scroll')].indexOf(table)])
+      }
+      const tableState = [...eventsHostEl.querySelectorAll('.pi-result-table-scroll')].map((table) => ({
+        identity: tableIdentity(table),
+        left: table.scrollLeft,
+        focused: table === document.activeElement,
+      }))
       eventsHostEl.innerHTML = html
       paintedHtml = html
+      const tables = [...eventsHostEl.querySelectorAll('.pi-result-table-scroll')]
+      for (const state of tableState) {
+        const index = tables.findIndex((table) => tableIdentity(table) === state.identity)
+        if (index === -1) continue
+        const [table] = tables.splice(index, 1)
+        table.scrollLeft = state.left
+        if (state.focused) table.focus({ preventScroll: true })
+      }
       detailEl.scrollTop = scrollTop
+      restoreReadingAnchor(anchor)
+      followLatest()
     }
 
     return {
-      render(session, selectedIndex, count, state, sourceLabel, onOpenOverview) {
+      render(session, state, sourceLabel) {
+        const anchor = readingAnchor()
         hasSession = Boolean(session)
-        paintedHtml = null
+        following = session?.status === 'running'
+        detailEl.classList.toggle('is-following', following)
         if (!session) {
+          paintedHtml = null
           bodyEl.innerHTML = ''
           eventsHostEl.innerHTML = ''
           return
         }
-        bodyEl.innerHTML = renderIdentity(session, selectedIndex, count)
-        bodyEl.querySelector('#pi-overview-open')?.addEventListener('click', onOpenOverview)
+        bodyEl.innerHTML = renderIdentity(session)
         paint(state, sourceLabel)
+        restoreReadingAnchor(anchor)
+        followLatest()
       },
       paint,
       restart() {
         paintedHtml = null
+        hasSession = false
+        following = false
         detailEl.scrollTop = 0
       },
       scroll(input) {
@@ -417,24 +595,73 @@
       focus() {
         detailEl.focus({ preventScroll: true })
       },
+      destroy() {
+        observer.disconnect()
+        detailEl.removeEventListener('scroll', followLatest)
+      },
     }
   }
 
-  function overviewView({ overviewEl, summaryEl, gridEl }) {
+  function overviewView({ overviewEl, listEl }) {
+    // Cells are keyed by position, not only by identity: two reports of one
+    // session must never share a node, and a stable order keeps a focused cell.
+    const cellFor = (session, index, onChoose) => {
+      const key = sessionKey(session)
+      const existing = listEl.children[index]
+      if (existing && existing.dataset.sessionKey === key) return existing
+      const cell = document.createElement('button')
+      cell.type = 'button'
+      cell.className = 'pi-overview-cell'
+      cell.dataset.sessionKey = key
+      cell.innerHTML = '<span class="pi-overview-cursor" aria-hidden="true">›</span><span class="pi-overview-copy"><span class="pi-overview-state"></span><span class="pi-overview-goal"></span><span class="pi-overview-path"></span><span class="pi-overview-activity"></span></span>'
+      cell.addEventListener('click', () => onChoose(cell.dataset.sessionKey))
+      return cell
+    }
+
     return {
-      render({ set, filterTitle, sourceLabel, unavailable, selectedKey, emptyCopy, onChoose }) {
-        summaryEl.textContent = unavailable
-          ? `${sourceLabel || 'Pi sessions'} unavailable`
-          : `${set.length} ${filterTitle.toLowerCase()} · ${sourceLabel || 'Pi sessions'}`
-        gridEl.innerHTML = set.length === 0
-          ? `<p class="pi-empty-state">${escapeHtml(emptyCopy)}</p>`
-          : set.map((session) => overviewCellHtml(session, selectedKey)).join('')
-        for (const cell of gridEl.querySelectorAll('.pi-overview-cell')) {
-          cell.addEventListener('click', () => onChoose(cell.dataset.sessionKey))
+      render({ set, selectedKey, emptyCopy, onChoose }) {
+        const focused = listEl.contains(document.activeElement) ? document.activeElement : null
+        const scrollTop = overviewEl.scrollTop
+        listEl.querySelector('.pi-empty-state')?.remove()
+        // Selection is one row: duplicate reports of one session must not mark
+        // every copy of it as the chosen session.
+        const selectedAt = set.findIndex((session) => sessionKey(session) === selectedKey)
+        for (const cell of listEl.children) cell.removeAttribute('data-page-focus')
+        set.forEach((session, index) => {
+          const key = sessionKey(session)
+          const cell = cellFor(session, index, onChoose)
+          if (listEl.children[index] !== cell) listEl.insertBefore(cell, listEl.children[index] || null)
+          cell.dataset.sessionKey = key
+          const isSelected = index === selectedAt
+          cell.classList.toggle('is-selected', isSelected)
+          cell.setAttribute('aria-pressed', String(isSelected))
+          cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
+          cell.querySelector('.pi-overview-goal').textContent = overviewGoal(session)
+          cell.querySelector('.pi-overview-path').textContent = sessionPath(session)
+          const activity = cell.querySelector('.pi-overview-activity')
+          activity.textContent = normalizeInline(session.activity)
+          activity.hidden = !activity.textContent
+        })
+        while (listEl.children.length > set.length) listEl.lastElementChild.remove()
+        // Only the visible view may own the Shell's focus entry point.
+        if (!overviewEl.hidden) {
+          const focusTarget = this.cells()[Math.max(selectedAt, 0)]
+          if (focusTarget) focusTarget.setAttribute('data-page-focus', '')
         }
+        if (set.length === 0) {
+          const note = document.createElement('p')
+          note.className = 'pi-empty-state'
+          note.textContent = emptyCopy
+          listEl.append(note)
+        }
+        if (focused) {
+          const target = focused.isConnected ? focused : this.cells().find((cell) => cell.dataset.sessionKey === selectedKey)
+          ;(target || listEl).focus?.({ preventScroll: true })
+        }
+        overviewEl.scrollTop = scrollTop
       },
       cells() {
-        return [...gridEl.querySelectorAll('.pi-overview-cell')]
+        return [...listEl.querySelectorAll('.pi-overview-cell')]
       },
       columns() {
         return gridColumnsOf(this.cells())
@@ -452,6 +679,8 @@
       },
       show(visible) {
         overviewEl.hidden = !visible
+        // A hidden view may not keep the Shell's focus entry point.
+        if (!visible) for (const cell of this.cells()) cell.removeAttribute('data-page-focus')
       },
       isOpen() {
         return !overviewEl.hidden
@@ -477,13 +706,16 @@
 
       const detailEl = el.querySelector('#pi-detail')
       const bodyEl = el.querySelector('#pi-detail-body')
+      const titleTextEl = el.querySelector('#pi-title-text')
+      const titleSpinnerEl = el.querySelector('#pi-title .pi-spinner')
+      const subtitleEl = el.querySelector('#pi-view-subtitle')
+      const factsEl = el.querySelector('#pi-view-facts')
       const statusEl = el.querySelector('#pi-status')
-      const filterBtns = [...el.querySelectorAll('.pi-filter-btn')]
+      const filterButtons = [...el.querySelectorAll('.pi-filter-btn')]
       const detail = detailView({ detailEl, bodyEl, eventsHostEl: el.querySelector('#pi-events-host') })
       const overview = overviewView({
         overviewEl: el.querySelector('#pi-overview'),
-        summaryEl: el.querySelector('#pi-overview-summary'),
-        gridEl: el.querySelector('#pi-overview-grid'),
+        listEl: el.querySelector('#pi-overview-list'),
       })
 
       let scan = null
@@ -492,7 +724,9 @@
       let selectedIndex = 0
       let lastDirection = 'right'
       let eventsState = { reason: 'loading', ok: false, events: [] }
-      let renderToken = 0
+      let scanToken = 0
+      let eventToken = 0
+      let disposed = false
       let tickCount = 0
       const orderSessions = createSessionOrder()
 
@@ -502,59 +736,123 @@
       const remoteSource = () => scan?.source?.kind === 'ssh'
 
       function pageCopy() {
-        return emptyCopy({
-          scan,
-          filterTitle: FILTER_TITLES[filter],
-          setSize: currentSet().length,
-          sourceLabel: sourceLabel(),
-        })
+        return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })
       }
 
+      // This page is one App page in a shell of pages, so its spinner only runs
+      // while the shell is showing it. ctx.onTick is a one-second cadence and
+      // cannot drive an 80ms indicator, so the interval is page-owned and
+      // registered with the plugin's cleanup. Reduced motion stops the frames
+      // instead of removing the indicator: the state is information.
+      const motionQuery = typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null
+      const pageIsCurrent = () => {
+        const page = el.closest('.page')
+        if (!page) return true
+        const active = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
+        return Number(page.dataset.page) === active
+      }
+      let frameIndex = 0
+      let appliedFrame = -1
+      const spinnerTimer = setInterval(() => {
+        if (disposed || document.hidden || !pageIsCurrent()) return
+        if (motionQuery?.matches !== true) frameIndex = (frameIndex + 1) % SPINNER_FRAMES.length
+        if (frameIndex === appliedFrame) return
+        appliedFrame = frameIndex
+        for (const node of el.querySelectorAll('[data-pi-spinner]')) node.textContent = SPINNER_FRAMES[frameIndex]
+      }, SPINNER_INTERVAL_MS)
+
       function publishRemote() {
+        // The page owns directional input in both views: a session by session,
+        // or a row by row. The only page-owned Strip control is the Session
+        // Filter, whose label is the filter the overview is showing.
         ctx?.publishPageRemote?.(el, {
-          actions: [
-            { id: ACTION_FILTER, label: FILTER_LABELS[filter] },
-            { id: ACTION_OVERVIEW, label: 'OVERVIEW' },
-          ],
+          actions: [{ id: ACTION_FILTER, label: filterTitle(filter).toUpperCase() }],
           focus: 'items',
         })
       }
 
       function announce() {
-        statusEl.textContent = announcement(selected(), selectedIndex, currentSet().length, pageCopy())
+        const text = announcement(selected(), filter, currentSet().length, pageCopy())
+        if (statusEl.textContent !== text) statusEl.textContent = text
       }
 
-      function renderFilterButtons() {
-        for (const button of filterBtns) {
-          const active = button.dataset.filter === filter
-          button.classList.toggle('active', active)
-          button.setAttribute('aria-pressed', String(active))
+      // The title states the view: the session's own Pi state while one is
+      // shown, and the live set while the Overview is open.
+      function renderTitle() {
+        const showing = overview.isOpen()
+        const session = selected()
+        factsEl.textContent = ''
+        if (showing) {
+          titleTextEl.textContent = 'Pi Sessions'
+          titleSpinnerEl.hidden = true
+          const size = currentSet().length
+          subtitleEl.textContent = scan === null
+            ? 'Loading Pi sessions...'
+            : scan.ok === false
+              ? `${sourceLabel() || 'Pi sessions'} unavailable. Retrying automatically.`
+              : `${size} ${filterTitle(filter).toLowerCase()} session${size === 1 ? '' : 's'} · ${sourceLabel() || 'Pi sessions'}`
+          return
         }
+        if (!session) {
+          titleTextEl.textContent = 'Pi Sessions'
+          titleSpinnerEl.hidden = true
+          subtitleEl.textContent = pageCopy()
+          return
+        }
+        const working = session.status === 'running'
+        titleTextEl.textContent = statusLabel(session.status)
+        titleSpinnerEl.hidden = !working
+        subtitleEl.textContent = sessionPath(session)
+        factsEl.textContent = formatElapsed(session.startedAt)
       }
 
       function renderDetail() {
         const session = selected()
-        detail.render(session, selectedIndex, currentSet().length, eventsState, sourceLabel(), () => setOverview(true))
-        if (!session) bodyEl.innerHTML = `<p class="pi-empty-state">${escapeHtml(pageCopy())}</p>`
+        detail.render(session, eventsState, sourceLabel())
+        if (!session) {
+          bodyEl.innerHTML = ''
+          const note = document.createElement('p')
+          note.className = 'pi-empty-state'
+          note.textContent = pageCopy()
+          bodyEl.append(note)
+        }
+      }
+
+      function renderFilters() {
+        for (const button of filterButtons) {
+          const value = button.dataset.filter
+          const active = value === filter
+          button.classList.toggle('active', active)
+          button.setAttribute('aria-pressed', String(active))
+          const count = scan && scan.ok !== false ? sessionSet(scan, value).length : null
+          button.querySelector('.pi-filter-count').textContent = count === null ? '--' : String(count)
+          button.setAttribute('aria-label', `${FILTER_LABELS[value]} sessions${count === null ? ', count unavailable' : `, ${count}`}`)
+        }
       }
 
       function renderOverview() {
-        overview.render({
-          set: currentSet(),
-          filterTitle: FILTER_TITLES[filter],
-          sourceLabel: sourceLabel(),
-          unavailable: scan?.ok === false,
-          selectedKey,
-          emptyCopy: pageCopy(),
-          onChoose: chooseCell,
-        })
+        renderFilters()
+        overview.render({ set: currentSet(), selectedKey, emptyCopy: pageCopy(), onChoose: chooseCell })
       }
 
       function renderAll() {
-        renderFilterButtons()
+        renderTitle()
         renderDetail()
         renderOverview()
         announce()
+      }
+
+      function setFilter(value) {
+        if (!FILTERS.includes(value) || value === filter) return
+        filter = value
+        reconcileSelection()
+        eventsState = { reason: 'loading', ok: false, events: [] }
+        detail.restart()
+        renderAll()
+        publishRemote()
+        loadEvents()
       }
 
       function reconcileSelection() {
@@ -579,9 +877,7 @@
         selectedKey = nextKey
         eventsState = { reason: 'loading', ok: false, events: [] }
         detail.restart()
-        renderDetail()
-        renderOverview()
-        announce()
+        renderAll()
         loadEvents()
       }
 
@@ -589,7 +885,6 @@
         const set = currentSet()
         if (set.length === 0) return
         setSelection(steppedIndex(selectedIndex, step, set.length), step < 0 ? 'left' : 'right')
-        overview.focusSelected(selectedKey)
       }
 
       function chooseCell(key) {
@@ -603,29 +898,24 @@
         const next = typeof open === 'boolean' ? open : !overview.isOpen()
         if (next === overview.isOpen()) return
         overview.show(next)
-        detailEl.hidden = next
+        // This is a page-local cover, not replacement navigation or a modal
+        // over the Shell. Preserve the covered detail's layout and reading.
+        detailEl.inert = next
         if (next) {
+          detailEl.removeAttribute('data-page-focus')
           renderOverview()
           overview.focusSelected(selectedKey)
         } else {
+          detailEl.setAttribute('data-page-focus', '')
           detail.focus()
         }
-      }
-
-      function setFilter(value) {
-        if (!FILTERS.includes(value)) return
-        filter = value
-        reconcileSelection()
-        eventsState = { reason: 'loading', ok: false, events: [] }
-        detail.restart()
-        renderAll()
+        renderTitle()
         publishRemote()
-        loadEvents()
       }
 
       async function loadEvents() {
         const session = selected()
-        const token = ++renderToken
+        const token = ++eventToken
         if (!session) {
           eventsState = { reason: 'loading', ok: false, events: [] }
           detail.paint(eventsState, sourceLabel())
@@ -640,51 +930,51 @@
           const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
             ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid })
             : null
-          if (token !== renderToken) return
-          eventsState = res?.ok
-            ? { reason: '', ok: true, events: res.events || [] }
+          if (disposed || token !== eventToken) return
+          const valid = res?.ok && Array.isArray(res.events) && res.events.every((event) => event && typeof event.kind === 'string' && typeof event.text === 'string')
+          eventsState = valid
+            ? { reason: '', ok: true, events: res.events }
             : { reason: res?.reason || 'session-log-missing', ok: false, events: [] }
         } catch {
-          if (token !== renderToken) return
+          if (disposed || token !== eventToken) return
           eventsState = { reason: 'session-log-unreadable', ok: false, events: [] }
         }
         detail.paint(eventsState, sourceLabel())
       }
 
       async function load() {
-        const token = ++renderToken
+        const token = ++scanToken
+        let response
         try {
-          const response = typeof root.odkPlatform?.getPiSessions === 'function'
+          response = typeof root.odkPlatform?.getPiSessions === 'function'
             ? await root.odkPlatform.getPiSessions()
             : null
-          // A missing or non-object answer is unavailable, never an empty
-          // successful scan.
-          scan = response && typeof response === 'object' ? response : { ok: false, source: scan?.source || null }
         } catch {
-          scan = { ok: false, source: scan?.source || null }
+          response = null
         }
-        if (token !== renderToken) return
-        if (scan?.ok !== false && Array.isArray(scan?.sessions)) {
-          scan = { ...scan, sessions: orderSessions(scan.sessions) }
-        }
+        if (disposed || token !== scanToken) return
+        const previousKey = selectedKey
+        const previousSource = JSON.stringify(scan?.source)
+        scan = validScan(response)
+          ? { ...response, sessions: orderSessions(response.sessions) }
+          : { ok: false, source: response?.source || scan?.source || null, sessions: [] }
         reconcileSelection()
+        if (selectedKey !== previousKey || JSON.stringify(scan.source) !== previousSource) {
+          eventsState = { reason: 'loading', ok: false, events: [] }
+          detail.restart()
+        }
         renderAll()
-        // Every completed scan re-reads the selected session's events, so a
-        // changed source, a changed session, or new activity is never stale.
         loadEvents()
       }
 
       function onRemoteAction(event) {
-        const actionId = event?.detail
-        if (actionId === ACTION_FILTER) setFilter(nextFilter(filter))
-        else if (actionId === ACTION_OVERVIEW) setOverview()
+        if (event?.detail === ACTION_FILTER) setFilter(nextFilter(filter))
       }
 
       function onRemotePageInput(event) {
         const action = pageInputAction(event?.detail?.input, overview.isOpen())
-        if (action === 'close-overview') setOverview(false)
-        else if (action === 'open-overview') setOverview(true)
-        else if (action === 'choose-cell') {
+        if (action === 'show-list') setOverview(true)
+        else if (action === 'select-cell') {
           const cell = overview.cells().find((candidate) => candidate === document.activeElement)
           if (cell) chooseCell(cell.dataset.sessionKey)
         } else if (action === 'cell-left') overview.focusOffset(selectedKey, -1)
@@ -698,17 +988,40 @@
       }
 
       function onKeydown(event) {
-        if (event.key !== 'Escape' || !overview.isOpen()) return
+        const page = el.closest('.page')
+        if (page) {
+          const activeIndex = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
+          if (Number(page.dataset.page) !== activeIndex) return
+        }
+        if (event.key === 'Escape' && overview.isOpen()) {
+          event.preventDefault()
+          event.stopPropagation()
+          setOverview(false)
+          return
+        }
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+        // A focused overview control owns its own activation keys.
+        if (overview.isOpen() && (event.key === 'Enter' || event.key === ' ')) {
+          const cell = overview.cells().find((candidate) => candidate === document.activeElement)
+          if (cell) {
+            event.preventDefault()
+            chooseCell(cell.dataset.sessionKey)
+            return
+          }
+        }
+        const input = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.key]
+        if (!input || !event.target.closest('.pi-detail, .pi-overview-cell')) return
         event.stopPropagation()
-        setOverview(false)
+        // A focused Markdown table owns native horizontal scrolling.
+        if (event.target.closest('.pi-result-table-scroll')) return
+        // Native vertical scrolling remains available in the detail.
+        if (!overview.isOpen() && (input === 'up' || input === 'down')) return
+        event.preventDefault()
+        onRemotePageInput({ detail: { input } })
       }
 
       function onPageShown() {
         load()
-      }
-
-      for (const button of filterBtns) {
-        button.addEventListener('click', () => setFilter(button.dataset.filter))
       }
 
       el.addEventListener('odk-remote-action', onRemoteAction)
@@ -716,6 +1029,11 @@
       el.addEventListener('odk-page-shown', onPageShown)
       el.addEventListener('keydown', onKeydown)
       ctx?.trackCleanup?.(() => {
+        disposed = true
+        clearInterval(spinnerTimer)
+        detail.destroy()
+        scanToken += 1
+        eventToken += 1
         el.removeEventListener('odk-remote-action', onRemoteAction)
         el.removeEventListener('odk-remote-page-input', onRemotePageInput)
         el.removeEventListener('odk-page-shown', onPageShown)
@@ -723,6 +1041,15 @@
         ctx?.publishPageRemote?.(el, null)
       })
 
+      for (const button of filterButtons) {
+        button.addEventListener('click', () => setFilter(button.dataset.filter))
+      }
+
+      // The page lands on the live session list: the overview is where a
+      // session is chosen, and the detail is what a choice opens.
+      overview.show(true)
+      detailEl.inert = true
+      detailEl.removeAttribute('data-page-focus')
       publishRemote()
       renderAll()
 

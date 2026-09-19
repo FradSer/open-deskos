@@ -14,6 +14,22 @@ function validateModuleTree(loaded, releasePath, seen = new Set()) {
   for (const child of loaded.children) validateModuleTree(child, releasePath, seen)
 }
 
+function resolveDependency(requireFromRelease, name) {
+  try {
+    return { kind: 'module', entry: requireFromRelease.resolve(name) }
+  } catch (error) {
+    if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED' && error?.code !== 'MODULE_NOT_FOUND') throw error
+    // Asset-only packages (for example @highlightjs/cdn-assets, which the
+    // renderer loads with a script tag) declare no main or exports, so they can
+    // never be required as a module. Only their location remains checkable.
+    try {
+      return { kind: 'asset', entry: requireFromRelease.resolve(`${name}/package.json`) }
+    } catch {
+      throw error
+    }
+  }
+}
+
 try {
   if (!process.argv[2]) throw new Error('release path is required')
   const releasePath = fs.realpathSync(process.argv[2])
@@ -21,10 +37,11 @@ try {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   const requireFromRelease = createRequire(manifestPath)
   for (const name of Object.keys(manifest.dependencies || {})) {
-    const entry = requireFromRelease.resolve(name)
+    const { kind, entry } = resolveDependency(requireFromRelease, name)
     if (!entry.startsWith(`${releasePath}${path.sep}`)) {
       throw new Error(`${name} resolves outside the candidate release: ${entry}`)
     }
+    if (kind === 'asset') continue
     requireFromRelease(name)
     validateModuleTree(requireFromRelease.cache[entry], releasePath)
   }

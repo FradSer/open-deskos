@@ -23,6 +23,9 @@ if (!['unavailable', 'live'].includes(fixtureState)) throw new Error(`Invalid fi
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
 ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
+ipcMain.handle('odk-weather-status', () => fixtureState === 'live'
+  ? { status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }
+  : { status: 'unavailable', place: 'Shenzhen', current: null, daily: null, updatedAt: null, hint: null, error: 'provider timed out after 8000 ms' })
 ipcMain.handle('odk-weread-highlight', () => fixtureState === 'live'
   ? { status: 'live', highlight: { title: 'Reading notes', markText: 'A useful idea becomes clearer when we return to it and put it into practice.' } }
   : { status: 'unconfigured', highlight: null })
@@ -30,6 +33,18 @@ ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: fixtureState === 
 ipcMain.handle('odk-hydra-status', () => fixtureState === 'live'
   ? { configured: true, connected: true, env: { tempC: 31.3, humidity: 79.8, pressureHpa: 998.9, lux: 1234, updatedAt: Date.now(), stale: false }, nodes: [{ id: 1, online: true, pump: false, soilPercent: 62 }, { id: 2, online: true, pump: false, soilPercent: 48 }] }
   : { configured: true, connected: true, env: { tempC: 24.5, humidity: 61, pressureHpa: 1002, lux: 800, updatedAt: Date.now(), stale: true }, nodes: [{ id: 1, online: true, pump: false, soilPercent: 55 }, { id: 2, online: false, pump: false, soilPercent: null }] })
+ipcMain.handle('odk-futu-holdings', () => fixtureState === 'live'
+  ? { state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [
+    { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 },
+    { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 },
+    { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 },
+    { code: 'US.PATH', marketVal: 1377, dayRatio: 0.08 },
+    { code: 'US.QS', marketVal: 1032, dayRatio: -0.05 } ] }, updatedAt: Date.now() }
+  : { state: 'unavailable', service: 'futu-poller', error: 'stale snapshot', updatedAt: Date.now() - 240000,
+    snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [
+      { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 },
+      { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 },
+      { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] } })
 
 async function waitFor(win, expression) {
   const deadline = Date.now() + 5000
@@ -64,6 +79,19 @@ async function measureSize(win, width, height) {
     // Numeric glanceable instruments: sparse ink by design; keep the fill/empty-band gate, relax per-widget.
     const profiles = {
       'odk.tile.clock': { target: 0.38, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.36 },
+      // Futu holdings: anchored header, fitted day-ratio, up to five 14px
+      // holding rows, footer note, distributed to fill the 1x1 cell.
+      // Compliant multi-row text profile under the hardness rules: no
+      // measurement limitation is claimed, so the shared-adjacent bounds
+      // hold (minOccupied 0.12, maxEmptyBand 0.45).
+      // Shared Shell inset restores the standard instrument density contract.
+      'odk.tile.futu': { target: 0.62, tolerance: 0.08, minOccupied: 0.20, maxEmptyBand: 0.28 },
+      // Weather: the shared band applies to both states; only the occupied floor is
+      // lower, because a placeholder reading carries far less ink than a numeral - the
+      // same reason the Clock, Hydra, and Pi profiles lower theirs. Measured on the CM5
+      // unavailable fixture (2026-09-18): 10.8% at 1920x1280, 11.2-11.8% across the other
+      // resolutions, against 21.8-26.9% with a live reading.
+      'odk.tile.weather': { target: 0.62, tolerance: 0.08, minOccupied: 0.1, maxEmptyBand: 0.28 },
       'odk.tile.pomodoro': { target: 0.42, tolerance: 0.14, minOccupied: 0.15, maxEmptyBand: 0.36 },
       'odk.tile.almanac': { target: 0.58, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.28 },
       'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.07, maxEmptyBand: 0.35 },
@@ -116,7 +144,10 @@ async function captureWidgets(win, widgets, width, height) {
 }
 
 async function main() {
-  const win = new BrowserWindow({ width: sizes[0][0], height: sizes[0][1], frame: false, show: true, useContentSize: true,
+  // Hidden on purpose: this harness must never activate a window on the desk it
+  // measures. Sizes are still set by the harness, and backgroundThrottling stays
+  // off so rendering keeps up offscreen.
+  const win = new BrowserWindow({ width: sizes[0][0], height: sizes[0][1], frame: false, show: false, useContentSize: true,
     webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))

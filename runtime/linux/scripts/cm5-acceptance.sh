@@ -130,12 +130,45 @@ fi
 if command -v glxinfo >/dev/null 2>&1; then
   RENDERER="$(glxinfo -B 2>/dev/null | grep 'OpenGL renderer' | head -n1 | cut -d: -f2- | sed 's/^ *//')"
   if [ -n "$RENDERER" ]; then
-    check "gpu-renderer" "true" "true" "hardware" "$RENDERER"
+    check "gpu-renderer" "true" "true" "hardware" "$RENDERER (Mesa GLX path)"
   else
     check "gpu-renderer" "false" "true" "hardware" "glxinfo produced no renderer line"
   fi
 else
   check "gpu-renderer" "false" "true" "hardware" "glxinfo not installed (mesa-utils); record manually"
+fi
+
+# Chromium renders through EGL/GLES, not the Mesa GLX path that glxinfo probes,
+# so the EGL vendor is the authoritative acceleration evidence.
+if command -v es2_info >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then
+  EGL_DETAIL="$(es2_info 2>/dev/null | grep -E 'EGL_VENDOR|EGL_VERSION' | tr '\n' ';' | sed 's/;$//')"
+  if [ -n "$EGL_DETAIL" ]; then
+    case "$EGL_DETAIL" in
+      *ARM*) check "egl-renderer" "true" "false" "hardware" "$EGL_DETAIL" ;;
+      *) check "egl-renderer" "false" "false" "hardware" "$EGL_DETAIL" ;;
+    esac
+  else
+    check "egl-renderer" "false" "false" "hardware" "es2_info could not initialise EGL on ${DISPLAY}"
+  fi
+else
+  check "egl-renderer" "false" "false" "hardware" "es2_info unavailable or no DISPLAY; record manually"
+fi
+
+MALI_FIRMWARE="/lib/firmware/mali_csffw.bin"
+MALI_BLOB_DIR="/usr/lib/aarch64-linux-gnu/libmali"
+if [ -r "$MALI_FIRMWARE" ] && [ -d "$MALI_BLOB_DIR" ]; then
+  check "mali-userspace" "true" "false" "hardware" "firmware $(sha256sum "$MALI_FIRMWARE" | cut -c1-12); $(ls "$MALI_BLOB_DIR" | tr '\n' ' ')"
+else
+  check "mali-userspace" "false" "false" "hardware" "no /lib/firmware/mali_csffw.bin or ${MALI_BLOB_DIR}; the shell renders through llvmpipe"
+fi
+
+if [ -r /var/log/Xorg.0.log ]; then
+  GLAMOR="$(grep -i 'glamor X acceleration enabled' /var/log/Xorg.0.log | tail -n1 | sed 's/^.*(II) //')"
+  if [ -n "$GLAMOR" ]; then
+    check "xorg-glamor" "true" "false" "hardware" "$GLAMOR"
+  else
+    check "xorg-glamor" "false" "false" "hardware" "no glamor acceleration line in Xorg log"
+  fi
 fi
 
 TOUCH="$(grep -iE 'Name=.*(touch|gt911|goodix|ilitek|elan)' /proc/bus/input/devices 2>/dev/null | sed 's/.*Name="//; s/"$//' | tr '\n' ';' )"

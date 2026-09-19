@@ -73,3 +73,23 @@ if (!exists('.git')) {
     }
   })
 }
+
+// Test harnesses run on the desk the operator is using, so none of them may
+// activate a window. A guard here is what keeps the boundary once the harnesses
+// themselves are hidden: a bash-level rule matches command text and cannot see
+// a harness flipping `show` back on.
+test('no test harness activates a window', () => {
+  const harnesses = fs.readdirSync(__dirname).filter((name) => name.endsWith('.cjs'))
+  assert.ok(harnesses.length > 0, 'expected Electron harnesses in tests/')
+  const visible = []
+  for (const name of harnesses) {
+    const source = fs.readFileSync(path.join(__dirname, name), 'utf8')
+    for (const match of source.matchAll(/new BrowserWindow\(\{([\s\S]*?)\}\)/g)) {
+      const options = match[1]
+      if (!/(^|[,\s])show:\s*false/.test(options)) {
+        visible.push(`${name}: ${options.split('\n')[0].trim().slice(0, 60)}`)
+      }
+    }
+  }
+  assert.deepEqual(visible, [], `these harnesses could activate a window: ${visible.join(' | ')}`)
+})
