@@ -87,9 +87,9 @@ Temporary audio lives only in private `capture-*` directories beside the socket.
 
 ## Managed Pi tasks on CM5 and Mac
 
-The voice coordinator exposes `coding_targets`, `coding_task_start`, `coding_task_status`, `coding_tasks_list`, and `coding_task_cancel`. Each configured host owns an independent task daemon; SSH carries bounded control requests, not the coding task lifetime. Closing voice feedback does not cancel a task. See @docs/MANAGED_TASKS.md for installation and configuration.
+The voice coordinator exposes `coding_targets`, `coding_task_start`, `coding_task_status`, `coding_tasks_list`, and `coding_task_cancel`. Each configured host owns an independent session daemon; SSH carries bounded control requests, not the coding lifetime. Closing voice feedback does not cancel a session. A session is persistent and steerable: it survives across turns, accepts further instructions, and can also be attached to, steered, cancelled, and ended from a Console on another machine under a credential separate from reporting. See @docs/MANAGED_TASKS.md for installation, states, slots, and configuration.
 
-The obsolete `pi-session-control` executable bridge has been removed. Managed tasks create their own Pi SDK sessions rather than impersonating or editing another interactive session. They do not imply access to all existing terminal sessions.
+The obsolete `pi-session-control` executable bridge has been removed. A hosted session creates its own Pi SDK session rather than impersonating or editing another interactive session, and it does not imply access to sessions someone started in a terminal. Such a session persists across turns and can be driven from a Console, while staying distinct from the resident voice agent's own conversation.
 
 Task acceptance is not completion. A finished run is not verified success: verification stays `not_run` unless a separate verifier supplies evidence. An unknown start outcome includes the task ID for reconciliation through status; never retry it as a new task. Unfinished records become `interrupted` after daemon restart and are never automatically replayed.
 
