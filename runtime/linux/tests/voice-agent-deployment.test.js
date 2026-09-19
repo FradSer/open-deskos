@@ -9,6 +9,18 @@ const installer = fs.readFileSync('scripts/cm5-install.sh', 'utf8')
 const stage = fs.readFileSync('scripts/cm5-stage-release.sh', 'utf8')
 const helperPath = path.resolve('scripts/cm5-voice-agent.sh')
 
+// A development checkout keeps integrations beside runtime/linux; a release flattens runtime/linux
+// and seals integrations at its own root, while the runtime root may hold an unrelated integrations
+// tree. Resolve the one that actually carries the integration under test instead of assuming depth.
+function integrationTree() {
+  for (const base of ['integrations', '../../integrations']) {
+    const candidate = path.join(base, 'voice-agent')
+    if (fs.existsSync(path.join(candidate, 'package.json')) &&
+      fs.existsSync(path.join(candidate, 'systemd/open-deskos-pi-tasks.service'))) return candidate
+  }
+  throw new Error(`voice-agent integration tree not found from ${process.cwd()}`)
+}
+
 test('integration staging excludes host dependencies and private auth/config', () => {
   const integrations = stage.split('\n').filter((line, index, lines) =>
     line.includes('"${ROOT}/integrations/"') || lines[index + 1]?.includes('"${ROOT}/integrations/"')).join('\n')
@@ -85,7 +97,7 @@ test('task host service is staged on the stable runtime path and waits for its c
     const releaseRoot = path.join(dir, 'runtime/releases/20260101T000000Z-1')
     const release = path.join(releaseRoot, 'integrations/voice-agent')
     fs.mkdirSync(path.join(release, 'systemd'), { recursive: true })
-    fs.copyFileSync('../../integrations/voice-agent/systemd/open-deskos-pi-tasks.service',
+    fs.copyFileSync(path.join(integrationTree(), 'systemd/open-deskos-pi-tasks.service'),
       path.join(release, 'systemd/open-deskos-pi-tasks.service'))
     fs.symlinkSync(releaseRoot, path.join(dir, 'runtime/current'))
     const install = spawnSync('bash', ['-c', `
@@ -142,4 +154,34 @@ test('the installer stages the task host after the voice agent without aborting 
   assert.ok(installer.indexOf('install_task_host_service') > installer.indexOf('install_voice_agent_service'))
   assert.match(installer, /install_task_host_service \|\|/)
   assert.doesNotMatch(installer, /^\s*systemctl --user/m)
+})
+
+test('project installs use the pnpm each project declares', () => {
+  assert.match(installer, /COREPACK_ENABLE_PROJECT_SPEC=1/)
+  const voice = JSON.parse(fs.readFileSync(path.join(integrationTree(), 'package.json'), 'utf8'))
+  assert.equal(voice.devEngines.packageManager.name, 'pnpm')
+  assert.equal(voice.packageManager, `pnpm@${voice.devEngines.packageManager.version}`)
+})
+
+test('run_as_target_user forwards its command through the kiosk environment', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-run-as-'))
+  try {
+    const body = installer.match(/^run_as_target_user\(\) \{[\s\S]*?\n\}/m)?.[0]
+    assert.ok(body, 'run_as_target_user is defined')
+    const file = path.join(dir, 'run-as.sh')
+    fs.writeFileSync(file, `${body}\n`)
+    const forwarded = spawnSync('bash', ['-c', `
+      set -euo pipefail
+      source "$1"
+      TARGET_UID=99999 TARGET_USER=orangepi TARGET_HOME=/home/orangepi
+      KIOSK_BIN=/kiosk NODE_BIN=/opt/node
+      runuser() { printf '%s\\n' "$@"; }
+      run_as_target_user echo HELLO
+    `, 'test', file], { encoding: 'utf8' })
+    assert.equal(forwarded.status, 0, forwarded.stderr)
+    assert.match(forwarded.stdout, /COREPACK_ENABLE_PROJECT_SPEC=1\n/)
+    assert.match(forwarded.stdout, /\necho\nHELLO\n$/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })

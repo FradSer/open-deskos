@@ -37,7 +37,9 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /chown', \['-R', 'root:root'/)
   assert.match(updater, /chmod', \['-R', 'a-w'/)
   assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
-  assert.match(updater, /\['pnpm', 'verify-release'\], kiosk/)
+  assert.match(updater, /\['bash', 'scripts\/verify-release\.sh'\], kiosk/)
+  // The sealed release cannot relink command shims, so the smoke never runs through pnpm.
+  assert.doesNotMatch(updater, /\['pnpm', 'verify-release'\]/)
 })
 
 test('device preflight inherits the kiosk graphical session instead of ambient SSH environment', () => {
@@ -61,6 +63,7 @@ test('immutable runtime smoke can skip generated stylesheet writes', () => {
   const packageManifest = fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
   assert.match(launcher, /ODESK_SKIP_STYLE_BUILD/)
   assert.match(packageManifest, /bash scripts\/verify-release\.sh/)
+  assert.equal(JSON.parse(packageManifest).scripts['verify-release'], 'bash scripts/verify-release.sh')
   assert.match(releaseVerifier, /ODESK_SKIP_STYLE_BUILD=1 \.\/run\.sh --smoke/)
   assert.match(releaseVerifier, /loginctl show-session/)
   assert.match(releaseVerifier, /SESSION_DISPLAY/)

@@ -134,7 +134,10 @@ function main() {
         return { ok: false, reason: 'active release pointer did not resolve to candidate' }
       }
       const releasePath = fs.realpathSync(active)
-      const smoke = runReleaseCommand(releasePath, ['pnpm', 'verify-release'], kiosk)
+      // Run the smoke script directly instead of through pnpm: the activated release is sealed
+      // root-owned and read-only, and pnpm's install-before-run pass cannot relink its command
+      // shims there (ERR_PNPM_CMD_SHIM_CHMOD), which would fail every activation.
+      const smoke = runReleaseCommand(releasePath, ['bash', 'scripts/verify-release.sh'], kiosk)
       return smoke.status === 0 ? { ok: true } : { ok: false, reason: 'post-activation smoke failed' }
     },
   }))
