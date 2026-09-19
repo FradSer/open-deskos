@@ -41,6 +41,42 @@ const profiles = {
 
 ---
 
+## 1b. Profile Hardness Rules
+
+A justified profile is a claim, not a waiver. Every profile outside the
+standard band must cite exactly one justification class:
+
+- **Measurement limitation** — part of the content is invisible to the
+  collector (canvas-painted covers, figures, dials). Precedents: preorder,
+  weread. Only this class may set `maxEmptyBand` above `0.45`.
+- **Single-reading instrument** — the tile renders one numeral and at most
+  one detail line (clock precedent). Sparse ink is inherent because there
+  is almost nothing to render.
+
+Hardness gates that apply regardless of justification:
+
+- A tile with **two or more text rows may not claim "sparse by design"**.
+  Rows are content: multi-row text tiles keep `minOccupied >= 0.12` and
+  `maxEmptyBand <= 0.45`. A lower occupied floor is allowed only with a
+  thin-cell telemetry justification (many small cells/meters whose union
+  is small while the tile reads full, hydra precedent) — never for a few
+  short rows in a mostly empty card. If the rows do not fit those bounds,
+  the design is too sparse: restructure (denser rows, stronger hierarchy,
+  fewer rows) instead of widening the profile.
+- A profile that passes only because its tolerance band was widened to
+  cover the measurement is rejected; the band documents the design, it
+  does not excuse it.
+
+Negative example: a 1x1 tile with one fitted ratio plus three 12px
+`secondary` holding rows measured `fill ~0.17`, `empty-band ~0.58` and
+carried its primary data in small dim type. It passed only under a
+`maxEmptyBand: 0.60` / `minOccupied: 0.08` profile with no measurement
+limitation — exactly what these rules forbid. The fix was a denser tile
+(14px `secondary-strong` rows, anchored header, distributed rhythm), not
+a wider profile.
+
+---
+
 ## 2. Responsive Regimes: 1x2 vs 1x1 Compact Grids
 
 In widescreen mode, tiles can span two rows (e.g. `row: '2 / 4'`). In narrow windows (<1000px), `shell.css` resets all grid placements to `auto !important`, forcing tiles to collapse into 1x1 squares.

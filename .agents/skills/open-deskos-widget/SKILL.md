@@ -3,7 +3,7 @@ name: open-deskos-widget
 description: >-
   Design and develop Open DeskOS CM5 Widgets and Apps on the Linux Electron runtime. Use whenever a request creates,
   redesigns, styles, refactors, debugs, or verifies a built-in tile/page/app/status plugin or an installable user Widget/App,
-  including responsive layout, typography, themes, truthful states, accessibility, density, and renderer interaction.
+  including responsive layout, typography, icons, themes, truthful states, accessibility, density, and renderer interaction.
 metadata:
   short-description: Open DeskOS Widget and App design-development workflow
 ---
@@ -47,7 +47,9 @@ Read `PRODUCT.md`, `DESIGN.md`, and `runtime/linux/CONTEXT.md` before changing t
 - Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens. Installable packages cannot inherit Shell custom properties, so they carry a small self-contained palette derived from `DESIGN.md` values inside their own HTML. In both paths, color communicates functional state rather than decoration.
 - Inactive surfaces stay quiet: black/charcoal field, transparent sub-rows, structural outlines, no glow or decorative tinted cards.
 - Supporting text remains at least `12px`; changing numeric values use tabular numerals.
+- Text that carries the tile's primary information (readings, row values, states the user acts on) must be at least `14px` in `secondary-strong` or brighter. `12px` `secondary` is reserved for non-data captions such as provenance or timestamps; data set in small dim type fails readability even when it passes the size floor.
 - Montserrat display numerals may use `letter-spacing: -0.02em`; Pixel/Zpix overrides reset it to `normal`.
+- Pixel icons are Pixelarticons. An icon that renders in the Pixel theme must be [halfmage/pixelarticons](https://github.com/halfmage/pixelarticons) artwork (MIT, Copyright (c) 2019 Gerrit Halfmann), never a stroked fallback, another pixel set, a hand-drawn approximation, or a raster asset. Section 4 Phase C gives the built-in and installable routes.
 - Direct touch and keyboard stay usable when optional services or peripherals are absent.
 - A broken built-in plugin remains contained by the registry and shared-service fault boundaries; do not bypass them.
 
@@ -80,19 +82,19 @@ Follow this workflow only after the BDD-first scenario and red test in section 3
 
 1. Read [explain-interface](references/explain-interface.md) to map the existing component, surrounding surface, token use, theme behavior, layout, and effects.
 2. Read [better-writing](references/better-writing.md) and nearby product copy. Define concise, consistent live, empty, unavailable, stale, error, and recovery text.
-3. Inspect representative plugins or user apps with the same kind and density instead of inventing a parallel pattern.
+3. Inspect representative plugins or user apps with the same kind and density instead of inventing a parallel pattern. When refining an existing interface, responding to repeated feedback, changing displayed information, or defining acceptance across runtime boundaries, read [Design judgment and acceptance evidence](references/widget-parity-and-data-recovery.md). Diagnose interacting constraints before tuning symptoms, and match verification evidence to the intended outcome.
 
 Completion criterion: the selected architecture path, user task, data provenance, state matrix, neighboring conventions, and verification seams are explicit.
 
 ### Phase B: Design the real surface
 
-1. Read [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md). For a built-in tile, copy the matching example in [tile-examples](references/tile-examples.md) instead of inventing a parallel pattern.
+1. Read [better-layout](references/better-layout.md), [better-typography](references/better-typography.md), [better-colors](references/better-colors.md), and [better-ui](references/better-ui.md). Read [better-ui-icons](references/better-ui-icons.md) when the surface renders an icon. For a built-in tile, copy the matching example in [tile-examples](references/tile-examples.md) instead of inventing a parallel pattern.
 2. For a materially new direction, read [variant](references/variant.md) and build meaningful candidates in the real surface. Vary structure, density, emphasis, type, or voice—not cosmetic tints. Remove the variant harness after promotion.
 3. Use shared alignment edges and semantic spacing. Group with space before adding borders or nested surfaces.
 4. For vertical metrics, stack label above value/unit. Keep status/header placement from displacing the geometric center of the primary reading.
 5. Build responsive geometry from actual content and layout spans. Compact layouts retain readable cells and scroll rather than shrinking the full page.
 
-Completion criterion: the design works in its real page/app context, expresses hierarchy without fabricated decoration, and has a defensible compact behavior.
+Completion criterion: the design works in its real page/app context, expresses hierarchy without fabricated decoration, and has a defensible compact behavior. After repeated visual rejection, revisit the design assumption using [evidence appropriate to the claim](references/widget-parity-and-data-recovery.md#match-proof-to-the-claim); measured geometry alone does not establish visual quality or user approval.
 
 ### Phase C: Implement the architecture path
 
@@ -104,12 +106,14 @@ For built-in plugins:
 - Use `ctx.onTick` and scoped subscriptions rather than private intervals.
 - Add or extend a narrow main/preload IPC seam for external data; normalize, bound, and cache untrusted sources in the main process.
 - Use `textContent` for untrusted strings. Validate remote images in main and pass only bounded safe assets/data URLs.
+- Author every icon as `svg[data-tabler="<name>"]` with `viewBox="0 0 24 24"` and the Tabler outline path, then add the matching Pixelarticons path to `runtime/linux/src/renderer/icons/pixelarticons.js` (`root.PIXELARTICON_PATHS`) using unmodified upstream artwork. `core/icons.js` performs the Pixel swap; a name without a pixel entry stays stroked in the Pixel theme and fails `tests/pixel-icons.test.js`. When upstream has no counterpart, compose from upstream artwork in the existing `-off`/composite idiom and record the deviation in `src/renderer/icons/PIXELARTICONS-NOTICE.md`, keeping the MIT notice intact.
 - Implement cleanup for subscriptions, listeners, frames, or resources not automatically owned by scoped context.
 
 For installable user applications:
 
 - Keep the package self-contained and within the documented size and sandbox limits.
 - Define local CSS variables from the current `DESIGN.md` palette inside the package; do not reference unresolved Shell `--odk-*` properties from the opaque iframe. Keep the local palette limited to roles the package actually renders.
+- Icon path data is not served to a package. Embed the same Pixelarticons artwork with its MIT notice inside the package and switch to it on `html[data-theme="pixel"]`; the package's own stroke variant is not a substitute for that variant.
 - Make Widget packages display-only. Interactive behavior belongs only to `kind: "app"`.
 - Treat state as ephemeral unless the platform explicitly adds a persistence contract.
 - Do not modify Shell composition to install one user package.
@@ -139,13 +143,14 @@ Completion criterion: applicable worst-case content, failure, theme, input, and 
 
 ## 5. Verification
 
-Run the smallest relevant tests first, then the gates affected by the change.
+Run the smallest relevant tests first, then the gates affected by the change. Execute the commands below via SSH on the real CM5, in an isolated fixture environment that cannot activate windows or affect production data/services. Do not substitute development-machine or foreground tests. If safe execution is unavailable, report the blocker. See [verification safety](references/widget-parity-and-data-recovery.md#keep-verification-safe) for harness isolation and screenshot handling.
 
 ### Built-in Widget/App baseline
 
 ```bash
 cd runtime/linux
 node --test tests/<focused>.test.js
+node --test tests/pixel-icons.test.js
 pnpm styles
 bash tests/smoke.sh
 pnpm exec electron tests/widget-app-styles.cjs
@@ -174,9 +179,9 @@ Add product-specific tests for the package’s behavior within its sandbox. The 
 
 ### External-data additions
 
-Add deterministic fixtures for success, unavailable, malformed, slow, unauthorized, empty, corrupt cache, and stale cache. Confirm renderer CSP and actual Electron asset loading when remote images become bounded local/data assets.
+Add deterministic fixtures for success, unavailable, malformed, slow, unauthorized, empty, corrupt cache, and stale cache. When displayed information changes, preserve its [information contract](references/widget-parity-and-data-recovery.md#preserve-the-information-contract) and update every affected verification layer with representative content. Confirm renderer CSP and actual Electron asset loading when remote images become bounded local/data assets.
 
-Report exactly which commands passed and which device-only or assistive-technology checks remain unverified. Host-green does not establish CM5 hardware acceptance.
+Report exactly which commands passed and which device-only or assistive-technology checks remain unverified. Fixture success does not establish live operational acceptance. For separately authorized deployment, hand off [outcome-based acceptance](references/widget-parity-and-data-recovery.md#verify-outcomes-across-boundaries) to its owning workflow; intermediate health indicators cannot substitute for the user's observable outcome. This gate does not authorize deployment or service operations.
 
 ## 6. Post-creation interface review
 
@@ -197,6 +202,7 @@ Implementation references:
 - [better-layout](references/better-layout.md)
 - [better-typography](references/better-typography.md)
 - [better-ui](references/better-ui.md)
+- [better-ui-icons](references/better-ui-icons.md)
 - [better-writing](references/better-writing.md)
 - [tile-examples](references/tile-examples.md)
 - [break](references/break.md)

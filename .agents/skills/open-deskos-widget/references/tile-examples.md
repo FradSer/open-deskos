@@ -19,7 +19,7 @@ Copy this:
 
 - No buttons, inputs, or multi-step flows inside a `1x1`.
 - `state: 'Pending integration'` in the registration when the backing integration is absent; the rendered value/detail must say the same thing (`Pending` / `Integration not available`). Truthful states only.
-- One Tabler outline icon (`data-tabler`), `aria-hidden="true"`. Chat uses `message`, Settings uses `settings`.
+- One Tabler outline icon (`data-tabler`), `aria-hidden="true"`. Chat uses `message`, Settings uses `settings`. Each name needs its Pixelarticons counterpart in `icons/pixelarticons.js` so the Pixel theme swaps it; see the pixel icon contract in `SKILL.md`.
 - Value is a single short noun (`<strong class="w-state widget-status-value">`); detail is one short clause. No wrapping paragraphs.
 - Layout roles (`shell.css`): `.widget-status-layout` is a `flex` column, vertically centered, `gap: 2cqi`; `.widget-status-name` is an uppercase Montserrat label with `padding-inline-end: 36px` so long names clear the corner icon; `.widget-corner-icon` is pinned top-right (`--odk-widget-inset`), `clamp(24px, 9cqi, 32px)`; `.widget-status-value` is a Montserrat bold display reading with `margin-top: auto`; `.widget-status-detail` is a secondary line at `line-height: 1.4`.
 - Do not use it for live numeric instruments (clock, telemetry, progress): they need dedicated density profiles in `tests/widget-density.cjs`, not the status pattern.
