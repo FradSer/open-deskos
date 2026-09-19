@@ -90,6 +90,7 @@
         if (!sessions.has(key)) sessions.set(key, sessions.size)
       }
       return [...items].sort((a, b) => {
+        if (isLive(a) !== isLive(b)) return isLive(a) ? -1 : 1
         if ((a.status === 'running') !== (b.status === 'running')) return a.status === 'running' ? -1 : 1
         return workspaces.get(a.cwd || a.workspaceName || 'Default') - workspaces.get(b.cwd || b.workspaceName || 'Default') ||
           sessions.get(sessionKey(a)) - sessions.get(sessionKey(b))
@@ -106,6 +107,7 @@
   function matchesFilter(session, filter) {
     if (filter === 'all') return true
     if (filter === 'live') return isLive(session)
+    if (filter === 'exited') return !isLive(session)
     return session.status === (filter === 'working' ? 'running' : filter === 'idle' ? 'settled' : filter)
   }
 
@@ -419,6 +421,8 @@
   // parses only the events that actually changed.
   const EVENT_HTML_CACHE = new Map()
   const EVENT_HTML_CACHE_MAX = 512
+  const EVENT_HTML_CACHE_MAX_BYTES = 2 * 1024 * 1024
+  let eventHtmlCacheBytes = 0
   const BODY_LIMITS = { result: '64 KiB', assistant: '16 KiB', user: '8 KiB', thinking: '4 KiB', tool: '4 KiB' }
 
   // Every event keeps the body Pi produced, so a command, a prompt, or a result
@@ -426,7 +430,7 @@
   function renderEvent(event) {
     const key = `${event.kind}\u0000${event.toolName || ''}\u0000${event.truncated ? 1 : 0}\u0000${event.text}`
     const cached = EVENT_HTML_CACHE.get(key)
-    if (cached !== undefined) return cached
+    if (cached !== undefined) return cached.html
     const label = event.toolName
       ? `<span class="pi-result-tool">${escapeHtml(event.toolName)}</span>`
       : `<span class="pi-event-kind sr-only">${escapeHtml(event.kind)}: </span>`
@@ -435,10 +439,17 @@
       <div class="pi-event-text pi-event-body">${renderBody(event.text)}</div>
       ${event.truncated ? `<p class="pi-result-truncated">Message truncated at the ${BODY_LIMITS[event.kind] || '64 KiB'} safety limit.</p>` : ''}
     </li>`
-    if (EVENT_HTML_CACHE.size >= EVENT_HTML_CACHE_MAX) {
-      EVENT_HTML_CACHE.delete(EVENT_HTML_CACHE.keys().next().value)
+    const bytes = new Blob([key, html]).size
+    while (EVENT_HTML_CACHE.size > 0 && (EVENT_HTML_CACHE.size >= EVENT_HTML_CACHE_MAX || eventHtmlCacheBytes + bytes > EVENT_HTML_CACHE_MAX_BYTES)) {
+      const oldestKey = EVENT_HTML_CACHE.keys().next().value
+      const oldest = EVENT_HTML_CACHE.get(oldestKey)
+      EVENT_HTML_CACHE.delete(oldestKey)
+      eventHtmlCacheBytes -= oldest.bytes
     }
-    EVENT_HTML_CACHE.set(key, html)
+    if (bytes <= EVENT_HTML_CACHE_MAX_BYTES) {
+      EVENT_HTML_CACHE.set(key, { html, bytes })
+      eventHtmlCacheBytes += bytes
+    }
     return html
   }
 
@@ -637,7 +648,7 @@
           cell.setAttribute('aria-pressed', String(isSelected))
           cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
           cell.querySelector('.pi-overview-goal').textContent = overviewGoal(session)
-          cell.querySelector('.pi-overview-path').textContent = sessionPath(session)
+          cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
           const activity = cell.querySelector('.pi-overview-activity')
           activity.textContent = normalizeInline(session.activity)
           activity.hidden = !activity.textContent
@@ -787,12 +798,16 @@
         if (showing) {
           titleTextEl.textContent = 'Pi Sessions'
           titleSpinnerEl.hidden = true
+          const drivers = [...new Set((Array.isArray(scan?.sessions) ? scan.sessions : [])
+            .filter((item) => item.hostedPi && item.controlAttribution)
+            .map((item) => `${item.controlAttribution.machine} · ${item.controlAttribution.sessionId}`))]
+          const attribution = drivers.length > 0 ? ` · Driven by ${drivers.slice(0, 2).join(', ')}${drivers.length > 2 ? ` +${drivers.length - 2}` : ''}` : ''
           const size = currentSet().length
           subtitleEl.textContent = scan === null
             ? 'Loading Pi sessions...'
             : scan.ok === false
               ? `${sourceLabel() || 'Pi sessions'} unavailable. Retrying automatically.`
-              : `${size} ${filterTitle(filter).toLowerCase()} session${size === 1 ? '' : 's'} · ${sourceLabel() || 'Pi sessions'}`
+              : `${size} ${filterTitle(filter).toLowerCase()} session${size === 1 ? '' : 's'} · ${sourceLabel() || 'Pi sessions'}${attribution}`
           return
         }
         if (!session) {
@@ -928,7 +943,7 @@
         }
         try {
           const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
-            ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid })
+            ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid, hostedPi: session.hostedPi === true })
             : null
           if (disposed || token !== eventToken) return
           const valid = res?.ok && Array.isArray(res.events) && res.events.every((event) => event && typeof event.kind === 'string' && typeof event.text === 'string')

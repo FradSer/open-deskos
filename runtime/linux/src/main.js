@@ -254,7 +254,7 @@ async function main() {
   ipcMain.handle('odk-pi-session-events', async (_event, request) => {
     const cwd = typeof request?.cwd === 'string' ? request.cwd : ''
     const sessionId = typeof request?.sessionId === 'string' ? request.sessionId : ''
-    return readPiSessionEvents({ cwd, sessionId })
+    return readPiSessionEvents({ cwd, sessionId, hostedPi: request?.hostedPi === true })
   })
   const hydraSource = smokeMode
     ? createHydraSource({})

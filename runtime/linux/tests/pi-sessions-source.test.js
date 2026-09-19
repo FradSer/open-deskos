@@ -15,7 +15,10 @@ function remote(options = {}) {
   return createPiSessionsSource({ env, scanLocal: () => { throw new Error('must not fall back') }, ...options })
 }
 test('deployed snapshot entry point emits a snapshot accepted by SSH provider', async () => {
-  const output = execFileSync(process.execPath, [path.join(__dirname, '../scripts/pi-sessions-snapshot.js')], { encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024 })
+  // Process inspection can be slow when the full Node suite is running on a
+  // loaded development host. Keep a finite bound without making parallel test
+  // scheduling look like a collector failure.
+  const output = execFileSync(process.execPath, [path.join(__dirname, '../scripts/pi-sessions-snapshot.js')], { encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 })
   const data = JSON.parse(output)
   assert.equal(data.ok, true)
   assert.ok(Array.isArray(data.sessions))

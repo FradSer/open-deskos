@@ -161,8 +161,16 @@ _Avoid_: honeycomb, exposé, agent grid, tab overview, dashboard
 ## Hosted Pi Control
 
 **Hosted Pi**:
-A Pi coding session hosted by the Open DeskOS runtime and driven from another machine through a Console. It has a durable identity, keeps running when its Console disconnects, and publishes its events under a position taken from its own session log.
-_Avoid_: managed coding task, remote session, terminal window, monitored session, Reported Session
+A Pi coding session hosted by the Open DeskOS runtime and optionally driven from another machine through a Console. It has a durable identity, keeps running when its Console disconnects, and publishes its events under a position taken from its own session log. Its lifecycle is separate from the outcome of any one turn: cancelling or failing a turn may leave the Hosted Pi alive and idle, while End disposes it.
+_Avoid_: managed coding task, remote session, terminal window, monitored session, Reported Session, turn outcome used as session lifecycle
+
+**Hosted Pi Lifecycle**:
+Whether the Hosted Pi identity and SDK session remain available: launching, live, ended, or interrupted. While live, its activity is working or idle. End changes lifecycle; Cancel changes the current turn and normally returns the same Hosted Pi to live-idle.
+_Avoid_: finished turn means ended session, cancelled session when only a turn was cancelled, unknown means working
+
+**Hosted Pi Turn Outcome**:
+The result of one Hosted Pi turn: finished, failed, cancelled, or interrupted. It is recorded separately from Hosted Pi Lifecycle and never by itself releases the Hosted Pi's slot or identity.
+_Avoid_: session state, verification result, lifecycle, ended Hosted Pi
 
 **Console**:
 A Pi session on another machine that has attached to one Hosted Pi and directs its turns. One Console drives one Hosted Pi at a time.
@@ -181,8 +189,8 @@ A Console binding to one Hosted Pi to receive its events and direct its turns. A
 _Avoid_: takeover, subscribe, connect, share a session, exclusive lease, resume window
 
 **Hosted Pi Position**:
-The place of an entry in a Hosted Pi's own session log, used as the single coordinate for both its live events and its history. It is durable because the log is, so no separate counter or replay window exists.
-_Avoid_: sequence number, cursor, offset, event id, monotonic counter
+The place of a complete entry in a Hosted Pi's own session log, used as the single coordinate for both its live events and its history. One complete entry may map to a batch of several Session Events, and the batch is applied atomically before its position is advanced. Position zero is before the first entry. It is durable because the log is, so no separate counter or replay window exists. History reads start strictly after a supplied position; an Attach catches up through a captured inclusive boundary and then follows live entries after it.
+_Avoid_: sequence number, cursor, byte offset, event id, one position per rendered sub-event, separate monotonic counter
 
 **Control Attribution**:
 The desk-visible statement of which Console currently drives a Hosted Pi. It stays visible for as long as that control exists and disappears when the Console disconnects; it never takes local touch or keyboard authority away.

@@ -103,7 +103,7 @@ test('main IPC routes local and reported events through the tested source seam',
   const path = require('node:path')
   const main = fs.readFileSync(path.join(__dirname, '../src/main.js'), 'utf8')
   assert.match(main, /createPiSessionEventsSource\(\{ deskLink \}\)/)
-  assert.match(main, /return readPiSessionEvents\(\{ cwd, sessionId \}\)/)
+  assert.match(main, /return readPiSessionEvents\(\{ cwd, sessionId, hostedPi: request\?\.hostedPi === true \}\)/)
 })
 
 test('Desk Link result truncation is explicit and UTF-8 bounded', () => {

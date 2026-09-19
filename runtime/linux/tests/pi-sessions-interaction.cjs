@@ -139,6 +139,23 @@ async function main() {
     assert.equal(await js("return $('.pi-goal-text').textContent.trim()"), initial[0].latestGoal)
   })
 
+  await scenario('Hosted Pi attribution appears only in the overview header', async () => {
+    await reset([session('example-a', 'Example Hosted Pi goal', 'settled', {
+      hostedPi: true,
+      controlAttribution: { machine: 'desk-mac', sessionId: 'console-example' },
+    })])
+    await showOverview()
+    assert.match(await js("return $('#pi-view-subtitle').textContent"), /Driven by desk-mac · console-example/)
+    await click('.pi-filter-btn[data-filter="working"]')
+    assert.match(await js("return $('#pi-view-subtitle').textContent"), /Driven by desk-mac · console-example/)
+    await click('.pi-filter-btn[data-filter="live"]')
+    assert.equal(await js("return $('.pi-overview-path').textContent"), 'Hosted Pi · /example/workspace')
+    await js("$('.pi-overview-cell').click()")
+    await pause()
+    assert.equal(await js("return $('#pi-detail').textContent.includes('desk-mac') || $('#pi-detail').textContent.includes('console-example')"), false)
+    assert.equal(await js("return $('#pi-view-facts').textContent.includes('desk-mac')"), false)
+  })
+
   await scenario('the Session Overview carries the Session Filter and the detail never does', async () => {
     await reset()
     assert.equal(await js("return $('#pi-overview').querySelectorAll('.pi-filter-btn').length"), 5)

@@ -4,11 +4,16 @@
 const os = require('node:os')
 const path = require('node:path')
 const { createDeskLinkService } = require('../src/desk-link-service')
+const { createHostedPiSocketAdapter } = require('../src/desk-link-host-adapter')
 
 function requiredToken(env) {
   const token = (env.ODK_DESK_LINK_TOKEN ?? '').trim()
   if (token.length === 0) throw new Error('ODK_DESK_LINK_TOKEN is required to accept Desk Links')
   return token
+}
+
+function controlCredential(env) {
+  return (env.ODK_DESK_LINK_CONTROL_CREDENTIAL ?? '').trim()
 }
 
 function socketPath(env) {
@@ -28,7 +33,9 @@ async function main() {
   const env = process.env
   const service = createDeskLinkService({
     token: requiredToken(env),
+    controlCredential: controlCredential(env),
     socketPath: socketPath(env),
+    hostAdapter: createHostedPiSocketAdapter({ env }),
     port: Number.parseInt(env.ODK_DESK_LINK_PORT ?? '8765', 10),
     env,
   })

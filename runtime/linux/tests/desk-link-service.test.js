@@ -108,6 +108,13 @@ function runningSession(sessionId = 's1', extra = {}) {
 
 
 
+test('token comparison rejects equal-code-unit unequal-byte Unicode without crashing', () => {
+  const { tokenMatches } = require('../src/desk-link-service')
+  assert.equal(tokenMatches('é', 'a'), false)
+  assert.equal(tokenMatches('é', 'é'), true)
+  assert.equal(tokenMatches('\ud800', '\ufffd'), false, 'malformed UTF-16 must not alias its UTF-8 replacement')
+})
+
 test('the service refuses an unknown token and registers no machine', async () => {
   await withService(async (service) => {
     const replies = await refusedReporter(service.port, [{ v: 1, type: 'hello', machine: 'mac', token: 'wrong' }])

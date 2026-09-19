@@ -2,7 +2,7 @@ const net = require('node:net')
 const os = require('node:os')
 const fs = require('node:fs')
 const path = require('node:path')
-const { timingSafeEqual } = require('node:crypto')
+const { timingSafeEqual, createHmac, randomBytes } = require('node:crypto')
 const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
 
@@ -18,10 +18,21 @@ const MAX_CONNECTIONS = 64
 const MAX_EVENT_TEXT = 200
 const MAX_RECORD_BYTES = 1024 * 1024
 const SESSION_STATUSES = new Set(['running', 'settled', 'exited'])
+const HOSTED_PI_STATUSES = new Set(['pending', 'running', 'settled', 'finished', 'failed', 'cancelled', 'interrupted'])
+const HOSTED_PI_TURN_OUTCOMES = new Set(['finished', 'failed', 'cancelled', 'interrupted'])
 const DESK_LINK_PROTOCOL = 1
+const DESK_LINK_CONTROL_PROTOCOL = 2
+const ACCEPTED_CONTROL_PROTOCOLS = [DESK_LINK_CONTROL_PROTOCOL]
+const CONTROL_DOMAIN = 'open-deskos-control-v2'
+const CONTROL_NONCE_BYTES = 32
+const CONTROL_ID_MAX_BYTES = 256
+const CONTROL_PROMPT_MAX_BYTES = 64 * 1024
+const HOST_REQUEST_TIMEOUT_MS = 5000
+const MAX_RUNTIME_RESPONSE_BYTES = 2 * 1024 * 1024
+const MAX_SOCKET_WRITE_BYTES = 2 * 1024 * 1024
 /** The reason a Desk Link reports when it does not know a session at all; the
  *  events endpoint falls back to local log reading only for this one. */
-const SESSION_LOG_MISSING = 'session-log-missing' 
+const SESSION_LOG_MISSING = 'session-log-missing'
 
 function encodeJsonLine(record) {
   return `${JSON.stringify(record)}\n`
@@ -45,7 +56,7 @@ function parseRecords(chunk, remainder) {
   return { records, pending }
 }
 
-function recordReader() {
+function recordReader(onOversize = () => {}) {
   const decoder = new StringDecoder('utf8')
   let pending = ''
   let dropping = false
@@ -57,13 +68,24 @@ function recordReader() {
       text = text.slice(newline + 1)
       dropping = false
     }
-    const parsed = parseRecords(text, pending)
-    pending = parsed.pending
+    const lines = `${pending}${text}`.split('\n')
+    pending = lines.pop() ?? ''
+    const records = []
+    for (const raw of lines) {
+      const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+      if (line.length === 0) continue
+      if (Buffer.byteLength(line) > MAX_RECORD_BYTES) {
+        onOversize()
+        continue
+      }
+      try { records.push(JSON.parse(line)) } catch { /* malformed records are isolated */ }
+    }
     if (Buffer.byteLength(pending) > MAX_RECORD_BYTES) {
       pending = ''
       dropping = true
+      onOversize()
     }
-    return parsed.records
+    return records
   }
 }
 
@@ -102,8 +124,111 @@ function reportedSession(session, machine) {
 }
 
 function tokenMatches(expected, presented) {
-  if (typeof presented !== 'string' || presented.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(presented))
+  if (typeof expected !== 'string' || typeof presented !== 'string') return false
+  // Buffer UTF-8 encoding replaces lone surrogates with U+FFFD. Reject
+  // malformed UTF-16 first so two distinct secrets cannot alias after encoding.
+  try {
+    new TextEncoder().encodeInto(expected, new Uint8Array(Buffer.byteLength(expected) + 4))
+    new TextEncoder().encodeInto(presented, new Uint8Array(Buffer.byteLength(presented) + 4))
+    if (Buffer.from(expected, 'utf8').toString('utf8') !== expected || Buffer.from(presented, 'utf8').toString('utf8') !== presented) return false
+  } catch { return false }
+  const expectedBytes = Buffer.from(expected, 'utf8')
+  const presentedBytes = Buffer.from(presented, 'utf8')
+  if (expectedBytes.length !== presentedBytes.length) return false
+  return timingSafeEqual(expectedBytes, presentedBytes)
+}
+
+function boundedIdentity(value) {
+  return typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= CONTROL_ID_MAX_BYTES && !/[\r\n\0]/.test(value)
+}
+
+function boundedPath(value) {
+  return typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 4096 && !/[\r\n\0]/.test(value)
+}
+
+function boundedUtf8(value, maxBytes) {
+  if (typeof value !== 'string') return ''
+  const bytes = Buffer.from(value)
+  if (bytes.length <= maxBytes) return value
+  let end = maxBytes
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1
+  return bytes.subarray(0, end).toString('utf8')
+}
+
+function controlTranscript({ machine, sessionId, nonce }) {
+  return `${CONTROL_DOMAIN}\n${DESK_LINK_CONTROL_PROTOCOL}\n${nonce}\n${machine}\n${sessionId}`
+}
+
+function controlProof(credential, transcript) {
+  return createHmac('sha256', credential).update(controlTranscript(transcript)).digest('hex')
+}
+
+function proofMatches(credential, transcript, proof) {
+  if (typeof credential !== 'string' || credential.length === 0 || typeof proof !== 'string') return false
+  const expected = controlProof(credential, transcript)
+  return tokenMatches(expected, proof)
+}
+
+function safeWrite(socket, record, maxRecordBytes = MAX_RECORD_BYTES) {
+  if (socket.destroyed || !socket.writable) return false
+  const line = encodeJsonLine(record)
+  const bytes = Buffer.byteLength(line)
+  if (bytes > maxRecordBytes || socket.writableLength + bytes > MAX_SOCKET_WRITE_BYTES) {
+    socket.destroy()
+    return false
+  }
+  return socket.write(line)
+}
+
+function withTimeout(operation, timeoutMs, reason = 'pi host timeout') {
+  let timer
+  return Promise.race([
+    Promise.resolve().then(operation),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(reason)), timeoutMs) }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+function normalizeHostedSession(session, attribution) {
+  if (!session || typeof session !== 'object' || !boundedIdentity(String(session.sessionId ?? ''))) return null
+  const sessionId = String(session.sessionId)
+  const rawLifecycle = session.lifecycle
+  const rawStatus = session.status ?? session.state
+  const hostedStatus = HOSTED_PI_STATUSES.has(rawStatus) ? rawStatus : 'interrupted'
+  const hostedLifecycle = rawLifecycle === 'launching'
+    ? 'launching'
+    : rawLifecycle === 'live' || rawLifecycle === 'alive'
+      ? (hostedStatus === 'pending' ? 'launching' : 'live')
+      : rawLifecycle === 'ended'
+        ? 'ended'
+        : rawLifecycle === 'interrupted'
+          ? 'interrupted'
+          : ['pending', 'running', 'settled'].includes(hostedStatus)
+            ? (hostedStatus === 'pending' ? 'launching' : 'live')
+            : hostedStatus === 'interrupted'
+              ? 'interrupted'
+              : 'ended'
+  const live = hostedLifecycle === 'launching' || hostedLifecycle === 'live'
+  const status = !live ? 'exited' : hostedStatus === 'settled' ? 'settled' : 'running'
+  const cwd = typeof session.project === 'string' ? session.project : typeof session.cwd === 'string' ? session.cwd : ''
+  return {
+    sessionId,
+    uuid: sessionId,
+    pid: null,
+    isAlive: live,
+    status,
+    hostedLifecycle,
+    ...(HOSTED_PI_TURN_OUTCOMES.has(session.turnOutcome) ? { lastTurnOutcome: session.turnOutcome } : {}),
+    cwd,
+    workspaceName: typeof session.workspaceName === 'string' && session.workspaceName ? session.workspaceName : path.basename(cwd) || 'Unknown',
+    startedAt: Number.isFinite(session.startedAt) ? session.startedAt : 0,
+    updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : Number.isFinite(session.startedAt) ? session.startedAt : 0,
+    latestGoal: boundedUtf8(typeof session.goal === 'string' ? session.goal : session.latestGoal, 8 * 1024),
+    activity: boundedUtf8(session.activity, 4 * 1024),
+    modifiedFiles: [],
+    source: 'hosted-pi',
+    hostedPi: true,
+    ...(attribution ? { controlAttribution: attribution } : {}),
+  }
 }
 
 /** The first non-internal IPv4 address, so the listener never binds every interface. */
@@ -137,14 +262,21 @@ function latestReport(reports) {
   return candidates.reduce((latest, candidate) => reportTime(candidate) >= reportTime(latest) ? candidate : latest)
 }
 
-function createDeskLinkService({ token, socketPath, port = 8765, host, env = process.env, now = () => Date.now(), authTimeoutMs = AUTH_TIMEOUT_MS } = {}) {
+function createDeskLinkService({
+  token, controlCredential = '', socketPath, port = 8765, host, env = process.env,
+  now = () => Date.now(), authTimeoutMs = AUTH_TIMEOUT_MS, hostAdapter = null,
+  hostRequestTimeoutMs = HOST_REQUEST_TIMEOUT_MS,
+} = {}) {
   if (typeof token !== 'string' || token.length === 0) throw new Error('a Desk Link Service requires a token')
+  if (typeof controlCredential !== 'string') throw new Error('the Control Credential must be a string')
   if (typeof socketPath !== 'string' || !path.isAbsolute(socketPath)) {
     throw new Error('a Desk Link Service requires an absolute Unix socket path')
   }
   const listenHost = host ?? resolveListenHost(env)
   let connections = 0
   const machines = new Map()
+  const controlAttributions = new Map()
+  const pendingControlAttachments = new Map()
   const openSockets = new Set()
   const server = net.createServer()
   const socketServer = net.createServer()
@@ -238,7 +370,247 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
     entry.events = retainEvents([...entry.events, ...bounded])
   }
 
-  function attachReporter(socket) {
+  function explicitVersionMismatch(socket, received) {
+    safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'version-mismatch', received, accepted: ACCEPTED_CONTROL_PROTOCOLS })
+    socket.end()
+  }
+
+  function controlError(socket, requestId, reason) {
+    safeWrite(socket, {
+      v: DESK_LINK_CONTROL_PROTOCOL,
+      type: 'error',
+      ...(boundedIdentity(requestId) ? { requestId } : {}),
+      reason,
+    })
+  }
+
+  async function hostRequest(record) {
+    if (!hostAdapter || typeof hostAdapter.request !== 'function') throw new Error('pi host unavailable')
+    return withTimeout(() => hostAdapter.request(record), hostRequestTimeoutMs)
+  }
+
+  async function hostAttach(record, handlers) {
+    if (!hostAdapter || typeof hostAdapter.attach !== 'function') throw new Error('pi host unavailable')
+    return withTimeout(() => hostAdapter.attach(record, handlers), hostRequestTimeoutMs)
+  }
+
+  function validateControlRequest(record, attachment) {
+    if (!record || record.v !== DESK_LINK_CONTROL_PROTOCOL || !boundedIdentity(record.requestId)) return 'invalid control request'
+    if (!['list', 'launch', 'history', 'attach', 'prompt', 'cancel', 'end'].includes(record.type)) return 'unknown control request'
+    if (['history', 'attach', 'prompt', 'cancel', 'end'].includes(record.type) && !boundedIdentity(record.sessionId)) return 'session identity required'
+    if (['launch', 'prompt', 'cancel', 'end'].includes(record.type) && !boundedIdentity(record.mutationId)) return 'mutation identity required'
+    if (record.type === 'attach' && !boundedIdentity(record.attachmentId)) return 'attachment identity required'
+    if (record.type === 'launch') {
+      if (!boundedIdentity(record.sessionId) || !boundedPath(record.project) || typeof record.prompt !== 'string' || record.prompt.trim().length === 0 || Buffer.byteLength(record.prompt) > CONTROL_PROMPT_MAX_BYTES) return 'invalid launch request'
+    }
+    if (record.type === 'prompt' && (typeof record.prompt !== 'string' || record.prompt.trim().length === 0 || Buffer.byteLength(record.prompt) > CONTROL_PROMPT_MAX_BYTES)) return 'invalid prompt'
+    if (record.type === 'history' || record.type === 'attach') {
+      if (record.after !== undefined && record.after !== null && (!Number.isSafeInteger(record.after) || record.after < 0)) return 'invalid position'
+      if (record.limit !== undefined && (!Number.isSafeInteger(record.limit) || record.limit < 1 || record.limit > 100)) return 'invalid history limit'
+      if (record.through !== undefined && (!Number.isSafeInteger(record.through) || record.through < 0 || (Number.isSafeInteger(record.after) && record.through < record.after))) return 'invalid history boundary'
+    }
+    if (attachment && record.sessionId && record.sessionId !== attachment.sessionId) return 'attached session mismatch'
+    if (attachment && ['prompt', 'cancel', 'end'].includes(record.type) && record.attachmentId !== attachment.attachmentId) return 'attachment identity mismatch'
+    return ''
+  }
+
+  function attachControl(socket, hello, initialBytes = null) {
+    const readRecords = recordReader(() => controlError(socket, undefined, 'control record too large'))
+    const identity = { machine: hello.machine, sessionId: hello.sessionId }
+    const nonce = randomBytes(CONTROL_NONCE_BYTES).toString('hex')
+    let authenticated = false
+    let attachment = null
+    let hostConnection = null
+    let processing = Promise.resolve()
+    let closed = false
+    let pendingAttachment = null
+    let oneShotAccepted = false
+    socket.setTimeout(authTimeoutMs, () => { if (!authenticated) socket.destroy() })
+
+    const clearAttribution = () => {
+      if (pendingAttachment && pendingControlAttachments.get(pendingAttachment.sessionId) === pendingAttachment) {
+        pendingControlAttachments.delete(pendingAttachment.sessionId)
+      }
+      pendingAttachment = null
+      if (attachment && controlAttributions.get(attachment.sessionId)?.socket === socket) controlAttributions.delete(attachment.sessionId)
+      hostConnection?.close?.()
+      hostConnection = null
+    }
+
+    const handleRequest = async (record) => {
+      const problem = validateControlRequest(record, attachment)
+      if (problem) return controlError(socket, record?.requestId, problem)
+      const requestId = record.requestId
+      if (['list', 'launch', 'history'].includes(record.type)) {
+        if (attachment && record.type !== 'history') return controlError(socket, requestId, 'attach connection accepts history or attached commands only')
+        if (!attachment) oneShotAccepted = true
+        try {
+          const result = await hostRequest({ ...record, console: identity })
+          safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'ack', requestId, result: result && typeof result === 'object' ? result : { value: result } })
+        } catch (error) {
+          controlError(socket, requestId, error?.message || 'pi host unavailable')
+        }
+        if (!attachment) socket.end()
+        return
+      }
+      if (record.type === 'attach') {
+        clearAttribution()
+        try {
+          // Replacement is fail-closed: fence both an attributed Console and
+          // an Attach still awaiting the host before starting the new Attach.
+          const previous = controlAttributions.get(record.sessionId)
+          if (previous?.socket && previous.socket !== socket) {
+            controlAttributions.delete(record.sessionId)
+            controlError(previous.socket, undefined, 'attach replaced')
+            previous.socket.end()
+          }
+          const pending = pendingControlAttachments.get(record.sessionId)
+          if (pending?.socket && pending.socket !== socket) {
+            pending.replaced = true
+            controlError(pending.socket, pending.requestId, 'attach replaced')
+            pending.socket.end()
+          }
+          const attempt = { socket, requestId, replaced: false }
+          pendingAttachment = { sessionId: record.sessionId, ...attempt }
+          pendingControlAttachments.set(record.sessionId, pendingAttachment)
+          const attached = await hostAttach({ ...record, console: identity }, {
+            onRecord(hostRecord) {
+              if (!hostRecord || typeof hostRecord !== 'object') return
+              if (hostRecord.type === 'event') {
+                const events = Array.isArray(hostRecord.events)
+                  ? hostRecord.events.map(boundedEvent).filter(Boolean)
+                  : [boundedEvent(hostRecord.event)].filter(Boolean)
+                if (events.length === 0 || !Number.isSafeInteger(hostRecord.position) || hostRecord.position < 0) return
+                safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'event', sessionId: record.sessionId, attachmentId: record.attachmentId, position: hostRecord.position, events })
+                return
+              }
+              if (hostRecord.type === 'state') {
+                const state = HOSTED_PI_STATUSES.has(hostRecord.state) ? hostRecord.state : 'interrupted'
+                const response = typeof hostRecord.response === 'string' ? boundedUtf8(hostRecord.response, 16 * 1024) : ''
+                safeWrite(socket, {
+                  v: DESK_LINK_CONTROL_PROTOCOL, type: 'state', sessionId: record.sessionId, attachmentId: record.attachmentId, state,
+                  ...(typeof hostRecord.lifecycle === 'string' ? { lifecycle: hostRecord.lifecycle } : {}),
+                  ...(typeof hostRecord.activity === 'string' ? { activity: hostRecord.activity } : {}),
+                  ...(typeof hostRecord.turnOutcome === 'string' ? { turnOutcome: hostRecord.turnOutcome } : {}),
+                  ...(response ? { response } : {}),
+                })
+                if (['finished', 'failed', 'cancelled', 'interrupted'].includes(hostRecord.turnOutcome) && response) {
+                  safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'terminal', sessionId: record.sessionId, attachmentId: record.attachmentId, outcome: hostRecord.turnOutcome, response })
+                }
+                return
+              }
+              if (hostRecord.type === 'ack' && boundedIdentity(hostRecord.requestId)) safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'ack', requestId: hostRecord.requestId, sessionId: record.sessionId, ...(hostRecord.result !== undefined ? { result: hostRecord.result } : {}) })
+              else if (hostRecord.type === 'error') controlError(socket, hostRecord.requestId, hostRecord.reason || 'pi host unavailable')
+            },
+            onError(error) { controlError(socket, undefined, error?.message || 'pi host unavailable') },
+            onClose() { if (!socket.destroyed) socket.end() },
+          })
+          if (pendingControlAttachments.get(record.sessionId) !== pendingAttachment || pendingAttachment.replaced || closed || socket.destroyed) {
+            attached.connection?.close?.()
+            return
+          }
+          pendingControlAttachments.delete(record.sessionId)
+          pendingAttachment = null
+          attachment = { sessionId: record.sessionId, attachmentId: record.attachmentId }
+          hostConnection = attached.connection
+          controlAttributions.set(record.sessionId, { ...identity, socket })
+          for (const entry of attached.history?.entries ?? []) {
+            const events = Array.isArray(entry?.events) ? entry.events.map(boundedEvent).filter(Boolean) : []
+            if (events.length > 0 && Number.isSafeInteger(entry.position) && entry.position > 0) {
+              safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'event', sessionId: record.sessionId, attachmentId: record.attachmentId, position: entry.position, events })
+            }
+          }
+          const boundary = attached.boundary ?? 0
+          safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'caught_up', sessionId: record.sessionId, attachmentId: record.attachmentId, boundary })
+          safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'ack', requestId, result: { sessionId: record.sessionId, attachmentId: record.attachmentId, boundary, caughtUp: true } })
+        } catch (error) {
+          if (pendingAttachment && pendingControlAttachments.get(record.sessionId) === pendingAttachment) {
+            pendingControlAttachments.delete(record.sessionId)
+          }
+          pendingAttachment = null
+          controlError(socket, requestId, error?.message || 'pi host unavailable')
+          socket.end()
+        }
+        return
+      }
+      if (!attachment || !hostConnection || typeof hostConnection.send !== 'function') return controlError(socket, requestId, 'attach required')
+      hostConnection.send({ ...record, console: identity })
+    }
+
+    const handleRecords = (records) => {
+      for (const record of records) {
+        if (!record || typeof record !== 'object') continue
+        if (record.v !== DESK_LINK_CONTROL_PROTOCOL) {
+          explicitVersionMismatch(socket, record.v)
+          return
+        }
+        if (!authenticated) {
+          if (record.type !== 'control-proof' || !proofMatches(controlCredential, { ...identity, nonce }, record.proof)) {
+            controlError(socket, undefined, controlCredential ? 'control credential refused' : 'control unavailable')
+            socket.end()
+            return
+          }
+          authenticated = true
+          socket.setTimeout(0)
+          safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'control-ack', ...identity, at: now() })
+          continue
+        }
+        if (oneShotAccepted) {
+          controlError(socket, record.requestId, 'one-shot connection accepts one request')
+          continue
+        }
+        if (!attachment && ['list', 'launch', 'history'].includes(record.type)) oneShotAccepted = true
+        processing = processing.then(() => handleRequest(record)).catch(() => controlError(socket, record.requestId, 'control request failed'))
+      }
+    }
+
+    socket.on('data', (chunk) => handleRecords(readRecords(chunk)))
+    socket.on('error', () => socket.destroy())
+    socket.on('close', () => { closed = true; clearAttribution() })
+    safeWrite(socket, { v: DESK_LINK_CONTROL_PROTOCOL, type: 'challenge', nonce, algorithm: 'hmac-sha256' })
+    if (initialBytes?.length) handleRecords(readRecords(initialBytes))
+  }
+
+  function attachPeer(socket) {
+    let pending = Buffer.alloc(0)
+    let decided = false
+    socket.setTimeout(authTimeoutMs, () => socket.destroy())
+    const decide = (chunk) => {
+      if (decided) return
+      pending = Buffer.concat([pending, chunk])
+      if (pending.length > MAX_RECORD_BYTES) return socket.destroy()
+      const newline = pending.indexOf(10)
+      if (newline === -1) return
+      decided = true
+      socket.off('data', decide)
+      let hello
+      try { hello = JSON.parse(pending.subarray(0, newline).toString('utf8').replace(/\r$/, '')) }
+      catch { return socket.destroy() }
+      const rest = pending.subarray(newline + 1)
+      pending = Buffer.alloc(0)
+      if (!hello || typeof hello !== 'object') return socket.destroy()
+      if (hello.v !== DESK_LINK_PROTOCOL && hello.v !== DESK_LINK_CONTROL_PROTOCOL) return explicitVersionMismatch(socket, hello.v)
+      if (hello.v === DESK_LINK_CONTROL_PROTOCOL) {
+        if (hello.type !== 'control-hello' || !boundedIdentity(hello.machine) || !boundedIdentity(hello.sessionId)) {
+          controlError(socket, undefined, 'control hello required')
+          socket.end()
+          return
+        }
+        if (!tokenMatches(token, hello.token)) {
+          controlError(socket, undefined, 'token refused')
+          socket.end()
+          return
+        }
+        attachControl(socket, hello, rest)
+        return
+      }
+      attachReporter(socket, [hello], rest)
+    }
+    socket.on('data', decide)
+    socket.on('error', () => socket.destroy())
+  }
+
+  function attachReporter(socket, initialRecords = [], initialBytes = null) {
     const readRecords = recordReader()
     let authenticated = false
     let machine = null
@@ -248,8 +620,8 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
       if (!authenticated) socket.destroy()
     })
 
-    socket.on('data', (chunk) => {
-      for (const record of readRecords(chunk)) {
+    const handleRecords = (records) => {
+      for (const record of records) {
         if (!record || typeof record !== 'object' || record.v !== DESK_LINK_PROTOCOL) continue
         if (!authenticated) {
           if (record.type !== 'hello' || typeof record.machine !== 'string' || record.machine.length === 0) {
@@ -278,9 +650,14 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
           applyEvents(state, socket, String(record.sessionId ?? ''), record.events)
         } else if (record.type === 'bye') {
           socket.end()
+        } else if (['list', 'launch', 'history', 'attach', 'prompt', 'cancel', 'end'].includes(record.type)) {
+          safeWrite(socket, { v: DESK_LINK_PROTOCOL, type: 'error', ...(boundedIdentity(record.requestId) ? { requestId: record.requestId } : {}), reason: 'reporting link is report-only' })
         }
       }
-    })
+    }
+    socket.on('data', (chunk) => handleRecords(readRecords(chunk)))
+    if (initialRecords.length > 0) handleRecords(initialRecords)
+    if (initialBytes?.length) handleRecords(readRecords(initialBytes))
     socket.on('error', () => socket.destroy())
     // A dropped link makes its machine's sessions unavailable rather than stale,
     // but only once its last link is gone: one machine may run several Pi
@@ -326,6 +703,50 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
     // Machines are visited in connection order, so an equally fresh first
     // report stays chosen and a snapshot is deterministic.
     return false
+  }
+
+  async function hostedSnapshot() {
+    try {
+      const response = await hostRequest({ v: DESK_LINK_CONTROL_PROTOCOL, type: 'list', requestId: `runtime-${randomBytes(8).toString('hex')}` })
+      const raw = Array.isArray(response) ? response : response?.sessions
+      const sessions = Array.isArray(raw)
+        ? raw.map((session) => {
+          const attribution = controlAttributions.get(String(session?.sessionId ?? ''))
+          return normalizeHostedSession(session, attribution ? { machine: attribution.machine, sessionId: attribution.sessionId } : null)
+        }).filter(Boolean).slice(0, MAX_SESSIONS_PER_MACHINE)
+        : []
+      return { ok: true, sessions, scannedAt: now() }
+    } catch (error) {
+      return { ok: false, reason: error?.message || 'pi host unavailable', sessions: [], scannedAt: now() }
+    }
+  }
+
+  async function hostedEventsForSession(sessionId) {
+    if (!boundedIdentity(sessionId) || !hostAdapter || typeof hostAdapter.request !== 'function') {
+      return { ok: false, reason: SESSION_LOG_MISSING }
+    }
+    try {
+      const history = await hostRequest({
+        v: DESK_LINK_CONTROL_PROTOCOL,
+        type: 'history',
+        requestId: `runtime-history-${randomBytes(8).toString('hex')}`,
+        sessionId,
+        after: 0,
+        limit: MAX_EVENTS_PER_SESSION,
+      })
+      const entries = Array.isArray(history?.entries) ? history.entries : []
+      const events = retainEvents(entries.flatMap((entry) => Array.isArray(entry?.events)
+        ? entry.events.map(boundedEvent).filter(Boolean)
+        : []))
+      return {
+        ok: true,
+        events,
+        truncated: history?.nextPosition !== null && history?.nextPosition !== undefined,
+      }
+    } catch (error) {
+      const reason = error?.message || 'pi host unavailable'
+      return { ok: false, reason: /not found|unknown|missing/i.test(reason) ? SESSION_LOG_MISSING : reason }
+    }
   }
 
   /** The snapshot shape the runtime's Pi source already validates. */
@@ -376,13 +797,23 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
 
   function handleRuntimeRequest(socket) {
     const readRecords = recordReader()
+    const writeRuntime = (record) => safeWrite(socket, record, MAX_RUNTIME_RESPONSE_BYTES)
     socket.on('data', (chunk) => {
       for (const record of readRecords(chunk)) {
         if (!record || typeof record !== 'object' || record.v !== DESK_LINK_PROTOCOL) continue
-        if (record.type === 'snapshot') socket.write(encodeJsonLine(snapshot()))
-        else if (record.type === 'events') socket.write(encodeJsonLine(eventsForSession(String(record.sessionId ?? ''))))
-        else if (record.type === 'machines') {
-          socket.write(encodeJsonLine({ v: DESK_LINK_PROTOCOL, type: 'machines', machines: [...machines.keys()] }))
+        if (record.type === 'snapshot') writeRuntime(snapshot())
+        else if (record.type === 'events') {
+          const sessionId = String(record.sessionId ?? '')
+          if (record.hostedPi === true) hostedEventsForSession(sessionId).then(writeRuntime)
+          else {
+            const reported = eventsForSession(sessionId)
+            if (reported.reason !== SESSION_LOG_MISSING) writeRuntime(reported)
+            else hostedEventsForSession(sessionId).then(writeRuntime)
+          }
+        } else if (record.type === 'machines') {
+          writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'machines', machines: [...machines.keys()] })
+        } else if (record.type === 'hosted-sessions') {
+          hostedSnapshot().then((reply) => writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'hosted-sessions', ...reply }))
         }
       }
     })
@@ -437,7 +868,7 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
           resolve()
         })
       })
-      server.on('connection', (socket) => attachReporter(track(socket)))
+      server.on('connection', (socket) => attachPeer(track(socket)))
       try {
         await openRuntimeSocket()
       } catch (error) {
@@ -459,10 +890,13 @@ function createDeskLinkService({ token, socketPath, port = 8765, host, env = pro
         new Promise((resolve) => socketServer.close(resolve)),
       ])
       machines.clear()
+      controlAttributions.clear()
+      pendingControlAttachments.clear()
       started = false
     },
     snapshot,
     eventsForSession,
+    hostedSnapshot,
     machines: () => [...machines.keys()],
     connections: () => connections,
     sessionCount: () => snapshot().summary.total,
@@ -485,4 +919,11 @@ module.exports = {
   MAX_CONNECTIONS,
   MAX_EVENT_TEXT,
   DESK_LINK_PROTOCOL,
+  DESK_LINK_CONTROL_PROTOCOL,
+  ACCEPTED_CONTROL_PROTOCOLS,
+  HOSTED_PI_STATUSES,
+  controlProof,
+  controlTranscript,
+  normalizeHostedSession,
+  tokenMatches,
 }

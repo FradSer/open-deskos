@@ -13,6 +13,16 @@ for (const reason of ['desk-link-unconfigured', 'desk-link-unavailable', 'sessio
   })
 }
 
+test('a Hosted Pi event request carries its explicit ownership marker', async () => {
+  const calls = []
+  const read = createPiSessionEventsSource({
+    deskLink: { sessionEvents: async (...args) => { calls.push(args); return { ok: true, events: [] } } },
+    readLocal: () => assert.fail('Hosted Pi history stays on the host'),
+  })
+  await read({ sessionId: 'hosted', cwd: '/example', hostedPi: true })
+  assert.deepEqual(calls, [['hosted', { hostedPi: true }]])
+})
+
 test('a known reported session without events never falls back to an unrelated local log', async () => {
   const read = createPiSessionEventsSource({
     deskLink: { sessionEvents: async () => ({ ok: false, reason: 'no-reported-events' }) },

@@ -10,6 +10,10 @@ function validSession(session) {
     && ['running', 'settled', 'exited'].includes(session.status)
     && (session.pid === null || (Number.isSafeInteger(session.pid) && session.pid > 0))
     && ['cwd', 'workspaceName', 'latestGoal', 'uuid', 'sessionId', 'command', 'activity', 'recap'].every((key) => session[key] === undefined || typeof session[key] === 'string')
+    && (session.hostedLifecycle === undefined || ['launching', 'live', 'ended', 'interrupted'].includes(session.hostedLifecycle))
+    && (session.lastTurnOutcome === undefined || ['finished', 'failed', 'cancelled', 'interrupted'].includes(session.lastTurnOutcome))
+    && (session.hostedPi === undefined || session.hostedPi === true)
+    && (session.controlAttribution === undefined || (session.controlAttribution && typeof session.controlAttribution.machine === 'string' && typeof session.controlAttribution.sessionId === 'string'))
     && (session.modifiedFiles === undefined || (Array.isArray(session.modifiedFiles) && session.modifiedFiles.every((file) => typeof file === 'string')))
 }
 
@@ -64,6 +68,10 @@ function dedupeSessions(sessions) {
 }
 
 function prefersOver(candidate, current) {
+  // Desk-owned Hosted Pi identity is authoritative over a Reported Session
+  // collision regardless of which source carries the newer observation.
+  if (candidate.hostedPi === true && current.hostedPi !== true) return true
+  if (current.hostedPi === true && candidate.hostedPi !== true) return false
   const candidateAt = Number(candidate.updatedAt) || Number(candidate.startedAt) || 0
   const currentAt = Number(current.updatedAt) || Number(current.startedAt) || 0
   if (candidateAt !== currentAt) return candidateAt > currentAt
@@ -74,6 +82,16 @@ function prefersOver(candidate, current) {
 }
 
 /** Rebuild the snapshot around the deduplicated set so its own invariants hold. */
+function summaryFor(sessions, workspacesCount) {
+  return {
+    total: sessions.length,
+    running: sessions.filter((session) => session.status === 'running').length,
+    settled: sessions.filter((session) => session.status === 'settled').length,
+    exited: sessions.filter((session) => session.status === 'exited').length,
+    workspacesCount,
+  }
+}
+
 function dedupeSnapshot(data) {
   const sessions = dedupeSessions(data.sessions)
   if (sessions.length === data.sessions.length) return data
@@ -87,13 +105,7 @@ function dedupeSnapshot(data) {
     ...data,
     sessions,
     workspaces: [...workspaces.values()],
-    summary: {
-      total: sessions.length,
-      running: sessions.filter((session) => session.status === 'running').length,
-      settled: sessions.filter((session) => session.status === 'settled').length,
-      exited: sessions.filter((session) => session.status === 'exited').length,
-      workspacesCount: workspaces.size,
-    },
+    summary: summaryFor(sessions, workspaces.size),
   }
 }
 
@@ -136,17 +148,25 @@ function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions,
     ? scanRemote(config, source, execute)
     : Promise.resolve().then(scanLocal).then((data) => ({ ...data, source })))
 
+  function overlayHosted(data, hosted) {
+    if (data?.ok !== true || !Array.isArray(data.sessions) || hosted?.ok !== true || !Array.isArray(hosted.sessions) || hosted.sessions.length === 0) return data
+    const sessions = dedupeSessions([...data.sessions, ...hosted.sessions])
+    const workspaces = new Map()
+    for (const session of sessions) {
+      const key = session.cwd || session.workspaceName || 'Default'
+      if (!workspaces.has(key)) workspaces.set(key, { name: session.workspaceName, cwd: session.cwd, sessions: [] })
+      workspaces.get(key).sessions.push(session)
+    }
+    return { ...data, sessions, workspaces: [...workspaces.values()], summary: summaryFor(sessions, workspaces.size) }
+  }
+
   function scan() {
-    // A connected Desk Link answers first: its machine owns those sessions, so
-    // mixing it with a filesystem or SSH scan would report one list from two
-    // sources. With no connected link the configured SSH source, then the local
-    // collector, answer exactly as before.
-    const result = !deskLink
-      ? scanConfiguredSource()
-      : Promise.resolve()
-        .then(() => deskLink.machines())
-        .then((machines) => (machines.length === 0 ? scanConfiguredSource() : deskLink.snapshot()))
-    return result.then((data) => (data?.ok === true && Array.isArray(data.sessions) ? dedupeSnapshot(data) : data))
+    // Reported Sessions still replace only the scanned reporting source. Hosted
+    // Pi is desk-owned and overlays whichever normal source answered.
+    if (!deskLink) return scanConfiguredSource().then((data) => data?.ok === true ? dedupeSnapshot(data) : data)
+    return Promise.all([deskLink.machines(), deskLink.hostedSessions?.() ?? { ok: false, sessions: [] }])
+      .then(([machines, hosted]) => Promise.resolve(machines.length === 0 ? scanConfiguredSource() : deskLink.snapshot())
+        .then((data) => overlayHosted(data?.ok === true ? dedupeSnapshot(data) : data, hosted)))
   }
 
   return () => {

@@ -110,3 +110,83 @@ Feature: Package-initiated Desk Link reporting
   Scenario: The service listens only on the local network
     Given the Desk Link Service starts without an explicit bind address
     Then it binds a local address rather than every interface
+
+Feature: Hosted Pi control over a separate Desk Link v2 connection
+
+  Scenario: A reporting-only v1 link stays report-only
+    Given a Reporting Machine holds only the reporting token
+    When it sends a control record on its v1 reporting connection
+    Then the record is refused without reaching the Pi host
+    And its reported sessions remain available exactly as before
+
+  Scenario: A Console proves its Control Credential without transmitting it
+    Given a Console names its machine and Pi session identity
+    When it opens a v2 control connection with the reporting token
+    Then the service sends a one-time challenge
+    And the Console proves the credential over `open-deskos-control-v2`, version 2, nonce, machine, and session joined by newlines
+    And a captured proof cannot authenticate a second challenge
+
+  Scenario: Records coalesced with either handshake stay readable
+    Given a reporter or Console sends the next record in the same TCP chunk as its hello
+    When the listener routes that connection by protocol version
+    Then the record after the hello is preserved for the routed connection
+    And reporting and control continue normally
+
+  Scenario: A protocol mismatch is explicit
+    Given a Console uses an unsupported control protocol version
+    When it opens a control connection
+    Then the service replies with the accepted protocol version
+    And the refusal is distinguished from a credential failure
+
+  Scenario: The private runtime channel retains its larger snapshot bound
+    Given a valid v1 report whose workspace membership makes the runtime snapshot larger than one network record
+    When the runtime reads that snapshot over its owner-only Unix socket
+    Then the complete snapshot is returned within the runtime response bound
+
+  Scenario: One-shot control requests are correlated and bounded
+    Given an authenticated Console
+    When it lists, launches, or reads Hosted Pi history
+    Then each reply carries the request identity of its request
+    And only that one request reaches the Pi host before the connection closes
+    And a Pi host timeout or unavailable socket produces an explicit error
+
+  Scenario: An attach connection routes only its Hosted Pi
+    Given an authenticated Console attaches with a distinct attachment identity from a position
+    When it prompts, cancels, or ends through the held connection with mutation identities
+    Then each command names the attached Hosted Pi and attachment
+    And host events and state are returned with their durable positions
+    And a command naming another Hosted Pi or attachment is refused
+
+  Scenario: A first Attach fences live events without implicit history
+    Given an authenticated Console has never attached to a Hosted Pi
+    When it attaches without an applied position
+    Then the host atomically installs the subscription and returns the current boundary
+    And earlier entries are available only through an explicit history request
+
+  Scenario: Control Attribution follows the held attach connection
+    Given a Console is attached to a Hosted Pi
+    When the runtime reads Pi Sessions
+    Then that session carries an explicit Hosted Pi marker
+    And the overview header names the Console machine and session in every Session Filter
+    When the control connection closes before or after Attach completes
+    Then Control Attribution disappears while the Hosted Pi remains
+
+  Scenario: Hosted Pi overlays the existing Pi Sessions source
+    Given the Desk Link has no Reporting Machine
+    And the local Pi source and the Pi host each have a live session
+    When the runtime reads Pi Sessions
+    Then both sessions appear in the existing Pi Sessions source
+    And the Hosted Pi is not presented as a Reported Session
+
+  Scenario: Hosted Pi identity wins over reporting-source collisions
+    Given a Hosted Pi and a Reported Session carry the same session identity
+    When the runtime reads Pi Sessions and that session's events
+    Then the existing Pi Sessions source keeps the explicit Hosted Pi marker
+    And the Desk Link Service reads bounded history from the Pi host
+    And it does not fall back to the colliding Reported Session or an unrelated local session log
+
+  Scenario: Concurrent Attach attempts leave exactly one Console attributed
+    Given one Console Attach is still pending for a Hosted Pi
+    When another Console attaches to the same Hosted Pi
+    Then the newer Attach fences the pending Console
+    And only the newer completed Attach receives Control Attribution

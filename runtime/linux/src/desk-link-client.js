@@ -71,19 +71,29 @@ function createDeskLinkClient({ socketPath, env = process.env, send = request } 
       if (!record || record.ok !== true || !Array.isArray(record.sessions)) return unavailable('desk-link-unavailable')
       return record
     },
+    async hostedSessions() {
+      if (!resolved) return { ok: false, reason: 'desk-link-unconfigured', sessions: [], scannedAt: null }
+      const record = await send(resolved, { v: DESK_LINK_PROTOCOL, type: 'hosted-sessions' })
+      if (!record || record.ok !== true || !Array.isArray(record.sessions)) {
+        return { ok: false, reason: record?.reason || 'pi host unavailable', sessions: [], scannedAt: record?.scannedAt ?? null }
+      }
+      return { ok: true, sessions: record.sessions, scannedAt: record.scannedAt }
+    },
     /** The Reporting Machines currently connected. Empty when no link answers. */
     async machines() {
       if (!resolved) return []
       const record = await send(resolved, { v: DESK_LINK_PROTOCOL, type: 'machines' })
       return Array.isArray(record?.machines) ? record.machines : []
     },
-    async sessionEvents(sessionId) {
+    async sessionEvents(sessionId, options = {}) {
       if (!resolved || typeof sessionId !== 'string' || sessionId.length === 0) {
         return { ok: false, reason: 'desk-link-unconfigured' }
       }
-      const record = await send(resolved, { v: DESK_LINK_PROTOCOL, type: 'events', sessionId })
+      const record = await send(resolved, { v: DESK_LINK_PROTOCOL, type: 'events', sessionId, ...(options.hostedPi === true ? { hostedPi: true } : {}) })
       if (!record || typeof record !== 'object') return { ok: false, reason: 'desk-link-unavailable' }
-      return record.ok === true ? { ok: true, events: record.events ?? [], truncated: true } : { ok: false, reason: record.reason ?? 'desk-link-unavailable' }
+      return record.ok === true
+        ? { ok: true, events: record.events ?? [], truncated: record.truncated === true }
+        : { ok: false, reason: record.reason ?? 'desk-link-unavailable' }
     },
   }
 }
