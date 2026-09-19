@@ -95,7 +95,7 @@ _Avoid_: editing session history to inject a prompt, terminal keystroke simulati
 ## Pi Sessions Inspection
 
 **Desk Link**:
-A package-initiated, token-authenticated connection from one Pi machine to one Open DeskOS runtime. It is the only channel through which that machine's Reported Sessions are known, and it never requires Open DeskOS to reach the machine. Control travels on this same connection and is gated by a Control Credential, never by the reporting token.
+A package-initiated, token-authenticated connection from one Pi machine to one Open DeskOS runtime. It is the only channel through which that machine's Reported Sessions are known, and it never requires Open DeskOS to reach the machine. Control does not travel on this connection: a machine opens a separate control connection to the same listener, gated by a Control Credential.
 _Avoid_: SSH source, collector, polling scan, Remote Bridge
 
 **Reporting Machine**:
@@ -161,7 +161,7 @@ _Avoid_: honeycomb, exposé, agent grid, tab overview, dashboard
 ## Hosted Pi Control
 
 **Hosted Pi**:
-A Pi coding session hosted by the Open DeskOS runtime and driven from another machine through a Console. It has a durable identity, keeps running when its Console disconnects, and publishes its own bounded event stream.
+A Pi coding session hosted by the Open DeskOS runtime and driven from another machine through a Console. It has a durable identity, keeps running when its Console disconnects, and publishes its events under a position taken from its own session log.
 _Avoid_: managed coding task, remote session, terminal window, monitored session, Reported Session
 
 **Console**:
@@ -169,16 +169,20 @@ A Pi session on another machine that has attached to one Hosted Pi and directs i
 _Avoid_: remote, controller, Remote Control, Remote Bridge, client
 
 **Control Link**:
-The control side of an existing Desk Link: the authenticated path over which a Console launches Hosted Pi sessions, sends them prompts, cancels them, and receives their events. It is not a second connection, and a reporting-only link never carries it.
-_Avoid_: Remote Link, SSH source, second port, admin API, management API
+The control connection a Console opens: the authenticated path over which it lists, launches, attaches to, prompts, cancels, ends, and reads the history of Hosted Pi sessions. It is its own connection to the same listener, not a second listener and not the reporting connection, and it is short-lived for single requests or held while a Console is attached.
+_Avoid_: Remote Link, SSH source, second port, admin API, management API, shared link
 
 **Control Credential**:
-The secret that authorizes control on a Desk Link, held separately from the reporting token. A link that presents only the reporting token stays report-only, and a machine without a Control Credential never becomes a Console.
+The secret that authorizes control, held separately from the reporting token and never transmitted: the desk challenges with a one-time nonce and a Console answers with a proof over it. A connection that cannot prove it stays report-only, and a machine without it never becomes a Console.
 _Avoid_: link token, reporting token, Service Credential, admin password
 
 **Attach**:
-A Console binding to one Hosted Pi to receive its events and direct its turns. Attaching replaces rather than shares any previous Console, is idempotent, and is repeatable by Hosted Pi identity; a replayed stream never repeats an event.
-_Avoid_: takeover, subscribe, connect, share a session, exclusive lease
+A Console binding to one Hosted Pi to receive its events and direct its turns. Attaching replaces rather than shares any previous Console, is idempotent, and is repeatable by Hosted Pi identity. Attaching again continues from the position the Console last applied, so nothing is repeated and nothing is skipped.
+_Avoid_: takeover, subscribe, connect, share a session, exclusive lease, resume window
+
+**Hosted Pi Position**:
+The place of an entry in a Hosted Pi's own session log, used as the single coordinate for both its live events and its history. It is durable because the log is, so no separate counter or replay window exists.
+_Avoid_: sequence number, cursor, offset, event id, monotonic counter
 
 **Control Attribution**:
 The desk-visible statement of which Console currently drives a Hosted Pi. It stays visible for as long as that control exists and disappears when the Console disconnects; it never takes local touch or keyboard authority away.

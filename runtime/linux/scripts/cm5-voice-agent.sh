@@ -41,3 +41,27 @@ install_voice_agent_service() {
   run_as_target_user systemctl --user enable open-deskos-voice-agent.service || return 1
   run_as_target_user systemctl --user restart open-deskos-voice-agent.service
 }
+
+# Stages the hosted Pi session service on the stable release symlink, so an operator never
+# substitutes a dated releases/<id> path that the next update replaces and locks.
+install_task_host_service() {
+  local source="${RUNTIME_ROOT}/current/integrations/voice-agent"
+  local unit_dir="${TARGET_HOME}/.config/systemd/user"
+  local unit="${unit_dir}/open-deskos-pi-tasks.service"
+  local config="${TARGET_HOME}/.config/open-deskos/pi-tasks.json"
+  run_as_target_user mkdir -p "${unit_dir}" || return 1
+  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${source}|g" \
+    -e "s|__OPEN_DESKOS_NODE_BIN__|${NODE_BIN}|g" \
+    "${source}/systemd/open-deskos-pi-tasks.service" > "${unit}" || return 1
+  $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
+  $SUDO chmod 0644 "${unit}" || return 1
+  run_as_target_user systemctl --user daemon-reload || return 1
+  # The daemon refuses to start without its private configuration and the unit restarts on failure,
+  # so a host that has not created one keeps the unit staged and stopped instead of crash-looping.
+  if [ ! -f "${config}" ]; then
+    echo "Managed Pi tasks staged but not enabled: create ${config}, then run 'systemctl --user enable --now open-deskos-pi-tasks.service'." >&2
+    return 0
+  fi
+  run_as_target_user systemctl --user enable open-deskos-pi-tasks.service || return 1
+  run_as_target_user systemctl --user restart open-deskos-pi-tasks.service
+}

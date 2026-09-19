@@ -1,15 +1,18 @@
-# Desk Link: a Pi machine reports itself
+# Desk Link: a Pi machine reports itself, and a Console drives a hosted Pi
 
 Open DeskOS normally learns about Pi sessions by scanning a machine: locally, or over SSH through the optional Mac source. A Desk Link inverts that. The machine that owns the sessions opens one outbound connection and reports them, so Open DeskOS never needs to reach it.
 
-This exists because the pull direction is not always available and cannot carry what the desk shows. On 2026-09-17 the CM5 could not reach its configured Mac address at all (`ssh: connect to host 10.10.0.226 port 22: No route to host`) while the Mac reached the CM5, and a scan can only read metadata plus one activity line — never the session's operating events.
+This exists because the pull direction is not always available and cannot carry what the desk shows. On 2026-09-17 the CM5 could not reach its configured Mac address at all (`ssh: connect to host 10.10.0.226 port 22: No route to host`) while the Mac reached the CM5, and a scan can only read metadata plus one activity line, never the session's operating events.
+
+A machine may also open a **control connection** to the same listener. That is how a Mac's Pi session becomes a **Console** and drives a **Hosted Pi** on the desk. It is a separate connection with its own credential, never the reporting one; see [Hosted Pi control](#hosted-pi-control) and [ADR-0013](adr/0013-desk-link-carried-hosted-pi-control.md).
 
 ## Pieces
 
 | Piece | Lives in | Job |
 |---|---|---|
-| `@fradser/pi-open-deskos` | the reporting machine | Reports session state and bounded events |
-| Desk Link Service | the Open DeskOS runtime | Accepts links on the local network, holds state, serves the runtime |
+| `@fradser/pi-open-deskos` | the reporting machine | Reports session state and bounded events; optionally acts as a Console |
+| Desk Link Service | the Open DeskOS runtime | Accepts links on the local network, holds state, brokers control to the Pi host, serves the runtime |
+| Pi host | the Open DeskOS runtime | Owns Pi credentials and session storage; runs Hosted Pi sessions |
 | Desk Link client + source | the Electron main process | Reads the service over a Unix socket and answers as a Pi source |
 
 ## Reporting side
@@ -40,13 +43,14 @@ Pi inherits the environment of the shell that starts it, so a shell started
 before this change needs a restart. `/open-deskos` inside Pi reports the state
 either way: `desk link · no config` means the variables are missing.
 
-A missing address **or** token keeps the machine silent; there is no partially configured link. `/open-deskos` inside Pi shows the link state, machine, reported session count, and event count.
+A missing address **or** token keeps the machine silent; there is no partially
+configured link. `/open-deskos` inside Pi shows the link state, machine, reported session count, and event count.
 
 ## Runtime side
 
 The service listens on the local network only and authenticates every Desk Link with the token. Its channel to the runtime is a Unix socket in an owner-only directory, authenticated by filesystem ownership rather than by the token.
 
-The unit reads its token from `~/.config/open-deskos/runtime.env` — the same
+The unit reads its token from `~/.config/open-deskos/runtime.env`, the same
 file the shell already loads. Put it there (mode `600`) rather than on a command
 line, where any local account could read it from `/proc/<pid>/cmdline`:
 
@@ -82,7 +86,7 @@ Optional overrides: `ODK_DESK_LINK_PORT` (default `8765`), `ODK_DESK_LINK_BIND` 
 
 ## Source precedence
 
-1. A connected Desk Link answers, and nothing else does — mixing a link with a scan would report one list from two sources.
+1. A connected Desk Link answers, and nothing else does, because mixing a link with a scan would report one list from two sources.
 2. With no connected link, the configured SSH source answers.
 3. Otherwise the local collector answers.
 
@@ -90,35 +94,50 @@ The label always names which source answered: `Desk Link · <machine>`, `Mac / S
 
 ## What is reported and what is not
 
-Reported sessions carry identity, state, the latest prompt as a goal, and bounded events: at most 300 entries and 1 MiB of text per session. Every event keeps the body Pi produced, bounded per kind with an explicit truncation flag — a tool result 64 KiB, an assistant reply 16 KiB, a prompt 8 KiB, a thought or a tool call 4 KiB — so a bash command, a prompt, and a result are read in full instead of being flattened to one line. A result also carries a separate tool name. The service enforces the same bounds itself, because a reporting machine is never trusted to have bounded its own data; the service and the reporter read one shared set of constants, so they cannot disagree. See ADR-0012 for Markdown, table, and text-only safety rules and ADR-0015 for the reading palette, body bounds, and retention window.
+Reported sessions carry identity, state, the latest prompt as a goal, and bounded events: at most 60 entries and 256 KiB of text per session. Non-result events are single-line summaries capped at 200 characters. Tool results preserve multiline Markdown bodies up to 64 KiB, with a separate tool name and explicit truncation flag. The service enforces the same bounds itself, because a reporting machine is never trusted to have bounded its own data. See ADR-0012 for Markdown, table, and text-only safety rules.
 
-**Management is out of scope.** v1 is report-only: the package never sends a prompt, blocks a turn, or mutates a message, and a reported session offers no control in Open DeskOS. Visibility through a Desk Link never makes a session controllable.
+The numbers above are the committed contract. The reporting package's working tree carries an uncommitted change that raises them to 300 events per session, 1 MiB of text, and a per-kind body limit (result 64 KiB, assistant 16 KiB, user 8 KiB, thinking 4 KiB, tool 4 KiB) instead of single-line summaries for non-result events, and that change is mid-flight: five of its tests still assert the contract above. Do not raise one side alone. This service trims what it receives, so a reporter sending the larger numbers by itself would lose events here silently; the package and this service must change together.
 
-**The transport is not encrypted.** It is a plain connection to a LAN-only listener, with the token as the only gate. Do not expose the Desk Link Service beyond the local network.
+**Reporting is never management.** A machine that holds only the reporting token can report and nothing else, and visibility through a Desk Link never makes a reported session controllable. Control is a separate capability with its own credential, described next.
+
+**The transport is not encrypted.** It is a plain connection to a LAN-only listener. Do not expose the Desk Link Service beyond the local network.
+
+## Hosted Pi control
+
+A **Hosted Pi** is a Pi coding session the desk hosts. A **Console**, a Pi session on another machine, can list, launch, attach to, prompt, cancel, end, and read the history of those sessions. The rules are decided in [ADR-0013](adr/0013-desk-link-carried-hosted-pi-control.md) and specified in the reporting package's `docs/spec-desk-link-hosted-pi-console.md`.
+
+- **A separate connection.** A machine that holds the Control Credential opens its own connection to the same listener. One-shot requests (list, launch, history) use a connection that closes after the answer; a connection is held open only while a Console is attached, and Control Attribution lives exactly as long as it does. No second listener and no second port exist.
+- **A separate credential, never transmitted.** The desk sends a one-time nonce; the Console answers with an HMAC proof over it; every control record is refused without that proof. The credential itself never appears on the wire, so watching the network yields no reusable execution token. Content remains plaintext.
+- **The desk's path to its host.** The service gains a client to the Pi host's own socket, which it does not have today: its only socket is the runtime channel, and the Pi host is a separate process on its own configured socket. The host keeps owning Pi credentials and session storage, so a service restart does not end a live session.
+- **One coordinate for events and history.** An event's position is the position of the corresponding entry in the Hosted Pi's own session log, which the host already writes durably. Attaching states the position last applied, reads history from there, and then consumes live events from that boundary onward. The desk keeps no replay window, so a Console can neither repeat nor silently miss events between reconnects.
+- **Attribution on the desk.** While a Console drives a Hosted Pi, the desk names that machine in the Pi Sessions overview header, and the Hosted Pi is never presented as a report-only session. Local touch and keyboard keep working unchanged.
+- **Refusals are explicit.** A protocol version the desk does not accept is refused with the mismatch named; a Pi host that is down or a stale host socket produces a failure that names the reason instead of waiting.
+- **Unconfigured stays unchanged.** With no Control Credential configured, a machine behaves exactly as a reporting-only machine does today, in every scenario.
 
 ## Existing-session discovery
 
 The reporting package also reads the machine's bounded `directory-sessions` metadata registry every five seconds. This makes pre-existing Working, Settled, and Exited sessions available even when those individual processes did not load the package. It does not read session histories or authentication files. Current in-process events remain separate; discovered sessions without reported events say so rather than fabricating a stream. At least one configured reporter must be running and connected.
 
-The Pi Sessions page lands on its Session Filter's Live set, so a discovered session that has exited waits behind the Exited tab instead of crowding current work. Discovery and service state remain bounded to 64 sessions per machine; this is not an unbounded history archive.
+The Shell starts at **All** and shows a count per filter. **Working** is an explicit narrower view, not the entire inventory. Discovery and service state remain bounded to 64 sessions per machine; this is not an unbounded history archive.
 
 ## Independent reporters on one machine
 
-Each authenticated connection owns the sessions it reports. A `sessions` record replaces only that connection's previous set; the runtime exposes the union of all connected reporters on the machine. One Pi process cannot erase the sessions reported by another process with the same machine name. Events are accepted only from a connection reporting that session.
+Each authenticated connection owns the sessions it reports. A `sessions` record replaces only that connection's previous set; the runtime exposes the union of all connected reporters on the machine. One Pi process cannot erase the sessions reported by another process with the same machine name. Duplicate session identities share one entry, with the newest report supplying its state. Events are accepted only from a connection reporting that session.
 
-One session is one snapshot entry even when several reporters describe it, because every reporter's inventory names the whole machine's sessions while the owner also reports its own. The entry's report is the richest one: a report with events wins over one without, then the newest. Counts, workspaces, and the page all follow that deduplicated set. Session events are then read from whichever machine actually holds them, so a session known to a machine without events is not answered as "no events yet" while its owner has a stream.
-
-The runtime deduplicates again for every source, so the desk stays correct while an older service instance is still running. A machine identity that two reporters disagree about — the package derives it from the system hostname, which can change between boot and network configuration — therefore shows one row, not two.
+Each Console is likewise identified by its own session identity and machine name, so two Pi sessions on one machine are two distinguishable Consoles rather than one.
 
 The machine-wide session and event limits still apply to this union. Runtime snapshot replies have a separate 2 MiB limit because they repeat workspace membership; fragmented UTF-8 is decoded across TCP boundaries rather than character-by-character chunks. A connection dropping removes only its ownership; a session remains available if another connected reporter still reports it.
 
 ## When a link drops
 
-When the last link drops, the machine disappears from the snapshot and its sessions become unavailable rather than stale-and-trusted — a disconnected reporter is not a mirror. The reporting side reconnects with a growing wait (1s, 2s, 4s … capped at 30s), keeps one link, and retains only the newest bounded events, so an outage costs freshness rather than memory. Open DeskOS falls back to the next source in precedence.
+When the last link drops, the machine disappears from the snapshot and its sessions become unavailable rather than stale-and-trusted, because a disconnected reporter is not a mirror. The reporting side reconnects with a growing wait (1s, 2s, 4s … capped at 30s), keeps one link, and retains only the newest bounded events, so an outage costs freshness rather than memory. Open DeskOS falls back to the next source in precedence.
+
+A dropped control connection is not a dropped Hosted Pi: the session keeps running, keeps its identity, stays attachable, and its attribution clears. The Console can attach again and read what it missed from the session's own log.
 
 ## Troubleshooting
 
 - Nothing appears: check `ODK_DESK_LINK_TOKEN` matches on both sides, then the address and port, then that the service's bind address is reachable from the reporting machine.
 - The desk shows `Local` while a machine should be reporting: the link is not currently connected. `/open-deskos` on the reporting machine states the link state and the last error.
 - The desk shows `Unavailable`: the source that answered could not produce a snapshot. The label names it.
-- One session appears twice, or the label names one machine twice: the reporting processes disagree about their machine identity, which the package derives from the system hostname. The desk deduplicates by session identity regardless, but fix the reporters so `/open-deskos` on each names the same machine.
+- Control is refused: check the Control Credential on both sides, then whether the desk and the Console agree on the protocol version. A version mismatch is refused by name rather than treated as a credential failure.
+- A launch or list fails while reporting works: the Pi host is not answering. The failure names that reason; reporting is unaffected.

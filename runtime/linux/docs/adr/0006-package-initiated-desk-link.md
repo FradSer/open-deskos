@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The deferral of management recorded here is superseded by ADR-0013, which carries control on its own connection with a separate credential. Reporting itself is unchanged.
 
 ## Context
 

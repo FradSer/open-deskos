@@ -93,6 +93,10 @@ Wayland 会话在 `run.sh` 中自动追加 `--ozone-platform-hint=auto`；root �
 
 默认仍监控本机；可通过认证 SSH 切换为 Mac 数据源。部署采集器、配置 SSH 密钥和持久化 kiosk 服务环境变量的步骤见 [Mac Pi monitoring](docs/PI_SESSIONS_REMOTE.md)。远端不可用时不会回退本机或显示为空闲。
 
+## Hosted Pi 控制（可选）
+
+Mac 上的 Pi 会话可以作为 **Console** 远程驱动 desk 托管的 **Hosted Pi**：用 `/open-deskos` 打开控制台列出、启动、进入、追加指令、取消和结束这些会话，事件与历史共用会话日志位置这一个坐标，attach 时从上次位置续接。控制走与上报链路分开的连接（同一监听面，不新增端口），使用独立凭据且**凭据不上线**；未配置控制凭据时行为与现在完全一致。desk 会在 Pi Sessions 总览标题上标明当前驱动方，本地触控与键盘始终不受影响。协议与边界见 [Desk Link](docs/DESK_LINK.md)，决策与取舍见 [ADR-0013](docs/adr/0013-desk-link-carried-hosted-pi-control.md)，规格见 package 的 `docs/spec-desk-link-hosted-pi-console.md`。
+
 ## 用户应用生命周期
 
 `ODESK_WORKSPACE/apps/<id>` 下的本地应用草稿经系统验证确切候选内容后安装，支持更新、失败保留旧版本、回滚和卸载；安装状态与 Widget 桌面位置独立于 Shell release 持久化。用户生成的 Widget 与内置 Widget 共用桌面网格，可由 Voice Agent 指定页面、位置和跨度，安装后也可移动；不再设置独立的 **User Applications / Your apps** 收纳页。Widget 为只读展示，交互式 App 在独立页面的受限 iframe 中运行。内置 Agent 使用系统安装入口，不以“文件已写入”冒充安装成功。

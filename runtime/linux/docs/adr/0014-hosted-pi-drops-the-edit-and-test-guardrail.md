@@ -10,7 +10,7 @@ The managed coding task existed to serve the voice path. Its request arrives as 
 
 The policy is a system-prompt instruction, not an enforced limit. The host builds the session with the default built-in tools, no tool allowlist, and only `appendSystemPrompt`, and its own documentation says the harness is "not a filesystem sandbox" and that the prohibitions are "agent instructions, not an OS-level command firewall". Removing it changes the likelihood of a mutation, not the capability to make one.
 
-The operator first chose the opposite of this decision — keep the guardrail, including for the voice path — and then reversed it when they asked for full control. The earlier rationale (a request that arrives as a distant spoken utterance deserves a narrower capability) stopped being the deciding factor. The reversal is recorded here rather than presented as a single coherent decision: the earlier answer was accepted, then superseded on the operator's instruction.
+The operator first chose the opposite of this decision (keep the guardrail, including for the voice path) and then reversed it when they asked for full control. The earlier rationale (a request that arrives as a distant spoken utterance deserves a narrower capability) stopped being the deciding factor. The reversal is recorded here rather than presented as a single coherent decision: the earlier answer was accepted, then superseded on the operator's instruction.
 
 ## Decision
 
@@ -29,5 +29,5 @@ The operator first chose the opposite of this decision — keep the guardrail, i
 
 ## Considered options
 
-- **Two profiles** — a restricted voice-originated task and a full-capability Console session. Rejected here because it preserves exactly the distinction the operator rejected. It remains the first mitigation to reach for if the accepted risk proves unacceptable.
+- **Two profiles**: a restricted voice-originated task and a full-capability Console session. Rejected here because it preserves exactly the distinction the operator rejected. It remains the first mitigation to reach for if the accepted risk proves unacceptable.
 - **Origin-scoped policy with explicit per-session escalation.** Not adopted for the same reason: the operator asked for one capability rather than a graded one.

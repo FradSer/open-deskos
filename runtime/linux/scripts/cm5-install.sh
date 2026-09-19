@@ -269,6 +269,7 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
 fi
 
 install_voice_agent_service || echo "Voice Agent unavailable; base shell remains active. Check device-local voice configuration and ALSA access." >&2
+install_task_host_service || echo "Managed Pi tasks unavailable; base shell and Voice Agent remain active. Check the target user's session and the release contents." >&2
 
 AUTOSTART_DIR="${TARGET_HOME}/.config/autostart"
 run_as_target_user mkdir -p "$AUTOSTART_DIR"
