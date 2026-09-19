@@ -31,7 +31,12 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /ODK_KIOSK_HOME/)
   assert.match(updater, /ODK_KIOSK_NODE_BIN/)
   assert.match(updater, /ODK_KIOSK_BIN_DIR/)
-  assert.match(updater, /COREPACK_ENABLE_PROJECT_SPEC=0/)
+  assert.match(updater, /COREPACK_ENABLE_PROJECT_SPEC=1/)
+  assert.match(installer, /COREPACK_ENABLE_PROJECT_SPEC=1/)
+  // The runtime release declares the pnpm that produced its lockfile, and both install and
+  // activation honor that declaration instead of whatever Corepack resolves by default.
+  const runtimeManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'))
+  assert.equal(runtimeManifest.packageManager, 'pnpm@11.22.0')
   assert.match(updater, /runtime update must run as root/)
   assert.match(updater, /function sealRelease/)
   assert.match(updater, /chown', \['-R', 'root:root'/)

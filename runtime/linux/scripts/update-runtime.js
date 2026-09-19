@@ -61,8 +61,10 @@ function runReleaseCommand(releasePath, command, runAs = null) {
   const executable = runAs ? 'runuser' : file
   const sessionDisplay = runAs && runAs.display ? [`DISPLAY=${runAs.display}`] : []
   const sessionAuthority = runAs && runAs.xauthority ? [`XAUTHORITY=${runAs.xauthority}`] : []
+  // Release commands run the pnpm the release declares (COREPACK_ENABLE_PROJECT_SPEC=1), so a
+  // change to Corepack's default version cannot silently change how a release is built or run.
   const executableArgs = runAs
-    ? ['-u', runAs.user, '--', 'env', `HOME=${runAs.home}`, `XDG_RUNTIME_DIR=/run/user/${runAs.uid}`, `PATH=${runAs.binDir}:${runAs.nodeBin}:/usr/local/bin:/usr/bin:/bin`, 'COREPACK_ENABLE_PROJECT_SPEC=0', ...sessionDisplay, ...sessionAuthority, file, ...args]
+    ? ['-u', runAs.user, '--', 'env', `HOME=${runAs.home}`, `XDG_RUNTIME_DIR=/run/user/${runAs.uid}`, `PATH=${runAs.binDir}:${runAs.nodeBin}:/usr/local/bin:/usr/bin:/bin`, 'COREPACK_ENABLE_PROJECT_SPEC=1', ...sessionDisplay, ...sessionAuthority, file, ...args]
     : args
   const result = spawnSync(executable, executableArgs, {
     cwd: releasePath,

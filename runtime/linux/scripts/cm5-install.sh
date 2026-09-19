@@ -77,9 +77,9 @@ run_as_target_user() {
   if [ "$(id -u)" -eq "${TARGET_UID}" ]; then
     "$@"
   else
-    # Project installs must use the pnpm each project declares: integrations/voice-agent pins
-    # pnpm 11.22.0, and pnpm refuses to run under a different major than its packageManager
-    # field. Release activation keeps the device pnpm (COREPACK_ENABLE_PROJECT_SPEC=0).
+    # Installs and release commands use the pnpm each project declares (COREPACK_ENABLE_PROJECT_SPEC=1):
+    # runtime/linux and integrations/voice-agent pin pnpm 11.22.0, and pnpm refuses to run under a
+    # different major than a project's packageManager field. See docs/adr/0017.
     runuser -u "${TARGET_USER}" -- env \
       HOME="${TARGET_HOME}" \
       USER="${TARGET_USER}" \
