@@ -8,7 +8,7 @@ Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. It
 
 ## Users
 
-Personal developers and knowledge workers using a fixed desk display. They glance at current time, focus, network, and explicitly configured account state, then use direct touch, keyboard, or the accepted Remote Control to enter a focused view. The system must remain useful during peripheral, network-provider, or experimental-service degradation. It also supports a local user-application lifecycle: self-contained Widget/App packages can be drafted, verified, installed, updated, rolled back, and removed independently of the built-in Shell release.
+Personal developers and knowledge workers using a fixed desk display. They glance at current time, focus, network, and explicitly configured account state, then use direct touch, keyboard, or the accepted Remote Control to enter a focused view. A paired Mac may also drive a Pi session the desk hosts, under a credential separate from reporting; the desk names which machine is driving for as long as that lasts, and local input always keeps its authority. The system must remain useful during peripheral, network-provider, or experimental-service degradation. It also supports a local user-application lifecycle: self-contained Widget/App packages can be drafted, verified, installed, updated, rolled back, and removed independently of the built-in Shell release.
 
 ## Product Purpose
 
@@ -21,6 +21,7 @@ CM5 Linux / Electron runtime
   ├─ direct touch and keyboard
   ├─ ESP32-S3 Remote Control peripheral
   ├─ ESP32-P4 SC2336 Camera Peripheral (generic UVC webcam + UAC microphone)
+  ├─ Hosted Pi sessions, drivable from a paired Mac Console over the Desk Link
   └─ Remote Bridge integration
 ```
 
