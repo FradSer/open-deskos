@@ -2,18 +2,18 @@ import { pathToFileURL } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { loadTaskConfig } from './task-store.mjs';
 import { createTaskService } from './task-service.mjs';
-import { runTask } from './task-agent.mjs';
+import { createHostedSession, readHostedHistory } from './task-agent.mjs';
 import { serveTasks } from './task-protocol.mjs';
 
 /** @param {import('./task-store.mjs').TaskConfig} config */
 export async function startTaskDaemon(config) {
   process.umask(0o077);
   let service;
-  const server = await serveTasks(config.socketPath, request => {
+  const server = await serveTasks(config.socketPath, (request, context) => {
     if (!service) return Promise.resolve({ version: 1, requestId: request.requestId, ok: false, error: '任务服务正在启动' });
-    return service.handle(request);
-  });
-  try { service = await createTaskService(config, { runTask }); }
+    return service.handle(request, context);
+  }, connectionId => service?.disconnect(connectionId));
+  try { service = await createTaskService(config, { createSession: createHostedSession, readHistory: readHostedHistory }); }
   catch (error) { await server.close(); throw error; }
   return { async close() { await server.close(); await service.close(); } };
 }

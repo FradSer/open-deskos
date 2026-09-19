@@ -91,7 +91,7 @@ The voice coordinator exposes `coding_targets`, `coding_task_start`, `coding_tas
 
 The obsolete `pi-session-control` executable bridge has been removed. A hosted session creates its own Pi SDK session rather than impersonating or editing another interactive session, and it does not imply access to sessions someone started in a terminal. Such a session persists across turns and can be driven from a Console, while staying distinct from the resident voice agent's own conversation.
 
-Task acceptance is not completion. A finished run is not verified success: verification stays `not_run` unless a separate verifier supplies evidence. An unknown start outcome includes the task ID for reconciliation through status; never retry it as a new task. Unfinished records become `interrupted` after daemon restart and are never automatically replayed.
+Task acceptance is not completion. Hosted Pi Lifecycle (`launching`, `live`, `ended`, `interrupted`) is separate from live activity (`working` or `idle`) and from the last Hosted Pi Turn Outcome (`finished`, `failed`, `cancelled`, `interrupted`). The compatible v1 wire still projects working/idle as `running`/`settled`. A finished turn is not verified success: verification stays `not_run` unless a separate verifier supplies evidence. Unknown mutation outcomes retain the task and mutation identities for status reconciliation and are never retried blindly. A daemon restart marks launching or working sessions interrupted and never replays their prompts; their persisted session logs remain history-readable.
 
 ## Transcription language and context
 

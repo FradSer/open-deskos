@@ -72,10 +72,26 @@ function validProject(value) {
 function validDate(value) {
   return typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value
 }
+function validControlIdentity(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    validText(value.machineName, 256) && !!value.machineName.trim() &&
+    validText(value.sessionId, 256) && !!value.sessionId.trim()
+}
 function validRecord(record, name) {
   return record && typeof record === 'object' && !Array.isArray(record) &&
     typeof record.taskId === 'string' && TASK_ID.test(record.taskId) && name === `${record.taskId}.json` &&
-    ['pending', 'running', 'interrupted', 'finished', 'failed', 'cancelled'].includes(record.state) &&
+    ['pending', 'running', 'settled', 'interrupted', 'finished', 'failed', 'cancelled'].includes(record.state) &&
+    (record.lifecycle === undefined || ['launching', 'live', 'ended', 'interrupted'].includes(record.lifecycle)) &&
+    (record.activity === undefined || ['working', 'idle'].includes(record.activity)) &&
+    (record.turnOutcome === undefined || ['finished', 'failed', 'cancelled', 'interrupted'].includes(record.turnOutcome)) &&
+    (record.currentTurnId === undefined || (typeof record.currentTurnId === 'string' && TASK_ID.test(record.currentTurnId))) &&
+    (record.endedReason === undefined || ['explicit', 'idle_expired', 'host_restart'].includes(record.endedReason)) &&
+    (record.sessionFile === undefined || (validProject(record.sessionFile) && normalize(record.sessionFile) === record.sessionFile)) &&
+    (record.controlledBy === undefined || validControlIdentity(record.controlledBy)) &&
+    (record.controlAudit === undefined || (Array.isArray(record.controlAudit) && record.controlAudit.length <= 16 && record.controlAudit.every(item => validControlIdentity(item) && validDate(item.at)))) &&
+    (record.mutationReceipts === undefined || (Array.isArray(record.mutationReceipts) && record.mutationReceipts.every(item => item && typeof item === 'object' &&
+      ['prompt', 'cancel', 'end'].includes(item.command) && validText(item.mutationId, 256) && !!item.mutationId.trim() && typeof item.digest === 'string' && /^[0-9a-f]{64}$/.test(item.digest) &&
+      (item.status === undefined || ['accepted', 'completed', 'failed'].includes(item.status)) && (item.error === undefined || validText(item.error, 512))))) &&
     record.verification === 'not_run' && validProject(record.project) && normalize(record.project) === record.project &&
     (record.requestedProject === undefined || validProject(record.requestedProject)) &&
     validText(record.prompt, 64 * 1024) && !!record.prompt.trim() && validText(record.response, 16 * 1024) &&
@@ -110,8 +126,18 @@ export async function loadRecords(stateDir) {
     records.set(record.taskId, record)
   }
   for (const record of records.values()) {
-    if (['running', 'pending'].includes(record.state)) {
+    // SDK sessions are process-owned. Any non-terminal Hosted Pi from the prior
+    // host lifetime is no longer controllable after restart and must never be
+    // presented as live or have its prompt replayed.
+    if (!['ended', 'interrupted'].includes(record.lifecycle) && (['running', 'pending', 'settled'].includes(record.state) || ['launching', 'live'].includes(record.lifecycle))) {
       record.state = 'interrupted'
+      record.lifecycle = 'interrupted'
+      record.activity = undefined
+      record.turnOutcome = 'interrupted'
+      record.currentTurnId = undefined
+      record.controlledBy = undefined
+      record.endedReason = 'host_restart'
+      if (record.response === undefined) record.response = '任务执行被主机重启中断，请检查本机会话记录'
       record.updatedAt = new Date().toISOString()
       await atomicRecord(join(stateDir, `${record.taskId}.json`), record)
     }

@@ -79,25 +79,31 @@ Configure SSH keys and known hosts for the CM5 voice service user separately. Re
 
 Restart the voice service after configuration. `coding_targets` describes configured destinations, not proven availability. Confirm each host with `coding_tasks_list` before starting a real task.
 
-## States, slots, and endings
+## Lifecycle, turns, slots, and endings
 
-- A session is `pending`, `running`, `settled` (alive, idle at its prompt), or terminal as `finished`, `failed`, `cancelled`, or `interrupted`.
-- A further prompt steers a running turn rather than starting a second one; while a turn is streaming the delivery behavior must be stated, and when the session is idle it is ignored.
-- **Cancelling** aborts the running turn and settles the session without disposing it: the identity survives and the session stays attachable.
-- **Ending** disposes the session and releases its slot; the terminal receipt stays readable.
-- A live session holds a slot. An idle, unattached session releases its project's overlap lock while still counting against the host-wide cap, and re-acquires the lock when it resumes.
-- A session idle and unattached beyond the bounded idle period is released without replaying its prompt, and an operator can end it earlier. Four abandoned sessions must never be able to block all further work.
+Hosted Pi Lifecycle and Hosted Pi Turn Outcome are separate facts:
+
+- Lifecycle is `launching`, `live`, `ended`, or `interrupted`. A live Hosted Pi retains its durable identity and SDK session.
+- A live Hosted Pi has activity `working` while a turn streams or `idle` at its prompt. The compatible v1 task wire projects those activities as `running` and `settled`.
+- The last turn outcome is independently `finished`, `failed`, `cancelled`, or `interrupted`. A finished, failed, or cancelled turn normally leaves a persistent Hosted Pi `live` and `idle`; it does not end the session.
+- A further prompt steers a working turn rather than starting a second one; while a turn streams the delivery behavior must be stated, and when the session is idle it is ignored.
+- **Cancelling** aborts the working turn and returns the same identity to live-idle. The receipt records a cancelled turn outcome, while the SDK session remains attachable.
+- **Ending** changes lifecycle to `ended`, disposes the SDK session, and releases its slot. The durable receipt and persisted history remain readable.
+- A live Hosted Pi holds a host-cap slot. An idle, unattached Hosted Pi releases its project's overlap lock while still counting against that host-wide cap, and re-acquires the lock when it resumes.
+- A Hosted Pi idle and unattached beyond the bounded idle period is ended without replaying its prompt. An operator can end it earlier, so four abandoned identities cannot permanently block the host.
 - Steering, cancelling, ending, and reading history from another machine require the Control Credential described in [ADR-0013](../../../runtime/linux/docs/adr/0013-desk-link-carried-hosted-pi-control.md). A host that is not reachable as a Console target keeps working for voice requests.
 
-## Outcomes and recovery
+## Outcomes, positions, and recovery
 
-- A start receipt contains a durable session ID. It does not mean the session completed.
-- `running` means the runner still owns execution.
-- `finished` means the model run ended normally; `verification: not_run` is not a claim that tests passed. Read the response and session evidence.
-- `failed`, `cancelled`, and `interrupted` are distinct outcomes, and a cancellation is never reported as a failure.
-- On timeout, preserve the target/project/session ID returned in the error and query status. Never create a replacement session automatically.
-- Restarted daemons mark unfinished records interrupted rather than replaying mutations. The session's own log remains readable, so a later attach can still show what happened.
-- Cancellation is cooperative. Query until the terminal state is available; a cancel acknowledgment alone is not proof all work stopped.
+- A launch receipt contains a durable Hosted Pi identity before execution begins. It is not completion evidence.
+- `finished` means one model turn ended normally; `verification: not_run` is not a claim that tests passed. Read the response and session evidence.
+- Failed, cancelled, and restart-interrupted turns are distinct. No unknown state is coerced to working.
+- Hosted Pi Position is the physical position of a complete entry in the session's append-only log, with zero before the first entry. Non-message log entries can therefore create numeric gaps between visible Session Events; a gap is not lost output.
+- History and live events use that same position. History starts strictly after the supplied position, is bounded by physical entries and bytes, and returns an explicit continuation whenever more log entries remain.
+- Attach installs the live route before capturing its boundary. Catch-up covers `(after, boundary]`; live delivery then uses positions greater than the boundary. A first attach starts at the current boundary and uses an explicit history request for earlier work.
+- On timeout, preserve the target/project/session identity and mutation identity returned in the error and query status. Never create a replacement session or blindly retry a mutation.
+- A daemon restart marks every previously launching or working Hosted Pi lifecycle `interrupted`, records an interrupted turn outcome, never replays its prompt, and leaves its persisted session log readable.
+- Cancellation is cooperative. A cancel acknowledgement records acceptance; observe the separate activity and turn outcome to know when execution has settled.
 
 Session prompts, responses and Pi session logs are private coding data persisted under `stateDir`. Protect backups and arrange retention explicitly. No automatic deletion or replay policy is implied.
 

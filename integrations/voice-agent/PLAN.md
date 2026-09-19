@@ -8,7 +8,7 @@ The operator confirmed on 2026-09-15:
 - Work on existing Widgets and Apps, not WeChat applications.
 - Limit project selection to configured development roots; ask when the target is ambiguous.
 - Support Chinese speech, task instructions, and replies.
-- Default to editing and verification. Do not automatically commit, push, install, or deploy.
+- Hosted Pi sessions use the host's full exposed tool set; retain truthful verification, durable receipt, admission, and no-blind-retry rules.
 - Distinguish acceptance, running, terminal outcome, and verification evidence.
 
 The development-root and deployment-policy selections used the UI's recommended timeout defaults; the complete scope was subsequently explicitly confirmed.

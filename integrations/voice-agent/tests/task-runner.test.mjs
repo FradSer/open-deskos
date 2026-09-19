@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -142,6 +142,18 @@ test('all receipts validate before recovery mutates any of them', async t => {
   assert.equal(await readFile(file, 'utf8'), original)
 })
 
+test('restart interrupts an idle live Hosted Pi that cannot keep its SDK session', async t => {
+  const f = await fixture(t)
+  const req = receipt(f.root, { state: 'settled', lifecycle: 'live', activity: 'idle', turnOutcome: 'finished' })
+  await writeFile(join(f.config.stateDir, `${req.taskId}.json`), JSON.stringify(req))
+  const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay') } })
+  t.after(() => restarted.close())
+  const task = (await restarted.handle(request('status', { taskId: req.taskId }))).task
+  assert.equal(task.lifecycle, 'interrupted')
+  assert.equal(task.state, 'interrupted')
+  assert.equal(task.turnOutcome, 'interrupted')
+})
+
 test('restart interrupts receipts without replay', async t => {
   const f = await fixture(t)
   const req = receipt(f.root)
@@ -226,7 +238,7 @@ test('malformed adapter Unicode is normalized before persistence and restart', a
   await f.service.close()
   const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay'); } })
   t.after(() => restarted.close())
-  assert.deepEqual((await restarted.handle(request('status', { taskId: req.taskId }))).task, task)
+  assert.deepEqual((await restarted.handle(request('status', { taskId: req.taskId }))).task, JSON.parse(JSON.stringify(task)))
 })
 
 test('status and cancel use recorded identities after a project is removed', async t => {
@@ -308,7 +320,7 @@ test('private socket preserves jobs across helper exit and rejects oversized fra
 
 
 test('SDK adapter uses persistent isolated resources and waits for final stop reason', async t => {
-  const { runTask, TASK_POLICY } = await import('../src/task-agent.mjs')
+  const { runTask } = await import('../src/task-agent.mjs')
   const { writeFile } = await import('node:fs/promises')
   const f = await fixture(t)
   await writeFile(join(f.root, 'AGENTS.md'), 'Managed test context')
@@ -325,6 +337,7 @@ test('SDK adapter uses persistent isolated resources and waits for final stop re
       session.messages.push({ role: 'assistant', content: [{ type: 'text', text: '最终结果' }], stopReason: 'length' })
     },
     abort: async () => { aborted = true; finish(); },
+    subscribe: () => () => {},
     dispose: () => { disposed = true; },
   }
   const job = runTask({ task: { project: f.root, prompt: '任务' }, signal: controller.signal, sessionDir: join(f.config.stateDir, 'sdk') }, {
@@ -336,8 +349,7 @@ test('SDK adapter uses persistent isolated resources and waits for final stop re
   assert.equal(options.resourceLoader.getExtensions().extensions.length, 0)
   assert.equal(options.resourceLoader.getPrompts().prompts.length, 0)
   assert.ok(options.resourceLoader.getAgentsFiles().agentsFiles.some(file => file.content.includes('Managed test context')))
-  assert.match(TASK_POLICY, /禁止自动提交/)
-  assert.match(TASK_POLICY, /安装/)
+  assert.equal(options.resourceLoader.getSkills().skills.length, 0)
   controller.abort()
   assert.equal((await job).stopReason, 'aborted')
   assert.equal(aborted, true)
@@ -352,4 +364,319 @@ test('malformed submitted project Unicode is rejected before persistence', async
   await f.service.close()
   const restarted = await createTaskService(f.config, { runTask: async () => ({ text: 'ok', stopReason: 'stop' }) })
   await restarted.close()
+})
+
+function persistentAdapter() {
+  const sessions = []
+  return {
+    sessions,
+    async createSession({ onEvent }) {
+      let streaming = false
+      let disposed = false
+      let aborted = false
+      let abortCalls = 0
+      let disposeCalls = 0
+      let release
+      const prompts = []
+      const session = {
+        get isStreaming() { return streaming },
+        get disposed() { return disposed },
+        get prompts() { return prompts },
+        get aborted() { return aborted },
+        get abortCalls() { return abortCalls },
+        get disposeCalls() { return disposeCalls },
+        sessionFile: undefined,
+        async prompt(text, options = {}) {
+          const wasStreaming = streaming
+          prompts.push({ text, options })
+          if (wasStreaming) return { text: '', stopReason: undefined }
+          streaming = true
+          if (prompts.length === 1) await new Promise(resolve => { release = resolve })
+          streaming = false
+          onEvent?.({ position: prompts.length, entry: { type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: `reply ${prompts.length}` }], stopReason: aborted ? 'aborted' : 'stop' } } })
+          return { text: `reply ${prompts.length}`, stopReason: aborted ? 'aborted' : 'stop' }
+        },
+        release() { release?.() },
+        async abort() { abortCalls++; aborted = true; release?.() },
+        dispose() { disposeCalls++; disposed = true },
+        history(position = 0) {
+          return { entries: prompts.slice(position).map((prompt, index) => ({ position: position + index + 1, entry: prompt })), boundary: prompts.length, continuation: null }
+        },
+      }
+      sessions.push(session)
+      return session
+    },
+  }
+}
+
+async function waitState(service, taskId, expected) {
+  for (let index = 0; index < 100; index++) {
+    const response = await service.handle(request('status', { taskId }))
+    if (response.task.state === expected) return response.task
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+  throw new Error(`Task did not reach ${expected}`)
+}
+
+test('persistent host retains one Pi session across turns and steers while streaming', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  assert.equal((await service.handle(launched)).task.lifecycle, 'launching')
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await service.handle(request('prompt', { taskId: launched.taskId, prompt: 'redirect' }))).ok, false)
+  assert.equal((await service.handle(request('prompt', { taskId: launched.taskId, prompt: 'redirect', streamingBehavior: 'steer' }))).ok, true)
+  assert.equal(adapter.sessions[0].prompts[1].options.streamingBehavior, 'steer')
+  adapter.sessions[0].release()
+  const task = await waitState(service, launched.taskId, 'settled')
+  assert.equal(task.turnOutcome, 'finished')
+  assert.equal(adapter.sessions.length, 1)
+  assert.equal(adapter.sessions[0].disposed, false)
+  assert.equal((await service.handle(request('prompt', { taskId: launched.taskId, prompt: 'next turn' }))).ok, true)
+  await waitState(service, launched.taskId, 'settled')
+  assert.equal(adapter.sessions.length, 1)
+})
+
+test('cancel retains identity, end disposes, and idle unattached sessions release locks', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 30 }, adapter)
+  t.after(() => service.close())
+  const first = start(f.root)
+  await service.handle(first)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  await service.handle(request('cancel', { taskId: first.taskId }))
+  const cancelled = await waitState(service, first.taskId, 'settled')
+  assert.equal(cancelled.turnOutcome, 'cancelled')
+  assert.equal(adapter.sessions[0].disposed, false)
+  const second = start(f.root)
+  assert.equal((await service.handle(second)).ok, true)
+  while (!adapter.sessions[1]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[1].release()
+  await waitState(service, second.taskId, 'settled')
+  assert.equal((await service.handle(request('end', { taskId: first.taskId }))).ok, true)
+  assert.equal(adapter.sessions[0].disposed, true)
+  assert.equal((await service.handle(request('status', { taskId: first.taskId }))).task.lifecycle, 'ended')
+})
+
+test('mutation receipt is durable before a Hosted Pi side effect begins', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  let sawReceipt = false
+  const originalPrompt = adapter.sessions[0].prompt.bind(adapter.sessions[0])
+  adapter.sessions[0].prompt = async (text, options) => {
+    const mutationDir = join(f.config.stateDir, 'mutations', launched.taskId)
+    const receipts = await readdir(mutationDir)
+    sawReceipt = receipts.length === 1 && JSON.parse(await readFile(join(mutationDir, receipts[0]), 'utf8')).mutationId === 'durable-steer'
+    return originalPrompt(text, options)
+  }
+  const response = await service.handle(request('prompt', { taskId: launched.taskId, mutationId: 'durable-steer', prompt: 'redirect', streamingBehavior: 'steer' }))
+  assert.equal(response.ok, true)
+  assert.equal(sawReceipt, true, 'the mutation receipt must be on disk before prompt delivery')
+})
+
+test('a failed mutation retry reports the recorded failure instead of accepted', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].deliver = async () => { throw new Error('delivery failed') }
+  const failed = request('prompt', { taskId: launched.taskId, mutationId: 'failed-steer', prompt: 'redirect', streamingBehavior: 'steer' })
+  assert.equal((await service.handle(failed)).ok, false)
+  const duplicate = await service.handle({ ...failed, requestId: randomUUID() })
+  assert.equal(duplicate.ok, false)
+  assert.match(duplicate.error, /delivery failed/)
+})
+
+test('mutation identities make prompt, cancel and end exact-retry safe', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const steer = request('prompt', { taskId: launched.taskId, mutationId: 'steer-1', prompt: 'redirect', streamingBehavior: 'steer' })
+  assert.equal((await service.handle(steer)).ok, true)
+  assert.equal((await service.handle({ ...steer, requestId: randomUUID() })).ok, true)
+  assert.equal(adapter.sessions[0].prompts.filter(item => item.text === 'redirect').length, 1)
+  assert.equal((await service.handle({ ...steer, requestId: randomUUID(), prompt: 'different' })).ok, false)
+  const cancel = request('cancel', { taskId: launched.taskId, mutationId: 'cancel-1' })
+  assert.equal((await service.handle(cancel)).ok, true)
+  assert.equal((await service.handle({ ...cancel, requestId: randomUUID() })).ok, true)
+  assert.equal(adapter.sessions[0].abortCalls, 1)
+  await waitState(service, launched.taskId, 'settled')
+  const end = request('end', { taskId: launched.taskId, mutationId: 'end-1' })
+  assert.equal((await service.handle(end)).ok, true)
+  assert.equal((await service.handle({ ...end, requestId: randomUUID() })).ok, true)
+  assert.equal(adapter.sessions[0].disposeCalls, 1)
+})
+
+test('mutation receipts remain durable beyond thirty-two operations', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  for (let index = 0; index < 40; index++) {
+    assert.equal((await service.handle(request('prompt', { taskId: launched.taskId, mutationId: `steer-${index}`, prompt: `redirect ${index}`, streamingBehavior: 'steer' }))).ok, true)
+  }
+  await service.close()
+  const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay') } })
+  t.after(() => restarted.close())
+  const duplicate = await restarted.handle(request('prompt', { taskId: launched.taskId, mutationId: 'steer-0', prompt: 'redirect 0', streamingBehavior: 'steer' }))
+  assert.equal(duplicate.ok, true)
+  assert.equal(duplicate.duplicate, true)
+})
+
+test('mutation receipts survive host restart for terminal end reconciliation', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].release()
+  await waitState(service, launched.taskId, 'settled')
+  const end = request('end', { taskId: launched.taskId, mutationId: 'durable-end' })
+  assert.equal((await service.handle(end)).ok, true)
+  await service.close()
+  const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay') } })
+  t.after(() => restarted.close())
+  const duplicate = await restarted.handle({ ...end, requestId: randomUUID() })
+  assert.equal(duplicate.ok, true)
+  assert.equal(duplicate.duplicate, true)
+  assert.equal(duplicate.task.lifecycle, 'ended')
+  assert.equal((await restarted.handle({ ...end, requestId: randomUUID(), expectedTurnId: 'different' })).ok, false)
+})
+
+test('attach catch-up pages to its boundary before reporting caught up', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].history = position => position === 0
+    ? { events: [{ position: 1, events: [{ kind: 'assistant', text: 'one' }] }], boundary: 2, continuation: 1 }
+    : { events: [{ position: 2, events: [{ kind: 'assistant', text: 'two' }] }], boundary: 2, continuation: null }
+  adapter.sessions[0].boundary = () => 2
+  const sent = []
+  const response = await service.handle(request('attach', { taskId: launched.taskId, after: 0, attachmentId: 'paged', console: { machineName: 'Mac', sessionId: 'console' } }), { connectionId: 'paged', send: event => sent.push(event) })
+  assert.equal(response.ok, true)
+  assert.deepEqual(sent.map(event => event.position), [1, 2])
+})
+
+test('attach catch-up advances across a page containing only non-message entries', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].history = () => ({ events: [], boundary: 3, continuation: null })
+  adapter.sessions[0].boundary = () => 3
+  const response = await service.handle(request('attach', { taskId: launched.taskId, after: 0, attachmentId: 'empty-page', console: { machineName: 'Mac', sessionId: 'console' } }), { connectionId: 'empty-page', send() {} })
+  assert.equal(response.ok, true)
+  assert.equal(response.boundary, 3)
+})
+
+test('attach replacement, disconnect, positioned history and audit identity are explicit', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const firstEvents = []
+  const secondEvents = []
+  const firstContext = { connectionId: 'one', send: value => firstEvents.push(value) }
+  const secondContext = { connectionId: 'two', send: value => secondEvents.push(value) }
+  assert.equal((await service.handle(request('attach', { taskId: launched.taskId, position: 0, console: { machineName: 'Mac', sessionId: 'console-1' } }), firstContext)).ok, true)
+  assert.equal((await service.handle(request('attach', { taskId: launched.taskId, position: 0, console: { machineName: 'Mac', sessionId: 'console-2' } }), secondContext)).ok, true)
+  assert.equal(firstEvents.at(-1).type, 'replaced')
+  adapter.sessions[0].release()
+  await waitState(service, launched.taskId, 'settled')
+  assert.equal(secondEvents.some(event => event.type === 'event' && event.position <= 0), false)
+  const history = await service.handle(request('history', { taskId: launched.taskId, position: 0, limit: 1 }))
+  assert.equal(history.history.boundary, 1)
+  assert.equal(history.history.entries[0].position, 1)
+  const record = (await service.handle(request('status', { taskId: launched.taskId }))).task
+  assert.deepEqual(record.controlledBy, { machineName: 'Mac', sessionId: 'console-2' })
+  await service.disconnect('two')
+  assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.controlledBy, undefined)
+})
+
+test('held attach socket accepts further correlated commands and streams events until disconnect', async t => {
+  const { serveTasks } = await import('../src/task-protocol.mjs')
+  const { connect } = await import('node:net')
+  const dir = await mkdtemp(join(tmpdir(), 'hosted-socket-'))
+  const socketPath = join(dir, 'run', 'host.sock')
+  let context
+  const server = await serveTasks(socketPath, async (record, nextContext) => {
+    context = nextContext
+    return { version: 1, requestId: record.requestId, ok: true, command: record.command }
+  })
+  t.after(async () => { await server.close(); await rm(dir, { recursive: true, force: true }) })
+  const socket = connect(socketPath)
+  t.after(() => socket.destroy())
+  let pending = ''
+  const records = []
+  socket.setEncoding('utf8')
+  socket.on('data', chunk => { pending += chunk; const lines = pending.split('\n'); pending = lines.pop() ?? ''; records.push(...lines.filter(Boolean).map(JSON.parse)) })
+  await new Promise(resolve => socket.once('connect', resolve))
+  socket.write(JSON.stringify(request('attach', { taskId: randomUUID(), console: { machineName: 'Mac', sessionId: 'console' } })) + '\n')
+  while (!records.some(record => record.command === 'attach')) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(socket.destroyed, false)
+  const status = request('status', { taskId: randomUUID() })
+  socket.write(JSON.stringify(status) + '\n')
+  while (!records.some(record => record.requestId === status.requestId)) await new Promise(resolve => setImmediate(resolve))
+  context.send({ version: 1, type: 'event', position: 3, entry: { kind: 'assistant', text: 'live' } })
+  while (!records.some(record => record.type === 'event')) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(records.at(-1).position, 3)
+})
+
+test('real persisted history uses physical log positions, skips non-message entries and pages explicitly', async t => {
+  const { readHostedHistory } = await import('../src/task-agent.mjs')
+  const dir = await mkdtemp(join(tmpdir(), 'hosted-history-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = join(dir, 'session.jsonl')
+  const header = { type: 'session', version: 3, id: randomUUID(), timestamp: '2026-01-01T00:00:00.000Z', cwd: dir }
+  const user = { type: 'message', id: 'u', parentId: null, timestamp: '2026-01-01T00:00:01.000Z', message: { role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: 1 } }
+  const model = { type: 'model_change', id: 'm', parentId: 'u', timestamp: '2026-01-01T00:00:02.000Z', provider: 'p', modelId: 'm' }
+  const assistant = { type: 'message', id: 'a', parentId: 'm', timestamp: '2026-01-01T00:00:03.000Z', message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'reason' }, { type: 'text', text: 'answer' }], stopReason: 'stop', timestamp: 2 } }
+  await writeFile(file, [header, user, model, assistant].map(JSON.stringify).join('\n') + '\n{"type":"message"')
+  const first = readHostedHistory(file, 0, 1)
+  assert.equal(first.boundary, 3)
+  assert.equal(first.events[0].position, 1)
+  assert.equal(first.events[0].events[0].kind, 'user')
+  assert.equal(first.continuation, 1)
+  const second = readHostedHistory(file, first.continuation, 10)
+  assert.deepEqual(second.events.map(item => item.position), [3])
+  assert.deepEqual(second.events[0].events.map(event => event.kind), ['thinking', 'assistant'])
+  assert.equal(second.continuation, null)
 })

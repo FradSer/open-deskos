@@ -34,23 +34,29 @@ export async function loadTargets(path = process.env.ODESK_TASK_TARGETS_FILE) {
 }
 
 function validateRequest(target, request) {
-  if (!['start', 'status', 'list', 'cancel'].includes(request.command)) throw Error('Invalid task command')
+  if (!['start', 'launch', 'status', 'list', 'prompt', 'cancel', 'end', 'history'].includes(request.command)) throw Error('Invalid task command')
   if (!developmentPath(request.project) || !target.roots.some(root => {
     const suffix = relative(root, request.project)
     return suffix === '' || (suffix !== '..' && !suffix.startsWith('../') && !isAbsolute(suffix))
   })) throw Error('Invalid project: select an absolute project within a configured development root')
-  if (request.command === 'start' && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
-  if (['status', 'cancel'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
+  if (['start', 'launch', 'prompt'].includes(request.command) && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
+  if (request.command === 'prompt' && request.streamingBehavior !== undefined && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('Invalid streaming behavior')
+  if (['status', 'prompt', 'cancel', 'end', 'history'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
+  if (request.command === 'history' && (request.position !== undefined && (!Number.isSafeInteger(request.position) || request.position < 0))) throw Error('Invalid history position')
 }
 
 export async function taskRequest(target, request, signal = undefined, timeout = 10_000) {
   validateRequest(target, request)
   const command = taskCommand(target.executable, target.host)
+  const mutationId = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command) ? (request.mutationId ?? randomUUID()) : undefined
   const payload = { version: 1, requestId: randomUUID(), command: request.command, project: request.project,
-    ...(request.command === 'start' ? { taskId: randomUUID(), prompt: request.prompt } : {}),
-    ...(['status', 'cancel'].includes(request.command) ? { taskId: request.taskId } : {}),
+    ...(['start', 'launch'].includes(request.command) ? { taskId: request.taskId ?? randomUUID(), mutationId, prompt: request.prompt, ...(request.console ? { console: request.console } : {}) } : {}),
+    ...(request.command === 'prompt' ? { taskId: request.taskId, mutationId, prompt: request.prompt, ...(request.streamingBehavior ? { streamingBehavior: request.streamingBehavior } : {}) } : {}),
+    ...(['status', 'cancel', 'end', 'history'].includes(request.command) ? { taskId: request.taskId } : {}),
+    ...(['cancel', 'end'].includes(request.command) ? { mutationId } : {}),
+    ...(request.command === 'history' && request.position !== undefined ? { position: request.position } : {}),
   }
-  const mutation = ['start', 'cancel'].includes(request.command)
+  const mutation = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command)
   const failure = message => Error(mutation
     ? `Task ${request.command} outcome unknown; do not retry automatically. target=${target.id} taskId=${payload.taskId} project=${request.project}; use coding_task_status to reconcile`
     : message)

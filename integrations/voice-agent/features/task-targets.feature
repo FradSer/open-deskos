@@ -39,7 +39,7 @@ Feature: Managed independent coding tasks
     When the coordinator interprets the request
     Then it replies in Chinese and asks about ambiguous target or project intent
     And accepted work is not reported as completed
-    And edits and tests do not automatically commit, push, install or deploy
+    And delegated Hosted Pi work is not narrowed by an edit-and-test-only capability instruction
     And trusted capabilities and user application lifecycle tools remain available
 
   Scenario: Known task rejection remains actionable without exposing arbitrary errors

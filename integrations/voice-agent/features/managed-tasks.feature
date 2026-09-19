@@ -40,6 +40,13 @@ Feature: Durable per-host Hosted Pi sessions
     And valid terminal states and UTF-8 text at the limits survive restart unchanged
     And all records are validated before any pending or running receipt is rewritten
 
+  Scenario: Session lifecycle is separate from turn outcome
+    Given a live Hosted Pi whose last turn finished, failed, or was cancelled
+    When its status is read
+    Then its lifecycle remains live and its activity is idle
+    And the last turn outcome does not dispose its identity
+    But end or host-restart interruption changes the lifecycle
+
   Scenario: A session persists across turns
     Given an admitted session whose first turn has settled
     When a further prompt is delivered to that same session
@@ -136,8 +143,15 @@ Feature: Durable per-host Hosted Pi sessions
     Given a private Unix socket and short JSON stdin helper
     When a version 1 correlated request is sent
     Then it receives one bounded correlated response
+    And an Attach holds a bounded JSONL connection for further correlated commands and live events
     And invalid, oversized or overdue frames are rejected
     And disconnecting never cancels an accepted session
+
+  Scenario: Mutations reconcile by caller identity
+    Given an accepted prompt, cancel, or end mutation
+    When its caller repeats the same mutation identity and canonical payload
+    Then the recorded result is returned without applying it twice
+    But reusing that mutation identity for a different payload is refused
 
   Scenario: Malformed project text cannot poison session recovery
     Given a real project containing a replacement character
