@@ -216,3 +216,62 @@ test('user migrations are idempotent and base migration never enables experiment
     cleanup(runtime)
   }
 })
+
+test('reclaims releases that neither the active nor the rollback pointer references', () => {
+  const runtime = makeRuntime()
+  try {
+    const oldest = makeRelease(runtime, 'oldest')
+    const previous = makeRelease(runtime, 'previous')
+    const stable = makeRelease(runtime, 'stable')
+    const candidate = makeRelease(runtime, 'candidate')
+    fs.symlinkSync(stable, runtime.activeLink)
+    fs.symlinkSync(previous, runtime.rollbackLink)
+    const unrelated = path.join(runtime.releasesDir, 'not-a-release')
+    fs.mkdirSync(unrelated)
+
+    const result = activateRelease({
+      runtime,
+      candidatePath: candidate,
+      preflight: (releasePath) => preflightRelease(releasePath, { run: () => ({ status: 0 }) }),
+      restart: () => ({ ok: true }),
+      verify: () => ({ ok: true }),
+    })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.pruned.sort(), ['oldest', 'previous'])
+    assert.equal(currentRelease(runtime), 'candidate')
+    assert.equal(path.basename(fs.realpathSync(runtime.rollbackLink)), 'stable')
+    assert.ok(fs.existsSync(candidate), 'the active release survives')
+    assert.ok(fs.existsSync(stable), 'the rollback release survives even though it is not the newest')
+    assert.ok(fs.existsSync(unrelated), 'a non-release directory under releases/ is left alone')
+    assert.equal(fs.existsSync(oldest), false)
+    assert.equal(fs.existsSync(previous), false)
+  } finally {
+    cleanup(runtime)
+  }
+})
+
+test('a failed activation reclaims nothing so its candidate stays inspectable', () => {
+  const runtime = makeRuntime()
+  try {
+    const oldest = makeRelease(runtime, 'oldest')
+    const stable = makeRelease(runtime, 'stable')
+    const candidate = makeRelease(runtime, 'candidate')
+    fs.symlinkSync(stable, runtime.activeLink)
+
+    const result = activateRelease({
+      runtime,
+      candidatePath: candidate,
+      preflight: (releasePath) => preflightRelease(releasePath, { run: () => ({ status: 0 }) }),
+      restart: () => ({ ok: true }),
+      verify: () => ({ ok: false, reason: 'post-activation smoke failed' }),
+    })
+
+    assert.equal(result.ok, false)
+    assert.equal(result.pruned, undefined)
+    assert.equal(currentRelease(runtime), 'stable')
+    for (const release of [oldest, stable, candidate]) assert.ok(fs.existsSync(release), release)
+  } finally {
+    cleanup(runtime)
+  }
+})

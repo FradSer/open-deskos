@@ -99,7 +99,7 @@ function activateRelease({ runtime, candidatePath, preflight, restart, verify })
       rollback: active,
       lastUpdate: { ok: true, release: candidate, reason: null },
     })
-    return { ok: true, active: candidate }
+    return { ok: true, active: candidate, pruned: pruneReleases(runtime, [candidatePath, resolveLink(runtime.rollbackLink)]) }
   }
 
   if (activePath) {
@@ -112,6 +112,33 @@ function activateRelease({ runtime, candidatePath, preflight, restart, verify })
     lastUpdate: { ok: false, release: candidate, reason: verified.reason || 'post-activation verification failed' },
   })
   return { ok: false, active, reason: verified.reason || 'post-activation verification failed' }
+}
+
+// Only the active release and the rollback target are still executable, so every other release
+// directory is unreachable: a completed activation reclaims them instead of accumulating a sealed
+// release per update. A failed activation keeps its candidate, because that is what an operator
+// inspects afterwards, and the next successful activation reclaims it.
+function pruneReleases(runtime, keepPaths) {
+  const keep = new Set()
+  for (const releasePath of keepPaths) {
+    if (!releasePath) continue
+    try { keep.add(fs.realpathSync(releasePath)) } catch { /* an unresolvable keep target protects nothing */ }
+  }
+  let entries = []
+  try { entries = fs.readdirSync(runtime.releasesDir, { withFileTypes: true }) } catch { return [] }
+  const pruned = []
+  for (const entry of entries) {
+    const candidate = path.join(runtime.releasesDir, entry.name)
+    if (!fs.existsSync(path.join(candidate, 'release.json'))) continue
+    if (keep.has(fs.realpathSync(candidate))) continue
+    try {
+      fs.rmSync(candidate, { recursive: true, force: true })
+      pruned.push(entry.name)
+    } catch (error) {
+      console.error(`Could not reclaim release ${entry.name}: ${error.message}`)
+    }
+  }
+  return pruned
 }
 
 function migrationMarker(runtime, user, migrationId) {
@@ -181,6 +208,7 @@ module.exports = {
   currentRelease,
   migrateUser,
   preflightRelease,
+  pruneReleases,
   readRuntimeState,
   validateMetadata,
   validateRuntimeComposition,
