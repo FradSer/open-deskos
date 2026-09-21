@@ -20,15 +20,19 @@ let snapshot
 let pendingEvent = null
 let eventRequests = 0
 let holdEvents = false
+// The first scan stays unanswered until the first scenario releases it, so the
+// page's own loading state can be observed rather than assumed.
+let holdScan = true
 let resultFixture = null
 let remoteState
 function publish(items = initial) {
   snapshot = { ok: true, source: { kind: 'local', label: 'Example fixture' }, sessions: items,
     summary: { running: items.filter(item => item.status === 'running').length, total: items.length, workspacesCount: 1 } }
 }
+
 publish()
 const events = id => ({ ok: true, events: Array.from({ length: 48 }, (_, index) => ({ kind: ['user', 'thinking', 'tool', 'result', 'assistant'][index % 5], text: `${id}: example event ${index + 1}` })) })
-ipcMain.handle('odk-pi-sessions', () => snapshot)
+ipcMain.handle('odk-pi-sessions', () => (holdScan ? new Promise(() => {}) : snapshot))
 ipcMain.handle('odk-pi-session-events', (_event, query) => {
   eventRequests += 1
   if (holdEvents) return new Promise(resolve => { pendingEvent = () => resolve(events(query.sessionId)) })
@@ -94,6 +98,9 @@ async function reset(items = initial) {
   }
 }
 const results = []
+// A renderer exception is a failure of the page, not of a probe: the scenario
+// that provokes one asserts that none appeared.
+const rendererErrors = []
 async function scenario(name, run) {
   try { await run(); results.push({ name, ok: true }); console.log(`PASS ${name}`) }
   catch (error) { results.push({ name, ok: false, error: error.message }); console.error(`FAIL ${name}: ${error.message}`) }
@@ -102,6 +109,12 @@ async function scenario(name, run) {
 async function main() {
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
     webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true } })
+  win.webContents.on('console-message', (event, level, message) => {
+    // Electron reports console messages as an event object in newer versions and
+    // as scalar arguments in older ones.
+    const details = event && typeof event === 'object' && 'message' in event ? event : { level, message }
+    if (details.level === 'error' || details.level === 3) rendererErrors.push(String(details.message || ''))
+  })
   win.webContents.debugger.attach('1.3')
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
@@ -111,6 +124,36 @@ async function main() {
   await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${pages.dot('pi-sessions')}].click()`)
   await pause(400)
   assert.equal(win.isVisible(), false, 'the test window must stay hidden')
+
+  await scenario('an unanswered first scan states loading once and shows Pi\'s own indicator', async () => {
+    // The page and the widget are mounted with the scan still unanswered, so
+    // this is the state a desk shows before its first scan comes back.
+    try {
+      const state = await js(`return {
+        subtitle: $('#pi-view-subtitle').textContent,
+        spinner: $('#pi-overview-list .pi-spinner') !== null,
+        region: $('#pi-overview-list').textContent.trim(),
+        counts: [...$('#pi-overview-filters').querySelectorAll('.pi-filter-count')].map(node => node.textContent).join(','),
+      }`)
+      const tile = await win.webContents.executeJavaScript(`(() => {
+        const node = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
+        return {
+          tag: node.querySelector('.pi-widget-tag-label').textContent,
+          summary: node.querySelector('.pi-widget-summary').textContent,
+          state: node.querySelector('.w-state').textContent,
+          count: node.querySelector('.pi-widget-count').textContent,
+        }
+      })()`)
+      const observed = JSON.stringify({ state, tile })
+      assert.equal(state.subtitle, 'Loading Pi sessions...', observed)
+      assert.equal(state.spinner && !state.region.includes('Loading Pi sessions'), true, observed)
+      assert.equal(state.counts, '--,--,--,--,--', observed)
+      assert.deepEqual(tile, { tag: 'READING', summary: 'Not scanned yet', state: '', count: '--' }, observed)
+    } finally {
+      holdScan = false
+      await refresh()
+    }
+  })
 
   await scenario('the page lands on a live list of started sessions only', async () => {
     publish([...initial, session('example-settled', 'Example settled goal', 'settled'), session('example-exited', 'Example exited goal', 'exited')])
@@ -158,11 +201,16 @@ async function main() {
 
   await scenario('the Session Overview carries the Session Filter and the detail never does', async () => {
     await reset()
-    assert.equal(await js("return $('#pi-overview').querySelectorAll('.pi-filter-btn').length"), 5)
+    // The Overview owns the filter, and the filter spends the page title row's
+    // trailing edge. The page may still be reading the previous scenario's
+    // session, so the row's visible state is asserted after returning to the list.
+    assert.equal(await js("return $('#pi-overview-filters').querySelectorAll('.pi-filter-btn').length"), 5)
+    assert.equal(await js("return $('.pi-app-header').contains($('#pi-overview-filters'))"), true)
     assert.equal(await js("return $('#pi-detail').querySelectorAll('.pi-filter-btn').length"), 0)
     publish([...initial, session('example-idle', 'Example idle goal', 'settled'), session('example-exited', 'Example exited goal', 'exited')])
     await refresh()
     await showOverview()
+    assert.equal(await js("return $('#pi-overview-filters').hidden"), false)
     assert.deepEqual(await js("return [...surface.querySelectorAll('.pi-filter-btn')].map(node => [node.dataset.filter, node.querySelector('.pi-filter-count').textContent, node.getAttribute('aria-pressed')])"),
       [['live', '3', 'true'], ['working', '2', 'false'], ['idle', '1', 'false'], ['exited', '1', 'false'], ['all', '4', 'false']])
     // The page still lands on started sessions only.
@@ -181,6 +229,12 @@ async function main() {
     assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length"), 4)
     await click('.pi-filter-btn[data-filter="live"]')
     assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length"), 3)
+    // Reading a session hides the list's filter and states its elapsed time on
+    // the same trailing edge, so the row never carries a control for the list.
+    await js("$('.pi-overview-cell').click()")
+    await pause()
+    assert.equal(await js("return $('#pi-overview-filters').hidden && /elapsed/.test($('#pi-view-facts').textContent)"), true)
+    assert.equal(await js("return $('#pi-overview').hidden"), true)
   })
 
   await scenario('the Remote Strip filter button advances the Session Filter', async () => {
@@ -374,7 +428,9 @@ async function main() {
     for (const bad of [{}, { ok: true, sessions: [null] }, { ...snapshot, ok: false }]) {
       snapshot = bad
       await refresh()
-      assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length === 0 && /unavailable/i.test($('#pi-overview').textContent)"), true)
+      // A condition is stated once: the title row states it, and the list, which
+      // has no row to explain, repeats neither it nor a count.
+      assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length === 0 && /unavailable/i.test($('#pi-view-subtitle').textContent) && $('#pi-overview-list').textContent === ''"), true)
     }
   })
 
@@ -460,6 +516,33 @@ async function main() {
     } finally {
       resultFixture = null
       await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
+      await refresh()
+    }
+  })
+
+  await scenario('a table in any event kind keeps its reading and never freezes the page', async () => {
+    // A Markdown table in an assistant reply, which is not a result event: the
+    // reading position and focus bookkeeping used to assume every table sat in
+    // one, so the next repaint threw and took the whole render pass with it.
+    await reset([session('example-a', 'Example: inspect keyboard navigation.', 'running')])
+    const before = rendererErrors.length
+    resultFixture = { ok: true, events: [
+      { kind: 'assistant', text: '# Reply\n\n| A | B |\n| --- | --- |\n| one | two |' },
+      { kind: 'assistant', text: 'First reply after the table' },
+    ] }
+    try {
+      await refresh()
+      resultFixture.events = [...resultFixture.events, { kind: 'assistant', text: 'Appended after the table' }]
+      await refresh()
+      assert.equal(rendererErrors.length, before, `renderer errors: ${rendererErrors.join(' | ')}`)
+      assert.equal(await js("return $('#pi-events').textContent.includes('Appended after the table')"), true)
+      assert.equal(await js("return surface.querySelectorAll('.pi-result-table-scroll').length"), 1)
+      // The render pass completes: the list behind the detail still narrows.
+      await click('.pi-filter-btn[data-filter="working"]')
+      assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length"), 1)
+      assert.equal(await js("return $('.pi-filter-btn.active').dataset.filter"), 'working')
+    } finally {
+      resultFixture = null
       await refresh()
     }
   })

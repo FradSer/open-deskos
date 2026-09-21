@@ -50,10 +50,42 @@ Feature: Local Pi Sessions Monitoring
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
     Then the list shows the sessions the active Session Filter selects, which starts as live only
+    And the Session Filter is the only control in the title row, and the Session Detail carries none
     And each row shows its Pi state, goal, directory, and activity without raw PID or field label prefixes
     And each row omits secondary modified file badges for a compact view
-    And the Session Overview carries the status filter tabs while the Session Detail carries none
     And the page offers no manual refresh control
+
+  Scenario: The status filter tabs share the Pi Sessions title row
+    Given the user opens the Pi Sessions page
+    When the live session list is the current view
+    Then the five status filter tabs sit in the page title row at its trailing edge
+    And the tabs share that edge without displacing, wrapping or clipping the page title
+    And choosing a session hides the tabs and states its elapsed time on the same trailing edge
+    And the tabs keep their inset segmented track, 44 pixel targets, and readable labels at every width
+
+  Scenario: The Pi Sessions page states each condition once
+    Given the user opens the Pi Sessions page
+    When the scan has not answered yet
+    Then the title row states that Pi sessions are loading
+    And the list shows Pi's own working indicator without repeating that sentence
+    When the scan reports its source unavailable
+    Then the title row names the source and that it retries automatically
+    And the list states no second sentence
+    When the scan answers and the active filter matches no session
+    Then the list states which filter matched nothing
+
+  Scenario: The Session Detail states the model activity once
+    Given a session reports no model activity
+    When that session becomes the Session Detail
+    Then the title states its Pi state and the detail does not repeat that state
+    And a working session still states what it is doing
+
+  Scenario: Pi Sessions widget never claims a scan it has not read
+    Given the widget is mounted before its first scan resolves
+    Then it shows a neutral pre-scan indicator
+    And it claims no workspace, session or Pi state
+    When the scan reports its source unavailable
+    Then the widget names that source and that it retries automatically
 
   Scenario: Pi Sessions live list reflows inside a narrow App page
     Given the user opens Pi Sessions in a narrow portrait window
@@ -72,6 +104,7 @@ Feature: Local Pi Sessions Monitoring
     When session state is displayed across themes
     Then the running count is the dominant visual numeral
     And the supporting source or workspace description text uses compact legible type
+    And an idle widget states the freshest live session's goal when Pi reports one instead of only its count
 
   Scenario: Pi Sessions fullscreen App renders a compact session list
     Given multiple sessions are rendered in the Pi Sessions live list
@@ -113,7 +146,6 @@ Scenario: Session events ignore entries that are not session messages
   Given a session log contains session, model change, thinking level, and custom entries
   When the shell reads that session's events
   Then those entries produce no event
-
 Scenario: An unreadable session log is refused instead of reported empty
   Given a session has no readable message log
   When the shell reads that session's events
@@ -125,3 +157,10 @@ Scenario: The session scan stays lightweight
   When the shell scans sessions
   Then the scan result carries no session events
   And session events are read only for a selected session on demand
+
+Scenario: A Markdown table in any message body keeps the stream repainting
+  Given a session's events include a Markdown table in a reply that is not a tool result
+  When those events reach the Session Detail
+  Then that reply keeps its own table
+  And a later repaint of the same stream completes instead of stopping at the table
+  And the Session Overview still applies the active Session Filter afterwards

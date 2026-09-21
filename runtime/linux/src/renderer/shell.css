@@ -1848,9 +1848,9 @@ body.kiosk {
   text-align: left;
 }
 
-/* The Pi Sessions page states the live Pi state and nothing else: no page
-   title, no filter tabs, and no session-switching controls. The state line is
-   the title, so these are the roles this row styles. */
+/* The Pi Sessions page states the live Pi state and nothing else: the title row
+   names the view and carries the Session Filter that acts on the list beneath
+   it, and no session-switching control. */
 .pi-app-header {
   align-items: flex-start;
   justify-content: space-between;
@@ -1883,9 +1883,12 @@ body.kiosk {
   display: none;
 }
 
-/* The session's own reading sits in the title row, at its right edge. */
+/* The session's own reading sits in the title row, at its right edge. The
+   auto start margin keeps that edge when a path long enough to take the row
+   pushes the reading onto its own line, instead of drifting to the row start. */
 .pi-view-facts {
   margin: 0;
+  margin-inline-start: auto;
   flex: none;
   font-family: "Montserrat", sans-serif;
   font-size: var(--odk-text-label);
@@ -1927,7 +1930,9 @@ body.kiosk {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 4px 8px 8px 4px;
+  /* The open session and the list it came from are one column: both spend the
+     same inline inset, so nothing shifts as the page changes view. */
+  padding: 4px var(--odk-space-3) var(--odk-space-2);
 }
 
 .pi-detail.is-following {
@@ -2247,19 +2252,34 @@ body.kiosk {
 }
 
 /* The Session Overview owns the Session Filter: a status tab per filter, with
-   the default being the live set. The Session Detail carries none of this. */
+   the default being the live set. It renders in the page title row's trailing
+   edge, because it acts on the list below the row. The Session Detail carries
+   none of this, and its own elapsed reading takes that edge. */
 .pi-overview-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--odk-space-2) 4px;
-  flex: none;
+  /* It keeps its own size beside the title, and shrinks into the row it is
+     given when the title needs the line: the track wraps its tabs from there. */
+  flex: 0 1 auto;
   min-width: 0;
   padding: 4px;
   background: var(--odk-bg);
   border: 1px solid var(--odk-stroke);
-  border-radius: var(--odk-radius-pill);
+  /* One radius for the track, and the tabs sit inside it by exactly the track's
+     own inset, so a selected tab follows its curve instead of crossing it. */
+  --pi-track-radius: var(--odk-radius-pill);
+  border-radius: var(--pi-track-radius);
   box-sizing: border-box;
+  /* The row is taller than the track, so the track centres against the title
+     instead of hanging from its cap line. */
+  align-self: center;
+}
+
+/* The filter belongs to the list, so it is absent while a session is the view. */
+.pi-overview-filters[hidden] {
+  display: none;
 }
 
 .pi-filter-btn {
@@ -2279,7 +2299,7 @@ body.kiosk {
   font-size: var(--odk-text-label);
   font-weight: 700;
   white-space: nowrap;
-  border-radius: var(--odk-radius-pill);
+  border-radius: calc(var(--pi-track-radius, var(--odk-radius-pill)) - 4px);
   line-height: 1.4;
   cursor: pointer;
 }
@@ -2500,9 +2520,13 @@ body.kiosk {
   vertical-align: 1px;
 }
 
+/* An empty or unanswered list states its own condition only: the title row has
+   already stated the page's, and it stands on the same leading edge as the rows
+   so the column reads as one. */
 .pi-empty-state {
-  padding: clamp(24px, 5vw, 64px) var(--odk-space-3);
-  text-align: center;
+  margin: 0;
+  padding: var(--odk-space-3) 0;
+  text-align: start;
   color: var(--odk-secondary-strong);
   font-size: var(--odk-text-body);
   overflow-wrap: anywhere;
@@ -2654,6 +2678,19 @@ body.kiosk {
 }
 
 @media (max-width: 520px) {
+  /* The five filters spend less inset at these widths, and the track becomes a
+     chip grid: a stadium drawn around a wrapped track puts its own curve through
+     the first and last tab. */
+  .pi-overview-filters {
+    gap: 4px;
+    --pi-track-radius: var(--odk-radius-card);
+  }
+
+  .pi-filter-btn {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
   .app-surface-header {
     flex-wrap: wrap;
   }

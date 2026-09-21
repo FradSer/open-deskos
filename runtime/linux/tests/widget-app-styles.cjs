@@ -666,15 +666,18 @@ async function scannerRecovery(win) {
     const announced = await win.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('${pager}')
       return {
-        list: page.querySelector('#pi-overview-list').textContent,
+        title: page.querySelector('#pi-view-subtitle').textContent,
+        region: page.querySelector('#pi-overview-list').textContent,
         detail: page.querySelector('#pi-detail-body').textContent,
         cells: page.querySelectorAll('.pi-overview-cell').length,
       }
     })()`)
+    // The title row states the condition once, and the list repeats neither it
+    // nor a Refresh instruction the page does not offer.
     check('a failed scan is named as unavailable without a Refresh instruction',
-      /unavailable/i.test(announced.list) && !/refresh/i.test(announced.list), announced)
+      /unavailable/i.test(announced.title) && !/refresh/i.test(announced.title) && announced.region === '', announced)
     check('a failed scan never fabricates a session',
-      /unavailable/i.test(announced.detail) && announced.cells === 0, announced)
+      /unavailable/i.test(announced.title) && announced.cells === 0, announced)
   } finally {
     sessions = original
     scanFails = false

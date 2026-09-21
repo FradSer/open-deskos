@@ -192,6 +192,8 @@
     state: 'Live',
     interaction: 'display-only',
     mount(el, ctx) {
+      // Before the first scan answers, the tile knows nothing: it states that, and
+      // claims no workspace, session or state it has not read.
       el.innerHTML = `
         <div class="pi-widget-body odk-col items-center justify-center w-full">
           <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
@@ -200,12 +202,12 @@
           </div>
           <div class="pi-widget-live-tag odk-row items-center gap-1">
             <span class="pi-indicator-dot pi-indicator-idle"></span>
-            <span class="pi-widget-tag-label">IDLE</span>
+            <span class="pi-widget-tag-label">READING</span>
           </div>
           <div class="pi-widget-context odk-col items-center w-full">
-            <div class="w-state">Pi Sessions</div>
+            <div class="w-state"></div>
             <div class="pi-widget-activity" hidden></div>
-            <span class="pi-widget-summary">0 workspaces</span>
+            <span class="pi-widget-summary">Not scanned yet</span>
           </div>
         </div>`
 
@@ -228,7 +230,11 @@
             dotEl.className = 'pi-indicator-dot pi-indicator-idle'
             tagLabelEl.textContent = 'OFFLINE'
             tagLabelEl.className = 'pi-widget-tag-label'
-            summaryEl.textContent = res?.source?.label || 'Scanner unavailable'
+            // The indicator already names the failure, so this line spends itself
+            // on the source that failed and what happens next.
+            summaryEl.textContent = res?.source?.label
+              ? `${res.source.label} · Retrying automatically`
+              : 'Scanner unavailable'
             stateEl.textContent = 'Unavailable'
             if (activityEl) {
               activityEl.hidden = true
@@ -237,7 +243,8 @@
             return
           }
           const running = res?.summary?.running ?? 0
-          const live = sessionSet(res, 'live').length
+          const liveSessions = sessionSet(res, 'live')
+          const live = liveSessions.length
           const wsCount = res?.summary?.workspacesCount ?? 0
 
           countEl.textContent = String(running)
@@ -271,14 +278,25 @@
               activityEl.hidden = true
               activityEl.textContent = ''
             }
-            if (stateEl) stateEl.textContent = live > 0 ? `${live} idle` : 'Idle'
+            // The tag already says idle and the summary already counts, so this
+            // line states what Pi is on instead: the freshest live session's own
+            // goal, with the count as the fallback when none is reported.
+            const freshest = liveSessions.reduce((best, session) =>
+              (Date.parse(session.updatedAt) || 0) > (Date.parse(best?.updatedAt) || 0) ? session : best, null)
+            const goal = normalizeInline(freshest?.latestGoal)
+            if (stateEl) {
+              if (goal) stateEl.innerHTML = renderGoalHtml(goal)
+              // A set with no goal to report falls back to its own count, which is
+              // the reading the tile's density profile is measured against.
+              else stateEl.textContent = live > 0 ? `${live} idle` : 'Idle'
+            }
           }
         } catch {
           countEl.textContent = '--'
           dotEl.className = 'pi-indicator-dot pi-indicator-idle'
           tagLabelEl.textContent = 'ERROR'
           tagLabelEl.className = 'pi-widget-tag-label'
-          summaryEl.textContent = 'Scan failed'
+          summaryEl.textContent = 'Retrying automatically'
           stateEl.textContent = 'Unavailable'
           if (activityEl) {
             activityEl.hidden = true
@@ -304,9 +322,10 @@
    * Session Overview (the page) + Session Detail (one session)
    * --------------------------------------------------------- */
 
-  // The page carries no title and no controls: it states the live Pi state and
-  // nothing else. The Overview is the page's landing view, and Back, Escape, or
-  // any primary input returns to it.
+  // The page carries no title beyond the view's own name and no session
+  // control. The Session Filter acts on the list below it, so it holds the
+  // title row's trailing edge rather than a row of its own; the Overview still
+  // owns it, and the Detail still carries none.
   function surfaceMarkup() {
     return `
       <div class="runtime-app pi-app-wrapper">
@@ -314,6 +333,9 @@
           <div class="app-surface-heading">
             <h1 id="pi-title"><span class="pi-spinner" data-pi-spinner aria-hidden="true" hidden>${SPINNER_FRAMES[0]}</span><span id="pi-title-text">Pi Sessions</span></h1>
             <p class="pi-view-subtitle" id="pi-view-subtitle"></p>
+          </div>
+          <div class="pi-overview-filters" id="pi-overview-filters" role="group" aria-label="Session status filter">
+            ${FILTERS.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}"><span>${FILTER_LABELS[value]}</span><span class="pi-filter-count" aria-hidden="true">--</span></button>`).join('')}
           </div>
           <p class="pi-view-facts" id="pi-view-facts"></p>
         </header>
@@ -327,20 +349,19 @@
           </section>
 
           <section class="pi-overview" id="pi-overview" role="region" aria-label="Session overview">
-            <div class="pi-overview-filters" id="pi-overview-filters" role="group" aria-label="Session status filter">
-              ${FILTERS.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}"><span>${FILTER_LABELS[value]}</span><span class="pi-filter-count" aria-hidden="true">--</span></button>`).join('')}
-            </div>
             <div class="pi-overview-list" id="pi-overview-list"></div>
           </section>
         </div>
       </div>`
   }
 
-  // The detail states what Pi is doing now. Its state and directory are the
-  // page title; this is the session's own reading.
+  // The detail states the model activity once. A session that reports none and
+  // is not working already states its Pi state as the page title, so the line is
+  // omitted rather than repeating that state in a second voice.
   function renderIdentity(session) {
+    const activity = normalizeInline(session.activity) || (session.status === 'running' ? 'Working...' : '')
     return `<p class="pi-goal-text">${renderGoalHtml(session.latestGoal || 'No goal stated')}</p>
-      <p class="pi-activity-text">${renderActivityHtml(session.activity || (session.status === 'running' ? 'Working...' : statusLabel(session.status)))}</p>`
+      ${activity ? `<p class="pi-activity-text">${renderActivityHtml(activity)}</p>` : ''}`
   }
 
   // Pi highlights fenced code with highlight.js. Its scopes are mapped to Pi's
@@ -508,7 +529,6 @@
     if (setSize === 0) return `No session matches ${filterTitle(filter)}.`
     return 'No session selected.'
   }
-
   function announcement(session, filter, setSize, fallback) {
     return session
       ? `Session ${statusLabel(session.status)} in ${sessionPath(session)}. ${setSize} ${filterTitle(filter).toLowerCase()} session${setSize === 1 ? '' : 's'}.`
@@ -556,8 +576,13 @@
       }
       const scrollTop = detailEl.scrollTop
       const tableIdentity = (table) => {
-        const result = table.closest('.pi-event-result')
-        return JSON.stringify([result.textContent, [...result.querySelectorAll('.pi-result-table-scroll')].indexOf(table)])
+        // A table can live in any event kind: the Markdown table rule is
+        // registered once for every message, so an assistant or user body carries
+        // the same scroll container a result does. The reading position is keyed
+        // by the event that owns the table, never by a result event that need not
+        // exist.
+        const event = table.closest('.pi-event')
+        return JSON.stringify([event.textContent, [...event.querySelectorAll('.pi-result-table-scroll')].indexOf(table)])
       }
       const tableState = [...eventsHostEl.querySelectorAll('.pi-result-table-scroll')].map((table) => ({
         identity: tableIdentity(table),
@@ -633,7 +658,7 @@
     }
 
     return {
-      render({ set, selectedKey, emptyCopy, onChoose }) {
+      render({ set, selectedKey, regionHtml, onChoose }) {
         const focused = listEl.contains(document.activeElement) ? document.activeElement : null
         const scrollTop = overviewEl.scrollTop
         listEl.querySelector('.pi-empty-state')?.remove()
@@ -662,10 +687,10 @@
           const focusTarget = this.cells()[Math.max(selectedAt, 0)]
           if (focusTarget) focusTarget.setAttribute('data-page-focus', '')
         }
-        if (set.length === 0) {
-          const note = document.createElement('p')
+        if (set.length === 0 && regionHtml !== '') {
+          const note = document.createElement('div')
           note.className = 'pi-empty-state'
-          note.textContent = emptyCopy
+          note.innerHTML = regionHtml
           listEl.append(note)
         }
         if (focused) {
@@ -724,6 +749,7 @@
       const titleSpinnerEl = el.querySelector('#pi-title .pi-spinner')
       const subtitleEl = el.querySelector('#pi-view-subtitle')
       const factsEl = el.querySelector('#pi-view-facts')
+      const filtersEl = el.querySelector('#pi-overview-filters')
       const statusEl = el.querySelector('#pi-status')
       const filterButtons = [...el.querySelectorAll('.pi-filter-btn')]
       const detail = detailView({ detailEl, bodyEl, eventsHostEl: el.querySelector('#pi-events-host') })
@@ -751,6 +777,20 @@
 
       function pageCopy() {
         return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })
+      }
+
+      // The title row states the page's condition, so the list states only what
+      // the rows themselves need. A condition said in both places is read as two
+      // conditions: while the scan is in flight the list shows Pi's own working
+      // indicator, and it names a reason only when the scan answered and matched
+      // no session.
+      function regionHtml() {
+        if (scan === null) return `<span class="pi-spinner" data-pi-spinner aria-hidden="true">${SPINNER_FRAMES[0]}</span>`
+        // An unavailable scan has not matched nothing: it has not answered, and
+        // the title row is where that condition is stated.
+        if (scan.ok === false) return ''
+        if (currentSet().length > 0) return ''
+        return escapeHtml(`No session matches ${filterTitle(filter)}.`)
       }
 
       // This page is one App page in a shell of pages, so its spinner only runs
@@ -798,6 +838,11 @@
         const showing = overview.isOpen()
         const session = selected()
         factsEl.textContent = ''
+        // The Session Filter and the open session's elapsed time share the title
+        // row's trailing edge, and each is stated exactly when it applies: the
+        // filter while the list is the view, the elapsed reading while a session
+        // is. Neither is a control over the other view.
+        filtersEl.hidden = !showing
         if (showing) {
           titleTextEl.textContent = 'Pi Sessions'
           titleSpinnerEl.hidden = true
@@ -852,7 +897,7 @@
 
       function renderOverview() {
         renderFilters()
-        overview.render({ set: currentSet(), selectedKey, emptyCopy: pageCopy(), onChoose: chooseCell })
+        overview.render({ set: currentSet(), selectedKey, regionHtml: regionHtml(), onChoose: chooseCell })
       }
 
       function renderAll() {

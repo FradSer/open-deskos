@@ -88,10 +88,39 @@ app.whenReady().then(async () => {
           const checks = []
           const check = (name, value) => checks.push([name, Boolean(value)])
 
-          // The Session Overview owns the Session Filter; nothing else on the
-          // page carries a control.
+          // The Session Overview owns the Session Filter, and the filter spends
+          // the title row's trailing edge: it acts on the list below it, so it
+          // stays on the row that names the view rather than in the list itself.
           check('no page control outside the filter tabs and the rows',
             surface.querySelectorAll('button').length === tabs.length + cells.length)
+          const header = surface.querySelector('.pi-app-header')
+          const heading = surface.querySelector('.pi-app-header .app-surface-heading')
+          const headerRect = header.getBoundingClientRect()
+          const groupRect = group.getBoundingClientRect()
+          const headingRect = heading.getBoundingClientRect()
+          const sharesTitleLine = groupRect.top < headingRect.bottom - 0.5 && headingRect.top < groupRect.bottom - 0.5
+          check('filter tabs share the page title row', header.contains(group) && header.contains(tabs[0]))
+          // The track's own shape follows its content: a stadium while one row of
+          // tabs fits, a chip grid as soon as the tabs wrap. The pixel theme
+          // squares every corner, so it has no curve to follow and is exempt.
+          const oneRow = new Set(tabs.map(tab => Math.round(tab.getBoundingClientRect().top))).size === 1
+          const trackRadius = parseFloat(style(group).borderTopLeftRadius)
+          const tabRadius = parseFloat(style(tabs[0]).borderTopLeftRadius)
+          const squared = trackRadius === 0
+          check('filter tabs nest inside the track corner by the track inset', squared
+            ? tabRadius === 0
+            : trackRadius - tabRadius >= 3,
+            { trackRadius, tabRadius, squared })
+          check('the filter track is a stadium for one row and a chip grid when it wraps',
+            squared || (oneRow ? trackRadius >= groupRect.height / 2 - 1 : trackRadius < groupRect.height / 2 - 1),
+            { oneRow, trackRadius, trackHeight: groupRect.height, squared })
+          check('filter tabs hold the title row trailing edge', contained(group) &&
+            (sharesTitleLine
+              ? Math.abs(groupRect.right - headerRect.right) <= 1
+              : Math.abs(groupRect.left - headerRect.left) <= 1))
+          check('filter tabs never overlap the page title', !overlaps(groupRect, headingRect))
+          check('the title keeps the row start and is never clipped by the tabs',
+            Math.abs(headingRect.left - headerRect.left) <= 1 && heading.scrollWidth <= heading.clientWidth + 1)
           check('filter inset track', parseFloat(style(group).paddingTop) >= 4)
           check('five status tabs in display order', tabs.map(tab => tab.dataset.filter).join(',') === 'live,working,idle,exited,all')
           check('tabs count the scan', tabs.map(tab => tab.querySelector('.pi-filter-count').textContent).join(',') === '2,1,1,1,3')
@@ -159,9 +188,16 @@ app.whenReady().then(async () => {
           check('detail title carries the directory', surface.querySelector('#pi-view-subtitle').textContent.includes('/'))
           check('the Session Detail carries no filter tabs or controls', detail.querySelector('.pi-filter-btn') === null &&
             detail.querySelector('button, input, select') === null)
+          check('the detail gives the title row trailing edge to elapsed time',
+            group.hidden === true &&
+            Math.abs(facts.getBoundingClientRect().right - header.getBoundingClientRect().right) <= 1)
+          check('the hidden filter keeps its five tabs for the list', group.querySelectorAll('.pi-filter-btn').length === 5)
           return checks
         })()`)
-        assert.deepEqual(result.filter(([, ok]) => !ok), [], `${theme} ${width}`)
+        // Failed checks are reported by name with their measured detail: a
+        // nested array diff prints as "[Array]" and cannot be acted on.
+        assert.deepEqual(result.filter(([, ok]) => !ok)
+          .map(([name, , detail]) => `${name}${detail === undefined ? '' : ` — ${JSON.stringify(detail)}`}`), [], `${theme} ${width}`)
         console.log(`PASS session tabs ${theme} ${width}`)
       }
     }
