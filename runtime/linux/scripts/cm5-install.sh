@@ -228,6 +228,16 @@ if [ -z "${XAUTHORITY:-}" ] && [ -n "${KIOSK_XAUTHORITY}" ]; then
   export XAUTHORITY="${KIOSK_XAUTHORITY}"
 fi
 
+echo "== staging the required Voice Agent and Hosted Pi control components =="
+stage_voice_agent_service || {
+  echo "Required Voice Agent component could not be installed; check ALSA access and ${TARGET_HOME}/.config/open-deskos/voice-agent.env, then re-run the installer." >&2
+  exit 1
+}
+stage_task_host_service || {
+  echo "Required Hosted Pi control component could not be installed; check ${TARGET_HOME}/.config/open-deskos/pi-tasks.json and the release contents, then re-run the installer." >&2
+  exit 1
+}
+
 if [ -d "${RUNTIME_ROOT}/current" ]; then
   $SUDO env \
     ODK_RUNTIME_ROOT="${RUNTIME_ROOT}" \
@@ -271,8 +281,10 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
   fi
 fi
 
-install_voice_agent_service || echo "Voice Agent unavailable; base shell remains active. Check device-local voice configuration and ALSA access." >&2
-install_task_host_service || echo "Managed Pi tasks unavailable; base shell and Voice Agent remain active. Check the target user's session and the release contents." >&2
+start_required_services || {
+  echo "Required Voice Agent or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/open-deskos/voice-agent.env and ${TARGET_HOME}/.config/open-deskos/pi-tasks.json." >&2
+  exit 1
+}
 
 AUTOSTART_DIR="${TARGET_HOME}/.config/autostart"
 run_as_target_user mkdir -p "$AUTOSTART_DIR"

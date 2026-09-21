@@ -83,6 +83,24 @@ function restartUserService(user, uid, home, unit) {
   ], { stdio: 'inherit' })
 }
 
+function isUnitEnabled(user, uid, home, unit) {
+  const result = spawnSync('runuser', ['-u', user, '--', 'env',
+    `HOME=${home}`,
+    `XDG_RUNTIME_DIR=/run/user/${uid}`,
+    'systemctl', '--user', 'is-enabled', unit,
+  ], { stdio: 'ignore' })
+  return result.status === 0
+}
+
+// A required component is restarted only where the host has enabled it. A host that has not created
+// its device-local configuration keeps the unit staged and stopped, so it is not rolled back for a
+// service it does not run; once enabled, a failure to restart fails the update transaction.
+function restartRequiredService(releaseId, kiosk, unit, component) {
+  if (!isUnitEnabled(kiosk.user, kiosk.uid, kiosk.home, unit)) return { ok: true }
+  const result = restartUserService(kiosk.user, kiosk.uid, kiosk.home, unit)
+  return result.status === 0 ? { ok: true } : { ok: false, reason: `${component} restart failed for ${releaseId}` }
+}
+
 function restartServices(releaseId, kiosk) {
   const kioskResult = restartUserService(kiosk.user, kiosk.uid, kiosk.home, 'open-deskos-shell.service')
   if (kioskResult.status !== 0) return { ok: false, reason: `kiosk service restart failed for ${releaseId}` }
@@ -91,6 +109,11 @@ function restartServices(releaseId, kiosk) {
   if (bridgeResult.status !== 0) {
     console.error('Remote Bridge restart did not complete; the base shell remains independently usable.')
   }
+
+  const voiceResult = restartRequiredService(releaseId, kiosk, 'open-deskos-voice-agent.service', 'required voice component')
+  if (voiceResult.ok === false) return voiceResult
+  const tasksResult = restartRequiredService(releaseId, kiosk, 'open-deskos-pi-tasks.service', 'required Hosted Pi control')
+  if (tasksResult.ok === false) return tasksResult
   return { ok: true }
 }
 

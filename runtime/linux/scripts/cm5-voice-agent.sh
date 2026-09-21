@@ -23,8 +23,13 @@ prepare_voice_agent_release() {
   (cd "${destination}" && run_as_target_user pnpm install --prod --frozen-lockfile --ignore-scripts)
 }
 
-install_voice_agent_service() {
-  local source="${RUNTIME_ROOT}/current/integrations/voice-agent"
+# The Voice Agent and Hosted Pi control are required components of the runtime, so their units are
+# staged from the candidate release before activation: a staging failure fails the installation while
+# the previous release is still the active one. Starting them is a separate step, because the unit
+# must run the release that activation selects.
+stage_voice_agent_service() {
+  local template="${RELEASE_DIR}/integrations/voice-agent"
+  local install_dir="${RUNTIME_ROOT}/current/integrations/voice-agent"
   local unit_dir="${TARGET_HOME}/.config/systemd/user"
   local unit="${unit_dir}/open-deskos-voice-agent.service"
   $SUDO apt-get install -y alsa-utils || return 1
@@ -32,36 +37,42 @@ install_voice_agent_service() {
     $SUDO usermod -a -G audio "${TARGET_USER}" || return 1
   fi
   run_as_target_user mkdir -p "${unit_dir}" || return 1
-  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${source}|g" \
+  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${install_dir}|g" \
     -e "s|__OPEN_DESKOS_NODE_BIN__|${NODE_BIN}|g" \
-    "${source}/systemd/open-deskos-voice-agent.service" > "${unit}" || return 1
+    "${template}/systemd/open-deskos-voice-agent.service" > "${unit}" || return 1
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
   run_as_target_user systemctl --user daemon-reload || return 1
-  run_as_target_user systemctl --user enable open-deskos-voice-agent.service || return 1
-  run_as_target_user systemctl --user restart open-deskos-voice-agent.service
+  run_as_target_user systemctl --user enable open-deskos-voice-agent.service
 }
 
 # Stages the hosted Pi session service on the stable release symlink, so an operator never
 # substitutes a dated releases/<id> path that the next update replaces and locks.
-install_task_host_service() {
-  local source="${RUNTIME_ROOT}/current/integrations/voice-agent"
+stage_task_host_service() {
+  local template="${RELEASE_DIR}/integrations/voice-agent"
+  local install_dir="${RUNTIME_ROOT}/current/integrations/voice-agent"
   local unit_dir="${TARGET_HOME}/.config/systemd/user"
   local unit="${unit_dir}/open-deskos-pi-tasks.service"
-  local config="${TARGET_HOME}/.config/open-deskos/pi-tasks.json"
   run_as_target_user mkdir -p "${unit_dir}" || return 1
-  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${source}|g" \
+  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${install_dir}|g" \
     -e "s|__OPEN_DESKOS_NODE_BIN__|${NODE_BIN}|g" \
-    "${source}/systemd/open-deskos-pi-tasks.service" > "${unit}" || return 1
+    "${template}/systemd/open-deskos-pi-tasks.service" > "${unit}" || return 1
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
-  run_as_target_user systemctl --user daemon-reload || return 1
+  run_as_target_user systemctl --user daemon-reload
+}
+
+# Runs after activation, so both services execute the release that is now active, and after a fresh
+# installation, where the activation transaction never ran. Start is idempotent: an update that
+# already restarted them through the transaction skips this without a second interruption.
+start_required_services() {
+  local config="${TARGET_HOME}/.config/open-deskos/pi-tasks.json"
+  run_as_target_user systemctl --user start open-deskos-voice-agent.service || return 1
   # The daemon refuses to start without its private configuration and the unit restarts on failure,
   # so a host that has not created one keeps the unit staged and stopped instead of crash-looping.
   if [ ! -f "${config}" ]; then
     echo "Managed Pi tasks staged but not enabled: create ${config}, then run 'systemctl --user enable --now open-deskos-pi-tasks.service'." >&2
     return 0
   fi
-  run_as_target_user systemctl --user enable open-deskos-pi-tasks.service || return 1
-  run_as_target_user systemctl --user restart open-deskos-pi-tasks.service
+  run_as_target_user systemctl --user enable --now open-deskos-pi-tasks.service
 }

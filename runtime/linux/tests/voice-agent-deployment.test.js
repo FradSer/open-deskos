@@ -29,24 +29,51 @@ test('integration staging excludes host dependencies and private auth/config', (
   }
 })
 
-test('voice is packaged before activation and independently started afterward', () => {
+test('required components are staged before activation and started after it', () => {
   assert.match(installer, /source "\$\{DIR\}\/scripts\/cm5-voice-agent.sh"/)
-  assert.ok(installer.indexOf('prepare_voice_agent_release') < installer.indexOf('scripts/update-runtime.js'))
-  assert.ok(installer.indexOf('install_voice_agent_service') > installer.indexOf('scripts/migrate-runtime.js'))
-  assert.match(installer, /install_voice_agent_service \|\|/)
+  const preparation = installer.indexOf('prepare_voice_agent_release')
+  const activation = installer.indexOf('scripts/update-runtime.js')
+  const shellUnit = installer.indexOf('KIOSK_UNIT_DIR=')
+  assert.ok(preparation < activation, 'the candidate carries the integration before activation')
+  assert.ok(shellUnit < installer.indexOf('stage_voice_agent_service'), 'the shell unit is written before the required components')
+  assert.ok(installer.indexOf('stage_voice_agent_service') < activation)
+  assert.ok(installer.indexOf('stage_task_host_service') < activation)
+  assert.ok(installer.indexOf('start_required_services') > activation, 'required services start after activation')
   assert.doesNotMatch(installer, /(?:Requires|Wants)=open-deskos-voice/)
 })
 
-test('voice activation failure returns control without stopping the base shell', () => {
-  const result = spawnSync('bash', ['-c', `
-    set -euo pipefail
-    source "$1"
-    RUNTIME_ROOT=/not-used TARGET_HOME=/not-used SUDO=false
-    install_voice_agent_service || printf 'voice-unavailable\\n'
-    printf 'shell-continues\\n'
-  `, 'test', helperPath], { encoding: 'utf8' })
-  assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'voice-unavailable\nshell-continues\n')
+test('a required component that cannot be staged fails the installation naming its configuration', () => {
+  assert.match(installer, /stage_voice_agent_service \|\| \{/)
+  assert.match(installer, /Required Voice Agent component could not be installed.*voice-agent\.env/s)
+  assert.match(installer, /stage_task_host_service \|\| \{/)
+  assert.match(installer, /Required Hosted Pi control component could not be installed.*pi-tasks\.json/s)
+  assert.match(installer, /start_required_services \|\| \{/)
+  assert.doesNotMatch(installer, /install_voice_agent_service \|\| echo/)
+  assert.doesNotMatch(installer, /install_task_host_service \|\| echo/)
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-required-stage-'))
+  try {
+    fs.mkdirSync(path.join(dir, 'release/integrations/voice-agent/systemd'), { recursive: true })
+    const staged = spawnSync('bash', ['-c', `
+      set -euo pipefail
+      source "$1"
+      RELEASE_DIR="$2/release"
+      TARGET_HOME="$2/home"
+      TARGET_USER="$(id -un)"; TARGET_UID="$(id -u)"; TARGET_GID="$(id -g)"
+      NODE_BIN=/opt/node/bin
+      SUDO=""
+      run_as_target_user() { "$@"; }
+      systemctl() { :; }
+      apt-get() { :; }
+      usermod() { :; }
+      stage_voice_agent_service
+    `, 'test', helperPath, dir], { encoding: 'utf8' })
+    assert.notEqual(staged.status, 0, 'staging without the candidate service unit must fail')
+    assert.equal(fs.existsSync(path.join(dir, 'home/.config/systemd/user/open-deskos-voice-agent.service')), false,
+      'a failed staging leaves no unit behind')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('voice preparation rejects unsupported Node before creating candidate files', () => {
@@ -90,70 +117,86 @@ test('voice packaging installs frozen production dependencies in release only', 
   }
 })
 
-test('task host service is staged on the stable runtime path and waits for its configuration', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-task-host-'))
+test('required units are staged from the candidate on the stable runtime path', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-required-units-'))
   try {
     const home = path.join(dir, 'home')
     const releaseRoot = path.join(dir, 'runtime/releases/20260101T000000Z-1')
-    const release = path.join(releaseRoot, 'integrations/voice-agent')
-    fs.mkdirSync(path.join(release, 'systemd'), { recursive: true })
-    fs.copyFileSync(path.join(integrationTree(), 'systemd/open-deskos-pi-tasks.service'),
-      path.join(release, 'systemd/open-deskos-pi-tasks.service'))
+    const candidate = path.join(releaseRoot, 'integrations/voice-agent')
+    fs.mkdirSync(path.join(candidate, 'systemd'), { recursive: true })
+    for (const unit of ['open-deskos-voice-agent.service', 'open-deskos-pi-tasks.service']) {
+      fs.copyFileSync(path.join(integrationTree(), 'systemd', unit), path.join(candidate, 'systemd', unit))
+    }
     fs.symlinkSync(releaseRoot, path.join(dir, 'runtime/current'))
-    const install = spawnSync('bash', ['-c', `
+    const staged = spawnSync('bash', ['-c', `
       set -euo pipefail
       source "$1"
       RUNTIME_ROOT="$2/runtime"
+      RELEASE_DIR="$2/runtime/releases/20260101T000000Z-1"
       TARGET_HOME="$2/home"
       TARGET_USER="$(id -un)"; TARGET_UID="$(id -u)"; TARGET_GID="$(id -g)"
       NODE_BIN=/opt/node/bin
       SUDO=""
       LOG="$2/systemctl.log"
       run_as_target_user() { "$@"; }
-      systemctl() { printf '%s\\n' "$*" >> "$LOG"; }
-      install_task_host_service
+      systemctl() { printf '%s\n' "$*" >> "$LOG"; }
+      apt-get() { :; }
+      usermod() { :; }
+      stage_voice_agent_service
+      stage_task_host_service
     `, 'test', helperPath, dir], { encoding: 'utf8' })
-    assert.equal(install.status, 0, install.stderr)
-    const unit = fs.readFileSync(path.join(home, '.config/systemd/user/open-deskos-pi-tasks.service'), 'utf8')
-    assert.ok(unit.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/voice-agent/src/task-daemon.mjs`), unit)
-    assert.ok(unit.includes(`WorkingDirectory=${dir}/runtime/current/integrations/voice-agent`), unit)
-    assert.doesNotMatch(unit, /releases\//)
-    assert.ok(!unit.includes('__OPEN_DESKOS_'), unit)
+    assert.equal(staged.status, 0, staged.stderr)
+    const units = path.join(home, '.config/systemd/user')
+    const tasks = fs.readFileSync(path.join(units, 'open-deskos-pi-tasks.service'), 'utf8')
+    const voice = fs.readFileSync(path.join(units, 'open-deskos-voice-agent.service'), 'utf8')
+    for (const unit of [tasks, voice]) {
+      assert.ok(unit.includes('__OPEN_DESKOS_') === false, unit)
+      assert.doesNotMatch(unit, /releases\//, 'a staged unit must use the stable runtime path')
+    }
+    assert.ok(tasks.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/voice-agent/src/task-daemon.mjs`), tasks)
+    assert.ok(tasks.includes(`WorkingDirectory=${dir}/runtime/current/integrations/voice-agent`), tasks)
     const calls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
     assert.match(calls, /--user daemon-reload/)
-    assert.doesNotMatch(calls, /enable|restart/)
-    assert.match(install.stderr, /staged but not enabled/)
-
-    fs.mkdirSync(path.join(home, '.config/open-deskos'), { recursive: true })
-    fs.writeFileSync(path.join(home, '.config/open-deskos/pi-tasks.json'), '{}\n', { mode: 0o600 })
-    fs.writeFileSync(path.join(dir, 'systemctl.log'), '')
-    const configured = spawnSync('bash', ['-c', `
-      set -euo pipefail
-      source "$1"
-      RUNTIME_ROOT="$2/runtime"
-      TARGET_HOME="$2/home"
-      TARGET_USER="$(id -un)"; TARGET_UID="$(id -u)"; TARGET_GID="$(id -g)"
-      NODE_BIN=/opt/node/bin
-      SUDO=""
-      LOG="$2/systemctl.log"
-      run_as_target_user() { "$@"; }
-      systemctl() { printf '%s\\n' "$*" >> "$LOG"; }
-      install_task_host_service
-    `, 'test', helperPath, dir], { encoding: 'utf8' })
-    assert.equal(configured.status, 0, configured.stderr)
-    const configuredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
-    assert.match(configuredCalls, /--user enable open-deskos-pi-tasks\.service/)
-    assert.match(configuredCalls, /--user restart open-deskos-pi-tasks\.service/)
-    assert.doesNotMatch(configured.stderr, /staged but not enabled/)
+    assert.match(calls, /--user enable open-deskos-voice-agent\.service/)
+    assert.doesNotMatch(calls, /restart|pi-tasks/)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('the installer stages the task host after the voice agent without aborting the shell on failure', () => {
-  assert.ok(installer.indexOf('install_task_host_service') > installer.indexOf('install_voice_agent_service'))
-  assert.match(installer, /install_task_host_service \|\|/)
-  assert.doesNotMatch(installer, /^\s*systemctl --user/m)
+test('required services start after activation and wait for the task configuration', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-required-start-'))
+  try {
+    const home = path.join(dir, 'home')
+    const run = () => spawnSync('bash', ['-c', `
+      set -euo pipefail
+      source "$1"
+      TARGET_HOME="$2/home"
+      TARGET_USER="$(id -un)"
+      LOG="$2/systemctl.log"
+      run_as_target_user() { "$@"; }
+      systemctl() { printf '%s\n' "$*" >> "$LOG"; }
+      start_required_services
+    `, 'test', helperPath, dir], { encoding: 'utf8' })
+
+    const unconfigured = run()
+    assert.equal(unconfigured.status, 0, unconfigured.stderr)
+    const unconfiguredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
+    assert.match(unconfiguredCalls, /--user start open-deskos-voice-agent\.service/)
+    assert.doesNotMatch(unconfiguredCalls, /enable|pi-tasks/)
+    assert.match(unconfigured.stderr, /staged but not enabled/)
+
+    fs.mkdirSync(path.join(home, '.config/open-deskos'), { recursive: true })
+    fs.writeFileSync(path.join(home, '.config/open-deskos/pi-tasks.json'), '{}\n', { mode: 0o600 })
+    fs.writeFileSync(path.join(dir, 'systemctl.log'), '')
+    const configured = run()
+    assert.equal(configured.status, 0, configured.stderr)
+    const configuredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
+    assert.match(configuredCalls, /--user enable --now open-deskos-pi-tasks\.service/)
+    assert.doesNotMatch(configured.stderr, /staged but not enabled/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('project installs use the pnpm each project declares', () => {

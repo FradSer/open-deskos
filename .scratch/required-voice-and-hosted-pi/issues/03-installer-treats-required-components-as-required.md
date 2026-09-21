@@ -4,12 +4,12 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] A required-component install failure makes the installation report failure and name the component
-- [ ] The failure message names the device-local configuration file involved
-- [ ] The base Shell unit is written before required components, and a required-component failure does not stop the Shell from being installed
-- [ ] A failed installation leaves the previous release active and serving voice and hosted sessions
-- [ ] A host without a Hosted Pi configuration still installs the required unit and does not crash-loop
-- [ ] The existing scenario that conflates installation with runtime configuration is replaced by one scenario per behaviour
-- [ ] Deployment tests cover the failure path and the forwarded installer arguments
+- [x] A required-component install failure makes the installation report failure and name the component
+- [x] The failure message names the device-local configuration file involved
+- [x] The base Shell unit is written before required components, and a required-component failure does not stop the Shell from being installed
+- [x] A failed installation leaves the previous release active and serving voice and hosted sessions
+- [x] A host without a Hosted Pi configuration still installs the required unit and does not crash-loop
+- [x] The existing scenario that conflates installation with runtime configuration is replaced by one scenario per behaviour
+- [x] Deployment tests cover the failure path and the forwarded installer arguments

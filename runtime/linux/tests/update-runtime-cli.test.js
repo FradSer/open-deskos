@@ -25,6 +25,13 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /activateRelease/)
   assert.match(updater, /post-activation smoke failed/)
   assert.match(updater, /open-deskos-remote-bridge\.service/)
+  // Required components are part of the activation transaction: an enabled one is restarted onto
+  // the new release and a failure rolls the update back, while a host that has not enabled it keeps
+  // the unit staged and stopped.
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'open-deskos-voice-agent\.service', 'required voice component'\)/)
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'open-deskos-pi-tasks\.service', 'required Hosted Pi control'\)/)
+  assert.match(updater, /is-enabled/)
+  assert.match(updater, /required voice component restart failed|\$\{component\} restart failed/)
   assert.match(updater, /open-deskos-shell\.service/)
   assert.match(updater, /ODK_KIOSK_USER/)
   assert.match(updater, /ODK_KIOSK_UID/)
