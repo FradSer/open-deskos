@@ -352,23 +352,28 @@ const DRIVER_SCRIPT = `
     piPage?.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
     piPage?.querySelector('.pi-overview-cell.is-selected[data-page-focus]') !== null
   // The Session Overview owns the Session Filter; the Session Detail never does.
+  const piFilterButtons = [...(piPage?.querySelectorAll('#pi-overview-filters .pi-filter-btn') || [])]
   out.piPageOwnsTheSessionFilter =
     piPage?.querySelector('#pi-overview-filters[role="group"][aria-label="Session status filter"]') !== null &&
-    [...piPage.querySelectorAll('#pi-overview-filters .pi-filter-btn')].map(button => button.dataset.filter).join(',') === 'live,working,idle,exited,all' &&
+    piFilterButtons.map(button => button.dataset.filter).join(',') === 'live,working,idle,exited,all' &&
     piPage.querySelector('.pi-filter-btn.active')?.dataset.filter === 'live' &&
     piPage.querySelector('.pi-filter-btn.active').getAttribute('aria-pressed') === 'true' &&
-    [...piPage.querySelectorAll('.pi-filter-btn')].every(button => /^(\d+|--)$/.test(button.querySelector('.pi-filter-count').textContent)) &&
+    JSON.stringify(piFilterButtons.map(button => [button.dataset.filter, button.querySelector('.pi-filter-count').textContent])) === JSON.stringify([['live', '2'], ['working', '1'], ['idle', '1'], ['exited', '1'], ['all', '3']]) &&
+    piFilterButtons.every(button => button.getAttribute('aria-label') === button.querySelector('span').textContent + ' sessions, ' + button.querySelector('.pi-filter-count').textContent) &&
     piPage.querySelector('#pi-detail .pi-filter-btn') === null
   out.piPageFilterNarrowsTheList = (() => {
+    const liveButton = piPage.querySelector('.pi-filter-btn[data-filter="live"]')
+    const workingButton = piPage.querySelector('.pi-filter-btn[data-filter="working"]')
+    const exitedButton = piPage.querySelector('.pi-filter-btn[data-filter="exited"]')
     const live = piPage.querySelectorAll('.pi-overview-cell').length
-    piPage.querySelector('.pi-filter-btn[data-filter="working"]').click()
+    workingButton.click()
     const working = piPage.querySelectorAll('.pi-overview-cell').length
-    piPage.querySelector('.pi-filter-btn[data-filter="exited"]').click()
+    exitedButton.click()
     const exited = piPage.querySelectorAll('.pi-overview-cell').length
-    piPage.querySelector('.pi-filter-btn[data-filter="live"]').click()
+    liveButton.click()
     const restored = piPage.querySelectorAll('.pi-overview-cell').length
-    return live >= 1 && working >= 1 && working < live && exited === 0 && restored === live &&
-      piPage.querySelector('.pi-filter-btn[data-filter="live"]').getAttribute('aria-pressed') === 'true'
+    return live === 2 && working === 1 && exited === 1 && restored === live &&
+      liveButton.getAttribute('aria-pressed') === 'true'
   })()
   // The live list is the page's home, and every row states its own Pi state and
   // directory; the Session Detail never carries a session control.
@@ -568,8 +573,6 @@ function check(results) {
     ['quota refresh preserves truth', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
     ['quota page remains selected after refresh', results.quotaPageAfterEscape],
   ]
-  if (!results.piPageRendersSessionDetails || !results.piPageRendersModifiedFiles) {
-  }
   let failures = 0
   for (const [name, ok] of checks) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`)
@@ -715,6 +718,16 @@ function createPiFixture() {
     latestGoal: 'Review the release notes',
     modifiedFiles: ['README.md', 'CHANGELOG.md'],
   }))
+  fs.writeFileSync(path.join(workspaceDir, 'exited.json'), JSON.stringify({
+    sessionId: 'e2e-exited-4101',
+    pid: 4101,
+    cwd: '/workspace/history',
+    startedAt: now - 3 * 60 * 60 * 1000,
+    updatedAt: now - 30 * 60 * 1000,
+    status: 'exited',
+    latestGoal: 'Archived session',
+    modifiedFiles: [],
+  }))
   return { root: fixtureRoot, startedAt: now }
 }
 
@@ -728,7 +741,7 @@ async function main() {
   ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
   ipcMain.handle('odk-pi-sessions', (_event) => scanPiSessions({
     agentDir: piFixture.root,
-    checkProcessAlive: (pid) => pid === 4102,
+    checkProcessAlive: (pid) => pid === 4102 || pid === 4103,
     listProcesses: (scanNow) => [
       {
         pid: 4102,

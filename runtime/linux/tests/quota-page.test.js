@@ -46,8 +46,8 @@ test('subscription count includes failed accounts and does not invent zero befor
 test('provider hierarchy and remaining semantics preserve account provenance', async () => {
   const page = mount(live(58)); await page.settle()
   const html = page.nodes.get('#quota-metrics').innerHTML
-  assert.match(html, /<h2[^>]*>Codex<\/h2>/)
-  assert.match(html, /work-account.json/)
+  assert.match(html, /<strong>work-account.json<\/strong>/)
+  assert.match(html, /<p class="provider-plan">Codex · Pro<\/p>/)
   assert.match(html, /58%<\/span>\s*<span[^>]*>remaining/)
   assert.match(html, /aria-valuetext="58% remaining"/)
   assert.match(html, /Resets/)

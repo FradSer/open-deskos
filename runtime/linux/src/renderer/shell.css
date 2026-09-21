@@ -2318,8 +2318,7 @@ body.kiosk {
 
 .pi-overview-cell {
   appearance: none;
-  display: grid;
-  grid-template-columns: 1em minmax(0, 1fr);
+  display: block;
   align-items: start;
   gap: var(--odk-space-2);
   min-width: 0;
@@ -2344,13 +2343,7 @@ body.kiosk {
 }
 
 .pi-overview-cursor {
-  visibility: hidden;
-  font-size: var(--odk-text-body);
-  line-height: 1.5;
-}
-
-.pi-overview-cell.is-selected .pi-overview-cursor {
-  visibility: visible;
+  display: none;
 }
 
 .pi-overview-copy {

@@ -457,7 +457,10 @@
     if (state.reason === 'loading') return '<p class="pi-detail-note">Reading session events...</p>'
     if (!state.ok) return `<p class="pi-detail-note">${escapeHtml(eventNote(state.reason, sourceLabel))}</p>`
     if (state.events.length === 0) return '<p class="pi-detail-note">No session events recorded yet.</p>'
-    return `<p class="pi-stream-label">Recent session events</p><ol class="pi-events" id="pi-events" aria-label="Recent session events">${state.events.map(renderEvent).join('')}</ol>`
+    const truncatedNote = state.truncated
+      ? '<p class="pi-detail-note">Some session events are not shown here. Read the session log on the desk for the full history.</p>'
+      : ''
+    return `<p class="pi-stream-label">Recent session events</p>${truncatedNote}<ol class="pi-events" id="pi-events" aria-label="Recent session events">${state.events.map(renderEvent).join('')}</ol>`
   }
 
   /* ---------------------------------------------------------
@@ -948,7 +951,7 @@
           if (disposed || token !== eventToken) return
           const valid = res?.ok && Array.isArray(res.events) && res.events.every((event) => event && typeof event.kind === 'string' && typeof event.text === 'string')
           eventsState = valid
-            ? { reason: '', ok: true, events: res.events }
+            ? { reason: '', ok: true, events: res.events, truncated: res.truncated === true }
             : { reason: res?.reason || 'session-log-missing', ok: false, events: [] }
         } catch {
           if (disposed || token !== eventToken) return

@@ -90,17 +90,14 @@
     const providerName = PROVIDERS[provider] || 'AI provider'
     const title = account.fileName || 'Authentication file'
     const [state, label] = accountState(account)
-    const plan = account.plan ? `<span class="provider-plan-name">${escapeHtml(account.plan)}</span>` : ''
+    const plan = account.plan ? `<p class="provider-plan">${escapeHtml(providerName)} · ${escapeHtml(account.plan)}</p>` : ''
     return `<article class="provider-quota-card is-${state}" aria-label="${escapeHtml(title)}">
       <header class="provider-quota-card-head">
         <span class="provider-quota-icon">${ICONS[provider] || ICONS.codex}</span>
-        <div class="provider-quota-identity">
-          <div class="provider-quota-title-row"><h2>${escapeHtml(providerName)}</h2>${plan}</div>
-          <span class="provider-quota-account">${escapeHtml(account.account || title)}</span>
-          <span class="provider-quota-availability">${escapeHtml(label)}</span>
-        </div>
+        <div class="provider-quota-identity"><strong>${escapeHtml(title)}</strong></div>
       </header>
       <div class="provider-quota-card-body">
+        <div class="provider-quota-context">${plan}<p class="provider-quota-account">${escapeHtml(account.account || providerName)}</p><p class="provider-quota-availability">${escapeHtml(label)}</p></div>
         ${account.error
           ? `<p class="provider-quota-error">${escapeHtml(account.error)}</p>`
           : `${account.groups.map(quotaGroup).join('') || '<p class="provider-quota-error">No quota windows were returned.</p>'}`}
@@ -123,8 +120,7 @@
       el.innerHTML = `
         <div class="card quota-card app-surface-card odk-stack">
           <header class="quota-page-head">
-            <div class="quota-heading"><h1 class="quota-title">AI usage &amp; quotas</h1>
-              <p class="quota-description" id="quota-count">Subscriptions unavailable</p></div>
+            <div class="quota-heading"><h1 class="quota-title">AI usage &amp; quotas</h1><span id="quota-count">Subscriptions unavailable</span></div>
             <div class="quota-header-controls">
               <div class="quota-checked" id="quota-checked"></div>
               <button class="button-pill button-primary" id="quota-refresh" data-remote-initial-focus type="button">Refresh quotas</button>
