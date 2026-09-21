@@ -34,6 +34,27 @@ Feature: Immutable runtime release deployment
     Then composition validation rejects the candidate
     And an installed browser bundle inside the candidate passes
 
+  Scenario: A candidate carries the required voice and Hosted Pi components
+    Given a candidate whose release contains the voice integration, its service units, and its installed production dependencies
+    When composition validation runs
+    Then the candidate passes with both required components present
+
+  Scenario: A candidate missing a required component is rejected
+    Given a candidate without the voice integration
+    When composition validation runs
+    Then it rejects the candidate naming voice as the missing required component
+    And the active release is unchanged
+
+  Scenario: A candidate missing Hosted Pi control is rejected
+    Given a candidate carrying the voice integration but no Hosted Pi control service
+    When composition validation runs
+    Then it rejects the candidate naming Hosted Pi control as the missing required component
+
+  Scenario: Required voice dependencies must live inside the candidate
+    Given a candidate whose voice dependencies resolve outside the release
+    When composition validation runs
+    Then it rejects the candidate instead of accepting external dependencies
+
   Scenario: Device preflight uses the kiosk graphical session
     Given a staged candidate release
     And a kiosk user with an active graphical session

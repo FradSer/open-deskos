@@ -36,6 +36,43 @@ function makeRelease(runtime, id, metadata = {}) {
   return dir
 }
 
+// A release is only complete when the runtime's required components are inside it: the renderer
+// composition contract plus the voice integration with its service units and installed production
+// dependencies.
+function makeCompleteRelease(runtime, id) {
+  const release = makeRelease(runtime, id)
+  const renderer = path.join(release, 'src', 'renderer')
+  fs.mkdirSync(path.join(renderer, 'core'), { recursive: true })
+  fs.mkdirSync(path.join(renderer, 'plugins'), { recursive: true })
+  fs.writeFileSync(path.join(renderer, 'index.html'), '<!doctype html>')
+  fs.writeFileSync(path.join(renderer, 'core', 'registry.js'), 'requires manifest schema version 1')
+  fs.writeFileSync(path.join(renderer, 'core', 'composer.js'), 'composition')
+  for (const kind of ['page', 'tile', 'status']) {
+    fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
+  }
+  const integration = path.join(release, 'integrations', 'voice-agent')
+  fs.mkdirSync(path.join(integration, 'src'), { recursive: true })
+  fs.mkdirSync(path.join(integration, 'systemd'), { recursive: true })
+  fs.mkdirSync(path.join(integration, 'node_modules'))
+  fs.writeFileSync(path.join(integration, 'package.json'), '{}')
+  fs.writeFileSync(path.join(integration, 'src', 'main.mjs'), 'entry')
+  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-voice-agent.service'), 'unit')
+  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'), 'unit')
+  return release
+}
+
+function makeRenderer(release) {
+  const renderer = path.join(release, 'src', 'renderer')
+  fs.mkdirSync(path.join(renderer, 'core'), { recursive: true })
+  fs.mkdirSync(path.join(renderer, 'plugins'), { recursive: true })
+  fs.writeFileSync(path.join(renderer, 'index.html'), '<!doctype html>')
+  fs.writeFileSync(path.join(renderer, 'core', 'registry.js'), 'requires manifest schema version 1')
+  fs.writeFileSync(path.join(renderer, 'core', 'composer.js'), 'composition')
+  for (const kind of ['page', 'tile', 'status']) {
+    fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
+  }
+}
+
 function cleanup(runtime) {
   fs.rmSync(runtime.root, { recursive: true, force: true })
 }
@@ -164,15 +201,8 @@ test('release preflight rejects a built-in plugin missing schema-versioned manif
 test('renderer browser dependencies must exist inside the candidate release', (t) => {
   const runtime = makeRuntime()
   t.after(() => cleanup(runtime))
-  const candidate = makeRelease(runtime, 'candidate')
+  const candidate = makeCompleteRelease(runtime, 'candidate')
   const renderer = path.join(candidate, 'src', 'renderer')
-  fs.mkdirSync(path.join(renderer, 'core'), { recursive: true })
-  fs.mkdirSync(path.join(renderer, 'plugins'))
-  fs.writeFileSync(path.join(renderer, 'core', 'registry.js'), 'requires manifest schema version 1')
-  fs.writeFileSync(path.join(renderer, 'core', 'composer.js'), 'composition')
-  for (const kind of ['page', 'tile', 'status']) {
-    fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
-  }
   const bundle = path.join(candidate, 'node_modules', 'markdown-it', 'dist', 'browser', 'markdown-it.umd.min.js')
   fs.writeFileSync(path.join(renderer, 'index.html'), '<script src="../../node_modules/markdown-it/dist/browser/markdown-it.umd.min.js"></script>')
   assert.deepEqual(validateRuntimeComposition(candidate), { ok: false, reason: 'renderer script is missing or outside the candidate release' })
@@ -275,3 +305,85 @@ test('a failed activation reclaims nothing so its candidate stays inspectable', 
     cleanup(runtime)
   }
 })
+
+test('a candidate carrying the required voice and Hosted Pi components validates', () => {
+  const runtime = makeRuntime()
+  try {
+    const candidate = makeCompleteRelease(runtime, 'candidate')
+    assert.deepEqual(validateRuntimeComposition(candidate), { ok: true })
+  } finally {
+    cleanup(runtime)
+  }
+})
+
+test('a candidate missing the required voice integration is rejected', () => {
+  const runtime = makeRuntime()
+  try {
+    const candidate = makeRelease(runtime, 'candidate')
+    makeRenderer(candidate)
+    assert.deepEqual(validateRuntimeComposition(candidate), {
+      ok: false,
+      reason: 'required voice integration is missing',
+    })
+  } finally {
+    cleanup(runtime)
+  }
+})
+
+test('a candidate missing the required Hosted Pi control service is rejected', () => {
+  const runtime = makeRuntime()
+  try {
+    const candidate = makeCompleteRelease(runtime, 'candidate')
+    fs.rmSync(path.join(candidate, 'integrations', 'voice-agent', 'systemd', 'open-deskos-pi-tasks.service'))
+    assert.deepEqual(validateRuntimeComposition(candidate), {
+      ok: false,
+      reason: 'required Hosted Pi control service is missing',
+    })
+  } finally {
+    cleanup(runtime)
+  }
+})
+
+test('required voice dependencies outside the candidate are rejected', () => {
+  const runtime = makeRuntime()
+  try {
+    const candidate = makeCompleteRelease(runtime, 'candidate')
+    const modules = path.join(candidate, 'integrations', 'voice-agent', 'node_modules')
+    fs.rmSync(modules, { recursive: true, force: true })
+    const outside = path.join(runtime.root, 'ambient-voice-modules')
+    fs.mkdirSync(outside)
+    fs.symlinkSync(outside, modules)
+    assert.deepEqual(validateRuntimeComposition(candidate), {
+      ok: false,
+      reason: 'required voice dependencies are missing or outside the candidate release',
+    })
+  } finally {
+    cleanup(runtime)
+  }
+})
+
+test('a candidate missing a required component records it and leaves the active release unchanged', () => {
+  const runtime = makeRuntime()
+  try {
+    const stable = makeCompleteRelease(runtime, 'stable')
+    const candidate = makeRelease(runtime, 'candidate')
+    makeRenderer(candidate)
+    fs.symlinkSync(stable, runtime.activeLink)
+
+    const result = activateRelease({
+      runtime,
+      candidatePath: candidate,
+      preflight: (releasePath) => validateRuntimeComposition(releasePath),
+      restart: () => ({ ok: true }),
+      verify: () => ({ ok: true }),
+    })
+
+    assert.equal(result.ok, false)
+    assert.equal(result.reason, 'required voice integration is missing')
+    assert.equal(currentRelease(runtime), 'stable')
+    assert.equal(readRuntimeState(runtime).lastUpdate.reason, 'required voice integration is missing')
+  } finally {
+    cleanup(runtime)
+  }
+})
+

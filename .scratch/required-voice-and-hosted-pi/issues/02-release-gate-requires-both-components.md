@@ -4,13 +4,13 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] A candidate containing the voice integration, its unit template, and its resolving production dependencies passes composition validation
-- [ ] A candidate missing the voice integration source is rejected with a reason naming voice
-- [ ] A candidate missing the Hosted Pi control unit template is rejected with a reason naming that component
-- [ ] A candidate whose voice dependencies resolve outside the release is rejected
-- [ ] Rejection happens before activation, so the active release is unchanged
-- [ ] The rejection reaches the operator through the existing preflight failure path and its recorded update state
-- [ ] Scenarios from the spec are stored in the runtime release feature file
-- [ ] Runtime suite green, including the new behavioural tests at the release-composition seam
+- [x] A candidate containing the voice integration, its unit template, and its resolving production dependencies passes composition validation
+- [x] A candidate missing the voice integration source is rejected with a reason naming voice
+- [x] A candidate missing the Hosted Pi control unit template is rejected with a reason naming that component
+- [x] A candidate whose voice dependencies resolve outside the release is rejected
+- [x] Rejection happens before activation, so the active release is unchanged
+- [x] The rejection reaches the operator through the existing preflight failure path and its recorded update state
+- [x] Scenarios from the spec are stored in the runtime release feature file
+- [x] Runtime suite green, including the new behavioural tests at the release-composition seam

@@ -186,7 +186,31 @@ function validateRuntimeComposition(releasePath) {
     || !pluginSources.some((source) => /id:\s*['"]odk\.status\./.test(source))) {
     return { ok: false, reason: 'renderer plugin identities are incomplete' }
   }
-  return validateRendererScripts(releasePath)
+  const renderer = validateRendererScripts(releasePath)
+  if (!renderer.ok) return renderer
+  return validateRequiredComponents(releasePath)
+}
+
+// The runtime's required components must be inside the artifact: the Voice Agent integration with its
+// service unit, and the Hosted Pi control service that hosts the sessions a Console drives or a
+// Spoken Turn starts. Installed production dependencies must resolve inside the release, the same way
+// renderer and runtime dependencies already must.
+function validateRequiredComponents(releasePath) {
+  const integration = path.join(releasePath, 'integrations', 'voice-agent')
+  const voiceEntry = path.join(integration, 'src', 'main.mjs')
+  const voiceUnit = path.join(integration, 'systemd', 'open-deskos-voice-agent.service')
+  if (!fs.existsSync(path.join(integration, 'package.json')) || !fs.existsSync(voiceEntry) || !fs.existsSync(voiceUnit)) {
+    return { ok: false, reason: 'required voice integration is missing' }
+  }
+  if (!fs.existsSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'))) {
+    return { ok: false, reason: 'required Hosted Pi control service is missing' }
+  }
+  const modules = path.join(integration, 'node_modules')
+  const root = `${fs.realpathSync(releasePath)}${path.sep}`
+  if (!fs.existsSync(modules) || !fs.realpathSync(modules).startsWith(root)) {
+    return { ok: false, reason: 'required voice dependencies are missing or outside the candidate release' }
+  }
+  return { ok: true }
 }
 
 function migrateUser({ runtime, user, migrations, experimental = false }) {
