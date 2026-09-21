@@ -50,6 +50,17 @@ pnpm exec electron tests/widget-app-styles.cjs  # 单独运行样式回归
 pnpm exec electron tests/widget-density.cjs     # 逐 Widget 的 62% 填充率门禁
 pnpm exec electron tests/page-indicator.cjs      # 纯图形分页、三主题及等高胶囊
 pnpm exec electron tests/pixel-font.cjs          # 中英文实际 Zpix 字形与布局
+pnpm exec electron tests/pi-sessions-states.cjs  # Pi Sessions 各状态截图 + manifest
+pnpm exec electron tests/capture-sheet.cjs       # 把一组截图拼成一张对照图
+```
+
+`tests/pi-sessions-states.cjs` 用 fixture IPC 驱动 Pi Sessions 页面与 Home 卡片的每个状态，逐张断言状态成立后才截图，并写出 `manifest.json`；截图只供人看，判定依据是 DOM 状态。默认对当前 checkout 取图，也可指向设备上的已安装 release：
+
+```sh
+ODK_SHELL_ROOT=/opt/open-deskos/current ODK_CAPTURE_DIR=/tmp/states \
+  electron tests/pi-sessions-states.cjs
+ODK_SHEET_DIR=/tmp/states ODK_SHEET_OUT=/tmp/states/sheet.png \
+  electron tests/capture-sheet.cjs
 ```
 
 ### Pixel 像素字体

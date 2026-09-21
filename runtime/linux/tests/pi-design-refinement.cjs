@@ -21,11 +21,23 @@ async function run(win, check, setSessions) {
     const cells = () => [...surface.querySelectorAll('.pi-overview-cell')]
 
     const header = find('.pi-app-header')
-    record('the page carries one heading and no control', Boolean(header) &&
+    const headerTabs = header ? [...header.querySelectorAll('.pi-filter-btn')] : []
+    // The title row carries one heading and exactly the Session Filter: the
+    // filter acts on the list beneath it, so it belongs on the row's trailing
+    // edge, and nothing else joins it there.
+    record('the title row carries one heading and only the Session Filter', Boolean(header) &&
       header.querySelectorAll('h1').length === 1 &&
-      header.querySelectorAll('button, input, select').length === 0)
+      headerTabs.length === 5 &&
+      header.querySelectorAll('button, input, select').length === headerTabs.length &&
+      header.querySelectorAll('input, #pi-refresh-btn, .pi-metric-pill, .pi-view-toggle, #pi-source-label').length === 0)
     record('the title row carries no search, refresh, or metric control', Boolean(header) &&
       header.querySelectorAll('input, #pi-refresh-btn, .pi-metric-pill, .pi-view-toggle, #pi-source-label').length === 0)
+    record('the filter tabs hold the title row trailing edge', Boolean(header) &&
+      find('#pi-overview-filters') !== null &&
+      find('#pi-overview-filters').parentElement === header &&
+      find('#pi-overview-filters').hidden === false &&
+      header.contains(headerTabs[0]) &&
+      Math.abs(find('#pi-overview-filters').getBoundingClientRect().right - header.getBoundingClientRect().right) <= 1)
 
     // Controls the leader removed stay removed: no session stepper, no
     // page-owned overview button, no process status badge. The status filter
@@ -105,6 +117,22 @@ async function run(win, check, setSessions) {
       find('#pi-detail .pi-filter-btn') === null && find('#pi-detail .pi-overview-filters') === null &&
       find('.pi-session-step') === null && find('.pi-overview-open') === null &&
       find('#pi-overview-summary') === null && find('.pi-detail-position') === null)
+    // The list's filter leaves the title row while a session is being read, and
+    // that session's elapsed time takes the same trailing edge.
+    record('reading a session hides the tabs and states elapsed time on the trailing edge',
+      find('#pi-overview-filters').hidden === true &&
+      find('#pi-view-facts').getBoundingClientRect().width > 0 &&
+      Math.abs(find('#pi-view-facts').getBoundingClientRect().right - header.getBoundingClientRect().right) <= 1 &&
+      find('#pi-overview-filters').querySelectorAll('.pi-filter-btn').length === 5,
+      {
+        filtersHidden: find('#pi-overview-filters').hidden,
+        factsWidth: find('#pi-view-facts').getBoundingClientRect().width,
+        factsRight: find('#pi-view-facts').getBoundingClientRect().right,
+        headerRight: header.getBoundingClientRect().right,
+        headerWidth: header.getBoundingClientRect().width,
+        tabs: find('#pi-overview-filters').querySelectorAll('.pi-filter-btn').length,
+        innerWidth,
+      })
     record('the detail states elapsed time', /elapsed/.test(find('#pi-view-facts').textContent))
     record('the detail offers no process identifier or file list', find('.pi-card-pid') === null && find('.pi-files-list') === null && find('.pi-files-toggle') === null)
     record('the detail shows the latest model activity', find('.pi-activity-text').textContent.trim().length > 0)
@@ -189,6 +217,62 @@ async function run(win, check, setSessions) {
   check('Pi refinement: a Mac over SSH source states that session events are unavailable', /session events are unavailable for Mac \/ SSH/i.test(remote.detail), remote)
   check('Pi refinement: a Mac over SSH source still states the session directory', remote.subtitle.includes('/'), remote)
   check('Pi refinement: the Mac source is not named inside the session detail', !remote.identity.includes('Mac / SSH'), remote)
+
+  setSessions(localFixture)
+  await enterPage()
+
+  // A condition is stated once, and a session with nothing to report does not
+  // restate its state: the title already carries it.
+  setSessions({
+    ok: true,
+    scannedAt: Date.now(),
+    source: { kind: 'local', label: 'Local' },
+    summary: { total: 1, running: 0, settled: 1, exited: 0, workspacesCount: 1 },
+    workspaces: [],
+    sessions: [{ status: 'settled', sessionId: 'quiet-session', cwd: '/workspace/quiet', startedAt: Date.now() - 120000, updatedAt: Date.now(), latestGoal: 'Nothing running here' }],
+  })
+  await enterPage()
+  const quiet = await win.webContents.executeJavaScript(`(async () => {
+    const surface = document.querySelector('${pages.surface('pi-sessions')} .pi-app-wrapper')
+    const cell = surface.querySelector('.pi-overview-cell')
+    if (!cell) return null
+    cell.click()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    return {
+      title: surface.querySelector('#pi-title-text').textContent,
+      goal: surface.querySelector('.pi-goal-text')?.textContent ?? '',
+      activity: surface.querySelector('.pi-activity-text')?.textContent ?? null,
+    }
+  })()`)
+  check('Pi refinement: a session with nothing to report states its state only as the title',
+    quiet === null || (quiet.title === 'Idle' && quiet.goal.length > 0 && quiet.activity === null), quiet)
+
+  setSessions({
+    ok: false,
+    source: { kind: 'local', label: 'Local' },
+    error: 'the scanner did not answer',
+    scannedAt: null,
+    summary: null,
+    workspaces: [],
+    sessions: [],
+  })
+  await enterPage()
+  const unavailable = await win.webContents.executeJavaScript(`(async () => {
+    const surface = document.querySelector('${pages.surface('pi-sessions')} .pi-app-wrapper')
+    const page = surface.closest('.page')
+    if (surface.querySelector('#pi-overview').hidden) {
+      page.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    }
+    return {
+      subtitle: surface.querySelector('#pi-view-subtitle').textContent,
+      region: surface.querySelector('#pi-overview-list').textContent,
+      tabs: surface.querySelectorAll('.pi-filter-btn').length,
+    }
+  })()`)
+  check('Pi refinement: an unavailable source is stated once, in the title row',
+    /unavailable/i.test(unavailable.subtitle) && unavailable.region === '' &&
+    unavailable.tabs === 5 && unavailable.subtitle.includes('Local'), unavailable)
 
   setSessions(localFixture)
   await enterPage()
