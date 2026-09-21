@@ -430,8 +430,8 @@ async function main() {
   await applyEvents(win, 'empty', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'No session events recorded yet.'`)
   await capture(win, 'page-14-no-events', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'No session events recorded yet.'`, 'Session Detail: the session reported no events')
 
-  await applyEvents(win, 'no-reported-events', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('has not reported any events')`)
-  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('has not reported any events')`, 'Session Detail: no events reported for the session')
+  await applyEvents(win, 'no-reported-events', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('No events have arrived')`)
+  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('No events have arrived')`, 'Session Detail: Pi is running but Desk Link has not delivered events yet')
 
   await applyEvents(win, 'session-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`)
   await capture(win, 'page-16-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`, 'Session Detail: no session log on the desk')

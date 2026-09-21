@@ -171,6 +171,9 @@
   // that keeps them elsewhere states that instead of showing nothing.
   function eventNote(reason, sourceLabel) {
     if (reason === 'source-unsupported') return `Session events are unavailable for ${sourceLabel}.`
+    if (reason === 'no-reported-events') {
+      return `Pi is running, but no events have arrived${sourceLabel ? ` from ${sourceLabel}` : ''} yet.`
+    }
     return EVENT_NOTE[reason] || 'Session events are unavailable.'
   }
 

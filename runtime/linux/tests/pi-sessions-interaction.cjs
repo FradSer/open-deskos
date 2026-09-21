@@ -547,6 +547,21 @@ async function main() {
     }
   })
 
+  await scenario('a running session without delivered events states the delivery gap', async () => {
+    await reset([session('example-a', 'Example running session', 'running')])
+    resultFixture = { ok: false, reason: 'no-reported-events' }
+    try {
+      await refresh()
+      const note = await js("return $('#pi-events-host').textContent")
+      assert.match(note, /Pi is running/i)
+      assert.match(note, /No events have arrived/i)
+      assert.doesNotMatch(note, /has not reported/i)
+    } finally {
+      resultFixture = null
+      await refresh()
+    }
+  })
+
   await scenario('result tables retain horizontal reading and focus on refresh', async () => {
     await reset([session('example-a', 'Example table reading', 'settled')])
     resultFixture = { ok: true, events: [{ kind: 'result', text: '| A | B | C | D | E | F | G | H |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| data | data | data | data | data | data | data | data |' }] }

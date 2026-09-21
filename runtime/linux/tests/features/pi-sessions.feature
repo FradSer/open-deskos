@@ -164,3 +164,10 @@ Scenario: A Markdown table in any message body keeps the stream repainting
   Then that reply keeps its own table
   And a later repaint of the same stream completes instead of stopping at the table
   And the Session Overview still applies the active Session Filter afterwards
+
+Scenario: A running Desk Link session distinguishes missing delivery from an idle Pi
+  Given Desk Link reports a session as running
+  When no event batch has arrived for that session
+  Then Session Detail says that Pi is running but no events have arrived yet
+  And it does not say that the session has not reported any events
+  And the session goal and directory remain visible
