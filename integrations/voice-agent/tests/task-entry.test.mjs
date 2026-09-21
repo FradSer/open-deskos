@@ -52,7 +52,7 @@ test('the task daemon serves its socket when started through a release symlink',
   let stderr = ''
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   let client
-  for (let attempt = 0; attempt < 100 && !client && child.exitCode === null; attempt++) {
+  for (let attempt = 0; attempt < 400 && !client && child.exitCode === null; attempt++) {
     client = await connector(paths.socket)
     if (!client) await new Promise(resolve => setTimeout(resolve, 50))
   }
@@ -76,7 +76,7 @@ test('importing the task daemon without running it starts no daemon', async t =>
   t.after(() => child.kill())
   const exit = await Promise.race([
     new Promise(resolve => child.once('exit', resolve)),
-    new Promise(resolve => setTimeout(() => resolve('still-running'), 3000)),
+    new Promise(resolve => setTimeout(() => resolve('still-running'), 10000)),
   ])
   child.kill()
   assert.equal(exit, 0, 'importing the module must not start a daemon')

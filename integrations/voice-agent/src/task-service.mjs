@@ -7,6 +7,36 @@ export const TASK_TEXT_LIMIT = 16 * 1024
 const INCOMPLETE_RESPONSE = '任务执行未正常完成，请检查本机会话记录'
 const HOST_CAP = 4
 const DEFAULT_IDLE_MS = 30 * 60 * 1000
+/** The Console buffers Attach catch-up until it accepts the Attach, bounded to 2,048 events and
+ *  1 MiB, so the host streams at most half of that before refusing with an actionable reason. */
+const CATCHUP_MAX_ENTRIES = 1024
+const CATCHUP_MAX_BYTES = 512 * 1024
+/** Per-session goal preview carried by `list`. */
+const LIST_GOAL_BYTES = 1024
+/**
+ * Ceiling on what all goal previews together may add to one `list` frame, measured in
+ * escaped JSON bytes. JSON escaping can cost six bytes per source byte, so bounding the
+ * source text (LIST_GOAL_BYTES) is not by itself a wire-size bound. Sessions past the
+ * ceiling keep their record and lose only the preview.
+ */
+const LIST_GOAL_BUDGET = 128 * 1024
+
+/**
+ * Goal previews for `list`. Each preview is bounded to LIST_GOAL_BYTES and the set is bounded on
+ * its escaped JSON cost, charged BEFORE a preview is emitted, so a preview that would cross
+ * LIST_GOAL_BUDGET is dropped and the whole set can never exceed it. Every record survives; only
+ * its preview is lost.
+ */
+export function goalPreviews(records) {
+  let budget = LIST_GOAL_BUDGET
+  return records.map(({ prompt, response, requestedProject, sessionFile, controlAudit, ...task }) => {
+    const goal = boundedText(typeof prompt === 'string' ? prompt : '', LIST_GOAL_BYTES)
+    const cost = Buffer.byteLength(JSON.stringify(goal)) - 2
+    if (cost > budget) return { ...task, goal: '' }
+    budget -= cost
+    return { ...task, goal }
+  })
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MUTATION_ID_BYTES = 256
 
@@ -45,7 +75,7 @@ function validMutationId(value) {
   return value === undefined || (validText(value, MUTATION_ID_BYTES) && !!value.trim())
 }
 function canonicalMutation(request) {
-  const payload = { command: request.command, taskId: request.taskId }
+  const payload = { command: ['start', 'launch'].includes(request.command) ? 'launch' : request.command, taskId: request.taskId }
   for (const key of ['project', 'prompt', 'streamingBehavior', 'expectedTurnId']) if (request[key] !== undefined) payload[key] = request[key]
   return JSON.stringify(payload)
 }
@@ -75,17 +105,29 @@ export async function createTaskService(input, adapter) {
     for (const name of names) {
       if (!/^[0-9a-f]{64}\.json$/.test(name)) throw new Error('Mutation receipt store corrupted')
       const receipt = JSON.parse(await readFile(join(directory, name), 'utf8'))
-      if (!receipt || receipt.taskId !== task.taskId || !['prompt', 'cancel', 'end'].includes(receipt.command) || !validMutationId(receipt.mutationId) || !/^[0-9a-f]{64}$/.test(receipt.payloadDigest) || !['accepted', 'completed', 'failed'].includes(receipt.status)) throw new Error('Mutation receipt store corrupted')
+      if (!receipt || receipt.taskId !== task.taskId || !['launch', 'prompt', 'cancel', 'end'].includes(receipt.command) || !validMutationId(receipt.mutationId) || !/^[0-9a-f]{64}$/.test(receipt.payloadDigest) || !['accepted', 'completed', 'failed'].includes(receipt.status)) throw new Error('Mutation receipt store corrupted')
       mutations.set(`${receipt.taskId}:${receipt.command}:${receipt.mutationId}`, receipt)
     }
+  }
+  // Launch reconciliation is indexed by mutation identity independently of
+  // the caller-generated Hosted Pi identity, so conflicting identity reuse is
+  // refused rather than starting a replacement session.
+  let launchNames = []
+  try { launchNames = await readdir(join(mutationRoot, 'launch')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+  for (const name of launchNames) {
+    if (!/^[0-9a-f]{64}\.json$/.test(name)) throw new Error('Mutation receipt store corrupted')
+    const receipt = JSON.parse(await readFile(join(mutationRoot, 'launch', name), 'utf8'))
+    if (!receipt || receipt.command !== 'launch' || !validMutationId(receipt.mutationId) || !/^[0-9a-f]{64}$/.test(receipt.payloadDigest) || !['accepted', 'completed', 'failed'].includes(receipt.status) || !UUID.test(receipt.taskId)) throw new Error('Mutation receipt store corrupted')
+    mutations.set(`launch:${receipt.mutationId}`, receipt)
   }
   let serial = Promise.resolve()
   let closing = false
   let storageFailure = false
   const save = task => atomicRecord(join(config.stateDir, `${task.taskId}.json`), task)
-  const mutationFile = receipt => join(mutationRoot, receipt.taskId, `${createHash('sha256').update(`${receipt.taskId}\0${receipt.command}\0${receipt.mutationId}`).digest('hex')}.json`)
+  const mutationDirectory = receipt => receipt.command === 'launch' ? join(mutationRoot, 'launch') : join(mutationRoot, receipt.taskId)
+  const mutationFile = receipt => join(mutationDirectory(receipt), `${createHash('sha256').update(`${receipt.command}\0${receipt.mutationId}`).digest('hex')}.json`)
   const saveMutation = async receipt => {
-    await privateDirectory(join(mutationRoot, receipt.taskId))
+    await privateDirectory(mutationDirectory(receipt))
     await atomicRecord(mutationFile(receipt), receipt)
   }
   const enqueue = operation => {
@@ -211,6 +253,26 @@ export async function createTaskService(input, adapter) {
     }
   }
 
+  /** Release one abandoned session so the host-wide cap cannot be held by work nobody is using. */
+  async function evictOldestAbandoned() {
+    let candidate = null
+    for (const [id, entry] of live) {
+      const task = records.get(id)
+      if (!task || task.lifecycle !== 'live' || task.activity !== 'idle' || entry.attached) continue
+      if (candidate === null || task.updatedAt < candidate.task.updatedAt) candidate = { id, entry, task }
+    }
+    if (candidate === null) return false
+    clearIdle(candidate.entry)
+    candidate.entry.hosted.dispose()
+    candidate.task.lifecycle = 'ended'
+    candidate.task.activity = undefined
+    candidate.task.state = candidate.task.turnOutcome === 'cancelled' ? 'cancelled' : candidate.task.turnOutcome === 'failed' ? 'failed' : 'finished'
+    candidate.task.endedReason = 'evicted'
+    await persist(candidate.task)
+    live.delete(candidate.id)
+    return true
+  }
+
   async function start(request) {
     if (!UUID.test(request.taskId || '') || !validText(request.prompt, 64 * 1024) || !request.prompt.trim() || !validMutationId(request.mutationId)) throw new Error('任务 ID 或提示无效')
     const existing = records.get(request.taskId)
@@ -219,7 +281,12 @@ export async function createTaskService(input, adapter) {
       return { task: publicTask(existing) }
     }
     const project = await admittedProject(config, request.project)
-    if (liveCount() >= HOST_CAP || overlaps(project)) throw new Error('项目或主机任务已满')
+    if (liveCount() >= HOST_CAP || overlaps(project)) {
+      // Abandoned work must never block all further work: reclaim the oldest live session that is
+      // idle and attached to no Console before refusing the launch.
+      if (liveCount() >= HOST_CAP) await evictOldestAbandoned()
+      if (liveCount() >= HOST_CAP || overlaps(project)) throw new Error('项目或主机任务已满')
+    }
     const now = new Date().toISOString()
     if (request.console !== undefined && !validConsole(request.console)) throw new Error('Console identity 无效')
     /** @type {Task & {requestedProject:string}} */
@@ -279,7 +346,14 @@ export async function createTaskService(input, adapter) {
     task.lifecycle = 'ended'
     task.activity = undefined
     task.endedReason = 'explicit'
-    if (task.state === 'settled') task.state = task.turnOutcome === 'cancelled' ? 'cancelled' : task.turnOutcome === 'failed' ? 'failed' : 'finished'
+    if (task.state === 'settled') {
+      task.state = task.turnOutcome === 'cancelled' ? 'cancelled' : task.turnOutcome === 'failed' ? 'failed' : 'finished'
+    } else {
+      // Ending before the session settled aborts work that never completed, so the receipt must
+      // record a terminal state instead of leaving the previous `running` behind.
+      task.turnOutcome = 'cancelled'
+      task.state = 'cancelled'
+    }
     await persist(task)
     return { task: publicTask(task), accepted: true }
   }
@@ -317,10 +391,22 @@ export async function createTaskService(input, adapter) {
     clearIdle(entry)
     if (after !== undefined && after !== null) {
       let position = after
+      let streamedEntries = 0
+      let streamedBytes = 0
       while (position < boundary) {
         const page = entry.hosted.history(position, request.limit ?? 100)
         const batches = page.events ?? page.entries ?? []
-        for (const batch of batches) context.send({ version: 1, type: 'event', taskId: task.taskId, ...batch })
+        for (const batch of batches) {
+          const bytes = Buffer.byteLength(JSON.stringify(batch))
+          // An unbounded stream would overflow the Console's catch-up buffer and break resume,
+          // so refuse with a reason the operator can act on instead of streaming into it.
+          if (streamedEntries + 1 > CATCHUP_MAX_ENTRIES || streamedBytes + bytes > CATCHUP_MAX_BYTES) {
+            throw new Error('Hosted Pi 历史补偿超出有界预算，请分页读取历史')
+          }
+          streamedEntries += 1
+          streamedBytes += bytes
+          context.send({ version: 1, type: 'event', taskId: task.taskId, ...batch })
+        }
         const next = page.continuation
         const appliedThrough = batches.length > 0 ? batches.at(-1).position : position
         // A page may contain only non-message physical entries. Null
@@ -342,6 +428,43 @@ export async function createTaskService(input, adapter) {
     const entry = live.get(task.taskId)
     const value = entry ? entry.hosted.history(position, limit) : adapter.readHistory?.(task.sessionFile, position, limit) ?? { events: [], entries: [], boundary: 0, continuation: null }
     return { task: publicTask(task), history: value }
+  }
+
+  async function launchMutation(request) {
+    if (!validMutationId(request.mutationId) || request.mutationId === undefined) return start(request)
+    const key = `launch:${request.mutationId}`
+    const payloadDigest = mutationDigest(canonicalMutation(request))
+    const existing = mutations.get(key)
+    if (existing) {
+      if (existing.payloadDigest !== payloadDigest) throw new Error('Mutation identity 已用于不同请求')
+      if (existing.status === 'failed') throw new Error(existing.error || 'Mutation failed')
+      const recorded = records.get(existing.taskId)
+      if (!recorded) {
+        return {
+          task: { taskId: existing.taskId, project: request.project, state: 'pending', lifecycle: 'launching', verification: 'not_run' },
+          accepted: true,
+          duplicate: true,
+          pending: true,
+        }
+      }
+      return { task: publicTask(recorded), accepted: true, duplicate: true, pending: existing.status === 'accepted' }
+    }
+    const receipt = { taskId: request.taskId, command: 'launch', mutationId: request.mutationId, payloadDigest, status: 'accepted' }
+    await saveMutation(receipt)
+    mutations.set(key, receipt)
+    try {
+      const result = await start(request)
+      receipt.status = 'completed'
+      await saveMutation(receipt)
+      mutations.set(key, receipt)
+      return result
+    } catch (error) {
+      receipt.status = 'failed'
+      receipt.error = error instanceof Error ? error.message : 'Mutation failed'
+      await saveMutation(receipt).catch(() => {})
+      mutations.set(key, receipt)
+      throw error
+    }
   }
 
   async function mutation(request, operation) {
@@ -389,11 +512,11 @@ export async function createTaskService(input, adapter) {
     if (closing || storageFailure) throw new Error('任务服务不可用')
     if (!request || request.version !== 1 || typeof request.requestId !== 'string' || !request.requestId || request.requestId.length > 128) throw new Error('任务协议无效')
     if (Buffer.byteLength(JSON.stringify(request)) > 64 * 1024) throw new Error('请求过大')
-    if (['start', 'launch'].includes(request.command)) return start(request)
+    if (['start', 'launch'].includes(request.command)) return launchMutation(request)
     if (request.command === 'list') {
       const project = request.project === undefined ? undefined : await admittedProject(config, request.project)
       const all = [...records.values()].filter(task => !project || task.project === project).reverse()
-      const tasks = all.slice(0, 100).map(({ prompt, response, requestedProject, sessionFile, controlAudit, ...task }) => task)
+      const tasks = goalPreviews(all.slice(0, 100))
       return { tasks, truncated: all.length > tasks.length }
     }
     if (request.command === 'status') return { task: publicTask(findTask(request)) }

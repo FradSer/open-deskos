@@ -85,7 +85,7 @@ function validRecord(record, name) {
     (record.activity === undefined || ['working', 'idle'].includes(record.activity)) &&
     (record.turnOutcome === undefined || ['finished', 'failed', 'cancelled', 'interrupted'].includes(record.turnOutcome)) &&
     (record.currentTurnId === undefined || (typeof record.currentTurnId === 'string' && TASK_ID.test(record.currentTurnId))) &&
-    (record.endedReason === undefined || ['explicit', 'idle_expired', 'host_restart'].includes(record.endedReason)) &&
+    (record.endedReason === undefined || ['explicit', 'idle_expired', 'evicted', 'host_restart'].includes(record.endedReason)) &&
     (record.sessionFile === undefined || (validProject(record.sessionFile) && normalize(record.sessionFile) === record.sessionFile)) &&
     (record.controlledBy === undefined || validControlIdentity(record.controlledBy)) &&
     (record.controlAudit === undefined || (Array.isArray(record.controlAudit) && record.controlAudit.length <= 16 && record.controlAudit.every(item => validControlIdentity(item) && validDate(item.at)))) &&
@@ -130,10 +130,14 @@ export async function loadRecords(stateDir) {
     // host lifetime is no longer controllable after restart and must never be
     // presented as live or have its prompt replayed.
     if (!['ended', 'interrupted'].includes(record.lifecycle) && (['running', 'pending', 'settled'].includes(record.state) || ['launching', 'live'].includes(record.lifecycle))) {
+      // A session idle at its prompt keeps the outcome of the turn that already finished; only
+      // work that was actually in flight becomes an interrupted turn. The lifecycle changes either
+      // way, because the SDK session is process-owned and is no longer controllable.
+      const wasMidTurn = record.state === 'running' || record.activity === 'working'
       record.state = 'interrupted'
       record.lifecycle = 'interrupted'
       record.activity = undefined
-      record.turnOutcome = 'interrupted'
+      if (wasMidTurn) record.turnOutcome = 'interrupted'
       record.currentTurnId = undefined
       record.controlledBy = undefined
       record.endedReason = 'host_restart'

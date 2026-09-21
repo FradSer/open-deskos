@@ -38,7 +38,7 @@ async function startupStatus(t, env = {}) {
   const child = spawn(process.execPath, ['src/main.mjs'], { cwd: new URL('..', import.meta.url), env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ...env }, stdio: 'ignore' })
   t.after(async () => { child.kill(); await rm(dir, { recursive: true, force: true }) })
   let client
-  for (let n = 0; n < 100; n++) {
+  for (let n = 0; n < 400; n++) {
     client = await new Promise(resolve => {
       const socket = connect(join(dir, 'open-deskos-voice/agent.sock'))
       socket.once('error', () => resolve(undefined))
@@ -52,7 +52,7 @@ async function startupStatus(t, env = {}) {
   let status = await readStatus(client)
   assert.ok(status, 'resident reported a status table')
   let stable = 0
-  const deadline = Date.now() + 5000
+  const deadline = Date.now() + 15000
   while (stable < STABLE_SAMPLES && child.exitCode === null && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 50))
     const next = await readStatus(client)

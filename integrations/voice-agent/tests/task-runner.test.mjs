@@ -3,8 +3,8 @@ import { test } from 'node:test'
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { createTaskService, reserveTaskRecord } from '../src/task-service.mjs'
+import { createHash, randomUUID } from 'node:crypto'
+import { createTaskService, goalPreviews, reserveTaskRecord } from '../src/task-service.mjs'
 
 async function fixture(t, runTask = async () => ({ text: '完成', stopReason: 'stop' })) {
   const dir = await mkdtemp(join(tmpdir(), 'managed-task-'))
@@ -12,7 +12,16 @@ async function fixture(t, runTask = async () => ({ text: '完成', stopReason: '
   await mkdir(root)
   const config = { roots: [root], stateDir: join(dir, 'state'), socketPath: join(dir, 'socket', 'task.sock') }
   const service = await createTaskService(config, { runTask })
-  t.after(async () => { await service.close(); await rm(dir, { recursive: true, force: true }); })
+  t.after(async () => {
+    await service.close()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try { await rm(dir, { recursive: true, force: true }); break }
+      catch (error) {
+        if (error.code !== 'ENOTEMPTY' || attempt === 4) throw error
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+    }
+  })
   return { dir, root, config, service }
 }
 const request = (command, data = {}) => ({ version: 1, requestId: randomUUID(), command, ...data })
@@ -151,7 +160,18 @@ test('restart interrupts an idle live Hosted Pi that cannot keep its SDK session
   const task = (await restarted.handle(request('status', { taskId: req.taskId }))).task
   assert.equal(task.lifecycle, 'interrupted')
   assert.equal(task.state, 'interrupted')
-  assert.equal(task.turnOutcome, 'interrupted')
+  assert.equal(task.turnOutcome, 'finished', 'an idle session keeps the outcome of the turn that already finished')
+})
+
+test('restart marks a turn that was in flight as interrupted', async t => {
+  const f = await fixture(t)
+  const req = receipt(f.root, { state: 'running', lifecycle: 'live', activity: 'working' })
+  await writeFile(join(f.config.stateDir, `${req.taskId}.json`), JSON.stringify(req))
+  const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay') } })
+  t.after(() => restarted.close())
+  const task = (await restarted.handle(request('status', { taskId: req.taskId }))).task
+  assert.equal(task.lifecycle, 'interrupted')
+  assert.equal(task.turnOutcome, 'interrupted', 'a turn interrupted mid-flight is recorded as such')
 })
 
 test('restart interrupts receipts without replay', async t => {
@@ -285,6 +305,19 @@ test('cancel aborts adapter and holds project until it exits', async t => {
   const list = await f.service.handle(request('list'))
   assert.equal('prompt' in list.tasks[0], false)
   assert.equal('response' in list.tasks[0], false)
+})
+
+test('list carries a bounded goal without carrying the full prompt', async t => {
+  const f = await fixture(t, async () => ({ text: '完成', stopReason: 'stop' }))
+  const prompt = '整理'.repeat(600)
+  const req = start(f.root, { prompt })
+  assert.equal((await f.service.handle(req)).ok, true)
+  const [listed] = (await f.service.handle(request('list'))).tasks
+  assert.equal(listed.taskId, req.taskId)
+  assert.equal(typeof listed.goal, 'string')
+  assert.equal(prompt.startsWith(listed.goal), true)
+  assert.equal(Buffer.byteLength(listed.goal) <= 1024, true)
+  assert.equal(Buffer.from(listed.goal).toString('utf8'), listed.goal)
 })
 
 
@@ -463,6 +496,101 @@ test('cancel retains identity, end disposes, and idle unattached sessions releas
   assert.equal((await service.handle(request('status', { taskId: first.taskId }))).task.lifecycle, 'ended')
 })
 
+test('an abandoned idle Hosted Pi expires after the bounded period without replay', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 20 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].release()
+  await waitState(service, launched.taskId, 'settled')
+
+  // Left idle and unattached, the bounded idle period must end it and free its slot.
+  const expired = await waitState(service, launched.taskId, 'finished')
+  assert.equal(expired.endedReason, 'idle_expired')
+  assert.equal(expired.lifecycle, 'ended')
+  assert.equal(adapter.sessions[0].disposed, true)
+  assert.equal(adapter.sessions.length, 1, 'expiry must not start another turn')
+  assert.equal(adapter.sessions[0].prompts.length, 1, 'expiry must not replay the prompt')
+
+  // The released slot lets the same project launch again, and the receipt stays readable.
+  assert.equal((await service.handle(start(f.root))).ok, true)
+  assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.endedReason, 'idle_expired')
+})
+
+test('goal previews stay inside their escaped-cost ceiling', () => {
+  // Control characters escape to six bytes each, so the source bound alone is not a wire bound.
+  const hostile = Array.from({ length: 100 }, (_, index) => ({ taskId: `task-${index}`, prompt: '\u0001'.repeat(1024) }))
+  const previews = goalPreviews(hostile)
+  const escaped = previews.reduce((total, task) => total + Buffer.byteLength(JSON.stringify(task.goal)) - 2, 0)
+  assert.equal(escaped <= 128 * 1024, true, 'the preview set never crosses its escaped-cost ceiling')
+  assert.equal(previews.length, 100, 'every record survives; only previews are dropped')
+  assert.equal(previews.some((task) => task.goal === ''), true, 'shedding starts once the ceiling is reached')
+  assert.equal(previews.every((task) => typeof task.taskId === 'string'), true, 'records keep their identity')
+
+  const typical = Array.from({ length: 100 }, (_, index) => ({ taskId: `t${index}`, prompt: '\u6574\u7406'.repeat(300) }))
+  assert.equal(goalPreviews(typical).every((task) => task.goal.length > 0), true, 'typical previews are not shed')
+})
+
+test('ending a running turn leaves a terminal state, never running', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await service.handle(request('end', { taskId: launched.taskId }))).ok, true)
+  const ended = (await service.handle(request('status', { taskId: launched.taskId }))).task
+  assert.equal(ended.lifecycle, 'ended')
+  assert.equal(ended.state, 'cancelled', 'the receipt must not stay running after the turn was aborted')
+  assert.equal(ended.turnOutcome, 'cancelled')
+  assert.equal(ended.endedReason, 'explicit')
+})
+
+test('accepted launch receipt without a task record reconciles as pending after restart', async t => {
+  const f = await fixture(t)
+  await f.service.close()
+  const mutationId = 'crash-window-launch'
+  const taskId = randomUUID()
+  const requestValue = start(f.root, { taskId, mutationId })
+  const payload = JSON.stringify({ command: 'launch', taskId, project: requestValue.project, prompt: requestValue.prompt })
+  const receipt = { taskId, command: 'launch', mutationId, payloadDigest: createHash('sha256').update(payload).digest('hex'), status: 'accepted' }
+  const mutationDir = join(f.config.stateDir, 'mutations', 'launch')
+  await mkdir(mutationDir, { recursive: true })
+  const name = createHash('sha256').update(`launch\0${mutationId}`).digest('hex')
+  await writeFile(join(mutationDir, `${name}.json`), JSON.stringify(receipt))
+  const restarted = await createTaskService(f.config, { runTask: async () => { assert.fail('must not replay') } })
+  t.after(() => restarted.close())
+  const result = await restarted.handle(requestValue)
+  assert.equal(result.ok, true)
+  assert.equal(result.pending, true)
+  assert.equal(result.task.taskId, taskId)
+  assert.equal(result.task.lifecycle, 'launching')
+})
+
+test('launch mutation identity reconciles independently from Hosted Pi identity', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const first = start(f.root, { mutationId: 'launch-once' })
+  const accepted = await service.handle(first)
+  assert.equal(accepted.ok, true)
+  const duplicate = await service.handle({ ...first, requestId: randomUUID() })
+  assert.equal(duplicate.ok, true)
+  assert.equal(duplicate.duplicate, true)
+  assert.equal(duplicate.task.taskId, first.taskId)
+  const conflicting = await service.handle({ ...first, requestId: randomUUID(), taskId: randomUUID() })
+  assert.equal(conflicting.ok, false)
+  assert.match(conflicting.error, /different|不同/)
+})
+
 test('mutation receipt is durable before a Hosted Pi side effect begins', async t => {
   const adapter = persistentAdapter()
   const f = await fixture(t)
@@ -568,6 +696,31 @@ test('mutation receipts survive host restart for terminal end reconciliation', a
   assert.equal((await restarted.handle({ ...end, requestId: randomUUID(), expectedTurnId: 'different' })).ok, false)
 })
 
+test('four abandoned sessions never block all further work', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const abandoned = []
+  for (const name of ['a', 'b', 'c', 'd']) {
+    const project = join(f.root, name)
+    await mkdir(project, { recursive: true })
+    const launched = start(project)
+    assert.equal((await service.handle(launched)).ok, true)
+    while (!adapter.sessions.at(-1)?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+    adapter.sessions.at(-1).release()
+    await waitState(service, launched.taskId, 'settled')
+    abandoned.push(launched.taskId)
+  }
+  const fresh = join(f.root, 'e')
+  await mkdir(fresh, { recursive: true })
+  assert.equal((await service.handle(start(fresh))).ok, true, 'an abandoned session is reclaimed instead of blocking every launch')
+  const reclaimed = (await service.handle(request('status', { taskId: abandoned[0] }))).task
+  assert.equal(reclaimed.lifecycle, 'ended')
+  assert.equal(reclaimed.endedReason, 'evicted')
+})
+
 test('attach catch-up pages to its boundary before reporting caught up', async t => {
   const adapter = persistentAdapter()
   const f = await fixture(t)
@@ -585,6 +738,33 @@ test('attach catch-up pages to its boundary before reporting caught up', async t
   const response = await service.handle(request('attach', { taskId: launched.taskId, after: 0, attachmentId: 'paged', console: { machineName: 'Mac', sessionId: 'console' } }), { connectionId: 'paged', send: event => sent.push(event) })
   assert.equal(response.ok, true)
   assert.deepEqual(sent.map(event => event.position), [1, 2])
+})
+
+test('an unbounded attach catch-up is refused instead of overflowing the Console buffer', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const total = 30_000
+  adapter.sessions[0].boundary = () => total
+  adapter.sessions[0].history = (position = 0, limit = 100) => {
+    const end = Math.min(total, position + Math.min(limit, 100))
+    const events = []
+    for (let point = position + 1; point <= end; point += 1) events.push({ position: point, events: [{ kind: 'assistant', text: `event ${point}` }] })
+    return { events, boundary: total, continuation: end < total ? end : null }
+  }
+  const sent = []
+  const response = await service.handle(
+    request('attach', { taskId: launched.taskId, after: 0, attachmentId: 'huge', console: { machineName: 'Mac', sessionId: 'console-1' } }),
+    { connectionId: 'c1', send: (event) => sent.push(event) },
+  )
+  assert.equal(response.ok, false)
+  assert.match(response.error, /有界预算/)
+  assert.equal(sent.length <= 1024, true, 'the host never streams past its bounded catch-up budget')
 })
 
 test('attach catch-up advances across a page containing only non-message entries', async t => {
