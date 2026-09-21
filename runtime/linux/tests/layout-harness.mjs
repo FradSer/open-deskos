@@ -62,7 +62,8 @@ for (const [label, width, height] of SIZES) {
 // corner. A grid page hosting exactly one tile anchors it to the top-left
 // (first column line, first row line); the dedicated reading page hosts the
 // 3x2 WeRead tile (columns 1-3, rows 1-2) beside the 2x2 pre-order countdown
-// (columns 4-5, rows 1-2 of the widescreen grid).
+// (columns 4-5, rows 1-2 of the widescreen grid), with the market tile on the
+// next row under WeRead.
 for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.widgets.length === 1)) {
   const [tile] = page.widgets
   const colStart = tile.col?.split('/')[0]?.trim()
@@ -71,9 +72,10 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 }
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
-check('reading page hosts WeRead and pre-order tiles', readingPage?.widgets?.length === 2 && readingPage.widgets[0]?.id === 'odk.tile.weread' && readingPage.widgets[1]?.id === 'odk.tile.preorder', JSON.stringify(readingPage?.widgets))
+check('reading page hosts WeRead, pre-order and market tiles', readingPage?.widgets?.length === 3 && readingPage.widgets.map((tile) => tile.id).join(',') === 'odk.tile.weread,odk.tile.preorder,odk.tile.futu', JSON.stringify(readingPage?.widgets))
 check('weread tile spans 3x2 top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 3', `col=${readingPage?.widgets?.[0]?.col} row=${readingPage?.widgets?.[0]?.row}`)
 check('preorder tile spans 2x2 beside weread', readingPage?.widgets?.[1]?.col === '4 / 6' && readingPage?.widgets?.[1]?.row === '1 / 3', `col=${readingPage?.widgets?.[1]?.col} row=${readingPage?.widgets?.[1]?.row}`)
+check('market tile takes one cell on the row under weread', readingPage?.widgets?.[2]?.col === '1' && readingPage?.widgets?.[2]?.row === '3', `col=${readingPage?.widgets?.[2]?.col} row=${readingPage?.widgets?.[2]?.row}`)
 
 // WeRead meta: title/author/date step down by phi, the date carries an
 // underline, and the cover is a narrow right rail instead of a half panel.
