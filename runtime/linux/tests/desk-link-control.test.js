@@ -63,6 +63,45 @@ function fakeHost() {
   }
 }
 
+/** Mirrors the real Pi host's history contract: it REFUSES a page larger than 100 entries
+ *  (integrations/voice-agent/src/task-service.mjs) and breaks a page on bytes, so a mock that
+ *  merely clamps the limit would certify behaviour the real host never produces. */
+const HOST_HISTORY_BYTES = 192 * 1024
+
+function historyBodies(total, size = 0) {
+  return Array.from({ length: total }, (_, index) => ({
+    position: index + 1,
+    events: [{ kind: 'assistant', text: size > 0 ? `entry ${index + 1} ${'x'.repeat(size)}` : `entry ${index + 1}` }],
+  }))
+}
+
+function faithfulHost(entries, pageSize = 100) {
+  return {
+    async request(record) {
+      if (record.type !== 'history') return { sessionId: record.sessionId, entries: [], boundary: entries.length, nextPosition: null }
+      const after = Number.isSafeInteger(record.after) ? record.after : 0
+      const limit = Number.isSafeInteger(record.limit) ? record.limit : 64
+      if (limit < 1 || limit > 100) throw new Error('History position 无效')
+      const boundary = entries.length
+      const page = []
+      let bytes = 0
+      let scanned = after
+      while (scanned < boundary && page.length < Math.min(limit, pageSize)) {
+        const entry = entries[scanned]
+        const size = Buffer.byteLength(JSON.stringify([{ position: entry.position, events: entry.events }]))
+        if (page.length > 0 && bytes + size > HOST_HISTORY_BYTES) break
+        if (page.length === 0 && size > HOST_HISTORY_BYTES) {
+          return { sessionId: record.sessionId, entries: [], boundary, nextPosition: after, oversized: true }
+        }
+        page.push(entry)
+        bytes += size
+        scanned += 1
+      }
+      return { sessionId: record.sessionId, entries: page, boundary, nextPosition: scanned < boundary ? scanned : null }
+    },
+  }
+}
+
 async function withService(run, options = {}) {
   const { dir, socketPath } = tempSocket()
   const hostAdapter = options.hostAdapter || fakeHost()
@@ -452,7 +491,13 @@ test('Hosted Pi events are read from bounded host history instead of a local log
     if (record.type === 'history') {
       return {
         sessionId: record.sessionId,
-        entries: [{ position: 3, events: [{ kind: 'assistant', text: 'Hosted result' }] }],
+        // A real page starts at the log's first entry, so a complete three-entry log reports
+        // itself as complete: entries without events contribute nothing to the view.
+        entries: [
+          { position: 1, events: [] },
+          { position: 2, events: [] },
+          { position: 3, events: [{ kind: 'assistant', text: 'Hosted result' }] },
+        ],
         nextPosition: null,
         boundary: 3,
       }
@@ -500,6 +545,74 @@ test('Hosted Pi history continuation is exposed as a truncated recent stream', a
     const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
     assert.equal(result.ok, true)
     assert.equal(result.truncated, true)
+  }, { hostAdapter })
+})
+
+test('the live view asks for a history page the real host accepts', async () => {
+  const hostAdapter = faithfulHost(historyBodies(250))
+  const limits = []
+  const request = hostAdapter.request
+  hostAdapter.request = (record) => {
+    if (record.type === 'history') limits.push(record.limit)
+    return request(record)
+  }
+  await withService(async (_service, socketPath) => {
+    const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
+    assert.equal(result.ok, true, 'a page size the host refuses would surface as an unavailable host')
+    assert.equal(limits.every((limit) => limit <= 100), true, 'every history page stays inside the host cap')
+  }, { hostAdapter })
+})
+
+test('a Hosted Pi log inside the retained window reads its newest entries', async () => {
+  const hostAdapter = faithfulHost(historyBodies(250))
+  await withService(async (_service, socketPath) => {
+    const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
+    assert.equal(result.ok, true)
+    assert.equal(result.truncated, false, 'a log the retained window covers is not truncated')
+    assert.equal(result.events.length, 250, 'the whole log is delivered, not one page')
+    assert.equal(result.events.some((event) => event.text === 'entry 250'), true, 'the newest entry is present')
+  }, { hostAdapter })
+})
+
+test('a Hosted Pi log longer than the window still ends at the newest entry', async () => {
+  const hostAdapter = faithfulHost(historyBodies(1000))
+  await withService(async (_service, socketPath) => {
+    const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
+    assert.equal(result.ok, true)
+    assert.equal(result.truncated, true)
+    assert.equal(result.events.some((event) => event.text === 'entry 1000'), true, 'the newest entry is present')
+    assert.equal(result.events.some((event) => event.text === 'entry 1'), false, 'the oldest page never displaces the newest window')
+  }, { hostAdapter })
+})
+
+test('byte-bounded pages still end at the newest entries', async () => {
+  // 16 KiB bodies make a page hold ~11 entries, so reaching the end needs re-anchoring.
+  const hostAdapter = faithfulHost(historyBodies(250, 16 * 1024))
+  await withService(async (_service, socketPath) => {
+    const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
+    assert.equal(result.ok, true)
+    assert.equal(result.truncated, true, 'an earlier window is never presented as complete')
+    assert.equal(result.events.some((event) => event.text.startsWith('entry 250 ')), true, 'the newest entry is present')
+    assert.equal(result.events.some((event) => event.text.startsWith('entry 1 ')), false, 'the oldest page never displaces the newest window')
+  }, { hostAdapter })
+})
+
+test('a log whose single entry exceeds one page is bounded, not retried at the same offset', async () => {
+  // Control characters escape to six bytes each, so a body inside the host's own limit can still
+  // exceed one page's byte bound; the host then answers with the offset it was given.
+  const entries = [{ position: 1, events: [{ kind: 'assistant', text: '\u0001'.repeat(40 * 1024) }] }]
+  const hostAdapter = faithfulHost(entries)
+  let historyCalls = 0
+  const request = hostAdapter.request
+  hostAdapter.request = (record) => {
+    if (record.type === 'history') historyCalls += 1
+    return request(record)
+  }
+  await withService(async (_service, socketPath) => {
+    const result = await createDeskLinkClient({ socketPath }).sessionEvents('hosted-1')
+    assert.equal(result.ok, true)
+    assert.equal(result.truncated, true, 'an entry that cannot be read is reported as truncated')
+    assert.equal(historyCalls <= 2, true, 'a page that cannot advance is not retried')
   }, { hostAdapter })
 })
 

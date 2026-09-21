@@ -80,6 +80,17 @@ test('task-host state and event records normalize without inventing success', ()
   }])
 })
 
+test('a listed Hosted Pi keeps the goal the list projection carries', () => {
+  // `list` strips the full prompt and response, so the goal travels in its own bounded field.
+  assert.equal(normalizeTask({
+    taskId: 'task-1', state: 'settled', lifecycle: 'alive', project: '/workspace/desk', goal: 'Run tests',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:01:00.000Z',
+  }).goal, 'Run tests')
+  // A status reply carries the whole record, so the prompt stays the fallback.
+  assert.equal(normalizeTask({ taskId: 'task-2', state: 'running', project: '/workspace/desk', prompt: 'Start' }).goal, 'Start')
+  assert.equal(normalizeTask({ taskId: 'task-3', state: 'running', project: '/workspace/desk' }).goal, '')
+})
+
 test('raw Pi SessionEntry messages map to canonical bounded Session Events', () => {
   assert.deepEqual(sessionEventsFromEntry({
     type: 'message',

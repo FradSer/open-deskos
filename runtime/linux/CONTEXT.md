@@ -30,6 +30,10 @@ A locally authored, versioned Widget or interactive App installed and managed by
 Widgets share desktop grid pages with built-in tiles; their persisted placement is independent of the installed revision. Interactive Apps own individual pages. There is no dedicated User Applications collection page.
 _Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
 
+**Voice Agent**:
+The resident CM5 component that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of the desk runtime, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start.
+_Avoid_: optional add-on, experimental service, voice feature toggle
+
 **Application Candidate**:
 An exact snapshot of a draft awaiting system-owned verification. Failed verification cannot replace the installed revision.
 _Avoid_: agent self-certified installation, mutable installed workspace

@@ -70,7 +70,7 @@ function normalizeTask(task) {
     lifecycle: task.lifecycle,
     turnOutcome: task.turnOutcome,
     project: task.project,
-    goal: typeof task.prompt === 'string' ? task.prompt : '',
+    goal: typeof task.goal === 'string' ? task.goal : typeof task.prompt === 'string' ? task.prompt : '',
     startedAt: Date.parse(task.createdAt) || 0,
     updatedAt: Date.parse(task.updatedAt) || 0,
     activity: typeof task.response === 'string' ? task.response : '',

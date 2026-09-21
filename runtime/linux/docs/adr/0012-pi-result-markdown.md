@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes the first-line-only tool-result restriction in ADR-0005, ADR-0006, and ADR-0008. Other event kinds remain compact summaries.
+Accepted. Supersedes the first-line-only tool-result restriction in ADR-0005, ADR-0006, and ADR-0008. ADR-0015 extends this record: the bounded Markdown result body is kept, the retained window is now 300 events and 1 MiB per session, and every event kind keeps the multiline body Pi produced, bounded per kind, instead of the compact summaries decided here.
 
 ## Context
 

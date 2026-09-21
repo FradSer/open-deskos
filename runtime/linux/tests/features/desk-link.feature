@@ -190,3 +190,21 @@ Feature: Hosted Pi control over a separate Desk Link v2 connection
     When another Console attaches to the same Hosted Pi
     Then the newer Attach fences the pending Console
     And only the newer completed Attach receives Control Attribution
+
+  Scenario: Live events carry the session log's own ordering
+    Given a Hosted Pi whose session log has a defined entry order
+    When its entries reach the desk
+    Then an event's position is the position of the entry it came from
+    And the desk keeps no sequence counter of its own, so a restart cannot renumber them
+
+  Scenario: A desk service restart does not end live sessions
+    Given a Hosted Pi is running with a Console attached
+    When the Desk Link Service restarts
+    Then the Hosted Pi keeps running under its host
+    And its Control Attribution clears until a Console attaches again
+
+  Scenario: A bounded control request cannot flood the desk
+    Given a Console sends an oversized control record
+    When the desk reads it
+    Then the record is refused
+    And the next bounded request on that connection still works

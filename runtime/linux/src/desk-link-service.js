@@ -10,6 +10,14 @@ const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = requ
 // to have bounded its own events. Its bounds are the shared ones, so a reporter
 // and the service can never disagree about what fits.
 const MAX_EVENTS_PER_SESSION = MAX_EVENTS
+/** The history page size the Pi host accepts; the desk's own control path already rejects
+ *  anything larger, so asking for MAX_EVENTS_PER_SESSION was refused outright. */
+const MAX_EVENT_PAGE_ENTRIES = 100
+/** Bounded forward paging when the live view reads a Hosted Pi's own session log. */
+const MAX_EVENT_PAGES = 4
+/** How many times the live view may re-anchor its window to reach the end of a log whose pages
+ *  are byte-bounded, so large bodies cannot leave it showing an earlier slice. */
+const MAX_EVENT_ATTEMPTS = 3
 const MAX_SESSIONS_PER_MACHINE = 64
 /** A peer that has not authenticated within this window is dropped. */
 const AUTH_TIMEOUT_MS = 10000
@@ -726,22 +734,63 @@ function createDeskLinkService({
       return { ok: false, reason: SESSION_LOG_MISSING }
     }
     try {
-      const history = await hostRequest({
+      // The host caps a history page at MAX_EVENT_PAGE_ENTRIES and always scans forward from
+      // `after`, so a plain after:0 read returns the OLDEST page of a long session while this
+      // view wants the newest window. Learn the boundary, start at the tail of the window the
+      // desk is willing to show, then page forward to the end of the log.
+      const probe = await hostRequest({
         v: DESK_LINK_CONTROL_PROTOCOL,
         type: 'history',
-        requestId: `runtime-history-${randomBytes(8).toString('hex')}`,
+        requestId: `runtime-history-probe-${randomBytes(8).toString('hex')}`,
         sessionId,
         after: 0,
-        limit: MAX_EVENTS_PER_SESSION,
+        limit: 1,
       })
-      const entries = Array.isArray(history?.entries) ? history.entries : []
-      const events = retainEvents(entries.flatMap((entry) => Array.isArray(entry?.events)
+      const boundary = Number.isSafeInteger(probe?.boundary) && probe.boundary > 0 ? probe.boundary : 0
+      // Start at the tail of the window the desk is willing to show, then page forward to the end
+      // of the log. A byte-bounded page holds far fewer entries than a count-bounded one, so the
+      // first window usually stops short; each attempt re-anchors later, keeping the newest entries
+      // this one covered, until the pages reach the end.
+      let start = Math.max(0, boundary - MAX_EVENTS_PER_SESSION)
+      let collected = []
+      let reachedEnd = boundary === 0
+      for (let attempt = 0; attempt < MAX_EVENT_ATTEMPTS && !reachedEnd; attempt += 1) {
+        collected = []
+        let after = start
+        let next = null
+        for (let page = 0; page < MAX_EVENT_PAGES; page += 1) {
+          const history = await hostRequest({
+            v: DESK_LINK_CONTROL_PROTOCOL,
+            type: 'history',
+            requestId: `runtime-history-${randomBytes(8).toString('hex')}`,
+            sessionId,
+            after,
+            limit: MAX_EVENT_PAGE_ENTRIES,
+          })
+          if (Array.isArray(history?.entries)) collected.push(...history.entries)
+          next = history?.nextPosition
+          if (next === null || next === undefined) { reachedEnd = true; break }
+          // A page that does not advance cannot be paged past: the host returns the same offset
+          // when one entry is too large for a single page.
+          if (next === after) break
+          after = next
+        }
+        if (reachedEnd || collected.length === 0) break
+        const reanchored = boundary - collected.length
+        if (reanchored <= start) break
+        start = reanchored
+      }
+      const events = retainEvents(collected.flatMap((entry) => Array.isArray(entry?.events)
         ? entry.events.map(boundedEvent).filter(Boolean)
         : []))
+      const firstPosition = Number.isSafeInteger(collected[0]?.position) ? collected[0].position : null
+      const skippedOlder = firstPosition === null ? boundary > 0 : firstPosition > 1
       return {
         ok: true,
         events,
-        truncated: history?.nextPosition !== null && history?.nextPosition !== undefined,
+        // The view is incomplete both when the delivered window no longer starts at the log's
+        // first entry and when paging never reached the end, so it must never read as complete.
+        truncated: skippedOlder || !reachedEnd,
       }
     } catch (error) {
       const reason = error?.message || 'pi host unavailable'
