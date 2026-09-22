@@ -8,8 +8,8 @@ Use ESP-IDF 6.0.1 from this directory:
 ```sh
 eim run 'idf.py set-target esp32p4' v6.0.1
 eim run 'idf.py build' v6.0.1
-eim run 'idf.py -p PORT flash monitor' v6.0.1
 ```
+Use @README.md for flashing and physical wiring. The CH343P debug connector can flash firmware but cannot carry UVC/UAC; use the native USB data connector for the CM5 link.
 
 ## Coding Style & Naming Conventions
 - 4-space ESP-IDF C, `snake_case`, focused modules, and explicit `esp_err_t` return handling.
@@ -18,10 +18,6 @@ eim run 'idf.py -p PORT flash monitor' v6.0.1
 - Do not manually edit `build/`, `managed_components/`, `sdkconfig`, `sdkconfig.old`, or dependency output.
 
 ## Testing Guidelines
-- Update local Given/When/Then scenarios in `tests/features/p4-camera.feature` before modifying behavior.
-- Validate hardware on the CM5 with `runtime/linux/scripts/p4-camera-acceptance.sh` and `runtime/linux/scripts/p4-microphone-acceptance.sh`.
-
-## Commit & Pull Request Guidelines
-- Keep camera firmware, descriptors, and docs reviewable together under focused Conventional Commits (`feat(hw):`, `fix(hw):`).
-- Report the ESP-IDF target, commands run, and note unverified hardware.
-- Never include biometric data, raw camera captures, credentials, or diagnostics.
+- An ESP32-P4 build validates compilation, not enumeration, video, or audio quality.
+- For authorized live acceptance on the CM5, run `bash runtime/linux/scripts/p4-camera-acceptance.sh` and `bash runtime/linux/scripts/p4-microphone-acceptance.sh` from repository root. The camera check writes one MJPEG frame to a temporary `/tmp/p4-camera-frame.*.mjpg` file and removes it on exit; the microphone check streams PCM through a pipe. Both access real sensors.
+- Keep raw camera/audio captures and biometric data out of the repository.
