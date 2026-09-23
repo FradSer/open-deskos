@@ -1,9 +1,34 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
+const { spawnSync } = require('node:child_process')
 
 const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-acceptance.sh'), 'utf8')
+
+// Runs the real report against a fixture home, so the configuration invariants are asserted by their
+// result rather than by the presence of their name in the script.
+function acceptance(home) {
+  const result = spawnSync('bash', ['scripts/cm5-acceptance.sh'], {
+    cwd: path.join(__dirname, '..'),
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH, HOME: home, XDG_RUNTIME_DIR: path.join(home, 'run') },
+  })
+  const report = JSON.parse(result.stdout.slice(result.stdout.indexOf('{')))
+  return name => report.checks.find(entry => entry.name === name)
+}
+
+function fixture(t, files) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-acceptance-'))
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
+  for (const [relative, contents] of Object.entries(files)) {
+    const file = path.join(home, relative)
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, contents, { mode: 0o600 })
+  }
+  return home
+}
 
 test('CM5 acceptance reports release, migration, service, runtime, and hardware evidence in one JSON contract', () => {
   assert.match(script, /SOURCE_DIR=/)
@@ -31,7 +56,52 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /glamor X acceleration enabled/)
   assert.match(script, /EGL_VENDOR\|EGL_VERSION/)
   assert.match(script, /"touch-devices"/)
+  assert.match(script, /"stt-endpoint-consistency"/)
+  assert.match(script, /"stt-bridge-listening"/)
+  assert.match(script, /"no-shadowed-configuration"/)
+  assert.match(script, /"no-zombie-config"/)
+  assert.match(script, /"single-voice-installation"/)
+  assert.match(script, /^configuration_evidence$/m)
   assert.match(script, /"required"/)
   assert.match(script, /"class"/)
   assert.match(script, /\[ "\$FAILURES" -eq 0 \]/)
+})
+
+// The three ways one fact gets declared twice on a device: an explicit endpoint that disagrees with
+// the port the bridge declares, a drop-in that silently overrides the env file, and a second voice
+// installation outside the release.
+test('CM5 acceptance reports duplicated and leftover device-local configuration', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
+    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_STT_URL=http://127.0.0.1:19999/inference\nODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/systemd/user/open-deskos-voice-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/systemd/user/open-deskos-voice-agent.service.d/personal-agent.conf.disabled': '[Service]\n',
+    '.local/share/open-deskos/voice-releases/personal-1/src/main.mjs': '',
+  })
+  const check = acceptance(home)
+  const endpoint = check('stt-endpoint-consistency')
+  assert.equal(endpoint.ok, false)
+  assert.equal(endpoint.required, true)
+  assert.match(endpoint.detail, /19999.*17840/)
+  const shadowed = check('no-shadowed-configuration')
+  assert.equal(shadowed.ok, false)
+  assert.match(shadowed.detail, /ODESK_WORKSPACE/)
+  assert.equal(check('no-zombie-config').ok, false)
+  assert.match(check('no-zombie-config').detail, /personal-agent\.conf\.disabled/)
+  assert.equal(check('single-voice-installation').ok, false)
+  assert.equal(check('single-voice-installation').required, true)
+})
+
+test('CM5 acceptance accepts one declaration per fact', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
+    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_AUDIO_DEVICE=default\n',
+    '.config/systemd/user/open-deskos-voice-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_TASK_TARGETS_FILE=/home/kiosk/.config/open-deskos/task-targets.json\n',
+  })
+  const check = acceptance(home)
+  assert.equal(check('stt-endpoint-consistency').ok, true)
+  assert.match(check('stt-endpoint-consistency').detail, /derives port 17840/)
+  assert.equal(check('no-shadowed-configuration').ok, true)
+  assert.equal(check('no-zombie-config').ok, true)
+  assert.equal(check('single-voice-installation').ok, true)
 })

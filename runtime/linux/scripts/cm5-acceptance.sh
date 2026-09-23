@@ -88,6 +88,65 @@ service_evidence() {
   esac
 }
 
+# Device-local configuration invariants: one declaration per fact, nothing the release already
+# decides, and no second installation of the runtime outside the immutable release. A host test
+# cannot make these checks, because they are about what this machine actually declares.
+configuration_evidence() {
+  local config="${HOME}/.config/open-deskos"
+  local units="${HOME}/.config/systemd/user"
+  if [ ! -d "$config" ]; then
+    check "device-configuration" "false" "false" "runtime" "no ${config}; run this as the kiosk user to inspect device-local configuration"
+    return
+  fi
+  local voice_env="${config}/voice-agent.env"
+  local runtime_env="${config}/runtime.env"
+  local stt_port
+  stt_port="$(sed -n 's/^ODK_STT_PORT=\([0-9]\{1,5\}\)$/\1/p' "$runtime_env" 2>/dev/null | tail -n1)"
+  [ -n "$stt_port" ] || stt_port="17840"
+  local declared
+  declared="$(sed -n 's|^ODESK_VOICE_STT_URL=http://127\.0\.0\.1:\([0-9]\{1,5\}\)/.*|\1|p' "$voice_env" 2>/dev/null | tail -n1)"
+  if [ -z "$declared" ]; then
+    check "stt-endpoint-consistency" "true" "false" "runtime" "no explicit loopback STT URL; the voice agent derives port ${stt_port}"
+  elif [ "$declared" = "$stt_port" ]; then
+    check "stt-endpoint-consistency" "true" "false" "runtime" "the declared loopback endpoint and the bridge agree on port ${stt_port}"
+  else
+    check "stt-endpoint-consistency" "false" "true" "runtime" "ODESK_VOICE_STT_URL declares port ${declared} while the bridge declares ${stt_port}"
+  fi
+  if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q "127.0.0.1:${stt_port}"; then
+    check "stt-bridge-listening" "true" "false" "runtime" "the device-local bridge listens on 127.0.0.1:${stt_port}"
+  else
+    check "stt-bridge-listening" "false" "false" "runtime" "nothing listens on 127.0.0.1:${stt_port}"
+  fi
+  # A drop-in is merged after the unit's EnvironmentFile=, so a drop-in that repeats a variable the
+  # env file already declares silently overrides it: the operator's edit would do nothing at all.
+  local shadowed="" conf name
+  for conf in "${units}"/*.service.d/*.conf; do
+    [ -f "$conf" ] || continue
+    for name in $(sed -n 's/^Environment=//p' "$conf" 2>/dev/null | tr ' ' '\n' | sed -n 's/=.*//p' | grep -E '^(ODK|ODESK)_'); do
+      if grep -qE "^${name}=" "$voice_env" "$runtime_env" 2>/dev/null; then shadowed="${shadowed} ${name}"; fi
+    done
+  done
+  if [ -z "$shadowed" ]; then
+    check "no-shadowed-configuration" "true" "true" "runtime" "no drop-in repeats a variable an env file already declares"
+  else
+    check "no-shadowed-configuration" "false" "true" "runtime" "a drop-in shadows an env file declaration:${shadowed}"
+  fi
+  local zombies
+  zombies="$(find "$config" "$units" -maxdepth 2 \( -name '*.disabled' -o -name '*.before*' -o -name '*.orig' \) 2>/dev/null | tr '\n' ' ')"
+  if [ -z "$zombies" ]; then
+    check "no-zombie-config" "true" "false" "runtime" "no disabled or backed-up configuration left behind"
+  else
+    check "no-zombie-config" "false" "false" "runtime" "leftover configuration: ${zombies}"
+  fi
+  # The immutable release is the only source of runtime code. A second installation elsewhere can
+  # bypass release rollback and the unit's read-only view of /opt/open-deskos.
+  if [ -e "${HOME}/.local/share/open-deskos/voice-releases" ]; then
+    check "single-voice-installation" "false" "true" "runtime" "a voice agent is installed outside the immutable release"
+  else
+    check "single-voice-installation" "true" "false" "runtime" "runtime code exists only under the active release"
+  fi
+}
+
 release_evidence
 if [ -n "${ACTIVE_RUNTIME_DIR:-}" ]; then
   DIR="$ACTIVE_RUNTIME_DIR"
@@ -232,6 +291,7 @@ else
   check "kiosk-process" "false" "true" "runtime" "no active Electron kiosk process found"
 fi
 service_evidence "open-deskos-remote-bridge.service" "false" "peripheral"
+configuration_evidence
 
 MEM_TOTAL="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
 MEM_AVAIL="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"

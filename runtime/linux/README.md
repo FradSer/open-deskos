@@ -26,6 +26,7 @@ src/main.js                         Electron main process, kiosk, and IPC
 src/opencode-go.js                  Linux OpenCode Go request/auth/response parsing
 src/renderer/                       Sandboxed DOM shell, plugins, and declarative layout
 docs/AI_PLUGIN_GUIDE.md 插件契约和扩展步骤
+docs/CONFIGURATION.md    环境变量清单：分层、声明者、消费者与默认值
 tests/features/         中文 Gherkin 场景
 tests/smoke.sh          分辨率、token、骨架和核心架构检查
 scripts/start-kiosk.sh  kiosk 启动包装器

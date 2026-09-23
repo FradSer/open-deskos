@@ -237,6 +237,10 @@ stage_task_host_service || {
   echo "Required Hosted Pi control component could not be installed; check ${TARGET_HOME}/.config/open-deskos/pi-tasks.json and the release contents, then re-run the installer." >&2
   exit 1
 }
+stage_desk_link_service || {
+  echo "Desk Link unit could not be staged; check the release contents, then re-run the installer." >&2
+  exit 1
+}
 
 if [ -d "${RUNTIME_ROOT}/current" ]; then
   $SUDO env \

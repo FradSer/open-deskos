@@ -47,6 +47,8 @@ test('a required component that cannot be staged fails the installation naming i
   assert.match(installer, /Required Voice Agent component could not be installed.*voice-agent\.env/s)
   assert.match(installer, /stage_task_host_service \|\| \{/)
   assert.match(installer, /Required Hosted Pi control component could not be installed.*pi-tasks\.json/s)
+  assert.match(installer, /stage_desk_link_service \|\| \{/)
+  assert.match(installer, /Desk Link unit could not be staged/)
   assert.match(installer, /start_required_services \|\| \{/)
   assert.doesNotMatch(installer, /install_voice_agent_service \|\| echo/)
   assert.doesNotMatch(installer, /install_task_host_service \|\| echo/)
@@ -127,6 +129,9 @@ test('required units are staged from the candidate on the stable runtime path', 
     for (const unit of ['open-deskos-voice-agent.service', 'open-deskos-pi-tasks.service']) {
       fs.copyFileSync(path.join(integrationTree(), 'systemd', unit), path.join(candidate, 'systemd', unit))
     }
+    // Desk Link is templated at the release root, not inside the voice integration.
+    fs.mkdirSync(path.join(releaseRoot, 'systemd'), { recursive: true })
+    fs.copyFileSync('systemd/open-deskos-desk-link.service', path.join(releaseRoot, 'systemd/open-deskos-desk-link.service'))
     fs.symlinkSync(releaseRoot, path.join(dir, 'runtime/current'))
     const staged = spawnSync('bash', ['-c', `
       set -euo pipefail
@@ -144,20 +149,24 @@ test('required units are staged from the candidate on the stable runtime path', 
       usermod() { :; }
       stage_voice_agent_service
       stage_task_host_service
+      stage_desk_link_service
     `, 'test', helperPath, dir], { encoding: 'utf8' })
     assert.equal(staged.status, 0, staged.stderr)
     const units = path.join(home, '.config/systemd/user')
     const tasks = fs.readFileSync(path.join(units, 'open-deskos-pi-tasks.service'), 'utf8')
     const voice = fs.readFileSync(path.join(units, 'open-deskos-voice-agent.service'), 'utf8')
-    for (const unit of [tasks, voice]) {
+    const link = fs.readFileSync(path.join(units, 'open-deskos-desk-link.service'), 'utf8')
+    for (const unit of [tasks, voice, link]) {
       assert.ok(unit.includes('__OPEN_DESKOS_') === false, unit)
       assert.doesNotMatch(unit, /releases\//, 'a staged unit must use the stable runtime path')
     }
     assert.ok(tasks.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/voice-agent/src/task-daemon.mjs`), tasks)
     assert.ok(tasks.includes(`WorkingDirectory=${dir}/runtime/current/integrations/voice-agent`), tasks)
+    assert.ok(link.includes(`ExecStart=/usr/bin/env node ${dir}/runtime/current/scripts/desk-link-service.js`), link)
     const calls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
     assert.match(calls, /--user daemon-reload/)
     assert.match(calls, /--user enable open-deskos-voice-agent\.service/)
+    assert.match(calls, /--user enable open-deskos-desk-link\.service/)
     assert.doesNotMatch(calls, /restart|pi-tasks/)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -194,6 +203,22 @@ test('required services start after activation and wait for the task configurati
     const configuredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
     assert.match(configuredCalls, /--user enable --now open-deskos-pi-tasks\.service/)
     assert.doesNotMatch(configured.stderr, /staged but not enabled/)
+
+    // Desk Link listens on the LAN, so a staged unit without its own token must stay stopped and say
+    // which configuration it waits for; with the token it starts under the same command.
+    const linkUnit = path.join(home, '.config/systemd/user/open-deskos-desk-link.service')
+    fs.mkdirSync(path.dirname(linkUnit), { recursive: true })
+    fs.writeFileSync(linkUnit, '[Service]\nExecStart=/usr/bin/env node /runtime/current/scripts/desk-link-service.js\n')
+    fs.writeFileSync(path.join(dir, 'systemctl.log'), '')
+    const tokenless = run()
+    assert.equal(tokenless.status, 0, tokenless.stderr)
+    assert.match(tokenless.stderr, /ODK_DESK_LINK_TOKEN/)
+    assert.doesNotMatch(fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8'), /desk-link/)
+    fs.writeFileSync(path.join(home, '.config/open-deskos/runtime.env'), 'ODK_DESK_LINK_TOKEN=private\n', { mode: 0o600 })
+    fs.writeFileSync(path.join(dir, 'systemctl.log'), '')
+    const tokened = run()
+    assert.equal(tokened.status, 0, tokened.stderr)
+    assert.match(fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8'), /--user enable --now open-deskos-desk-link\.service/)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

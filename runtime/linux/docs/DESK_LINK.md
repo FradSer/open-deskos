@@ -61,18 +61,21 @@ printf 'ODK_DESK_LINK_TOKEN=%s\n' '<a shared secret, one per desk runtime>' >> "
 chmod 600 "$f"
 ```
 
-Install and start the provided unit as that same kiosk user. It is a user unit,
-so a copy installed under another account is invisible to the service:
+The runtime installer stages this unit from the active release and starts it as
+soon as `runtime.env` carries the token, so provisioning the secret is the only
+step an operator takes. It is a user unit, so a copy installed under another
+account is invisible to the service:
 
 ```bash
-mkdir -p ~/.config/systemd/user
-sed "s#__OPEN_DESKOS_DESK_LINK_DIR__#/opt/open-deskos/current#" \
-  /opt/open-deskos/current/systemd/open-deskos-desk-link.service \
-  > ~/.config/systemd/user/open-deskos-desk-link.service
-systemctl --user daemon-reload
+printf 'ODK_DESK_LINK_TOKEN=%s\n' '<a shared secret, one per desk runtime>' >> ~/.config/open-deskos/runtime.env
+chmod 600 ~/.config/open-deskos/runtime.env
 systemctl --user enable --now open-deskos-desk-link.service
 systemctl --user status open-deskos-desk-link.service --no-pager
 ```
+
+If the unit is not installed yet, run the runtime installer again; it derives the
+unit from `systemd/open-deskos-desk-link.service` in the active release instead
+of asking for a hand-sed copy that would drift from the release.
 
 Expect `listening on <lan-address>:8765`. To run it by hand first, source the
 environment file instead of passing the token as an argument:

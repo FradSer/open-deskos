@@ -27,8 +27,11 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   This is where coding tools work, never the `current` symlink or release tree.
   The installer does not clone a repository, configure Git identity, or deploy
   changes produced by the agent.
-- `ODESK_VOICE_STT_KEY_FILE`: a mode-`0600` device-local file containing the STT
-  credential. Provision through the operator's normal secret-management process.
+- `ODESK_VOICE_STT_KEY_FILE`: required only when transcription is not the
+  device-local loopback bridge; a mode-`0600` file containing the STT credential,
+  provisioned through the operator's normal secret-management process. The loopback
+  bridge ignores a bearer and needs no credential, so a device using
+  `integrations/local-stt-bridge` omits both this variable and its file.
 - `ODESK_VOICE_AUDIO_DEVICE=default`: uses the user's ALSA default input. Override
   only after verifying the actual capture device as that user.
 - `ODESK_VOICE_STT_URL`: optional; defaults to
@@ -36,16 +39,17 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   for loopback hosts when a device-local speech service (for example
   `integrations/local-stt-bridge`) handles transcription; remote hosts still
   require HTTPS and URLs never carry credentials.
-- `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1`.
+- `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1`. The loopback bridge
+  ignores the field, so a device-local endpoint has no reason to set it.
 - `ODESK_VOICE_MODEL`: optional Pi `provider/id` model selection. Configure provider
   authentication separately on the CM5 under the kiosk user's Pi auth storage
   (`~/.pi/agent/auth.json`); the STT key does not authenticate the coding model.
-- `PI_SESSION_CONTROL_COMMAND`: executable for the session-control tools;
-  provision it separately on the target session host if those tools are needed.
-- `PI_SESSION_CONTROL_SSH_HOST`: optional authenticated SSH host for controlling
-  sessions on another machine. With this set, the command above must be an
-  absolute executable path on that host. Configure kiosk-user SSH keys and
-  known_hosts separately; prompts travel through stdin, never shell arguments.
+- `ODESK_TASK_TARGETS_FILE`: the voice coordinator's own Hosted Pi target list
+  (see @../../integrations/voice-agent/docs/MANAGED_TASKS.md). Declare it in the
+  voice service's environment — `voice-agent.env`, or a
+  `open-deskos-voice-agent.service.d/*.conf` drop-in when the operator prefers
+  to keep it beside the host's `pi-tasks.json`. systemd applies both, and a
+  drop-in wins over the env file, so set it in exactly one of them.
 
 Never copy the developer's `.pi`, auth files, `.env`, or `node_modules` to the
 CM5. Integration staging excludes these common private/local artifacts; release

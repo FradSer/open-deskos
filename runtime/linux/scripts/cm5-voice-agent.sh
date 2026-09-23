@@ -62,12 +62,38 @@ stage_task_host_service() {
   run_as_target_user systemctl --user daemon-reload
 }
 
+# Stages the Desk Link listener from the candidate release. Its unit is templated like the two
+# above, so the desk never runs a hand-written copy that drifts; starting it is the separate step,
+# because a desk without a Control/Reporting token is a reporting-only desk and must stay one.
+stage_desk_link_service() {
+  local template="${RELEASE_DIR}/systemd/open-deskos-desk-link.service"
+  local install_dir="${RUNTIME_ROOT}/current"
+  local unit_dir="${TARGET_HOME}/.config/systemd/user"
+  local unit="${unit_dir}/open-deskos-desk-link.service"
+  [ -f "${template}" ] || return 0
+  run_as_target_user mkdir -p "${unit_dir}" || return 1
+  sed -e "s|__OPEN_DESKOS_DESK_LINK_DIR__|${install_dir}|g" "${template}" > "${unit}" || return 1
+  $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
+  $SUDO chmod 0644 "${unit}" || return 1
+  run_as_target_user systemctl --user daemon-reload || return 1
+  run_as_target_user systemctl --user enable open-deskos-desk-link.service
+}
+
 # Runs after activation, so both services execute the release that is now active, and after a fresh
 # installation, where the activation transaction never ran. Start is idempotent: an update that
 # already restarted them through the transaction skips this without a second interruption.
 start_required_services() {
   local config="${TARGET_HOME}/.config/open-deskos/pi-tasks.json"
   run_as_target_user systemctl --user start open-deskos-voice-agent.service || return 1
+  # Desk Link is a listener on the LAN, so it starts only when its own secret exists. Staged without
+  # one it stays stopped rather than running unauthenticated.
+  if [ -f "${TARGET_HOME}/.config/systemd/user/open-deskos-desk-link.service" ]; then
+    if grep -q '^ODK_DESK_LINK_TOKEN=' "${TARGET_HOME}/.config/open-deskos/runtime.env" 2>/dev/null; then
+      run_as_target_user systemctl --user enable --now open-deskos-desk-link.service
+    else
+      echo "Desk Link unit staged but not enabled: set ODK_DESK_LINK_TOKEN in ${TARGET_HOME}/.config/open-deskos/runtime.env, then run 'systemctl --user enable --now open-deskos-desk-link.service'." >&2
+    fi
+  fi
   # The daemon refuses to start without its private configuration and the unit restarts on failure,
   # so a host that has not created one keeps the unit staged and stopped instead of crash-looping.
   if [ ! -f "${config}" ]; then
