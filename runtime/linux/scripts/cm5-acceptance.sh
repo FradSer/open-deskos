@@ -145,6 +145,17 @@ configuration_evidence() {
   else
     check "single-voice-installation" "true" "false" "runtime" "runtime code exists only under the active release"
   fi
+  local root="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+  local strays="" candidate
+  for candidate in "$root"/integrations "$root"/src "$root"/scripts; do
+    [ -e "$candidate" ] && strays="${strays} ${candidate}"
+  done
+  strays="${strays}$(find "$root" -mindepth 2 -maxdepth 4 -type d -name integrations 2>/dev/null | grep -v "^${root}/releases/" | grep -v "^${root}/staging/" | tr '\n' ' ')"
+  if [ -z "$strays" ]; then
+    check "no-stray-runtime-code" "true" "true" "runtime" "${root} holds only current, previous, releases, state and staging"
+  else
+    check "no-stray-runtime-code" "false" "true" "runtime" "runtime copies outside the release:${strays}"
+  fi
 }
 
 release_evidence

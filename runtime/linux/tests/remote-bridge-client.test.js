@@ -4,7 +4,20 @@ const { EventEmitter } = require('node:events')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { RemoteBridge } = require('../../../integrations/remote-bridge/lib/remote-bridge')
+
+// The runtime runs from a checkout (integrations beside runtime/linux) or from a release (flattened to
+// the release root with integrations sealed beside it). Resolve the integration instead of assuming
+// one depth: a checkout-only path used to find a stale copy beside the release root on a device, so
+// preflight validated code that was not in the release.
+function remoteBridgeLib() {
+  for (const base of ['../integrations', '../../../integrations']) {
+    const candidate = path.join(__dirname, base, 'remote-bridge/lib/remote-bridge')
+    if (fs.existsSync(`${candidate}.js`)) return candidate
+  }
+  throw new Error(`remote-bridge integration tree not found from ${__dirname}`)
+}
+
+const { RemoteBridge } = require(remoteBridgeLib())
 
 const {
   createRemoteBridgeClient,

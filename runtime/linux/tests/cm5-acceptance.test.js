@@ -9,11 +9,11 @@ const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-accept
 
 // Runs the real report against a fixture home, so the configuration invariants are asserted by their
 // result rather than by the presence of their name in the script.
-function acceptance(home) {
+function acceptance(home, extra = {}) {
   const result = spawnSync('bash', ['scripts/cm5-acceptance.sh'], {
     cwd: path.join(__dirname, '..'),
     encoding: 'utf8',
-    env: { PATH: process.env.PATH, HOME: home, XDG_RUNTIME_DIR: path.join(home, 'run') },
+    env: { PATH: process.env.PATH, HOME: home, XDG_RUNTIME_DIR: path.join(home, 'run'), ODK_RUNTIME_ROOT: path.join(home, 'no-such-runtime'), ...extra },
   })
   const report = JSON.parse(result.stdout.slice(result.stdout.indexOf('{')))
   return name => report.checks.find(entry => entry.name === name)
@@ -61,6 +61,7 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /"no-shadowed-configuration"/)
   assert.match(script, /"no-zombie-config"/)
   assert.match(script, /"single-voice-installation"/)
+  assert.match(script, /"no-stray-runtime-code"/)
   assert.match(script, /^configuration_evidence$/m)
   assert.match(script, /"required"/)
   assert.match(script, /"class"/)
@@ -104,4 +105,19 @@ test('CM5 acceptance accepts one declaration per fact', t => {
   assert.equal(check('no-shadowed-configuration').ok, true)
   assert.equal(check('no-zombie-config').ok, true)
   assert.equal(check('single-voice-installation').ok, true)
+  assert.equal(check('no-stray-runtime-code').ok, true)
+})
+
+// A stale copy of runtime code beside the release once made the release's own preflight read the
+// wrong tree. The report must name it instead of leaving it invisible.
+test('CM5 acceptance reports runtime code copied outside the release', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    'runtime/integrations/voice-agent/src/main.mjs': '// stale copy\n',
+  })
+  const check = acceptance(home, { ODK_RUNTIME_ROOT: path.join(home, 'runtime') })
+  const stray = check('no-stray-runtime-code')
+  assert.equal(stray.ok, false)
+  assert.equal(stray.required, true)
+  assert.match(stray.detail, /runtime\/integrations/)
 })

@@ -4,11 +4,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 // The runtime runs from a development checkout (runtime/linux beside integrations) or from a release
-// (runtime/linux flattened to the release root, integrations sealed beside it). Every path here is
-// resolved in both layouts rather than assuming one depth, so the inventory is enforced in preflight
-// on a candidate release too.
+// (runtime/linux flattened to the release root, integrations sealed beside it). The layout is decided
+// by what this directory holds, never by walking up: a stale integrations tree elsewhere on the host
+// must not become the tree this test reads.
 const RUNTIME = process.cwd()
-const REPO_ROOT = fs.existsSync(path.join(RUNTIME, '..', '..', 'integrations')) ? path.resolve(RUNTIME, '..', '..') : RUNTIME
+const RELEASE_LAYOUT = fs.existsSync(path.join(RUNTIME, 'integrations'))
+const REPO_ROOT = RELEASE_LAYOUT ? RUNTIME : path.resolve(RUNTIME, '..', '..')
 const DOC = path.join(RUNTIME, 'docs/CONFIGURATION.md')
 
 const CODE = /\.(mjs|cjs|js|py)$/
@@ -47,8 +48,10 @@ function readersByFile() {
   }
   tree(path.join(RUNTIME, 'src'), CODE, visit)
   tree(path.join(RUNTIME, 'scripts'), CODE, visit)
+  tree(path.join(RUNTIME, 'integrations'), CODE, visit)
   tree(path.join(REPO_ROOT, 'integrations'), CODE, visit)
   tree(path.join(RUNTIME, 'scripts'), SHELL, visit)
+  tree(path.join(RUNTIME, 'integrations'), SHELL, visit)
   tree(path.join(REPO_ROOT, 'integrations'), SHELL, visit)
   return found
 }
@@ -58,6 +61,7 @@ function readersByFile() {
 function declaredByUnits() {
   const files = []
   tree(path.join(RUNTIME, 'systemd'), /\.service$/, file => files.push(file))
+  tree(path.join(RUNTIME, 'integrations'), /\.service$/, file => files.push(file))
   tree(path.join(REPO_ROOT, 'integrations'), /\.service$/, file => files.push(file))
   tree(path.join(REPO_ROOT, 'integrations'), /\.plist$/, file => files.push(file))
   const declared = new Map()
@@ -85,12 +89,11 @@ function inventory() {
   return rows
 }
 
-// A consumer path is written repository-relative; resolve it in a checkout or in a release.
+// A consumer path is written repository-relative; in a release the runtime is flattened, so the same
+// reference resolves against this directory instead of the checkout that no longer exists.
 function consumerPath(reference) {
-  for (const candidate of [path.join(REPO_ROOT, reference), path.join(RUNTIME, reference.replace(/^runtime\/linux\//, ''))]) {
-    if (fs.existsSync(candidate)) return candidate
-  }
-  return null
+  const candidate = RELEASE_LAYOUT ? path.join(RUNTIME, reference.replace(/^runtime\/linux\//, '')) : path.join(REPO_ROOT, reference)
+  return fs.existsSync(candidate) ? candidate : null
 }
 
 test('the inventory lists every variable the runtime and integrations read', () => {
