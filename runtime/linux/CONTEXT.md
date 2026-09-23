@@ -31,7 +31,7 @@ Widgets share desktop grid pages with built-in tiles; their persisted placement 
 _Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
 
 **Voice Agent**:
-The resident CM5 component that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of the desk runtime, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start.
+The resident CM5 component that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of the desk runtime, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start and then list, read, continue, steer, cancel, and end under the Controllable Pi Session rules.
 _Avoid_: optional add-on, experimental service, voice feature toggle
 
 **Application Candidate**:
@@ -93,7 +93,7 @@ An installed action available to the Voice Agent, such as building a Widget/App 
 _Avoid_: keyword-only command routing, arbitrary renderer code execution
 
 **Controllable Pi Session**:
-A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed. A Hosted Pi is one such session; a Reported Session is not.
+A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed. A Hosted Pi is one such session; a Reported Session is not. Both a Console and the resident Voice Agent drive such a session through the host's own control daemon — the Console over the Desk Link's control connection, the Voice Agent over its target's control executable — so a spoken instruction and a Console instruction reach one capability rather than two profiles, while Control Attribution still names only a Console.
 _Avoid_: editing session history to inject a prompt, terminal keystroke simulation, treating observed processes as control endpoints
 
 ## Pi Sessions Inspection
