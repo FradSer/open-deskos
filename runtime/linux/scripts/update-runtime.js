@@ -110,6 +110,15 @@ function restartServices(releaseId, kiosk) {
     console.error('Remote Bridge restart did not complete; the base shell remains independently usable.')
   }
 
+  // The Desk Link Service resolves the Hosted Pi endpoint through the descriptor the daemon
+  // publishes, so it must run the release that is now active instead of the previous one. Like the
+  // Remote Bridge it is peripheral to the base shell and to voice, so a failed restart is reported
+  // rather than rolling back an activation that otherwise succeeded.
+  const linkResult = restartRequiredService(releaseId, kiosk, 'open-deskos-desk-link.service', 'desk link service')
+  if (linkResult.ok === false) {
+    console.error('Desk Link restart did not complete; restart it to run the active release, and the desk keeps reporting either way.')
+  }
+
   const voiceResult = restartRequiredService(releaseId, kiosk, 'open-deskos-voice-agent.service', 'required voice component')
   if (voiceResult.ok === false) return voiceResult
   const tasksResult = restartRequiredService(releaseId, kiosk, 'open-deskos-pi-tasks.service', 'required Hosted Pi control')
