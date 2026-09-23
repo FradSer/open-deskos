@@ -63,6 +63,82 @@ Feature: Durable per-host Hosted Pi sessions
     When a prompt arrives without stating a delivery behavior
     Then the request is refused and the running turn is unaffected
 
+  Scenario: The audio agent controls a session that already exists
+    Given a Hosted Pi recorded on a configured target with a durable task identity
+    When the voice coordinator lists that target's sessions
+    Then it receives that session's project, state, lifecycle, activity and goal
+    And the list is ordered most recently updated first
+    And a project scope is a subtree, so a configured development root lists every session under it
+    When it reads that session's history
+    Then it receives a bounded page of that session's own events
+    And no new identity or receipt is created
+    When it sends a further instruction to that idle session
+    Then the instruction runs as another turn under the same identity
+    But while that turn is executing the same prompt is refused without a delivery behavior
+    And ending the session disposes it and releases its slot while its terminal receipt stays readable
+
+  Scenario: Only the list resolves a session from a broader scope
+    Given a Hosted Pi launched in a subproject of a configured development root
+    When the list is scoped to that root
+    Then the session is reported with its own project
+    When an identity command reuses the root instead of that project
+    Then it is refused as an unknown session
+    And a different project identity is refused for the same session
+
+  Scenario: A prompt to an ended session is refused as ended
+    Given a Hosted Pi whose lifecycle is ended
+    When a further prompt names that session with its own project
+    Then the request is refused stating that the Hosted Pi has ended
+    And it is not reported as a malformed prompt
+    And no replacement session is created or started
+
+  Scenario: A session whose launch is in flight is refused as starting
+    Given an accepted Hosted Pi whose SDK session has not been built yet
+    When a prompt, a history read or an attach names that session
+    Then it is refused as starting rather than as ended
+    And its lifecycle still reports launching
+    And a session that then fails to build reports its own failure once
+
+  Scenario: Repeating an end never rewrites a terminal receipt
+    Given a Hosted Pi whose lifecycle is already ended or interrupted
+    When it is ended again
+    Then the request is accepted and changes nothing
+    And its recorded turn outcome, state and ending reason are unchanged
+
+  Scenario: Ending a Console-driven session clears its own record and tells that Console
+    Given a Hosted Pi that a Console is driving
+    When it is ended
+    Then the session is disposed and its slot is released
+    And that Console receives a terminal state instead of silence
+    And the Hosted Pi record stops naming a Console
+    And desk-visible Control Attribution still lives as long as the Console's held connection does
+
+  Scenario: Ending a session whose launch is still in flight settles
+    Given an accepted Hosted Pi whose launch has not completed
+    When it is ended before its session exists
+    Then the request is accepted with a terminal receipt
+    And the session built afterwards is disposed rather than left running
+    And a build that fails afterwards leaves that terminal receipt unchanged
+
+  Scenario: A reported project resolves for a symlinked development root
+    Given a configured target whose development root is a symlink
+    When a session under it is listed and its own project is then used as the identity
+    Then the project the list reported is accepted without being re-derived by the coordinator
+    And a project outside that root is still refused
+
+  Scenario: An unaddressable session is reported instead of steered
+    Given a Pi session someone started in a terminal window on the host
+    When the voice coordinator is asked to control it
+    Then no task identity resolves to it
+    And the coordinator reports it as unaddressable rather than claiming control
+
+  Scenario: An unconfigured target list is reported instead of guessed
+    Given a voice coordinator whose device-local target configuration names no target
+    When a request asks to control a session on a host
+    Then coding_targets lists no target
+    And the coordinator reports that Hosted Pi control needs its device-local configuration
+    And it does not guess a host, a project, or a root
+
   Scenario: Cancelling keeps the session alive
     Given a session with a durable identity
     When a running turn is cancelled

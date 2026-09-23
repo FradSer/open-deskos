@@ -231,7 +231,7 @@ test('trusted capability modules augment real coding tools and resume dedicated 
   await writeFile(join(dir, 'custom.mjs'), 'export default async () => [{name:"custom",execute:async()=>({content:[],details:{}})}]')
   const tools = await loadCapabilities([join(dir, 'custom.mjs')])
   assert.ok(tools.some(tool => tool.name === 'coding_targets'))
-  for (const name of ['coding_task_start', 'coding_task_status', 'coding_tasks_list', 'coding_task_cancel']) assert.ok(tools.some(tool => tool.name === name))
+  for (const name of ['coding_task_start', 'coding_task_status', 'coding_task_history', 'coding_task_prompt', 'coding_task_cancel', 'coding_task_end', 'coding_tasks_list']) assert.ok(tools.some(tool => tool.name === name))
   assert.ok(!tools.some(tool => ['live_sessions', 'send_to_session'].includes(tool.name)))
   assert.ok(tools.some(tool => tool.name === 'custom'))
   const options = agentOptions('/work/checkout', dir, tools)
@@ -254,7 +254,7 @@ test('coding tools list configuration only and route explicit project requests',
   const tools = await loadCapabilities()
   const targets = await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)
   assert.deepEqual(JSON.parse(targets.content[0].text), { targets: [{ id: 'cm5', name: '开发板', roots: ['/work'] }] })
-  for (const command of ['start', 'status', 'list', 'cancel']) {
+  for (const command of ['start', 'status', 'history', 'prompt', 'cancel', 'end', 'list']) {
     const tool = tools.find(tool => tool.name === (command === 'list' ? 'coding_tasks_list' : `coding_task_${command}`))
     const params = { target: 'cm5', project: '/work/天气', prompt: '修改已有应用', taskId: '12345678-1234-1234-1234-123456789abc' }
     const response = JSON.parse((await tool.execute('call', params, undefined)).content[0].text)

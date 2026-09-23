@@ -171,6 +171,17 @@ export async function createTaskService(input, adapter) {
     entry.idleTimer.unref?.()
   }
 
+  /**
+   * Why one session cannot be driven right now, or undefined when it can. A launch in flight is a
+   * live durable session whose SDK session does not exist yet, so it is neither drivable nor over:
+   * reporting it as ended would be false, and a second prompt before the first turn starts would
+   * have to be queued rather than steered.
+   */
+  function refusalFor(task, entry) {
+    if (entry && task.lifecycle === 'live') return undefined
+    return task.lifecycle === 'launching' ? 'Hosted Pi 正在启动' : 'Hosted Pi 已结束'
+  }
+
   function publish(task, event) {
     const attached = live.get(task.taskId)?.attached
     if (!attached?.send) return
@@ -246,6 +257,9 @@ export async function createTaskService(input, adapter) {
       })
     } catch {
       await enqueue(async () => {
+        // An explicit end or a host restart during the launch owns the receipt by now, so a session
+        // that could not be built must not rewrite a terminal state as failed.
+        if (closing || task.lifecycle !== 'launching') return
         live.delete(task.taskId)
         task.state = 'failed'; task.lifecycle = 'ended'; task.activity = undefined; task.turnOutcome = 'failed'; task.response = '任务执行失败，请检查本机会话记录'
         await persist(task).catch(() => {})
@@ -310,7 +324,8 @@ export async function createTaskService(input, adapter) {
   async function prompt(request) {
     const task = findTask(request)
     const entry = live.get(task.taskId)
-    if (!entry || task.lifecycle !== 'live') throw new Error('Hosted Pi 已结束')
+    const refusal = refusalFor(task, entry)
+    if (refusal) throw new Error(refusal)
     if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('任务 ID 或提示无效')
     if (task.activity === 'working' || entry.hosted.isStreaming) {
       if (!['steer', 'followUp'].includes(request.streamingBehavior)) throw new Error('流式提示需要 delivery behavior')
@@ -336,12 +351,18 @@ export async function createTaskService(input, adapter) {
 
   async function end(request) {
     const task = findTask(request)
+    // Ending a session that has already ended or been interrupted changes nothing, and recomputing
+    // its terminal fields would rewrite a finished turn as cancelled. Every path that reaches a
+    // terminal lifecycle also releases its live entry, so there is nothing left to dispose either.
+    if (task.lifecycle === 'ended' || task.lifecycle === 'interrupted') return { task: publicTask(task), accepted: true }
     const entry = live.get(task.taskId)
     if (entry) {
       clearIdle(entry)
       if (entry.turn) { entry.controller.abort(); await entry.hosted.abort() }
-      entry.hosted.dispose()
-      live.delete(task.taskId)
+      // A session ended while its launch was still in flight has no hosted adapter yet; its
+      // createHosted completion already disposes whatever it built once the lifecycle is not
+      // launching, so ending here must not dereference one.
+      entry.hosted?.dispose()
     }
     task.lifecycle = 'ended'
     task.activity = undefined
@@ -354,14 +375,21 @@ export async function createTaskService(input, adapter) {
       task.turnOutcome = 'cancelled'
       task.state = 'cancelled'
     }
+    // End disposes the session, so the Console that was driving it loses it here. Attribution must
+    // not outlive the session it attributed, and the attached Console is told with a terminal state
+    // rather than left holding a connection to an identity that no longer exists.
+    task.controlledBy = undefined
     await persist(task)
+    publish(task, { type: 'state', state: task.state, lifecycle: task.lifecycle, activity: task.activity, turnOutcome: task.turnOutcome, response: task.response })
+    if (entry) { entry.attached = undefined; live.delete(task.taskId) }
     return { task: publicTask(task), accepted: true }
   }
 
   async function attach(request, context) {
     const task = findTask(request)
     const entry = live.get(task.taskId)
-    if (!entry || task.lifecycle !== 'live') throw new Error('Hosted Pi 已结束')
+    const refusal = refusalFor(task, entry)
+    if (refusal) throw new Error(refusal)
     if (!validConsole(request.console) || !context?.connectionId) throw new Error('Console identity 无效')
     const after = request.after ?? request.position
     if (after !== undefined && after !== null && (!Number.isSafeInteger(after) || after < 0)) throw new Error('History position 无效')
@@ -426,7 +454,11 @@ export async function createTaskService(input, adapter) {
     const limit = request.limit ?? 64
     if (!Number.isSafeInteger(position) || position < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('History position 无效')
     const entry = live.get(task.taskId)
-    const value = entry ? entry.hosted.history(position, limit) : adapter.readHistory?.(task.sessionFile, position, limit) ?? { events: [], entries: [], boundary: 0, continuation: null }
+    // A launch in flight has no SDK session to read yet, and dereferencing one would leak a
+    // TypeError the coordinator cannot act on. A session that is already over keeps the durable
+    // path below, because its receipt stores the log it wrote.
+    if (entry && task.lifecycle === 'launching') throw new Error('Hosted Pi 正在启动')
+    const value = entry?.hosted ? entry.hosted.history(position, limit) : adapter.readHistory?.(task.sessionFile, position, limit) ?? { events: [], entries: [], boundary: 0, continuation: null }
     return { task: publicTask(task), history: value }
   }
 
@@ -482,7 +514,12 @@ export async function createTaskService(input, adapter) {
     // Validate the requested transition before writing an accepted receipt.
     if (request.command === 'prompt') {
       const entry = live.get(task.taskId)
-      if (!entry || task.lifecycle !== 'live' || !validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('Hosted Pi prompt 无效')
+      // A session that has ended, a launch that has not produced a session yet, and a prompt that
+      // cannot be used are three different refusals: a spoken request must not be answered as if
+      // its text were malformed, and a session that is still starting must not be called over.
+      const refusal = refusalFor(task, entry)
+      if (refusal) throw new Error(refusal)
+      if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('Hosted Pi prompt 无效')
       if ((task.activity === 'working' || entry.hosted.isStreaming) && !['steer', 'followUp'].includes(request.streamingBehavior)) throw new Error('流式提示需要 delivery behavior')
     } else if (request.command === 'cancel' && request.expectedTurnId !== undefined && request.expectedTurnId !== task.currentTurnId) {
       throw new Error('Turn identity 已变化')
@@ -515,7 +552,16 @@ export async function createTaskService(input, adapter) {
     if (['start', 'launch'].includes(request.command)) return launchMutation(request)
     if (request.command === 'list') {
       const project = request.project === undefined ? undefined : await admittedProject(config, request.project)
-      const all = [...records.values()].filter(task => !project || task.project === project).reverse()
+      // A project scope covers its own subtree, so naming a development root lists the sessions
+      // under it and naming a project answers for that project and everything below it. Most
+      // recently updated first, with the durable identity as the tiebreak, so a position in this
+      // answer means the same session on the next read and a spoken reference stays resolvable.
+      const all = [...records.values()]
+        .filter(task => !project || within(project, task.project))
+        .sort((a, b) => {
+          if (a.updatedAt !== b.updatedAt) return a.updatedAt < b.updatedAt ? 1 : -1
+          return a.taskId < b.taskId ? -1 : 1
+        })
       const tasks = goalPreviews(all.slice(0, 100))
       return { tasks, truncated: all.length > tasks.length }
     }

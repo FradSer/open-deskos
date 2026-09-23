@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, relative, normalize } from 'node:path'
 
@@ -33,12 +34,28 @@ export async function loadTargets(path = process.env.ODESK_TASK_TARGETS_FILE) {
   return config.targets
 }
 
+// The daemon stores and reports every project as its real path, while a target's configured roots
+// and the coordinator's own submitted paths are whatever the operator wrote. A root that is itself a
+// symlink therefore used to make the project the list just reported look like it was outside the
+// root, and the follow-up identity call was refused before it left. Either form is accepted on both
+// sides: the check still proves the project is inside the root on disk.
+function canonical(value) {
+  try { return realpathSync(value) } catch { return value }
+}
+
+function withinRoot(root, project) {
+  for (const base of new Set([root, canonical(root)])) {
+    for (const candidate of new Set([project, canonical(project)])) {
+      const suffix = relative(base, candidate)
+      if (suffix === '' || (suffix !== '..' && !suffix.startsWith('../') && !isAbsolute(suffix))) return true
+    }
+  }
+  return false
+}
+
 function validateRequest(target, request) {
   if (!['start', 'launch', 'status', 'list', 'prompt', 'cancel', 'end', 'history'].includes(request.command)) throw Error('Invalid task command')
-  if (!developmentPath(request.project) || !target.roots.some(root => {
-    const suffix = relative(root, request.project)
-    return suffix === '' || (suffix !== '..' && !suffix.startsWith('../') && !isAbsolute(suffix))
-  })) throw Error('Invalid project: select an absolute project within a configured development root')
+  if (!developmentPath(request.project) || !target.roots.some(root => withinRoot(root, request.project))) throw Error('Invalid project: select an absolute project within a configured development root')
   if (['start', 'launch', 'prompt'].includes(request.command) && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
   if (request.command === 'prompt' && request.streamingBehavior !== undefined && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('Invalid streaming behavior')
   if (['status', 'prompt', 'cancel', 'end', 'history'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
@@ -65,7 +82,10 @@ export async function taskRequest(target, request, signal = undefined, timeout =
   const response = await exchange(command, input, signal, timeout, failure)
   if (!response || response.version !== 1 || response.requestId !== payload.requestId || typeof response.ok !== 'boolean') throw failure('Invalid task response correlation')
   if (!response.ok) {
-    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求']
+    // Only the daemon's own fixed refusals are reflected. A reason an operator can act on is
+    // worthless if it arrives as "rejected": a session that has already ended and a working turn
+    // that needs a stated delivery behavior are exactly the two a spoken request hits.
+    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior']
     throw Error(safeReasons.includes(response.error) ? response.error : 'Managed task request rejected')
   }
   return response

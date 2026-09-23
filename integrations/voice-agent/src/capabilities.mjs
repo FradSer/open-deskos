@@ -69,15 +69,43 @@ function userAppTool(command, description, needsAppId = true) {
   })
 }
 
+/**
+ * Commands the coordinator may run against a target. Every command that acts on
+ * a session that already exists carries its durable task identity, because the
+ * coordinator's job is to keep working with the sessions the desk already owns,
+ * not to start a replacement when the operator says "continue".
+ */
+// The daemon accepts only a session's own project as an identity, not a broader scope: a root
+// resolves a session in the list and nowhere else, so the coordinator must carry the project the
+// list reported. Stating it on every identity tool is what keeps a spoken reference resolvable.
+const SESSION_IDENTITY = "Pass the session's own project exactly as coding_tasks_list reported it, not a broader root."
+const TASK_COMMANDS = {
+  start: { tool: 'coding_task_start', extra: { prompt: Type.String({ minLength: 1, maxLength: 16_384 }) },
+    description: 'Start an independent Pi session on an explicit configured target and project. Accepted is not completed or verified. Never retry a mutation after an unknown outcome; reconcile with status.' },
+  list: { tool: 'coding_tasks_list',
+    description: 'List the sessions recorded on a target, most recently updated first, with their project, state, lifecycle, activity, last turn outcome and a goal preview. A project scope covers that project and everything under it, so a configured development root is a valid project and lists every session under it. This is how a spoken reference such as the second working session on the desk is resolved to a durable task ID and that session\'s own project.' },
+  status: { tool: 'coding_task_status', extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }) },
+    description: `Read one recorded session by its durable task ID: lifecycle, activity, last turn outcome and latest bounded response. Finished is not verified success. ${SESSION_IDENTITY}` },
+  history: { tool: 'coding_task_history', extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }), position: Type.Optional(Type.Integer({ minimum: 0 })) },
+    description: `Read one bounded page of an existing session's own events by durable task ID, optionally after a physical position an earlier page returned. Reports what that session has produced; it creates no new session and replays nothing. ${SESSION_IDENTITY}` },
+  prompt: { tool: 'coding_task_prompt',
+    extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }), prompt: Type.String({ minLength: 1, maxLength: 16_384 }), streamingBehavior: Type.Optional(Type.Union([Type.Literal('steer'), Type.Literal('followUp')])) },
+    description: `Give an existing session a further instruction, keeping its identity: an idle session runs it as another turn, while a session already working requires streamingBehavior to steer or follow up that running turn. A session that is still starting is refused as starting, and an ended one as ended. Accepted is not completed; read status or history before reporting progress. ${SESSION_IDENTITY}` },
+  cancel: { tool: 'coding_task_cancel', extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }) },
+    description: `Abort one working turn of an existing session. The session keeps its identity and stays attachable instead of being disposed. ${SESSION_IDENTITY}` },
+  end: { tool: 'coding_task_end', extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }) },
+    description: `End an existing session, disposing it and releasing its host slot, while its terminal receipt and persisted history stay readable. Ending an already-ended session is accepted and changes nothing. Never end a session merely to escape an unknown mutation outcome; reconcile with status first. ${SESSION_IDENTITY}` },
+}
+
 function codingTaskTool(command, targets) {
+  const spec = TASK_COMMANDS[command]
   return defineTool({
-    name: command === 'list' ? 'coding_tasks_list' : `coding_task_${command}`, label: `Coding task ${command}`,
-    description: `${command} an independent Pi task on an explicit configured target and project. Accepted is not completed or verified. Never retry mutations after unknown outcomes; reconcile with status.`,
+    name: spec.tool, label: command === 'list' ? 'Coding tasks list' : `Coding task ${command}`,
+    description: spec.description,
     parameters: Type.Object({
       target: Type.Union([Type.Literal('cm5'), Type.Literal('mac')]),
       project: Type.String({ minLength: 1 }),
-      ...(command === 'start' ? { prompt: Type.String({ minLength: 1, maxLength: 16_384 }) } : {}),
-      ...(['status', 'cancel'].includes(command) ? { taskId: Type.String({ minLength: 36, maxLength: 36 }) } : {}),
+      ...spec.extra,
     }, { additionalProperties: false }),
     execute: async (_id, params, signal) => {
       const target = targets.find(target => target.id === params.target)
@@ -100,7 +128,7 @@ function coreCapabilities(targets) {
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async () => result({ targets: targets.map(({ id, name, roots }) => ({ id, name, roots })) }),
     }),
-    ...['start', 'status', 'list', 'cancel'].map(command => codingTaskTool(command, targets)),
+    ...Object.keys(TASK_COMMANDS).map(command => codingTaskTool(command, targets)),
   ]
 }
 

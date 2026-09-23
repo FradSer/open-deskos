@@ -811,6 +811,187 @@ test('attach replacement, disconnect, positioned history and audit identity are 
   assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.controlledBy, undefined)
 })
 
+test('a project scope lists its own subtree', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const first = join(f.root, 'one')
+  const second = join(f.root, 'one', 'nested')
+  const unrelated = join(f.root, 'unrelated')
+  for (const path of [first, second, unrelated]) await mkdir(path, { recursive: true })
+  const older = start(first)
+  assert.equal((await service.handle(older)).ok, true)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].release()
+  await waitState(service, older.taskId, 'settled')
+  const newer = start(second)
+  assert.equal((await service.handle(newer)).ok, true)
+  while (!adapter.sessions[1]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[1].release()
+  await waitState(service, newer.taskId, 'settled')
+  const ids = tasks => tasks.map(task => task.taskId).sort()
+  assert.deepEqual(ids((await service.handle(request('list', { project: f.root }))).tasks), [older.taskId, newer.taskId].sort())
+  assert.deepEqual(ids((await service.handle(request('list', { project: first }))).tasks), [older.taskId, newer.taskId].sort())
+  assert.deepEqual(ids((await service.handle(request('list', { project: second }))).tasks), [newer.taskId])
+  assert.deepEqual((await service.handle(request('list', { project: unrelated }))).tasks, [])
+  // The session's own project is an identity; the root it was found under is not.
+  assert.equal((await service.handle(request('status', { taskId: newer.taskId, project: second }))).ok, true)
+  assert.equal((await service.handle(request('status', { taskId: newer.taskId, project: first }))).ok, false)
+})
+
+test('list orders by most recent update rather than by the order the store enumerates', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'hosted-order-'))
+  const root = join(await realpath(dir), 'dev')
+  const stateDir = join(dir, 'state')
+  await mkdir(root)
+  await mkdir(stateDir, { recursive: true, mode: 0o700 })
+  const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333']
+  const receiptFor = (taskId, updatedAt) => ({
+    taskId, project: root, requestedProject: root, prompt: '整理项目', response: '完成',
+    state: 'finished', lifecycle: 'ended', turnOutcome: 'finished', endedReason: 'explicit',
+    verification: 'not_run', createdAt: '2026-01-01T00:00:00.000Z', updatedAt,
+  })
+  for (const id of ids) await writeFile(join(stateDir, `${id}.json`), `${JSON.stringify(receiptFor(id, '2026-01-01T00:00:00.000Z'))}\n`)
+  // The store inserts records in directory order. Timestamp them newest-first along that same
+  // order, so the answer the contract asks for is directory order itself and differs by
+  // construction from the reverse of enumeration order, whichever order this file system chose.
+  const enumeration = (await readdir(stateDir)).filter(name => name.endsWith('.json')).map(name => name.slice(0, -5))
+  for (const [index, id] of enumeration.entries()) {
+    const seconds = String(enumeration.length - index).padStart(2, '0')
+    await writeFile(join(stateDir, `${id}.json`), `${JSON.stringify(receiptFor(id, `2026-01-01T00:00:${seconds}.000Z`))}\n`)
+  }
+  const service = await createTaskService({ roots: [root], stateDir, socketPath: join(dir, 'socket', 'task.sock') }, { runTask: async () => ({ text: '', stopReason: 'stop' }) })
+  t.after(async () => { await service.close(); await rm(dir, { recursive: true, force: true }) })
+  assert.deepEqual((await service.handle(request('list', { project: root }))).tasks.map(task => task.taskId), enumeration)
+})
+
+test('repeating an end never rewrites a terminal receipt', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  adapter.sessions[0].release()
+  await waitState(service, launched.taskId, 'settled')
+  const first = await service.handle(request('end', { taskId: launched.taskId }))
+  assert.equal(first.task.state, 'finished')
+  assert.equal(first.task.turnOutcome, 'finished')
+  const second = await service.handle(request('end', { taskId: launched.taskId }))
+  assert.equal(second.ok, true)
+  assert.equal(second.task.state, 'finished')
+  assert.equal(second.task.turnOutcome, 'finished')
+  assert.equal(second.task.endedReason, 'explicit')
+})
+
+test('prompting an ended session is refused as ended rather than as a malformed prompt', async t => {
+  const f = await fixture(t)
+  const launched = start(f.root)
+  assert.equal((await f.service.handle(launched)).ok, true)
+  await settled(f.service, launched.taskId)
+  assert.equal((await f.service.handle(request('end', { taskId: launched.taskId }))).ok, true)
+  // The voice client always carries a mutation identity, so the mutation pre-check is the path a
+  // spoken request actually takes and the one this assertion has to cover.
+  const refused = await f.service.handle(request('prompt', { taskId: launched.taskId, prompt: '继续完成测试', mutationId: randomUUID() }))
+  assert.equal(refused.ok, false)
+  assert.equal(refused.error, 'Hosted Pi 已结束')
+  assert.equal((await f.service.handle(request('status', { taskId: launched.taskId }))).task.lifecycle, 'ended')
+})
+
+test('a launch in flight is refused as starting, not as ended', async t => {
+  let reject
+  const adapter = { async createSession() { await new Promise((_resolve, fail) => { reject = fail }) } }
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  assert.equal((await service.handle(launched)).task.lifecycle, 'launching')
+  // createHosted runs on setImmediate, so wait for the adapter call before refusing it.
+  await new Promise(resolve => setImmediate(resolve))
+  for (const command of ['prompt', 'attach', 'history']) {
+    const refused = await service.handle(request(command, { taskId: launched.taskId, prompt: '继续', mutationId: randomUUID(), console: { machineName: 'Mac', sessionId: 'console-1' } }), { connectionId: 'one', send: () => {} })
+    assert.equal(refused.ok, false, `${command} must not be accepted while the session is starting`)
+    assert.equal(refused.error, 'Hosted Pi 正在启动', `${command} leaked an unusable refusal`)
+  }
+  reject(new Error('no session for you'))
+  const failed = await waitState(service, launched.taskId, 'failed')
+  assert.equal(failed.turnOutcome, 'failed')
+})
+
+test('ending a session during its launch keeps the terminal receipt when the build fails', async t => {
+  let reject
+  const adapter = { async createSession() { await new Promise((_resolve, fail) => { reject = fail }) } }
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  assert.equal((await service.handle(launched)).task.lifecycle, 'launching')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await service.handle(request('end', { taskId: launched.taskId, mutationId: randomUUID() }))).ok, true)
+  reject(new Error('no session for you'))
+  await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setImmediate(resolve))
+  const record = (await service.handle(request('status', { taskId: launched.taskId }))).task
+  assert.equal(record.lifecycle, 'ended')
+  assert.equal(record.state, 'cancelled')
+  assert.equal(record.turnOutcome, 'cancelled')
+  assert.equal(record.endedReason, 'explicit')
+})
+
+test('ending a Console-attached session clears attribution and tells that Console', async t => {
+  const adapter = persistentAdapter()
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  await service.handle(launched)
+  while (!adapter.sessions[0]?.isStreaming) await new Promise(resolve => setImmediate(resolve))
+  const events = []
+  assert.equal((await service.handle(request('attach', { taskId: launched.taskId, position: 0, console: { machineName: 'Mac', sessionId: 'console-1' } }), { connectionId: 'one', send: value => events.push(value) })).ok, true)
+  adapter.sessions[0].release()
+  await waitState(service, launched.taskId, 'settled')
+  const ended = await service.handle(request('end', { taskId: launched.taskId }), { connectionId: 'one', send: () => {} })
+  assert.equal(ended.ok, true)
+  assert.equal(ended.task.lifecycle, 'ended')
+  assert.equal(ended.task.controlledBy, undefined)
+  assert.equal(events.at(-1).type, 'state')
+  assert.equal(events.at(-1).lifecycle, 'ended')
+  assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.controlledBy, undefined)
+})
+
+test('ending a session whose launch is still in flight settles instead of failing', async t => {
+  let release
+  let disposed = false
+  const adapter = {
+    async createSession() {
+      await new Promise(resolve => { release = resolve })
+      return { isStreaming: false, async prompt() { return { text: '', stopReason: undefined } }, async abort() {}, dispose() { disposed = true }, history() { return { entries: [], boundary: 0, continuation: null } } }
+    },
+  }
+  const f = await fixture(t)
+  await f.service.close()
+  const service = await createTaskService({ ...f.config, idleMs: 60_000 }, adapter)
+  t.after(() => service.close())
+  const launched = start(f.root)
+  assert.equal((await service.handle(launched)).task.lifecycle, 'launching')
+  const ended = await service.handle(request('end', { taskId: launched.taskId }))
+  assert.equal(ended.ok, true)
+  assert.equal(ended.task.lifecycle, 'ended')
+  assert.equal(ended.task.state, 'cancelled')
+  release()
+  await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(disposed, true)
+  assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.activity, undefined)
+})
+
 test('held attach socket accepts further correlated commands and streams events until disconnect', async t => {
   const { serveTasks } = await import('../src/task-protocol.mjs')
   const { connect } = await import('node:net')

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, symlink, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
@@ -22,6 +22,23 @@ test('strict SSH invocation quotes spaces and apostrophes without shell payloads
   for (const host of ['-oProxyCommand=bad', 'mac;whoami', 'mac\n']) assert.throws(() => taskCommand('/bin/helper', host), /Invalid SSH/)
   assert.throws(() => taskCommand('helper'), /absolute/)
   assert.throws(() => taskCommand('/bin/helper\n'), /Invalid/)
+})
+
+// The daemon realpaths admission, so the project a list reports is canonical. A target whose
+// configured root is itself a symlink must still accept that reported project, or a spoken
+// "continue the session I just listed" is refused before any request leaves the desk.
+test('a reported project resolves when the configured root is a symlink', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'task-symlink-root-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const real = join(dir, 'real')
+  const link = join(dir, 'link')
+  await mkdir(join(real, 'sub'), { recursive: true })
+  await symlink(real, link, 'dir')
+  const helper = await fixture(t, 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:r}))})')
+  const project = join(real, 'sub')
+  const response = await taskRequest({ ...helper, roots: [link] }, { command: 'status', project, taskId: '12345678-1234-1234-1234-123456789abc' })
+  assert.equal(response.task.project, project)
+  await assert.rejects(taskRequest({ ...helper, roots: [link] }, { command: 'status', project: join(dir, 'elsewhere'), taskId: '12345678-1234-1234-1234-123456789abc' }), /project/)
 })
 
 test('target configuration rejects duplicate IDs, unexpected keys and invalid roots', async t => {
@@ -92,9 +109,22 @@ test('reject uncorrelated, oversized and failed responses', async t => {
 })
 
 test('known daemon rejections preserve safe reasons and hide unknown text', async t => {
-  for (const reason of ['项目或主机任务已满', '未找到任务', 'private provider diagnostic']) {
+  for (const reason of ['项目或主机任务已满', '未找到任务', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
     const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
     await assert.rejects(taskRequest(configured, { command: 'list', project: '/work' }), error => {
+      assert.equal(error.message, reason === 'private provider diagnostic' ? 'Managed task request rejected' : reason)
+      return true
+    })
+  }
+})
+
+// A daemon that refuses a prompt before accepting it leaves nothing to reconcile, so the operator
+// must be told why instead of being handed the unknown-outcome warning that exists for timeouts.
+test('a refused prompt reports the reason rather than an unknown outcome', async t => {
+  for (const reason of ['Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
+    const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
+    await assert.rejects(taskRequest(configured, { command: 'prompt', project: '/work', taskId: '12345678-1234-1234-1234-123456789abc', prompt: '继续完成测试' }), error => {
+      assert.doesNotMatch(error.message, /outcome unknown|do not retry/i)
       assert.equal(error.message, reason === 'private provider diagnostic' ? 'Managed task request rejected' : reason)
       return true
     })
