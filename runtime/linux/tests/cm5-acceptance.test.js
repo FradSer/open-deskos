@@ -147,6 +147,30 @@ test('CM5 acceptance does not claim an endpoint when the host is not running', t
   assert.match(check.detail, /not active, so it publishes no endpoint/)
 })
 
+// This report is usually started over SSH, where the session type belongs to the SSH session rather
+// than to the desk. A display that answers is the fact being accepted, so a working X session must
+// not be reported as a failure just because the report was launched from a terminal.
+test('CM5 acceptance accepts a display that answers even from a non-graphical session', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    'bin/xrandr': '#!/bin/sh\nprintf "Screen 0: minimum 320 x 200, current 1920 x 1280, maximum 16384 x 16384\\nHDMI-1 connected primary 1920x1280+0+0 (normal left inverted right x axis y axis) 222mm x 148mm\\n   1920x1280     60.00*+\\n"\n',
+  })
+  // The stub stands in for a display that answers; DISPLAY itself is left unset so this test does not
+  // also launch the 60-second Electron smoke, which is a different check with its own evidence.
+  const check = acceptance(home, { XDG_SESSION_TYPE: 'tty' })
+  assert.equal(check('session-type').ok, true)
+  assert.match(check('session-type').detail, /an X display answered with mode 1920x1280/)
+  assert.equal(check('display-mode').ok, true)
+  assert.equal(check('panel-resolution').ok, true)
+  assert.match(check('panel-resolution').detail, /active mode 1920x1280/)
+
+  // With nothing answering, the same run is still a failure rather than an assumption.
+  const silent = fixture(t, { '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n' })
+  const unanswered = acceptance(silent, { XDG_SESSION_TYPE: 'tty' })
+  assert.equal(unanswered('session-type').ok, false)
+  assert.equal(unanswered('display-mode').ok, false)
+})
+
 // A stale copy of runtime code beside the release once made the release's own preflight read the
 // wrong tree. The report must name it instead of leaving it invisible.
 test('CM5 acceptance reports runtime code copied outside the release', t => {

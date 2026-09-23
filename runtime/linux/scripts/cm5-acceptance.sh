@@ -208,15 +208,22 @@ fi
 
 SESSION="${XDG_SESSION_TYPE:-unknown}"
 SESSION_DETAIL="XDG_SESSION_TYPE=${SESSION}; DISPLAY=${DISPLAY:-unset}; WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
-case "$SESSION" in
-  x11|wayland) check "session-type" "true" "true" "hardware" "$SESSION_DETAIL" ;;
-  *) check "session-type" "false" "true" "hardware" "$SESSION_DETAIL" ;;
-esac
-
+# The acceptance run itself is often started over SSH, where the session type is the SSH session's,
+# not the desk's. A display that answers is the fact being accepted, so a working X session is a
+# working X session however this report was launched; the type is only the fallback when nothing
+# answers.
 MODE=""
-if [ "$SESSION" = "x11" ] && command -v xrandr >/dev/null 2>&1; then
+if command -v xrandr >/dev/null 2>&1; then
   MODE="$(xrandr --current 2>/dev/null | grep '\*' | head -n1 | awk '{print $1}')"
 fi
+if [ "$SESSION" = "x11" ] || [ "$SESSION" = "wayland" ]; then
+  check "session-type" "true" "true" "hardware" "$SESSION_DETAIL"
+elif [ -n "$MODE" ]; then
+  check "session-type" "true" "true" "hardware" "$SESSION_DETAIL; an X display answered with mode ${MODE}"
+else
+  check "session-type" "false" "true" "hardware" "$SESSION_DETAIL"
+fi
+
 if [ -n "$MODE" ]; then
   case "$MODE" in
     1920x1080|1080x1920|1920x1280|1280x1920) PANEL_OK="true" ;;

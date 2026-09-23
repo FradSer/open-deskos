@@ -67,7 +67,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODK_CLIPROXY_URL` | L3 设备本地 | runtime.env | runtime/linux/src/opencode-go.js | — | CLIProxyAPI 管理端点；端口须与隧道转发一致 |
 | `ODK_CM5_TARGET` | L2 开发机 | cm5-stage-release.sh | runtime/linux/scripts/cm5-stage-release.sh | cm5 | ssh 目标别名 |
 | `ODK_DESK_LINK_BIND` | L3 设备本地 | runtime.env | runtime/linux/src/desk-link-service.js | — | 监听地址覆盖 |
-| `ODK_DESK_LINK_CONTROL_CREDENTIAL` | L3 设备本地（敏感） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 控制凭据；未配置即只上报 |
+| `ODK_DESK_LINK_CONTROL_CREDENTIAL` | L3 设备本地（敏感，过渡） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 控制凭据的环境变量形式：请改用 `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE`；未配置即只上报 |
+| `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` | L3 设备本地（敏感） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 控制凭据文件（0600）：推荐载体，值与 Console 侧一致 |
 | `ODK_DESK_LINK_PORT` | L3 设备本地 | runtime.env | runtime/linux/scripts/desk-link-service.js | 8765 | 监听端口；Console 侧须一致 |
 | `ODK_DESK_LINK_SOCKET` | L3 设备本地 | runtime.env | runtime/linux/scripts/desk-link-service.js | 运行时目录下默认 | desk link 服务自身的 IPC socket |
 | `ODK_DESK_LINK_TOKEN` | L3 设备本地（敏感，过渡） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 上报令牌的环境变量形式：可被同一用户的进程环境读到，请改用 `ODK_DESK_LINK_TOKEN_FILE`；两者同时设置时以文件为准 |
