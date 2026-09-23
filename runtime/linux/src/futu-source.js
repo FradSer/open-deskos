@@ -41,8 +41,11 @@ function createFutuSource({ runtimeDir, services = () => ({}), now = () => Date.
   async function refreshServices() {
     for (const [id, def] of Object.entries(declared())) {
       if (!def || typeof def.socket !== 'string' || servers.has(id)) continue
+      // A service that binds its own socket declares the absolute path once, in the shared file the
+      // shell also reads, so the shell must not restate it as a name relative to its runtime dir.
+      const socket = path.isAbsolute(def.socket) ? def.socket : path.join(runtimeDir, def.socket)
       const server = createServicePluginSocket({
-        socketPath: path.join(runtimeDir, def.socket),
+        socketPath: socket,
         services: { [id]: { revision: def.revision } },
         onSnapshot: (record) => latest.set(record.service, record),
         onStatus: (status) => {

@@ -30,14 +30,17 @@ FUTU_PORT=11111
 FUTU_RSA_FILE=$HOME/.config/open-deskos/futu-rsa.pem
 FUTU_TRADE_PWD=<trade-unlock-password>
 FUTU_INTERVAL=60
-ODESK_SOCKET=$XDG_RUNTIME_DIR/open-deskos/futu-poller.sock
 SERVICE_ID=futu-poller
-SERVICE_REVISION=dev
 EOF
 chmod 600 ~/.config/open-deskos/futu-poller.env
 
+# The socket path is declared once, in the shared file the shell also reads, so
+the poller and the shell cannot disagree about it.
+printf 'ODESK_FUTU_SOCKET=%s/open-deskos/futu-poller.sock\n' "$XDG_RUNTIME_DIR" >> ~/.config/open-deskos/runtime.env
+chmod 600 ~/.config/open-deskos/runtime.env
+
 # 4. run (tracer: foreground first, systemd unit arrives with T3)
-set -a; . ~/.config/open-deskos/futu-poller.env; set +a
+set -a; . ~/.config/open-deskos/runtime.env; . ~/.config/open-deskos/futu-poller.env; set +a
 ~/.venv/futu/bin/python poller.py
 ```
 
@@ -46,9 +49,15 @@ honestly shows "trade unlock needed".
 
 ## Shell side (tracer bootstrap)
 
-The shell creates its socket server at
-`$XDG_RUNTIME_DIR/open-deskos/<socket>`. Until the installer (T3) drives the
-registry from the installed catalog, set `ODESK_FUTU_SOCKET=futu-poller.sock`
-in the shell environment so the `futu-poller` service is registered. The
-Holdings page (`odk.tile.futu`) then renders live data; any failure renders
-the honest `unavailable` state, never invented numbers.
+The shell creates its socket server at the path `ODESK_FUTU_SOCKET` declares
+(absolute, under `$XDG_RUNTIME_DIR/open-deskos/`), so the same declaration in
+`runtime.env` serves both sides. Until the installer (T3) drives the
+registry from the installed catalog, that variable is what registers the
+`futu-poller` service. The Holdings page (`odk.tile.futu`) then renders live
+data; any failure renders the honest `unavailable` state, never invented
+numbers.
+
+The shell's dev fallback declares revision `dev`, which is also the poller's
+default. A packaged revision has to be declared on both sides (`SERVICE_REVISION`
+for the poller and the shell's fallback) — that coupling is not yet derived from
+one source.
