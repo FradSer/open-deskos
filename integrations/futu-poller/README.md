@@ -49,15 +49,14 @@ honestly shows "trade unlock needed".
 
 ## Shell side (tracer bootstrap)
 
-The shell creates its socket server at the path `ODESK_FUTU_SOCKET` declares
-(absolute, under `$XDG_RUNTIME_DIR/open-deskos/`), so the same declaration in
-`runtime.env` serves both sides. Until the installer (T3) drives the
-registry from the installed catalog, that variable is what registers the
+The shell connects to the path `ODESK_FUTU_SOCKET` declares (absolute, under
+`$XDG_RUNTIME_DIR/open-deskos/`), so one declaration in `runtime.env` serves
+both sides and neither can drift from the other. Until the installer (T3) drives
+the registry from the installed catalog, that variable is what registers the
 `futu-poller` service. The Holdings page (`odk.tile.futu`) then renders live
 data; any failure renders the honest `unavailable` state, never invented
 numbers.
 
-The shell's dev fallback declares revision `dev`, which is also the poller's
-default. A packaged revision has to be declared on both sides (`SERVICE_REVISION`
-for the poller and the shell's fallback) — that coupling is not yet derived from
-one source.
+A packaged revision is declared once too: set `ODESK_FUTU_SERVICE_REVISION` in
+`runtime.env`, and both the poller's handshake and the shell's expectation use
+that value instead of two copies of `dev`.

@@ -13,9 +13,9 @@ never printed, logged, or placed in the package.
   FUTU_RSA_FILE      client copy of the gateway RSA private key
   FUTU_TRADE_PWD     trade unlock password (positions require unlock)
   FUTU_INTERVAL      poll interval seconds (default 60)
-  ODESK_FUTU_SOCKET  shell socket path, declared once in runtime.env (absolute)
+  ODESK_FUTU_SOCKET         shell socket path, declared once in runtime.env (absolute)
+  ODESK_FUTU_SERVICE_REVISION  package revision the shell expects (default dev)
   SERVICE_ID         service identity (default futu-poller)
-  SERVICE_REVISION   package revision (default dev)
 """
 
 import json
@@ -146,7 +146,7 @@ def main():
     interval = int(os.environ.get("FUTU_INTERVAL", "60"))
     sock_path = os.environ.get("ODESK_FUTU_SOCKET", "")
     service = os.environ.get("SERVICE_ID", "futu-poller")
-    revision = os.environ.get("SERVICE_REVISION", "dev")
+    revision = os.environ.get("ODESK_FUTU_SERVICE_REVISION", "dev")
 
     link = ShellLink(sock_path, service, revision) if sock_path else None
     contexts = []
