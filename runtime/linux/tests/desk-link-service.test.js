@@ -21,6 +21,37 @@ function tempSocket(name) {
   return { dir, socketPath: path.join(dir, 'service.sock') }
 }
 
+// A Unix socket file outlives its listener, so a restart used to fail with EADDRINUSE: a service that
+// could never come back after its first stop, and an activation that restarts it would have
+// crash-looped. The stale path is removed when it is a socket this user owns, and anything else at
+// that path is refused instead of deleted.
+test('a restart over its own socket file succeeds and a stop withdraws the path', async () => {
+  const { dir, socketPath } = tempSocket('restart')
+  const first = createDeskLinkService({ token: 'tok', socketPath, port: 0, host: '127.0.0.1' })
+  await first.start()
+  assert.equal(fs.lstatSync(socketPath).isSocket(), true)
+  await first.stop()
+  assert.equal(fs.existsSync(socketPath), false, 'a stopped service must not leave a runtime channel behind')
+
+  // The same path, twice, with no manual cleanup in between.
+  const second = createDeskLinkService({ token: 'tok', socketPath, port: 0, host: '127.0.0.1' })
+  await second.start()
+  await second.stop()
+  const third = createDeskLinkService({ token: 'tok', socketPath, port: 0, host: '127.0.0.1' })
+  await third.start()
+  try { assert.equal(fs.lstatSync(socketPath).isSocket(), true) } finally { await third.stop() }
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('a non-socket at the socket path is refused rather than deleted', async () => {
+  const { dir, socketPath } = tempSocket('occupied')
+  fs.writeFileSync(socketPath, 'private notes')
+  const service = createDeskLinkService({ token: 'tok', socketPath, port: 0, host: '127.0.0.1' })
+  await assert.rejects(service.start(), /exists and is not a socket/)
+  assert.equal(fs.readFileSync(socketPath, 'utf8'), 'private notes', 'the file must be left untouched')
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 async function withService(run, options = {}) {
   const { dir, socketPath } = tempSocket('svc')
   const service = createDeskLinkService({ token: 'tok', socketPath, port: 0, host: '127.0.0.1', ...options })

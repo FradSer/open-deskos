@@ -904,11 +904,24 @@ function createDeskLinkService({
       await fs.promises.chmod(socketPath, 0o600)
   }
 
+  // A Unix socket file outlives the process that listened on it, so a restart used to fail with
+  // EADDRINUSE and a service that could never come back. The file is removed when it is a socket the
+  // current user owns, which is the only thing the runtime channel trusts anyway; anything else at
+  // that path is refused rather than deleted, and removal is limited to that one path.
+  async function removeStaleSocket() {
+    let stat
+    try { stat = await fs.promises.lstat(socketPath) } catch (error) { if (error.code === 'ENOENT') return; throw error }
+    if (!stat.isSocket()) throw new Error(`refusing ${socketPath}: it exists and is not a socket`)
+    if (stat.uid !== process.getuid()) throw new Error(`refusing ${socketPath}: it is not owned by this user`)
+    await fs.promises.unlink(socketPath)
+  }
+
 
   return {
     listenHost,
     async start() {
       if (started) return { host: listenHost, port: server.address().port }
+      await removeStaleSocket()
       server.maxConnections = MAX_CONNECTIONS
       await new Promise((resolve, reject) => {
         server.once('error', reject)
@@ -938,6 +951,9 @@ function createDeskLinkService({
         new Promise((resolve) => server.close(resolve)),
         new Promise((resolve) => socketServer.close(resolve)),
       ])
+      // The socket file is not closed by close(), so it is withdrawn here: a stopped service must not
+      // leave a path that looks like a runtime channel.
+      await fs.promises.unlink(socketPath).catch(error => { if (error.code !== 'ENOENT') throw error })
       machines.clear()
       controlAttributions.clear()
       pendingControlAttachments.clear()

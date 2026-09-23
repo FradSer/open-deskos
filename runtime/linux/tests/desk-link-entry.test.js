@@ -31,6 +31,7 @@ test('the reporting token comes from a file, and the environment form still work
   assert.match(refused.stderr, /ODK_DESK_LINK_TOKEN_FILE \(preferred\) or ODK_DESK_LINK_TOKEN/)
 
   for (const [label, variables] of [['file', { ODK_DESK_LINK_TOKEN_FILE: file }], ['environment', { ODK_DESK_LINK_TOKEN: 'env-token' }]]) {
+    // Both cases reuse one socket path on purpose: the second start proves the first stop withdrew it.
     const child = spawn(process.execPath, [entry], { env: { ...env(dir), ...variables }, stdio: ['ignore', 'pipe', 'pipe'] })
     t.after(() => child.kill())
     let stdout = ''
