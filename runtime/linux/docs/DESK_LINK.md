@@ -50,15 +50,19 @@ configured link. `/open-deskos` inside Pi shows the link state, machine, reporte
 
 The service listens on the local network only and authenticates every Desk Link with the token. Its channel to the runtime is a Unix socket in an owner-only directory, authenticated by filesystem ownership rather than by the token.
 
-The unit reads its token from `~/.config/open-deskos/runtime.env`, the same
-file the shell already loads. Put it there (mode `600`) rather than on a command
-line, where any local account could read it from `/proc/<pid>/cmdline`:
+The unit reads its token from a mode-`0600` file, named by
+`ODK_DESK_LINK_TOKEN_FILE` in `~/.config/open-deskos/runtime.env`, the same
+file the shell already loads. A value in the unit's environment is readable by
+anything that can read this user's process environment, so the file is the
+carrier to provision; `ODK_DESK_LINK_TOKEN=<secret>` still works for the
+migration window, and setting the file makes the service refuse the environment
+form instead of choosing between two values:
 
 ```bash
 sudo -iu <kiosk-user>            # the account that runs the desk shell
-f=~/.config/open-deskos/runtime.env
-printf 'ODK_DESK_LINK_TOKEN=%s\n' '<a shared secret, one per desk runtime>' >> "$f"
-chmod 600 "$f"
+umask 077; printf '%s\n' '<a shared secret, one per desk runtime>' > ~/.config/open-deskos/desk-link.token
+printf 'ODK_DESK_LINK_TOKEN_FILE=%s\n' "$HOME/.config/open-deskos/desk-link.token" >> ~/.config/open-deskos/runtime.env
+chmod 600 ~/.config/open-deskos/runtime.env
 ```
 
 The runtime installer stages this unit from the active release and starts it as
@@ -108,7 +112,7 @@ Reported sessions carry identity, state, the latest prompt as a goal, and bounde
 A **Hosted Pi** is a Pi coding session the desk hosts. A **Console**, a Pi session on another machine, can list, launch, attach to, prompt, cancel, end, and read the history of those sessions. The rules are decided in [ADR-0013](adr/0013-desk-link-carried-hosted-pi-control.md) and specified in the reporting package's `docs/spec-desk-link-hosted-pi-console.md`.
 
 - **A separate connection.** A machine that holds the Control Credential opens its own connection to the same listener. One-shot requests (list, launch, history) use a connection that closes after the answer; a connection is held open only while a Console is attached, and Control Attribution lives exactly as long as it does. No second listener and no second port exist.
-- **A separate credential, never transmitted.** The desk sends a one-time nonce; the Console answers with an HMAC-SHA256 proof over the exact UTF-8 transcript `open-deskos-control-v2\n2\n${nonce}\n${machine}\n${sessionId}`. Every control record is refused without that proof. The credential itself never appears on the wire, so watching the network yields no reusable execution token. Content remains plaintext. On the desk, provision `ODK_DESK_LINK_CONTROL_CREDENTIAL` in the Desk Link Service's private environment; on the Mac Console, provision the matching out-of-band value as `ODK_DESK_LINK_CONTROL_TOKEN`. Rotate it by replacing both private values and restarting only the Desk Link Service and Console Pi sessions; reporting continues on its separate token.
+- **A separate credential, never transmitted.** The desk sends a one-time nonce; the Console answers with an HMAC-SHA256 proof over the exact UTF-8 transcript `open-deskos-control-v2\n2\n${nonce}\n${machine}\n${sessionId}`. Every control record is refused without that proof. The credential itself never appears on the wire, so watching the network yields no reusable execution token. Content remains plaintext. On the desk, provision the value through `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` (a mode-`0600` file; `ODK_DESK_LINK_CONTROL_CREDENTIAL` in the environment still works and a file takes precedence); on the Mac Console, provision the matching out-of-band value as `ODK_DESK_LINK_CONTROL_TOKEN` in that machine's own private session environment (a mode-`0600` file it sources, not a unit's environment). Rotate it by replacing both private values and restarting only the Desk Link Service and Console Pi sessions; reporting continues on its separate token.
 - **No clock agreement is required.** The handshake transcript carries no timestamp, so the two sides need no skew tolerance: the nonce is single-use and an unauthenticated control socket is closed after 10 seconds of inactivity rather than held open indefinitely. A Console's session age is different in kind, because it measures the desk's own `updatedAt` against the Console's clock; a badly skewed Console clock therefore shows a skewed age rather than a failed handshake.
 - **The desk's path to its host.** The Hosted Pi daemon publishes where it answers, as `endpoint.json` in the session's runtime directory (`$XDG_RUNTIME_DIR/open-deskos/hosted-pi/`), and the service resolves that descriptor instead of reading the host's private configuration. The host's `pi-tasks.json` therefore has one reader, under the ownership and mode check it already applies, while the published socket cannot disagree with the one the host actually bound. `ODK_HOSTED_PI_SOCKET` is an explicit absolute-path override for isolated operation and tests. The host keeps owning Pi credentials and session storage, so a service restart does not end a live session.
 - **One coordinate for events and history.** An event batch's position is the position of one complete entry in the Hosted Pi's own session log, which the host already writes durably. A single entry can yield several Session Events, and the Console applies the whole batch before advancing that position. Attach atomically installs the live subscription and captures its fence. A resumed Attach catches up through that inclusive fence and then follows entries strictly after it. A first Attach reports the current fence without implicitly replaying earlier history; the Console requests that history explicitly. The desk keeps no replay window, so a Console can neither repeat nor silently miss events between reconnects.

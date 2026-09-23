@@ -24,7 +24,18 @@ function requiredToken(env, readFile = file => fs.readFileSync(file, 'utf8')) {
   return token
 }
 
-function controlCredential(env) {
+function controlCredential(env, readFile = file => fs.readFileSync(file, 'utf8')) {
+  const file = (env.ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE ?? '').trim()
+  if (file.length > 0) {
+    if (!path.isAbsolute(file)) throw new Error('ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE must be absolute')
+    const credential = readFile(file).trim()
+    if (credential.length === 0) {
+      // An empty credential is the documented report-only desk, which is not a failure, but it is
+      // never what an operator who created the file meant, so it is stated where the journal can show it.
+      process.stderr.write('Desktop Link Control Credential file holds no value; this desk accepts reporting only\n')
+    }
+    return credential
+  }
   return (env.ODK_DESK_LINK_CONTROL_CREDENTIAL ?? '').trim()
 }
 
