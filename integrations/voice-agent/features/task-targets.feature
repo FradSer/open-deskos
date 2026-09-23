@@ -16,10 +16,16 @@ Feature: Managed independent coding tasks
     Then the target and original task ID remain available for status reconciliation
     And the mutation is not retried
 
-  Scenario: Reject invalid configuration and ambiguous projects
-    Given duplicate IDs, unexpected configuration keys or invalid paths
+  Scenario: Reject invalid configuration and unshippable requests
+    Given duplicate IDs, unexpected configuration keys, an unnormalized project or invalid task text
     When coding targets are loaded or a task is requested
     Then the request is rejected before transport
+
+  Scenario: The host answers for project admissibility
+    Given a configured target whose declared roots do not contain the requested project
+    When the coordinator sends that request
+    Then the project travels unchanged and is not refused by the coordinator
+    And the host's own refusal is what the coordinator reports
 
   Scenario: Bound and correlate control replies
     Given an independent task on an explicitly selected target and project

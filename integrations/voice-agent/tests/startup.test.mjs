@@ -87,6 +87,26 @@ test('obsolete voice-specific workspace is not a fallback', async t => {
   assert.match(status.message, /Set ODESK_WORKSPACE /)
 })
 
+// The bridge declares its port once. Deriving the endpoint from that value is what lets a desk drop
+// the second declaration entirely, and an unusable value must never be rounded down to the cloud.
+test('the bridge port alone configures the device-local endpoint without a credential', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODK_STT_PORT: '17840',
+  })
+  assert.match(status.message, /writable checkout/)
+  assert.doesNotMatch(status.message, /ODESK_VOICE_STT_KEY_FILE/)
+})
+
+test('an unusable bridge port stops startup instead of reaching a remote endpoint', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODK_STT_PORT: 'not-a-port',
+  })
+  assert.match(status.message, /ODK_STT_PORT/)
+  assert.doesNotMatch(status.message, /not-a-port/)
+})
+
 async function keyFile(t) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-key-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
@@ -102,6 +122,17 @@ test('plain HTTP loopback STT URL is accepted for device-local speech', async t 
     ODESK_VOICE_STT_URL: 'http://127.0.0.1:17840/inference',
   })
   assert.match(status.message, /writable checkout/)
+})
+
+// The bridge ignores a bearer, so requiring a credential file for it is configuration the device
+// cannot justify. A desk that transcribes through the bridge must start without one.
+test('the device-local loopback bridge needs no STT credential at all', async t => {
+  const status = await startupStatus(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_URL: 'http://127.0.0.1:17840/inference',
+  })
+  assert.match(status.message, /writable checkout/)
+  assert.doesNotMatch(status.message, /ODESK_VOICE_STT_KEY_FILE/)
 })
 
 test('region language tags are rejected with supported language guidance', async t => {
@@ -128,9 +159,9 @@ test('oversize transcription prompts fail startup with safe guidance', async t =
 test('main wires validated transcription context including empty opt-out', async () => {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate\) \{[\s\S]*?\n\}/)[0]
-  const { transcriptionLanguage, transcriptionPrompt } = await import('../src/transcribe.mjs')
-  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', 'loadPersonalConfig', `return (${initializeSource})`)(
-    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt, async () => ({ profile: 'coding' }),
+  const { transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
+  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(
+    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }),
   )
   for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
     const runtime = await initialize({

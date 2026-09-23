@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
 
 const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: ['/work'] }
+const TASK_ID = '12345678-1234-1234-1234-123456789abc'
 
 async function fixture(t, source) {
   const dir = await mkdtemp(join(tmpdir(), 'task-client-'))
@@ -24,21 +25,26 @@ test('strict SSH invocation quotes spaces and apostrophes without shell payloads
   assert.throws(() => taskCommand('/bin/helper\n'), /Invalid/)
 })
 
-// The daemon realpaths admission, so the project a list reports is canonical. A target whose
-// configured root is itself a symlink must still accept that reported project, or a spoken
-// "continue the session I just listed" is refused before any request leaves the desk.
-test('a reported project resolves when the configured root is a symlink', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'task-symlink-root-'))
+// Admission belongs to the host, so the coordinator carries the project verbatim. Repeating the root
+// policy here is what refused a project the daemon had itself just reported whenever a configured
+// root was a symlink, and the reported project is exactly what a spoken reference has to reuse.
+test('the coordinator carries a project verbatim instead of repeating the host root policy', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'task-verbatim-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const real = join(dir, 'real')
   const link = join(dir, 'link')
   await mkdir(join(real, 'sub'), { recursive: true })
   await symlink(real, link, 'dir')
   const helper = await fixture(t, 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:r}))})')
-  const project = join(real, 'sub')
-  const response = await taskRequest({ ...helper, roots: [link] }, { command: 'status', project, taskId: '12345678-1234-1234-1234-123456789abc' })
-  assert.equal(response.task.project, project)
-  await assert.rejects(taskRequest({ ...helper, roots: [link] }, { command: 'status', project: join(dir, 'elsewhere'), taskId: '12345678-1234-1234-1234-123456789abc' }), /project/)
+  const configured = { ...helper, roots: [link] }
+  const reported = join(real, 'sub')
+  assert.equal((await taskRequest(configured, { command: 'status', project: reported, taskId: TASK_ID })).task.project, reported)
+  const outside = join(dir, 'elsewhere')
+  assert.equal((await taskRequest(configured, { command: 'status', project: outside, taskId: TASK_ID })).task.project, outside,
+    'a project outside the declared roots must travel; the host decides')
+  // The host's own refusal is what an operator sees, unchanged and unexplained further.
+  const refusing = await fixture(t, `process.stdin.once('data',d=>{const r=JSON.parse(d);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:"项目不在允许的开发目录内"}))})`)
+  await assert.rejects(taskRequest({ ...refusing, roots: [link] }, { command: 'list', project: outside }), /项目不在允许的开发目录内/)
 })
 
 test('target configuration rejects duplicate IDs, unexpected keys and invalid roots', async t => {
@@ -67,7 +73,8 @@ test('Chinese requests retain Unicode and one generated task UUID', async t => {
   assert.match(response.task.taskId, /^[0-9a-f-]{36}$/)
   assert.notEqual(response.task.taskId, response.requestId)
   await assert.rejects(taskRequest(configured, { command: 'start', project: '/work/../else', prompt: 'no' }), /project/)
-  await assert.rejects(taskRequest(configured, { command: 'start', project: '/working', prompt: 'no' }), /project/)
+  // A sibling path is not the coordinator's call: it travels, and the host answers for it.
+  assert.equal((await taskRequest(configured, { command: 'start', project: '/working', prompt: 'no' })).task.project, '/working')
 })
 
 test('unknown mutation outcomes expose original target and task ID, never retry', async t => {

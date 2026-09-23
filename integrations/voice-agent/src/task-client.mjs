@@ -1,8 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { isAbsolute, relative, normalize } from 'node:path'
+import { isAbsolute, normalize } from 'node:path'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cleanPath = value => typeof value === 'string' && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value)
@@ -34,28 +33,16 @@ export async function loadTargets(path = process.env.ODESK_TASK_TARGETS_FILE) {
   return config.targets
 }
 
-// The daemon stores and reports every project as its real path, while a target's configured roots
-// and the coordinator's own submitted paths are whatever the operator wrote. A root that is itself a
-// symlink therefore used to make the project the list just reported look like it was outside the
-// root, and the follow-up identity call was refused before it left. Either form is accepted on both
-// sides: the check still proves the project is inside the root on disk.
-function canonical(value) {
-  try { return realpathSync(value) } catch { return value }
-}
+// Admissibility belongs to the host, which owns the configured roots and is the only side that can
+// resolve them on disk. The coordinator refuses only what it cannot put on the wire — a project that
+// is not an absolute normalized path, or one carrying control characters. Repeating the root policy
+// here is what once refused a project the daemon had itself just reported, whenever a configured
+// root was a symlink, so the request now travels and the daemon's own refusal is the answer.
+const submittedProject = value => cleanPath(value) && normalize(value) === value
 
-function withinRoot(root, project) {
-  for (const base of new Set([root, canonical(root)])) {
-    for (const candidate of new Set([project, canonical(project)])) {
-      const suffix = relative(base, candidate)
-      if (suffix === '' || (suffix !== '..' && !suffix.startsWith('../') && !isAbsolute(suffix))) return true
-    }
-  }
-  return false
-}
-
-function validateRequest(target, request) {
+function validateRequest(request) {
   if (!['start', 'launch', 'status', 'list', 'prompt', 'cancel', 'end', 'history'].includes(request.command)) throw Error('Invalid task command')
-  if (!developmentPath(request.project) || !target.roots.some(root => withinRoot(root, request.project))) throw Error('Invalid project: select an absolute project within a configured development root')
+  if (!submittedProject(request.project)) throw Error('Invalid project: send an absolute normalized project path without control characters')
   if (['start', 'launch', 'prompt'].includes(request.command) && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
   if (request.command === 'prompt' && request.streamingBehavior !== undefined && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('Invalid streaming behavior')
   if (['status', 'prompt', 'cancel', 'end', 'history'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
@@ -63,7 +50,7 @@ function validateRequest(target, request) {
 }
 
 export async function taskRequest(target, request, signal = undefined, timeout = 10_000) {
-  validateRequest(target, request)
+  validateRequest(request)
   const command = taskCommand(target.executable, target.host)
   const mutationId = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command) ? (request.mutationId ?? randomUUID()) : undefined
   const payload = { version: 1, requestId: randomUUID(), command: request.command, project: request.project,

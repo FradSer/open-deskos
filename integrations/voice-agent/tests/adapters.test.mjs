@@ -35,6 +35,26 @@ test('transcription sends multipart and rejects unsafe provider results', async 
   await assert.rejects(transcribe(path, { ...config, maxAudioBytes: 2 }, undefined, fetcher), /Audio too large/)
 })
 
+// The device-local bridge ignores a bearer, so sending one would be a credential the desk cannot
+// justify, and requiring a file would block a correctly provisioned device. Both directions are
+// asserted here: no Authorization header, no key file, and the whisper.cpp request fields kept.
+test('the device-local endpoint transcribes without a credential', async t => {
+  const dir = await temp(t)
+  const path = join(dir, 'audio.wav')
+  await writeFile(path, 'RIFFaudio')
+  const config = { url: 'http://127.0.0.1:17840/inference', model: 'whisper-1' }
+  const fetcher = async (_url, options) => {
+    assert.equal(options.headers.Authorization, undefined)
+    assert.equal(options.body.get('language'), 'zh')
+    assert.equal(options.body.get('translate'), 'false')
+    assert.equal(options.body.get('file').name, 'audio.wav')
+    return new Response(JSON.stringify({ text: ' 打开今日首页 ' }))
+  }
+  assert.equal(await transcribe(path, config, undefined, fetcher), '打开今日首页')
+  // An endpoint that is not the device-local contract still proves its credential first.
+  await assert.rejects(transcribe(path, { ...config, url: 'https://example.com/transcribe' }, undefined, fetcher), /Missing transcription credential/)
+})
+
 test('uploads accept up to 25000000 bytes and reject larger files before network or credentials', async t => {
   const dir = await temp(t)
   const path = join(dir, 'audio.wav')

@@ -54,8 +54,24 @@ Production read-only POI access was verified. No real order, charge, cancellatio
 
 ## Deployment and rollback
 
-To avoid activating concurrent Shell changes, this acceptance stages a separate immutable-in-practice voice bundle under `~/.local/share/open-deskos/voice-releases/` and uses a named systemd user drop-in to override only the voice ExecStart. Existing Shell release selection, STT settings and credentials are preserved.
+The personal profile ships inside the runtime release and is selected by configuration, not by a
+second installation: `ODESK_VOICE_AGENT_CONFIG` in `voice-agent.env` points at
+`~/.config/open-deskos/personal-agent.json`, and `open-deskos-voice-agent.service` keeps running the
+active release's own `src/main.mjs`. Nothing outside `/opt/open-deskos` is part of the running voice
+agent, so release activation and rollback cover it like any other runtime change.
 
-Before activation: run `pnpm test`, `pnpm typecheck`, isolated sandbox acceptance and an independent transaction/security review. Restart only `open-deskos-voice-agent.service`. Verify both systemd activity and the private voice status socket. A text-only model probe does not validate physical MIC/STT.
+The 2026-09-17 acceptance staged a separate bundle under
+`~/.local/share/open-deskos/voice-releases/` and overrode the voice `ExecStart` through a systemd
+drop-in. That path is superseded and must not be recreated: it bypasses release rollback and the
+unit's read-only view of `/opt/open-deskos`, and a disabled drop-in left in
+`open-deskos-voice-agent.service.d/` is one rename away from being active again. Stage the profile by
+configuration instead.
 
-Rollback removes only the task-created personal voice drop-in, restores the prior voice env backup, runs `systemctl --user daemon-reload`, and restarts the voice service. Retain private ride state for reconciliation. Never roll back state to before a possibly accepted order.
+Before activation: run `pnpm test`, `pnpm typecheck`, isolated sandbox acceptance and an independent
+transaction/security review. Restart only `open-deskos-voice-agent.service`. Verify both systemd
+activity and the private voice status socket. A text-only model probe does not validate physical
+MIC/STT.
+
+Rollback clears or repoints `ODESK_VOICE_AGENT_CONFIG` in `voice-agent.env`, runs
+`systemctl --user daemon-reload`, and restarts the voice service. Retain private ride state for
+reconciliation. Never roll back state to before a possibly accepted order.

@@ -25,6 +25,12 @@ Owner approved full implementation and CM5 voice-only deployment/restart. No pro
 
 ## Activated device state
 
+The 2026-09-17 bundle and drop-in below were superseded on 2026-09-18: the personal profile now ships
+inside the release and is selected by `ODESK_VOICE_AGENT_CONFIG`, as [PERSONAL_AGENT.md](PERSONAL_AGENT.md)
+states. The out-of-release bundle, the disabled drop-in and the env rollback copy are recorded here as
+that earlier state; they are not part of the running service and should be removed rather than kept,
+because a second voice installation outside the release bypasses release rollback.
+
 - Service: `open-deskos-voice-agent.service`, active/running.
 - Voice-only bundle: `~/.local/share/open-deskos/voice-releases/personal-20260917/`.
 - Drop-in: `~/.config/systemd/user/open-deskos-voice-agent.service.d/personal-agent.conf`.

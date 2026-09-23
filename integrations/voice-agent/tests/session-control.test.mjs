@@ -77,13 +77,16 @@ test('a further instruction requires an existing identity and a delivery behavio
   assert.deepEqual([...tools.find(tool => tool.name === 'coding_task_end').parameters.required].sort(), ['project', 'target', 'taskId'])
 })
 
-test('the coordinator refuses a bad delivery behavior, an unconfigured target and a foreign project before any request leaves', async t => {
-  const { tools } = await coordinator(t)
+test('the coordinator refuses a bad delivery behavior, an unconfigured target and a malformed task ID before any request leaves', async t => {
+  const { tools, call } = await coordinator(t)
   const execute = params => tools.find(tool => tool.name === 'coding_task_prompt').execute('call', params)
   await assert.rejects(execute({ target: 'cm5', project: PROJECT, taskId: TASK_ID, prompt: '继续', streamingBehavior: 'now' }), /Invalid streaming behavior/)
   await assert.rejects(execute({ target: 'mac', project: PROJECT, taskId: TASK_ID, prompt: '继续' }), /not configured/)
-  await assert.rejects(execute({ target: 'cm5', project: '/elsewhere', taskId: TASK_ID, prompt: '继续' }), /project/)
   await assert.rejects(execute({ target: 'cm5', project: PROJECT, taskId: 'not-a-task-id', prompt: '继续' }), /Invalid task ID/)
+  await assert.rejects(execute({ target: 'cm5', project: '/work/../else', taskId: TASK_ID, prompt: '继续' }), /Invalid project/)
+  // A project outside the advertised roots is the host's answer to give, not the coordinator's: the
+  // request leaves carrying the project the operator named.
+  assert.equal((await call('coding_task_prompt', { target: 'cm5', project: '/elsewhere', taskId: TASK_ID, prompt: '继续' })).task.project, '/elsewhere')
 })
 
 test('an empty target list is reported instead of a guessed host', async t => {

@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createVoiceAgent } from './agent.mjs'
 import { record } from './recorder.mjs'
-import { transcribe, transcriptionLanguage, transcriptionPrompt, isLoopbackUrl } from './transcribe.mjs'
+import { transcribe, transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt } from './transcribe.mjs'
 import { VoiceService } from './service.mjs'
 import { listen } from './socket.mjs'
 import { loadPersonalConfig } from './personal-config.mjs'
@@ -14,13 +14,25 @@ async function initialize(env, report, onRideUpdate) {
   const personal = await loadPersonalConfig(env)
   report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
   if (personal.profile === 'coding' && !env.ODESK_WORKSPACE) throw Error('Workspace missing')
-  report('Set ODESK_VOICE_STT_KEY_FILE to a readable credential file; restart service')
-  if (!env.ODESK_VOICE_STT_KEY_FILE) throw Error('Credential missing')
-  await access(env.ODESK_VOICE_STT_KEY_FILE)
-  report('Set ODESK_VOICE_STT_URL to an HTTPS transcription endpoint, or plain HTTP loopback for device-local speech; no URL credentials')
-  const url = new URL(env.ODESK_VOICE_STT_URL || 'https://api.openai.com/v1/audio/transcriptions')
+  report('Set ODESK_VOICE_STT_URL to an HTTPS transcription endpoint, or ODK_STT_PORT for the device-local bridge; no URL credentials')
+  // The bridge port is declared once by the service that binds it. Deriving the endpoint from that
+  // same value is what keeps the desk from restating one port in two files, and an unreadable value
+  // stops startup instead of quietly sending audio to a remote endpoint.
+  const sttPort = env.ODK_STT_PORT ? env.ODK_STT_PORT : undefined
+  if (sttPort !== undefined && !/^\d{1,5}$/.test(sttPort)) {
+    report('Set ODK_STT_PORT to a port number such as 17840; restart service')
+    throw Error('Invalid transcription port')
+  }
+  const url = new URL(env.ODESK_VOICE_STT_URL || (sttPort ? `http://127.0.0.1:${sttPort}/inference` : 'https://api.openai.com/v1/audio/transcriptions'))
   if (url.username || url.password) throw Error('Invalid transcription URL')
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackUrl(url))) throw Error('Invalid transcription URL')
+  // The device-local bridge ignores a bearer, so a desk that transcribes through it needs no
+  // credential file at all. Every other endpoint still proves its credential before starting.
+  if (!isDeviceLocalStt(url)) {
+    report('Set ODESK_VOICE_STT_KEY_FILE to a readable credential file; restart service')
+    if (!env.ODESK_VOICE_STT_KEY_FILE) throw Error('Credential missing')
+    await access(env.ODESK_VOICE_STT_KEY_FILE)
+  }
   report('Set ODESK_VOICE_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
   const language = transcriptionLanguage(env.ODESK_VOICE_STT_LANGUAGE)
   report('Set ODESK_VOICE_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')

@@ -5,7 +5,12 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/tmp
-ExecStart=/opt/stt-bridge/whisper-server -m /opt/stt-bridge/ggml-base.bin --host 127.0.0.1 --port 17840
+# The port is declared once, here and in the voice agent's own environment: the unit carries the
+# default, runtime.env overrides it, and the voice agent derives its loopback endpoint from the same
+# value instead of restating it. Setup, health check and the agent therefore cannot disagree.
+Environment=ODK_STT_PORT=17840
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
+ExecStart=/opt/stt-bridge/whisper-server -m /opt/stt-bridge/ggml-base.bin --host 127.0.0.1 --port ${ODK_STT_PORT}
 Restart=always
 RestartSec=3
 UMask=0077

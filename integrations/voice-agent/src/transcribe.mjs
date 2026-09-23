@@ -19,12 +19,32 @@ export function isLoopbackUrl(url) {
   return octets.length === 4 && octets[0] === '127' && octets.every(octet => /^\d{1,3}$/.test(octet) && Number(octet) < 256)
 }
 
+/**
+ * The device-local transcription contract: the whisper.cpp inference path on loopback, which ignores
+ * a bearer and therefore needs no cloud credential. The provisioned bridge is plain HTTP; an https
+ * loopback endpoint at the same path is treated identically because it is still the desk's own
+ * service. Nothing outside that path and interface is device-local, so every other endpoint keeps
+ * its credential and its cloud request fields.
+ * @param {URL} url
+ */
+export function isDeviceLocalStt(url) {
+  return ['http:', 'https:'].includes(url.protocol) && isLoopbackUrl(url) && url.pathname === '/inference'
+}
+
 /** @param {string} [language] */
 export function transcriptionLanguage(language = 'zh') {
   if (language !== 'auto' && !/^[a-z]{2,3}$/.test(language)) {
     throw Error('Invalid transcription language')
   }
   return language
+}
+
+/** @param {string} [keyFile] */
+async function credential(keyFile) {
+  if (!keyFile) throw Error('Missing transcription credential')
+  const key = (await readFile(keyFile, 'utf8')).trim()
+  if (!key) throw Error('Missing transcription credential')
+  return key
 }
 
 /** @param {Response} response */
@@ -52,7 +72,7 @@ async function readResponse(response) {
 }
 
 /** @param {string} path
- * @param {{url:string, model:string, keyFile:string, language?:string, prompt?:string, maxAudioBytes?:number, timeoutMs?:number}} config
+ * @param {{url:string, model:string, keyFile?:string, language?:string, prompt?:string, maxAudioBytes?:number, timeoutMs?:number}} config
  * @param {AbortSignal} [signal]
  * @param {typeof fetch} [fetcher]
  */
@@ -60,22 +80,22 @@ export async function transcribe(path, config, signal, fetcher = fetch) {
   const language = transcriptionLanguage(config.language)
   const prompt = transcriptionPrompt(config.prompt)
   const url = new URL(config.url)
-  const localWhisper = ['http:', 'https:'].includes(url.protocol) && isLoopbackUrl(url) && url.pathname === '/inference'
+  const deviceLocal = isDeviceLocalStt(url)
   const limit = config.maxAudioBytes ?? 25_000_000
   if ((await stat(path)).size > limit) throw new AudioLimitError(limit)
-  const key = (await readFile(config.keyFile, 'utf8')).trim()
-  if (!key) throw Error('Missing transcription credential')
+  // A device-local endpoint ignores a bearer, so the desk does not need a credential to reach it.
+  const headers = deviceLocal ? {} : { Authorization: `Bearer ${await credential(config.keyFile)}` }
   const form = new FormData()
   form.set('model', config.model)
-  if (language !== 'auto' || localWhisper) form.set('language', language)
-  if (localWhisper) form.set('translate', 'false')
+  if (language !== 'auto' || deviceLocal) form.set('language', language)
+  if (deviceLocal) form.set('translate', 'false')
   if (prompt) form.set('prompt', prompt)
   form.set('file', new Blob([await readFile(path)], { type: 'audio/wav' }), 'audio.wav')
   const deadline = AbortSignal.timeout(config.timeoutMs ?? 45_000)
   let response
   try {
     response = await fetcher(config.url, {
-      method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form,
+      method: 'POST', headers, body: form,
       signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
       redirect: 'error',
     })

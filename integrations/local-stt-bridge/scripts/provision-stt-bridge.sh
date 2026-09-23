@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 # Run ON the CM5 as root. Idempotently provisions the device-local STT bridge:
 # a statically linked whisper.cpp server plus model under /opt/stt-bridge,
-# exposed ONLY on 127.0.0.1:17840 as the kiosk user's service.
+# exposed ONLY on 127.0.0.1 as the kiosk user's service.
 # Verifies the loopback bind and a real transcription before finishing.
 set -euo pipefail
 
 BRIDGE_DIR="/opt/stt-bridge"
 MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
 SAMPLE_WAV="${STT_SAMPLE_WAV:-/opt/qwen3-asr-1.7b/tests/test_zh.wav}"
+# The same single declaration the unit and the voice agent read: this script only mirrors the
+# default so that provisioning, the service and the agent cannot disagree about one port.
+STT_PORT="${ODK_STT_PORT:-17840}"
+if ! [[ "${STT_PORT}" =~ ^[0-9]{1,5}$ ]]; then
+  echo "ODK_STT_PORT must be a port number; got '${STT_PORT}'." >&2
+  exit 1
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run as root: provisioning writes ${BRIDGE_DIR} and installs services." >&2
@@ -69,22 +76,22 @@ run_as_target_user systemctl --user enable --now open-deskos-stt-bridge.service
 
 echo "== verifying loopback-only bind and transcription =="
 for _ in $(seq 1 30); do
-  if run_as_target_user curl -s -m 5 http://127.0.0.1:17840/health | grep -q '"ok"'; then
+  if run_as_target_user curl -s -m 5 "http://127.0.0.1:${STT_PORT}/health" | grep -q '"ok"'; then
     break
   fi
   sleep 2
 done
-run_as_target_user curl -s -m 5 http://127.0.0.1:17840/health | grep -q '"ok"' \
+run_as_target_user curl -s -m 5 "http://127.0.0.1:${STT_PORT}/health" | grep -q '"ok"' \
   || { echo "Bridge health check failed." >&2; exit 1; }
-if ss -tln | grep -q "17840"; then
-  ss -tln | grep "17840" | grep -vq "127.0.0.1:17840" \
+if ss -tln | grep -q ":${STT_PORT}\b"; then
+  ss -tln | grep ":${STT_PORT}\b" | grep -vq "127.0.0.1:${STT_PORT}" \
     && { echo "Bridge is not loopback-only; refusing." >&2; exit 1; }
 fi
 if [ -f "${SAMPLE_WAV}" ]; then
-  TEXT="$(run_as_target_user curl -s -m 120 -X POST http://127.0.0.1:17840/inference \
+  TEXT="$(run_as_target_user curl -s -m 120 -X POST "http://127.0.0.1:${STT_PORT}/inference" \
     -F "file=@${SAMPLE_WAV};type=audio/wav" -F language=zh -F response_format=json)"
   echo "sample transcript: ${TEXT}" | head -c 300
   echo
   echo "${TEXT}" | grep -q '"text"' || { echo "Transcription contract failed." >&2; exit 1; }
 fi
-echo "done. voice-agent.env: ODESK_VOICE_STT_URL=http://127.0.0.1:17840/inference"
+echo "done. the bridge listens on 127.0.0.1:${STT_PORT}; set ODK_STT_PORT in runtime.env only to change it, and the voice agent follows that value."
