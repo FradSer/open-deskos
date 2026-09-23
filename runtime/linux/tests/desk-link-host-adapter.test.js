@@ -13,15 +13,29 @@ const {
   sessionEventsFromEntry,
 } = require('../src/desk-link-host-adapter')
 
-test('the host socket comes from the existing private task-host configuration', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-host-config-'))
-  const configPath = path.join(dir, 'pi-tasks.json')
+// The host publishes its socket where the desk's Console path can find it without reading the host's
+// private configuration, so the adapter resolves that descriptor and nothing else. Reading
+// pi-tasks.json here used to be a second answer to one question, under a weaker policy.
+test('the host socket comes from the descriptor the Hosted Pi daemon publishes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-host-endpoint-'))
+  const runtimeDir = path.join(dir, 'run')
   const socketPath = path.join(dir, 'run', 'control.sock')
-  fs.writeFileSync(configPath, JSON.stringify({ roots: ['/workspace'], stateDir: path.join(dir, 'state'), socketPath }))
+  const descriptor = path.join(runtimeDir, 'open-deskos/hosted-pi/endpoint.json')
+  fs.mkdirSync(path.dirname(descriptor), { recursive: true, mode: 0o700 })
+  fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath, stateDir: path.join(dir, 'state') }), { mode: 0o600 })
   try {
-    assert.equal(resolveHostedPiSocketPath({ ODESK_TASK_CONFIG: configPath }), socketPath)
+    assert.equal(resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: runtimeDir }), socketPath)
     assert.equal(resolveHostedPiSocketPath({ ODK_HOSTED_PI_SOCKET: socketPath }), socketPath)
     assert.throws(() => resolveHostedPiSocketPath({ ODK_HOSTED_PI_SOCKET: 'relative.sock' }), /absolute/)
+    // No descriptor, an unusable one, or no session directory all mean the same thing: no host.
+    assert.equal(resolveHostedPiSocketPath({}), null)
+    assert.equal(resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: 'relative' }), null)
+    fs.writeFileSync(descriptor, JSON.stringify({ version: 2, socketPath }))
+    assert.equal(resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: runtimeDir }), null, 'a newer descriptor version must not be guessed at')
+    fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath: 'relative.sock' }))
+    assert.equal(resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: runtimeDir }), null)
+    fs.writeFileSync(descriptor, 'not json')
+    assert.equal(resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: runtimeDir }), null)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

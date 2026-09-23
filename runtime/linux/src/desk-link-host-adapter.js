@@ -10,14 +10,15 @@ const MAX_HOST_RECORD_BYTES = 256 * 1024
 const DEFAULT_CONNECT_TIMEOUT_MS = 5000
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 
-function resolveHostedPiConfigPath(env = process.env) {
-  const configured = (env.ODESK_TASK_CONFIG ?? '').trim()
-  if (configured.length > 0) {
-    if (!path.isAbsolute(configured)) throw new Error('ODESK_TASK_CONFIG must be absolute')
-    return configured
-  }
-  const home = env.HOME
-  return home && path.isAbsolute(home) ? path.join(home, '.config', 'open-deskos', 'pi-tasks.json') : null
+// The Hosted Pi host publishes where it answers, in the session's runtime directory, so the Desk Link
+// Service never reads the host's own private configuration. Reading that file here meant a second
+// reader with its own policy — this one did not check the owner or mode the daemon requires — and two
+// answers to one question. An explicit socket stays available for isolated runs and tests.
+const HOST_ENDPOINT_VERSION = 1
+
+function hostEndpointFile(env) {
+  const runtimeDir = (env.XDG_RUNTIME_DIR ?? '').trim()
+  return path.isAbsolute(runtimeDir) ? path.join(runtimeDir, 'open-deskos', 'hosted-pi', 'endpoint.json') : null
 }
 
 function resolveHostedPiSocketPath(env = process.env, readFile = fs.readFileSync) {
@@ -26,11 +27,12 @@ function resolveHostedPiSocketPath(env = process.env, readFile = fs.readFileSync
     if (!path.isAbsolute(explicit)) throw new Error('ODK_HOSTED_PI_SOCKET must be absolute')
     return explicit
   }
-  const configPath = resolveHostedPiConfigPath(env)
-  if (!configPath) return null
+  const file = hostEndpointFile(env)
+  if (!file) return null
   try {
-    const config = JSON.parse(readFile(configPath, 'utf8'))
-    return typeof config.socketPath === 'string' && path.isAbsolute(config.socketPath) ? config.socketPath : null
+    const descriptor = JSON.parse(readFile(file, 'utf8'))
+    if (descriptor?.version !== HOST_ENDPOINT_VERSION) return null
+    return typeof descriptor.socketPath === 'string' && path.isAbsolute(descriptor.socketPath) ? descriptor.socketPath : null
   } catch {
     return null
   }
@@ -298,7 +300,6 @@ function createHostedPiSocketAdapter({
 
 module.exports = {
   createHostedPiSocketAdapter,
-  resolveHostedPiConfigPath,
   resolveHostedPiSocketPath,
   taskRequest,
   normalizeTask,

@@ -33,7 +33,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `FUTU_PORT` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | 富途网关端口 |
 | `FUTU_RSA_FILE` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 网关 RSA 私钥副本路径 |
 | `FUTU_TRADE_PWD` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 交易解锁口令 |
-| `HOME` | 环境 | 登录会话 | runtime/linux/src/desk-link-host-adapter.js, runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
+| `HOME` | 环境 | 登录会话 | runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
 | `LIBGL_ALWAYS_SOFTWARE` | 环境 | 运维 | runtime/linux/src/main.js | — | 强制软件渲染，诊断用 |
 | `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/capabilities.mjs | 运行时目录下的 app 控制 socket | 仅测试覆盖，生产用默认值 |
 | `ODESK_CAMERA_DEVICE` | L3 设备本地 | 运维 | runtime/linux/src/camera-source.js | — | 相机设备覆盖 |
@@ -49,7 +49,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_SHELL_WIDTH` | 测试 | smoke/验收 | runtime/linux/src/main.js | — | 覆盖窗口宽度 |
 | `ODESK_SKIP_GPU_USERSPACE` | L2 安装期 | 安装者临时设置 | runtime/linux/scripts/cm5-install.sh | 0 | 跳过 Mali 用户态安装 |
 | `ODESK_SMOKE_RESULT_FILE` | 测试 | smoke 运行 | runtime/linux/src/main.js | — | smoke 结果输出文件 |
-| `ODESK_TASK_CONFIG` | L2 安装期 | pi-tasks unit | runtime/linux/src/desk-link-host-adapter.js, integrations/voice-agent/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Hosted Pi daemon 私有配置路径 |
+| `ODESK_TASK_CONFIG` | L2 安装期 | pi-tasks unit | integrations/voice-agent/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Hosted Pi daemon 私有配置路径：只有 daemon 读它，属主与权限也只校验一次；客户端读它发布的端点描述符 |
 | `ODESK_TASK_TARGETS_FILE` | L3 设备本地 | voice unit 环境或 drop-in | integrations/voice-agent/src/task-client.mjs | 未配置 | voice 侧目标清单；未配置即报告需要配置 |
 | `ODESK_VOICE_AGENT_CONFIG` | L3 设备本地（敏感） | voice-agent.env | integrations/voice-agent/src/personal-config.mjs | coding profile | 个人 profile 与技能/凭据路径清单 |
 | `ODESK_VOICE_AUDIO_DEVICE` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | default | ALSA 采集设备 |
@@ -70,8 +70,9 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODK_DESK_LINK_CONTROL_CREDENTIAL` | L3 设备本地（敏感） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 控制凭据；未配置即只上报 |
 | `ODK_DESK_LINK_PORT` | L3 设备本地 | runtime.env | runtime/linux/scripts/desk-link-service.js | 8765 | 监听端口；Console 侧须一致 |
 | `ODK_DESK_LINK_SOCKET` | L3 设备本地 | runtime.env | runtime/linux/scripts/desk-link-service.js | 运行时目录下默认 | desk link 服务自身的 IPC socket |
-| `ODK_DESK_LINK_TOKEN` | L3 设备本地（敏感） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 上报令牌；当前为环境变量形式 |
-| `ODK_HOSTED_PI_SOCKET` | 测试 | 测试进程 | runtime/linux/src/desk-link-host-adapter.js | 从 pi-tasks.json 读取 | 隔离运行/测试用的显式覆盖 |
+| `ODK_DESK_LINK_TOKEN` | L3 设备本地（敏感，过渡） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 上报令牌的环境变量形式：可被同一用户的进程环境读到，请改用 `ODK_DESK_LINK_TOKEN_FILE`；两者同时设置时以文件为准 |
+| `ODK_DESK_LINK_TOKEN_FILE` | L3 设备本地（敏感） | runtime.env | runtime/linux/scripts/desk-link-service.js | 未配置 | Desk Link 上报令牌文件（0600）：推荐载体，与 Console 侧的令牌值相同 |
+| `ODK_HOSTED_PI_SOCKET` | 测试 | 测试进程 | runtime/linux/src/desk-link-host-adapter.js | 从 endpoint.json 读取 | 隔离运行/测试用的显式 socket 覆盖；生产走 daemon 发布的端点描述符 |
 | `ODK_HYDRA_MQTT_TOPIC` | L3 设备本地 | shell drop-in | runtime/linux/src/main.js | — | Hydra 主题前缀 |
 | `ODK_HYDRA_MQTT_URL` | L3 设备本地 | shell drop-in | runtime/linux/src/main.js | — | Hydra MQTT 端点 |
 | `ODK_KIOSK_BIN_DIR` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/update-runtime.js | — | 注入 corepack/pnpm 垫片的目录 |
@@ -97,8 +98,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `OPEN_DESKOS_CONFIG_DIR` | L3 设备本地 | 插件 CLI | runtime/linux/scripts/open-deskos-plugin-cli.js | ~/.config/open-deskos | 插件 CLI 配置目录 |
 | `PATH` | 环境 | unit / 安装器 | runtime/linux/scripts/cm5-install.sh | — | 单元固定 kiosk 会话的 node 与垫片目录，不走交互式版本管理者的 PATH |
 | `PI_AGENT_DIR` | 环境 | Pi 运行时 | runtime/linux/src/pi-sessions.js | ~/.pi/agent | Pi 会话与认证目录 |
-| `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧由用户应用目录声明 |
-| `SERVICE_REVISION` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | dev | 与 Shell 回退声明必须一致 |
+| `ODESK_FUTU_SERVICE_REVISION` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, integrations/futu-poller/poller.py | dev | 富途服务修订号：握手与预期都用这一处声明 |
+| `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
 | `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/desk-link-client.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/user-app-system.js, runtime/linux/src/voice-agent-client.js, runtime/linux/scripts/desk-link-service.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | IPC socket 与运行时目录的根 |

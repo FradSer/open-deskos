@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -45,6 +45,13 @@ async function listSessions(client) {
   return reply
 }
 
+async function waitForPublished(descriptor) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    try { return JSON.parse(await readFile(descriptor, 'utf8')) } catch { await new Promise(resolve => setTimeout(resolve, 25)) }
+  }
+  throw new Error(`the running host published no endpoint descriptor at ${descriptor}`)
+}
+
 test('the task daemon serves its socket when started through a release symlink', async t => {
   const paths = await host(t)
   const child = start(paths.entry, paths)
@@ -66,6 +73,33 @@ test('the task daemon serves its socket when started through a release symlink',
   }
   assert.equal(response.ok, true, `serving daemon rejected a list request: ${JSON.stringify(response)}`)
   assert.deepEqual(response.tasks, [])
+})
+
+// The desk's Console path discovers this host through the published descriptor, and a descriptor left
+// behind by a stopped host claims a socket that is not there — the same lie either way for an
+// operator looking at a Console that reports no host.
+test('the running daemon publishes its endpoint and withdraws it on shutdown', async t => {
+  const paths = await host(t)
+  const descriptor = join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')
+  const child = start(paths.entry, paths)
+  t.after(() => child.kill())
+  let client
+  for (let attempt = 0; attempt < 400 && !client && child.exitCode === null; attempt++) {
+    client = await connector(paths.socket)
+    if (!client) await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.ok(client, 'daemon served no control socket')
+  t.after(() => client.destroy())
+  assert.equal((await listSessions(client)).ok, true)
+  // The host serves before it publishes, so discovery never promises a socket that cannot answer;
+  // the descriptor therefore appears just after the first successful request.
+  const published = await waitForPublished(descriptor)
+  assert.equal(published.socketPath, paths.socket, 'the descriptor must name the socket the daemon bound')
+  assert.equal(published.version, 1)
+  assert.equal((await stat(descriptor)).mode & 0o777, 0o600)
+  child.kill('SIGTERM')
+  assert.equal(await new Promise(resolve => child.once('exit', resolve)), 0)
+  assert.equal(existsSync(descriptor), false, 'a stopped host must not leave a descriptor behind')
 })
 
 test('importing the task daemon without running it starts no daemon', async t => {

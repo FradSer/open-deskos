@@ -4,6 +4,7 @@ import { loadTaskConfig } from './task-store.mjs';
 import { createTaskService } from './task-service.mjs';
 import { createHostedSession, readHostedHistory } from './task-agent.mjs';
 import { serveTasks } from './task-protocol.mjs';
+import { endpointFile, publishEndpoint, removeEndpoint } from './task-endpoint.mjs';
 
 /** @param {import('./task-store.mjs').TaskConfig} config */
 export async function startTaskDaemon(config) {
@@ -15,7 +16,22 @@ export async function startTaskDaemon(config) {
   }, connectionId => service?.disconnect(connectionId));
   try { service = await createTaskService(config, { createSession: createHostedSession, readHistory: readHostedHistory }); }
   catch (error) { await server.close(); throw error; }
-  return { async close() { await server.close(); await service.close(); } };
+  // Publishing is how the desk's Console path discovers this host, so it is part of serving. A host
+  // that cannot publish keeps voice control working and reports the Console path as unavailable
+  // instead of failing both, and the reason is stated where the unit's journal can show it.
+  const file = endpointFile();
+  let published;
+  if (file) {
+    try { await publishEndpoint(file, config); published = file; }
+    catch { process.stderr.write('Hosted Pi 已启动，但端点描述符未能发布，Console 控制将不可用\n'); }
+  }
+  return {
+    async close() {
+      await removeEndpoint(published).catch(() => {});
+      await server.close();
+      await service.close();
+    },
+  };
 }
 
 /**

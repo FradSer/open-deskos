@@ -300,7 +300,9 @@ async function main() {
       }
     } catch {}
     if (process.env.ODESK_FUTU_SOCKET && !futuServiceDefs['futu-poller']) {
-      futuServiceDefs['futu-poller'] = { revision: 'dev', socket: process.env.ODESK_FUTU_SOCKET }
+      // The revision is declared once, in the shared file the poller also reads, so a packaged
+      // revision cannot make the handshake reject the poller that is actually running.
+      futuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', socket: process.env.ODESK_FUTU_SOCKET }
     }
     try { await futuSource.refreshServices() } catch (error) {
       console.error(`futu services unavailable: ${error.message}`)

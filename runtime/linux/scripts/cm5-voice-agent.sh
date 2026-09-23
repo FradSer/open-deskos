@@ -88,10 +88,10 @@ start_required_services() {
   # Desk Link is a listener on the LAN, so it starts only when its own secret exists. Staged without
   # one it stays stopped rather than running unauthenticated.
   if [ -f "${TARGET_HOME}/.config/systemd/user/open-deskos-desk-link.service" ]; then
-    if grep -q '^ODK_DESK_LINK_TOKEN=' "${TARGET_HOME}/.config/open-deskos/runtime.env" 2>/dev/null; then
+    if grep -qE '^(ODK_DESK_LINK_TOKEN|ODK_DESK_LINK_TOKEN_FILE)=' "${TARGET_HOME}/.config/open-deskos/runtime.env" 2>/dev/null; then
       run_as_target_user systemctl --user enable --now open-deskos-desk-link.service
     else
-      echo "Desk Link unit staged but not enabled: set ODK_DESK_LINK_TOKEN in ${TARGET_HOME}/.config/open-deskos/runtime.env, then run 'systemctl --user enable --now open-deskos-desk-link.service'." >&2
+      echo "Desk Link unit staged but not enabled: set ODK_DESK_LINK_TOKEN_FILE (preferred) or ODK_DESK_LINK_TOKEN in ${TARGET_HOME}/.config/open-deskos/runtime.env, then run 'systemctl --user enable --now open-deskos-desk-link.service'." >&2
     fi
   fi
   # The daemon refuses to start without its private configuration and the unit restarts on failure,

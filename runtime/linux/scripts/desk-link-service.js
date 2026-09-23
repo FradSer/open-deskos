@@ -1,14 +1,26 @@
 #!/usr/bin/env node
 // The Open DeskOS Desk Link Service: accepts package-initiated Desk Links on the
 // local network and serves the runtime's snapshot over its own Unix socket.
+const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { createDeskLinkService } = require('../src/desk-link-service')
 const { createHostedPiSocketAdapter } = require('../src/desk-link-host-adapter')
 
-function requiredToken(env) {
+// The token is a shared secret. A value in the unit's environment is readable by anything that can
+// read this user's process environment, while a mode-0600 file is readable only by its owner, so the
+// file is the carrier to provision. The environment form still works for the migration window and is
+// refused as soon as the file form is set, so the two can never disagree about which token is in use.
+function requiredToken(env, readFile = file => fs.readFileSync(file, 'utf8')) {
+  const file = (env.ODK_DESK_LINK_TOKEN_FILE ?? '').trim()
+  if (file.length > 0) {
+    if (!path.isAbsolute(file)) throw new Error('ODK_DESK_LINK_TOKEN_FILE must be absolute')
+    const token = readFile(file).trim()
+    if (token.length === 0) throw new Error('ODK_DESK_LINK_TOKEN_FILE holds no token')
+    return token
+  }
   const token = (env.ODK_DESK_LINK_TOKEN ?? '').trim()
-  if (token.length === 0) throw new Error('ODK_DESK_LINK_TOKEN is required to accept Desk Links')
+  if (token.length === 0) throw new Error('ODK_DESK_LINK_TOKEN_FILE (preferred) or ODK_DESK_LINK_TOKEN is required to accept Desk Links')
   return token
 }
 
