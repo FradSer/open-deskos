@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const net = require('node:net')
 
 const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-acceptance.sh'), 'utf8')
 
@@ -13,7 +14,7 @@ function acceptance(home, extra = {}) {
   const result = spawnSync('bash', ['scripts/cm5-acceptance.sh'], {
     cwd: path.join(__dirname, '..'),
     encoding: 'utf8',
-    env: { PATH: process.env.PATH, HOME: home, XDG_RUNTIME_DIR: path.join(home, 'run'), ODK_RUNTIME_ROOT: path.join(home, 'no-such-runtime'), ...extra },
+    env: { PATH: `${path.join(home, 'bin')}:${process.env.PATH}`, HOME: home, XDG_RUNTIME_DIR: path.join(home, 'run'), ODK_RUNTIME_ROOT: path.join(home, 'no-such-runtime'), ...extra },
   })
   const report = JSON.parse(result.stdout.slice(result.stdout.indexOf('{')))
   return name => report.checks.find(entry => entry.name === name)
@@ -25,7 +26,7 @@ function fixture(t, files) {
   for (const [relative, contents] of Object.entries(files)) {
     const file = path.join(home, relative)
     fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(file, contents, { mode: 0o600 })
+    fs.writeFileSync(file, contents, { mode: relative.startsWith('bin/') ? 0o755 : 0o600 })
   }
   return home
 }
@@ -62,6 +63,7 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /"no-zombie-config"/)
   assert.match(script, /"single-voice-installation"/)
   assert.match(script, /"no-stray-runtime-code"/)
+  assert.match(script, /"hosted-pi-endpoint"/)
   assert.match(script, /^configuration_evidence$/m)
   assert.match(script, /"required"/)
   assert.match(script, /"class"/)
@@ -106,6 +108,43 @@ test('CM5 acceptance accepts one declaration per fact', t => {
   assert.equal(check('no-zombie-config').ok, true)
   assert.equal(check('single-voice-installation').ok, true)
   assert.equal(check('no-stray-runtime-code').ok, true)
+})
+
+// The Console path discovers the desk's own Pi host through the descriptor the daemon publishes, so
+// the report has to state whether that descriptor names a socket that is actually there.
+test('CM5 acceptance reports the published Hosted Pi endpoint rather than assuming it works', async t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    'bin/systemctl': '#!/bin/sh\nprintf "active\\n"\n',
+  })
+  const socketPath = path.join(home, 'run/gone.sock')
+  const descriptor = path.join(home, 'run/open-deskos/hosted-pi/endpoint.json')
+  fs.mkdirSync(path.dirname(descriptor), { recursive: true, mode: 0o700 })
+  fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath }), { mode: 0o600 })
+  const dead = acceptance(home)('hosted-pi-endpoint')
+  assert.equal(dead.ok, false)
+  assert.equal(dead.required, false)
+  assert.match(dead.detail, /gone\.sock is not a live socket/)
+
+  // A socket file that exists is what a Console needs; `-S` is the same test the service's connect
+  // would fail without, so a live listener is the only case that may report ok.
+  const server = net.createServer()
+  await new Promise(resolve => server.listen(socketPath, resolve))
+  t.after(() => server.close())
+  const live = acceptance(home)('hosted-pi-endpoint')
+  assert.equal(live.ok, true)
+  assert.match(live.detail, /is a live socket/)
+})
+
+test('CM5 acceptance does not claim an endpoint when the host is not running', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    'bin/systemctl': '#!/bin/sh\nprintf "inactive\\n"\n',
+    'run/open-deskos/hosted-pi/endpoint.json': '{"version":1,"socketPath":"/whatever.sock"}',
+  })
+  const check = acceptance(home)('hosted-pi-endpoint')
+  assert.equal(check.ok, false)
+  assert.match(check.detail, /not active, so it publishes no endpoint/)
 })
 
 // A stale copy of runtime code beside the release once made the release's own preflight read the

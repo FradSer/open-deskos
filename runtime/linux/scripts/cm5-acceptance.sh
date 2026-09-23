@@ -151,6 +151,38 @@ configuration_evidence() {
     [ -e "$candidate" ] && strays="${strays} ${candidate}"
   done
   strays="${strays}$(find "$root" -mindepth 2 -maxdepth 4 -type d -name integrations 2>/dev/null | grep -v "^${root}/releases/" | grep -v "^${root}/staging/" | tr '\n' ' ')"
+  # A configured remote Pi source that cannot answer makes the Pi Sessions page report no host for a
+  # reason nothing names, so the report states whether the configured host actually answers.
+  local pi_host=""
+  if command -v systemctl >/dev/null 2>&1; then
+    pi_host="$(systemctl --user show -p Environment open-deskos-shell.service 2>/dev/null | tr ' ' '\n' | sed -n 's/^ODK_PI_SSH_HOST=//p' | head -n1)"
+  fi
+  if [ -z "$pi_host" ]; then
+    check "pi-sessions-remote-source" "false" "false" "peripheral" "no ODK_PI_SSH_HOST declared, so Pi Sessions has no remote source"
+  elif timeout 12 ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new "$pi_host" true >/dev/null 2>&1; then
+    check "pi-sessions-remote-source" "true" "false" "peripheral" "${pi_host} answered SSH, so the remote Pi source can report"
+  else
+    check "pi-sessions-remote-source" "false" "false" "peripheral" "${pi_host} did not answer SSH; the remote Pi source reports no host until it does"
+  fi
+  # The Console path finds the desk's own Pi host through the descriptor the daemon publishes, so a
+  # running host without one is a Console that reports no host for a reason nothing names.
+  local runtime_dir="${XDG_RUNTIME_DIR:-}"
+  local endpoint="${runtime_dir}/open-deskos/hosted-pi/endpoint.json"
+  local tasks_state=""
+  command -v systemctl >/dev/null 2>&1 && tasks_state="$(systemctl --user is-active open-deskos-pi-tasks.service 2>/dev/null || true)"
+  if [ "$tasks_state" != "active" ]; then
+    check "hosted-pi-endpoint" "false" "false" "runtime" "the Hosted Pi service is not active, so it publishes no endpoint"
+  elif [ ! -r "$endpoint" ]; then
+    check "hosted-pi-endpoint" "false" "false" "runtime" "the Hosted Pi service is active but published no endpoint at ${endpoint}"
+  else
+    local hosted_socket
+    hosted_socket="$(grep -o '"socketPath":"[^"]*"' "$endpoint" | head -n1 | sed 's/.*:"//; s/"$//')"
+    if [ -S "$hosted_socket" ]; then
+      check "hosted-pi-endpoint" "true" "false" "runtime" "the published endpoint ${hosted_socket} is a live socket"
+    else
+      check "hosted-pi-endpoint" "false" "false" "runtime" "the published endpoint ${hosted_socket:-unknown} is not a live socket"
+    fi
+  fi
   if [ -z "$strays" ]; then
     check "no-stray-runtime-code" "true" "true" "runtime" "${root} holds only current, previous, releases, state and staging"
   else
