@@ -39,6 +39,17 @@ elif ! "${DIR}/scripts/cm5-gpu-userspace.sh" install; then
   echo "warning: Mali userspace not installed; the shell will render through llvmpipe" >&2
 fi
 
+echo "== installing the bundled CJK face for surfaces outside the Shell =="
+# Debian images here ship no CJK font, so any document the Shell does not
+# style itself (an external page, a packaged App under another theme) draws
+# Chinese as tofu boxes. Register the release's own face instead of depending on
+# a package repository; it carries GB2312 Han and CJK punctuation.
+$SUDO install -D -m 0644 "${DIR}/src/renderer/fonts/NotoSansSC-Regular.ttf" \
+  /usr/local/share/fonts/open-deskos/NotoSansSC-Regular.ttf
+if ! $SUDO fc-cache -f >/dev/null 2>&1; then
+  echo "warning: fc-cache failed; restart the session before expecting the CJK face" >&2
+fi
+
 resolve_target_user() {
   if [ "$(id -u)" -ne 0 ]; then
     id -un

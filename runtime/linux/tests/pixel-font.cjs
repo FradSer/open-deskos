@@ -12,6 +12,9 @@ const js = (win, source) => win.webContents.executeJavaScript(source)
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const endpoint = createAppManagerEndpoint()
 const samples = ['Desk runtime', '桌面运行状态 中文输入', '繁體中文 像素字體', '0123456789 13:12 100%']
+// Chinese sentences, not bare Han: a sentence ends in the punctuation and the
+// fullwidth forms that a Han-only subset of the appearance face drops.
+const cjkSamples = ['中文句子，标点。', '状态：像素 100% 完成', '「引用」——说明…（已结束）']
 
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }))
@@ -65,6 +68,39 @@ async function samplesCheck(win) {
     assert.ok(used.every(font => font.isCustomFont && /zpix/i.test(font.familyName)), JSON.stringify(used))
     console.log(`PASS actual Zpix glyphs: ${samples[index]}`)
   }
+}
+
+async function instrumentCjkCheck(win) {
+  await js(win, `odkTheme.set('instrument')`)
+  await waitForTheme(win, 'instrument')
+  await js(win, `(async () => {
+    await document.fonts.load('400 24px "Noto Sans SC"', ${JSON.stringify(cjkSamples.join(' '))});
+    await document.fonts.ready;
+    const probe = document.createElement('div');
+    probe.id = 'cjk-probes';
+    probe.style.cssText = 'position:fixed;left:0;top:0';
+    const texts = ${JSON.stringify(cjkSamples)};
+    texts.forEach((text, index) => {
+      const p = document.createElement('p');
+      p.id = 'cjk-probe-' + index;
+      p.textContent = text;
+      p.style.fontSize = '24px';
+      probe.append(p);
+    });
+    document.body.append(probe);
+    // Platform fonts are reported from the last paint; a freshly appended node
+    // can still answer with an empty list, which would look like a pass.
+    texts.forEach((text, index) => document.getElementById('cjk-probe-' + index).getBoundingClientRect());
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  })()`)
+  for (let index = 0; index < cjkSamples.length; index += 1) {
+    const { fonts } = await actualFont(win, `#cjk-probe-${index}`)
+    const used = fonts.filter(font => font.glyphCount > 0)
+    assert.ok(used.length > 0, `CJK sample ${index} has rendered glyphs: ${JSON.stringify(fonts)}`)
+    assert.ok(used.every(font => font.isCustomFont), `CJK sample ${index} fell back to a system face: ${JSON.stringify(used)}`)
+    console.log(`PASS bundled CJK glyphs: ${cjkSamples[index]}`)
+  }
+  await js(win, `document.querySelector('#cjk-probes').remove()`)
 }
 
 async function themeCheck(win) {
@@ -164,6 +200,7 @@ async function main() {
   await js(win, `odkTheme.set('pixel')`)
   await waitForTheme(win, 'pixel')
   await samplesCheck(win)
+  await instrumentCjkCheck(win)
   await themeCheck(win)
   await themeLayoutCheck(win)
   await js(win, `odkTheme.set('pixel')`)

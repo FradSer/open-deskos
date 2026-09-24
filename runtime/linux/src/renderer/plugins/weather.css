@@ -80,7 +80,7 @@
 }
 
 .w-weather-value {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: min(var(--w-weather-reading), 72cqb);
   font-weight: 700;
   line-height: 1.15;
@@ -90,7 +90,7 @@
 
 .w-weather-unit {
   margin-inline-start: 1cqi;
-  font-family: "Noto Sans SC", "Montserrat", sans-serif;
+  font-family: "Noto Sans SC", "Montserrat", "Zpix", sans-serif;
   font-size: clamp(16px, 8cqi, 28px);
   font-weight: 400;
   letter-spacing: normal;
@@ -155,7 +155,7 @@
 }
 
 .w-weather-range-value {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(20px, 10cqi, 32px);
   font-weight: 700;
   line-height: 1.3;

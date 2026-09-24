@@ -84,8 +84,8 @@ const CELL_TOKENS = {
 
 const THEME_RULES = {
   instrument: {
-    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", sans-serif' },
-    faces: ['noto-sans-sc', 'montserrat-bold'],
+    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
+    faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
   },
   pixel: {
     tokens: {
@@ -103,8 +103,8 @@ const THEME_RULES = {
   // Border Beam keeps Instrument neutrals and type; only built-in surfaces get the
   // optional perimeter, which a package frame cannot have.
   'border-beam': {
-    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", sans-serif' },
-    faces: ['noto-sans-sc', 'montserrat-bold'],
+    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
+    faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
   },
 }
 

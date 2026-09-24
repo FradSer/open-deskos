@@ -82,7 +82,7 @@ body {
   overflow: hidden;
   background: var(--odk-bg);
   color: var(--odk-primary);
-  font-family: "Noto Sans SC", "Montserrat", sans-serif;
+  font-family: "Noto Sans SC", "Montserrat", "Zpix", sans-serif;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -169,7 +169,7 @@ body.kiosk {
   margin-left: calc(var(--gutter) * 0.45);
   cursor: pointer;
   color: var(--odk-secondary-strong);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   gap: 8px;
   flex: none;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
@@ -336,7 +336,7 @@ body.kiosk {
 
 .sb-time {
   margin-left: auto;
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: calc(var(--bar-icon) * 1.1);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -443,7 +443,7 @@ body.kiosk {
 }
 
 .dash-wd {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(64px, 8vw, 128px);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -538,7 +538,7 @@ body.kiosk {
 }
 
 .quota-title {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-heading);
   font-weight: 700;
   line-height: 1.15;
@@ -599,7 +599,7 @@ body.kiosk {
 
 .provider-quota-identity strong {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(18px, 1.7vw, 24px);
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -628,7 +628,7 @@ body.kiosk {
 
 .provider-plan strong {
   color: var(--odk-primary);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(18px, 1.7vw, 24px);
 }
 
@@ -645,7 +645,7 @@ body.kiosk {
 
 .provider-quota-group-head h3 {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(18px, 1.7vw, 24px);
   line-height: 1.25;
 }
@@ -679,7 +679,7 @@ body.kiosk {
 .provider-quota-value {
   flex: none;
   color: var(--odk-primary);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(20px, 2vw, 30px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -723,7 +723,7 @@ body.kiosk {
 
 .provider-reset-credits > strong {
   color: var(--odk-primary);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(24px, 2.2vw, 34px);
 }
 
@@ -948,7 +948,7 @@ body.kiosk {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -975,7 +975,7 @@ body.kiosk {
 }
 
 .w-name {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(12px, calc(var(--cell-dim) * 0.09), 15px);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -999,7 +999,7 @@ body.kiosk {
 }
 
 .al-weekday {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(22px, 15cqi, 48px);
   font-weight: 700;
   line-height: 1;
@@ -1009,7 +1009,7 @@ body.kiosk {
 }
 
 .al-day {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(72px, 68cqi, 240px);
   font-weight: 700;
   line-height: 0.95;
@@ -1024,7 +1024,7 @@ body.kiosk {
 
 .al-month {
   padding-bottom: 0.08em;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(20px, 14cqi, 40px);
   font-weight: 700;
   line-height: 1;
@@ -1057,7 +1057,7 @@ body.kiosk {
 }
 
 .w-clock-time {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(42px, 38cqi, 136px);
   font-weight: 700;
   line-height: 1;
@@ -1081,7 +1081,7 @@ body.kiosk {
 
 .widget-signal-label {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(18px, calc(var(--cell-dim) * 0.16), 28px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1193,7 +1193,7 @@ body.kiosk {
 
 .ring-mmss {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(28px, 24cqi, 120px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1272,7 +1272,7 @@ body.kiosk {
 }
 
 .year-pct {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(56px, 39cqi, 120px);
   font-weight: 700;
   line-height: 1;
@@ -1323,7 +1323,7 @@ body.kiosk {
 
 .widget-status-name {
   color: var(--odk-secondary-strong);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
   padding-inline-end: 36px;
@@ -1343,7 +1343,7 @@ body.kiosk {
 .widget-status-value {
   margin-top: auto;
   color: var(--odk-primary);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(22px, 12cqi, 36px);
   font-weight: 700;
   line-height: 1.15;
@@ -1383,7 +1383,7 @@ body.kiosk {
 
 .runtime-app h2,
 .runtime-app h1 {
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-heading);
   font-weight: 700;
   line-height: 1.15;
@@ -1450,7 +1450,7 @@ body.kiosk {
 
 .runtime-app .runtime-value {
   padding-block: var(--odk-space-4);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(40px, 8vw, 96px);
   font-weight: 700;
   line-height: 1.1;
@@ -1655,7 +1655,7 @@ body.kiosk {
   align-items: baseline;
   margin: 0;
   color: var(--odk-primary);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(24px, 17cqi, 136px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1708,7 +1708,7 @@ body.kiosk {
 }
 
 .pi-widget-title {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
   color: var(--odk-secondary-strong);
@@ -1734,7 +1734,7 @@ body.kiosk {
 }
 
 .pi-widget-count {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(80px, 48cqi, 380px);
   font-weight: 700;
   color: var(--odk-primary);
@@ -1744,7 +1744,7 @@ body.kiosk {
 }
 
 .pi-widget-unit {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(14px, 5cqi, 26px);
   font-weight: 700;
   color: var(--odk-secondary-strong);
@@ -1762,7 +1762,7 @@ body.kiosk {
 }
 
 .pi-widget-tag-label {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: 12px;
   font-weight: 700;
   color: var(--odk-secondary-strong);
@@ -1875,7 +1875,7 @@ body.kiosk {
 
 .pi-spinner {
   flex: none;
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
   color: var(--odk-accent-green);
 }
 
@@ -1890,7 +1890,7 @@ body.kiosk {
   margin: 0;
   margin-inline-start: auto;
   flex: none;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
   color: var(--odk-secondary-strong);
@@ -1904,7 +1904,7 @@ body.kiosk {
 
 .pi-view-subtitle {
   margin: 0;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
@@ -1986,7 +1986,7 @@ body.kiosk {
 
 .pi-event-text {
   display: block;
-  font-family: "Noto Sans SC", "Montserrat", sans-serif;
+  font-family: "Noto Sans SC", "Montserrat", "Zpix", sans-serif;
   min-width: 0;
   font-size: clamp(16px, 1.05vw, 20px);
   line-height: 1.5;
@@ -2023,7 +2023,7 @@ body.kiosk {
 
 .pi-event-tool .pi-event-text,
 .pi-event-result .pi-event-text {
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
 }
 
 .pi-event-thinking .pi-event-text,
@@ -2125,7 +2125,7 @@ body.kiosk {
 }
 
 .pi-markdown code {
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
   font-size: 1em;
 }
 
@@ -2145,7 +2145,7 @@ body.kiosk {
   margin: 0;
   padding: var(--odk-space-2);
   background: var(--odk-bg);
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
   font-size: 1em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2319,7 +2319,7 @@ body.kiosk {
   min-height: 44px;
   min-width: 44px;
   padding: 8px 16px;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
   white-space: nowrap;
@@ -2405,7 +2405,7 @@ body.kiosk {
   display: flex;
   align-items: baseline;
   gap: var(--odk-space-2);
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: var(--odk-text-label);
   font-weight: 700;
   color: var(--odk-primary);
@@ -2441,7 +2441,7 @@ body.kiosk {
 
 .pi-overview-goal code,
 .pi-overview-activity code {
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
   background: var(--odk-elevated);
   padding: 1px 4px;
   border-radius: 4px;
@@ -2553,7 +2553,7 @@ body.kiosk {
 
 .pi-activity-text code,
 .pi-goal-text code {
-  font-family: monospace;
+  font-family: monospace, "Noto Sans SC", "Zpix";
   background: var(--odk-elevated);
   padding: 1px 4px;
   border-radius: 4px;
@@ -2648,7 +2648,7 @@ body.kiosk {
 }
 
 .system-overlay-alert .alert-title {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: var(--odk-primary);
@@ -2834,7 +2834,7 @@ body.kiosk {
 
 .hydra-title {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(12px, 8cqi, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -2879,7 +2879,7 @@ body.kiosk {
 .hydra-env-label {
   flex: 0 0 34%;
   color: var(--odk-secondary-strong);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(12px, 5.5cqi, 20px);
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -2894,7 +2894,7 @@ body.kiosk {
 
 .hydra-env-value {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(12px, 8cqi, 28px);
   font-weight: 700;
   line-height: 1;
@@ -2941,7 +2941,7 @@ body.kiosk {
   flex: none;
   margin-left: auto;
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", sans-serif;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   font-size: clamp(14px, 7cqi, 24px);
   font-weight: 700;
   line-height: 1;
