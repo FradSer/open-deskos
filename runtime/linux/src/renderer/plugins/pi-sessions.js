@@ -138,12 +138,6 @@
     return session.cwd || session.workspaceName || 'Unknown directory'
   }
 
-  function overviewGoal(session) {
-    const text = normalizeInline(session.latestGoal)
-    const skill = parseSkillTag(text)
-    return skill ? `[skill] ${skill.skillName}${skill.prompt ? ` ${skill.prompt}` : ''}` : text || 'No goal stated'
-  }
-
   // The state Pi is reporting right now, rendered with Pi's own indicator.
   function stateMarkup(session) {
     const working = session.status === 'running'
@@ -449,16 +443,117 @@
   let eventHtmlCacheBytes = 0
   const BODY_LIMITS = { result: '64 KiB', assistant: '16 KiB', user: '8 KiB', thinking: '4 KiB', tool: '4 KiB' }
 
+  // The desk states that Pi thought without publishing what Pi thought: until the
+  // device's runtime display asks for reasoning, a thought is one folded row that
+  // keeps its place in the stream and never carries its body into the page. The
+  // row's own words name the kind, so it repeats no assistive label for it.
+  const FOLDED_THOUGHT_KIND = 'thinking'
+  const FOLDED_THOUGHT_HTML = '<li class="pi-event pi-event-thinking is-folded"><div class="pi-event-text pi-event-body">Thinking...</div></li>'
+
+  // A folded stream says that Pi thought, not how many times it thought within
+  // one turn: the events between two of Pi's own turn boundaries — a prompt Pi
+  // received or a reply Pi finished — carry one folded row, in the place of the
+  // first thought it stands for. Nothing is dropped from the stream, and a body
+  // the device asks for is shown per thought, exactly as Pi wrote it.
+  function foldedThoughtRows(events, showReasoning) {
+    if (showReasoning) return null
+    const rows = new Set()
+    let foldedInTurn = false
+    events.forEach((event, index) => {
+      if (event.kind === 'user' || event.kind === 'assistant') {
+        foldedInTurn = false
+        return
+      }
+      if (event.kind !== FOLDED_THOUGHT_KIND) return
+      if (!foldedInTurn) rows.add(index)
+      foldedInTurn = true
+    })
+    return rows
+  }
+
+  // Pi draws every tool call and the result it produced as one box, coloured by
+  // the outcome Pi recorded for that call: pending while it runs, then its
+  // success or error surface. The stream carries the call identity Pi wrote and
+  // the error flag Pi recorded, so the box is coloured from Pi's own record
+  // rather than from the event kind. A source that reports no call identity is
+  // read in the order Pi wrote: Pi answers a call after whatever else it wrote
+  // in between, and it can run calls in parallel, so adjacency would leave a
+  // finished call on Pi's pending surface or hand one call another's outcome.
+  const TOOL_OUTCOME_CLASS = { pending: 'pi-tool-pending', success: 'pi-tool-success', error: 'pi-tool-error' }
+
+  function resultOutcome(event) {
+    return event.isError === true ? 'error' : 'success'
+  }
+
+  // Calls and results that carry no identity are paired in the order Pi wrote
+  // them. A window that begins mid-pair can only have lost calls, because a
+  // result follows the call it answers, so surplus results are matched from the
+  // newest end; a call left over has not been answered yet.
+  function unnamedToolPairs(events) {
+    const calls = []
+    const results = []
+    events.forEach((event, index) => {
+      if (event.toolCallId) return
+      if (event.kind === 'tool') calls.push(index)
+      else if (event.kind === 'result') results.push(index)
+    })
+    const resultOfCall = new Map()
+    const callOfResult = new Map()
+    const offset = Math.max(results.length - calls.length, 0)
+    calls.forEach((callIndex, position) => {
+      const resultIndex = results[position + offset]
+      if (resultIndex === undefined) return
+      resultOfCall.set(callIndex, resultIndex)
+      callOfResult.set(resultIndex, callIndex)
+    })
+    return { resultOfCall, callOfResult }
+  }
+
+  function streamOutcomes(events, pairs) {
+    const recorded = new Map()
+    for (const event of events) {
+      if (event.kind === 'result' && event.toolCallId) recorded.set(event.toolCallId, resultOutcome(event))
+    }
+    return events.map((event, index) => {
+      if (event.kind === 'result') return resultOutcome(event)
+      if (event.kind !== 'tool') return ''
+      if (event.toolCallId) return recorded.get(event.toolCallId) || 'pending'
+      const partner = events[pairs.resultOfCall.get(index)]
+      return partner ? resultOutcome(partner) : 'pending'
+    })
+  }
+
+  // One box is one surface: a result written directly below the call it answers
+  // joins it with no gap between them, and "directly below" means directly below
+  // in the reading, so a thought folded away between the two does not split the
+  // box. When either side carries Pi's call identity the two must match, so a
+  // result that belongs to another call never merges into this box. A row keeps
+  // its place in the stream, so a result Pi wrote below anything else is its own
+  // box and names the tool it reports.
+  function continuesToolBlock(events, index, pairs, previousShown) {
+    const event = events[index]
+    const previous = events[previousShown]
+    if (!event || event.kind !== 'result' || !previous) return false
+    if (previous.kind !== 'tool' && previous.kind !== 'result') return false
+    if (previous.toolCallId || event.toolCallId) return previous.toolCallId === event.toolCallId
+    return pairs.callOfResult.get(index) === previousShown
+  }
+
   // Every event keeps the body Pi produced, so a command, a prompt, or a result
   // reads in full within its own limit.
-  function renderEvent(event) {
-    const key = `${event.kind}\u0000${event.toolName || ''}\u0000${event.truncated ? 1 : 0}\u0000${event.text}`
+  function renderEvent(event, showReasoning, outcome, continues) {
+    if (event.kind === FOLDED_THOUGHT_KIND && !showReasoning) return FOLDED_THOUGHT_HTML
+    const outcomeClass = TOOL_OUTCOME_CLASS[outcome] || ''
+    const key = `${event.kind}\u0000${event.toolName || ''}\u0000${outcomeClass}\u0000${continues ? 1 : 0}\u0000${event.truncated ? 1 : 0}\u0000${event.text}`
     const cached = EVENT_HTML_CACHE.get(key)
     if (cached !== undefined) return cached.html
-    const label = event.toolName
+    // A result drawn inside the call's own box does not name the tool a second
+    // time: that box's title line is the call, exactly as Pi writes it. A result
+    // the stream carries on its own states the tool it reports.
+    const label = event.toolName && !continues
       ? `<span class="pi-result-tool">${escapeHtml(event.toolName)}</span>`
       : `<span class="pi-event-kind sr-only">${escapeHtml(event.kind)}: </span>`
-    const html = `<li class="pi-event pi-event-${escapeHtml(event.kind)}">
+    const html = `<li class="pi-event pi-event-${escapeHtml(event.kind)}${outcomeClass ? ` ${outcomeClass}` : ''}${continues ? ' pi-continues' : ''}">
       ${label}
       <div class="pi-event-text pi-event-body">${renderBody(event.text)}</div>
       ${event.truncated ? `<p class="pi-result-truncated">Message truncated at the ${BODY_LIMITS[event.kind] || '64 KiB'} safety limit.</p>` : ''}
@@ -477,14 +572,25 @@
     return html
   }
 
-  function renderEventList(state, sourceLabel) {
+  function renderEventList(state, sourceLabel, showReasoning) {
     if (state.reason === 'loading') return '<p class="pi-detail-note">Reading session events...</p>'
     if (!state.ok) return `<p class="pi-detail-note">${escapeHtml(eventNote(state.reason, sourceLabel))}</p>`
     if (state.events.length === 0) return '<p class="pi-detail-note">No session events recorded yet.</p>'
     const truncatedNote = state.truncated
       ? '<p class="pi-detail-note">Some session events are not shown here. Read the session log on the desk for the full history.</p>'
       : ''
-    return `<p class="pi-stream-label">Recent session events</p>${truncatedNote}<ol class="pi-events" id="pi-events" aria-label="Recent session events">${state.events.map(renderEvent).join('')}</ol>`
+    const events = state.events
+    const pairs = unnamedToolPairs(events)
+    const outcomes = streamOutcomes(events, pairs)
+    const folded = foldedThoughtRows(events, showReasoning)
+    const rows = []
+    let previousShown = -1
+    events.forEach((event, index) => {
+      if (folded && event.kind === FOLDED_THOUGHT_KIND && !folded.has(index)) return
+      rows.push(renderEvent(event, showReasoning, outcomes[index], continuesToolBlock(events, index, pairs, previousShown)))
+      previousShown = index
+    })
+    return `<p class="pi-stream-label">Recent session events</p>${truncatedNote}<ol class="pi-events" id="pi-events" aria-label="Recent session events">${rows.join('')}</ol>`
   }
 
   /* ---------------------------------------------------------
@@ -538,7 +644,7 @@
       : fallback
   }
 
-  function detailView({ detailEl, bodyEl, eventsHostEl }) {
+  function detailView({ detailEl, bodyEl, eventsHostEl, showReasoning }) {
     let paintedHtml = null
     let hasSession = false
     let following = false
@@ -553,26 +659,36 @@
 
     // A reading position is a place in the stream, not a pixel offset: the
     // identity block above the stream can grow between updates, and keeping
-    // scrollTop would slide the reader to a different line.
+    // scrollTop would slide the reader to a different line. The place is counted
+    // from the newest event, which survives both an appended event and the
+    // eviction of the oldest one, and the row's own text only confirms it: a
+    // folded thought repeats one line of copy across the stream.
     const readingAnchor = () => {
       if (!hasSession || following) return null
       const viewTop = detailEl.getBoundingClientRect().top
-      const row = [...eventsHostEl.querySelectorAll('.pi-event')].find((node) => node.getBoundingClientRect().bottom > viewTop)
-      if (!row) return null
-      return { text: row.querySelector('.pi-event-text')?.textContent ?? '', top: row.getBoundingClientRect().top - viewTop }
+      const rows = [...eventsHostEl.querySelectorAll('.pi-event')]
+      const index = rows.findIndex((node) => node.getBoundingClientRect().bottom > viewTop)
+      if (index === -1) return null
+      const row = rows[index]
+      return { fromNewest: rows.length - index, text: row.querySelector('.pi-event-text')?.textContent ?? '', top: row.getBoundingClientRect().top - viewTop }
     }
 
     const restoreReadingAnchor = (anchor) => {
       if (anchor === null) return
       const viewTop = detailEl.getBoundingClientRect().top
-      const row = [...eventsHostEl.querySelectorAll('.pi-event')].find((node) => (node.querySelector('.pi-event-text')?.textContent ?? '') === anchor.text)
+      const rows = [...eventsHostEl.querySelectorAll('.pi-event')]
+      const rowText = (row) => row.querySelector('.pi-event-text')?.textContent ?? ''
+      const place = rows[rows.length - anchor.fromNewest]
+      const row = place !== undefined && rowText(place) === anchor.text
+        ? place
+        : rows.find((node) => rowText(node) === anchor.text)
       if (row === undefined) return
       detailEl.scrollTop += (row.getBoundingClientRect().top - viewTop) - anchor.top
     }
 
     const paint = (state, sourceLabel) => {
       const anchor = readingAnchor()
-      const html = hasSession ? renderEventList(state, sourceLabel) : ''
+      const html = hasSession ? renderEventList(state, sourceLabel, showReasoning) : ''
       if (html === paintedHtml) {
         followLatest()
         return
@@ -678,11 +794,19 @@
           cell.classList.toggle('is-selected', isSelected)
           cell.setAttribute('aria-pressed', String(isSelected))
           cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
-          cell.querySelector('.pi-overview-goal').textContent = overviewGoal(session)
+          // Pi reports a goal and a latest content line as Markdown, so the row
+          // reads them the way the Home tile and the Session Detail read those
+          // same fields: the emphasis and the inline code are formatting rather
+          // than the syntax Pi wrote to produce them. The row keeps its own role
+          // for the line, so the goal stays body type and the latest content
+          // stays supporting text.
+          cell.querySelector('.pi-overview-goal').innerHTML = renderGoalHtml(session.latestGoal || 'No goal stated')
           cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
           const activity = cell.querySelector('.pi-overview-activity')
-          activity.textContent = normalizeInline(session.activity)
-          activity.hidden = !activity.textContent
+          const activityText = normalizeInline(session.activity)
+          activity.hidden = !activityText
+          if (activityText) activity.innerHTML = renderActivityHtml(activityText)
+          else activity.textContent = ''
         })
         while (listEl.children.length > set.length) listEl.lastElementChild.remove()
         // Only the visible view may own the Shell's focus entry point.
@@ -755,7 +879,14 @@
       const filtersEl = el.querySelector('#pi-overview-filters')
       const statusEl = el.querySelector('#pi-status')
       const filterButtons = [...el.querySelectorAll('.pi-filter-btn')]
-      const detail = detailView({ detailEl, bodyEl, eventsHostEl: el.querySelector('#pi-events-host') })
+      const detail = detailView({
+        detailEl,
+        bodyEl,
+        eventsHostEl: el.querySelector('#pi-events-host'),
+        // The device's runtime display decides whether a thought is published;
+        // the rest of the stream is the same either way.
+        showReasoning: ctx?.runtimeConfig?.piSessionReasoning === 'shown',
+      })
       const overview = overviewView({
         overviewEl: el.querySelector('#pi-overview'),
         listEl: el.querySelector('#pi-overview-list'),

@@ -1,0 +1,30 @@
+# A tool box carries the outcome Pi recorded
+
+## Status
+
+Accepted. Extends ADR-0015's "Session Event bodies read like Pi": the transcript's own surfaces, not only its Markdown and syntax colours, now follow Pi's theme roles, and Pi's recorded tool outcome travels from the session log to the page.
+
+## Context
+
+The operator inspected the running desk and reported that the Session Detail does not read like Pi. Measured on the captured live frame, the transcript carried no colour at all: the prompt sat on `--odk-elevated` `#1f1f1f`, a tool call was a `#000000` band, and the result Pi wrote for that call sat unbanded on `--odk-surface` `#171717`. Pi's own TUI gives a prompt the full-width `userMessageBg` band and every tool call one box on `toolPendingBg`, `toolSuccessBg`, or `toolErrorBg`, with the call and its output inside that one box.
+
+ADR-0015 had already borrowed Pi's Markdown, syntax, and diff colours as a documented DESIGN.md exception, but it left the transcript's containers on the desk's own tokens. Borrowing the reading colours while composing the surfaces is what produced a monochrome transcript whose text still claimed to read like Pi.
+
+Colouring a tool box raises a second question the earlier design could dodge. Pi's box colour is not decoration: it is the outcome — pending while the call runs, then success or error. The existing contract forbids inventing that state, and the event kind alone cannot supply it: a `tool` event is an assistant tool call and a `result` event is a tool result, and neither says whether the call succeeded. The state had to come from Pi's record or not be shown at all.
+
+## Decision
+
+- **A prompt is Pi's own band.** A user event renders on Pi's `userMessageBg` (`#343541`) at full width, as Pi draws it. Assistant text and a thought stay on the base surface, because that is where Pi draws them; the tool name stays a quiet supporting line.
+- **A tool call and its result read as one box.** When a result Pi wrote follows the call it belongs to, the two rows share one surface with no gap between them, so the pair reads as the single box Pi draws. Two different recorded call identities never merge, and a result that belongs to another call starts its own box rather than joining the one above it.
+- **The box carries the outcome Pi recorded, never an invented one.** The desk's event model already read each session log's `toolResult` messages; it now also carries the two fields Pi writes beside them: the tool call's own identity (`toolCall.id`, matched to `toolResult.toolCallId`) and Pi's `isError` flag. A recorded error renders on `toolErrorBg` (`#3c2828`), a recorded non-error on `toolSuccessBg` (`#283228`), and a call whose result Pi has not yet reported on `toolPendingBg` (`#282832`) — which is what Pi itself shows while a call runs. A result Pi recorded with no error flag is read the way Pi reads it, as a non-error, because that is Pi's own ternary rather than a guess by the desk.
+- **A source that reports no call identity is read in the order Pi wrote.** The Desk Link reporter currently publishes neither field, so a session read from another machine falls back to order: unnamed calls and unnamed results are paired one to one as Pi wrote them, because Pi answers a call after whatever else it wrote in between and can run calls in parallel — adjacency would leave a finished call pending or hand one call another's outcome. A window that begins mid-pair can only have lost calls, so surplus results are matched from the newest end, and a call left over is pending. The identity match takes precedence whenever either side carries one, so the fallback never overrides recorded data. A result is drawn inside a call's box only when that call is the row directly above it, because a row keeps its place in the stream; otherwise it is its own box and names the tool it reports.
+- **The palette stays bounded to the transcript.** The four new roles are declared with the existing `--pi-*` variables scoped to `.pi-app-wrapper`, and apply only to Session Event rows. The page's own surfaces — the Session Overview, the title row, the Session Filter, and the detail's framing — remain on the `--odk-*` semantic tokens in every theme.
+- **The outcome is read out of the log in one place per reader.** `boundedEvent` canonicalizes the two optional fields for every source, and the two raw-log readers (`src/pi-sessions.js` for a local log, `src/desk-link-host-adapter.js` for a Hosted Pi's own log) extract them. Both fields are omitted when absent, so a reporter that does not send them still produces the same event shape it produced before.
+
+## Consequences
+
+- A Local or Hosted Pi session's tool boxes are coloured entirely from Pi's record. A session read over Desk Link is coloured from that written order until the reporter publishes `toolCallId` and `isError`; that reporter change lives in the `pi-open-deskos` package and is not part of this record.
+- The transcript now depends on Pi's `dark` theme values in four more places. A theme change in Pi does not reach the desk automatically; the values are pinned here the same way ADR-0015 pinned the Markdown palette.
+- The tool box is one surface, not one card per event. No border, radius, shadow, or status badge is added: the colour is the whole statement, and a call with no reported result is stated by colour rather than by a new label.
+- A thought folded away between a call and its result does not split that box: the written-order pairing reaches over anything Pi wrote in between, and the result joins the call the reader sees directly above it.
+- `widget-app-styles.cjs` measures the four surfaces and the join between a call and its result directly, so a future change that returns the transcript to monochrome fails the design-refinement harness rather than passing quietly.

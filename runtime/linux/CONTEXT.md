@@ -154,9 +154,17 @@ _Avoid_: log viewer, transcript, agent panel, terminal
 One bounded entry in a Session Detail stream, derived from the session's own message log or Desk Link. Every kind keeps the body Pi produced, with its own byte limit and an explicit truncation flag: a tool result 64 KiB, an assistant reply 16 KiB, a prompt 8 KiB, and a thought or tool call 4 KiB. Nothing is flattened to a single line, so a bash command, a prompt, and a result read as Pi wrote them. The recent stream retains at most 300 entries and 1 MiB of text per session.
 _Avoid_: complete transcript, unbounded log, first-line-only summary
 
+**Folded Reasoning**:
+The Session Detail's default reading of a thought: one quiet row reading `Thinking...` per turn, in the place of that turn's first thought, with the bodies Pi produced withheld. It is display only — the Session Event still carries every body — and it exists because the desk is a shared surface. The device's runtime display (`ODESK_PI_REASONING=shown`, resolved by the main process and read by a plugin as `ctx.runtimeConfig.piSessionReasoning`) opens every thought body within its own bound instead. It is configuration, never a control: the Session Detail stays control-free and the Remote Control Strip keeps its one button.
+_Avoid_: hidden event, dropped thought, in-page reasoning toggle, publishing reasoning by default, per-thought disclosure, one folded row per thought
+
 **Pi Reading Palette**:
-The colour roles Pi's own theme uses for Markdown, syntax, and diffs, reproduced inside Session Event bodies so a transcript reads on the desk the way it reads in Pi. It is scoped to quoted Pi content and never governs the page's own surfaces, which stay on the DESIGN.md semantic tokens.
+The colour roles Pi's own theme uses for a prompt's band, a tool box, Markdown, syntax, and diffs, reproduced on the transcript's own surfaces inside the Session Detail so a session reads on the desk the way it reads in Pi. It is scoped to quoted Pi content and never governs the page's own surfaces, which stay on the DESIGN.md semantic tokens.
 _Avoid_: brand palette, theme override, accent decoration
+
+**Tool Box**:
+Pi's own framing for one tool call: the call and the result Pi wrote for it read as one surface, carrying Pi's pending, success, or error role according to the outcome Pi recorded for that call. The desk colours it from that record — the call identity Pi wrote and the error flag Pi recorded — never from the event kind, and a call whose result Pi has not reported keeps Pi's pending role.
+_Avoid_: tool card, chat bubble, invented tool status, success surface for an unrecorded outcome
 
 **Session Overview**:
 The Pi Sessions page's home view: the Session Filter's tabs above a single-column list of the Session Set, reachable with Remote Back from a Session Detail. It follows Pi's native session-list hierarchy with a state, goal, directory, and activity per row, and a selection cursor, while inheriting the Shell theme. Choosing a row shows that session's Session Detail.

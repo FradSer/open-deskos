@@ -172,9 +172,18 @@ function sessionEventsFromEntry(entry) {
     const text = content.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n')
     if (!text.trim()) return []
     // The body is bounded once, when the event is emitted, so a second pass
-    // cannot drop the tool name or lose the truncation flag.
+    // cannot drop the tool name or lose the truncation flag. The call identity
+    // and Pi's own error flag travel with it, so the desk colours the tool box
+    // from the outcome Pi recorded instead of guessing one from the kind.
     const toolName = typeof message.toolName === 'string' ? message.toolName.trim() : ''
-    return [{ kind: 'result', text, ...(toolName ? { toolName } : {}) }]
+    const toolCallId = typeof message.toolCallId === 'string' ? message.toolCallId.trim() : ''
+    return [{
+      kind: 'result',
+      text,
+      ...(toolName ? { toolName } : {}),
+      ...(toolCallId ? { toolCallId } : {}),
+      ...(message.isError === true ? { isError: true } : {}),
+    }]
   }
   for (const part of content) {
     if (!part || typeof part !== 'object') continue
@@ -190,7 +199,8 @@ function sessionEventsFromEntry(entry) {
     }
     if (message.role === 'assistant' && part.type === 'toolCall') {
       const text = formatToolCall(part.name, part.arguments)
-      if (text && text.trim()) events.push({ kind: 'tool', text })
+      const toolCallId = typeof part.id === 'string' ? part.id.trim() : ''
+      if (text && text.trim()) events.push({ kind: 'tool', text, ...(toolCallId ? { toolCallId } : {}) })
       continue
     }
     // The reply body is added once, after its thinking and tool calls.
@@ -207,10 +217,13 @@ function boundEventBodyOf(event) {
   const body = boundEventBody(event.text, SESSION_EVENT_BODY_BYTES[event.kind] || SESSION_EVENT_MAX_BODY_BYTES)
   if (!body.text) return null
   const toolName = typeof event.toolName === 'string' ? event.toolName.trim() : ''
+  const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId.trim() : ''
   return {
     kind: event.kind,
     text: body.text,
     ...(toolName ? { toolName } : {}),
+    ...(toolCallId ? { toolCallId } : {}),
+    ...(event.isError === true ? { isError: true } : {}),
     ...(body.truncated ? { truncated: true } : {}),
   }
 }

@@ -42,6 +42,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_DISABLE_GPU` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 关闭 GPU 加速 |
 | `ODESK_FUTU_SOCKET` | L3 设备本地 | runtime.env（绑定方声明） | runtime/linux/src/main.js, integrations/futu-poller/poller.py | — | futu-poller 与本机 Shell 共用的绝对 socket 路径 |
 | `ODESK_GPU_BACKEND` | L3 设备本地 | 运维 | runtime/linux/src/main.js | 自动探测 | GPU 后端选择 |
+| `ODESK_PI_REASONING` | L3 设备本地 | runtime.env | runtime/linux/src/main.js | 折叠（`hidden`） | Session Detail 的思维链显示：仅显式 `shown` 显示思维链正文，其他值一律按折叠处理；默认即折叠，无需在设备层复述 |
 | `ODESK_REMOTE_BRIDGE_SOCKET` | 内部 | Shell | runtime/linux/src/remote-bridge-client.js | 运行时目录下的 remote bridge socket | 同上，Remote Bridge |
 | `ODESK_SHELL_HEIGHT` | 测试 | smoke/验收 | runtime/linux/src/main.js | — | 覆盖窗口高度 |
 | `ODESK_SHELL_KIOSK` | 测试 | 验收 | runtime/linux/src/main.js | — | kiosk 模式开关 |

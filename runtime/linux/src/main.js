@@ -89,6 +89,7 @@ function resolveLaunchOptions(argv, env) {
     smoke: argv.includes('--smoke'),
     kiosk: argv.includes('--kiosk') || env.ODESK_SHELL_KIOSK === '1',
     disabledPlugins: resolveDisabledPlugins(env),
+    piSessionReasoning: resolvePiSessionReasoning(env),
   }
 }
 
@@ -97,6 +98,23 @@ function resolveDisabledPlugins(env = process.env) {
     .split(/[\s,]+/)
     .map((id) => id.trim())
     .filter(Boolean)
+}
+
+// The Session Detail's reasoning display is device-local configuration: only an
+// explicit `shown` publishes what Pi was thinking, and every other value keeps
+// the desk's folded default instead of guessing at intent.
+function resolvePiSessionReasoning(env = process.env) {
+  return String(env.ODESK_PI_REASONING ?? '').trim() === 'shown' ? 'shown' : 'hidden'
+}
+
+// The renderer learns launch configuration from its own URL. A value the desk
+// already defaults to is not restated there.
+function rendererQuery(options) {
+  const params = new URLSearchParams()
+  if (options.kiosk) params.set('kiosk', '1')
+  if (options.disabledPlugins.length > 0) params.set('disabledPlugins', options.disabledPlugins.join(','))
+  if (options.piSessionReasoning === 'shown') params.set('piReasoning', 'shown')
+  return params.size > 0 ? `?${params}` : ''
 }
 
 function createWindow(options) {
@@ -137,10 +155,7 @@ function createWindow(options) {
     })
   }
 
-  const params = new URLSearchParams()
-  if (options.kiosk) params.set('kiosk', '1')
-  if (options.disabledPlugins.length > 0) params.set('disabledPlugins', options.disabledPlugins.join(','))
-  const query = params.size > 0 ? `?${params}` : ''
+  const query = rendererQuery(options)
   win.loadFile('src/renderer/index.html', { search: query })
   return win
 }
@@ -380,4 +395,6 @@ module.exports = {
   resolveGpuBackend,
   resolveLaunchOptions,
   resolveDisabledPlugins,
+  resolvePiSessionReasoning,
+  rendererQuery,
 }

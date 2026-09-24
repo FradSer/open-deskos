@@ -1994,13 +1994,31 @@ body.kiosk {
   overflow-wrap: anywhere;
 }
 
+/* Native Pi draws a prompt as a full-width band and every tool call as one box
+   carrying Pi's own surface for the outcome Pi recorded. A result Pi wrote for
+   that call joins the box with no gap, so the two read as one surface. */
 .pi-events .pi-event-user {
   padding-block: var(--odk-space-3);
-  background: var(--odk-elevated);
+  background: var(--pi-user-message-bg);
 }
 
-.pi-events .pi-event-tool {
-  background: var(--odk-bg);
+.pi-events .pi-event.pi-tool-pending {
+  background: var(--pi-tool-pending-bg);
+}
+
+.pi-events .pi-event.pi-tool-success {
+  background: var(--pi-tool-success-bg);
+}
+
+.pi-events .pi-event.pi-tool-error {
+  background: var(--pi-tool-error-bg);
+}
+
+/* The stream's own gap is cancelled so a continuing row shares the surface above
+   it instead of reading as a second box. */
+.pi-event.pi-continues {
+  margin-block-start: calc(-1 * var(--odk-space-2));
+  padding-block-start: var(--odk-space-1);
 }
 
 .pi-event-tool .pi-event-text,
@@ -2019,9 +2037,11 @@ body.kiosk {
 
 /* ---- Quoted Pi content ----
    Pi renders a reply and a tool result as Markdown with code, diff, and syntax
-   colour. The page itself stays on DESIGN.md's semantic tokens; the transcript
-   reproduces Pi's own reading palette so a session reads on the desk the way it
-   reads in Pi. Values are Pi's `dark` theme roles. */
+   colour, a prompt as a full-width band, and every tool call as one box on the
+   surface of the outcome Pi recorded for it. The page itself stays on DESIGN.md's
+   semantic tokens; the transcript reproduces Pi's own reading palette so a
+   session reads on the desk the way it reads in Pi. Values are Pi's `dark` theme
+   roles. */
 .pi-app-wrapper {
   --pi-md-heading: #f0c674;
   --pi-md-link: #81a2be;
@@ -2042,6 +2062,10 @@ body.kiosk {
   --pi-syntax-number: #b5cea8;
   --pi-syntax-type: #4ec9b0;
   --pi-syntax-meta: #d4d4d4;
+  --pi-user-message-bg: #343541;
+  --pi-tool-pending-bg: #282832;
+  --pi-tool-success-bg: #283228;
+  --pi-tool-error-bg: #3c2828;
 }
 
 /* Results use the existing local markdown-it parser with HTML/assets disabled.
@@ -2353,8 +2377,13 @@ body.kiosk {
   cursor: pointer;
 }
 
+/* The current session is the only marked row, and the mark is a stroke: a
+   filled band read as a surface the row does not own, and it competed with the
+   page's own surfaces. The stroke sits inside the row so no geometry moves when
+   the selection moves, and the focus ring stays a ring of its own outside it. */
 .pi-overview-cell.is-selected {
-  background: var(--odk-button);
+  outline: 1px solid var(--odk-stroke-focus);
+  outline-offset: -1px;
 }
 
 .pi-overview-cell:focus-visible {
@@ -2396,10 +2425,26 @@ body.kiosk {
   overflow-wrap: anywhere;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .pi-overview-cell:not(.is-selected):hover {
-    background: var(--odk-elevated);
-  }
+/* A row reads the goal and the latest content line the way the Session Detail
+   reads the same fields: Pi's emphasis brightens the run, and an inline code
+   span is a code span rather than the backticks Pi wrote around it. */
+.pi-overview-goal strong,
+.pi-overview-activity strong {
+  color: var(--odk-primary);
+  font-weight: 700;
+}
+
+.pi-overview-goal em,
+.pi-overview-activity em {
+  font-style: italic;
+}
+
+.pi-overview-goal code,
+.pi-overview-activity code {
+  font-family: monospace;
+  background: var(--odk-elevated);
+  padding: 1px 4px;
+  border-radius: 4px;
 }
 
 /* Shared App search anatomy, used by the built-in view manager. */

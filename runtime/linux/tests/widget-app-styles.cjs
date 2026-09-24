@@ -717,8 +717,10 @@ async function main() {
   }
   await resize(win, 1920, 1280)
   const savedSessions = sessions
-  await require('./pi-design-refinement.cjs').run(win, check, value => { sessions = value })
+  const savedSessionEvents = sessionEvents
+  await require('./pi-design-refinement.cjs').run(win, check, value => { sessions = value }, value => { sessionEvents = value })
   sessions = savedSessions
+  sessionEvents = savedSessionEvents
   await require('./pi-reading-stability.cjs').run(win, check, value => { sessions = value })
   sessions = savedSessions
   await processIdentityContinuity(win)

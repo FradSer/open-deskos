@@ -25,6 +25,19 @@ let holdEvents = false
 let holdScan = true
 let resultFixture = null
 let remoteState
+// Electron answers "reply was never sent" once it collects the native invoke
+// event while the handler's promise is still unsettled. A scan or a log read
+// this harness holds open is held, not abandoned, so it keeps its own event
+// alive: otherwise a collection at the wrong moment turns the held answer into
+// a reported scanner failure.
+const heldInvocations = []
+function holdInvoked(event) {
+  let resolve
+  const promise = new Promise((settle) => { resolve = settle })
+  const held = { event, promise, resolve }
+  heldInvocations.push(held)
+  return held
+}
 function publish(items = initial) {
   snapshot = { ok: true, source: { kind: 'local', label: 'Example fixture' }, sessions: items,
     summary: { running: items.filter(item => item.status === 'running').length, total: items.length, workspacesCount: 1 } }
@@ -32,10 +45,14 @@ function publish(items = initial) {
 
 publish()
 const events = id => ({ ok: true, events: Array.from({ length: 48 }, (_, index) => ({ kind: ['user', 'thinking', 'tool', 'result', 'assistant'][index % 5], text: `${id}: example event ${index + 1}` })) })
-ipcMain.handle('odk-pi-sessions', () => (holdScan ? new Promise(() => {}) : snapshot))
-ipcMain.handle('odk-pi-session-events', (_event, query) => {
+ipcMain.handle('odk-pi-sessions', (event) => (holdScan ? holdInvoked(event).promise : snapshot))
+ipcMain.handle('odk-pi-session-events', (event, query) => {
   eventRequests += 1
-  if (holdEvents) return new Promise(resolve => { pendingEvent = () => resolve(events(query.sessionId)) })
+  if (holdEvents) {
+    const held = holdInvoked(event)
+    pendingEvent = () => held.resolve(events(query.sessionId))
+    return held.promise
+  }
   return resultFixture || events(query.sessionId)
 })
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
@@ -73,6 +90,14 @@ async function pageInput(input) {
 async function enterPage() {
   await win.webContents.executeJavaScript("[...document.querySelectorAll('.dot')].find(dot => dot.getAttribute('aria-label')?.includes('Pi Sessions')).click()")
   await pause(250)
+}
+// The desk's reasoning display is launch configuration, so the harness relaunches
+// the renderer with the same search the main process would build for it.
+async function relaunch(search) {
+  await win.loadFile(path.join(root, 'src/renderer/index.html'), { search })
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
+  await win.webContents.executeJavaScript('document.fonts.ready')
+  await enterPage()
 }
 async function showOverview() {
   if (await js("return !$('#pi-overview').hidden")) return
@@ -407,7 +432,8 @@ async function main() {
     await until("return $('.pi-event-text')?.textContent.startsWith('example-b:')")
     completeOld()
     await pause(100)
-    assert.equal(await js("return [...surface.querySelectorAll('.pi-event-text')].every(node => node.textContent.startsWith('example-b:'))"), true)
+    assert.equal(await js("return [...surface.querySelectorAll('.pi-event-text')].every(node => node.closest('.is-folded') || node.textContent.startsWith('example-b:'))"), true)
+    assert.equal(await js("return surface.querySelector('#pi-events').textContent.includes('example-a:')"), false)
   })
 
   await scenario('automatic handover clears old events while the new stream loads', async () => {
@@ -481,13 +507,16 @@ async function main() {
       return {
         column: getComputedStyle(list).flexDirection === 'column',
         fullWidth: cells[0].getBoundingClientRect().width >= list.clientWidth - 2,
-        cursor: Boolean($('.pi-overview-cell.is-selected .pi-overview-cursor')),
-        band: getComputedStyle(cells[0]).backgroundColor !== 'rgba(0, 0, 0, 0)',
+        // The current session is marked, and marked only by a stroke: no row owns
+        // a filled band, so the list cannot be read as the pointer's history.
+        stroke: getComputedStyle(cells[0]).outlineStyle === 'solid' && parseFloat(getComputedStyle(cells[0]).outlineWidth) >= 1,
+        marked: cells.filter(node => getComputedStyle(node).outlineStyle === 'solid' && parseFloat(getComputedStyle(node).outlineWidth) < 2).length === 1,
+        noBand: cells.every(node => getComputedStyle(node).backgroundColor === 'rgba(0, 0, 0, 0)'),
         noBorders: cells.every(node => parseFloat(getComputedStyle(node).borderWidth) === 0),
         states: cells.every(node => node.querySelector('.pi-overview-state').textContent.trim().length > 0),
       };
     `)
-    assert.deepEqual(chooser, { column: true, fullWidth: true, cursor: true, band: true, noBorders: true, states: true })
+    assert.deepEqual(chooser, { column: true, fullWidth: true, stroke: true, marked: true, noBand: true, noBorders: true, states: true })
   })
 
   await scenario('complete results render safe Markdown tables on every theme and narrow screens', async () => {
@@ -696,6 +725,94 @@ async function main() {
     // persistent Back and Select remain the rest of its interface.
     assert.deepEqual(remoteState.actions, [{ id: 'pi-session-filter', label: 'LIVE' }])
     assert.equal(remoteState.focus, 'items')
+  })
+
+  await scenario('a thought is folded to Thinking... and opens only on configured reasoning', async () => {
+    // The page's reading contract: the desk shows that Pi thought, not what Pi
+    // thought, until the device's runtime display says otherwise.
+    // The scenario reads geometry, so it runs at the shell's own size: the
+    // previous scenario leaves the window at its compact test size.
+    win.setContentSize(1920, 1280)
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
+    await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
+    await reset([session('example-a', 'Example reasoning session', 'settled')])
+    const cycle = ['user', 'thinking', 'tool', 'thinking', 'assistant']
+    const group = (index) => [
+      { kind: 'user', text: `Example prompt ${index}` },
+      { kind: 'thinking', text: `Example reasoning body ${index}: checking the composer before changing it.`, truncated: index === 0 },
+      { kind: 'tool', toolName: 'bash', text: `bash: pnpm test ${index}` },
+      { kind: 'thinking', text: `Example second thought ${index}: the fold repeats one line of copy.` },
+      { kind: 'assistant', text: `Example reply ${index}` },
+    ]
+    resultFixture = { ok: true, events: [0, 1, 2, 3, 4, 5].flatMap(group) }
+    try {
+      await refresh()
+      assert.deepEqual(await js(`const folded = [...surface.querySelectorAll('.pi-event-thinking')]; return {
+        rows: surface.querySelectorAll('.pi-event').length,
+        order: [...surface.querySelectorAll('.pi-event')].map(node => [...node.classList].find(name => name.startsWith('pi-event-'))).join(','),
+        folded: folded.length,
+        visible: [...new Set(folded.map(node => node.querySelector('.pi-event-text').textContent.trim()))].join('|'),
+        body: surface.querySelector('#pi-events').textContent.includes('checking the composer'),
+        markdown: folded.reduce((count, node) => count + node.querySelectorAll('p, pre, code').length, 0),
+        kindLabel: folded.filter(node => node.querySelector('.pi-event-kind')).length,
+        truncated: surface.querySelectorAll('.pi-result-truncated').length,
+      }`), {
+        // One turn of folded reasoning reads as one quiet row, so the second
+        // thought of each group is not a second row of the same copy.
+        rows: 24,
+        order: Array.from({ length: 6 }, () => ['user', 'thinking', 'tool', 'assistant']).flat().map((kind) => `pi-event-${kind}`).join(','),
+        folded: 6,
+        visible: 'Thinking...',
+        body: false,
+        markdown: 0,
+        kindLabel: 0,
+        truncated: 0,
+      })
+      // The fold is display only: the stream still keeps the body Pi produced.
+      assert.equal(await js("return surface.querySelector('.pi-event-assistant .pi-event-text').textContent.includes('Example reply 0')"), true)
+      // A folded row repeats one line of copy, so a settled reader is kept by the
+      // row's place in the stream rather than by its text alone.
+      const anchored = await js(`const detail = $('#pi-detail'); const rows = [...surface.querySelectorAll('.pi-event')];
+        const viewTop = detail.getBoundingClientRect().top;
+        const thought = [...rows].filter(node => node.classList.contains('pi-event-thinking'))[1];
+        const height = thought.getBoundingClientRect().height;
+        detail.scrollTop += (thought.getBoundingClientRect().top - viewTop) + Math.ceil(height / 2);
+        return {
+          top: Math.round(detail.scrollTop),
+          thought: rows.indexOf(thought),
+          anchored: rows.findIndex(node => node.getBoundingClientRect().bottom > viewTop),
+          height,
+          scrolled: detail.scrollHeight > detail.clientHeight,
+        }`)
+      assert.equal(anchored.scrolled && anchored.top > 0 && anchored.anchored === anchored.thought, true, `the second thought must be the anchored row: ${JSON.stringify(anchored)}`)
+      await refresh()
+      assert.deepEqual(await js(`const detail = $('#pi-detail'); const rows = [...surface.querySelectorAll('.pi-event')];
+        const viewTop = detail.getBoundingClientRect().top;
+        return { top: Math.round(detail.scrollTop), anchored: rows.findIndex(node => node.getBoundingClientRect().bottom > viewTop) }`), { top: anchored.top, anchored: anchored.thought })
+
+      // The desk's runtime display is launch configuration, so the harness
+      // relaunches the renderer with the query the main process would build.
+      await relaunch('?piReasoning=shown')
+      assert.equal(await js("return window.odkRuntimeConfig.current.piSessionReasoning"), 'shown')
+      await until("return surface.querySelectorAll('.pi-event').length === 30")
+      assert.deepEqual(await js(`const shown = surface.querySelector('.pi-event-thinking'); return {
+        body: shown.textContent.includes('checking the composer before changing it.'),
+        kindLabel: Boolean(shown.querySelector('.pi-event-kind')),
+        truncated: shown.querySelector('.pi-result-truncated')?.textContent,
+        folded: surface.querySelectorAll('.pi-event.is-folded').length,
+      }`), { body: true, kindLabel: true, truncated: 'Message truncated at the 4 KiB safety limit.', folded: 0 })
+
+      // An unrecognized launch value is not a second way to publish reasoning.
+      await relaunch('?piReasoning=SHOWN')
+      assert.equal(await js("return window.odkRuntimeConfig.current.piSessionReasoning"), 'hidden')
+      await until("return surface.querySelectorAll('.pi-event').length === 24")
+      assert.equal(await js("return [...new Set([...surface.querySelectorAll('.pi-event-thinking .pi-event-text')].map(node => node.textContent.trim()))].join('|')"), 'Thinking...')
+      assert.equal(await js("return surface.querySelector('#pi-events').textContent.includes('checking the composer')"), false)
+    } finally {
+      resultFixture = null
+      await relaunch('')
+      await refresh()
+    }
   })
 
   const capture = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)

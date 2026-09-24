@@ -25,6 +25,26 @@ test('the shared event contract bounds every kind of body', () => {
   assert.deepEqual(Object.keys(BODY_BYTES).sort(), ['assistant', 'result', 'thinking', 'tool', 'user'])
 })
 
+// Pi colours a tool box by the outcome it recorded, so the desk carries that
+// record rather than guessing one from the event kind. The fields stay optional:
+// a reporter that does not send them yields an event without them.
+test('Desk Link carries Pi\'s recorded tool outcome and call identity', () => {
+  assert.deepEqual(
+    boundedEvent({ kind: 'tool', text: 'bash: pnpm test', toolCallId: 'call_1' }),
+    { kind: 'tool', text: 'bash: pnpm test', toolCallId: 'call_1' })
+  assert.deepEqual(
+    boundedEvent({ kind: 'result', toolName: 'bash', toolCallId: 'call_1', isError: true, text: 'exit code 1' }),
+    { kind: 'result', toolName: 'bash', toolCallId: 'call_1', isError: true, text: 'exit code 1' })
+  assert.deepEqual(
+    boundedEvent({ kind: 'result', toolName: 'bash', toolCallId: 'call_1', isError: false, text: 'ok' }),
+    { kind: 'result', toolName: 'bash', toolCallId: 'call_1', text: 'ok' })
+  assert.deepEqual(boundedEvent({ kind: 'user', text: 'prompt', isError: true }), { kind: 'user', text: 'prompt' })
+  // The identity belongs to the kinds Pi writes it for, not to every event.
+  assert.deepEqual(
+    boundedEvent({ kind: 'assistant', text: 'reply', toolCallId: 'call_1' }),
+    { kind: 'assistant', text: 'reply' })
+})
+
 // The desk no longer flattens anything: a prompt, a thought, and a bash command
 // keep the lines Pi produced so the page reads them the way Pi does.
 test('Desk Link keeps user, thinking, and tool bodies with their own lines', () => {

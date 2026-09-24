@@ -4,7 +4,7 @@ const { resolvePages } = require('./helpers/pages')
 // page title beyond the view h1 and no session controls. The Session Overview
 // is its home and owns the status filter; a chosen session becomes the title,
 // and the Session Detail itself stays control-free.
-async function run(win, check, setSessions) {
+async function run(win, check, setSessions, setEvents = () => {}) {
   const pages = await resolvePages(win)
   const enterPage = async () => {
     await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${pages.dot('pi-sessions')}].click()`)
@@ -20,6 +20,7 @@ async function run(win, check, setSessions) {
     const record = (name, value, detail) => results.push([name, Boolean(value), detail])
     const cells = () => [...surface.querySelectorAll('.pi-overview-cell')]
 
+    try {
     const header = find('.pi-app-header')
     const headerTabs = header ? [...header.querySelectorAll('.pi-filter-btn')] : []
     // The title row carries one heading and exactly the Session Filter: the
@@ -138,8 +139,12 @@ async function run(win, check, setSessions) {
     record('the detail shows the latest model activity', find('.pi-activity-text').textContent.trim().length > 0)
 
     const events = [...surface.querySelectorAll('#pi-events .pi-event')]
+    // A folded thought states its own kind in its own words, so it carries no
+    // repeated assistive label; every other kind still does.
     record('event stream renders every kind with a contained body alongside full results', events.length > 0 &&
-      events.every(event => Boolean(event.querySelector('.pi-event-kind').textContent.trim())) &&
+      events.every(event => event.classList.contains('is-folded')
+        ? event.querySelector('.pi-event-text').textContent.trim() === 'Thinking...'
+        : Boolean(event.querySelector('.pi-event-kind').textContent.trim())) &&
       events.every(event => {
         const body = event.querySelector('.pi-event-text')
         return Boolean(body) && body.textContent.trim().length > 0 &&
@@ -170,6 +175,11 @@ async function run(win, check, setSessions) {
     record('a long event stream stays reachable inside the detail',
       ['auto', 'scroll'].includes(getComputedStyle(find('#pi-detail')).overflowY) && (!longStream || find('#pi-detail').scrollHeight > find('#pi-detail').clientHeight))
 
+    } catch (error) {
+      // A probe that throws is one failed check, never a reason to lose the
+      // checks that already ran or the ones still to come.
+      results.push(['the detail probes all ran', false, String((error && error.stack) || error)])
+    }
     return results
   })()`)
   for (const [name, value, detail] of results) check(`Pi refinement: ${name}`, value, detail)
@@ -276,6 +286,133 @@ async function run(win, check, setSessions) {
 
   setSessions(localFixture)
   await enterPage()
+
+  // Native Pi colours the transcript rather than leaving it monochrome: a prompt
+  // is a full-width band on Pi's own user surface, and every tool call is one box
+  // on the surface of the outcome Pi recorded for it, with the result Pi wrote
+  // for that call joined to it. The colours are Pi's `dark` theme roles, and the
+  // outcome is read from the record rather than guessed from the event kind.
+  const savedEvents = await win.webContents.executeJavaScript(
+    `window.odkPlatform.getPiSessionEvents({ cwd: '/example/workspace', sessionId: 'pi-surface-fixture' })`)
+  setEvents({
+    ok: true,
+    events: [
+      { kind: 'user', text: 'Example prompt' },
+      { kind: 'thinking', text: 'Example thought' },
+      { kind: 'tool', text: 'bash: pnpm test', toolCallId: 'call-ok' },
+      { kind: 'result', toolName: 'bash', toolCallId: 'call-ok', text: 'tests passed' },
+      { kind: 'tool', text: 'bash: pnpm lint', toolCallId: 'call-bad' },
+      { kind: 'result', toolName: 'bash', toolCallId: 'call-bad', isError: true, text: 'exit code 1' },
+      { kind: 'tool', text: 'bash: pnpm build', toolCallId: 'call-waiting' },
+      { kind: 'result', toolName: 'read', text: 'result Pi recorded on its own' },
+      // A source that reports no call identity — today's Desk Link — is read by
+      // the order Pi wrote. A thought Pi wrote between a call and its result, and
+      // calls Pi ran in parallel, are both ordinary streams: neither may leave a
+      // finished call on Pi's pending surface, nor hand one call another's outcome.
+      { kind: 'tool', text: 'bash: pnpm typecheck' },
+      { kind: 'thinking', text: 'Example interleaved thought' },
+      { kind: 'result', toolName: 'bash', text: 'typecheck passed' },
+      { kind: 'tool', text: 'bash: pnpm lint --fix' },
+      { kind: 'tool', text: 'bash: pnpm format' },
+      { kind: 'result', toolName: 'bash', isError: true, text: 'lint failed' },
+      { kind: 'result', toolName: 'bash', text: 'format ok' },
+      { kind: 'assistant', text: 'Example reply' },
+    ],
+  })
+  let surfaces = null
+  try {
+    await enterPage()
+    surfaces = await win.webContents.executeJavaScript(`(async () => {
+      // A probe that throws reports itself: the refinement run must not lose the
+      // checks around it.
+      try {
+      const surface = document.querySelector('${pages.surface('pi-sessions')} .pi-app-wrapper')
+      if (surface.querySelector('#pi-overview').hidden === false) surface.querySelector('.pi-overview-cell')?.click()
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const rows = [...surface.querySelectorAll('#pi-events .pi-event')]
+      const has = (node, className) => Boolean(node) && node.classList.contains(className)
+      const background = node => (node ? getComputedStyle(node).backgroundColor : 'missing')
+      const top = node => (node ? node.getBoundingClientRect().top : NaN)
+      const bottom = node => (node ? node.getBoundingClientRect().bottom : NaN)
+      const label = (node, selector) => (node?.querySelector(selector)?.textContent ?? null)
+      const byKind = kind => rows.find(node => has(node, 'pi-event-' + kind))
+      const pairedCall = rows.find(node => node.textContent.includes('pnpm test'))
+      const pairedResult = rows.find(node => node.textContent.includes('tests passed'))
+      const failedResult = rows.find(node => node.textContent.includes('exit code 1'))
+      const pendingTool = rows.find(node => node.textContent.includes('pnpm build'))
+      const orphanResult = rows.find(node => node.textContent.includes('on its own'))
+      const interleavedCall = rows.find(node => node.textContent.includes('pnpm typecheck'))
+      const interleavedResult = rows.find(node => node.textContent.includes('typecheck passed'))
+      const parallelFirst = rows.find(node => node.textContent.includes('pnpm lint --fix'))
+      const parallelSecond = rows.find(node => node.textContent.includes('pnpm format'))
+      const parallelFirstResult = rows.find(node => node.textContent.includes('lint failed'))
+      const parallelSecondResult = rows.find(node => node.textContent.includes('format ok'))
+      return {
+        rows: rows.map(node => [...node.classList].filter(name => name.startsWith('pi-event-') || name.startsWith('pi-tool-') || name === 'pi-continues').join('+')),
+        user: background(byKind('user')),
+        assistant: background(byKind('assistant')),
+        success: background(pairedResult),
+        error: background(failedResult),
+        pending: background(pendingTool),
+        orphan: background(orphanResult),
+        joinsPairedCall: has(pairedResult, 'pi-continues') &&
+          Math.abs(top(pairedResult) - bottom(pairedCall)) <= 1,
+        // The box names the tool once, in the call's own title line.
+        callTitle: label(pairedCall, '.pi-event-text')?.trim() ?? null,
+        joinedTitle: label(pairedResult, '.pi-result-tool'),
+        joinedKind: label(pairedResult, '.pi-event-kind'),
+        orphanTitle: label(orphanResult, '.pi-result-tool'),
+        orphanMerges: has(orphanResult, 'pi-continues'),
+        separatesPendingCall: top(orphanResult) - bottom(pendingTool) > 0,
+        errorMerges: has(failedResult, 'pi-continues'),
+        interleavedCall: background(interleavedCall),
+        parallelFirstCall: background(parallelFirst),
+        parallelSecondCall: background(parallelSecond),
+        interleavedResult: background(interleavedResult),
+        parallelResults: [background(parallelFirstResult), background(parallelSecondResult)],
+        // A box keeps its own rows: a result joins only the call Pi wrote it for,
+        // and only when that call is the row the reader sees above it.
+        joinsAcrossFoldedThought: has(interleavedResult, 'pi-continues'),
+        joinsParallelResults: has(parallelFirstResult, 'pi-continues') || has(parallelSecondResult, 'pi-continues'),
+        namesOwnTool: [label(parallelFirstResult, '.pi-result-tool'), label(parallelSecondResult, '.pi-result-tool')],
+        joinedNamesTool: label(interleavedResult, '.pi-result-tool'),
+        foldedThoughtRows: rows.filter(node => node.classList.contains('is-folded')).length,
+      }
+      } catch (error) { return { __error: String((error && error.stack) || error) } }
+    })()`)
+  } catch (error) {
+    check('Pi refinement: the transcript surface probes ran', false, String((error && error.stack) || error))
+  } finally {
+    setEvents(savedEvents)
+    await enterPage()
+  }
+  if (surfaces) {
+    check('Pi refinement: the transcript surface probes ran', !surfaces.__error, surfaces)
+    const piDark = { user: 'rgb(52, 53, 65)', success: 'rgb(40, 50, 40)', error: 'rgb(60, 40, 40)', pending: 'rgb(40, 40, 50)' }
+    check('Pi refinement: the prompt carries Pi\'s own user-message surface', surfaces.user === piDark.user, surfaces)
+    check('Pi refinement: an assistant reply stays on the base surface', surfaces.assistant === 'rgba(0, 0, 0, 0)', surfaces)
+    check('Pi refinement: a completed tool call and its result share Pi\'s success surface as one box',
+      surfaces.success === piDark.success && surfaces.joinsPairedCall, surfaces)
+    check('Pi refinement: a result Pi recorded as an error carries Pi\'s error surface',
+      surfaces.error === piDark.error && surfaces.errorMerges, surfaces)
+    check('Pi refinement: a tool call whose result Pi has not reported carries Pi\'s pending surface',
+      surfaces.pending === piDark.pending, surfaces)
+    check('Pi refinement: a result Pi recorded alone still reads on Pi\'s outcome surface',
+      surfaces.orphan === piDark.success && !surfaces.orphanMerges && surfaces.separatesPendingCall, surfaces)
+    check('Pi refinement: a tool box names the tool once, in the call\'s own title line',
+      surfaces.callTitle === 'bash: pnpm test' && surfaces.joinedTitle === null &&
+      surfaces.joinedKind === 'result: ' && surfaces.orphanTitle === 'read', surfaces)
+    check('Pi refinement: a call whose result Pi wrote after a thought carries that result\'s outcome',
+      surfaces.interleavedCall === piDark.success && surfaces.interleavedResult === piDark.success, surfaces)
+    check('Pi refinement: calls Pi ran in parallel each carry the outcome Pi recorded for them',
+      surfaces.parallelFirstCall === piDark.error && surfaces.parallelSecondCall === piDark.success &&
+      surfaces.parallelResults[0] === piDark.error && surfaces.parallelResults[1] === piDark.success, surfaces)
+    check('Pi refinement: a result joins only the call it answers, and only when that call is the row above it',
+      surfaces.joinsAcrossFoldedThought === true && surfaces.joinedNamesTool === null &&
+      surfaces.joinsParallelResults === false && surfaces.namesOwnTool.every(name => name === 'bash'), surfaces)
+    check('Pi refinement: one turn of folded reasoning reads as one quiet row',
+      surfaces.foldedThoughtRows === 1, surfaces)
+  }
 }
 
 module.exports = { run }

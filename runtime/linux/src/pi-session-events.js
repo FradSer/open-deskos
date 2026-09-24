@@ -41,7 +41,26 @@ function boundedEvent(event) {
   const body = bodyText(event.text, BODY_BYTES[event.kind])
   if (!body) return null
   const toolName = summaryText(event.toolName)
-  return { kind: event.kind, ...body, ...(toolName ? { toolName } : {}), ...(event.truncated === true ? { truncated: true } : {}) }
+  return {
+    kind: event.kind,
+    ...body,
+    ...(toolName ? { toolName } : {}),
+    ...boundedToolFields(event),
+    ...(event.truncated === true ? { truncated: true } : {}),
+  }
+}
+
+// A tool call carries the identity Pi wrote for it, and its result carries that
+// identity plus Pi's own error flag, so a page can read one tool box and its
+// outcome from Pi's record instead of guessing one from the event kind. The
+// identity is an opaque short string, never a body, so it is bounded like one.
+function boundedToolFields(event) {
+  if (event.kind !== 'tool' && event.kind !== 'result') return {}
+  const toolCallId = summaryText(event.toolCallId)
+  return {
+    ...(toolCallId ? { toolCallId } : {}),
+    ...(event.kind === 'result' && event.isError === true ? { isError: true } : {}),
+  }
 }
 
 function retainEvents(events, maxEvents = MAX_EVENTS) {

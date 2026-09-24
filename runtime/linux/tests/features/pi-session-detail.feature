@@ -99,8 +99,34 @@ Feature: Pi Sessions live session list with a Remote session reader
     And each event is bounded by the limit for its kind
     And a shortened body says so explicitly
 
+  Scenario: A thought is folded to Thinking... until the desk is configured to show reasoning
+    Given session events are displayed with the folded reasoning default
+    And the selected session's stream holds a thought with its own body
+    When its Session Detail renders
+    Then the thought is one folded row reading "Thinking..."
+    And the thought's body is not rendered
+    And the thought keeps its place in the stream's order
+    And every thought of one turn shares that turn's single folded row
+    And the stream still carries the body Pi produced
+
+  Scenario: The configured reasoning display renders the thought body
+    Given session events are displayed with reasoning shown
+    And the selected session reports a thought
+    When its Session Detail renders
+    Then the thought keeps the body Pi produced within its own 4 KiB limit
+    And a thought body beyond 4 KiB is marked truncated
+    And no other event kind changes with the reasoning display
+
+  Scenario: The reasoning display is runtime configuration with a folded default
+    Given the runtime sets no reasoning display
+    Then the Session Detail is handed the folded default
+    When the runtime sets the reasoning display to shown
+    Then the Session Detail is handed the shown display
+    And an unrecognized runtime value leaves the folded default
+
   Scenario: Session Detail streams the session's operating events
     Given the selected session has a readable message log
+    And session events are displayed with reasoning shown
     When its Session Detail renders
     Then the prompt, the thought, the bash command, the reply, and the result each keep their own body
     And an assistant body beyond 16 KiB is marked truncated
@@ -273,19 +299,46 @@ Feature: Pi Sessions live session list with a Remote session reader
   Scenario: Session Events follow native Pi reading hierarchy within the Shell theme
     Given the selected session has user, thinking, tool, result, and assistant events
     When its Session Detail renders
-    Then user messages have a full-width neutral background
+    Then the user prompt carries Pi's own user-message surface
     And assistant text stays on the base surface without a card
-    And thinking and tool summaries use readable supporting text
+    And thinking text uses readable supporting text
     And tool calls read as compact terminal headings rather than table rows
     And result and assistant bodies render as Markdown rather than summaries
     And event kinds remain available to assistive technology without a repeated visible label column
     And the stream is identified as recent session events, not a complete session history
-    And no tool success or pending state is invented from its event kind
+    And no tool outcome is invented beyond what Pi recorded
+
+  Scenario: A tool call and its result read as one Pi tool block
+    Given a session log holds a tool call with the result Pi recorded for it
+    When its Session Detail renders
+    Then the tool call and that result share one surface
+    And no stream gap separates them
+    And the box names the tool once, in the call's own title line
+    And the tool call's arguments and the result body keep their own lines
+    And a result Pi recorded as an error carries Pi's error surface
+    And a result Pi recorded without an error carries Pi's success surface
+    And a tool call whose result Pi has not recorded carries Pi's pending surface
+
+  Scenario: A result Pi recorded alone still reads as a tool block
+    Given a session log holds a tool result with no preceding tool call
+    When its Session Detail renders
+    Then the result renders on Pi's recorded outcome surface
+    And it states the tool name it reports
+    And a result that belongs to another call never joins the box above it
+
+  Scenario: A source that reports no call identity is read in the order Pi wrote
+    Given a session log holds tool calls that carry no call identity from their source
+    And Pi wrote a thought between one call and the result it recorded for it
+    And Pi wrote two further calls before the results it recorded for them
+    When its Session Detail renders
+    Then the call Pi answered after a thought carries that result's outcome rather than Pi's pending surface
+    And each of the two calls carries the outcome Pi recorded for it, not the other's
+    And a result that is not directly below its own call stays its own block and states the tool it reports
 
   Scenario: The live list follows the native Pi session chooser instead of a card dashboard
     Given several live sessions are available
     When the live list renders
     Then sessions appear in a single full-width list with a state line, the goal, the directory, and the activity
-    And the selected session has a leading cursor and a neutral selection background
+    And the selected session is the only row marked, by a stroke rather than a filled band
     And touch targets remain at least 44 pixels high
     And Instrument, Pixel, and Border Beam keep their own fonts and semantic colors

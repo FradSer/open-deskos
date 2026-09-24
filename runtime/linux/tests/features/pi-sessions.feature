@@ -125,6 +125,20 @@ Feature: Local Pi Sessions Monitoring
     And running rows display Working... instead of uppercase WORKING
     And goal and activity are distinguished by typography rather than labels
 
+  Scenario: Pi Sessions App reads a reported goal and latest content as Markdown
+    Given a session reports a goal and a latest content line that carry Markdown emphasis and inline code
+    When that session's row is rendered
+    Then the row shows the emphasis and the inline code as formatting rather than as Markdown syntax
+    And the row keeps the words the session reported
+    And a reported line without Markdown is rendered unchanged
+    And the Session Detail reads that same reported line the same way
+
+  Scenario: Session Overview rows share one fill until a row is the current session
+    Given the Session Overview lists more than one session
+    When a fine pointer rests on a row that is not the current session
+    Then that row keeps the quiet fill of the rows around it
+    And the current session's row keeps the only row band
+
 Scenario: Linux shell reads a bounded stream of session events on demand
   Given a session's own message log is far larger than the read bound
   When the shell reads that session's events

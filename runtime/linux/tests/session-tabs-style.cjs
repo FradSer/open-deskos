@@ -149,9 +149,12 @@ app.whenReady().then(async () => {
           check('rows sit in a single column', style(list).flexDirection === 'column')
           check('each row states its Pi state', cells.every(cell => /^(Working\\.\\.\\.|Idle)$/.test(cell.querySelector('.pi-overview-state .pi-state-text').textContent.trim())))
           check('each row states its directory', cells.every(cell => cell.querySelector('.pi-overview-path').textContent.length > 0))
-          check('exactly one selected row band', surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
+          check('exactly one selected row stroke', surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
             Boolean(selected) && selected.getAttribute('aria-pressed') === 'true' &&
-            style(selected).backgroundColor !== 'rgba(0, 0, 0, 0)')
+            style(selected).backgroundColor === 'rgba(0, 0, 0, 0)' &&
+            style(selected).outlineStyle === 'solid' && parseFloat(style(selected).outlineWidth) >= 1)
+          check('no other row carries the selection stroke', cells.filter(cell => cell !== selected)
+            .every(cell => style(cell).outlineStyle === 'none' || parseFloat(style(cell).outlineWidth) === 0))
           check('rows never overlap', cells.every((cell, at) =>
             cells.slice(at + 1).every(other => !overlaps(cell.getBoundingClientRect(), other.getBoundingClientRect()))))
           for (const cell of cells) {
@@ -201,6 +204,70 @@ app.whenReady().then(async () => {
         console.log(`PASS session tabs ${theme} ${width}`)
       }
     }
+
+    // A row is a quiet sub-row: the pointer resting on one is not a session
+    // state, so a row keeps the fill of the rows around it until it is the
+    // current session's row. The probe carries its own control: a finger of the
+    // pointer on a non-active filter tab is expected to answer with the hover
+    // surface, which proves the measurement can see a hover style at all and
+    // keeps the row reading below from passing vacuously.
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 900, deviceScaleFactor: 1, mobile: false })
+    await win.webContents.executeJavaScript(`(async () => {
+      odkTheme.set('pixel')
+      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      document.querySelectorAll('.dot')[index].click()
+      const page = document.querySelector('.page[data-page="' + index + '"]')
+      const surface = page.querySelector('.pi-app-wrapper')
+      for (let attempt = 0; attempt < 120 && surface.querySelectorAll('.pi-overview-cell').length < 2; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      if (surface.querySelector('#pi-overview').hidden) {
+        page.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))
+        await new Promise(resolve => setTimeout(resolve, 150))
+      }
+    })()`)
+    const { root: hoverRoot } = await win.webContents.debugger.sendCommand('DOM.getDocument')
+    const nodeFor = async (selector) => (await win.webContents.debugger.sendCommand('DOM.querySelector', { nodeId: hoverRoot.nodeId, selector })).nodeId
+    const tabNode = await nodeFor('.pi-filter-btn:not(.active)')
+    assert.ok(tabNode, 'the probe needs a non-active tab')
+    const fills = await win.webContents.executeJavaScript(`(() => {
+      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const surface = document.querySelector('.page[data-page="' + index + '"] .pi-app-wrapper')
+      const fill = (node) => node ? getComputedStyle(node).backgroundColor : 'missing'
+      const stroke = (node) => node ? getComputedStyle(node).outlineStyle + ' ' + getComputedStyle(node).outlineWidth : 'missing'
+      const cells = [...surface.querySelectorAll('.pi-overview-cell')]
+      const selected = cells.find(cell => cell.classList.contains('is-selected'))
+      const other = cells.find(cell => cell !== selected)
+      return { rows: cells.length, rowBefore: fill(other), selectedFill: fill(selected), rowStroke: stroke(other), selectedStroke: stroke(selected) }
+    })()`)
+    assert.equal(fills.rows, 2, JSON.stringify(fills))
+    // The control: a finger of the pointer on a filter tab answers with the hover
+    // surface, so this environment resolves the desk's hover rules at all.
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: tabNode, forcedPseudoClasses: ['hover'] })
+    const tabHoverFill = await win.webContents.executeJavaScript(`(() => {
+      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      return getComputedStyle(document.querySelector('.page[data-page="' + index + '"] .pi-filter-btn:not(.active)')).backgroundColor
+    })()`)
+    assert.equal(tabHoverFill, 'rgb(31, 31, 31)', `the harness observes a hover style, so the row reading below is not vacuous — ${JSON.stringify({ ...fills, tabHoverFill })}`)
+    const rowNode = await nodeFor('.pi-overview-cell:not(.is-selected)')
+    assert.ok(rowNode, 'the probe needs a non-selected row')
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: rowNode, forcedPseudoClasses: ['hover'] })
+    const rowHover = await win.webContents.executeJavaScript(`(() => {
+      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const surface = document.querySelector('.page[data-page="' + index + '"] .pi-app-wrapper')
+      const cells = [...surface.querySelectorAll('.pi-overview-cell')]
+      const selected = cells.find(cell => cell.classList.contains('is-selected'))
+      const other = cells.find(cell => cell !== selected)
+      const hovered = surface.querySelector('.pi-overview-cell:not(.is-selected)')
+      return { hoveredIsHovered: hovered ? hovered.matches(':hover') : false, rowAfter: other ? getComputedStyle(other).backgroundColor : 'missing', selectedFill: selected ? getComputedStyle(selected).backgroundColor : 'missing', selectedStroke: selected ? getComputedStyle(selected).outlineStyle + ' ' + getComputedStyle(selected).outlineWidth : 'missing' }
+    })()`)
+    assert.equal(rowHover.hoveredIsHovered, true, `the probe forces a real hover state — ${JSON.stringify(rowHover)}`)
+    assert.equal(fills.rowBefore, 'rgba(0, 0, 0, 0)', `a row that is not the current session is transparent — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.equal(rowHover.rowAfter, fills.rowBefore, `a row keeps the fill of the rows around it while the pointer rests on it — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.equal(rowHover.selectedFill, 'rgba(0, 0, 0, 0)', `the current session carries no filled band — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.notEqual(fills.selectedStroke, fills.rowStroke, `the current session keeps the only row stroke — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.equal(rowHover.selectedStroke, fills.selectedStroke, `a pointer resting on another row does not move the stroke — ${JSON.stringify({ ...fills, rowHover })}`)
+    console.log(`PASS row hover ${JSON.stringify({ ...fills, tabHoverFill, ...rowHover })}`)
   } finally {
     win.destroy()
   }

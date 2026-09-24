@@ -166,8 +166,16 @@ const DETAIL_EVENTS = [
   { kind: 'assistant', text: 'See https://example.test/sessions for the log.' },
 ]
 
-function eventsFixture() {
-  if (eventsMode === 'loading') return new Promise(() => {})
+// Electron answers "reply was never sent" once it collects the native invoke
+// event while the handler's promise is still unsettled, so a load this harness
+// holds open keeps its own event alive instead of reading as a failed scan.
+const heldInvocations = []
+function eventsFixture(event) {
+  if (eventsMode === 'loading') {
+    const held = new Promise(() => {})
+    heldInvocations.push({ event, held })
+    return held
+  }
   if (eventsMode === 'throw') throw new Error('fixture session log unreadable')
   if (eventsMode === 'unsupported') return { ok: false, reason: 'source-unsupported' }
   if (eventsMode === 'mixed') return { ok: true, truncated: false, events: DETAIL_EVENTS }
@@ -430,8 +438,8 @@ async function main() {
   await applyEvents(win, 'empty', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'No session events recorded yet.'`)
   await capture(win, 'page-14-no-events', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'No session events recorded yet.'`, 'Session Detail: the session reported no events')
 
-  await applyEvents(win, 'no-reported-events', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('No events have arrived')`)
-  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('No events have arrived')`, 'Session Detail: Pi is running but Desk Link has not delivered events yet')
+  await applyEvents(win, 'no-reported-events', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('no events have arrived')`)
+  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('no events have arrived')`, 'Session Detail: Pi is running but Desk Link has not delivered events yet')
 
   await applyEvents(win, 'session-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`)
   await capture(win, 'page-16-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`, 'Session Detail: no session log on the desk')
@@ -476,7 +484,7 @@ async function main() {
 const timeout = setTimeout(() => { console.error('[capture] timed out'); app.exit(1) }, OVERALL_TIMEOUT_MS)
 app.whenReady().then(async () => {
   ipcMain.handle('odk-pi-sessions', () => scanFixture())
-  ipcMain.handle('odk-pi-session-events', () => eventsFixture())
+  ipcMain.handle('odk-pi-session-events', (event) => eventsFixture(event))
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_CLIPROXY_MANAGEMENT_KEY_FILE'] }))
   ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
   ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))

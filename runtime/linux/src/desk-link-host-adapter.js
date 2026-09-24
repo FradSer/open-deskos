@@ -95,7 +95,13 @@ function sessionEventsFromEntry(entry) {
   const content = Array.isArray(message.content) ? message.content : []
   if (message.role === 'toolResult') {
     const text = content.filter((part) => part?.type === 'text' && typeof part.text === 'string').map((part) => part.text).join('\n\n')
-    const event = boundedEvent({ kind: 'result', text, ...(typeof message.toolName === 'string' ? { toolName: message.toolName } : {}) })
+    const event = boundedEvent({
+      kind: 'result',
+      text,
+      ...(typeof message.toolName === 'string' ? { toolName: message.toolName } : {}),
+      ...(typeof message.toolCallId === 'string' ? { toolCallId: message.toolCallId } : {}),
+      ...(message.isError === true ? { isError: true } : {}),
+    })
     return event ? [event] : []
   }
   if (message.role === 'user') {
@@ -110,7 +116,11 @@ function sessionEventsFromEntry(entry) {
       const event = boundedEvent({ kind: 'thinking', text: part.thinking })
       if (event) events.push(event)
     } else if (part?.type === 'toolCall') {
-      const event = boundedEvent({ kind: 'tool', text: formatToolCall(part.name, part.arguments) })
+      const event = boundedEvent({
+        kind: 'tool',
+        text: formatToolCall(part.name, part.arguments),
+        ...(typeof part.id === 'string' ? { toolCallId: part.id } : {}),
+      })
       if (event) events.push(event)
     }
   }

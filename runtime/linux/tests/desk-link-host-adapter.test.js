@@ -125,4 +125,18 @@ test('raw Pi SessionEntry messages map to canonical bounded Session Events', () 
     type: 'message',
     message: { role: 'toolResult', toolName: 'bash', content: [{ type: 'text', text: 'ok' }] },
   }), [{ kind: 'result', text: 'ok', toolName: 'bash' }])
+  // A Hosted Pi's own log carries the call identity and the outcome Pi recorded,
+  // so its tool box is coloured from that record rather than from the kind.
+  assert.deepEqual(sessionEventsFromEntry({
+    type: 'message',
+    message: { role: 'assistant', content: [{ type: 'toolCall', id: 'call_9', name: 'bash', arguments: { command: 'pnpm lint' } }] },
+  }), [{ kind: 'tool', text: 'bash\n{\n  "command": "pnpm lint"\n}', toolCallId: 'call_9' }])
+  assert.deepEqual(sessionEventsFromEntry({
+    type: 'message',
+    message: { role: 'toolResult', toolCallId: 'call_9', toolName: 'bash', isError: true, content: [{ type: 'text', text: 'exit code 1' }] },
+  }), [{ kind: 'result', text: 'exit code 1', toolName: 'bash', toolCallId: 'call_9', isError: true }])
+  assert.deepEqual(sessionEventsFromEntry({
+    type: 'message',
+    message: { role: 'toolResult', toolCallId: 'call_9', toolName: 'bash', isError: false, content: [{ type: 'text', text: 'clean' }] },
+  }), [{ kind: 'result', text: 'clean', toolName: 'bash', toolCallId: 'call_9' }])
 })

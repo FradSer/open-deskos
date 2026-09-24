@@ -712,6 +712,14 @@ function toolResultEntry(toolName, text) {
   return JSON.stringify({ type: 'message', message: { role: 'toolResult', toolName, isError: false, content: [{ type: 'text', text }] } })
 }
 
+function toolCallEntry(name, argumentsValue, id) {
+  return messageEntry('assistant', [{ type: 'toolCall', ...(id ? { id } : {}), name, arguments: argumentsValue }])
+}
+
+function toolResultEntryOf(toolCallId, toolName, text, isError) {
+  return JSON.stringify({ type: 'message', message: { role: 'toolResult', toolCallId, toolName, isError, content: [{ type: 'text', text }] } })
+}
+
 test('readSessionEvents returns only a bounded, ordered tail of a session log', () => {
   const agentDir = path.join(os.tmpdir(), `pi-events-tail-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const cwd = '/Users/test/events-workspace'
@@ -760,6 +768,36 @@ test('readSessionEvents keeps every event body and bounds each kind instead of f
   assert.equal(result.events[2].text, 'bash: pnpm test')
   assert.equal(result.events[4].text, 'the composer never ran')
   fs.rmSync(agentDir, { recursive: true, force: true })
+})
+
+// Pi colours every tool box by the outcome it recorded, so the desk reads that
+// record out of the log it already reads: the call's identity and, on the result,
+// whether Pi marked it an error. A call whose result is not in the retained tail
+// keeps no outcome at all rather than being reported as a success.
+test('readSessionEvents keeps each tool call paired with the outcome Pi recorded', () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-tool-outcome-'))
+  const cwd = '/Users/test/tool-outcome'
+  const sessionId = 'tool-outcome-session'
+  try {
+    writeSessionLog(agentDir, cwd, sessionId, [
+      messageEntry('user', [{ type: 'text', text: 'run the checks' }]),
+      toolCallEntry('bash', { command: 'pnpm test' }, 'call_ok'),
+      toolResultEntryOf('call_ok', 'bash', 'all tests passed', false),
+      toolCallEntry('bash', { command: 'pnpm lint' }, 'call_failed'),
+      toolResultEntryOf('call_failed', 'bash', 'exit code 1', true),
+      toolCallEntry('bash', { command: 'pnpm build' }, 'call_pending'),
+    ])
+
+    const result = readSessionEvents({ agentDir, cwd, sessionId })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.events.map((event) => event.kind), ['user', 'tool', 'result', 'tool', 'result', 'tool'])
+    assert.deepEqual(result.events.map((event) => event.toolCallId), [undefined, 'call_ok', 'call_ok', 'call_failed', 'call_failed', 'call_pending'])
+    assert.deepEqual(result.events.map((event) => event.isError), [undefined, undefined, undefined, undefined, true, undefined])
+    assert.equal(result.events[2].toolName, 'bash')
+  } finally {
+    fs.rmSync(agentDir, { recursive: true, force: true })
+  }
 })
 
 test('readSessionEvents keeps an assistant reply as one bounded multiline Markdown body', () => {

@@ -131,7 +131,7 @@ ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
 
 - 列表中的 tile 从其网格移除、status 槽位留空、page 从分页中剔除（页点同步减少）。
 - 未声明的 id 被忽略；未设置参数时外壳按 `desktop_layout.js` 全量装配。
-- 主进程经 `?disabledPlugins=` 查询参数传给 renderer；不要在插件内读取环境变量。
+- 主进程经 `?disabledPlugins=` 查询参数传给 renderer；不要在插件内读取环境变量。启动配置一律走主进程 → 查询参数 → `ctx.runtimeConfig`，插件只读 `ctx`。
 
 ### mount 收到的 ctx
 
@@ -151,6 +151,7 @@ ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
 | `await ctx.platform.listApps()` | 从主进程 App Manager endpoint 读取权威 App 元数据; IPC 不可用时显示恢复错误 |
 | `ctx.platform.catalog()` | 仅供本地适配与测试使用的 renderer 插件目录,不是 App Manager 权威列表 |
 | `ctx.openNavigationHelp()` | 打开外壳操作说明视图 |
+| `ctx.runtimeConfig` | 主进程从设备 runtime 环境解析出的启动配置只读快照，插件只能从这里读配置，不能读环境变量或 URL。目前只有 `piSessionReasoning`：`hidden`（默认，Session Detail 把思维链折叠为 `Thinking...`）或 `shown`（`ODESK_PI_REASONING=shown`，显示思维链正文） |
 | `ctx.publishPageRemote(el, remote)` | page 插件发布自带的 Remote Control Strip 按钮与焦点轴: `{ actions: [{ id, label }], focus: 'items' }`;`focus: 'items'` 表示该页自己拥有四个方向的输入。传 `null` 撤回。作用域绑定到 `el` 所在的页 |
 
 ### 页面自有输入与 Remote 事件

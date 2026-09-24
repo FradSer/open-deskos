@@ -368,6 +368,9 @@ function main() {
   // plus the shared tick, network, subscription, and Remote Link stores.
   let appPlatform = null
   const uiCtx = {
+    // Launch configuration the main process resolved from the device's runtime
+    // environment. Plugins read what they need from here, never from a URL.
+    runtimeConfig: window.odkRuntimeConfig.resolve(window.location.search),
     NETWORK_LABELS: odkServices.NETWORK_LABELS,
     SUBSCRIPTION_LABELS: odkServices.SUBSCRIPTION_LABELS,
     REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
