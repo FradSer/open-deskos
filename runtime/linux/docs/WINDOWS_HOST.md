@@ -111,6 +111,30 @@ node -e "require('./src/desk-link-client').createDeskLinkClient().snapshot().the
 | 已安装 Widget/App 与状态 | `%LOCALAPPDATA%\open-deskos\` |
 | Pi 会话与认证 | `~\.pi\agent`（`PI_AGENT_DIR` 可覆盖） |
 | 设备本地配置 | `runtime\linux\.env.local`，或用户环境变量 |
+
+### 设备本地凭据（`.env.local`，已被 `.gitignore` 忽略）
+
+任何 Windows 宿主只需要自己那几把钥匙；下面每一条都是在真机上验过的。
+
+| 键 | 用途 | 来源 |
+|---|---|---|
+| `WEREAD_API_KEY` | 微信读书同步凭据 | 与参考宿主**同一把**（CM5 的 release 本地 `.env.local`）；掌机实测 `status live` 且桌面自己写出了缓存 |
+| `ODK_HYDRA_MQTT_URL` | 浇水 MQTT 端点 | 设备本地（NAS 地址，不含凭据） |
+| `ODK_WEATHER_LAT/LON/PLACE` | 固定位置天气 | 可选：**不设**时改用设备定位（掌机即如此，会自动跟随城市） |
+| `ODK_LOCATION_URL` | 定位端点覆盖 | 默认 `https://ipwho.is/`，无密钥 |
+| `ODK_CLIPROXY_URL` + `ODK_CLIPROXY_MANAGEMENT_KEY_FILE` | OpenCode Go 用量 | 本机**自己的** SSH 隧道（授权到 NAS 且只给转发）+ 管理密钥文件 |
+| `ODK_DESK_LINK_TOKEN_FILE` / `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` | Desk Link 宿主令牌 / 控制凭据 | 本机**自己的**令牌（首次使用自动生成）；留空即只上报 |
+| `ODK_PI_SSH_HOST/NODE/COLLECTOR` | 远程 Pi 会话采集 | 本机**自己的** SSH 身份（对方的 authorized_keys 里按命令限制） |
+
+刻意**不放**在 Windows 宿主上，以及原因：
+
+| 内容 | 为何不放 |
+|---|---|
+| Futu 网关 RSA 私钥与交易口令 | 掌机还没有 Futu poller 实例；且交易口令按约定只由你自己处理 |
+| 语音 agent 配置与 DiDi key | 语音 agent（含 `personal-agent.json` 里的 `didi`）未移植到 Windows |
+| 参考宿主的 Desk Link 令牌与控制凭据 | 每个 desk 拥有自己的令牌；掌机没有 hosted Pi 宿主，控制凭据在那儿无事可做（它是只上报的 desk） |
+| Pi agent 自己的 `auth.json` | 桌面只**读取**远程 Pi 会话，不代替 Pi agent 登录任何账号 |
+| MQTT 凭据 | 局域网 broker 不要求；需要时另说 |
 | Shell 日志 | `run.ps1` 前台输出；kiosk 场景请重定向到文件 |
 
 ## 真机验证记录（2026-09 于一台 1280×800 掌机）
