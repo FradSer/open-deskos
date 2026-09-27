@@ -35,6 +35,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `FUTU_TRADE_PWD` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 交易解锁口令 |
 | `HOME` | 环境 | 登录会话 | runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
 | `LIBGL_ALWAYS_SOFTWARE` | 环境 | 运维 | runtime/linux/src/main.js | — | 强制软件渲染，诊断用 |
+| `LOCALAPPDATA` | 环境 | Windows 用户会话 | runtime/linux/src/platform/index.js | — | Windows Shell Host 的持久状态根（`%LOCALAPPDATA%`）；缺失时回退到用户目录下的 `AppData/Local` |
 | `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/capabilities.mjs | 运行时目录下的 app 控制 socket | 仅测试覆盖，生产用默认值 |
 | `ODESK_CAMERA_DEVICE` | L3 设备本地 | 运维 | runtime/linux/src/camera-source.js | — | 相机设备覆盖 |
 | `ODESK_DESK_LINK_SOCKET` | 内部 | Shell | runtime/linux/src/desk-link-client.js | 运行时目录下的 desk link socket | Shell 到本机 desk link 服务的 socket 覆盖 |
@@ -50,6 +51,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_SHELL_WIDTH` | 测试 | smoke/验收 | runtime/linux/src/main.js | — | 覆盖窗口宽度 |
 | `ODESK_SKIP_GPU_USERSPACE` | L2 安装期 | 安装者临时设置 | runtime/linux/scripts/cm5-install.sh | 0 | 跳过 Mali 用户态安装 |
 | `ODESK_SMOKE_RESULT_FILE` | 测试 | smoke 运行 | runtime/linux/src/main.js | — | smoke 结果输出文件 |
+| `ODESK_TAILSCALE_BIN` | L3 设备本地 | 运维 | runtime/linux/scripts/provision-tailscale.sh | /usr/bin/tailscale | 非标准路径安装的 Tailscale 命令覆盖；宿主已有安装时优先复用 |
 | `ODESK_TASK_CONFIG` | L2 安装期 | pi-tasks unit | integrations/voice-agent/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Hosted Pi daemon 私有配置路径：只有 daemon 读它，属主与权限也只校验一次；客户端读它发布的端点描述符 |
 | `ODESK_TASK_TARGETS_FILE` | L3 设备本地 | voice unit 环境或 drop-in | integrations/voice-agent/src/task-client.mjs | 未配置 | voice 侧目标清单；未配置即报告需要配置 |
 | `ODESK_VOICE_AGENT_CONFIG` | L3 设备本地（敏感） | voice-agent.env | integrations/voice-agent/src/personal-config.mjs | coding profile | 个人 profile 与技能/凭据路径清单 |
@@ -104,5 +106,5 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/desk-link-client.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/user-app-system.js, runtime/linux/src/voice-agent-client.js, runtime/linux/scripts/desk-link-service.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | IPC socket 与运行时目录的根 |
-| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/user-app-system.js, integrations/voice-agent/src/main.mjs | ~/.local/state | 持久状态目录 |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/desk-link-client.js, runtime/linux/src/main.js, runtime/linux/src/platform/index.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/voice-agent-client.js, runtime/linux/scripts/desk-link-service.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | IPC socket 与运行时目录的根；Windows Shell Host 不适用（端点改用命名管道） |
+| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/main.mjs | ~/.local/state | 持久状态目录 |

@@ -1,3 +1,7 @@
+const { notPortedOnWindows } = require("./not-ported")
+// A Windows Shell Host does not port this capability; the reference host runs it.
+if (notPortedOnWindows(require("node:test").test, "posix-ownership")) return
+
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')

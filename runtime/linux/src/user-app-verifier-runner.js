@@ -11,14 +11,33 @@ const MAX_INPUT_BYTES = 1024 * 1024
 const MAX_HTML_BYTES = 256 * 1024
 const MAX_OUTPUT_BYTES = 64 * 1024
 protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
+// `electron runner.js <bundle-path> <result-path>` — both optional, and both used
+// by a parent that cannot rely on this child's standard streams.
+const BUNDLE_PATH = typeof process.argv[2] === 'string' ? process.argv[2] : ''
+const RESULT_PATH = typeof process.argv[3] === 'string' ? process.argv[3] : ''
 const send = (value) => {
   const output = JSON.stringify(value)
   if (Buffer.byteLength(output, 'utf8') > MAX_OUTPUT_BYTES) { app.exit(1); return }
+  // The result goes to the file the parent named and to stdout, because a Windows
+  // Electron child cannot write to a piped stdout reliably either.
+  if (RESULT_PATH) {
+    try { require('node:fs').writeFileSync(RESULT_PATH, `${output}\n`, 'utf8') } catch {}
+  }
   process.stdout.write(`${output}\n`)
   setImmediate(() => app.exit(value.ok ? 0 : 1))
 }
 
 async function readBundle() {
+  // A bundle arrives as a file path when the parent provides one: that is the
+  // channel a Windows Electron child can read, since its stdin is not connected
+  // to the pipe the parent writes. stdin stays supported.
+  if (BUNDLE_PATH) {
+    const stat = require('node:fs').statSync(BUNDLE_PATH)
+    if (stat.size > MAX_INPUT_BYTES) throw new Error('bundle-too-large')
+    const fromFile = JSON.parse(require('node:fs').readFileSync(BUNDLE_PATH, 'utf8'))
+    if (!fromFile || typeof fromFile.html !== 'string' || Buffer.byteLength(fromFile.html, 'utf8') > MAX_HTML_BYTES) throw new Error('html-too-large')
+    return fromFile
+  }
   const chunks = []
   let bytes = 0
   for await (const chunk of process.stdin) {

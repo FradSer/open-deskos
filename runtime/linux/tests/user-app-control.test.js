@@ -6,8 +6,9 @@ const { join } = require('node:path')
 const { connect } = require('node:net')
 const { once } = require('node:events')
 const { createUserAppControl, listenUserAppControl } = require('../src/user-app-control')
+const { posixOnlyReason } = require('./not-ported')
 
-test('desktop and socket share actual installer outcomes', async t => {
+test('desktop and socket share actual installer outcomes', { skip: posixOnlyReason('unix-socket') }, async t => {
   const calls = []
   const control = createUserAppControl({
     list: async () => [{ id: 'clock' }],

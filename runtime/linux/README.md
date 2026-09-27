@@ -23,18 +23,35 @@ Orange Pi CM5 (RK3588S) Linux 设备上的 Open DeskOS 外壳，基于 Electron�
 ../../peripherals/esp32-s3-remote/  ESP32-S3 Remote Control peripheral
 ../../integrations/remote-bridge/   Node.js systemd user service for the Remote link
 src/main.js                         Electron main process, kiosk, and IPC
+src/platform/                       平台层：状态目录、逻辑端点命名、可执行名规则、进程来源
 src/opencode-go.js                  Linux OpenCode Go request/auth/response parsing
+native/odk-process/                 可选原生进程读取模块（Windows）：命令行与工作目录
+run.ps1                             Windows Shell Host 启动入口，不需要 bash
 src/renderer/                       Sandboxed DOM shell, plugins, and declarative layout
 docs/AI_PLUGIN_GUIDE.md 插件契约和扩展步骤
 docs/CONFIGURATION.md    环境变量清单：分层、声明者、消费者与默认值
 tests/features/         中文 Gherkin 场景
-tests/smoke.sh          分辨率、token、骨架和核心架构检查
+tests/smoke.mjs         跨平台验收检查（分辨率、token、骨架和核心架构）；tests/smoke.sh 是它的 CM5 包装
 scripts/start-kiosk.sh  kiosk 启动包装器
 scripts/cm5-install.sh CM5 设备端安装器
 scripts/update-runtime.js CM5 原子 release 激活与回退事务
 scripts/migrate-runtime.js CM5 用户级、幂等 runtime migration
 scripts/cm5-stage-release.sh 从开发机 stage 并在 CM5 上激活 release
 ```
+
+## 另一个 Shell Host：64 位 Windows
+
+64 位 Windows 是同一个 Display Shell 的受支持宿主，完整手册见 [Windows Shell Host 运行手册](docs/WINDOWS_HOST.md)。差异只落在 `src/platform/`：状态目录（`%LOCALAPPDATA%\open-deskos`）、逻辑端点命名（Windows 上是命名管道）、可执行名规则（`pi.exe` / `pi.cmd` / `pi.ps1`）、以及进程来源。
+
+```powershell
+cd runtime\linux
+pnpm install
+pwsh -File run.ps1           # 读取 .env.local；-Kiosk 进全屏
+node tests\smoke.mjs         # 验收，不需要 bash
+pnpm run build:native        # 可选：编译原生进程读取模块（按 Electron ABI）
+```
+
+该宿主上如实不可用：Remote Control / Remote Bridge、语音 Agent、Desk Link / Hosted Pi 控制、外部应用控制端点、P4 摄像头 tile（无 `v4l2-ctl`）。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响。CM5 仍是参考宿主，其全部入口与发布链路不变。
 
 ## 本机开发
 

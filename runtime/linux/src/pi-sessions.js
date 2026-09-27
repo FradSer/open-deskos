@@ -3,6 +3,8 @@ const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
 const { boundedEvent, retainEvents } = require('./pi-session-events')
+const { resolveShellHost } = require('./platform')
+const { tokenizeWindowsCommandLine } = require('./platform/win32-command-line')
 
 function normalizePid(value) {
   const pid = Number(value)
@@ -270,7 +272,11 @@ function readSessionEvents(options = {}) {
 function resolveWorkspaceName(cwd) {
   if (!cwd || typeof cwd !== 'string') return 'Unknown'
   const trimmed = cwd.replace(/[/\\]+$/, '')
-  return path.basename(trimmed) || trimmed
+  // Both separators are split on every host: a session row can name a path the
+  // running host did not produce (a Windows desk reading a reported POSIX path,
+  // or the reverse), and `path.basename` would then return the whole string.
+  const name = trimmed.split(/[\\/]/).pop() || ''
+  return name || trimmed
 }
 
 function parseElapsedSeconds(value) {
@@ -299,13 +305,25 @@ function readProcessCwd(pid) {
 
 function executableName(value) {
   if (!value || typeof value !== 'string') return ''
-  return path.basename(value.trim().replace(/^['"]|['"]$/g, '')).toLowerCase()
+  const trimmed = value.trim().replace(/^['"]|['"]$/g, '')
+  // `://` is the one thing that makes a value certainly not a path; a URL's
+  // backslash is not a separator. Otherwise the last of either separator wins,
+  // because Windows accepts both in the same path.
+  const name = (trimmed.includes('://') ? trimmed.split('/').pop() : trimmed.split(/[\\/]/).pop()) || ''
+  // A Windows launcher suffix names the same program: `node.exe` is `node`, and
+  // `pi.cmd` is `pi`. Stripping it here keeps one rule for both hosts instead of
+  // a second executable list.
+  return name.replace(WINDOWS_EXECUTABLE_SUFFIX, '').toLowerCase()
 }
 
 function isPiExecutable(value) {
   const name = executableName(value)
   return name === 'pi' || name === 'pi.js' || name === 'pi.mjs' || name === 'pi.cjs'
 }
+
+const WINDOWS_EXECUTABLE_SUFFIX = /\.(exe|cmd|bat|ps1)$/i
+const POSIX_SHELL_LAUNCHERS = ['sh', 'bash', 'zsh', 'fish']
+const WINDOWS_SHELL_LAUNCHERS = ['cmd', 'powershell', 'pwsh']
 
 function skipCommandWrappers(tokens) {
   let index = 0
@@ -341,19 +359,114 @@ function skipCommandWrappers(tokens) {
   return index
 }
 
-function shellCommandIsPi(value) {
+function shellCommandIsPi(value, depth = 0) {
   const command = String(value || '').trim().replace(/^(['"])(.*)\1$/, '$2')
-  return isPiInvocation(command.split(/\s+/).filter(Boolean))
+  return isPiInvocation(command.split(/\s+/).filter(Boolean), depth)
 }
 
-function isPiInvocation(tokens) {
+const IS_WINDOWS_COMMAND_SEPARATOR = /^(&&|\|\||[&|])$/
+// A redirection is not part of the command being run: it is removed before the
+// command line is read, so `cmd /c "node pi.js" 2>&1` is the same invocation as
+// `cmd /c "node pi.js"`.
+const WINDOWS_REDIRECTION = /^(?:\d?>>?|\d?<|\d?>&\d?)$/
+const WINDOWS_REDIRECTION_WITH_TARGET = /^(?:\d?>>?|\d?<)$/
+// A process table is untrusted input, so wrapper unwrapping is bounded. Without
+// a bound, a pathologically nested `cmd /c` line overflows the stack, and a
+// throw on the Windows path empties the Pi process set: every session would be
+// hidden because one row was absurd.
+const MAX_WRAPPER_DEPTH = 8
+
+function stripWindowsRedirection(tail) {
+  const kept = []
+  for (let index = 0; index < tail.length; index += 1) {
+    const token = tail[index]
+    if (WINDOWS_REDIRECTION.test(token)) {
+      // `> log.txt` is a redirection plus its target; `2>&1` is one token.
+      if (WINDOWS_REDIRECTION_WITH_TARGET.test(token)) index += 1
+      continue
+    }
+    // `>`, `<`, and `|` cannot appear in a Windows path, so a target glued to
+    // the command is a redirection rather than part of the name.
+    const glued = token.search(/[<>]/)
+    kept.push(glued === -1 ? token : token.slice(0, glued))
+  }
+  return kept
+}
+
+/**
+ * `cmd /c {"<whole command line>"}` arrives as one argument whose inner quoting
+ * the outer tokenization consumed. That string is ambiguous —
+ * `node C:\my tools\pi.js` could be one path or two arguments — so both readings
+ * are tried and either one recognizing a Pi invocation is enough.
+ *
+ * Separators are read only where they arrived as their own argv element. Two
+ * earlier attempts to recover separators and quoting from inside a token both
+ * over-accepted (`cmd /c node "C:\tools\pi&b.js"` read as Pi because of the `&`
+ * in a filename), and an accepted non-Pi row is not harmless: it enters the
+ * scan's Pi pid set, where a session parented by that pid is discarded as
+ * another session's worker. The unrecognized forms below are the price, and they
+ * are pinned by tests rather than left to chance.
+ */
+function recognizeWindowsWrappedCommand(tail, depth) {
+  const args = stripWindowsRedirection(tail)
+  if (args.length === 0) return false
+  const candidates = []
+  if (args.length > 1) {
+    // Arguments the outer tokenizer already split, used as they arrived.
+    candidates.push(args)
+    // `cmd /c "node pi.js" 2 > log.txt`: the quoted command line is one argument
+    // and what follows it belongs to that command, so the line is read as the
+    // command and the rest as its arguments. Gating this on whether a redirection
+    // happened made the desk's answer depend on an incidental redirection, which
+    // is worse than the one recorded over-acceptance it shares with the reference
+    // host: a command whose first non-flag argument names a script called `pi`
+    // (see isPiInvocation's generic script rule) reads as Pi.
+    if (/\s/.test(args[0])) {
+      const words = args[0].match(/^(\S+)\s+([\s\S]+)$/)
+      if (words) {
+        candidates.push([words[1], ...tokenizeWindowsCommandLine(words[2]), ...args.slice(1)])
+        candidates.push([words[1], words[2], ...args.slice(1)])
+      }
+    }
+  } else {
+    const words = args[0].match(/^(\S+)\s+([\s\S]+)$/)
+    if (!words) candidates.push([args[0]])
+    else {
+      candidates.push([words[1], ...tokenizeWindowsCommandLine(words[2])])
+      candidates.push([words[1], words[2]])
+    }
+  }
+  return candidates.some((candidate) => windowsCommandSegments(candidate).some((segment) => isPiInvocation(segment, depth + 1)))
+}
+
+// A shell line can chain commands (`set FOO=1 && pi`), and the process holding
+// that line is the wrapper for whatever it runs, exactly as `sh -c` is.
+function windowsCommandSegments(tokens) {
+  const segments = [[]]
+  for (const token of tokens) {
+    if (IS_WINDOWS_COMMAND_SEPARATOR.test(token)) segments.push([])
+    else segments[segments.length - 1].push(token)
+  }
+  return segments.filter((segment) => segment.length > 0)
+}
+
+function isPiInvocation(tokens, depth = 0) {
+  if (depth > MAX_WRAPPER_DEPTH) return false
   const commandIndex = skipCommandWrappers(tokens)
   const command = tokens[commandIndex]
   if (isPiExecutable(command)) return true
   const launcher = executableName(command)
-  if (['sh', 'bash', 'zsh', 'fish'].includes(launcher)) {
+  if (POSIX_SHELL_LAUNCHERS.includes(launcher)) {
     const flagIndex = tokens.slice(commandIndex + 1).findIndex((token) => /^-[^-]*c/.test(token))
-    return flagIndex >= 0 && shellCommandIsPi(tokens.slice(commandIndex + 2 + flagIndex).join(' '))
+    return flagIndex >= 0 && shellCommandIsPi(tokens.slice(commandIndex + 2 + flagIndex).join(' '), depth + 1)
+  }
+  if (WINDOWS_SHELL_LAUNCHERS.includes(launcher)) {
+    // `cmd /c pi`, `pwsh -Command pi`: the shell is a wrapper, and what follows
+    // its command switch is another command line.
+    const rest = tokens.slice(commandIndex + 1)
+    const flagIndex = rest.findIndex((token) => /^\/c$/i.test(token) || /^-c(ommand)?$/i.test(token))
+    if (flagIndex >= 0 && recognizeWindowsWrappedCommand(rest.slice(flagIndex + 1), depth)) return true
+    return windowsCommandSegments(rest).some((segment) => isPiInvocation(segment, depth + 1))
   }
   const script = tokens.slice(commandIndex + 1).find((token) => !token.startsWith('-'))
   if (isPiExecutable(script)) return true
@@ -369,8 +482,15 @@ function isPiInvocation(tokens) {
 
 function isPiProcess(processInfo) {
   if (isPiExecutable(processInfo?.comm)) return true
-  if (!processInfo?.args || typeof processInfo.args !== 'string') return false
-  const tokens = processInfo.args.split(/\s+/).filter(Boolean)
+  // POSIX reports the command line as `args`; a Windows host reports it as
+  // `command` with the tokens its own quoting rules produced.
+  const command = typeof processInfo?.args === 'string'
+    ? processInfo.args
+    : (typeof processInfo?.command === 'string' ? processInfo.command : '')
+  if (!command) return false
+  const tokens = Array.isArray(processInfo.tokens)
+    ? processInfo.tokens
+    : command.split(/\s+/).filter(Boolean)
   return isPiInvocation(tokens)
 }
 
@@ -400,7 +520,33 @@ function parseProcessTable(output, now = Date.now()) {
   return processes
 }
 
-function listPiProcesses(now = Date.now(), strict = false) {
+let windowsProcessSource = null
+
+function resolveWindowsProcessSource() {
+  if (!windowsProcessSource) {
+    const { createWindowsProcessSource } = require('./platform/win32-processes')
+    windowsProcessSource = createWindowsProcessSource()
+  }
+  return windowsProcessSource
+}
+
+function listPiProcesses(now = Date.now(), strict = false, options = {}) {
+  const host = options.host || resolveShellHost()
+  if (host.isWindows) {
+    // A Windows host has no `ps`: its own source owns the table, and the native
+    // module owns the work directory whenever it is built and loadable.
+    const source = options.windowsSource || resolveWindowsProcessSource()
+    try {
+      // The scan reads the returned rows as the Pi process set — the POSIX path
+      // filters as it parses, so this path filters too. Without it, every row
+      // would count as a Pi process and a live session parented by any running
+      // process would be discarded as another session's worker.
+      return (source.list(now) || []).filter(isPiProcess)
+    } catch (error) {
+      if (strict) throw new Error('Pi process inspection unavailable')
+      return []
+    }
+  }
   const format = process.platform === 'darwin'
     ? ['-axo', 'pid=,ppid=,etime=,comm=,args=']
     : ['-eo', 'pid=,ppid=,etimes=,comm=,args=']
@@ -689,4 +835,6 @@ module.exports = {
   parseElapsedSeconds,
   parseProcessTable,
   listPiProcesses,
+  isPiProcess,
+  tokenizeWindowsCommandLine,
 }

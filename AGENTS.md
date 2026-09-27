@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `runtime/linux/` is the active Electron CM5 (RK3588S) runtime. `peripherals/esp32-s3-remote/` and `peripherals/esp32-p4-camera/` have independent hardware acceptance gates; neither may block base-shell touch or keyboard use. `integrations/remote-bridge/` connects the Remote.
+- `runtime/linux/` is the active Electron Shell runtime. Its reference Shell Host is the CM5 (RK3588S, Linux arm64); 64-bit Windows is a supported host with its own runbook at `runtime/linux/docs/WINDOWS_HOST.md`. `peripherals/esp32-s3-remote/` and `peripherals/esp32-p4-camera/` have independent hardware acceptance gates; neither may block base-shell touch or keyboard use. `integrations/remote-bridge/` connects the Remote.
 - `research/esp32-p4-c6-deskos/` preserves the prior P4+C6 device OS, simulator, docs, and Apple USB companion; it is not active product authority.
 - For product scope, consult @PRODUCT.md; for runtime terminology or architecture, consult @runtime/linux/CONTEXT.md and the relevant record in `runtime/linux/docs/adr/`.
 - Root only supplies UnoCSS, not a package workspace. Install runtime dependencies with pnpm in `runtime/linux/`.
@@ -14,4 +14,4 @@
 
 ## Commit & Pull Request Guidelines
 - Use `git-agent commit` or the `/git:commit` skill for commits; never run raw `git add` or `git commit`.
-- Use focused Conventional Commits (`fix(cm5):`, `feat(hw):`, `refactor(link):`, `feat(vision):`, `fix(p4):`, `refactor(mac):`). State validation commands and scope in commit messages.
+- Use focused Conventional Commits (`fix(cm5):`, `feat(hw):`, `refactor(link):`, `feat(vision):`, `fix(p4):`, `refactor(mac):`). The `cm5` scope covers the Shell runtime on both of its hosts. State validation commands and scope in commit messages.

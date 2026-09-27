@@ -6,6 +6,10 @@
 The CM5/Linux runtime is the current Open DeskOS subject. The CM5 owns the desk display, local services, application orchestration, and direct operation. Apple platforms are not part of this active architecture.
 _Avoid_: calling Linux a migration slice, making a Mac companion mandatory, or allowing the prior P4+C6 DeskOS route to define active product requirements.
 
+**Shell Host**:
+The machine and operating system that runs the Display Shell. The CM5 (Linux arm64) is the reference host and 64-bit Windows is a supported host; a host is neither a release nor a product variant, and its platform half may not change what the desk states as true.
+_Avoid_: platform fork, separate product, release variant, Windows build
+
 **Required Peripheral Architecture**:
 The ESP32-S3 Remote Control and the ESP32-P4 SC2336 Camera Sub-device are intended parts of the CM5 system architecture, but each has an independent hardware acceptance gate. Their absence must not prevent a base CM5 shell from installing, booting, or offering direct touch and keyboard operation.
 _Avoid_: treating every MCU as merely optional, or making an unaccepted peripheral a boot/install dependency.
@@ -166,6 +170,10 @@ _Avoid_: brand palette, theme override, accent decoration
 Pi's own framing for one tool call: the call and the result Pi wrote for it read as one surface, carrying Pi's pending, success, or error role according to the outcome Pi recorded for that call. The desk colours it from that record — the call identity Pi wrote and the error flag Pi recorded — never from the event kind, and a call whose result Pi has not reported keeps Pi's pending role.
 _Avoid_: tool card, chat bubble, invented tool status, success surface for an unrecorded outcome
 
+**Session Work Directory**:
+The directory a Live Session's Pi process works in. Pi's own session metadata is the source; the Shell Host's process table enriches it only where the host can read another process's directory. A host that cannot leaves it unknown instead of inferring one.
+_Avoid_: guessed workspace, best-effort directory, path from PID
+
 **Session Overview**:
 The Pi Sessions page's home view: the Session Filter's tabs above a single-column list of the Session Set, reachable with Remote Back from a Session Detail. It follows Pi's native session-list hierarchy with a state, goal, directory, and activity per row, and a selection cursor, while inheriting the Shell theme. Choosing a row shows that session's Session Detail.
 _Avoid_: honeycomb, exposé, agent grid, tab overview, dashboard
@@ -223,8 +231,8 @@ The ESP32-S3 touchscreen device that turns direct touch interaction into navigat
 _Avoid_: keyboard, controller
 
 **Display Shell**:
-The Open DeskOS Linux shell running at the CM5's native 1920×1280 HDMI content size and controlled by Remote Control navigation input. The shell keeps responsive geometry checks for alternate development window sizes.
-_Avoid_: separate demo, remote, firmware
+The Open DeskOS shell running at the CM5's native 1920×1280 HDMI content size and controlled by Remote Control navigation input. The shell keeps responsive geometry checks for alternate development window sizes. It runs on more than one Shell Host; the host supplies process inspection, device locations, and endpoint naming rather than a per-host shell.
+_Avoid_: separate demo, remote, firmware, per-host shell fork
 
 **HID Navigation**:
 Remote Control navigation conveyed to the focused Display Shell as standard USB HID `ArrowLeft` and `ArrowRight` key presses. It remains available whenever USB is enumerated, including while CDC state feedback is synchronizing.

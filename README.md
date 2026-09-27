@@ -1,11 +1,11 @@
 # Open DeskOS
 
-Open DeskOS is a CM5/RK3588S Linux desk companion runtime. Its Electron shell runs directly on the desk display and remains usable with touch and keyboard while hardware peripherals complete their own acceptance gates.
+Open DeskOS is a CM5/RK3588S Linux desk companion runtime. Its Electron shell runs directly on the desk display and remains usable with touch and keyboard while hardware peripherals complete their own acceptance gates. The same shell also runs natively on a 64-bit Windows host, where the surfaces this repository has not ported report unavailable instead of degrading silently.
 
 ## Active architecture
 
 ```text
-runtime/linux/                         CM5 Electron desk runtime
+runtime/linux/                         Electron desk runtime: CM5 reference host and 64-bit Windows hosts
 peripherals/esp32-s3-remote/           ESP32-S3 touch Remote Control
 peripherals/esp32-p4-camera/           ESP32-P4 SC2336 Camera Peripheral
 integrations/remote-bridge/            CM5 ↔ Remote transport service
@@ -25,7 +25,7 @@ bash tests/smoke.sh
 ./run.sh
 ```
 
-For CM5 installation and acceptance, see [runtime/linux/README.md](runtime/linux/README.md).
+For CM5 installation and acceptance, see [runtime/linux/README.md](runtime/linux/README.md). For a 64-bit Windows host, see [runtime/linux/docs/WINDOWS_HOST.md](runtime/linux/docs/WINDOWS_HOST.md): `pnpm install`, `pwsh -File run.ps1`, then `node tests/smoke.mjs`.
 
 ## Build required peripherals
 

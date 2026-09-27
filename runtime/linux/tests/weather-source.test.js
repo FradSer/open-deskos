@@ -8,6 +8,7 @@ const path = require('node:path')
 
 const FEATURE = fs.readFileSync(path.join(__dirname, 'features', 'weather-widget.feature'), 'utf8')
 const { createWeatherSource, describeWeatherCode, WEATHER_STATES, placeColumns, PLACE_COLUMNS } = require('../src/weather-source')
+const { posixOnlyReason } = require('./not-ported')
 
 function payload(overrides = {}) {
   return {
@@ -138,7 +139,7 @@ test('a reading on disk is published at once while the provider read continues',
   assert.equal(calls, 2, 'the background read and the forced read share one request')
 })
 
-test('a provider failure keeps the cached reading and marks it stale', async (t) => {
+test('a provider failure keeps the cached reading and marks it stale', { skip: posixOnlyReason('posix-modes') }, async (t) => {
   const cacheFile = temporaryCache(t)
   let fail = false
   const source = createWeatherSource({

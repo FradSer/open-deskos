@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const { execFileSync, spawnSync } = require('node:child_process')
 const path = require('node:path')
+const { posixOnlyReason } = require('./not-ported')
 
 const env = { ODK_PI_SSH_HOST: 'desk-mac', ODK_PI_SSH_NODE: '/opt/homebrew/bin/node', ODK_PI_SSH_COLLECTOR: '/Users/example/.local/share/open-deskos/pi-sessions-snapshot.js' }
 function snapshot() {
@@ -14,6 +15,40 @@ function snapshot() {
 function remote(options = {}) {
   return createPiSessionsSource({ env, scanLocal: () => { throw new Error('must not fall back') }, ...options })
 }
+
+// A Windows host's ssh client can deliver the collector's line and then stay alive
+// until its deadline kills it. The snapshot is the result either way, so waiting for
+// an exit status would report a working remote source as unavailable.
+test('a snapshot that arrives before the ssh client exits is the result', async () => {
+  const expected = snapshot()
+  const execute = (command, args, options, callback) => callback(
+    Object.assign(new Error('Command failed: ssh ...'), { killed: true, signal: 'SIGKILL' }),
+    JSON.stringify(expected),
+    '',
+  )
+
+  const data = await remote({ execute })()
+
+  assert.equal(data.ok, true)
+  assert.equal(data.source.kind, 'ssh')
+  assert.equal(data.summary.running, expected.summary.running)
+})
+
+// The generic reason told an operator nothing, which cost a diagnosis on a real
+// host; what the CLI said is part of the report.
+test('a failed ssh call reports what the CLI said', async () => {
+  const execute = (command, args, options, callback) => callback(
+    Object.assign(new Error('Command failed: ssh ...'), { code: 255 }),
+    '',
+    'frads@host: Permission denied (publickey,password,keyboard-interactive).',
+  )
+
+  const data = await remote({ execute })()
+
+  assert.equal(data.ok, false)
+  assert.match(data.error, /SSH scan unavailable/)
+  assert.match(data.error, /Permission denied/)
+})
 test('deployed snapshot entry point emits a snapshot accepted by SSH provider', async () => {
   // Process inspection can be slow when the full Node suite is running on a
   // loaded development host. Keep a finite bound without making parallel test
@@ -42,7 +77,7 @@ test('collector counts dead completed metadata as exited', async () => {
   }
 })
 
-test('snapshot CLI fails truthfully when process inspection is unavailable', () => {
+test('snapshot CLI fails truthfully when process inspection is unavailable', { skip: posixOnlyReason('process-inspection') }, () => {
   const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/pi-sessions-snapshot.js')], { env: { ...process.env, PATH: '/nonexistent' }, encoding: 'utf8', timeout: 10000 })
   assert.notEqual(result.status, 0)
   assert.equal(result.stdout, '')

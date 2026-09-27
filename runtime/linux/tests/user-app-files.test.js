@@ -4,6 +4,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
 const { readBoundedFile, ensureDirectory, writeExclusive } = require('../src/user-app-files')
+const { posixOnlyReason } = require('./not-ported')
 
 async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-files-'))
@@ -18,7 +19,7 @@ async function fixture() {
   await assert.rejects(() => readBoundedFile(root, 'nested/ok', 4), /file-too-large/)
 })
 
-test('rejects traversal, symlink paths, nonregular files and root symlink', async () => {
+test('rejects traversal, symlink paths, nonregular files and root symlink', { skip: posixOnlyReason('symlinks') }, async () => {
   const { root, outside } = await fixture()
   await fs.writeFile(path.join(outside, 'secret'), 'secret')
   await fs.mkdir(path.join(root, 'dir'))
@@ -33,7 +34,7 @@ test('rejects traversal, symlink paths, nonregular files and root symlink', asyn
   await assert.rejects(() => readBoundedFile(path.join(root, 'link-dir'), 'secret', 100), /unsafe-root/)
 })
 
-test('creates private directories and writes exclusively without escaping root', async () => {
+test('creates private directories and writes exclusively without escaping root', { skip: posixOnlyReason('posix-modes') }, async () => {
   const { root, outside } = await fixture()
   const directory = await ensureDirectory(root, 'a/b')
   assert.equal(directory, path.join(root, 'a/b'))

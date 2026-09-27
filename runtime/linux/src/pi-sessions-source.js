@@ -120,17 +120,34 @@ function scanRemote(config, source, execute) {
     '-o', 'ServerAliveCountMax=1', '-o', 'ClearAllForwardings=yes', host,
     `${quote(node)} ${quote(collector)}`]
   return new Promise((resolve) => {
-    execute('ssh', args, { encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024, killSignal: 'SIGKILL' }, (error, stdout) => {
-      if (error) return resolve(unavailable(source, 'SSH scan unavailable: check connection, host key, authentication, and collector.'))
-      try {
-        const data = JSON.parse(stdout)
-        if (!validSnapshot(data)) throw new Error('Invalid snapshot')
-        resolve({ ...data, source })
-      } catch {
-        resolve(unavailable(source, 'SSH collector returned an invalid or stale snapshot.'))
-      }
+    execute('ssh', args, { encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024, killSignal: 'SIGKILL' }, (error, stdout, stderr) => {
+      // A Windows host's ssh client can deliver the collector's line and then stay
+      // alive until the deadline kills it, so the snapshot is read before the exit
+      // status is considered: waiting for an exit would report a working remote
+      // source as unavailable.
+      const parsed = parseSnapshot(stdout)
+      if (parsed) return resolve({ ...parsed, source })
+      if (error) return resolve(unavailable(source, `SSH scan unavailable: ${failureDetail(stderr, error)}`))
+      resolve(unavailable(source, 'SSH collector returned an invalid or stale snapshot.'))
     })
   })
+}
+
+function parseSnapshot(stdout) {
+  try {
+    const data = JSON.parse(stdout)
+    return validSnapshot(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+// What the CLI said is part of the report: the generic reason cost a diagnosis on a
+// real host, where the answer was one line of ssh's own output.
+function failureDetail(stderr, error) {
+  const said = String(stderr || '').replace(/\s+/g, ' ').trim() || String(error?.message || '').replace(/\s+/g, ' ').trim()
+  const guidance = 'check connection, host key, authentication, and collector.'
+  return said ? `${guidance} It said: ${said.slice(-300)}` : guidance
 }
 
 function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions, execute = execFile, deskLink = null } = {}) {

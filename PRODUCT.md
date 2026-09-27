@@ -4,7 +4,7 @@
 
 ## Platform
 
-Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. It has two required architecture peripherals with independent hardware acceptance gates: an ESP32-S3 touch Remote Control and an ESP32-P4 SC2336 Camera Peripheral. The base CM5 shell remains usable through direct touch and keyboard before either peripheral is accepted. The prior ESP32-P4+C6 DeskOS device OS and its Apple USB companion are preserved research, not active product platforms.
+Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. The same Display Shell also runs natively on a 64-bit Windows Shell Host, where surfaces this repository has not ported report unavailable rather than degrading into a local or simulated link; Windows on ARM is not a supported host. The runtime has two required architecture peripherals with independent hardware acceptance gates: an ESP32-S3 touch Remote Control and an ESP32-P4 SC2336 Camera Peripheral. The base CM5 shell remains usable through direct touch and keyboard before either peripheral is accepted. The prior ESP32-P4+C6 DeskOS device OS and its Apple USB companion are preserved research, not active product platforms.
 
 ## Users
 
@@ -23,6 +23,11 @@ CM5 Linux / Electron runtime
   ├─ ESP32-P4 SC2336 Camera Peripheral (generic UVC webcam + UAC microphone)
   ├─ Hosted Pi sessions, drivable from a paired Mac Console over the Desk Link
   └─ Remote Bridge integration
+
+64-bit Windows / Electron runtime (the same Display Shell)
+  ├─ direct keyboard and pointer
+  ├─ Pi Sessions, with the optional native reader for session work directories
+  └─ Remote Control, voice, and Desk Link: not ported, reported unavailable
 ```
 
 The S3 Remote and P4 Camera are intended system components. Their hardware acceptance is independent from the CM5 base-shell acceptance. The P4 Camera performs no face recognition, expression analysis, or identity storage: it is a standard webcam and microphone.

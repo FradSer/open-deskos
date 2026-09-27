@@ -17,7 +17,7 @@ trap cleanup EXIT
 
 ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/linux' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${STAGING_ROOT}/.agents' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
 
-rsync -a --delete --exclude node_modules --exclude .DS_Store \
+rsync -a --delete --exclude node_modules --exclude .DS_Store --exclude 'native/odk-process/build' \
   "${ROOT}/runtime/linux/" "${TARGET}:${STAGING_ROOT}/runtime/linux/"
 rsync -a --delete --exclude .DS_Store --exclude 'node_modules' --exclude '.env*' --exclude 'auth.json' --exclude '.pi' --exclude '*.env' \
   "${ROOT}/integrations/" "${TARGET}:${STAGING_ROOT}/integrations/"

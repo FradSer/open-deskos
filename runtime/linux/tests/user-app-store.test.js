@@ -1,4 +1,5 @@
 const test = require('node:test')
+const { posixOnlyReason } = require('./not-ported')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const path = require('node:path')
@@ -50,7 +51,7 @@ test('failed verification preserves active revision and verifier cannot mutate b
   assert.equal((await restarted.getContent('x')).html, '<p>one</p>')
 })
 
-test('rejects unconfigured, unsafe, malformed, symlink, and oversized packages', async () => {
+test('rejects unconfigured, unsafe, malformed, symlink, and oversized packages', { skip: posixOnlyReason('symlinks') }, async () => {
   const f = await fixture(); const store = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
   assert.deepEqual(await store.install('x'), { ok: false, error: 'package-not-found' })
   assert.deepEqual(await store.install('../x'), { ok: false, error: 'invalid-identifier' })
@@ -87,7 +88,7 @@ test('retains two revisions and removal works without the draft checkout', async
   assert.equal((await fs.readdir(path.join(f.stateDir, 'apps/notes/revisions'))).length, 0)
 })
 
-test('storage symlink cannot redirect snapshot writes', async () => {
+test('storage symlink cannot redirect snapshot writes', { skip: posixOnlyReason('symlinks') }, async () => {
   const f = await fixture()
   await draft(f.workspace, 'notes', '1')
   await fs.mkdir(f.stateDir)

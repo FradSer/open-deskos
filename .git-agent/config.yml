@@ -1,6 +1,6 @@
 scopes:
     - name: cm5
-      description: active CM5/Linux Electron runtime, renderer, deployment, and tests in runtime/linux/.
+      description: the Shell runtime on its CM5 and Windows hosts, including renderer, deployment, and tests in runtime/linux/.
     - name: hw
       description: required hardware peripherals in peripherals/.
     - name: link

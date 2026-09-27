@@ -23,7 +23,8 @@ The active implementation focus for Open DeskOS. It is not yet a committed suppo
 ## Operating Context
 
 - Target hardware: Orange Pi CM5 (RK3588S) driving a 1920×1280 HDMI display; kiosk autostart via `scripts/cm5-install.sh` (run on-device, arm64).
-- Development happens on macOS or Linux host: `./run.sh` windowed, `bash tests/smoke.sh`, `pnpm run e2e`.
+- Second Shell Host: 64-bit Windows, started with `pwsh -File run.ps1` and verified with `node tests/smoke.mjs`. It is the same Shell runtime; Remote Control, voice, Desk Link, and the external application control endpoint are not ported there and report unavailable. See @docs/WINDOWS_HOST.md.
+- Development happens on macOS or Linux host: `./run.sh` windowed, `node tests/smoke.mjs` (or `bash tests/smoke.sh` on CM5), `pnpm run e2e`.
 - Touch input arrives through the display server (X11/Wayland evdev) straight to Chromium; Wayland sessions append `--ozone-platform-hint=auto`.
 - Deployment stages a CM5 runtime release then activates it through the device-owned update transaction; see README runbook.
 - Host smoke/e2e passing does NOT verify CM5 hardware behavior (GPU compositing, touch events, autostart remain unverified until first bring-up).

@@ -28,6 +28,8 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
       ipcMain: { handle: (id, fn) => handlers.set(id, fn) },
       session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
     },
+    './platform': { resolveShellHost: () => ({ id: 'win32-x64', isWindows: true, supported: true, provisionsUserAppControl: false }) },
+    './platform/native-process-reader': { createNativeProcessReader: () => ({ reader: null, reason: 'process reader unavailable: not built' }) },
     './remote-bridge-client': {
       resolveRemoteBridgeSocketPath: () => null,
       createRemoteBridgeClient: (options) => {

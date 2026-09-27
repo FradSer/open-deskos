@@ -5,6 +5,7 @@ const ipcMain = electron?.ipcMain
 const session = electron?.session
 const fs = require('node:fs')
 const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('./remote-bridge-client')
+const { resolveShellHost } = require('./platform')
 
 const DEFAULT_WIDTH = 1920
 const DEFAULT_HEIGHT = 1280
@@ -118,15 +119,28 @@ function rendererQuery(options) {
 }
 
 function createWindow(options) {
+  // A kiosk window is created at the display's own size, not at the configured
+  // content size: Windows maximizes a frameless window that is exactly the work
+  // area when it is shown, and a maximized window then ignores the fullscreen
+  // request that follows, which would leave the desk with the taskbar drawn over
+  // it. Creating it larger than the work area keeps that state out of the way.
+  const kioskBounds = options.kiosk && process.platform === 'win32'
+    ? electron.screen.getPrimaryDisplay().bounds
+    : null
   const win = new BrowserWindow({
-    width: options.width,
-    height: options.height,
+    width: kioskBounds ? kioskBounds.width : options.width,
+    height: kioskBounds ? kioskBounds.height : options.height,
     useContentSize: true,
     frame: false,
     hasShadow: false,
     thickFrame: false,
-    kiosk: options.kiosk,
-    fullscreen: options.kiosk,
+    // Kiosk is applied after the window is shown, never in the constructor: a
+    // Windows fullscreen transition requested on a window that has not been shown
+    // yet can leave it invisible, and a kiosk desk with no visible window is a
+    // black panel. On the reference host the window's content size is already the
+    // display size, so the order changes nothing there.
+    kiosk: false,
+    fullscreen: false,
     backgroundColor: '#000000',
     show: false,
     autoHideMenuBar: true,
@@ -188,6 +202,22 @@ async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
   const smokeMode = process.argv.includes('--smoke')
+  const shellHost = resolveShellHost()
+  if (!smokeMode) {
+    // One statement of what this host cannot inspect, so a degraded reading is
+    // visible instead of being inferred from a blank column. The reader is
+    // Windows-only, so another host has nothing to report here.
+    if (shellHost.isWindows) {
+      const { createNativeProcessReader } = require('./platform/native-process-reader')
+      const { reason } = createNativeProcessReader()
+      if (reason) console.error(`Pi Sessions: ${reason}; session work directories read as unknown`)
+    }
+    // A host outside the supported set still runs, but the desk says its
+    // behavior there is unverified instead of presenting it as a supported host.
+    if (!shellHost.supported) {
+      console.error(`Shell Host ${shellHost.id} is outside the supported set; behavior on this host is unverified`)
+    }
+  }
   await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode })
   let remoteSocketPath = null
   if (!smokeMode) {
@@ -354,11 +384,29 @@ async function main() {
   })
   win.once('ready-to-show', () => {
     if (!options.smoke) {
-      if (options.kiosk) {
-        win.setFullScreen(true)
-        win.setKiosk(true)
-      }
       win.show()
+      if (options.kiosk) {
+        // Fullscreen the way a game is fullscreen: the desk covers the whole
+        // display, taskbar included, while it is the active window, and Windows
+        // brings the taskbar back when the user switches to another window. Nothing
+        // here is topmost and nothing hides the shell, because this machine runs
+        // other applications.
+        //
+        // Windows maximizes a frameless window that is exactly the work area when
+        // it is shown, and a maximized window ignores a fullscreen request made in
+        // the same tick as leaving that state — measured on a real host, where a
+        // fullscreen request 600 ms later takes the window to the display bounds.
+        const enterPanel = () => {
+          win.setFullScreen(true)
+          if (process.platform !== 'win32') win.setKiosk(true)
+        }
+        if (process.platform === 'win32' && win.isMaximized()) {
+          win.unmaximize()
+          setTimeout(enterPanel, 500)
+        } else {
+          enterPanel()
+        }
+      }
     }
   })
 }

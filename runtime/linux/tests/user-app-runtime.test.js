@@ -40,6 +40,39 @@ test('verifier rejects oversized input before spawning a child', async () => {
   assert.deepEqual(result, { ok: false, error: 'html-too-large' })
 })
 
+// The runner is a GUI process on Windows, where a piped stdin is not a channel it
+// can read: the bundle travels as a file and the result comes back as a file, so
+// neither direction depends on the child's standard streams.
+test('verifier hands the bundle over as a file and reads the result from one', async () => {
+  const seen = []
+  const spawnProcess = (command, args) => {
+    const bundlePath = args[1]
+    const resultPath = args[2]
+    seen.push({ command, bundlePath, resultPath, bundle: fs.readFileSync(bundlePath, 'utf8') })
+    fs.writeFileSync(resultPath, `${JSON.stringify({ ok: true })}\n`, 'utf8')
+    return fakeChild()
+  }
+  const result = await createUserAppVerifier({ electronPath: 'electron', spawnProcess }).verify({ html: '<body><p>file channel</p></body>' })
+
+  assert.deepEqual(result, { ok: true })
+  assert.equal(seen.length, 1)
+  assert.equal(JSON.parse(seen[0].bundle).html, '<body><p>file channel</p></body>')
+  assert.ok(path.isAbsolute(seen[0].bundlePath), 'the runner needs a path it can open')
+  assert.ok(path.isAbsolute(seen[0].resultPath))
+})
+
+function fakeChild() {
+  const { EventEmitter } = require('node:events')
+  const child = new EventEmitter()
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  child.stdin = Object.assign(new EventEmitter(), { end() {}, on() {} })
+  child.kill = () => {}
+  child.pid = 4242
+  setImmediate(() => child.emit('close', 0))
+  return child
+}
+
 test('real Electron verifier accepts a visible self-contained bundle', async () => {
   const result = await verifier().verify({ html: '<body><p>verified</p></body>' })
   assert.deepEqual(result, { ok: true })
