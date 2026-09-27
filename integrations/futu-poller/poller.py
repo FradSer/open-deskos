@@ -48,6 +48,14 @@ import urllib.parse
 
 PROTO_VERSION = 1
 MAX_POSITIONS = 64
+# One answer is a short line. The cap and the timeout keep a chatty or hostile
+# peer from growing this process or from stalling the poll loop.
+MAX_REPLY_BYTES = 4096
+REPLY_TIMEOUT = 0.2
+# A network path can drop an idle flow, and reconnecting is routine work rather
+# than news: reporting every dropped flow would train an operator to ignore the
+# log. A failure is stated once it has persisted this many consecutive attempts.
+FAILURE_ALERT_AFTER = 3
 
 # A connect attempt is what stops a dead desk from holding up the poll: the
 # timeout bounds that attempt, and every target owns its own connection, so a
@@ -137,8 +145,11 @@ def read_token_file(path):
 class PipeConnection:
     """A Windows named pipe with the write-only surface a ShellLink needs.
 
-    Python has no socket type for named pipes, so the pipe is a file. The desk
-    never writes back to the poller, so only the write path exists.
+    Python has no socket type for named pipes, so the pipe is a file. A desk does
+    answer every record, but a pipe file offers no timeout to read an answer
+    with, so this path stays write-only and its refusals are stated nowhere. A
+    pipe endpoint is the same-machine case, where the desk and the plugin share
+    a log; a remote desk is reached over tcp, which is readable.
     """
 
     def __init__(self, path):
@@ -198,6 +209,8 @@ class ShellLink:
         self.revision = revision
         self.conn = None
         self._last_reason = None
+        self._replies = b""
+        self._failures = 0
 
     def ensure(self):
         if self.conn is not None:
@@ -219,7 +232,7 @@ class ShellLink:
         except OSError as exc:
             if conn is not None:
                 close_quietly(conn)
-            self._warn_once("cannot reach endpoint: %s" % exc)
+            self._note_failure("cannot reach endpoint: %s" % exc)
             return False
         self.conn = conn
         self._last_reason = None
@@ -230,16 +243,91 @@ class ShellLink:
             if not self.ensure():
                 return False
             self.conn.sendall(frame(record))
+            self._read_replies()
+            self._failures = 0
             return True
         except OSError as exc:
-            self._warn_once("send failed: %s" % exc)
+            self._note_failure("send failed: %s" % exc)
             self.close()
             return False
+
+    def _note_failure(self, reason):
+        """Count consecutive failures, and state only one that persists.
+
+        A dropped idle flow reconnects on the next attempt, so a single failure
+        is routine work. The same failure three times running means the desk is
+        not being fed, which is the thing an operator needs to see. The count is
+        deliberately not in the message: a count in it would make every further
+        failure look like new news, and the whole point is to be quiet until the
+        situation changes. A successful connection clears the reason, so the same
+        failure is stated again after a recovery.
+        """
+        self._failures += 1
+        if self._failures < FAILURE_ALERT_AFTER:
+            return
+        self._warn_once("cannot keep a connection: %s" % reason)
 
     def close(self):
         if self.conn is not None:
             close_quietly(self.conn)
         self.conn = None
+
+    def _read_replies(self):
+        """Read what the desk answered, so its own words are the reason shown.
+
+        The desk answers every record with one short line. Nothing used to read
+        them: a refusal (a malformed record, an unknown service) looked exactly
+        like a healthy link, and the answers piled up in this socket until the
+        desk's writes blocked and the next send failed with a broken pipe. A
+        named pipe cannot be read with a timeout, so it keeps the write-only
+        path. Reading never blocks the poll loop: one short timeout bounds it.
+        """
+        if not hasattr(self.conn, "recv"):
+            return
+        previous = None
+        try:
+            previous = self.conn.gettimeout()
+        except OSError:
+            previous = None
+        try:
+            self.conn.settimeout(REPLY_TIMEOUT)
+            while True:
+                try:
+                    chunk = self.conn.recv(4096)
+                except socket.timeout:
+                    return
+                except OSError as exc:
+                    self._note_failure("cannot read the desk's answer: %s" % exc)
+                    self.close()
+                    return
+                if not chunk:
+                    return
+                self._replies += chunk
+                if len(self._replies) > MAX_REPLY_BYTES:
+                    # A peer that never sends a newline must not grow this buffer.
+                    self._replies = self._replies[-MAX_REPLY_BYTES:]
+                while b"\n" in self._replies:
+                    line, self._replies = self._replies.split(b"\n", 1)
+                    self._state_reply(line)
+        finally:
+            if previous is not None:
+                try:
+                    self.conn.settimeout(previous)
+                except OSError:
+                    pass
+
+    def _state_reply(self, line):
+        if not line.strip():
+            return
+        try:
+            reply = json.loads(line.decode("utf-8", "replace"))
+        except ValueError:
+            return
+        if not isinstance(reply, dict) or reply.get("ok") is not False:
+            return
+        # The desk's own error is the only thing that explains a desk which is
+        # connected and shows nothing, so it is what the warning carries.
+        self._warn_once("desk refused a record: %s" % (reply.get("error") or "refused"))
 
     def _token(self):
         path = self.target.token_file
