@@ -1,0 +1,20 @@
+[Unit]
+Description=Open DeskOS Futu holdings poller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__OPEN_DESKOS_FUTU_POLLER_DIR__
+# The gateway credentials stay on this host; the desks to feed come from the
+# targets file, which overrides the single ODESK_FUTU_SOCKET form.
+EnvironmentFile=-%h/.config/open-deskos/futu-poller.env
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
+ExecStart=%h/.venv/futu/bin/python __OPEN_DESKOS_FUTU_POLLER_DIR__/poller.py
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
