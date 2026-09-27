@@ -81,3 +81,17 @@ test('the headers URL comes from the environment when nothing sets one', async (
   assert.equal(resolveHeadersUrl({ npm_config_disturl: 'https://npm.example/electron/' }), 'https://npm.example/electron/')
   assert.equal(resolveHeadersUrl({ ODK_ELECTRON_HEADERS_URL: '   ' }), 'https://electronjs.org/headers', 'a blank override is not an override')
 })
+
+test('the Electron load check never passes a script through a command shell', async () => {
+  const resolveNativeLoadCheck = (await import('../scripts/build-native.mjs')).resolveNativeLoadCheck
+  // A root with no Electron install: the check must still be shaped so that a
+  // working addon cannot be reported as broken by argument corruption.
+  const check = resolveNativeLoadCheck({ platform: 'win32', root: '/tmp/odk-no-electron-installed' })
+
+  assert.equal(check.skip, false)
+  assert.equal(check.args.includes('-e'), false, 'an inline script is corrupted by a Windows .cmd shim')
+  assert.ok(check.args.some((arg) => arg.endsWith('.cjs')), 'the probe is a file the process reads itself')
+  assert.ok(check.args.some((arg) => arg.endsWith('odk_process.node')), 'and it is told which artifact to load')
+  assert.match(check.probeSource, /process\.argv\[2\]/)
+  assert.equal(check.shell, true, 'only the .cmd fallback needs a shell, and this root has no Electron binary')
+})

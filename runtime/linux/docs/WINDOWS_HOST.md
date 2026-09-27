@@ -134,8 +134,9 @@ node -e "require('./src/desk-link-client').createDeskLinkClient().snapshot().the
 | 非提权用户不能建符号链接 | `fs.symlink` → `EPERM`；相关测试在 Windows 上跳过 |
 | GitHub 可能被挡（`http=000`），npmmirror 可达 4.6 MB/s | 用镜像下 Electron 二进制，再走 LAN（17 MB/s）送到设备 |
 | Electron 二进制可手工放置 | 解包到 `node_modules/electron/dist` 并写 `path.txt`（内容 `electron.exe`），绕过下载器 |
-| 重编译原生模块前必须先停桌面 | 桌面（Electron）加载了 `odk_process.node`，文件被占用，`node-gyp rebuild` 会在 unlink 阶段报 `EPERM`。先停 `OdkDesk` 任务再编译，否则 kiosk 循环几秒内就把桌面拉回来重新占用 |
-| 原生进程读取器已构建并可用 | 构件 `native/odk-process/build/Release/odk_process.node`（约 145 KB，N-API，故 Node 与 Electron 都能加载）：`rows=213 withCwd=197`，样例 `winlogon.exe → cwd C:\WINDOWS\system32\` |
+| 重编译原生模块前必须先停 kiosk 循环 | 桌面（Electron）加载了 `odk_process.node`，文件被占用，`node-gyp rebuild` 会在 unlink 阶段报 `EPERM`。而 kiosk 循环会在几秒内把进程拉回来，所以必须停 **`OdkDesk` 任务本身**（只杀进程不够），编译完再启动 |
+| 原生进程读取器已构建，且在 Electron 内确实加载 | `node scripts/build-native.mjs` → `build exit=0`，`process reader loaded; rows=207`，构件 `native/odk-process/build/Release/odk_process.node`（N-API，Node 与 Electron 43.7.5 均可用）。样例 `winlogon.exe → cwd C:\WINDOWS\system32\` |
+| 加载检查自身曾误报（已修） | 检查原本用 `shell: true` 把 `-e` 脚本交给 `electron.cmd`，Windows 下参数被毁，导致**能用的构件被报成坏的**。现改为写临时探针文件 + 直接调用 `node_modules/electron/dist/electron.exe`，完全避开引号；回归断言 `the Electron load check never passes a script through a command shell` 钉住这一点 |
 
 ### 在交互会话里跑 GUI 检查
 

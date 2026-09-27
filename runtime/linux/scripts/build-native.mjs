@@ -5,8 +5,9 @@
 // and it exists only on a Windows host. This script is a no-op everywhere else,
 // so a development machine and the reference host never need a C++ toolchain.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -88,20 +89,45 @@ export function resolveNativeBuildPlan({
  */
 export function resolveNativeLoadCheck({ platform = process.platform, root = RUNTIME_ROOT } = {}) {
   if (platform !== 'win32') {
-    return { skip: true, reason: 'the Windows process reader is Windows-only; nothing to load here', command: null, args: [], env: {}, cwd: root }
+    return { skip: true, reason: 'the Windows process reader is Windows-only; nothing to load here', command: null, args: [], env: {}, cwd: root, shell: false, probe: null, probeSource: '', addon: null }
   }
+
+  // The probe is written to a file and handed to Electron as an argument. Passing
+  // a script inline through a .cmd shim on Windows corrupts the arguments, which
+  // made a working addon look like a broken one, so the check avoids quoting
+  // entirely: the real executable when the install has one, and a file either way.
+  const executable = electronExecutable(root)
+  const command = executable ?? path.join(root, 'node_modules', '.bin', 'electron.cmd')
+  const probe = path.join(os.tmpdir(), `odk-native-load-check-${process.pid}.cjs`)
+  const addon = path.join(root, ADDON_DIRECTORY, 'build', 'Release', 'odk_process.node')
   return {
     skip: false,
     reason: '',
-    command: path.join(root, 'node_modules', '.bin', 'electron.cmd'),
-    args: [
-      '-e',
-      "const reader = require('./native/odk-process/build/Release/odk_process.node');"
-        + "const rows = reader.listProcesses();"
-        + "console.log('process reader loaded; rows=' + rows.length + ' sample=' + JSON.stringify(rows[0] || null))",
-    ],
+    command,
+    args: [probe, addon],
     env: { ELECTRON_RUN_AS_NODE: '1' },
     cwd: root,
+    // Only the fallback shim needs a shell; the executable never does.
+    shell: executable === null,
+    probe,
+    addon,
+    probeSource: [
+      "const reader = require(process.argv[2]);",
+      "const rows = reader.listProcesses();",
+      "console.log('process reader loaded; rows=' + rows.length + ' sample=' + JSON.stringify(rows[0] || null));",
+    ].join('\n'),
+  }
+}
+
+/** The Electron binary itself, as the launcher resolves it, or null. */
+function electronExecutable(root = RUNTIME_ROOT) {
+  try {
+    const name = readFileSync(path.join(root, 'node_modules', 'electron', 'path.txt'), 'utf8').trim()
+    if (name.length === 0) return null
+    const candidate = path.join(root, 'node_modules', 'electron', 'dist', name)
+    return existsSync(candidate) ? candidate : null
+  } catch {
+    return null
   }
 }
 
@@ -129,12 +155,18 @@ function main() {
   // every work directory as unknown without saying why.
   const check = resolveNativeLoadCheck()
   if (!check.skip) {
-    const loaded = spawnSync(check.command, check.args, {
-      cwd: check.cwd,
-      encoding: 'utf8',
-      env: { ...process.env, ...check.env },
-      shell: process.platform === 'win32',
-    })
+    writeFileSync(check.probe, `${check.probeSource}\n`)
+    let loaded
+    try {
+      loaded = spawnSync(check.command, check.args, {
+        cwd: check.cwd,
+        encoding: 'utf8',
+        env: { ...process.env, ...check.env },
+        shell: check.shell,
+      })
+    } finally {
+      rmSync(check.probe, { force: true })
+    }
     const output = `${loaded.stdout || ''}${loaded.stderr || ''}`.trim().split('\n').pop() || ''
     if (loaded.status !== 0 || !output.includes('process reader loaded')) {
       console.error('native process reader: built but it does not load in Electron.')
