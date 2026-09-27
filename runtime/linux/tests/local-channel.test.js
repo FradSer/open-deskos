@@ -30,7 +30,10 @@ async function temporaryDir(t) {
 /** One connection: optional handshake, then one line, then whatever comes back. */
 function exchange(endpoint, { token, line, timeoutMs = 500 } = {}) {
   return new Promise((resolve) => {
-    const socket = net.createConnection(endpoint)
+    const target = endpoint.startsWith('tcp://')
+      ? (() => { const [host, port] = endpoint.slice('tcp://'.length).split(':'); return { host, port: Number.parseInt(port, 10) } })()
+      : endpoint
+    const socket = net.createConnection(target)
     let received = ''
     let settled = false
     const finish = (value) => {
@@ -67,6 +70,17 @@ function collect() {
     },
     onReject: (reason) => rejections.push(reason),
   }
+}
+
+/** A port nothing is using right now, for the tests that need a network endpoint. */
+function freePort() {
+  return new Promise((resolve) => {
+    const probe = net.createServer()
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address()
+      probe.close(() => resolve(port))
+    })
+  })
 }
 
 test('a Unix channel is authenticated by ownership, so a client without a token is accepted', { skip: posixOnlyReason('unix-socket') }, async (t) => {
@@ -231,4 +245,27 @@ test('a directory this user does not own is refused', { skip: posixOnlyReason('p
     listenChannel({ endpoint, stateDir: dir, token, onConnection: () => {}, onReject: () => {} }),
     /group- or world-accessible/,
   )
+})
+test('a listener that resolves its own token accepts exactly that token', async (t) => {
+  const dir = await temporaryDir(t)
+  const endpoint = `tcp://127.0.0.1:${await freePort()}`
+  const token = await readOrCreateToken({ stateDir: dir })
+  const sink = collect()
+  // No token is passed in: the listener resolves the host's shared token itself,
+  // which is the path every caller in the shell now takes. On a Unix socket
+  // endpoint ownership authenticates instead, so this uses a network endpoint.
+  const channel = await listenChannel({
+    endpoint,
+    stateDir: dir,
+    onConnection: sink.onConnection,
+    onReject: sink.onReject,
+  })
+  t.after(() => channel.close())
+
+  const result = await exchange(endpoint, { token, line: '{"v":1,"type":"snapshot"}\n' })
+
+  assert.deepEqual(sink.rejections, [], 'the listener must compare against the token it resolved, not an absent argument')
+  assert.equal(sink.connections.length, 1)
+  assert.equal(sink.connections[0].text, '{"v":1,"type":"snapshot"}\n')
+  assert.equal(result.closed, true)
 })

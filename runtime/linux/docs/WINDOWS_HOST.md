@@ -67,6 +67,7 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 | Desk Link / Hosted Pi 远程控制 | **可用**：宿主通道监听 TCP（默认 8765，令牌来自 `ODK_DESK_LINK_TOKEN_FILE`），运行时通道绑定为命名管道 `\\.\pipe\open-deskos-desk-link`，由通道令牌认证 |
 | 外部应用控制端点 | **已创建**：命名管道 `\\.\pipe\open-deskos-user-app-control`，由通道令牌认证。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
 | P4 摄像头 tile | 如实报 unavailable：`v4l2-ctl` 与 `/dev/open-deskos-p4-camera` 在 Windows 上不存在，代码无需改动 |
+| Futu 监控（Service Plugin） | **可用**：桌面监听 `ODK_FUTU_ENDPOINT`，可为 socket 路径、命名管道或 `tcp://host:port`。插件在别的机器上时用网络形式，并必须出示本机的通道令牌（见下） |
 | CM5 硬件验收（Mali GPU、HDMI 时序、触摸） | 不适用 |
 
 逻辑端点名称仍由平台层定义（Windows 上是 `\\.\pipe\<name>` 命名管道），所以将来移植某条链路时不需要重新决定传输方式。
@@ -103,6 +104,35 @@ node -e "require('./src/desk-link-client').createDeskLinkClient().snapshot().the
 ```
 
 这条命令在 Windows 上走的就是那个命名管道 + 令牌握手；`ok true` 表示握手被接受、协议被送达。
+
+### 服务插件（Futu）在 Windows 上
+
+Service Plugin 的契约是“**插件连上桌面并推送**”（ADR-0009），所以 Windows 上要做的只是把端点换成这里存在的传输（ADR-0026）：
+
+```ini
+# .env.local：本机监听在哪里。同一份 app 声明的端点因此不分 Win/Linux。
+ODK_FUTU_ENDPOINT=tcp://100.82.50.70:8790
+ODESK_FUTU_SERVICE_REVISION=dev
+```
+
+```powershell
+# 入站放通（提权会话，一次即可）
+New-NetFirewallRule -DisplayName 'Open DeskOS Futu Plugin' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8790 -Profile Any
+```
+
+要点：
+
+- **令牌是关卡**：命名管道与 TCP 端点没有属主可认证，插件必须出示本机的通道令牌（`%LOCALAPPDATA%\open-deskos\local-channel.token`），并作为连接的**第一行**发送（`{"v":1,"token":"…"}\n`，见 ADR-0025）。本机的令牌只给要推送的插件所在机器，用 `0600` 文件携带，**不要**写进命令行。
+- **socket 路径端点不需要令牌**：Unix 主机上属主已经完成认证，所以参考宿主上那个早于令牌存在的 poller **不受影响**，仍可无握手接入。
+- **一台插件可喂多台 desk**：目标列表由插件自己声明（远程 desk 的端点不可能从 desk 的配置里读到），某台不可达不影响其他台。
+- **凭据不上桌**：网关 RSA 与交易口令留在已经持有它们的机器上；桌面只是数据接收方。
+- 自检（在设备上就能跑，不打印令牌）：
+
+```powershell
+node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.readFileSync(process.env.LOCALAPPDATA+'\\open-deskos\\local-channel.token','utf8').trim();const s=n.connect(8790,'100.82.50.70',()=>{s.write(JSON.stringify({v:1,token:t})+'\n');s.write(JSON.stringify({v:1,type:'hello',service:'futu-poller',revision:'dev',proto:1})+'\n')});s.on('data',(d)=>{console.log('ack: '+d.toString().trim());s.end()})"
+```
+
+看到 `ack: {"v":1,...,"ok":true}` 就说明令牌被接受、协议被送达。
 
 ## 状态与配置位置
 

@@ -33,6 +33,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `FUTU_PORT` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | 富途网关端口 |
 | `FUTU_RSA_FILE` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 网关 RSA 私钥副本路径 |
 | `FUTU_TRADE_PWD` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 交易解锁口令 |
+| `ODK_CHANNEL_TOKEN_FILE` | L3 设备本地（敏感） | 外部消费者（插件侧） | integrations/futu-poller/poller.py | — | 插件连接 `tcp://` 或命名管道端点时出示的通道令牌文件；socket 路径端点不需要（属主已认证） |
 | `HOME` | 环境 | 登录会话 | runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
 | `LIBGL_ALWAYS_SOFTWARE` | 环境 | 运维 | runtime/linux/src/main.js | — | 强制软件渲染，诊断用 |
 | `LOCALAPPDATA` | 环境 | Windows 用户会话 | runtime/linux/src/platform/index.js | — | Windows Shell Host 的持久状态根（`%LOCALAPPDATA%`）；缺失时回退到用户目录下的 `AppData/Local` |
@@ -41,7 +42,9 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_DESK_LINK_SOCKET` | 内部 | Shell | runtime/linux/src/desk-link-client.js | 运行时目录下的 desk link socket | Shell 到本机 desk link 服务的 socket 覆盖 |
 | `ODESK_DISABLED_PLUGINS` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 禁用插件列表 |
 | `ODESK_DISABLE_GPU` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 关闭 GPU 加速 |
-| `ODESK_FUTU_SOCKET` | L3 设备本地 | runtime.env（绑定方声明） | runtime/linux/src/main.js, integrations/futu-poller/poller.py | — | futu-poller 与本机 Shell 共用的绝对 socket 路径 |
+| `ODESK_FUTU_SOCKET` | L3 设备本地 | runtime.env（绑定方声明） | runtime/linux/src/main.js, integrations/futu-poller/poller.py | — | futu-poller 与本机 Shell 共用的绝对 socket 路径（历史形式；`ODK_FUTU_ENDPOINT` 优先） |
+| `ODK_FUTU_ENDPOINT` | L3 设备本地 | runtime.env / `.env.local`（绑定方声明） | runtime/linux/src/main.js | — | 服务插件监听在哪里：socket 路径、命名管道或 `tcp://host:port`。后两者没有属主可认证，由通道令牌把门；同一份 app 声明的端点因此不分 Win/Linux。插件侧在哪里推送由它自己的目标文件声明（远程 desk 与插件不在同一台机器上，两处声明是固有的） |
+| `ODESK_FUTU_TARGETS_FILE` | L3 设备本地 | futu-poller.env | integrations/futu-poller/poller.py | `~/.config/open-deskos/futu-targets.json` | 插件要推送的 desk 列表（每项一个 endpoint 与可选令牌文件）；没有该文件时回退到单端点形式 `ODESK_FUTU_SOCKET` |
 | `ODESK_GPU_BACKEND` | L3 设备本地 | 运维 | runtime/linux/src/main.js | 自动探测 | GPU 后端选择 |
 | `ODESK_PI_REASONING` | L3 设备本地 | runtime.env | runtime/linux/src/main.js | 折叠（`hidden`） | Session Detail 的思维链显示：仅显式 `shown` 显示思维链正文，其他值一律按折叠处理；默认即折叠，无需在设备层复述 |
 | `ODESK_REMOTE_BRIDGE_SOCKET` | 内部 | Shell | runtime/linux/src/remote-bridge-client.js | 运行时目录下的 remote bridge socket | 同上，Remote Bridge |

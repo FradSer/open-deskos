@@ -1,7 +1,6 @@
 'use strict'
 
-const fs = require('node:fs')
-const net = require('node:net')
+const { listenChannel } = require('./local-channel')
 
 const PROTO_VERSION = 1
 const MAX_FRAME_BYTES = 64 * 1024
@@ -10,9 +9,12 @@ function frame(record) {
   return `${JSON.stringify(record)}\n`
 }
 
-function createServicePluginSocket({ socketPath, services = {}, onSnapshot = () => {}, onStatus = () => {} } = {}) {
-  if (!socketPath) throw Error('socket-path-required')
-  let server = null
+function createServicePluginSocket({ socketPath, endpoint, channelToken = '', stateDir = '', services = {}, onSnapshot = () => {}, onStatus = () => {}, onReject = () => {} } = {}) {
+  // A plugin declares one endpoint: a socket path, a named pipe, or tcp://host:port.
+  // The path form is the historical name and still works.
+  const channelEndpoint = endpoint ?? socketPath
+  if (!channelEndpoint) throw Error('endpoint-required')
+  let channel = null
 
   function send(socket, record) {
     try { socket.write(frame(record)) } catch {}
@@ -56,57 +58,61 @@ function createServicePluginSocket({ socketPath, services = {}, onSnapshot = () 
     send(socket, { v: 1, type: 'ack', ok: false, error: 'unknown-record' })
   }
 
+  function handleConnection(socket) {
+    const state = { peer: null, buffer: '' }
+    onStatus({ state: 'connection' })
+    socket.on('data', (chunk) => {
+      state.buffer += chunk.toString('utf8')
+      if (Buffer.byteLength(state.buffer, 'utf8') > MAX_FRAME_BYTES * 4) {
+        send(socket, { v: 1, type: 'ack', ok: false, error: 'frame-too-large' })
+        socket.end()
+        return
+      }
+      let index
+      while ((index = state.buffer.indexOf('\n')) !== -1) {
+        const line = state.buffer.slice(0, index)
+        state.buffer = state.buffer.slice(index + 1)
+        if (!line.trim()) continue
+        if (Buffer.byteLength(line, 'utf8') > MAX_FRAME_BYTES) {
+          send(socket, { v: 1, type: 'ack', ok: false, error: 'frame-too-large' })
+          continue
+        }
+        let record
+        try { record = JSON.parse(line) } catch {
+          send(socket, { v: 1, type: 'ack', ok: false, error: 'malformed-record' })
+          continue
+        }
+        handleRecord(socket, state, record)
+      }
+    })
+    socket.on('close', () => {
+      if (state.peer) onStatus({ service: state.peer.service, state: 'disconnected' })
+    })
+    socket.on('error', () => {})
+  }
+
   return {
-    start() {
-      return new Promise((resolve, reject) => {
-        try {
-          fs.mkdirSync(require('node:path').dirname(socketPath), { recursive: true })
-          fs.rmSync(socketPath, { force: true })
-        } catch {}
-        server = net.createServer((socket) => {
-          const state = { peer: null, buffer: '' }
-          onStatus({ state: 'connection' })
-          socket.on('data', (chunk) => {
-            state.buffer += chunk.toString('utf8')
-            if (Buffer.byteLength(state.buffer, 'utf8') > MAX_FRAME_BYTES * 4) {
-              send(socket, { v: 1, type: 'ack', ok: false, error: 'frame-too-large' })
-              socket.end()
-              return
-            }
-            let index
-            while ((index = state.buffer.indexOf('\n')) !== -1) {
-              const line = state.buffer.slice(0, index)
-              state.buffer = state.buffer.slice(index + 1)
-              if (!line.trim()) continue
-              if (Buffer.byteLength(line, 'utf8') > MAX_FRAME_BYTES) {
-                send(socket, { v: 1, type: 'ack', ok: false, error: 'frame-too-large' })
-                continue
-              }
-              let record
-              try { record = JSON.parse(line) } catch {
-                send(socket, { v: 1, type: 'ack', ok: false, error: 'malformed-record' })
-                continue
-              }
-              handleRecord(socket, state, record)
-            }
-          })
-          socket.on('close', () => {
-            if (state.peer) onStatus({ service: state.peer.service, state: 'disconnected' })
-          })
-          socket.on('error', () => {})
-        })
-        server.on('error', reject)
-        server.listen(socketPath, resolve)
+    async start() {
+      // The transport and its authentication belong to the channel: a Unix socket
+      // is authenticated by the private directory it sits in, a named pipe and a
+      // network address by the shared token.
+      channel = await listenChannel({
+        endpoint: channelEndpoint,
+        token: channelToken,
+        stateDir,
+        onConnection: handleConnection,
+        onReject: (reason) => {
+          onReject(reason)
+          onStatus({ state: 'connection', rejected: reason })
+        },
       })
+      return channel
     },
-    stop() {
-      return new Promise((resolve) => {
-        if (!server) return resolve()
-        server.close(() => {
-          try { fs.rmSync(socketPath, { force: true }) } catch {}
-          resolve()
-        })
-      })
+    async stop() {
+      if (!channel) return
+      const closing = channel
+      channel = null
+      await closing.close()
     },
   }
 }

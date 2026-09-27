@@ -24,6 +24,43 @@ function isNamedPipe(endpoint) {
   return typeof endpoint === 'string' && /^\\\\\.\\pipe\\/i.test(endpoint)
 }
 
+const TCP_PREFIX = 'tcp://'
+
+/** A desk can also be reached over the network, which is what makes a plugin portable. */
+function isTcpEndpoint(endpoint) {
+  return typeof endpoint === 'string' && endpoint.toLowerCase().startsWith(TCP_PREFIX)
+}
+
+/** `tcp://host:port`; port 0 lets the host pick one, which a test can state. */
+function parseTcpEndpoint(endpoint) {
+  if (!isTcpEndpoint(endpoint)) return null
+  const rest = endpoint.slice(TCP_PREFIX.length)
+  const separator = rest.lastIndexOf(':')
+  if (separator <= 0) return null
+  const host = rest.slice(0, separator).trim()
+  const port = Number.parseInt(rest.slice(separator + 1).trim(), 10)
+  if (host.length === 0 || !Number.isInteger(port) || port < 0 || port > 65535) return null
+  return { host, port }
+}
+
+/**
+ * What an endpoint is, and whether anything authenticates it. A path on a Unix
+ * host is authenticated by the private directory it sits in; a named pipe and a
+ * network address are not, so the token is what authenticates them.
+ */
+function describeEndpoint(endpoint, platform) {
+  if (isTcpEndpoint(endpoint)) {
+    const tcp = parseTcpEndpoint(endpoint)
+    if (tcp === null) throw new Error(`refusing ${endpoint}: it is not tcp://host:port`)
+    return { kind: 'tcp', tcp, ownership: false }
+  }
+  if (typeof endpoint === 'string' && endpoint.includes('://')) {
+    throw new Error(`refusing ${endpoint}: an endpoint is a socket path, a named pipe, or tcp://host:port`)
+  }
+  const pipe = isNamedPipe(endpoint)
+  return { kind: pipe ? 'pipe' : 'path', tcp: null, ownership: !pipe && platform !== 'win32' }
+}
+
 function tokenFile(stateDir, join = path.join) {
   return join(stateDir, TOKEN_FILENAME)
 }
@@ -38,7 +75,7 @@ function tokenFile(stateDir, join = path.join) {
  * gate, and our own clients present the token there as a second layer.
  */
 function requiresToken({ endpoint = '', platform = process.platform } = {}) {
-  return platform === 'win32' || isNamedPipe(endpoint)
+  return platform === 'win32' || isNamedPipe(endpoint) || isTcpEndpoint(endpoint)
 }
 
 async function readToken(file, fsModule) {
@@ -130,7 +167,7 @@ async function prepareDirectory(directory, fsModule) {
   if ((info.mode & 0o077) !== 0) throw new Error(`refusing ${directory}: it is group- or world-accessible`)
 }
 
-async function describeEndpoint(endpoint, fsModule) {
+async function describeEndpointFile(endpoint, fsModule) {
   try {
     return await fsModule.lstat(endpoint)
   } catch (error) {
@@ -164,6 +201,7 @@ function probeEndpoint(endpoint, timeoutMs = PROBE_TIMEOUT_MS) {
 async function listenChannel({
   endpoint,
   token,
+  stateDir = '',
   onConnection,
   onReject = () => {},
   platform = process.platform,
@@ -173,10 +211,17 @@ async function listenChannel({
   if (typeof endpoint !== 'string' || endpoint.length === 0) throw new Error('a channel endpoint is required')
   if (typeof onConnection !== 'function') throw new Error('a channel connection handler is required')
 
-  const ownershipAuthenticates = !requiresToken({ endpoint, platform })
+  const shape = describeEndpoint(endpoint, platform)
+  const ownershipAuthenticates = shape.ownership
   const tokenRequired = !ownershipAuthenticates
-  if (tokenRequired && (typeof token !== 'string' || token.length === 0)) {
-    throw new Error(`refusing ${endpoint}: this endpoint has no owner to authenticate it, so it requires a token`)
+  let channelToken = typeof token === 'string' ? token : ''
+  if (tokenRequired && channelToken.length === 0) {
+    // The listener resolves the shared token itself rather than making every
+    // caller read the file first, so a channel cannot be bound unauthenticated.
+    if (typeof stateDir !== 'string' || stateDir.length === 0) {
+      throw new Error(`refusing ${endpoint}: this endpoint has no owner to authenticate it, so it requires a token`)
+    }
+    channelToken = await readOrCreateToken({ stateDir, fsModule })
   }
 
   const sockets = new Set()
@@ -226,7 +271,9 @@ async function listenChannel({
       const remainder = buffer.subarray(newline + 1)
       const parsed = parseHandshake(line)
       if (parsed.kind === 'handshake') {
-        if (tokenMatches(token, parsed.token)) return accept(remainder)
+        // Compare against the token this listener resolved, which is not the same
+        // value as the argument when the listener read the shared token itself.
+        if (tokenMatches(channelToken, parsed.token)) return accept(remainder)
         return reject('token rejected')
       }
       if (tokenRequired) return reject('token required')
@@ -242,10 +289,12 @@ async function listenChannel({
   function bind() {
     return new Promise((resolve, reject) => {
       server.once('error', reject)
-      server.listen(endpoint, () => {
+      const onListening = () => {
         server.off('error', reject)
         resolve()
-      })
+      }
+      if (shape.kind === 'tcp') server.listen(shape.tcp.port, shape.tcp.host, onListening)
+      else server.listen(endpoint, onListening)
     })
   }
 
@@ -257,10 +306,12 @@ async function listenChannel({
     if (error.code !== 'EADDRINUSE') throw error
     // Something already holds the endpoint. A live service is never stolen from,
     // because unlinking its socket would leave two services answering to the
-    // same name; only the file a stopped service left behind is replaced.
+    // same name; only the file a stopped service left behind is replaced. A
+    // network address has no file to replace, so it is simply refused.
+    if (shape.kind === 'tcp') throw new Error(`refusing ${endpoint}: the address is already in use`)
     if (await probe(endpoint)) throw new Error(`refusing ${endpoint}: another service is already listening`)
     if (!ownershipAuthenticates) throw new Error(`refusing ${endpoint}: it is held by something this host cannot identify`)
-    const info = await describeEndpoint(endpoint, fsModule)
+    const info = await describeEndpointFile(endpoint, fsModule)
     if (!info || !info.isSocket()) throw new Error(`refusing ${endpoint}: it exists and is not a socket`)
     if (info.uid !== process.getuid()) throw new Error(`refusing ${endpoint}: it is not owned by this user`)
     await fsModule.unlink(endpoint)
@@ -277,6 +328,7 @@ async function listenChannel({
       sockets.clear()
       await new Promise((resolve) => server.close(resolve))
       // A stopped service must not leave a path that still looks like a channel.
+      // A network address and a named pipe have nothing to withdraw.
       if (ownershipAuthenticates) {
         await fsModule.unlink(endpoint).catch((error) => {
           if (error.code !== 'ENOENT') throw error
@@ -290,9 +342,12 @@ module.exports = {
   CHANNEL_VERSION,
   TOKEN_FILENAME,
   MAX_HANDSHAKE_BYTES,
+  describeEndpoint,
   handshakeFrame,
   isNamedPipe,
+  isTcpEndpoint,
   listenChannel,
+  parseTcpEndpoint,
   readOrCreateToken,
   requiresToken,
   tokenFile,

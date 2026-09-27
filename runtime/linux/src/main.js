@@ -323,12 +323,22 @@ async function main() {
   // first light before the installer (T3) drives the registry; it is not a
   // second lifecycle.
   const futuServiceDefs = {}
+  let lastFutuRejection = null
   const futuRuntimeDir = (() => {
     const base = process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir()
     return require('node:path').join(base, 'open-deskos')
   })()
   const futuSource = createFutuSource({
     runtimeDir: futuRuntimeDir,
+    // A declared endpoint that has no owner to authenticate it (a named pipe, or
+    // a network address a plugin on another host connects to) is gated by the
+    // host's channel token, which the channel reads from this state directory.
+    stateDir: shellHost.stateDir,
+    onReject: (reason) => {
+      if (reason === lastFutuRejection) return
+      lastFutuRejection = reason
+      console.error(`futu service plugin refused a connection: ${reason}`)
+    },
     services: () => ({ ...futuServiceDefs }),
   })
   const refreshFutuServices = async () => {
@@ -340,14 +350,18 @@ async function main() {
       })
       for (const entry of await store.list()) {
         if (entry?.service && entry?.id && !futuServiceDefs[entry.service.id]) {
-          futuServiceDefs[entry.service.id] = { revision: entry.revision, socket: entry.service.socket }
+          // A plugin declares where it listens: a socket path, a named pipe, or a
+          // network address. The socket field is the historical name for it.
+          const endpoint = entry.service.endpoint ?? entry.service.socket
+          futuServiceDefs[entry.service.id] = { revision: entry.revision, endpoint }
         }
       }
     } catch {}
-    if (process.env.ODESK_FUTU_SOCKET && !futuServiceDefs['futu-poller']) {
+    const declaredEndpoint = process.env.ODK_FUTU_ENDPOINT || process.env.ODESK_FUTU_SOCKET
+    if (declaredEndpoint && !futuServiceDefs['futu-poller']) {
       // The revision is declared once, in the shared file the poller also reads, so a packaged
       // revision cannot make the handshake reject the poller that is actually running.
-      futuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', socket: process.env.ODESK_FUTU_SOCKET }
+      futuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint: declaredEndpoint }
     }
     try { await futuSource.refreshServices() } catch (error) {
       console.error(`futu services unavailable: ${error.message}`)
