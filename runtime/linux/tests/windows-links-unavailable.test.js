@@ -53,9 +53,10 @@ test('the Remote Link surface reads disconnected without a local endpoint', () =
 })
 
 test('Desk Link reports no machine when nothing is listening at its endpoint', async () => {
-  // On a Windows host the endpoint is the pipe, and no service is listening on
-  // it here, so the client must report nothing rather than a healthy link.
-  const client = createDeskLinkClient({ socketPath: resolveDeskLinkSocketPath(WINDOWS_ENV) ?? '\\\\.\\pipe\\open-deskos-desk-link-absent' })
+  // An endpoint nothing bound. The resolved endpoint cannot be used here: on a
+  // host where the Desk Link service runs, it is a live link, and a test that
+  // depends on that would pass or fail according to the machine it runs on.
+  const client = createDeskLinkClient({ socketPath: '\\\\.\\pipe\\open-deskos-desk-link-absent' })
 
   assert.deepEqual(await client.machines(), [])
 })
