@@ -5,6 +5,7 @@ const { createUserAppControl, listenUserAppControl } = require('./user-app-contr
 const { createUserAppResponse } = require('./user-app-protocol')
 const { buildUserAppDocument, USER_APP_CSP } = require('./user-app-content')
 const { resolveShellHost } = require('./platform')
+const { readOrCreateToken } = require('./local-channel')
 
 // supportFetchAPI + corsEnabled are what let a sandboxed frame (opaque origin) load the
 // appearance fonts this process serves; without them every font request is a network
@@ -44,7 +45,11 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   protocol.handle('odk-user-app', request => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP))
   if (smokeMode || !surface.controlEndpoint) return
   try {
-    const server = await listenUserAppControl({ socketPath: surface.controlEndpoint, control })
+    const host = resolveShellHost({ env })
+    // The endpoint's authentication is the channel's own, so the token is read
+    // where this host needs one and left alone where ownership already proves it.
+    const channelToken = await readOrCreateToken({ stateDir: host.stateDir })
+    const server = await listenUserAppControl({ socketPath: surface.controlEndpoint, control, channelToken, platform: host.platform })
     app.once('before-quit', () => { void server.close().catch(() => {}) })
   } catch {
     console.error('User application control socket unavailable; desktop controls remain available')

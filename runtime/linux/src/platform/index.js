@@ -2,6 +2,7 @@
 
 const os = require('node:os')
 const path = require('node:path')
+const { tokenFile } = require('../local-channel')
 
 // The endpoint a logical link name owns, as the Unix runtime directory lays it
 // out. A Windows host keeps the same logical names and maps each to a named
@@ -61,11 +62,16 @@ function resolveShellHost({ platform = process.platform, arch = process.arch, en
     stateDir,
     runtimeDir,
     endpoint,
+    // The token every runtime channel on this host shares. A Unix host
+    // authenticates a channel by ownership and carries this only as a second
+    // layer; a Windows host has no owner on a named pipe, so this file is what
+    // authenticates there. Either way the file is readable only by this user.
+    localChannelTokenFile: tokenFile(stateDir, isWindows ? path.win32.join : path.join),
     // The external user-application control endpoint exists for an external
-    // agent. No such agent is ported to Windows, so a Windows host states the
-    // endpoint is absent rather than binding a pipe nothing connects to.
-    // Widget and App control through the shell itself is unaffected.
-    provisionsUserAppControl: !isWindows && runtimeDir !== null,
+    // agent, and it is provisioned wherever the endpoint itself exists: a Unix
+    // socket owned by this user, or a named pipe gated by the channel token.
+    // Widget and App control through the shell itself never needs it.
+    provisionsUserAppControl: endpoint('user-app-control') !== null,
   }
 }
 

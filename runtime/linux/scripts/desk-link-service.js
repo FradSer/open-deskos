@@ -6,6 +6,8 @@ const os = require('node:os')
 const path = require('node:path')
 const { createDeskLinkService } = require('../src/desk-link-service')
 const { createHostedPiSocketAdapter } = require('../src/desk-link-host-adapter')
+const { resolveShellHost } = require('../src/platform')
+const { isNamedPipe, readOrCreateToken } = require('../src/local-channel')
 
 // The token is a shared secret. A value in the unit's environment is readable by anything that can
 // read this user's process environment, while a mode-0600 file is readable only by its owner, so the
@@ -39,25 +41,32 @@ function controlCredential(env, readFile = file => fs.readFileSync(file, 'utf8')
   return (env.ODK_DESK_LINK_CONTROL_CREDENTIAL ?? '').trim()
 }
 
-function socketPath(env) {
+function socketPath(env, host) {
   const explicit = (env.ODK_DESK_LINK_SOCKET ?? '').trim()
   if (explicit.length > 0) {
-    if (!path.isAbsolute(explicit)) throw new Error('ODK_DESK_LINK_SOCKET must be absolute')
+    if (!path.isAbsolute(explicit) && !isNamedPipe(explicit)) throw new Error('ODK_DESK_LINK_SOCKET must be absolute or a named pipe')
     return explicit
   }
-  const runtimeDir = env.XDG_RUNTIME_DIR
-  if (!runtimeDir || !path.isAbsolute(runtimeDir)) {
-    return path.join(os.tmpdir(), `open-deskos-desk-link-${process.getuid?.() ?? 0}`, 'service.sock')
-  }
-  return path.join(runtimeDir, 'open-deskos-desk-link', 'service.sock')
+  // The platform names the endpoint: a Unix socket in the runtime directory, or
+  // the named pipe a Windows host has instead of one.
+  const endpoint = host.endpoint('desk-link')
+  if (endpoint) return endpoint
+  return path.join(os.tmpdir(), `open-deskos-desk-link-${process.getuid?.() ?? 0}`, 'service.sock')
 }
 
 async function main() {
   const env = process.env
+  const host = resolveShellHost({ env })
+  // The runtime channel's token is created on first use, so an operator never
+  // provisions it by hand, and it is what authenticates the channel on a host
+  // whose endpoint has no owner to check.
+  const channelToken = await readOrCreateToken({ stateDir: host.stateDir })
   const service = createDeskLinkService({
     token: requiredToken(env),
     controlCredential: controlCredential(env),
-    socketPath: socketPath(env),
+    socketPath: socketPath(env, host),
+    channelToken,
+    platform: host.platform,
     hostAdapter: createHostedPiSocketAdapter({ env }),
     port: Number.parseInt(env.ODK_DESK_LINK_PORT ?? '8765', 10),
     env,

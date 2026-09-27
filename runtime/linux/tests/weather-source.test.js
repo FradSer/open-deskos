@@ -45,6 +45,143 @@ test('BDD feature states the provider, cache, and honest-state contract', () => 
   assert.match(FEATURE, /the place is bounded and whitespace collapsed before it reaches the renderer/)
   assert.match(FEATURE, /concurrent refreshes share one in-flight request/)
   assert.match(FEATURE, /no state renders a temperature it cannot substantiate/)
+  assert.match(FEATURE, /the device-location provider is never called/)
+  assert.match(FEATURE, /it calls the device-location provider once with a bounded timeout/)
+  assert.match(FEATURE, /the place label falls back to the coordinate rule/)
+  assert.match(FEATURE, /keeps a truthful unavailable state with a reason/)
+  assert.match(FEATURE, /the provider is not called again/)
+  assert.match(FEATURE, /the snapshot names configured or device as the location origin/)
+})
+
+test('a configured location never calls the device-location provider', async (t) => {
+  let deviceCalls = 0
+  const source = createWeatherSource({
+    latitude: 22.5431,
+    longitude: 114.0579,
+    place: 'Shenzhen',
+    cacheFile: temporaryCache(t),
+    locationProvider: { resolve: async () => { deviceCalls += 1; return { status: 'located', latitude: 1, longitude: 2, place: 'Elsewhere', source: 'device' } } },
+    fetchImpl: async () => response(payload()),
+  })
+  const snapshot = await source.refresh()
+  assert.equal(deviceCalls, 0, 'a configured host must make no location-service request')
+  assert.equal(snapshot.status, 'live')
+  assert.equal(snapshot.place, 'Shenzhen')
+  assert.equal(snapshot.locationSource, 'configured')
+})
+
+test('a location configured through the environment wins over the device-location provider', async (t) => {
+  const previous = { lat: process.env.ODK_WEATHER_LAT, lon: process.env.ODK_WEATHER_LON, place: process.env.ODK_WEATHER_PLACE }
+  process.env.ODK_WEATHER_LAT = '22.5431'
+  process.env.ODK_WEATHER_LON = '114.0579'
+  process.env.ODK_WEATHER_PLACE = 'Shenzhen'
+  try {
+    let deviceCalls = 0
+    const source = createWeatherSource({
+      cacheFile: temporaryCache(t),
+      locationProvider: { resolve: async () => { deviceCalls += 1; return { status: 'located', latitude: 1, longitude: 2, place: 'Elsewhere', source: 'device' } } },
+      fetchImpl: async () => response(payload()),
+    })
+    const snapshot = await source.refresh()
+    assert.equal(deviceCalls, 0)
+    assert.equal(snapshot.place, 'Shenzhen')
+    assert.equal(snapshot.locationSource, 'configured')
+  } finally {
+    if (previous.lat === undefined) delete process.env.ODK_WEATHER_LAT; else process.env.ODK_WEATHER_LAT = previous.lat
+    if (previous.lon === undefined) delete process.env.ODK_WEATHER_LON; else process.env.ODK_WEATHER_LON = previous.lon
+    if (previous.place === undefined) delete process.env.ODK_WEATHER_PLACE; else process.env.ODK_WEATHER_PLACE = previous.place
+  }
+})
+
+test('without a configured location the source asks the device once and uses its city', async (t) => {
+  const calls = { location: 0, weather: 0 }
+  const weatherUrls = []
+  const source = createWeatherSource({
+    locationUrl: 'https://geo.example.test/lookup',
+    cacheFile: temporaryCache(t),
+    fetchImpl: async (url) => {
+      if (String(url).startsWith('https://geo.example.test')) {
+        calls.location += 1
+        return response({ success: true, latitude: 30.5928, longitude: 114.3055, city: 'Wuhan' })
+      }
+      calls.weather += 1
+      weatherUrls.push(String(url))
+      return response(payload())
+    },
+  })
+  const snapshot = await source.refresh()
+  assert.equal(calls.location, 1, 'the provider is called exactly once')
+  assert.equal(calls.weather, 1)
+  assert.equal(snapshot.status, 'live')
+  assert.equal(snapshot.place, 'Wuhan', 'the provider city labels the place')
+  assert.equal(snapshot.locationSource, 'device')
+  assert.match(weatherUrls[0], /latitude=30\.5928/)
+  assert.match(weatherUrls[0], /longitude=114\.3055/)
+})
+
+test('a location answer without a city falls back to the coordinate rule', async (t) => {
+  const source = createWeatherSource({
+    locationUrl: 'https://geo.example.test/lookup',
+    cacheFile: temporaryCache(t),
+    fetchImpl: async (url) => (String(url).startsWith('https://geo.example.test')
+      ? response({ success: true, latitude: 30.5928, longitude: 114.3055 })
+      : response(payload())),
+  })
+  const snapshot = await source.refresh()
+  assert.equal(snapshot.status, 'live')
+  assert.equal(snapshot.place, '30.59, 114.31', 'no city means the coordinates carry the label')
+  assert.equal(snapshot.locationSource, 'device')
+})
+
+test('an unavailable location keeps a truthful state and never guesses a city', async (t) => {
+  const failures = {
+    'network error': async () => { throw new Error('socket hang up') },
+    'nonsense answer': async () => response({ success: true, latitude: 'north', longitude: 'west', city: 'Guessed' }),
+    'http error': async () => response({ success: true }, { ok: false, status: 503 }),
+  }
+  for (const [name, locationFetch] of Object.entries(failures)) {
+    const source = createWeatherSource({
+      locationUrl: 'https://geo.example.test/lookup',
+      cacheFile: temporaryCache(t),
+      fetchImpl: async (url) => (String(url).startsWith('https://geo.example.test') ? locationFetch() : response(payload())),
+    })
+    const snapshot = await source.refresh()
+    assert.equal(snapshot.status, 'unavailable', `${name} must not read as live`)
+    assert.equal(snapshot.current, null)
+    assert.equal(snapshot.place, null, `${name} must not carry a guessed city`)
+    assert.equal(snapshot.locationSource, null)
+    assert.match(snapshot.error, /location/i, `${name} must carry a reason`)
+  }
+})
+
+test('a cached location newer than the refresh interval is not looked up again', async (t) => {
+  const calls = { location: 0, weather: 0 }
+  let now = 1_000_000
+  const source = createWeatherSource({
+    locationUrl: 'https://geo.example.test/lookup',
+    locationRefreshMs: 3_600_000,
+    now: () => now,
+    cacheFile: temporaryCache(t),
+    fetchImpl: async (url) => {
+      if (String(url).startsWith('https://geo.example.test')) { calls.location += 1; return response({ success: true, latitude: 30.5928, longitude: 114.3055, city: 'Wuhan' }) }
+      calls.weather += 1
+      return response(payload())
+    },
+  })
+  await source.refresh()
+  now += 60_000
+  const second = await source.refresh({ force: true })
+  assert.equal(calls.location, 1, 'a fresh cached location is reused without a provider request')
+  assert.equal(calls.weather, 2, 'forcing the weather refresh must not also force a location lookup')
+  assert.equal(second.locationSource, 'device')
+  assert.equal(second.place, 'Wuhan')
+})
+
+test('unconfigured but pinned to no location reports no location origin', async () => {
+  const source = createWeatherSource({ latitude: null, longitude: null })
+  const snapshot = await source.refresh()
+  assert.equal(snapshot.status, 'unconfigured')
+  assert.equal(snapshot.locationSource, null)
 })
 
 test('maps WMO codes to the provider vocabulary the tile renders', () => {
@@ -60,7 +197,7 @@ test('maps WMO codes to the provider vocabulary the tile renders', () => {
 
 test('an unconfigured location performs no request and reports what to set', async () => {
   let calls = 0
-  const source = createWeatherSource({ fetchImpl: async () => { calls += 1; return response(payload()) } })
+  const source = createWeatherSource({ latitude: null, longitude: null, fetchImpl: async () => { calls += 1; return response(payload()) } })
   const snapshot = await source.refresh()
   assert.equal(calls, 0)
   assert.equal(snapshot.status, 'unconfigured')

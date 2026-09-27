@@ -86,6 +86,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODK_KIOSK_UID` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/update-runtime.js | — | kiosk 用户 uid |
 | `ODK_KIOSK_USER` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/migrate-runtime.js, runtime/linux/scripts/update-runtime.js | — | 运行桌面会话的 kiosk 用户 |
 | `ODK_KIOSK_XAUTHORITY` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/update-runtime.js | — | 同上，XAUTHORITY |
+| `ODK_LOCATION_REFRESH_MS` | L3 设备本地 | runtime.env | runtime/linux/src/device-location.js | 1800000 | 设备定位缓存有效期（毫秒）：设备会移动，到期后重新查询，0 表示每次刷新都重查 |
+| `ODK_LOCATION_URL` | L3 设备本地 | runtime.env | runtime/linux/src/device-location.js | https://ipwho.is/ | 无密钥 IP 定位端点覆盖；这会向第三方询问本机位置，见下文隐私说明 |
 | `ODK_MODEL_FSTAB` | L3 设备本地 | SSD 迁移脚本 | runtime/linux/scripts/cm5-migrate-models-to-ssd.sh | /etc/fstab | fstab 路径 |
 | `ODK_MODEL_MIGRATION_LIBRARY` | L3 设备本地 | SSD 迁移脚本 | runtime/linux/scripts/cm5-migrate-models-to-ssd.sh | — | 迁移库路径 |
 | `ODK_MODEL_SSD_MOUNT` | L3 设备本地 | SSD 迁移脚本 | runtime/linux/scripts/cm5-migrate-models-to-ssd.sh | — | SSD 挂载点 |
@@ -96,8 +98,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODK_RUNTIME_ROOT` | L2 安装期 | cm5-install.sh | runtime/linux/src/user-app-context.js, runtime/linux/scripts/cm5-acceptance.sh, runtime/linux/scripts/cm5-install.sh, runtime/linux/scripts/cm5-stage-release.sh, runtime/linux/scripts/migrate-runtime.js, runtime/linux/scripts/start-kiosk.sh, runtime/linux/scripts/update-runtime.js | /opt/open-deskos | release 与 state 的根 |
 | `ODK_STAGING_ID` | L2 开发机 | cm5-stage-release.sh | runtime/linux/scripts/cm5-stage-release.sh | 时间戳-$-随机 | 隔离暂存目录标识 |
 | `ODK_STT_PORT` | L3 设备本地 | stt-bridge unit（runtime.env 可覆盖） | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/voice-agent/src/main.mjs | 17840 | 设备本地 STT 端口：唯一声明，voice 由此推导端点 |
-| `ODK_WEATHER_LAT` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器纬度 |
-| `ODK_WEATHER_LON` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器经度 |
+| `ODK_WEATHER_LAT` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器纬度；与经度同时存在时不再查询设备定位 |
+| `ODK_WEATHER_LON` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器经度；与纬度同时存在时不再查询设备定位 |
 | `ODK_WEATHER_PLACE` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器地点名 |
 | `OPEN_DESKOS_CONFIG_DIR` | L3 设备本地 | 插件 CLI | runtime/linux/scripts/open-deskos-plugin-cli.js | ~/.config/open-deskos | 插件 CLI 配置目录 |
 | `PATH` | 环境 | unit / 安装器 | runtime/linux/scripts/cm5-install.sh | — | 单元固定 kiosk 会话的 node 与垫片目录，不走交互式版本管理者的 PATH |
@@ -106,5 +108,13 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/desk-link-client.js, runtime/linux/src/main.js, runtime/linux/src/platform/index.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/voice-agent-client.js, runtime/linux/scripts/desk-link-service.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | IPC socket 与运行时目录的根；Windows Shell Host 不适用（端点改用命名管道） |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/voice-agent-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
 | `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/main.mjs | ~/.local/state | 持久状态目录 |
+
+## 天气定位与隐私取舍
+
+CM5 在 `runtime.env` 中设置 `ODK_WEATHER_LAT` / `ODK_WEATHER_LON` / `ODK_WEATHER_PLACE`。只要给出符合范围的经纬度，Shell 就只使用配置值：不向任何定位端点发起请求，离线也能保持仪器可用。参考宿主今天的行为不变。
+
+未配置定位的宿主（例如会移动的 64 位 Windows 掌机）在天气刷新时先向无密钥的 IP 定位端点查询一次设备位置，把结果缓存 `ODK_LOCATION_REFRESH_MS` 毫秒（默认 30 分钟）后再判断是否重查，因此换城市后会自动更新。请把这看作一项隐私取舍：这等于向第三方询问本机所在的城市。若不愿如此，请像 CM5 一样显式配置经纬度，此时不会有任何定位请求。
+
+端点可用 `ODK_LOCATION_URL` 覆盖（默认 `https://ipwho.is/`，可用 `loc: "lat,lon"` 或 `latitude`/`longitude` 加 `city` 的响应）。请求超时上限 3 秒；定位失败只会让天气仪器显示 Unavailable 并在快照中带上原因，不会阻塞桌面，也不会猜测城市。定位查询只在异步的天气刷新路径上发生，渲染路径从不调用。

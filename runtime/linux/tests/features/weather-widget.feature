@@ -159,3 +159,42 @@ Feature: Weather instrument on the Home grid
     Then the installed Widget reports a placement error instead of sharing the cell
     And the built-in tile renders alone in that cell
     And the desktop status names the widget that needs moving or removing
+
+  Scenario: A host that was given a location never asks a location service
+    Given ODK_WEATHER_LAT and ODK_WEATHER_LON are set in the desk's environment
+    When the weather source starts
+    Then it uses the configured latitude and longitude and place label
+    And the device-location provider is never called
+    And the snapshot reports the location came from configuration
+    And the configured host stays usable while offline
+
+  Scenario: A host without a configured location asks a location service once
+    Given no weather location is configured on this host
+    When the weather source resolves a location
+    Then it calls the device-location provider once with a bounded timeout
+    And it caches the provider's latitude, longitude and city
+    And it uses the returned coordinates with the provider's city as the place label
+    And the snapshot reports the location came from the device
+
+  Scenario: A location answer without a city invents no name
+    Given no weather location is configured on this host
+    When the device-location provider answers with coordinates but no city
+    Then the place label falls back to the coordinate rule
+    And no city name is invented
+
+  Scenario: A failed location lookup never guesses a city
+    Given no weather location is configured on this host
+    When the device-location provider fails, times out, or returns nonsense
+    Then the source keeps a truthful unavailable state with a reason
+    And no guessed city reaches the renderer
+
+  Scenario: A fresh cached location is reused
+    Given the device-location provider answered within the refresh interval
+    When the weather refreshes
+    Then the provider is not called again
+    And the cached coordinates and city remain in force
+
+  Scenario: The weather state says where the location came from
+    Given the weather source publishes any snapshot
+    Then the snapshot names configured or device as the location origin
+    And an unconfigured host reports no location origin

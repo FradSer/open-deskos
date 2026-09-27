@@ -6,20 +6,28 @@ const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('../
 const { createDeskLinkClient, resolveDeskLinkSocketPath } = require('../src/desk-link-client')
 const { resolveShellHost } = require('../src/platform')
 
-// A Windows Shell Host has no runtime directory, and none of these links is
-// ported to it. The desk states that instead of presenting a local or simulated
-// link, so each surface must answer with its unavailable reading rather than a
-// healthy one.
+// A Windows Shell Host has no runtime directory. The links that are not ported
+// to it state that instead of presenting a local or simulated link, so each
+// surface must answer with its unavailable reading rather than a healthy one.
 const WINDOWS_ENV = {}
+const WINDOWS_HOST = process.platform === 'win32'
 
-test('no unported link resolves an endpoint on a Windows host', () => {
-  for (const resolve of [resolveVoiceSocketPath, resolveRemoteBridgeSocketPath, resolveDeskLinkSocketPath]) {
+test('a link that is not ported to this host resolves no endpoint', () => {
+  for (const resolve of [resolveVoiceSocketPath, resolveRemoteBridgeSocketPath]) {
     assert.equal(resolve(WINDOWS_ENV), null)
   }
 
-  // The seam still names the endpoint a ported link would bind, so the transport
-  // is decided even though nothing is wired to it yet. These two facts are the
-  // difference between 'not ported' and 'no idea where it would go'.
+  // The Desk Link is ported. A Unix host needs a runtime directory for it; a
+  // Windows host has no such directory and binds the named pipe instead, which
+  // the channel token authenticates because a pipe carries no owner.
+  assert.equal(
+    resolveDeskLinkSocketPath(WINDOWS_ENV),
+    WINDOWS_HOST ? '\\\\.\\pipe\\open-deskos-desk-link' : null,
+  )
+
+  // The seam still names the endpoints a ported link would bind, so the
+  // transport is decided even where nothing is wired to it yet. These two facts
+  // are the difference between 'not ported' and 'no idea where it would go'.
   const host = resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\desk' })
   assert.equal(host.runtimeDir, null)
   assert.equal(host.endpoint('voice-agent'), '\\\\.\\pipe\\open-deskos-voice-agent')
@@ -44,8 +52,10 @@ test('the Remote Link surface reads disconnected without a local endpoint', () =
   assert.equal(client.getLinkState(), 'disconnected', 'starting without an endpoint invents no link')
 })
 
-test('Desk Link reads no reporting machine without a local endpoint', async () => {
-  const client = createDeskLinkClient({ socketPath: resolveDeskLinkSocketPath(WINDOWS_ENV) })
+test('Desk Link reports no machine when nothing is listening at its endpoint', async () => {
+  // On a Windows host the endpoint is the pipe, and no service is listening on
+  // it here, so the client must report nothing rather than a healthy link.
+  const client = createDeskLinkClient({ socketPath: resolveDeskLinkSocketPath(WINDOWS_ENV) ?? '\\\\.\\pipe\\open-deskos-desk-link-absent' })
 
   assert.deepEqual(await client.machines(), [])
 })

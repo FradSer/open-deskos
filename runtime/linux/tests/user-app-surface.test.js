@@ -20,7 +20,7 @@ test('a Unix host keeps its state directory and control endpoint', () => {
   assert.equal(surface.controlEndpoint, path.join('/run/user/1000', 'open-deskos-apps', 'control.sock'))
 })
 
-test('a Windows host keeps its state under Windows application data and provisions no control endpoint', () => {
+test('a Windows host keeps its state under Windows application data and reaches its control endpoint by pipe', () => {
   const env = { LOCALAPPDATA: 'C:\\Users\\desk\\AppData\\Local', XDG_RUNTIME_DIR: '/run/user/1000' }
   const surface = resolveUserAppSurface({
     env,
@@ -28,9 +28,9 @@ test('a Windows host keeps its state under Windows application data and provisio
   })
 
   assert.equal(surface.stateDir, 'C:\\Users\\desk\\AppData\\Local\\open-deskos\\user-apps')
-  // The endpoint exists for an external agent, and none is ported to this host,
-  // so nothing is bound rather than bound for a client that does not exist.
-  assert.equal(surface.controlEndpoint, null)
+  // The endpoint exists for an external agent on this machine too. A named pipe
+  // has no owner to authenticate with, so the channel token does it instead.
+  assert.equal(surface.controlEndpoint, '\\\\.\\pipe\\open-deskos-user-app-control')
 })
 
 test('a Unix host without a runtime directory provisions no control endpoint', () => {

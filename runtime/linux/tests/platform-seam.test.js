@@ -53,7 +53,10 @@ test('a Windows host resolves Windows state and pipe endpoints', () => {
   assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\open-deskos-remote-bridge')
   assert.equal(host.endpoint('voice-agent'), '\\\\.\\pipe\\open-deskos-voice-agent')
   assert.equal(host.endpoint('desk-link'), '\\\\.\\pipe\\open-deskos-desk-link')
-  assert.equal(host.provisionsUserAppControl, false, 'no external agent is ported, so nothing binds that pipe')
+  assert.equal(host.localChannelTokenFile, 'C:\\Users\\desk\\AppData\\Local\\open-deskos\\local-channel.token')
+  // The pipe exists for an external agent; it is bound, and the channel token is
+  // what authenticates a client there, because a pipe carries no owner to check.
+  assert.equal(host.provisionsUserAppControl, true)
 })
 
 test('a Windows host without a local application data root still resolves one', () => {

@@ -9,6 +9,8 @@
  * `unavailable` instead of a plausible-looking number.
  */
 
+const { createDeviceLocation } = require('./device-location')
+
 const PROVIDER_URL = 'https://api.open-meteo.com/v1/forecast'
 const CACHE_VERSION = 1
 const REFRESH_MS = 10 * 60 * 1000
@@ -99,34 +101,52 @@ function oneOf(series) {
   return temperature(series[0])
 }
 
-function createWeatherSource({
-  fetchImpl = fetch,
-  now = () => Date.now(),
-  fsImpl = require('node:fs'),
-  pathImpl = require('node:path'),
-  cacheFile,
-  latitude,
-  longitude,
-  place,
-  refreshMs = REFRESH_MS,
-  timeoutMs = TIMEOUT_MS,
-  providerUrl = PROVIDER_URL,
-} = {}) {
+function createWeatherSource(options = {}) {
+  const {
+    fetchImpl = fetch,
+    now = () => Date.now(),
+    fsImpl = require('node:fs'),
+    pathImpl = require('node:path'),
+    cacheFile,
+    place,
+    refreshMs = REFRESH_MS,
+    timeoutMs = TIMEOUT_MS,
+    providerUrl = PROVIDER_URL,
+    locationProvider,
+    locationTimeoutMs,
+    locationRefreshMs,
+    locationUrl,
+  } = options
   // An explicitly passed value wins, including an explicit null: that is how a smoke
   // run asks for no location instead of inheriting the desk's configured one.
-  const lat = coordinate(latitude !== undefined ? latitude : process.env.ODK_WEATHER_LAT, 90)
-  const lon = coordinate(longitude !== undefined ? longitude : process.env.ODK_WEATHER_LON, 180)
+  const lat = coordinate(options.latitude !== undefined ? options.latitude : process.env.ODK_WEATHER_LAT, 90)
+  const lon = coordinate(options.longitude !== undefined ? options.longitude : process.env.ODK_WEATHER_LON, 180)
   const placeOption = place !== undefined ? place : process.env.ODK_WEATHER_PLACE
   const namedPlace = boundPlace(placeOption)
   const configured = lat !== null && lon !== null
+  // A host that was handed a location (through options or the environment) decides its own
+  // coordinates, and the reference CM5 is one. Only a host given no location at all may ask
+  // the device where it is, and an explicit empty location (the smoke run) pins it off.
+  const locationPinned = options.latitude !== undefined || options.longitude !== undefined
+  const deviceLocation = !configured && !locationPinned && locationProvider !== null
+    ? (locationProvider || createDeviceLocation({ fetchImpl, now, timeoutMs: locationTimeoutMs, refreshMs: locationRefreshMs, providerUrl: locationUrl }))
+    : null
+  let location = configured
+    ? { latitude: lat, longitude: lon, place: namedPlace, source: 'configured' }
+    : null
+  const locationSource = () => location?.source || null
   let state = configured
-    ? { status: 'unavailable', place: label(), unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: null, error: null }
-    : { status: 'unconfigured', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null }
+    ? { status: 'unavailable', place: label(), unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: null, error: null, locationSource: 'configured' }
+    : deviceLocation
+      ? { status: 'unavailable', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: null, error: null, locationSource: null }
+      : { status: 'unconfigured', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null, locationSource: null }
   let inFlight = null
 
   function label() {
-    if (namedPlace) return namedPlace
-    return `${lat.toFixed(2)}, ${lon.toFixed(2)}`
+    const position = location || { latitude: lat, longitude: lon }
+    const place = location ? location.place : namedPlace
+    if (place) return place
+    return `${position.latitude.toFixed(2)}, ${position.longitude.toFixed(2)}`
   }
 
   loadCache()
@@ -139,7 +159,7 @@ function createWeatherSource({
       if (cached?.version !== CACHE_VERSION || !reading || !reading.current) return
       if (temperature(reading.current.temperature) === null) return
       state = { status: 'stale', place: boundPlace(reading.place) || label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily || null,
-        updatedAt: Number(reading.updatedAt) || null, hint: null, error: null }
+        updatedAt: Number(reading.updatedAt) || null, hint: null, error: null, locationSource: 'configured' }
     } catch {
       // A missing or corrupt cache is replaced by the next successful reading.
     }
@@ -171,7 +191,8 @@ function createWeatherSource({
   }
 
   async function request() {
-    const url = `${providerUrl}?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`
+    const position = location || { latitude: lat, longitude: lon }
+    const url = `${providerUrl}?latitude=${position.latitude}&longitude=${position.longitude}&current=temperature_2m,weather_code`
       + '&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1'
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -191,14 +212,14 @@ function createWeatherSource({
     try {
       const reading = await request()
       if (!reading) throw new Error('provider payload was not a usable reading')
-      state = { status: 'live', place: label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily, updatedAt: stamp, hint: null, error: null }
+      state = { status: 'live', place: label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily, updatedAt: stamp, hint: null, error: null, locationSource: locationSource() }
       save({ place: label(), current: reading.current, daily: reading.daily, updatedAt: stamp })
     } catch (error) {
       const message = error?.name === 'AbortError' ? `provider timed out after ${timeoutMs} ms` : (error?.message || 'provider unavailable')
       const kept = state.current
       state = kept
         ? { ...state, status: 'stale', error: message }
-        : { status: 'unavailable', place: label(), unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: state.updatedAt, hint: null, error: message }
+        : { status: 'unavailable', place: label(), unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: state.updatedAt, hint: null, error: message, locationSource: locationSource() }
     }
     return state
   }
@@ -209,18 +230,37 @@ function createWeatherSource({
     return inFlight
   }
 
-  function refresh({ force = false } = {}) {
-    if (!configured) return Promise.resolve(state)
+  // The device-location lookup runs before the weather request and never on the render
+  // path. A located answer replaces the place label; a failed one leaves any location
+  // already in force alone and, with none, publishes a reason instead of a guess.
+  async function resolveLocation() {
+    if (!deviceLocation) return true
+    const found = await deviceLocation.resolve()
+    if (found.status !== 'located') {
+      if (!location) {
+        state = { status: 'unavailable', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: state.updatedAt, hint: null,
+          error: `location unavailable: ${found.error || 'no usable answer'}`, locationSource: null }
+        return false
+      }
+      return true
+    }
+    location = { latitude: found.latitude, longitude: found.longitude, place: boundPlace(found.place), source: 'device' }
+    return true
+  }
+
+  async function refresh({ force = false } = {}) {
+    if (!configured && !deviceLocation) return state
+    if (!(await resolveLocation())) return state
     if (inFlight) return inFlight
     if (!force && state.status === 'live' && state.updatedAt !== null && now() - state.updatedAt < refreshMs) {
-      return Promise.resolve(state)
+      return state
     }
     // A reading the desk already holds is published at once, with the provider read
     // continuing in the background: a restart must never present an empty instrument
     // while the last reading is on disk.
     if (!force && state.current) {
       void begin()
-      return Promise.resolve(state)
+      return state
     }
     return begin()
   }

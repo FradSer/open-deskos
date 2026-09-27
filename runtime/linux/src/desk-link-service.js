@@ -5,6 +5,7 @@ const path = require('node:path')
 const { timingSafeEqual, createHmac, randomBytes } = require('node:crypto')
 const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
+const { isNamedPipe, listenChannel } = require('./local-channel')
 
 // The service bounds reported data itself: a reporting machine is never trusted
 // to have bounded its own events. Its bounds are the shared ones, so a reporter
@@ -272,13 +273,14 @@ function latestReport(reports) {
 
 function createDeskLinkService({
   token, controlCredential = '', socketPath, port = 8765, host, env = process.env,
+  channelToken = '', platform = process.platform,
   now = () => Date.now(), authTimeoutMs = AUTH_TIMEOUT_MS, hostAdapter = null,
   hostRequestTimeoutMs = HOST_REQUEST_TIMEOUT_MS,
 } = {}) {
   if (typeof token !== 'string' || token.length === 0) throw new Error('a Desk Link Service requires a token')
   if (typeof controlCredential !== 'string') throw new Error('the Control Credential must be a string')
-  if (typeof socketPath !== 'string' || !path.isAbsolute(socketPath)) {
-    throw new Error('a Desk Link Service requires an absolute Unix socket path')
+  if (typeof socketPath !== 'string' || (!path.isAbsolute(socketPath) && !isNamedPipe(socketPath))) {
+    throw new Error('a Desk Link Service requires an absolute Unix socket path or a named pipe')
   }
   const listenHost = host ?? resolveListenHost(env)
   let connections = 0
@@ -287,7 +289,8 @@ function createDeskLinkService({
   const pendingControlAttachments = new Map()
   const openSockets = new Set()
   const server = net.createServer()
-  const socketServer = net.createServer()
+  let runtimeChannel = null
+  let lastChannelRejection = null
   let started = false
 
   function track(socket) {
@@ -870,58 +873,29 @@ function createDeskLinkService({
   }
 
   async function openRuntimeSocket() {
-      // The runtime channel is authenticated by filesystem ownership, so the
-      // socket needs a private directory. Create one when it is missing; refuse
-      // an existing directory rather than chmodding one this service does not
-      // own, which would silently lock a shared or user-owned directory down.
-      const socketDir = path.dirname(socketPath)
-      let createdDir = false
-      try {
-        await fs.promises.mkdir(socketDir, { mode: 0o700 })
-        createdDir = true
-      } catch (error) {
-        if (error.code !== 'EEXIST') throw error
-      }
-      if (createdDir) {
-        await fs.promises.chmod(socketDir, 0o700)
-      } else {
-        const stat = await fs.promises.stat(socketDir)
-        if (stat.uid !== process.getuid()) {
-          throw new Error(`refusing ${socketDir}: it is not owned by this user`)
-        }
-        if ((stat.mode & 0o077) !== 0) {
-          throw new Error(`refusing ${socketDir}: it is group- or world-accessible`)
-        }
-      }
-      await new Promise((resolve, reject) => {
-        socketServer.once('error', reject)
-        socketServer.listen(socketPath, () => {
-          socketServer.off('error', reject)
-          resolve()
-        })
-      })
-      socketServer.on('connection', (socket) => handleRuntimeRequest(track(socket)))
-      await fs.promises.chmod(socketPath, 0o600)
+    // The runtime channel is what a package on this machine talks to. Its
+    // authentication is the endpoint's own: a Unix socket in a directory only
+    // this user can enter, or, where a named pipe carries no owner to check, the
+    // shared channel token that only this user can read.
+    runtimeChannel = await listenChannel({
+      endpoint: socketPath,
+      token: channelToken,
+      platform,
+      onConnection: (socket) => handleRuntimeRequest(track(socket)),
+      onReject: (reason) => {
+        // Stated once per distinct reason: a client with the wrong token should
+        // be visible in the journal, but not able to fill it.
+        if (reason === lastChannelRejection) return
+        lastChannelRejection = reason
+        process.stderr.write(`desk link runtime channel refused a connection: ${reason}\n`)
+      },
+    })
   }
-
-  // A Unix socket file outlives the process that listened on it, so a restart used to fail with
-  // EADDRINUSE and a service that could never come back. The file is removed when it is a socket the
-  // current user owns, which is the only thing the runtime channel trusts anyway; anything else at
-  // that path is refused rather than deleted, and removal is limited to that one path.
-  async function removeStaleSocket() {
-    let stat
-    try { stat = await fs.promises.lstat(socketPath) } catch (error) { if (error.code === 'ENOENT') return; throw error }
-    if (!stat.isSocket()) throw new Error(`refusing ${socketPath}: it exists and is not a socket`)
-    if (stat.uid !== process.getuid()) throw new Error(`refusing ${socketPath}: it is not owned by this user`)
-    await fs.promises.unlink(socketPath)
-  }
-
 
   return {
     listenHost,
     async start() {
       if (started) return { host: listenHost, port: server.address().port }
-      await removeStaleSocket()
       server.maxConnections = MAX_CONNECTIONS
       await new Promise((resolve, reject) => {
         server.once('error', reject)
@@ -949,11 +923,11 @@ function createDeskLinkService({
       openSockets.clear()
       await Promise.all([
         new Promise((resolve) => server.close(resolve)),
-        new Promise((resolve) => socketServer.close(resolve)),
+        // The runtime channel withdraws its own endpoint: a stopped service must
+        // not leave a path that looks like a channel.
+        runtimeChannel ? runtimeChannel.close() : Promise.resolve(),
       ])
-      // The socket file is not closed by close(), so it is withdrawn here: a stopped service must not
-      // leave a path that looks like a runtime channel.
-      await fs.promises.unlink(socketPath).catch(error => { if (error.code !== 'ENOENT') throw error })
+      runtimeChannel = null
       machines.clear()
       controlAttributions.clear()
       pendingControlAttachments.clear()
