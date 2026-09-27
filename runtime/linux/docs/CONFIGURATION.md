@@ -64,6 +64,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_VOICE_STT_PROMPT` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 内置中文上下文 | 上限 1024 字符，空值禁用 |
 | `ODESK_VOICE_STT_URL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 云端 OpenAI 端点 | 显式端点；未设置时由 ODK_STT_PORT 推导 loopback 端点 |
 | `ODESK_WORKSPACE` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, runtime/linux/src/user-app-system.js, integrations/voice-agent/src/main.mjs | — | Shell 与 Voice Agent 共享的可写 checkout |
+| `ODK_ELECTRON_HEADERS_URL` | L2 开发机 | 构建者 | runtime/linux/scripts/build-native.mjs | https://electronjs.org/headers | Electron 头文件来源；构建机访问不了 GitHub 时指向镜像（`npm_config_disturl` 同样生效）。远程 Windows 掌机上构建原生进程读取器时必须设置 |
 | `ODK_CANDIDATE_RELEASE` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/update-runtime.js | — | 本事务要激活的候选 release 绝对路径 |
 | `ODK_CLIPROXY_MANAGEMENT_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/opencode-go.js | — | 管理密钥本体；优选文件形式 |
 | `ODK_CLIPROXY_MANAGEMENT_KEY_FILE` | L3 设备本地 | runtime.env | runtime/linux/src/opencode-go.js | — | 管理密钥文件路径 |

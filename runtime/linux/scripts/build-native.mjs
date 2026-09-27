@@ -14,6 +14,17 @@ const RUNTIME_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const ADDON_DIRECTORY = path.join('native', 'odk-process')
 const ELECTRON_HEADERS = 'https://electronjs.org/headers'
 
+/**
+ * Where Electron's headers come from. The default is Electron's own site, which a
+ * build machine on a network that cannot reach GitHub cannot fetch; an operator
+ * points ODK_ELECTRON_HEADERS_URL, or the npm_config_disturl they already know
+ * from npm, at a mirror instead. A blank override is not an override.
+ */
+export function resolveHeadersUrl(env = process.env) {
+  const configured = (env.ODK_ELECTRON_HEADERS_URL ?? env.npm_config_disturl ?? '').trim()
+  return configured.length > 0 ? configured : ELECTRON_HEADERS
+}
+
 function installedElectronVersion(root = RUNTIME_ROOT) {
   try {
     const manifest = JSON.parse(readFileSync(path.join(root, 'node_modules', 'electron', 'package.json'), 'utf8'))
@@ -33,6 +44,7 @@ export function resolveNativeBuildPlan({
   arch = process.arch,
   electronVersion = installedElectronVersion(),
   runtimeRoot = RUNTIME_ROOT,
+  headersUrl = resolveHeadersUrl(),
 } = {}) {
   if (platform !== 'win32') {
     return {
@@ -62,7 +74,7 @@ export function resolveNativeBuildPlan({
       '--runtime=electron',
       `--target=${electronVersion}`,
       `--arch=${arch}`,
-      `--dist-url=${ELECTRON_HEADERS}`,
+      `--dist-url=${headersUrl}`,
     ],
     cwd: runtimeRoot,
   }

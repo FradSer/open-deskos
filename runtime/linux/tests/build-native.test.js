@@ -59,3 +59,25 @@ test('the built reader is loaded inside Electron before the build is called good
   assert.ok(check.command.includes('electron'), check.command)
   assert.ok(check.args.some((arg) => arg.includes('odk_process.node')), 'the check must load the artifact that was just built')
 })
+test('a Windows host can take the Electron headers from a mirror', async () => {
+  const resolveNativeBuildPlan = await loadPlan()
+  const plan = resolveNativeBuildPlan({
+    platform: 'win32',
+    arch: 'x64',
+    electronVersion: '43.7.5',
+    headersUrl: 'https://npmmirror.com/mirrors/electron/',
+  })
+
+  assert.ok(plan.args.includes('--dist-url=https://npmmirror.com/mirrors/electron/'))
+  assert.ok(!plan.args.some(arg => arg.includes('electronjs.org')), 'the default must not be stated alongside the mirror')
+})
+
+test('the headers URL comes from the environment when nothing sets one', async () => {
+  const { resolveHeadersUrl } = await import('../scripts/build-native.mjs')
+
+  assert.equal(resolveHeadersUrl({}), 'https://electronjs.org/headers')
+  assert.equal(resolveHeadersUrl({ ODK_ELECTRON_HEADERS_URL: 'https://mirror.example/electron/' }), 'https://mirror.example/electron/')
+  // npm_config_disturl is the convention an operator already knows from npm.
+  assert.equal(resolveHeadersUrl({ npm_config_disturl: 'https://npm.example/electron/' }), 'https://npm.example/electron/')
+  assert.equal(resolveHeadersUrl({ ODK_ELECTRON_HEADERS_URL: '   ' }), 'https://electronjs.org/headers', 'a blank override is not an override')
+})
