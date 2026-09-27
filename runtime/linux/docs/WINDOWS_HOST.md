@@ -64,12 +64,45 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 |---|---|
 | Remote Control（Remote Link / Remote Bridge） | 不可用：Unix socket 链路未移植，Windows 上也没有对应服务 |
 | 语音 Agent（Remote MIC、转写、录音） | 不可用：链路与采集（ALSA）均未移植 |
-| Desk Link / Hosted Pi 远程控制 | 不可用：未移植 |
-| 外部应用控制端点（`$XDG_RUNTIME_DIR/open-deskos-apps/control.sock`） | 不创建：它的唯一客户端是上面的外部 Agent。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
+| Desk Link / Hosted Pi 远程控制 | **可用**：宿主通道监听 TCP（默认 8765，令牌来自 `ODK_DESK_LINK_TOKEN_FILE`），运行时通道绑定为命名管道 `\\.\pipe\open-deskos-desk-link`，由通道令牌认证 |
+| 外部应用控制端点 | **已创建**：命名管道 `\\.\pipe\open-deskos-user-app-control`，由通道令牌认证。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
 | P4 摄像头 tile | 如实报 unavailable：`v4l2-ctl` 与 `/dev/open-deskos-p4-camera` 在 Windows 上不存在，代码无需改动 |
 | CM5 硬件验收（Mali GPU、HDMI 时序、触摸） | 不适用 |
 
 逻辑端点名称仍由平台层定义（Windows 上是 `\\.\pipe\<name>` 命名管道），所以将来移植某条链路时不需要重新决定传输方式。
+
+## 运行时通道与通道令牌
+
+运行时通道是 Shell 与它自己那些服务之间的本地连接（Desk Link 运行时通道、外部应用控制端点）。
+
+- **POSIX**：认证靠文件系统属主——socket 位于只有属主能进入的目录内，模式 `0600`。属主检查、目录模式、`uid` 校验、以及“该路径上不是本用户的 socket 就拒绝删除”都保持不变。
+- **Windows**：命名管道没有属主、模式或 `uid`，Node 也无法给管道设置安全描述符，所以由**通道令牌**认证：一个 32 字节随机值，保存在 `%LOCALAPPDATA%\open-deskos\local-channel.token`，首次使用时自动创建，仅本用户可读。它作为连接的第一行发送并在常数时间内比对，握手会在通道自己的协议读到任何字节之前被消费掉。
+- 属主能认证的地方，属主仍是关卡，令牌是第二层；早于令牌存在的客户端仍能逐字节送达协议（因为不会给它发握手）。属主无法认证的地方（命名管道、任何 win32 端点），**没有合法令牌的连接在到达协议前就被关闭**。
+- 决定与取舍见 @docs/adr/0025-a-runtime-channel-is-authenticated-by-ownership-or-a-token.md。诚实提醒：Windows 上的管理员（或 Unix 上的 `root`）能读到令牌文件，这与他们本来就有的进程权限一致。
+
+### 在 Windows 上跑 Desk Link 服务
+
+`.env.local` 里需要（`run.ps1` 之外的入口请自行加载该文件）：
+
+| 键 | 含义 |
+|---|---|
+| `ODK_DESK_LINK_TOKEN_FILE` | 宿主令牌文件（`host:port` 通道的共享密钥），绝对路径 |
+| `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` | 控制凭据文件；留空即“只上报”的 desk，服务会如实记一行说明 |
+| `ODK_DESK_LINK_PORT` | 宿主通道端口，默认 8765 |
+
+服务用与 kiosk 相同的模式常驻：登录触发 + 重启循环（systemd `Restart=always` 的对应物），任务里的 wrapper 先加载 `.env.local` 再 `node scripts/desk-link-service.js`。首次运行要在提权会话里放通入站端口：
+
+```powershell
+New-NetFirewallRule -DisplayName 'Open DeskOS Desk Link' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -Profile Any
+```
+
+验证（服务已在运行时，用一个客户端读一次快照）：
+
+```powershell
+node -e "require('./src/desk-link-client').createDeskLinkClient().snapshot().then(s => console.log(s.ok, (s.sessions||[]).length))"
+```
+
+这条命令在 Windows 上走的就是那个命名管道 + 令牌握手；`ok true` 表示握手被接受、协议被送达。
 
 ## 状态与配置位置
 
@@ -90,6 +123,11 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 | 桌面在该设备上按自身尺寸开出窗口 | `node tests/smoke.mjs` → `{"ok":true,"width":1280,"height":776}` |
 | 验收与密度门禁均通过 | `ALL SMOKE CHECKS PASSED`；`WIDGET_DENSITY_RESULT {"ok":true,...,"violations":0}` @1280×776 |
 | 完整套件通过 | 457 测试 / 436 通过 / **0 失败** / 21 跳过（跳过项在 `tests/not-ported.js` 里逐条说明） |
+| 加入运行时通道与位置定位后仍然通过 | 499 测试 / 472 通过 / **0 失败** / 27 跳过（其中若干条只在 Windows 上执行，所以在 macOS 上看不到它们） |
+| 命名管道 + 令牌握手在真机上验证 | `createDeskLinkClient()` 在设备上打印 `endpoint \\.\pipe\open-deskos-desk-link`，`snapshot ok=true`，即握手被消费、desk-link 协议被送达 |
+| Desk Link 服务常驻并把端点绑成命名管道 | 服务日志：`desk link service listening on 100.82.50.70:8765`；`Get-NetTCPConnection -LocalPort 8765` 有 Listen；`Test-Path '\\.\pipe\open-deskos-desk-link'` 为 `True`；Mac 侧 `nc -z` 该端口可达 |
+| 天气按设备位置定位（该机已移动到武汉） | `createDeviceLocation().resolve()` → `place Wuhan, 30.5833/114.2667`；天气快照 → `place Wuhan, locationSource device, 24°C, status live`。`.env.local` 里的 `ODK_WEATHER_LAT/LON/PLACE` 已移除 |
+| 默认定位服务从中国网络可达 | 上一条就是走默认的 `https://ipwho.is/` 得到的；离线或换网时用 `ODK_LOCATION_URL` 覆盖 |
 | SSH 会话在 **Session 0**，建不了窗口 | 在 SSH 里跑 Electron 会静默挂住；`node --test` 里 6 个 Electron 验证器用例因此失败 |
 | GUI 检查必须放进交互会话 | 用**以当前用户注册的交互式计划任务**跑（`-LogonType Interactive`），见下方的任务片段 |
 | 省电会杀死长任务 | 电池供电下掌机挂起并断 Wi-Fi；Task Scheduler 默认“切到电池就停任务” |

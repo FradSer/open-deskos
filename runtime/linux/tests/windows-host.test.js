@@ -19,18 +19,26 @@ test('the Windows Shell Host has executable scenarios', () => {
   assert.match(feature, /each surface reports unavailable/)
 })
 
-test('the Windows runbook states the unported surfaces instead of hiding them', () => {
+test('the Windows runbook states which surfaces are ported and which are not', () => {
   const runbook = read(RUNTIME, 'docs/WINDOWS_HOST.md')
 
-  for (const surface of ['Remote Bridge', '语音 Agent', 'Desk Link']) {
+  for (const surface of ['Remote Bridge', '语音 Agent']) {
     assert.ok(runbook.includes(surface), `WINDOWS_HOST.md must name ${surface} as unavailable`)
   }
-  // Each unported surface is named as unported, not merely as degraded: a
-  // reader must be able to tell a missing capability from a broken one.
+  // Each surface is named as unported, not merely as degraded: a reader must be
+  // able to tell a missing capability from a broken one.
   assert.match(runbook, /未移植/)
+
+  // The surfaces this host does provide are stated with their transport and the
+  // thing that authenticates it, so 'not ported' and 'ported to a named pipe'
+  // cannot be confused for one another.
+  assert.match(runbook, /open-deskos-desk-link/)
+  assert.match(runbook, /open-deskos-user-app-control/)
+  assert.match(runbook, /local-channel\.token/)
+  assert.match(runbook, /0025-a-runtime-channel-is-authenticated-by-ownership-or-a-token/)
+
   assert.match(runbook, /工作目录可能未知/)
   assert.match(runbook, /pnpm run build:native/)
-  assert.match(runbook, /control\.sock/)
 })
 
 test('the Windows entry points do not require bash', () => {
