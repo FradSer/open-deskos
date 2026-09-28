@@ -42,7 +42,7 @@ ipcMain.handle('odk-pi-session-events', (_event, query) => ({
 }))
 
 const shot = (win, name) => win.webContents.capturePage().then((image) => {
-  const file = path.join(process.env.HOME, `${name}.png`)
+  const file = path.join(os.homedir(), `${name}.png`)
   fs.writeFileSync(file, image.toPNG())
   console.log(`captured ${file}`)
 })
@@ -57,7 +57,11 @@ async function main() {
   await win.webContents.executeJavaScript(
     "[...document.querySelectorAll('.dot')].find(dot => dot.getAttribute('aria-label')?.includes('Pi Sessions')).click()",
   )
-  await new Promise((resolve) => setTimeout(resolve, 600))
+  // A hidden window is not repainted on every platform, and a capture of it can
+  // return the previous frame: the geometry measured from the live DOM and the
+  // picture disagreed until this window was shown without taking focus.
+  win.showInactive()
+  await new Promise((resolve) => setTimeout(resolve, 900))
 
   const geometry = await win.webContents.executeJavaScript(`(() => {
     const header = document.querySelector('.pi-app-header')
@@ -83,10 +87,22 @@ async function main() {
   await shot(win, 'pi-board-live')
 
   await win.webContents.executeJavaScript("document.querySelector('.pi-filter-btn[data-filter=\"all\"]').click()")
-  await new Promise((resolve) => setTimeout(resolve, 400))
+  await new Promise((resolve) => setTimeout(resolve, 900))
   const all = await win.webContents.executeJavaScript(`(() => {
+    const board = document.querySelector('.pi-overview-board')
+    const style = getComputedStyle(board)
     const columns = [...document.querySelectorAll('.pi-board-column')]
-    return { lanes: columns.map(c => c.dataset.state), rows: new Set(columns.map(c => Math.round(c.getBoundingClientRect().top))).size, cards: document.querySelectorAll('.pi-overview-cell').length }
+    const rect = node => node.getBoundingClientRect()
+    return {
+      lanes: columns.map(c => c.dataset.state),
+      rows: new Set(columns.map(c => Math.round(rect(c).top))).size,
+      cards: document.querySelectorAll('.pi-overview-cell').length,
+      gridAutoFlow: style.gridAutoFlow,
+      gridAutoColumns: style.gridAutoColumns,
+      boardWidth: Math.round(rect(board).width),
+      laneWidths: columns.map(c => Math.round(rect(c).width)),
+      laneLefts: columns.map(c => Math.round(rect(c).left)),
+    }
   })()`)
   console.log('GEOMETRY_ALL ' + JSON.stringify(all))
   await shot(win, 'pi-board-all')

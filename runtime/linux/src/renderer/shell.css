@@ -2367,20 +2367,29 @@ body.kiosk {
   }
 }
 
-/* One lane per Pi state, each holding that state's session cards: a desk reads
-   several agents at once instead of scrolling one full-width row per session.
-   The floor is what decides whether lanes sit side by side: at the desk's own
-   width the surface leaves about 970px, and three lanes of 340px do not fit in
-   it, so Working and Idle stayed put and Exited dropped to a second row, which
-   read as a stacked list instead of a board. Three lanes of 300px do fit, and a
-   surface too narrow for even one 300px lane still stacks without clipping. */
+/* One lane per column, always, at the desk's width. A floor of 300px was still
+   enough to wrap the third lane on the desk's own theme, where the lane gap is
+   wider than on the reference theme, and a lane on a second row reads as a
+   stacked list rather than a board. Columns share the width equally and their
+   content cannot force them wider, so every state the filter selects stays side
+   by side. */
 .pi-overview-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--odk-space-3);
   flex: none;
   min-width: 0;
+}
+
+/* A surface too narrow to hold the lanes side by side stacks them in one column,
+   which is the same condition the page itself stacks its two panels under. */
+@media (width < 1000px), (orientation: portrait) {
+  .pi-overview-board {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
 }
 
 /* A lane states its state once: the heading names it, the count is the lane's
