@@ -77,6 +77,8 @@ Feature: Local Pi Sessions Monitoring
     And each lane heading names its state and how many sessions it holds
     And each session is one card inside its lane, showing its Pi state, goal, directory, and activity without raw PID or field label prefixes
     And no card carries secondary modified file badges
+    And a card's goal keeps the lines the person wrote, up to four, and states an ellipsis when it has more
+    And a card's activity stays a single short line rather than growing with its body
     And the Session Filter is the only control in the title row, and the Session Detail carries none
     And the title row carries no session count, source, or driven-by description under it
     And the page offers no manual refresh control

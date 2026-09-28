@@ -610,6 +610,38 @@ async function main() {
     await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
   })
 
+  await scenario('a card shows the prompt over several lines and ellipsizes past that', async () => {
+    const longPrompt = '第一行：请把看板做得更紧凑。\n第二行：字号与卡片高度都可以再优化。\n第三行：这条博客应当出现。\n第四行：还有这一行。\n第五行：这一行应当被省略。\n第六行：还有这一行。'
+    await reset([session('example-a', longPrompt, 'running')])
+    await showOverview()
+    const goal = await js(`
+      const node = $('.pi-overview-goal')
+      const style = getComputedStyle(node)
+      const lineHeight = Number.parseFloat(style.lineHeight)
+      return {
+        clamp: Number.parseInt(style.webkitLineClamp || '0', 10),
+        text: node.textContent.trim(),
+        breaks: node.querySelectorAll('br').length,
+        lines: Math.round(node.clientHeight / lineHeight),
+        cut: node.scrollHeight > node.clientHeight + 1,
+      }
+    `)
+    assert.equal(goal.text.includes('第一行'), true, 'the prompt is the card\'s own statement')
+    assert.equal(goal.lines >= 2, true, `the prompt keeps its lines, saw ${goal.lines}`)
+    assert.equal(goal.clamp >= 2, true, `the prompt is allowed several lines, saw clamp ${goal.clamp}`)
+    // What the rule guarantees: the box is multi-line and bounded by its clamp. How
+    // many lines are painted inside a clamped box also depends on the card's own
+    // height, so that number is not asserted here.
+    assert.equal(goal.lines <= goal.clamp, true, `the box never exceeds its clamp, saw ${goal.lines} of ${goal.clamp}`)
+    // Six written lines, so five breaks: the card keeps the lines rather than
+    // flattening them, which is what made a pasted prompt read as one sentence.
+    assert.equal(goal.breaks, 5, `every written line is a line in the card, saw ${goal.breaks} breaks`)
+    assert.equal(goal.text.includes('第六行：还有这一行。'), true, 'and the last written line is what the clamp draws from')
+    // The activity answers what the session is doing now, so it stays one short line.
+    const activity = await js("const node = $('.pi-overview-activity'); const style = getComputedStyle(node); return { clamp: Number.parseInt(style.webkitLineClamp || '0', 10), lines: Math.round(node.clientHeight / Number.parseFloat(style.lineHeight)) }")
+    assert.equal(activity.lines <= 1, true, `the activity stays a short summary, saw ${activity.lines}`)
+  })
+
   await scenario('lane input crosses lanes and stays inside one lane', async () => {
     await reset(dense)
     await showOverview()

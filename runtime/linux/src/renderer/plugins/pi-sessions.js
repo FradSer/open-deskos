@@ -64,6 +64,21 @@
   const renderGoalHtml = renderSkillTaggedText
   const renderActivityHtml = renderSkillTaggedText
 
+  /**
+   * The prompt as the card shows it. normalizeInline collapsed the text into one
+   * line, so a pasted multi-line message reached the card as a single sentence
+   * even once the reporter stopped cutting it to its first line: the card needs
+   * the lines to be lines, which in HTML means a break rather than a newline.
+   */
+  function renderGoalLinesHtml(text) {
+    const lines = String(text ?? '')
+      .split(/\r?\n/)
+      .map((line) => normalizeInline(line))
+      .filter((line) => line.length > 0)
+    if (lines.length === 0) return ''
+    return lines.map((line) => renderSkillTaggedText(line)).join('<br>')
+  }
+
   function formatElapsed(timestamp, now = Date.now()) {
     const startedAt = typeof timestamp === 'string' ? Date.parse(timestamp) : Number(timestamp)
     if (!Number.isFinite(startedAt) || startedAt <= 0) return 'Elapsed unavailable'
@@ -843,7 +858,7 @@
             // than the syntax Pi wrote to produce them. The card keeps its own role
             // for the line, so the goal stays body type and the latest content
             // stays supporting text.
-            cell.querySelector('.pi-overview-goal').innerHTML = renderGoalHtml(session.latestGoal || 'No goal stated')
+            cell.querySelector('.pi-overview-goal').innerHTML = renderGoalLinesHtml(session.latestGoal || 'No goal stated')
             cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
             const activity = cell.querySelector('.pi-overview-activity')
             const activityText = normalizeInline(session.activity)

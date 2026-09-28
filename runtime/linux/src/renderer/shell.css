@@ -2493,10 +2493,19 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
+/* The prompt is the card's own statement, so it keeps the lines the person wrote
+   rather than one line, and stops at four with the ellipsis the clamp draws rather
+   than growing the card past its lane's reading rhythm. The activity below stays a
+   single short line, because it answers what the session is doing right now. */
 .pi-overview-goal {
   font-size: var(--odk-text-body);
   line-height: 1.5;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
 }
 
 .pi-overview-path,
@@ -2508,13 +2517,14 @@ body.kiosk {
 }
 
 /* The latest content line is supporting text and the Session Detail states it in
-   full, so a card caps it instead of growing past its lane's reading rhythm. The
-   goal is the card's own statement and stays whole. */
+   full, so a card caps it at one short summary instead of growing past its lane's
+   reading rhythm. The prompt above it is the card's own statement and keeps its
+   own lines up to its clamp. */
 .pi-overview-activity {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
   overflow: hidden;
 }
 

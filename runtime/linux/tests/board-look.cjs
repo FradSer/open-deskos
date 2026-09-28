@@ -20,8 +20,15 @@ const session = (id, goal, status = 'running', extra = {}) => ({
   latestGoal: goal, activity: 'read: src/example.js',
   ...extra,
 })
+const multiLinePrompt = [
+  '第一行：请把看板做得更紧凑。',
+  '第二行：字号与卡片高度都可以再优化。',
+  '第三行：这一行也应当出现。',
+  '第四行：还有这一行。',
+  '第五行：这一行应被省略号收起。',
+].join('\n')
 const fixtures = [
-  session('1001', 'Example: inspect keyboard navigation.'),
+  session('1001', multiLinePrompt),
   session('1002', 'Example: 优化会话阅读与返回。'),
   session('1003', 'Example: keep the lanes side by side.'),
   session('1004', 'Example: settled session one.', 'settled'),
