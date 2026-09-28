@@ -621,8 +621,13 @@ function main() {
   }
 
   function handleRemoteInput(input, action) {
-    if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action'].includes(input)) return
+    if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action', 'page-previous', 'page-next'].includes(input)) return
     if (window.odkVoiceStatus?.handleInput(input)) return
+    // The shoulders change page whatever the desk is focused on. This is not one
+    // of the directional intents: `left` and `right` mean different things in the
+    // desk's two modes, and a shoulder always means the page beside this one.
+    if (input === 'page-previous') return navigate(-1)
+    if (input === 'page-next') return navigate(1)
     if (input === 'action') {
       const actionId = typeof action === 'string' ? action : action?.action || action?.id
       if (actionId) {
@@ -631,6 +636,9 @@ function main() {
       return
     }
     if (input === 'mic') {
+      // The same entry point the Remote Control's MIC reaches through the link, so
+      // a pad's voice button and the Remote's MIC are one path in the desk.
+      window.odkVoiceStatus?.mic()
       return
     }
     if (input === 'back') {
@@ -731,6 +739,50 @@ function main() {
     if (event.key === 'Home') pagerRef.setIndex(0, false)
     else pagerRef.setIndex(dots.length - 1, false)
   })
+
+  // The owner's pad is another surface for the same navigation intents, never a
+  // second navigation model: it feeds the handler above and states its own
+  // presence for the status bar. A pad that is there is read sixty times a second,
+  // so a held direction keeps moving; a pad that is not there costs one slow poll,
+  // because this desk runs all day. The reading clock is a timer rather than a
+  // paint callback, because navigation input must not depend on the desk painting.
+  let gamepadTicks = null
+  let gamepadIdle = null
+
+  function startGamepadTicks() {
+    if (gamepadTicks === null) gamepadTicks = setInterval(() => gamepad.poll(), 16)
+  }
+
+  function stopGamepadTicks() {
+    if (gamepadTicks !== null) clearInterval(gamepadTicks)
+    gamepadTicks = null
+  }
+
+  function watchGamepad(state) {
+    if (state.connected) {
+      if (gamepadIdle !== null) clearInterval(gamepadIdle)
+      gamepadIdle = null
+      startGamepadTicks()
+      return
+    }
+    stopGamepadTicks()
+    if (gamepadIdle === null) gamepadIdle = setInterval(() => gamepad.poll(), 2000)
+  }
+
+  const gamepad = window.odkGamepadInput.createGamepadInput({
+    onInput: (input) => handleRemoteInput(input),
+    onConnection: (state) => {
+      watchGamepad(state)
+      window.dispatchEvent(new CustomEvent('odk-gamepad-state', { detail: { ...state } }))
+    },
+  })
+
+  // The browser watches for pads itself and says when one arrives, which is what
+  // starts the reading above.
+  window.addEventListener('gamepadconnected', () => gamepad.poll())
+  window.addEventListener('gamepaddisconnected', () => gamepad.poll())
+  watchGamepad({ connected: false })
+  gamepad.poll()
 }
 
 main()

@@ -159,6 +159,31 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
+/* A pad the owner has connected, stated only while one is there. A pad the desk
+   cannot read keeps the same presence with the muted emphasis. The wrapper needs
+   its own display rule: an author display would otherwise outrank [hidden]. */
+#sb-pad {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  flex-shrink: 0;
+  color: var(--odk-secondary-strong);
+}
+
+#sb-pad[hidden] {
+  display: none;
+}
+
+#sb-pad svg {
+  width: var(--bar-icon);
+  height: var(--bar-icon);
+  aspect-ratio: 1;
+}
+
+#sb-pad[data-readable="false"] {
+  color: var(--odk-secondary);
+}
+
 .sb-pi-status {
   appearance: none;
   background: var(--odk-surface);

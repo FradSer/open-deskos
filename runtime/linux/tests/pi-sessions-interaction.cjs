@@ -968,6 +968,81 @@ async function main() {
     }
   })
 
+  // Windows presents an Xbox-style pad with the standard mapping, so the harness
+  // presents the page the same thing the browser would and drives the desk the way
+  // its owner does. This is the page's own navigation, reached through the pad.
+  await scenario('a gamepad drives the desk through the desk\'s own navigation intents', async () => {
+    const rp = (body) => win.webContents.executeJavaScript(`(() => { const $ = selector => document.querySelector(selector); ${body} })()`)
+    const activePage = () => rp("return [...document.querySelectorAll('.dot')].findIndex(dot => dot.getAttribute('aria-current') === 'page')")
+
+    await rp(`(() => {
+      const held = new Set();
+      const pad = { index: 0, id: 'Xbox Wireless Controller (fixture)', connected: true, mapping: 'standard' };
+      const source = () => [{ ...pad, buttons: Array.from({ length: 17 }, (_value, index) => ({ pressed: held.has(index), value: held.has(index) ? 1 : 0 })) }];
+      try { navigator.getGamepads = source } catch (error) { Object.defineProperty(navigator, 'getGamepads', { value: source, configurable: true }) }
+      window.__odkMic = [];
+      const voice = window.odkVoiceStatus;
+      const originalMic = voice.mic.bind(voice);
+      voice.mic = () => { window.__odkMic.push('mic'); return originalMic() };
+      window.__odkRestoreMic = () => { voice.mic = originalMic };
+      window.__odkHold = (indexes) => { held.clear(); for (const index of indexes) held.add(index) };
+      window.__odkPadOff = () => { pad.connected = false };
+      window.dispatchEvent(new Event('gamepadconnected'));
+      return true;
+    })()`)
+    await pause(200)
+
+    // A known page to change away from.
+    await rp("document.querySelectorAll('.dot')[0].click(); return true")
+    await pause(250)
+
+    // The desk states the pad it can read.
+    assert.equal(await rp("return $('#sb-pad').hidden"), false, 'the desk states the connected pad')
+    assert.match(await rp("return $('#sb-pad').getAttribute('aria-label')"), /Gamepad connected: Xbox Wireless Controller/)
+    assert.equal(await rp("return $('#sb-pad').dataset.readable"), 'true')
+
+    // The shoulders change page, and the directional pad does not.
+    const start = await activePage()
+    await rp("window.__odkHold([5]); return true")
+    await pause(200)
+    assert.equal(await activePage(), start + 1, 'the right shoulder shows the next page')
+    await rp("window.__odkHold([4]); return true")
+    await pause(200)
+    assert.equal(await activePage(), start, 'the left shoulder shows the previous page')
+    await rp("window.__odkHold([]); return true")
+    await pause(120)
+
+    // A focuses the page that owns its input, and B leaves that focus.
+    await enterPage()
+    await pageInput('back')
+    await rp("window.__odkHold([0]); return true")
+    await pause(250)
+    assert.equal(await js("return surface.closest('.page').contains(document.activeElement)"), true, 'A focuses the page')
+    await rp("window.__odkHold([]); return true")
+    await pause(150)
+    await rp("window.__odkHold([1]); return true")
+    await pause(250)
+    assert.equal(await js("return surface.closest('.page').contains(document.activeElement)"), false, 'B leaves the page focus')
+    await rp("window.__odkHold([]); return true")
+    await pause(150)
+
+    // Y reaches the desk's own microphone entry point, the same one the Remote
+    // Control's MIC reaches through the link.
+    await rp("window.__odkHold([3]); return true")
+    await pause(200)
+    assert.deepEqual(await rp('return window.__odkMic'), ['mic'], 'Y reaches the microphone entry point')
+    await rp("window.__odkHold([]); return true")
+    await pause(150)
+
+    // A pad that goes away is stated as gone, and the page is left as it was.
+    await rp("window.__odkPadOff(); return true")
+    await pause(300)
+    assert.equal(await rp("return $('#sb-pad').hidden"), true, 'the desk states no pad once it is gone')
+    await rp('window.__odkRestoreMic(); delete navigator.getGamepads; return true')
+    await pause(120)
+    await reset()
+  })
+
   const capture = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
   if (capture) {
     assert.equal(path.isAbsolute(capture), true)

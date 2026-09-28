@@ -238,6 +238,10 @@ _Avoid_: separate demo, remote, firmware, per-host shell fork
 Remote Control navigation conveyed to the focused Display Shell as standard USB HID `ArrowLeft` and `ArrowRight` key presses. It remains available whenever USB is enumerated, including while CDC state feedback is synchronizing.
 _Avoid_: serial command, custom USB protocol, global keyboard interception
 
+**Gamepad**:
+The owner's Xbox-style controller attached to a Shell Host, a second surface for the same navigation intents the Remote Control produces, plus the page intent its shoulders carry. It is read by the Display Shell itself, so every Shell Host supports one without a host-specific module, and a pad the Shell cannot read is stated as connected but drives nothing.
+_Avoid_: Remote Control, controller, native input module, per-host input fork
+
 **Navigation Surface**:
 The Remote Control's paired large previous/next touch targets, which also recognize a horizontal swipe across the screen as the same navigation intent.
 _Avoid_: gesture-only navigation, button-only navigation
