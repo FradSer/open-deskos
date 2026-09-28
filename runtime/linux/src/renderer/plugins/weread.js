@@ -4,7 +4,9 @@
 
   root.odkPlugins.register({
     id: 'odk.tile.weread',
-    manifest: { schemaVersion: 1 },
+    // Reads at the smallest cell the desk promises, so a span above one cell
+    // is only refused below that.
+    manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     css: 'plugins/weread.css',
     app: 'WeRead',

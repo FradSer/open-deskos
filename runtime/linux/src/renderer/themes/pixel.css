@@ -69,7 +69,7 @@
 
 /* Zpix has narrower Latin advances than the Instrument theme's display face. */
 [data-theme='pixel'] .w-clock-time {
-  font-size: 40cqi;
+  font-size: clamp(42px, 40cqi, 136px);
   letter-spacing: 0;
   transform: translateX(2.5cqi);
 }
@@ -77,41 +77,41 @@
 
 
 [data-theme='pixel'] .al-month {
-  font-size: 12cqi;
+  font-size: clamp(20px, 12cqi, 40px);
 }
 
 [data-theme='pixel'] .al-day {
-  font-size: 68cqi;
+  font-size: clamp(72px, 68cqi, 240px);
   letter-spacing: normal;
 }
 
 [data-theme='pixel'] .al-day-wide {
-  font-size: 50cqi;
+  font-size: clamp(64px, 50cqi, 160px);
   letter-spacing: normal;
 }
 
 [data-theme='pixel'] .al-day-narrow + .al-month {
-  font-size: 22cqi;
+  font-size: clamp(64px, 22cqi, 160px);
 }
 
 [data-theme='pixel'] .year-pct {
-  font-size: 46cqi;
+  font-size: clamp(56px, 46cqi, 120px);
 }
 
 [data-theme='pixel'] .year-pct-wide {
-  font-size: 39cqi;
+  font-size: clamp(56px, 39cqi, 120px);
 }
 
 [data-theme='pixel'] .desk-status-resolution {
-  font-size: 15cqi;
+  font-size: clamp(12px, 15cqi, 24px);
 }
 
 [data-theme='pixel'] .desk-status-value {
-  font-size: 24cqi;
+  font-size: clamp(14px, 24cqi, 40px);
 }
 
 [data-theme='pixel'] .pi-widget-count {
-  font-size: 42cqi;
+  font-size: clamp(80px, 42cqi, 380px);
   letter-spacing: normal;
   line-height: 1;
 }
@@ -126,12 +126,12 @@
 }
 
 [data-theme='pixel'] .pi-widget-summary {
-  font-size: max(12px, 4cqi);
+  font-size: clamp(12px, 4cqi, 16px);
   line-height: 1.35;
 }
 
 [data-theme='pixel'] .pi-widget-context .w-state {
-  font-size: max(12px, 4.6cqi);
+  font-size: clamp(14px, 4.6cqi, 20px);
 }
 
 /* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
@@ -147,20 +147,8 @@
 
 @media (width < 1000px), (orientation: portrait) {
   [data-theme='pixel'] .pi-widget-count {
-    font-size: 42cqi;
+    font-size: clamp(80px, 42cqi, 380px);
     letter-spacing: normal;
-  }
-
-  [data-theme='pixel'] .pi-widget-unit {
-    font-size: max(12px, 6.5cqi);
-  }
-
-  [data-theme='pixel'] .pi-widget-summary {
-    font-size: max(12px, 4cqi);
-  }
-
-  [data-theme='pixel'] .pi-widget-context .w-state {
-    font-size: max(12px, 4.8cqi);
   }
 }
 
@@ -215,13 +203,13 @@
 [data-theme='pixel'] .hydra-plant-soil {
   /* Zpix digits; sized to keep the narrow 1x1 cell inside its frame.
      Bitmap faces keep zero tracking so glyphs stay on the pixel grid. */
-  font-size: 10cqi;
+  font-size: clamp(14px, 10cqi, 28px);
   line-height: 1;
   letter-spacing: normal;
 }
 
 [data-theme='pixel'] .hydra-title {
-  font-size: 8cqi;
+  font-size: clamp(12px, 8cqi, 24px);
 }
 
 [data-theme='pixel'] .hydra-badge {
@@ -261,21 +249,21 @@
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   [data-theme='pixel'] .hydra-env-value,
   [data-theme='pixel'] .hydra-plant-soil {
-    font-size: 20cqi;
+    font-size: clamp(14px, 20cqi, 28px);
   }
 
   [data-theme='pixel'] .hydra-plant-name,
   [data-theme='pixel'] .hydra-env-unit {
-    font-size: 8cqi;
+    font-size: clamp(12px, 8cqi, 18px);
   }
 
 
   [data-theme='pixel'] .hydra-title {
-    font-size: 11cqi;
+    font-size: clamp(12px, 11cqi, 24px);
   }
 
   [data-theme='pixel'] .hydra-badge {
-    font-size: 7cqi;
+    font-size: clamp(12px, 7cqi, 18px);
   }
 }
 

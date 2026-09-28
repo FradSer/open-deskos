@@ -234,6 +234,14 @@ _Avoid_: keyboard, controller
 The Open DeskOS shell running at the CM5's native 1920×1280 HDMI content size and controlled by Remote Control navigation input. The shell keeps responsive geometry checks for alternate development window sizes. It runs on more than one Shell Host; the host supplies process inspection, device locations, and endpoint naming rather than a per-host shell.
 _Avoid_: separate demo, remote, firmware, per-host shell fork
 
+**Cell**:
+The square region the layout model gives one Widget on a grid page. It is the unit a Widget adapts to: 348px on the reference panel and 186px on the handheld panel, and window size does not predict it, because a small window lays out fewer columns and therefore larger cells. A Widget measures the Cell it is drawn in and re-composes inside it, and no Widget names a Shell Host, a panel, or a window width.
+_Avoid_: viewport, responsive breakpoint, media-query width, screen size
+
+**Minimum Readable Cell**:
+The smallest Cell at which a Widget reads at its full composition, declared by that Widget. A grid page honors a declared multi-cell span only when the resulting Cell is at least this size, so an instrument that cannot re-compose — a camera frame, a chart, a cover image — keeps a cell that can hold it.
+_Avoid_: minimum width hint, breakpoint, viewport media query
+
 **HID Navigation**:
 Remote Control navigation conveyed to the focused Display Shell as standard USB HID `ArrowLeft` and `ArrowRight` key presses. It remains available whenever USB is enumerated, including while CDC state feedback is synchronizing.
 _Avoid_: serial command, custom USB protocol, global keyboard interception

@@ -57,6 +57,9 @@ test('live tile shows day ratio plus top holdings ratios without amounts', async
   assert.doesNotMatch(rows, /PATH/)
   assert.doesNotMatch(rows, /QS/)
   assert.doesNotMatch(rows, /1,240|1240/)
+  // Five positions are held and three are drawn, so the tile says so: a shortened
+  // list must never read as the whole list.
+  assert.match(nodes.get('#futu-detail').textContent, /3 of 5|2 more/i)
   // A row states all three values in its accessible name rather than dropping one
   // silently, and a price the poller did not report is stated as --, not omitted.
   assert.match(rows, /aria-label="TEM, price --, today \+3\.10%"/)
@@ -77,8 +80,7 @@ test('compact tile shows three current prices and missing prices honestly', asyn
   assert.match(rows, /aria-label="TSLA, price 345\.60, today \+2\.00%"/)
 })
 
-test('empty positions render no ratio instead of zero', async () => {
-  const { nodes } = await mountWith({ state: 'live', snapshot: { totals: { plRatio: 0 }, positions: [] } })
+test('empty positions render no ratio instead of zero', async () => {  const { nodes } = await mountWith({ state: 'live', snapshot: { totals: { plRatio: 0 }, positions: [] } })
   assert.equal(nodes.get('#futu-value').textContent, '--')
   assert.equal(nodes.get('#futu-detail').textContent, 'No positions')
 })

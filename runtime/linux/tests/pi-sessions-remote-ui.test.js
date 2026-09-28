@@ -16,7 +16,9 @@ function mount(file, id) {
   const contributions = []
   const root = { odkPlugins: { register(p) { plugins.push(p) } }, odkPlatform: { getPiSessions: async () => response } }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins', file), 'utf8'), { window: root })
-  const el = { innerHTML: '', querySelector: node, querySelectorAll: () => [], addEventListener() {} }
+  // A tile is a DOM element, and a Widget that adapts to its Cell measures the
+  // one it was given: the double answers with a width the cell would have.
+  const el = { innerHTML: '', querySelector: node, querySelectorAll: () => [], addEventListener() {}, getBoundingClientRect: () => ({ width: 400, height: 400, top: 0, bottom: 400 }) }
   const statementText = () => contributions.at(-1)?.parts.map((part) => part.text).join('')
   return { node, contributions, statementText, async show(value) {
     response = value

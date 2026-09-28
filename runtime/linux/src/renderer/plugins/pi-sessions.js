@@ -196,9 +196,14 @@
   /* ---------------------------------------------------------
    * Tile Widget: odk.tile.pi-sessions
    * --------------------------------------------------------- */
+  const PI_TILE_ID = 'odk.tile.pi-sessions'
+  // Measured: below a 217px cell this tile hides the bottom of its own content, so
+  // a span that would give it less than that is not kept, and at that size the
+  // tile drops its summary line rather than letting the cell cut it.
+  const PI_TILE_MIN_CELL = 217
   root.odkPlugins.register({
-    id: 'odk.tile.pi-sessions',
-    manifest: { schemaVersion: 1 },
+    id: PI_TILE_ID,
+    manifest: { schemaVersion: 1, minCell: PI_TILE_MIN_CELL },
     kind: 'tile',
     app: 'Pi Sessions',
     state: 'Live',
@@ -318,6 +323,24 @@
       }
 
       refresh()
+
+      // A glanceable tile re-composes rather than letting the cell cut it. Below
+      // the Minimum Readable Cell this tile declared, the summary line is the one
+      // that goes: the count and the goal stay, because those are what the tile is
+      // for. The decision is made from the cell it was given, so the same tile
+      // keeps its full composition on the reference panel.
+      const declaredMinCell = PI_TILE_MIN_CELL
+      const fitToCell = () => {
+        if (!Number.isFinite(declaredMinCell)) return
+        const width = el.getBoundingClientRect().width
+        summaryEl.hidden = !(Number.isFinite(width) && width >= declaredMinCell)
+      }
+      fitToCell()
+      if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(fitToCell)
+        observer.observe(el)
+        ctx.trackCleanup?.(() => observer.disconnect())
+      }
 
       if (ctx?.onTick) {
         ctx.onTick(() => {

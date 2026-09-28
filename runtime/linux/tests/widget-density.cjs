@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const { DEFAULTS, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
+const { installGeometryFixtures } = require('./helpers/live-fixtures.js')
 const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
@@ -20,31 +21,11 @@ if (fixtureTheme && !['instrument', 'border-beam', 'pixel'].includes(fixtureThem
 const fixtureState = value('--state') || 'unavailable'
 if (!['unavailable', 'live'].includes(fixtureState)) throw new Error(`Invalid fixture state: ${fixtureState}`)
 
-ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
-ipcMain.handle('odk-remote-publish-page-state', () => true)
-ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
-ipcMain.handle('odk-weather-status', () => fixtureState === 'live'
-  ? { status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }
-  : { status: 'unavailable', place: 'Shenzhen', current: null, daily: null, updatedAt: null, hint: null, error: 'provider timed out after 8000 ms' })
-ipcMain.handle('odk-weread-highlight', () => fixtureState === 'live'
-  ? { status: 'live', highlight: { title: 'Reading notes', markText: 'A useful idea becomes clearer when we return to it and put it into practice.' } }
-  : { status: 'unconfigured', highlight: null })
-ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: fixtureState === 'live' ? 3 : 0, total: fixtureState === 'live' ? 5 : 0, workspacesCount: fixtureState === 'live' ? 2 : 0 }, sessions: [] }))
-ipcMain.handle('odk-hydra-status', () => fixtureState === 'live'
-  ? { configured: true, connected: true, env: { tempC: 31.3, humidity: 79.8, pressureHpa: 998.9, lux: 1234, updatedAt: Date.now(), stale: false }, nodes: [{ id: 1, online: true, pump: false, soilPercent: 62 }, { id: 2, online: true, pump: false, soilPercent: 48 }] }
-  : { configured: true, connected: true, env: { tempC: 24.5, humidity: 61, pressureHpa: 1002, lux: 800, updatedAt: Date.now(), stale: true }, nodes: [{ id: 1, online: true, pump: false, soilPercent: 55 }, { id: 2, online: false, pump: false, soilPercent: null }] })
-ipcMain.handle('odk-futu-holdings', () => fixtureState === 'live'
-  ? { state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [
-    { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 },
-    { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 },
-    { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 },
-    { code: 'US.PATH', marketVal: 1377, dayRatio: 0.08 },
-    { code: 'US.QS', marketVal: 1032, dayRatio: -0.05 } ] }, updatedAt: Date.now() }
-  : { state: 'unavailable', service: 'futu-poller', error: 'stale snapshot', updatedAt: Date.now() - 240000,
-    snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [
-      { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 },
-      { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 },
-      { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] } })
+// The desk every geometry gate measures. This payload is the one the density
+// thresholds were taken against and is deliberately not the widest a feed can
+// carry: ink coverage is about the instrument, while the responsive gate needs
+// the stress content and asks for it separately.
+installGeometryFixtures(ipcMain, { state: fixtureState, wide: false })
 
 async function waitFor(win, expression) {
   const deadline = Date.now() + 5000
@@ -99,7 +80,10 @@ async function measureSize(win, width, height) {
       'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.07, maxEmptyBand: 0.35 },
       // The wide 2x2 tile measures 23.9% at 1920x1280; keep the existing
       // 44% centre while including that verified edge without hiding sparsity.
-      'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.205, minOccupied: 0.08, maxEmptyBand: 0.32 },
+      // Below the 217px cell the tile declared it reads at, it drops its summary
+      // line rather than letting a smaller cell cut it, and the narrower
+      // composition measures 19.4% in a 204px cell.
+      'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.32 },
       // Pre-order countdown: an image-led instrument. The hero figure is a
       // canvas, which collectWidgetContent does not count as ink, so the
       // measured band is only the panel text (~35% of the tile height). The

@@ -926,10 +926,10 @@ body.kiosk {
     font-size: 15px;
   }
 
-  .widget-grid .widget {
-    grid-column: auto !important;
-    grid-row: auto !important;
-  }
+  /* Every grid page's declared span is decided from the cell the layout model
+     gives it (see core/grid-placement.js), not from the width of the window: a
+     narrow window lays out fewer columns and therefore gets larger cells, so a
+     viewport rule here dropped structure a cell can still carry. */
 
   .page-app > .runtime-app,
   .page-app > .card,
@@ -1844,9 +1844,15 @@ body.kiosk {
   font-weight: 700;
   color: var(--odk-primary);
   max-width: 100%;
+  /* A goal longer than the tile is wide wraps and is bounded at two lines, the
+     same reading the Session Overview's cards give it, so a long prompt is
+     shortened rather than cut away. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .pi-widget-context .pi-widget-activity {
@@ -2824,16 +2830,13 @@ body.kiosk {
 }
 
 @media (width < 1000px), (orientation: portrait) {
+  /* A widget's interior type is owned by the Cell it is drawn in, not by the
+     width of the window: a narrow window lays out fewer columns and hands the
+     widget a larger cell. These overrides used to re-type the tile by viewport,
+     which is how a narrow cell ended up with a 12px goal. Only spacing stays
+     here, because a gap has no readable floor to break. */
   .w-pi-sessions .pi-widget-body {
     gap: 4cqi;
-  }
-
-  .pi-widget-count {
-    font-size: 52cqi;
-  }
-
-  .pi-widget-unit {
-    font-size: max(12px, 6.5cqi);
   }
 
   .pi-widget-metric-row {
@@ -2842,14 +2845,6 @@ body.kiosk {
 
   .pi-widget-metric-row > .odk-row {
     flex-wrap: nowrap;
-  }
-
-  .pi-widget-summary {
-    font-size: max(12px, 4cqi);
-  }
-
-  .pi-widget-context .w-state {
-    font-size: max(12px, 4.8cqi);
   }
 }
 

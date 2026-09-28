@@ -10,7 +10,10 @@ app.disableHardwareAcceleration()
 // reference host and on a Windows host alike.
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-style-'))
 app.setPath('userData', userData)
-app.on('will-quit', () => fs.rmSync(userData, { recursive: true, force: true }))
+// A Windows host can still hold a lock on a profile directory at exit, and a
+// failed cleanup must not become a dialog on the owner's screen: the run has
+// already reported by then.
+app.on('will-quit', () => { try { fs.rmSync(userData, { recursive: true, force: true }) } catch { /* the temporary profile outlives the run */ } })
 const timer = setTimeout(() => app.exit(1), 30000)
 
 // Deterministic sample data; never a real account or trade. These are the widest

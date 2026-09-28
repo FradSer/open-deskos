@@ -21,7 +21,9 @@
 
   root.odkPlugins.register({
     id: 'odk.tile.preorder',
-    manifest: { schemaVersion: 1 },
+    // Reads at the smallest cell the desk promises, so a span above one cell
+    // is only refused below that.
+    manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     app: 'Pre-order',
     state: 'Live',

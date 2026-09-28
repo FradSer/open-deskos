@@ -83,6 +83,19 @@
     return 3
   }
 
+  // A tile that draws a subset says so. A shortened list that looks like the whole
+  // list is the one way a glanceable instrument can be quietly wrong, so the count
+  // of what it is not showing belongs in the tile's own text.
+  function heldCount(reading) {
+    return (reading?.snapshot?.positions || []).length
+  }
+
+  function shownCountLabel(reading, shown) {
+    const held = heldCount(reading)
+    if (held <= shown) return ''
+    return ` · ${held - shown} more`
+  }
+
   const DATA_FONT_FLOOR = 14
 
   function isClipped(node) {
@@ -155,7 +168,7 @@
       refs.value.setAttribute('aria-label', `Today ${formatRatio(plRatio)}`)
       refs.rows.className = 'futu-holdings'
       refs.rows.innerHTML = leaders.map(holdingRow).join('')
-      writeText(refs.detail, 'Today')
+      writeText(refs.detail, `Today${shownCountLabel(reading, leaders.length)}`)
       fitRows(refs.rows)
       fitValue(refs.value)
       return
@@ -172,8 +185,9 @@
       refs.value.className = `w-state futu-ratio is-stale is-${direction(plRatio)}`
       refs.value.setAttribute('aria-label', `Stale holdings ${formatRatio(plRatio)}`)
       refs.rows.className = 'futu-holdings is-stale'
-      refs.rows.innerHTML = stale.positions.slice(0, maxRows(el)).map(holdingRow).join('')
-      writeText(refs.detail, `Stale · ${formatTime(reading.updatedAt)}`)
+      const staleRows = stale.positions.slice(0, maxRows(el))
+      refs.rows.innerHTML = staleRows.map(holdingRow).join('')
+      writeText(refs.detail, `Stale · ${formatTime(reading.updatedAt)}${shownCountLabel({ snapshot: stale }, staleRows.length)}`)
       fitRows(refs.rows)
       fitValue(refs.value)
       return

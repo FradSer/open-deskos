@@ -136,6 +136,9 @@ test('composer build contains a broken tile and still builds every other widget'
   const bad = { id: 'odk.tile.bad', kind: 'tile', manifest: { schemaVersion: 1 }, app: 'Bad', state: 'Pending', mount() { throw new Error('boom') } }
   root.odkPlugins.register(good)
   root.odkPlugins.register(bad)
+  // The composer decides a tile's grid span from the Cell the layout model gives
+  // it, so its dependency is part of what this double has to stand up.
+  loadSource('core/grid-placement.js', root)
   vm.runInContext(
     fs.readFileSync(path.join(RENDERER_DIR, 'core/composer.js'), 'utf8'),
     vm.createContext({ window: root, globalThis: root, document: { createElement: fakeElement } }),

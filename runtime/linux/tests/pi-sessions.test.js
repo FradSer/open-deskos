@@ -576,6 +576,9 @@ test('Pi Sessions widget reports scanner failure without fabricating zero sessio
   const fakeEl = {
     innerHTML: '',
     querySelector(selector) { return nodes[selector] || null },
+    // A tile measures the Cell it was given, so the double answers with the
+    // reference panel's cell.
+    getBoundingClientRect() { return { width: 724, height: 724, top: 0, bottom: 724 } },
   }
 
   registered.find((plugin) => plugin.id === 'odk.tile.pi-sessions').mount(fakeEl, { onTick() {} })
