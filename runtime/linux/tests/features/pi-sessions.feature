@@ -46,14 +46,31 @@ Feature: Local Pi Sessions Monitoring
     Then the worker process never appears as its own session
     And only metadata-registered session leaders are listed
 
-  Scenario: Pi Sessions App page lists sessions with state, directory, and goals
+  Scenario: Pi Sessions App page arranges sessions as a board of state lanes
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state
-    Then the list shows the sessions the active Session Filter selects, which starts as live only
+    Then the board shows the states the active Session Filter selects, which starts as live only
+    And every state in that set owns one lane, ordered Working, Idle, Exited
+    And each lane heading names its state and how many sessions it holds
+    And each session is one card inside its lane, showing its Pi state, goal, directory, and activity without raw PID or field label prefixes
+    And no card carries secondary modified file badges
     And the Session Filter is the only control in the title row, and the Session Detail carries none
-    And each row shows its Pi state, goal, directory, and activity without raw PID or field label prefixes
-    And each row omits secondary modified file badges for a compact view
     And the page offers no manual refresh control
+
+  Scenario: The Session Overview board shows several sessions at once
+    Given the Session Overview lists more than one live session
+    When the board renders at the desk width
+    Then the lanes sit side by side in one row
+    And every card stays inside its own lane's bounds
+    And at least six cards are fully inside the page viewport without scrolling the page
+
+  Scenario: Directional input crosses lanes and moves inside one lane
+    Given the Session Overview board is the current view in App Focus Mode
+    When left or right input arrives
+    Then the focus moves to the neighbouring lane's card at the same position
+    When up or down input arrives
+    Then the focus moves one card inside the current lane
+    And focus stops at the lane's first or last card instead of leaving the board
 
   Scenario: The status filter tabs share the Pi Sessions title row
     Given the user opens the Pi Sessions page
@@ -90,7 +107,8 @@ Feature: Local Pi Sessions Monitoring
   Scenario: Pi Sessions live list reflows inside a narrow App page
     Given the user opens Pi Sessions in a narrow portrait window
     When the live session list renders
-    Then every row stays inside the App surface without horizontal clipping
+    Then the lanes stack in one column without horizontal clipping
+    And every card stays inside the App surface at a readable width
     And the page has no filter control to clip
 
   Scenario: Pi Sessions status bar indicator provides system-level glanceability
@@ -109,7 +127,7 @@ Feature: Local Pi Sessions Monitoring
   Scenario: Pi Sessions fullscreen App renders a compact session list
     Given multiple sessions are rendered in the Pi Sessions live list
     When viewing the session list on desktop display
-    Then rows use compact vertical padding and inline goal alignment
+    Then cards use compact vertical padding and inline goal alignment
     And multiple running sessions fit within the initial visible viewport
 
   Scenario: Pi Sessions App formats skill invocation goals as [skill] name
@@ -120,24 +138,24 @@ Feature: Local Pi Sessions Monitoring
 
   Scenario: Pi Sessions App displays active model activity
     Given an active Pi session is running
-    When the session row is rendered
-    Then the row displays the model activity as supporting text without a label
-    And running rows display Working... instead of uppercase WORKING
+    When the session card is rendered
+    Then the card displays the model activity as supporting text without a label
+    And running cards display Working... instead of uppercase WORKING
     And goal and activity are distinguished by typography rather than labels
 
   Scenario: Pi Sessions App reads a reported goal and latest content as Markdown
     Given a session reports a goal and a latest content line that carry Markdown emphasis and inline code
-    When that session's row is rendered
-    Then the row shows the emphasis and the inline code as formatting rather than as Markdown syntax
-    And the row keeps the words the session reported
+    When that session's card is rendered
+    Then the card shows the emphasis and the inline code as formatting rather than as Markdown syntax
+    And the card keeps the words the session reported
     And a reported line without Markdown is rendered unchanged
     And the Session Detail reads that same reported line the same way
 
-  Scenario: Session Overview rows share one fill until a row is the current session
+  Scenario: Session Overview cards share one fill until a card is the current session
     Given the Session Overview lists more than one session
-    When a fine pointer rests on a row that is not the current session
-    Then that row keeps the quiet fill of the rows around it
-    And the current session's row keeps the only row band
+    When a fine pointer rests on a card that is not the current session
+    Then that card keeps the quiet fill of the cards around it
+    And the current session's card keeps the only marked edge
 
 Scenario: Linux shell reads a bounded stream of session events on demand
   Given a session's own message log is far larger than the read bound
