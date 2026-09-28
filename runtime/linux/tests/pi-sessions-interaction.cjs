@@ -426,6 +426,28 @@ async function main() {
     assert.match(await js("return $('.pi-empty-state').textContent"), /No session matches Live\./)
     assert.match(await js("return $('#pi-view-subtitle').textContent"), /^0 live sessions/)
     assert.equal(await js(`return $(".pi-filter-btn[data-filter='exited'] .pi-filter-count").textContent`), '1')
+
+    // A kanban keeps its columns: the filter selects Working and Idle, so both
+    // lanes are on the board even though no session matches, and each states a
+    // count of zero instead of the lane disappearing with the rows.
+    const empty = await js(`
+      const lanes = [...$('#pi-overview-list').querySelectorAll('.pi-board-column')];
+      return {
+        board: getComputedStyle($('#pi-overview-list')).display === 'grid',
+        states: lanes.map(lane => lane.dataset.state),
+        counts: lanes.map(lane => lane.querySelector('.pi-board-column-count').textContent.trim()),
+        cards: lanes.map(lane => lane.querySelectorAll('.pi-overview-cell').length),
+      }
+    `)
+    assert.equal(empty.board, true, 'the board is still the view when nothing matches')
+    assert.deepEqual(empty.states, ['running', 'settled'], 'every state the filter selects keeps its lane')
+    assert.deepEqual(empty.counts, ['0', '0'], 'an empty lane states a count of zero')
+    assert.deepEqual(empty.cards, [0, 0], 'and holds no cards')
+
+    await click(".pi-filter-btn[data-filter='exited']")
+    const switched = await js("return [...$('#pi-overview-list').querySelectorAll('.pi-board-column')].map(lane => lane.dataset.state)")
+    assert.deepEqual(switched, ['exited'], 'a lane the new filter does not select is taken off the board')
+    await click(".pi-filter-btn[data-filter='live']")
   })
 
   await scenario('late events cannot overwrite the selected session', async () => {
@@ -462,9 +484,12 @@ async function main() {
     for (const bad of [{}, { ok: true, sessions: [null] }, { ...snapshot, ok: false }]) {
       snapshot = bad
       await refresh()
-      // A condition is stated once: the title row states it, and the list, which
-      // has no row to explain, repeats neither it nor a count.
-      assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length === 0 && /unavailable/i.test($('#pi-view-subtitle').textContent) && $('#pi-overview-list').textContent === ''"), true)
+      // A condition is stated once: the title row states it, and the board has no
+      // card to explain. The lanes are structural, so they stand with a count of
+      // zero rather than being taken away with the rows they never had.
+      assert.equal(await js(`return surface.querySelectorAll('.pi-overview-cell').length === 0
+        && /unavailable/i.test($('#pi-view-subtitle').textContent)
+        && [...$('#pi-overview-list').querySelectorAll('.pi-board-column')].every(lane => lane.querySelector('.pi-board-column-count').textContent.trim() === '0')`), true)
     }
   })
 

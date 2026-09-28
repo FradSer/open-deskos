@@ -46,6 +46,13 @@ Feature: Local Pi Sessions Monitoring
     Then the worker process never appears as its own session
     And only metadata-registered session leaders are listed
 
+  Scenario: The board stays a board when the filter matches nothing
+    Given no session matches the active Session Filter
+    When the page renders
+    Then the lanes that filter selects are still on the board, each stating a count of zero
+    And the page states that no session matches the filter
+    And choosing another filter removes the lanes that filter does not select
+
   Scenario: The Session Overview board keeps its lanes in one row at the desk's own width
     Given the Session Overview shows sessions in three Pi states
     When the board renders at 1280 by 776, the size the desk actually shows
@@ -66,6 +73,7 @@ Feature: Local Pi Sessions Monitoring
     When sessions are loaded from the local agent state
     Then the board shows the states the active Session Filter selects, which starts as live only
     And every state in that set owns one lane, ordered Working, Idle, Exited
+    And a lane whose state has no matching session is still on the board, heading its state with a count of zero
     And each lane heading names its state and how many sessions it holds
     And each session is one card inside its lane, showing its Pi state, goal, directory, and activity without raw PID or field label prefixes
     And no card carries secondary modified file badges

@@ -755,20 +755,24 @@
     }
   }
 
-  // The Session Overview board groups the filtered set into one lane per Pi
-  // state, so the page states each state once and a desk reads several sessions
-  // at a glance instead of scrolling one full-width row per session.
+  // The Session Overview board gives every state the Session Filter selects its
+  // own lane, so the board is a kanban rather than a list of whatever happens to
+  // be present: a lane whose state has no session keeps its column and states a
+  // count of zero, because the column is what tells a reader that state exists
+  // and is empty rather than absent. A state the filter cannot select is not on
+  // the board at all, so the filter, not the session list, decides the lanes.
   const BOARD_STATE_ORDER = ['running', 'settled', 'exited']
 
-  function boardLanes(set) {
+  function boardLanes(set, filter = DEFAULT_FILTER) {
     const lanes = new Map()
     for (const session of set) {
       if (!lanes.has(session.status)) lanes.set(session.status, [])
       lanes.get(session.status).push(session)
     }
-    const known = BOARD_STATE_ORDER.filter((state) => lanes.has(state))
-    const rest = [...lanes.keys()].filter((state) => !BOARD_STATE_ORDER.includes(state)).sort()
-    return [...known, ...rest].map((state) => ({ state, sessions: lanes.get(state) }))
+    const selected = BOARD_STATE_ORDER.filter((state) => matchesFilter({ status: state }, filter))
+    // A state the order does not know, but the set reports, still gets its own lane.
+    const rest = [...lanes.keys()].filter((state) => !selected.includes(state)).sort()
+    return [...selected, ...rest].map((state) => ({ state, sessions: lanes.get(state) || [] }))
   }
 
   // A lane heading names the state. statusLabel spells working as the Session
@@ -804,14 +808,21 @@
     }
 
     return {
-      render({ set, selectedKey, regionHtml, onChoose }) {
+      render({ set, filter = DEFAULT_FILTER, selectedKey, regionHtml, onChoose }) {
         const focused = listEl.contains(document.activeElement) ? document.activeElement : null
         const scrollTop = overviewEl.scrollTop
         listEl.querySelector('.pi-empty-state')?.remove()
         // Selection is one card: duplicate reports of one session must not mark
         // every copy of it as the chosen session.
         const selected = set.find((session) => sessionKey(session) === selectedKey) || null
-        const lanes = boardLanes(set).map(({ state, sessions }) => {
+        const laneList = boardLanes(set, filter)
+        // A lane the current filter does not select is taken off the board, so
+        // switching filters cannot leave the previous one's column standing.
+        const kept = new Set(laneList.map(({ state }) => state))
+        for (const column of [...listEl.querySelectorAll('.pi-board-column')]) {
+          if (!kept.has(column.dataset.state)) column.remove()
+        }
+        const lanes = laneList.map(({ state, sessions }) => {
           const lane = laneFor(state)
           lane.querySelector('.pi-board-column-label').textContent = boardLaneLabel(state)
           lane.querySelector('.pi-board-column-count').textContent = String(sessions.length)
@@ -1091,7 +1102,7 @@
 
       function renderOverview() {
         renderFilters()
-        overview.render({ set: currentSet(), selectedKey, regionHtml: regionHtml(), onChoose: chooseCell })
+        overview.render({ set: currentSet(), filter, selectedKey, regionHtml: regionHtml(), onChoose: chooseCell })
       }
 
       function renderAll() {
