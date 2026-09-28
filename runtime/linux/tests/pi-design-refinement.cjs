@@ -35,10 +35,11 @@ async function run(win, check, setSessions, setEvents = () => {}) {
       header.querySelectorAll('input, #pi-refresh-btn, .pi-metric-pill, .pi-view-toggle, #pi-source-label').length === 0)
     record('the filter tabs hold the title row trailing edge', Boolean(header) &&
       find('#pi-overview-filters') !== null &&
-      find('#pi-overview-filters').parentElement === header &&
+      find('#pi-overview-filters').parentElement === find('.pi-title-row') &&
+      find('.pi-title-row').contains(find('#pi-title')) &&
       find('#pi-overview-filters').hidden === false &&
       header.contains(headerTabs[0]) &&
-      Math.abs(find('#pi-overview-filters').getBoundingClientRect().right - header.getBoundingClientRect().right) <= 1)
+      Math.abs(find('#pi-overview-filters').getBoundingClientRect().right - find('.pi-title-row').getBoundingClientRect().right) <= 1)
 
     // Controls the leader removed stay removed: no session stepper, no
     // page-owned overview button, no process status badge. The status filter
@@ -73,9 +74,13 @@ async function run(win, check, setSessions, setEvents = () => {}) {
     record('the filter tabs count the scan truthfully',
       filters.map(button => button.querySelector('.pi-filter-count').textContent).join(',') ===
       [live.length, byStatus('running').length, byStatus('settled').length, byStatus('exited').length, fixture.sessions.length].join(','))
-    record('the filtered set is named with the source',
-      find('#pi-view-subtitle').textContent ===
-      live.length + ' live session' + (live.length === 1 ? '' : 's') + ' · ' + fixture.source.label)
+    // The title row states the page's condition, not a description of the list,
+    // so the Overview carries no summary line. The filtered set is named where it
+    // is still said out loud: the page's live region.
+    record('the Overview names the filtered set and carries no summary line',
+      find('#pi-view-subtitle').textContent === '' &&
+      new RegExp(live.length + ' live session' + (live.length === 1 ? '' : 's')).test(find('#pi-status').textContent),
+      { subtitle: find('#pi-view-subtitle').textContent, status: find('#pi-status').textContent })
 
     record('the live list renders one row per started session', cells().length === live.length)
     // The board groups the set into one lane per Pi state, so a card's DOM
@@ -102,12 +107,17 @@ async function run(win, check, setSessions, setEvents = () => {}) {
       (exited > 0
         ? cells().every(cell => cell.querySelector('.pi-overview-state .pi-state-text').textContent.trim() === 'Exited')
         : /No session matches Exited\\./.test(find('#pi-overview-list .pi-empty-state')?.textContent || '')))
-    record('the filtered subtitle names the active filter',
-      find('#pi-view-subtitle').textContent === exited + ' exited session' + (exited === 1 ? '' : 's') + ' · ' + fixture.source.label)
+    record('the live region names the active filter',
+      find('#pi-view-subtitle').textContent === '' &&
+      (exited > 0
+        ? new RegExp('\\b' + exited + ' exited session' + (exited === 1 ? '' : 's') + '\\b').test(find('#pi-status').textContent)
+        : /No session matches Exited\./.test(find('#pi-status').textContent)),
+      { subtitle: find('#pi-view-subtitle').textContent, status: find('#pi-status').textContent })
     find('.pi-filter-btn[data-filter="live"]').click()
     await tick()
     record('returning to the live filter restores the started sessions',
-      cells().length === live.length && find('#pi-view-subtitle').textContent.includes('live session'))
+      cells().length === live.length && /live session/.test(find('#pi-status').textContent),
+      { cells: cells().length, status: find('#pi-status').textContent })
 
     // Choosing a row makes that session the page title.
     cells()[0].click()
@@ -286,7 +296,7 @@ async function run(win, check, setSessions, setEvents = () => {}) {
     }
   })()`)
   check('Pi refinement: an unavailable source is stated once, in the title row',
-    /unavailable/i.test(unavailable.subtitle) && unavailable.region === '' &&
+    /unavailable/i.test(unavailable.subtitle) && !/unavailable/i.test(unavailable.region) &&
     unavailable.tabs === 5 && unavailable.subtitle.includes('Local'), unavailable)
 
   setSessions(localFixture)

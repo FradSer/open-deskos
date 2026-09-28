@@ -519,6 +519,7 @@ async function remoteStripControls(win) {
     const surface = document.querySelector('${surface}')
     return {
       subtitle: surface.querySelector('#pi-view-subtitle').textContent,
+      status: surface.querySelector('#pi-status').textContent,
       cells: [...surface.querySelectorAll('.pi-overview-cell')].map(cell => cell.querySelector('.pi-overview-path').textContent),
       overviewHidden: surface.querySelector('#pi-overview').hidden,
     }
@@ -539,25 +540,26 @@ async function remoteStripControls(win) {
       readActions()[0].label === 'LIVE' && publishedRemoteState?.focus === 'items',
       { state: publishedRemoteState })
 
-    // The page lands on the live set, so exited history is not listed yet.
+    // The page lands on the live set, so exited history is not listed yet. The
+    // Overview carries no summary line: the set is named in the live region.
     const live = await listState()
     check('the page lands on the live set and never lists exited history there',
       live.cells.join(',') === '/workspace/strip,/workspace/second' &&
-      live.subtitle === '2 live sessions · Local' && live.overviewHidden === false, live)
+      live.subtitle === '' && /2 live sessions/.test(live.status) && live.overviewHidden === false, live)
 
     // The Strip filter button advances the filter and narrows the list.
     await remoteAction(win, 'pi-session-filter')
     const afterFilter = await listState()
     check('the Strip filter button advances the Session Filter',
-      readActions()[0].label === 'WORKING' && /^1 working session · Local$/.test(afterFilter.subtitle),
-      { actions: readActions(), state: afterFilter })
+      readActions()[0].label === 'WORKING' && /\b1 working session\b/.test(afterFilter.status) &&
+      afterFilter.cells.join(',') === '/workspace/strip', { actions: readActions(), state: afterFilter })
 
     await win.webContents.executeJavaScript(`document.querySelector('${surface} .pi-filter-btn[data-filter="exited"]').click()`)
     await delay(120)
     const history = await listState()
     check('the Exited tab admits history without leaving the page',
-      history.subtitle === '1 exited sessions · Local' || history.subtitle === '1 exited session · Local',
-      history)
+      history.overviewHidden === false && history.cells.join(',') === '/workspace/legacy' &&
+      /\b1 exited session\b/.test(history.status), history)
     await win.webContents.executeJavaScript(`document.querySelector('${surface} .pi-filter-btn[data-filter="live"]').click()`)
     await delay(120)
     const restored = await listState()
@@ -672,10 +674,12 @@ async function scannerRecovery(win) {
         cells: page.querySelectorAll('.pi-overview-cell').length,
       }
     })()`)
-    // The title row states the condition once, and the list repeats neither it
-    // nor a Refresh instruction the page does not offer.
+    // The title row states the condition once, and the board repeats neither it
+    // nor a Refresh instruction the page does not offer. An empty lane heading is
+    // the board's own structure, not a restatement.
     check('a failed scan is named as unavailable without a Refresh instruction',
-      /unavailable/i.test(announced.title) && !/refresh/i.test(announced.title) && announced.region === '', announced)
+      /unavailable/i.test(announced.title) && !/refresh/i.test(announced.title) &&
+      !/unavailable/i.test(announced.region) && !/refresh/i.test(announced.region), announced)
     check('a failed scan never fabricates a session',
       /unavailable/i.test(announced.title) && announced.cells === 0, announced)
   } finally {
