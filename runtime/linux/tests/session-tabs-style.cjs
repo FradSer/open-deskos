@@ -118,7 +118,15 @@ app.whenReady().then(async () => {
             (sharesTitleLine
               ? Math.abs(groupRect.right - headerRect.right) <= 1
               : Math.abs(groupRect.left - headerRect.left) <= 1))
-          check('filter tabs never overlap the page title', !overlaps(groupRect, headingRect))
+          check('filter tabs never cover the page title text', (() => {
+            // The tabs are the title row's own trailing element, so the thing they
+            // must never sit on top of is the title text itself, not the block that
+            // holds them both. Beside it when they share the line, below it when the
+            // surface is too narrow for one row.
+            const titleRect = surface.querySelector('.pi-app-header h1').getBoundingClientRect()
+            const onTitleLine = groupRect.top < titleRect.bottom - 0.5 && titleRect.top < groupRect.bottom - 0.5
+            return !overlaps(groupRect, titleRect) && (!onTitleLine || groupRect.left >= titleRect.right - 0.5)
+          })())
           check('the title keeps the row start and is never clipped by the tabs',
             Math.abs(headingRect.left - headerRect.left) <= 1 && heading.scrollWidth <= heading.clientWidth + 1)
           check('filter inset track', parseFloat(style(group).paddingTop) >= 4)

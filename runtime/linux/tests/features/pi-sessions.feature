@@ -46,6 +46,21 @@ Feature: Local Pi Sessions Monitoring
     Then the worker process never appears as its own session
     And only metadata-registered session leaders are listed
 
+  Scenario: The Session Overview board keeps its lanes in one row at the desk's own width
+    Given the Session Overview shows sessions in three Pi states
+    When the board renders at 1280 by 776, the size the desk actually shows
+    Then the three lanes sit in one row
+    And every lane stays wide enough for a readable card
+    And no lane is pushed sideways out of the surface
+    And the third lane is not moved to a second row, which read as a stacked list rather than a board
+
+  Scenario: The Session Filter sits on the page title's line
+    Given the Session Overview is the visible view
+    When the page renders
+    Then the filter tabs and the page title share one line
+    And the tabs' reading line is level with the title's
+    And the tabs keep a touch height rather than being shrunk to fit
+
   Scenario: Pi Sessions App page arranges sessions as a board of state lanes
     Given the user navigates to the Pi Sessions page
     When sessions are loaded from the local agent state

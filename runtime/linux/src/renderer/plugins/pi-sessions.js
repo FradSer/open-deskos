@@ -328,11 +328,13 @@
       <div class="runtime-app pi-app-wrapper">
         <header class="app-surface-header pi-app-header">
           <div class="app-surface-heading">
-            <h1 id="pi-title"><span class="pi-spinner" data-pi-spinner aria-hidden="true" hidden>${SPINNER_FRAMES[0]}</span><span id="pi-title-text">Pi Sessions</span></h1>
+            <div class="pi-title-row">
+              <h1 id="pi-title"><span class="pi-spinner" data-pi-spinner aria-hidden="true" hidden>${SPINNER_FRAMES[0]}</span><span id="pi-title-text">Pi Sessions</span></h1>
+              <div class="pi-overview-filters" id="pi-overview-filters" role="group" aria-label="Session status filter">
+                ${FILTERS.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}"><span>${FILTER_LABELS[value]}</span><span class="pi-filter-count" aria-hidden="true">--</span></button>`).join('')}
+              </div>
+            </div>
             <p class="pi-view-subtitle" id="pi-view-subtitle"></p>
-          </div>
-          <div class="pi-overview-filters" id="pi-overview-filters" role="group" aria-label="Session status filter">
-            ${FILTERS.map((value) => `<button type="button" class="pi-filter-btn" data-filter="${value}"><span>${FILTER_LABELS[value]}</span><span class="pi-filter-count" aria-hidden="true">--</span></button>`).join('')}
           </div>
           <p class="pi-view-facts" id="pi-view-facts"></p>
         </header>

@@ -550,6 +550,38 @@ async function main() {
     assert.equal(board.marked, true, 'exactly one card is the current session, marked by its edge')
     assert.equal(board.states, true, 'each card states its Pi state')
     assert.ok(board.visibleCards >= 6, `expected at least six cards inside the viewport, saw ${board.visibleCards}`)
+
+    // The desk's own size, where a lane that wrapped to a second row read as a
+    // stacked list rather than a board, and where the filter track centred
+    // against the title block instead of sharing the title's line.
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1280, height: 776, deviceScaleFactor: 1, mobile: false })
+    await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
+    await pause(180)
+    const desk = await js(`
+      const lanes = [...$('#pi-overview-list').querySelectorAll('.pi-board-column')];
+      const rect = node => node.getBoundingClientRect();
+      const title = $('#pi-title');
+      const filters = $('#pi-overview-filters');
+      const firstTab = filters.querySelector('.pi-filter-btn');
+      const titleBox = rect(title);
+      const tabBox = rect(firstTab);
+      return {
+        laneRows: new Set(lanes.map(lane => Math.round(rect(lane).top))).size,
+        laneWidths: lanes.map(lane => Math.round(rect(lane).width)),
+        insideSurface: lanes.every(lane => rect(lane).left >= -1 && rect(lane).right <= innerWidth + 1),
+        sharesTitleLine: Boolean(title.parentElement) && title.parentElement.contains(filters),
+        titleToTabOffset: Math.round(Math.abs((titleBox.top + titleBox.height / 2) - (tabBox.top + tabBox.height / 2))),
+        tabHeight: Math.round(tabBox.height),
+      }
+    `)
+    assert.equal(desk.laneRows, 1, 'at the desk width every lane stays in one row')
+    assert.ok(desk.laneWidths.every(width => width >= 260), `every lane keeps a readable card, saw ${desk.laneWidths.join(',')}`)
+    assert.equal(desk.insideSurface, true, 'no lane is pushed sideways out of the surface')
+    assert.equal(desk.sharesTitleLine, true, 'the filter tabs and the title share one line')
+    assert.ok(desk.titleToTabOffset <= 8, `the tabs read on the title's line, offset ${desk.titleToTabOffset}px`)
+    assert.ok(desk.tabHeight >= 44, `the tabs keep a touch height, saw ${desk.tabHeight}`)
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
+    await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
   })
 
   await scenario('lane input crosses lanes and stays inside one lane', async () => {

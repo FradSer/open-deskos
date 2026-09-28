@@ -1405,11 +1405,27 @@ body.kiosk {
   color: var(--odk-primary);
 }
 
+/* The Session Filter shares the page title's line: the tabs belong to the title
+   row rather than to a band of their own between the title and its subtitle.
+   The track keeps its touch height, so the title's line is built around it. */
+.pi-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--odk-space-3);
+  width: 100%;
+  min-width: 0;
+}
+
 .app-surface-heading {
   display: flex;
   flex-direction: column;
   gap: var(--odk-space-2);
   min-width: 0;
+  /* The heading owns the title row now that the filter sits in it, so it takes
+     the line the facts do not need instead of shrinking to its own text. */
+  flex: 1 1 auto;
+}
 }
 
 .app-surface-header p {
@@ -2353,11 +2369,14 @@ body.kiosk {
 
 /* One lane per Pi state, each holding that state's session cards: a desk reads
    several agents at once instead of scrolling one full-width row per session.
-   Lanes come from the content, so they sit side by side while a card keeps a
-   readable width and stack when they cannot. */
+   The floor is what decides whether lanes sit side by side: at the desk's own
+   width the surface leaves about 970px, and three lanes of 340px do not fit in
+   it, so Working and Idle stayed put and Exited dropped to a second row, which
+   read as a stacked list instead of a board. Three lanes of 300px do fit, and a
+   surface too narrow for even one 300px lane still stacks without clipping. */
 .pi-overview-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   align-items: start;
   gap: var(--odk-space-3);
   flex: none;
