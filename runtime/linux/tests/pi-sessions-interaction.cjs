@@ -16,6 +16,14 @@ const session = (id, goal, status = 'running', extra = {}) => ({
   ...extra,
 })
 const initial = [session('example-a', 'Example: inspect keyboard navigation.'), session('example-b', 'Example: 优化会话阅读与返回。')]
+// The board's density claim needs more sessions than the default pair, and one
+// session per Pi state so every lane is present in the same render.
+const dense = [
+  ...initial,
+  ...Array.from({ length: 4 }, (_, index) => session(`dense-run-${index}`, `Example: running session ${index + 1}.`)),
+  ...Array.from({ length: 2 }, (_, index) => session(`dense-idle-${index}`, `Example: settled session ${index + 1}.`, 'settled')),
+  session('dense-exit', 'Example: finished session.', 'exited'),
+]
 let snapshot
 let pendingEvent = null
 let eventRequests = 0
@@ -498,25 +506,80 @@ async function main() {
     `), { labelled: true, userBand: true, assistantPlain: true, noRules: true, summary: 'Recent session events' })
   })
 
-  await scenario('the live list is a native Pi style single-column chooser', async () => {
-    await reset()
+  await scenario('the Session Overview is a board of state lanes holding session cards', async () => {
+    await reset(dense)
     await showOverview()
-    const chooser = await js(`
+    await click('.pi-filter-btn[data-filter="all"]')
+    await showOverview()
+    const board = await js(`
       const cells = [...surface.querySelectorAll('.pi-overview-cell')];
       const list = $('#pi-overview-list');
+      const lanes = [...list.querySelectorAll('.pi-board-column')];
+      const rect = node => node.getBoundingClientRect();
+      const laneOf = node => node.closest('.pi-board-column');
+      const visible = node => { const box = rect(node); return box.top >= 0 && box.bottom <= innerHeight && box.left >= 0 && box.right <= innerWidth };
+      const selected = cells.find(node => node.classList.contains('is-selected'));
+      const other = cells.find(node => node !== selected);
       return {
-        column: getComputedStyle(list).flexDirection === 'column',
-        fullWidth: cells[0].getBoundingClientRect().width >= list.clientWidth - 2,
-        // The current session is marked, and marked only by a stroke: no row owns
-        // a filled band, so the list cannot be read as the pointer's history.
-        stroke: getComputedStyle(cells[0]).outlineStyle === 'solid' && parseFloat(getComputedStyle(cells[0]).outlineWidth) >= 1,
-        marked: cells.filter(node => getComputedStyle(node).outlineStyle === 'solid' && parseFloat(getComputedStyle(node).outlineWidth) < 2).length === 1,
+        shown: !$('#pi-overview').hidden,
+        board: getComputedStyle(list).display === 'grid',
+        lanes: lanes.map(lane => lane.dataset.state),
+        labels: lanes.map(lane => lane.querySelector('.pi-board-column-label').textContent.trim()),
+        countsMatch: lanes.every(lane => Number(lane.querySelector('.pi-board-column-count').textContent.trim()) === lane.querySelectorAll('.pi-overview-cell').length),
+        sideBySide: new Set(lanes.map(lane => Math.round(rect(lane).top))).size === 1 &&
+          lanes.every((lane, index) => index === 0 || rect(lane).left >= rect(lanes[index - 1]).right - 1),
+        cardsInsideLanes: cells.every(node => rect(node).left >= rect(laneOf(node)).left - 1 && rect(node).right <= rect(laneOf(node)).right + 1),
+        stroked: cells.every(node => parseFloat(getComputedStyle(node).borderWidth) >= 1),
+        // The current session is marked by its edge alone: no card owns a filled band.
         noBand: cells.every(node => getComputedStyle(node).backgroundColor === 'rgba(0, 0, 0, 0)'),
-        noBorders: cells.every(node => parseFloat(getComputedStyle(node).borderWidth) === 0),
+        marked: cells.filter(node => node.classList.contains('is-selected')).length === 1 &&
+          getComputedStyle(selected).borderColor !== getComputedStyle(other).borderColor,
         states: cells.every(node => node.querySelector('.pi-overview-state').textContent.trim().length > 0),
+        visibleCards: cells.filter(visible).length,
       };
     `)
-    assert.deepEqual(chooser, { column: true, fullWidth: true, stroke: true, marked: true, noBand: true, noBorders: true, states: true })
+    assert.equal(board.shown, true, 'the board is the visible view when it is measured')
+    assert.equal(board.board, true, 'the overview arranges sessions on a board')
+    assert.deepEqual(board.lanes, ['running', 'settled', 'exited'], 'one lane per Pi state present, in state order')
+    assert.deepEqual(board.labels, ['Working', 'Idle', 'Exited'], 'each lane heading names its state')
+    assert.equal(board.countsMatch, true, 'each lane heading counts its own cards')
+    assert.equal(board.sideBySide, true, 'lanes sit side by side')
+    assert.equal(board.cardsInsideLanes, true, 'each card stays inside its lane')
+    assert.equal(board.stroked, true, 'each card carries a structural stroke')
+    assert.equal(board.noBand, true, 'no card owns a filled band')
+    assert.equal(board.marked, true, 'exactly one card is the current session, marked by its edge')
+    assert.equal(board.states, true, 'each card states its Pi state')
+    assert.ok(board.visibleCards >= 6, `expected at least six cards inside the viewport, saw ${board.visibleCards}`)
+  })
+
+  await scenario('lane input crosses lanes and stays inside one lane', async () => {
+    await reset(dense)
+    await showOverview()
+    await click('.pi-filter-btn[data-filter="all"]')
+    await showOverview()
+    const lane = () => js("return document.activeElement?.closest('.pi-board-column')?.dataset.state || null")
+    const index = () => js("const lane = document.activeElement?.closest('.pi-board-column'); return lane ? [...lane.querySelectorAll('.pi-overview-cell')].indexOf(document.activeElement) : -1")
+    await js("$('#pi-overview-list .pi-overview-cell').focus()")
+    assert.equal(await lane(), 'running', 'focus starts in the first lane')
+    await pageInput('right')
+    assert.equal(await lane(), 'settled', 'right input crosses to the next lane')
+    await pageInput('right')
+    assert.equal(await lane(), 'exited', 'right input reaches the last lane')
+    await pageInput('right')
+    assert.equal(await lane(), 'exited', 'right input stops at the last lane')
+    await pageInput('left')
+    await pageInput('left')
+    await pageInput('left')
+    assert.equal(await lane(), 'running', 'left input stops at the first lane')
+    const start = await index()
+    await pageInput('down')
+    assert.equal(await lane(), 'running', 'down input stays inside the lane')
+    assert.equal(await index(), start + 1, 'down input moves one card inside the lane')
+    for (let step = 0; step < 8; step += 1) await pageInput('down')
+    assert.equal(await lane(), 'running', 'down input never leaves the lane')
+    assert.equal(await index(), 5, 'down input stops at the lane\'s last card')
+    await pageInput('up')
+    assert.equal(await index(), 4, 'up input moves one card inside the lane')
   })
 
   await scenario('complete results render safe Markdown tables on every theme and narrow screens', async () => {

@@ -78,8 +78,13 @@ async function run(win, check, setSessions, setEvents = () => {}) {
       live.length + ' live session' + (live.length === 1 ? '' : 's') + ' · ' + fixture.source.label)
 
     record('the live list renders one row per started session', cells().length === live.length)
-    record('no exited session is listed', cells().every((cell, index) =>
-      cell.querySelector('.pi-overview-path').textContent === live[index].cwd))
+    // The board groups the set into one lane per Pi state, so a card's DOM
+    // position follows its lane rather than the scan order. The set of listed
+    // directories is the live set, with no exited session among them.
+    const listedPaths = cells().map(cell => cell.querySelector('.pi-overview-path').textContent).sort()
+    const livePaths = live.map(session => session.cwd).sort()
+    record('no exited session is listed', listedPaths.length === livePaths.length &&
+      listedPaths.every((path, at) => path === livePaths[at]))
     record('the live list marks exactly one selected session',
       surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1)
     record('the Shell focus entry point follows the visible list',

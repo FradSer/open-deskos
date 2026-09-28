@@ -146,15 +146,24 @@ app.whenReady().then(async () => {
           // The live set is the landing rows.
           check('the live list is the landing view', surface.querySelector('#pi-overview').hidden === false && detail.inert === true)
           check('only live sessions are listed', cells.length === 2 && !list.textContent.includes('History waits behind the Exited tab.'))
-          check('rows sit in a single column', style(list).flexDirection === 'column')
+          // The board groups the set into one lane per state; the single column
+          // that was the whole list now lives inside each lane's card stack.
+          const cardStacks = [...list.querySelectorAll('.pi-board-column-cards')]
+          check('cards sit in a single column inside their lane',
+            cardStacks.length > 0 && cardStacks.every(cards => style(cards).flexDirection === 'column'))
           check('each row states its Pi state', cells.every(cell => /^(Working\\.\\.\\.|Idle)$/.test(cell.querySelector('.pi-overview-state .pi-state-text').textContent.trim())))
           check('each row states its directory', cells.every(cell => cell.querySelector('.pi-overview-path').textContent.length > 0))
-          check('exactly one selected row stroke', surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
+          // The current session's mark is the card's own edge rather than an
+          // outline: exactly one card brightens its border while the rest keep
+          // the quiet stroke.
+          const others = cells.filter(cell => cell !== selected)
+          check('exactly one selected card edge', surface.querySelectorAll('.pi-overview-cell.is-selected').length === 1 &&
             Boolean(selected) && selected.getAttribute('aria-pressed') === 'true' &&
             style(selected).backgroundColor === 'rgba(0, 0, 0, 0)' &&
-            style(selected).outlineStyle === 'solid' && parseFloat(style(selected).outlineWidth) >= 1)
-          check('no other row carries the selection stroke', cells.filter(cell => cell !== selected)
-            .every(cell => style(cell).outlineStyle === 'none' || parseFloat(style(cell).outlineWidth) === 0))
+            style(selected).borderTopStyle === 'solid' && parseFloat(style(selected).borderTopWidth) >= 1 &&
+            others.length > 0 && style(selected).borderTopColor !== style(others[0]).borderTopColor)
+          check('no other card carries the selection edge', Boolean(selected) &&
+            others.every(cell => style(cell).borderTopColor !== style(selected).borderTopColor))
           check('rows never overlap', cells.every((cell, at) =>
             cells.slice(at + 1).every(other => !overlaps(cell.getBoundingClientRect(), other.getBoundingClientRect()))))
           for (const cell of cells) {
@@ -234,7 +243,7 @@ app.whenReady().then(async () => {
       const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
       const surface = document.querySelector('.page[data-page="' + index + '"] .pi-app-wrapper')
       const fill = (node) => node ? getComputedStyle(node).backgroundColor : 'missing'
-      const stroke = (node) => node ? getComputedStyle(node).outlineStyle + ' ' + getComputedStyle(node).outlineWidth : 'missing'
+      const stroke = (node) => node ? getComputedStyle(node).borderTopStyle + ' ' + getComputedStyle(node).borderTopWidth + ' ' + getComputedStyle(node).borderTopColor : 'missing'
       const cells = [...surface.querySelectorAll('.pi-overview-cell')]
       const selected = cells.find(cell => cell.classList.contains('is-selected'))
       const other = cells.find(cell => cell !== selected)
@@ -259,14 +268,14 @@ app.whenReady().then(async () => {
       const selected = cells.find(cell => cell.classList.contains('is-selected'))
       const other = cells.find(cell => cell !== selected)
       const hovered = surface.querySelector('.pi-overview-cell:not(.is-selected)')
-      return { hoveredIsHovered: hovered ? hovered.matches(':hover') : false, rowAfter: other ? getComputedStyle(other).backgroundColor : 'missing', selectedFill: selected ? getComputedStyle(selected).backgroundColor : 'missing', selectedStroke: selected ? getComputedStyle(selected).outlineStyle + ' ' + getComputedStyle(selected).outlineWidth : 'missing' }
+      return { hoveredIsHovered: hovered ? hovered.matches(':hover') : false, rowAfter: other ? getComputedStyle(other).backgroundColor : 'missing', selectedFill: selected ? getComputedStyle(selected).backgroundColor : 'missing', selectedStroke: selected ? getComputedStyle(selected).borderTopStyle + ' ' + getComputedStyle(selected).borderTopWidth + ' ' + getComputedStyle(selected).borderTopColor : 'missing' }
     })()`)
     assert.equal(rowHover.hoveredIsHovered, true, `the probe forces a real hover state — ${JSON.stringify(rowHover)}`)
     assert.equal(fills.rowBefore, 'rgba(0, 0, 0, 0)', `a row that is not the current session is transparent — ${JSON.stringify({ ...fills, rowHover })}`)
     assert.equal(rowHover.rowAfter, fills.rowBefore, `a row keeps the fill of the rows around it while the pointer rests on it — ${JSON.stringify({ ...fills, rowHover })}`)
     assert.equal(rowHover.selectedFill, 'rgba(0, 0, 0, 0)', `the current session carries no filled band — ${JSON.stringify({ ...fills, rowHover })}`)
-    assert.notEqual(fills.selectedStroke, fills.rowStroke, `the current session keeps the only row stroke — ${JSON.stringify({ ...fills, rowHover })}`)
-    assert.equal(rowHover.selectedStroke, fills.selectedStroke, `a pointer resting on another row does not move the stroke — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.notEqual(fills.selectedStroke, fills.rowStroke, `the current session keeps the only card edge — ${JSON.stringify({ ...fills, rowHover })}`)
+    assert.equal(rowHover.selectedStroke, fills.selectedStroke, `a pointer resting on another card does not move the selected edge — ${JSON.stringify({ ...fills, rowHover })}`)
     console.log(`PASS row hover ${JSON.stringify({ ...fills, tabHoverFill, ...rowHover })}`)
   } finally {
     win.destroy()

@@ -328,7 +328,7 @@ const DRIVER_SCRIPT = `
     Boolean(piPage?.querySelector('#pi-detail')) &&
     Boolean(piPage?.querySelector('#pi-overview')) &&
     Boolean(piPage?.querySelector('#pi-overview-filters')) &&
-    Boolean(piPage?.querySelector('.pi-overview-list'))
+    Boolean(piPage?.querySelector('.pi-overview-board'))
   out.piPageRemovedListControls =
     piPage?.querySelector('#pi-search-input') === null &&
     piPage?.querySelector('#pi-refresh-btn') === null &&

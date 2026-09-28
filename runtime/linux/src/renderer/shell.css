@@ -2351,39 +2351,93 @@ body.kiosk {
   }
 }
 
-/* One full-width row per session in the filtered set, in Pi's chooser shape. */
-.pi-overview-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--odk-space-2);
+/* One lane per Pi state, each holding that state's session cards: a desk reads
+   several agents at once instead of scrolling one full-width row per session.
+   Lanes come from the content, so they sit side by side while a card keeps a
+   readable width and stack when they cannot. */
+.pi-overview-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: var(--odk-space-3);
   flex: none;
   min-width: 0;
 }
 
+/* A lane states its state once: the heading names it, the count is the lane's
+   own reading, and every card below it is one session. */
+.pi-board-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--odk-space-2);
+  min-width: 0;
+}
+
+.pi-board-column-head {
+  display: flex;
+  align-items: baseline;
+  /* The count is the heading's own reading, so it sits with the label instead of
+     floating at the far edge of a lane the label does not reach. */
+  justify-content: flex-start;
+  gap: var(--odk-space-2);
+  min-height: 24px;
+  padding-inline: var(--odk-space-1);
+}
+
+.pi-board-column-label {
+  margin: 0;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
+  font-size: var(--odk-text-label);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--odk-secondary-strong);
+}
+
+.pi-board-column-count {
+  font-size: var(--odk-text-label);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--odk-secondary-strong);
+}
+
+.pi-board-column-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--odk-space-2);
+  min-width: 0;
+}
+
+/* A card is a structural outline rather than a tinted surface: the state is the
+   lane, and the card carries what its session is doing. */
 .pi-overview-cell {
   appearance: none;
   display: block;
-  align-items: start;
-  gap: var(--odk-space-2);
   min-width: 0;
   min-height: 44px;
   padding: var(--odk-space-3);
   text-align: start;
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--odk-stroke);
+  border-radius: var(--odk-radius-card);
   background: transparent;
   color: var(--odk-primary);
   font: inherit;
   cursor: pointer;
 }
 
-/* The current session is the only marked row, and the mark is a stroke: a
-   filled band read as a surface the row does not own, and it competed with the
-   page's own surfaces. The stroke sits inside the row so no geometry moves when
+@media (hover: hover) and (pointer: fine) {
+  .pi-overview-cell:not(.is-selected):hover {
+    border-color: var(--odk-secondary);
+  }
+}
+
+/* The current session is the only marked card, and the mark brightens the edge
+   the card already owns: a filled band reads as a surface the card does not
+   have, and a second outline competed with the stroke. No geometry moves when
    the selection moves, and the focus ring stays a ring of its own outside it. */
 .pi-overview-cell.is-selected {
-  outline: 1px solid var(--odk-stroke-focus);
-  outline-offset: -1px;
+  border-color: var(--odk-stroke-focus);
 }
 
 .pi-overview-cell:focus-visible {
@@ -2423,6 +2477,26 @@ body.kiosk {
   line-height: 1.4;
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
+}
+
+/* The latest content line is supporting text and the Session Detail states it in
+   full, so a card caps it instead of growing past its lane's reading rhythm. The
+   goal is the card's own statement and stays whole. */
+.pi-overview-activity {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.pi-overview-activity[hidden] {
+  display: none;
+}
+
+/* The empty and failure notes speak for the whole board, not for one lane. */
+.pi-overview-board .pi-empty-state {
+  grid-column: 1 / -1;
 }
 
 /* A row reads the goal and the latest content line the way the Session Detail

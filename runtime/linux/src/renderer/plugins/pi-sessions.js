@@ -346,7 +346,7 @@
           </section>
 
           <section class="pi-overview" id="pi-overview" role="region" aria-label="Session overview">
-            <div class="pi-overview-list" id="pi-overview-list"></div>
+            <div class="pi-overview-board" id="pi-overview-list"></div>
           </section>
         </div>
       </div>`
@@ -611,13 +611,6 @@
     return Math.min(Math.max(index + step, 0), Math.max(length - 1, 0))
   }
 
-  function gridColumnsOf(cells) {
-    if (cells.length < 2) return 1
-    const firstTop = cells[0].offsetTop
-    const nextRow = cells.findIndex((cell) => cell.offsetTop !== firstTop)
-    return nextRow === -1 ? cells.length : nextRow
-  }
-
   // One explicit mapping from Remote input to the page's own action, so the
   // routing is a decision rather than a cascade. The live list is the page's
   // home: Back and primary leave a session for it, and inside the list Back
@@ -760,13 +753,32 @@
     }
   }
 
+  // The Session Overview board groups the filtered set into one lane per Pi
+  // state, so the page states each state once and a desk reads several sessions
+  // at a glance instead of scrolling one full-width row per session.
+  const BOARD_STATE_ORDER = ['running', 'settled', 'exited']
+
+  function boardLanes(set) {
+    const lanes = new Map()
+    for (const session of set) {
+      if (!lanes.has(session.status)) lanes.set(session.status, [])
+      lanes.get(session.status).push(session)
+    }
+    const known = BOARD_STATE_ORDER.filter((state) => lanes.has(state))
+    const rest = [...lanes.keys()].filter((state) => !BOARD_STATE_ORDER.includes(state)).sort()
+    return [...known, ...rest].map((state) => ({ state, sessions: lanes.get(state) }))
+  }
+
+  // A lane heading names the state. statusLabel spells working as the Session
+  // Detail's sentence ("Working..."), and a heading does not carry the ellipsis.
+  function boardLaneLabel(state) {
+    return statusLabel(state).replace(/\.{3}$/, '')
+  }
+
   function overviewView({ overviewEl, listEl }) {
-    // Cells are keyed by position, not only by identity: two reports of one
-    // session must never share a node, and a stable order keeps a focused cell.
-    const cellFor = (session, index, onChoose) => {
-      const key = sessionKey(session)
-      const existing = listEl.children[index]
-      if (existing && existing.dataset.sessionKey === key) return existing
+    // A card is one session's node, keyed inside its lane: a focused card keeps
+    // its node while the scan refreshes around it.
+    function cellFor(key, onChoose) {
       const cell = document.createElement('button')
       cell.type = 'button'
       cell.className = 'pi-overview-cell'
@@ -776,44 +788,69 @@
       return cell
     }
 
+    function laneFor(state) {
+      const existing = listEl.querySelector(`.pi-board-column[data-state="${state}"]`)
+      if (existing) return existing
+      const headingId = `pi-board-${state}`
+      const lane = document.createElement('div')
+      lane.className = 'pi-board-column'
+      lane.dataset.state = state
+      lane.setAttribute('role', 'group')
+      lane.setAttribute('aria-labelledby', headingId)
+      lane.innerHTML = `<div class="pi-board-column-head"><h2 class="pi-board-column-label" id="${headingId}"></h2><span class="pi-board-column-count" aria-hidden="true"></span></div><div class="pi-board-column-cards"></div>`
+      return lane
+    }
+
     return {
       render({ set, selectedKey, regionHtml, onChoose }) {
         const focused = listEl.contains(document.activeElement) ? document.activeElement : null
         const scrollTop = overviewEl.scrollTop
         listEl.querySelector('.pi-empty-state')?.remove()
-        // Selection is one row: duplicate reports of one session must not mark
+        // Selection is one card: duplicate reports of one session must not mark
         // every copy of it as the chosen session.
-        const selectedAt = set.findIndex((session) => sessionKey(session) === selectedKey)
-        for (const cell of listEl.children) cell.removeAttribute('data-page-focus')
-        set.forEach((session, index) => {
-          const key = sessionKey(session)
-          const cell = cellFor(session, index, onChoose)
-          if (listEl.children[index] !== cell) listEl.insertBefore(cell, listEl.children[index] || null)
-          cell.dataset.sessionKey = key
-          const isSelected = index === selectedAt
-          cell.classList.toggle('is-selected', isSelected)
-          cell.setAttribute('aria-pressed', String(isSelected))
-          cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
-          // Pi reports a goal and a latest content line as Markdown, so the row
-          // reads them the way the Home tile and the Session Detail read those
-          // same fields: the emphasis and the inline code are formatting rather
-          // than the syntax Pi wrote to produce them. The row keeps its own role
-          // for the line, so the goal stays body type and the latest content
-          // stays supporting text.
-          cell.querySelector('.pi-overview-goal').innerHTML = renderGoalHtml(session.latestGoal || 'No goal stated')
-          cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
-          const activity = cell.querySelector('.pi-overview-activity')
-          const activityText = normalizeInline(session.activity)
-          activity.hidden = !activityText
-          if (activityText) activity.innerHTML = renderActivityHtml(activityText)
-          else activity.textContent = ''
+        const selected = set.find((session) => sessionKey(session) === selectedKey) || null
+        const lanes = boardLanes(set).map(({ state, sessions }) => {
+          const lane = laneFor(state)
+          lane.querySelector('.pi-board-column-label').textContent = boardLaneLabel(state)
+          lane.querySelector('.pi-board-column-count').textContent = String(sessions.length)
+          const cards = lane.querySelector('.pi-board-column-cards')
+          sessions.forEach((session, index) => {
+            const key = sessionKey(session)
+            const existing = cards.children[index]
+            const cell = existing && existing.dataset.sessionKey === key ? existing : cellFor(key, onChoose)
+            if (cards.children[index] !== cell) cards.insertBefore(cell, cards.children[index] || null)
+            cell.dataset.sessionKey = key
+            const isSelected = session === selected
+            cell.classList.toggle('is-selected', isSelected)
+            cell.setAttribute('aria-pressed', String(isSelected))
+            cell.querySelector('.pi-overview-state').innerHTML = stateMarkup(session)
+            // Pi reports a goal and a latest content line as Markdown, so a card
+            // reads them the way the Home tile and the Session Detail read those
+            // same fields: the emphasis and the inline code are formatting rather
+            // than the syntax Pi wrote to produce them. The card keeps its own role
+            // for the line, so the goal stays body type and the latest content
+            // stays supporting text.
+            cell.querySelector('.pi-overview-goal').innerHTML = renderGoalHtml(session.latestGoal || 'No goal stated')
+            cell.querySelector('.pi-overview-path').textContent = session.hostedPi ? `Hosted Pi · ${sessionPath(session)}` : sessionPath(session)
+            const activity = cell.querySelector('.pi-overview-activity')
+            const activityText = normalizeInline(session.activity)
+            activity.hidden = !activityText
+            if (activityText) activity.innerHTML = renderActivityHtml(activityText)
+            else activity.textContent = ''
+          })
+          while (cards.children.length > sessions.length) cards.lastElementChild.remove()
+          return lane
         })
-        while (listEl.children.length > set.length) listEl.lastElementChild.remove()
+        // Lanes keep the state order, and a state that left the filtered set
+        // leaves the board with its cards.
+        lanes.forEach((lane, index) => {
+          if (listEl.children[index] !== lane) listEl.insertBefore(lane, listEl.children[index] || null)
+        })
+        while (listEl.children.length > lanes.length) listEl.lastElementChild.remove()
         // Only the visible view may own the Shell's focus entry point.
-        if (!overviewEl.hidden) {
-          const focusTarget = this.cells()[Math.max(selectedAt, 0)]
-          if (focusTarget) focusTarget.setAttribute('data-page-focus', '')
-        }
+        const focusTarget = this.cells().find((cell) => cell.dataset.sessionKey === selectedKey) || this.cells()[0]
+        for (const cell of this.cells()) cell.removeAttribute('data-page-focus')
+        if (!overviewEl.hidden && focusTarget) focusTarget.setAttribute('data-page-focus', '')
         if (set.length === 0 && regionHtml !== '') {
           const note = document.createElement('div')
           note.className = 'pi-empty-state'
@@ -821,7 +858,7 @@
           listEl.append(note)
         }
         if (focused) {
-          const target = focused.isConnected ? focused : this.cells().find((cell) => cell.dataset.sessionKey === selectedKey)
+          const target = focused.isConnected ? focused : focusTarget
           ;(target || listEl).focus?.({ preventScroll: true })
         }
         overviewEl.scrollTop = scrollTop
@@ -829,19 +866,40 @@
       cells() {
         return [...listEl.querySelectorAll('.pi-overview-cell')]
       },
-      columns() {
-        return gridColumnsOf(this.cells())
+      laneOf(cell) {
+        return cell?.closest('.pi-board-column') || null
       },
       focusSelected(selectedKey) {
         this.cells().find((cell) => cell.dataset.sessionKey === selectedKey)?.focus()
       },
-      focusOffset(selectedKey, offset) {
+      // A lane owns its cards, so vertical input moves inside one lane and
+      // horizontal input crosses to the neighbouring lane. Focus stops at the
+      // first and last card instead of wrapping or leaving the board.
+      focusWithinLane(selectedKey, offset) {
+        const from = this.focusOrigin(selectedKey)
+        if (!from) return
+        const lane = this.laneOf(from)
+        if (!lane) return
+        const cards = [...lane.querySelectorAll('.pi-overview-cell')]
+        cards[steppedIndex(cards.indexOf(from), offset, cards.length)]?.focus()
+      },
+      focusLane(selectedKey, offset) {
+        const from = this.focusOrigin(selectedKey)
+        if (!from) return
+        const lane = this.laneOf(from)
+        const lanes = [...listEl.querySelectorAll('.pi-board-column')]
+        const next = lanes[steppedIndex(lanes.indexOf(lane), offset, lanes.length)]
+        if (!next) return
+        const index = lane ? [...lane.querySelectorAll('.pi-overview-cell')].indexOf(from) : 0
+        const cards = [...next.querySelectorAll('.pi-overview-cell')]
+        cards[Math.min(Math.max(index, 0), Math.max(cards.length - 1, 0))]?.focus()
+      },
+      focusOrigin(selectedKey) {
         const cells = this.cells()
-        if (cells.length === 0) return
-        const active = cells.findIndex((cell) => cell === document.activeElement)
-        const selected = cells.findIndex((cell) => cell.dataset.sessionKey === selectedKey)
-        const from = active === -1 ? Math.max(selected, 0) : active
-        cells[steppedIndex(from, offset, cells.length)]?.focus()
+        if (cells.length === 0) return null
+        return cells.find((cell) => cell === document.activeElement)
+          || cells.find((cell) => cell.dataset.sessionKey === selectedKey)
+          || cells[0]
       },
       show(visible) {
         overviewEl.hidden = !visible
@@ -1174,10 +1232,10 @@
         else if (action === 'select-cell') {
           const cell = overview.cells().find((candidate) => candidate === document.activeElement)
           if (cell) chooseCell(cell.dataset.sessionKey)
-        } else if (action === 'cell-left') overview.focusOffset(selectedKey, -1)
-        else if (action === 'cell-right') overview.focusOffset(selectedKey, 1)
-        else if (action === 'cell-up') overview.focusOffset(selectedKey, -overview.columns())
-        else if (action === 'cell-down') overview.focusOffset(selectedKey, overview.columns())
+        } else if (action === 'cell-left') overview.focusLane(selectedKey, -1)
+        else if (action === 'cell-right') overview.focusLane(selectedKey, 1)
+        else if (action === 'cell-up') overview.focusWithinLane(selectedKey, -1)
+        else if (action === 'cell-down') overview.focusWithinLane(selectedKey, 1)
         else if (action === 'scroll-up') detail.scroll('up')
         else if (action === 'scroll-down') detail.scroll('down')
         else if (action === 'previous-session') moveSelection(-1)
