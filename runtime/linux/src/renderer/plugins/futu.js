@@ -59,9 +59,16 @@
   function holdingRow(position) {
     const ratio = Number(position.dayRatio)
     const trend = direction(ratio)
-    return `<li class="futu-holding"><span class="futu-sym">${escapeAttr(shortCode(position.code))}</span>`
-      + `<span class="futu-price">${escapeAttr(formatPrice(position.price))}</span>`
-      + `<span class="futu-pill is-${trend}">${escapeAttr(formatRatio(position.dayRatio))}</span></li>`
+    const symbol = shortCode(position.code)
+    const price = formatPrice(position.price)
+    const change = formatRatio(position.dayRatio)
+    // A narrow cell drops the price from the row to keep the symbol whole, so the
+    // row states all three values in its accessible name: nothing is dropped
+    // silently.
+    return `<li class="futu-holding" aria-label="${escapeAttr(`${symbol}, price ${price}, today ${change}`)}">`
+      + `<span class="futu-sym">${escapeAttr(symbol)}</span>`
+      + `<span class="futu-price">${escapeAttr(price)}</span>`
+      + `<span class="futu-pill is-${trend}">${escapeAttr(change)}</span></li>`
   }
 
   function formatTime(value) {
@@ -74,6 +81,60 @@
 
   function maxRows(el) {
     return 3
+  }
+
+  const DATA_FONT_FLOOR = 14
+
+  function isClipped(node) {
+    return node.scrollWidth > node.clientWidth + 1
+  }
+
+  // The natural width of a row with every value at its own size, measured by
+  // letting the three columns size to their content.
+  function naturalRowWidth(row) {
+    const previous = row.style.gridTemplateColumns
+    row.style.gridTemplateColumns = 'max-content max-content max-content'
+    const natural = row.scrollWidth
+    row.style.gridTemplateColumns = previous
+    return natural
+  }
+
+  function fontSizeOf(row) {
+    if (typeof root.getComputedStyle !== 'function') return null
+    const size = parseFloat(root.getComputedStyle(row).fontSize)
+    return Number.isFinite(size) ? size : null
+  }
+
+  // Symbol, price, and change share one line wherever the cell can hold them, and
+  // collapse to symbol and change where it cannot. The choice is measured from the
+  // rendered row, so it follows the cell it is drawn in rather than any host
+  // identity, and it holds for a narrow font as well as a wide one.
+  function fitRows(list) {
+    const rows = [...list.querySelectorAll('.futu-holding')]
+    for (const row of rows) row.style.fontSize = ''
+    if (!rows.length) {
+      list.classList.remove('is-compact')
+      return
+    }
+    const available = list.parentElement ? list.parentElement.clientWidth : 0
+    if (!available) return
+    const expanded = rows.every((row) => naturalRowWidth(row) <= available)
+    list.classList.toggle('is-compact', !expanded)
+    if (expanded) return
+    // A font wider than the collapsed row expects still steps the type down to the
+    // readable data floor instead of clipping a symbol into an ellipsis. The symbol
+    // is the row's only flexible column, so it is where a shortage shows up.
+    for (const row of rows) {
+      const symbol = row.querySelector('.futu-sym')
+      if (!symbol || !isClipped(symbol)) continue
+      let size = fontSizeOf(row)
+      if (size === null) continue
+      let guard = 20
+      while (size > DATA_FONT_FLOOR && isClipped(symbol) && guard-- > 0) {
+        size -= 1
+        row.style.fontSize = `${size}px`
+      }
+    }
   }
 
   function render(el, refs, reading) {
@@ -95,6 +156,7 @@
       refs.rows.className = 'futu-holdings'
       refs.rows.innerHTML = leaders.map(holdingRow).join('')
       writeText(refs.detail, 'Today')
+      fitRows(refs.rows)
       fitValue(refs.value)
       return
     }
@@ -112,13 +174,16 @@
       refs.rows.className = 'futu-holdings is-stale'
       refs.rows.innerHTML = stale.positions.slice(0, maxRows(el)).map(holdingRow).join('')
       writeText(refs.detail, `Stale · ${formatTime(reading.updatedAt)}`)
+      fitRows(refs.rows)
       fitValue(refs.value)
       return
     }
+    // Captions stay short enough to render whole in the narrowest cell the Shell
+    // computes, so a state is never announced as an ellipsis.
     if (state === 'unconfigured') writeText(refs.detail, 'Not configured')
-    else if (state === 'needs-auth') writeText(refs.detail, 'Trade unlock needed')
-    else if (state === 'unavailable' || state === 'live') writeText(refs.detail, 'Holdings unavailable')
-    else writeText(refs.detail, 'Syncing holdings')
+    else if (state === 'needs-auth') writeText(refs.detail, 'Trade locked')
+    else if (state === 'unavailable' || state === 'live') writeText(refs.detail, 'Unavailable')
+    else writeText(refs.detail, 'Syncing')
   }
 
   root.odkPlugins.register({

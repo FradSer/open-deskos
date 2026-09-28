@@ -21,6 +21,9 @@ function mountWith(reading, height = 400) {
           style: {},
           scrollWidth: 0,
           clientWidth: 100,
+          parentElement: null,
+          querySelectorAll: () => [],
+          classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
           setAttribute: (name, value) => attributes.set(`${selector}:${name}`, value),
         })
       }
@@ -54,6 +57,9 @@ test('live tile shows day ratio plus top holdings ratios without amounts', async
   assert.doesNotMatch(rows, /PATH/)
   assert.doesNotMatch(rows, /QS/)
   assert.doesNotMatch(rows, /1,240|1240/)
+  // A row states all three values in its accessible name rather than dropping one
+  // silently, and a price the poller did not report is stated as --, not omitted.
+  assert.match(rows, /aria-label="TEM, price --, today \+3\.10%"/)
 })
 
 test('compact tile shows three current prices and missing prices honestly', async () => {
@@ -67,6 +73,8 @@ test('compact tile shows three current prices and missing prices honestly', asyn
   assert.match(rows, /345\.60/)
   assert.match(rows, /futu-price[^>]*>--</)
   assert.equal((rows.match(/class="futu-holding"/g) || []).length, 3)
+  assert.match(rows, /aria-label="TEM, price 64\.25, today \+3\.00%"/)
+  assert.match(rows, /aria-label="TSLA, price 345\.60, today \+2\.00%"/)
 })
 
 test('empty positions render no ratio instead of zero', async () => {
@@ -85,7 +93,7 @@ test('stale snapshot renders dimmed values with an explicit stale label', async 
 })
 
 test('non-live states render short honest labels without numbers', async () => {
-  for (const [state, label] of [['unconfigured', 'Not configured'], ['needs-auth', 'Trade unlock needed'], ['unavailable', 'Holdings unavailable'], ['syncing', 'Syncing holdings']]) {
+  for (const [state, label] of [['unconfigured', 'Not configured'], ['needs-auth', 'Trade locked'], ['unavailable', 'Unavailable'], ['syncing', 'Syncing']]) {
     const { nodes } = await mountWith({ state })
     assert.equal(nodes.get('#futu-value').textContent, '--')
     assert.equal(nodes.get('#futu-detail').textContent, label)

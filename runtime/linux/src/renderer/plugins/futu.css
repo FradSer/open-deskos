@@ -92,6 +92,19 @@
   padding: 1px 0;
 }
 
+/* A cell that cannot hold symbol, price, and change on one line keeps the two
+   values that identify and rate the position. The price leaves the row rather than
+   the symbol being clipped, and the row still states all three in its accessible
+   name. Which layout a cell gets is decided by measurement in futu.js, so this is
+   a shape and not a device rule. */
+.futu-holdings.is-compact .futu-holding {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.futu-holdings.is-compact .futu-price {
+  display: none;
+}
+
 .futu-holding + .futu-holding {
   border-top: 1px solid var(--odk-stroke);
 }
