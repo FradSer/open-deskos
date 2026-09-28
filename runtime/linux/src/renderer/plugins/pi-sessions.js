@@ -1051,16 +1051,17 @@
         if (showing) {
           titleTextEl.textContent = 'Pi Sessions'
           titleSpinnerEl.hidden = true
-          const drivers = [...new Set((Array.isArray(scan?.sessions) ? scan.sessions : [])
-            .filter((item) => item.hostedPi && item.controlAttribution)
-            .map((item) => `${item.controlAttribution.machine} · ${item.controlAttribution.sessionId}`))]
-          const attribution = drivers.length > 0 ? ` · Driven by ${drivers.slice(0, 2).join(', ')}${drivers.length > 2 ? ` +${drivers.length - 2}` : ''}` : ''
-          const size = currentSet().length
+          // The title row states the page's condition, not a description of the
+          // list. A running count with its source, and any driven-by attribution,
+          // was a second line of chrome under the title: the board below already
+          // says what it holds, the card says which session is hosted, and the
+          // live region still announces the count. What stays here is the part
+          // only this row can say, so the page carries no summary line at all.
           subtitleEl.textContent = scan === null
             ? 'Loading Pi sessions...'
             : scan.ok === false
               ? `${sourceLabel() || 'Pi sessions'} unavailable. Retrying automatically.`
-              : `${size} ${filterTitle(filter).toLowerCase()} session${size === 1 ? '' : 's'} · ${sourceLabel() || 'Pi sessions'}${attribution}`
+              : ''
           return
         }
         if (!session) {

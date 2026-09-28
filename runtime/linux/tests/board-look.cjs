@@ -63,6 +63,7 @@ async function main() {
     const header = document.querySelector('.pi-app-header')
     const title = document.querySelector('#pi-title')
     const filters = document.querySelector('#pi-overview-filters')
+    const tabs = [...filters.querySelectorAll('.pi-filter-btn')]
     const columns = [...document.querySelectorAll('.pi-board-column')]
     const rect = node => { const r = node.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) } }
     return {
@@ -70,6 +71,9 @@ async function main() {
       header: rect(header), title: rect(title), filters: rect(filters),
       sameRow: Math.abs((rect(title).top + rect(title).height / 2) - (rect(filters).top + rect(filters).height / 2)) < 8,
       titleOffsetPx: Math.round(Math.abs((rect(title).top + rect(title).height / 2) - (rect(filters).top + rect(filters).height / 2))),
+      tabRows: new Set(tabs.map(tab => Math.round(tab.getBoundingClientRect().top))).size,
+      tabTops: tabs.map(tab => Math.round(tab.getBoundingClientRect().top)),
+      trackHeight: Math.round(rect(filters).height),
       lanes: columns.map(column => ({ state: column.dataset.state, ...rect(column) })),
       rows: new Set(columns.map(column => rect(column).top)).size,
       cards: document.querySelectorAll('.pi-overview-cell').length,

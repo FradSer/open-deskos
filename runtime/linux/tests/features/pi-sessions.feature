@@ -78,6 +78,7 @@ Feature: Local Pi Sessions Monitoring
     And each session is one card inside its lane, showing its Pi state, goal, directory, and activity without raw PID or field label prefixes
     And no card carries secondary modified file badges
     And the Session Filter is the only control in the title row, and the Session Detail carries none
+    And the title row carries no session count, source, or driven-by description under it
     And the page offers no manual refresh control
 
   Scenario: The Session Overview board shows several sessions at once
@@ -99,6 +100,7 @@ Feature: Local Pi Sessions Monitoring
     Given the user opens the Pi Sessions page
     When the live session list is the current view
     Then the five status filter tabs sit in the page title row at its trailing edge
+    And no session count, source, or driven-by description is carried under the title
     And the tabs share that edge without displacing, wrapping or clipping the page title
     And choosing a session hides the tabs and states its elapsed time on the same trailing edge
     And the tabs keep their inset segmented track, 44 pixel targets, and readable labels at every width

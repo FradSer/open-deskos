@@ -195,9 +195,8 @@ async function main() {
     assert.equal(await js("return !$('#pi-overview').hidden"), true)
     assert.deepEqual(await js("return [...surface.querySelectorAll('.pi-overview-goal')].map(node => node.textContent.trim())"), ['Example: inspect keyboard navigation.', 'Example: 优化会话阅读与返回。', 'Example settled goal'])
     assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length"), 3)
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /^3 live sessions · Example fixture$/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', 'the overview carries no session summary line')
     assert.equal(await js("return $('#pi-overview').textContent.includes('Example exited goal')"), false)
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /3 live sessions/)
   })
 
   await scenario('the detail is the current Pi state and its directory, with no page chrome', async () => {
@@ -215,17 +214,17 @@ async function main() {
     assert.equal(await js("return $('.pi-goal-text').textContent.trim()"), initial[0].latestGoal)
   })
 
-  await scenario('Hosted Pi attribution appears only in the overview header', async () => {
+  await scenario('no attribution line is carried under the title', async () => {
     await reset([session('example-a', 'Example Hosted Pi goal', 'settled', {
       hostedPi: true,
       controlAttribution: { machine: 'desk-mac', sessionId: 'console-example' },
     })])
     await showOverview()
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /Driven by desk-mac · console-example/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', 'the title row carries no driven-by description')
     await click('.pi-filter-btn[data-filter="working"]')
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /Driven by desk-mac · console-example/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '')
     await click('.pi-filter-btn[data-filter="live"]')
-    assert.equal(await js("return $('.pi-overview-path').textContent"), 'Hosted Pi · /example/workspace')
+    assert.equal(await js("return $('.pi-overview-path').textContent"), 'Hosted Pi · /example/workspace', 'the card still says the session is hosted')
     await js("$('.pi-overview-cell').click()")
     await pause()
     assert.equal(await js("return $('#pi-detail').textContent.includes('desk-mac') || $('#pi-detail').textContent.includes('console-example')"), false)
@@ -249,13 +248,13 @@ async function main() {
     // The page still lands on started sessions only.
     assert.deepEqual(await js("return [...surface.querySelectorAll('.pi-overview-goal')].map(node => node.textContent.trim())"),
       ['Example: inspect keyboard navigation.', 'Example: 优化会话阅读与返回。', 'Example idle goal'])
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /^3 live sessions · Example fixture$/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', 'the overview carries no session summary line')
     // A status tab narrows the list without leaving the page.
     const page = await js("return document.querySelector('#page-context').textContent")
     await click('.pi-filter-btn[data-filter="exited"]')
     assert.deepEqual(await js("return [...surface.querySelectorAll('.pi-overview-goal')].map(node => node.textContent.trim())"), ['Example exited goal'])
     assert.equal(await js(`return $(".pi-filter-btn[data-filter='exited']").getAttribute('aria-pressed')`), 'true')
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /^1 exited session · Example fixture$/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', 'and the summary does not come back with a narrower filter')
     assert.equal(await js("return document.querySelector('#page-context').textContent"), page)
     // All is the union, so live history stays reachable on request.
     await click('.pi-filter-btn[data-filter="all"]')
@@ -363,7 +362,7 @@ async function main() {
       assert.equal(await js("return $('#pi-overview').hidden"), false, input)
       assert.equal(await js("return $('#pi-title-text').textContent"), 'Pi Sessions', input)
       assert.equal(await js("return document.querySelector('#page-context').textContent"), page, input)
-      assert.equal(await js("return $('#pi-view-subtitle').textContent.includes('live session')"), true, input)
+      assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', input)
     }
   })
 
@@ -424,7 +423,7 @@ async function main() {
     await showOverview()
     assert.equal(await js("return surface.querySelectorAll('.pi-overview-cell').length"), 0)
     assert.match(await js("return $('.pi-empty-state').textContent"), /No session matches Live\./)
-    assert.match(await js("return $('#pi-view-subtitle').textContent"), /^0 live sessions/)
+    assert.equal(await js("return $('#pi-view-subtitle').textContent"), '', 'the empty statement lives on the board, not under the title')
     assert.equal(await js(`return $(".pi-filter-btn[data-filter='exited'] .pi-filter-count").textContent`), '1')
 
     // A kanban keeps its columns: the filter selects Working and Idle, so both
@@ -595,6 +594,7 @@ async function main() {
         laneWidths: lanes.map(lane => Math.round(rect(lane).width)),
         insideSurface: lanes.every(lane => rect(lane).left >= -1 && rect(lane).right <= innerWidth + 1),
         sharesTitleLine: Boolean(title.parentElement) && title.parentElement.contains(filters),
+        tabRows: new Set([...filters.querySelectorAll('.pi-filter-btn')].map(tab => Math.round(rect(tab).top))).size,
         titleToTabOffset: Math.round(Math.abs((titleBox.top + titleBox.height / 2) - (tabBox.top + tabBox.height / 2))),
         tabHeight: Math.round(tabBox.height),
       }
@@ -603,6 +603,7 @@ async function main() {
     assert.ok(desk.laneWidths.every(width => width >= 260), `every lane keeps a readable card, saw ${desk.laneWidths.join(',')}`)
     assert.equal(desk.insideSurface, true, 'no lane is pushed sideways out of the surface')
     assert.equal(desk.sharesTitleLine, true, 'the filter tabs and the title share one line')
+    assert.equal(desk.tabRows, 1, 'and every tab is on that one row')
     assert.ok(desk.titleToTabOffset <= 8, `the tabs read on the title's line, offset ${desk.titleToTabOffset}px`)
     assert.ok(desk.tabHeight >= 44, `the tabs keep a touch height, saw ${desk.tabHeight}`)
     await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
