@@ -32,8 +32,7 @@
    */
   function honorsSpan({ columns, rows }, cellWidth, cellHeight, minCell) {
     if (columns <= 1 && rows <= 1) return true
-    if (!Number.isFinite(minCell)) return true
-    return Math.min(columns * cellWidth, rows * cellHeight) >= minCell
+    return meetsMinCell(columns * cellWidth, rows * cellHeight, minCell)
   }
 
   /**
@@ -71,7 +70,18 @@
     return true
   }
 
-  const api = { spanCells, honorsSpan, gridHasLines, pageFitsGrid }
+  /**
+   * Whether a cell of this size is one the instrument declared it reads at. This
+   * is the same question the Shell asks when it re-composes a Widget, and the
+   * question a geometry gate asks when it holds the desk to a declared floor, so
+   * it is answered once here.
+   */
+  function meetsMinCell(width, height, minCell) {
+    if (!Number.isFinite(minCell)) return true
+    return Math.min(width, height) >= minCell
+  }
+
+  const api = { spanCells, honorsSpan, gridHasLines, pageFitsGrid, meetsMinCell }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api
   } else {

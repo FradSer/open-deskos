@@ -330,10 +330,13 @@
       // for. The decision is made from the cell it was given, so the same tile
       // keeps its full composition on the reference panel.
       const declaredMinCell = PI_TILE_MIN_CELL
+      const meetsFloor = root.odkGridPlacement?.meetsMinCell
       const fitToCell = () => {
-        if (!Number.isFinite(declaredMinCell)) return
-        const width = el.getBoundingClientRect().width
-        summaryEl.hidden = !(Number.isFinite(width) && width >= declaredMinCell)
+        const box = el.getBoundingClientRect()
+        // The Shell owns this question for the whole runtime, so the tile asks the
+        // same one rather than keeping its own copy of the rule.
+        const roomy = meetsFloor ? meetsFloor(box.width, box.height, declaredMinCell) : true
+        summaryEl.hidden = !roomy
       }
       fitToCell()
       if (typeof ResizeObserver !== 'undefined') {

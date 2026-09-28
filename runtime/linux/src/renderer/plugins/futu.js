@@ -86,14 +86,9 @@
   // A tile that draws a subset says so. A shortened list that looks like the whole
   // list is the one way a glanceable instrument can be quietly wrong, so the count
   // of what it is not showing belongs in the tile's own text.
-  function heldCount(reading) {
-    return (reading?.snapshot?.positions || []).length
-  }
-
   function shownCountLabel(reading, shown) {
-    const held = heldCount(reading)
-    if (held <= shown) return ''
-    return ` · ${held - shown} more`
+    const held = (reading?.snapshot?.positions || []).length
+    return held <= shown ? '' : ` · ${held - shown} more`
   }
 
   const DATA_FONT_FLOOR = 14
@@ -195,7 +190,7 @@
     // Captions stay short enough to render whole in the narrowest cell the Shell
     // computes, so a state is never announced as an ellipsis.
     if (state === 'unconfigured') writeText(refs.detail, 'Not configured')
-    else if (state === 'needs-auth') writeText(refs.detail, 'Trade locked')
+    else if (state === 'needs-auth') writeText(refs.detail, 'Unlock trade')
     else if (state === 'unavailable' || state === 'live') writeText(refs.detail, 'Unavailable')
     else writeText(refs.detail, 'Syncing')
   }

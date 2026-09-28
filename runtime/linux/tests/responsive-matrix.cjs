@@ -90,7 +90,12 @@ const READ = `(() => { try {
     const smallest = Math.min(box.width, box.height)
     if (smallest < minCell - 1) underDeclared.push({ label: node.dataset.widget, minCell, cell: Math.round(smallest) })
   }
-  return { error: null, cell: getComputedStyle(document.documentElement).getPropertyValue('--cell-dim').trim(), clipped, belowFloor, hidden, underDeclared }
+  // The promise is that the desk is right at these two sizes, which includes
+  // keeping the composition the layout declares: a tile the promised cells can
+  // carry must not be left as a single cell.
+  const droppedSpans = [...document.querySelectorAll('[data-widget][data-span="dropped"]')]
+    .filter(visible).map(node => ({ label: node.dataset.widget, box: (() => { const r = node.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height) })() }))
+  return { error: null, cell: getComputedStyle(document.documentElement).getPropertyValue('--cell-dim').trim(), clipped, belowFloor, hidden, underDeclared, droppedSpans }
 } catch (error) { return { error: String((error && error.stack) || error) } } })()`
 
 async function main() {
@@ -124,6 +129,7 @@ async function main() {
           ...reading.belowFloor.map((item) => ({ kind: 'below-caption-floor', ...item })),
           ...reading.hidden.map((item) => ({ kind: 'hidden-in-glanceable-widget', ...item })),
           ...reading.underDeclared.map((item) => ({ kind: 'under-declared-min-cell', ...item })),
+          ...reading.droppedSpans.map((item) => ({ kind: 'declared-span-dropped-at-a-promised-size', ...item })),
         ]
         report.runs.push({ ...at, findings })
         violations += findings.length
@@ -144,8 +150,15 @@ async function main() {
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`)
   console.log(`RESPONSIVE_MATRIX_RESULT ${JSON.stringify({ ok: report.ok, runs: report.runs.length, violations, cells: [...new Set(report.cells.map((cell) => `${cell.viewport}:${cell.cell}`))] })}`)
   win.destroy()
-  if (report.ok || reportOnly) app.exit(0)
-  app.exit(1)
+  // app.exit does not stop this function, so the failure exit has to be the other
+  // branch: written as two statements, the second one always won.
+  if (report.ok || reportOnly) {
+    clearTimeout(timeout)
+    app.exit(0)
+  } else {
+    clearTimeout(timeout)
+    app.exit(1)
+  }
 }
 
 app.whenReady().then(main).catch((error) => { clearTimeout(timeout); console.error(`RESPONSIVE_MATRIX_ERROR ${(error && error.stack) || error}`); app.exit(1) })

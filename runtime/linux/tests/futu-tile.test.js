@@ -59,7 +59,7 @@ test('live tile shows day ratio plus top holdings ratios without amounts', async
   assert.doesNotMatch(rows, /1,240|1240/)
   // Five positions are held and three are drawn, so the tile says so: a shortened
   // list must never read as the whole list.
-  assert.match(nodes.get('#futu-detail').textContent, /3 of 5|2 more/i)
+  assert.equal(nodes.get('#futu-detail').textContent, 'Today · 2 more')
   // A row states all three values in its accessible name rather than dropping one
   // silently, and a price the poller did not report is stated as --, not omitted.
   assert.match(rows, /aria-label="TEM, price --, today \+3\.10%"/)
@@ -95,7 +95,7 @@ test('stale snapshot renders dimmed values with an explicit stale label', async 
 })
 
 test('non-live states render short honest labels without numbers', async () => {
-  for (const [state, label] of [['unconfigured', 'Not configured'], ['needs-auth', 'Trade locked'], ['unavailable', 'Unavailable'], ['syncing', 'Syncing']]) {
+  for (const [state, label] of [['unconfigured', 'Not configured'], ['needs-auth', 'Unlock trade'], ['unavailable', 'Unavailable'], ['syncing', 'Syncing']]) {
     const { nodes } = await mountWith({ state })
     assert.equal(nodes.get('#futu-value').textContent, '--')
     assert.equal(nodes.get('#futu-detail').textContent, label)

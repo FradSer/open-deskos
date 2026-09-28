@@ -120,6 +120,14 @@ verified by the responsive matrix gate and the per-Widget composition harnesses.
 - **The gate asserts four things per run**: no clipped text, no content hidden
   beyond reach, no type below the floors, and every declared multi-cell span
   honored at the promised sizes.
+- **It runs as part of the geometry suite, not on request.** `pnpm geometry` builds
+  the stylesheet and then runs the responsive matrix, the density gate, and the two
+  per-Widget composition harnesses. A gate nothing invokes is a report.
+- **The caption floor is global; the data floor is per Widget.** Every visible text
+  is held to the 12px caption floor, and the Shell's own state line — the reading a
+  tile states — is held to the 14px data floor. A Widget's own readings are held to
+  its own floor by its composition harness, because only that harness can tell a
+  reading from a caption.
 - **One fixture set for every geometry gate.** The density gate and the responsive
   gate install the same feed content, including the widest values each feed can
   carry — four-figure prices, long CJK titles, long prompts, long source labels —

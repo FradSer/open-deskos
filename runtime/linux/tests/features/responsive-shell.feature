@@ -1,5 +1,9 @@
 Feature: The desk is readable on the panel it is drawn on
 
+  # Verified by `pnpm geometry`, which builds the stylesheet and then runs the
+  # responsive matrix gate, the density gate, and the two per-Widget composition
+  # harnesses. A gate nothing invokes would be a report.
+  #
   # The Cell is the unit of adaptation. The layout model gives 348px cells at
   # 1920x1280, 186px at 1280x776, 282px at 636x1087 and 360px at 400x700, because
   # a small window lays out fewer columns. Window width therefore predicts nothing

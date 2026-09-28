@@ -89,7 +89,7 @@
     container.append(note)
   }
 
-  function buildTile(widgetDef, uiCtx) {
+  function buildTile(page, widgetDef, uiCtx) {
     const plugin = root.odkPlugins.get(widgetDef.id)
     const tile = document.createElement('div')
     tile.className = `widget widget-display-only ${widgetClass(plugin)} flex flex-col`
@@ -100,44 +100,45 @@
     // The declared floor is published on the tile so the geometry gates can hold
     // the desk to it instead of trusting a comment.
     if (Number.isFinite(Number(plugin.manifest?.minCell))) tile.dataset.minCell = String(plugin.manifest.minCell)
-    placeTile(tile, widgetDef, plugin, true)
+    placeTile(page, tile, widgetDef, plugin)
     if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
     return tile
   }
 
-  // The cell the layout model has just given the page. Spans are decided from
-  // this, so a page keeps its composition whenever the grid can satisfy it and
-  // the resulting cell is large enough for the instrument it holds.
-  function cellSize() {
+  // The geometry the layout model has just produced: the cell every tile is given,
+  // and the lines of the grid they are placed in. Spans are decided from this, so a
+  // page keeps its composition whenever the grid can satisfy it and the resulting
+  // cell is large enough for the instrument it holds.
+  function gridMetrics() {
     const style = root.getComputedStyle ? root.getComputedStyle(document.documentElement) : null
-    const read = (name) => Number.parseFloat(style?.getPropertyValue(name) || '') || 0
-    return { width: read('--cell-w'), height: read('--cell-h') }
+    const pixels = (name) => Number.parseFloat(style?.getPropertyValue(name) || '') || 0
+    const count = (name) => Number.parseInt(style?.getPropertyValue(name) || '', 10) || 0
+    return {
+      cellWidth: pixels('--cell-w'),
+      cellHeight: pixels('--cell-h'),
+      columns: count('--cols'),
+      rows: count('--rows'),
+    }
   }
 
-  function gridLines() {
-    const style = root.getComputedStyle ? root.getComputedStyle(document.documentElement) : null
-    const read = (name) => Number.parseInt(style?.getPropertyValue(name) || '', 10) || 0
-    return { columns: read('--cols'), rows: read('--rows') }
-  }
-
-  function placeTile(tile, widgetDef, plugin, composition) {
+  function placeTile(page, tile, widgetDef, plugin) {
     if (!widgetDef.col) return
     if (!widgetDef.row) return
-    const { spanCells, honorsSpan, gridHasLines } = root.odkGridPlacement
-    const cell = cellSize()
-    const lines = gridLines()
+    const { spanCells, honorsSpan, gridHasLines, pageFitsGrid } = root.odkGridPlacement
+    const { cellWidth, cellHeight, columns, rows } = gridMetrics()
     // The grid has to be able to give the span its lines, the page has to be a
     // grid its composition was drawn for, and the cell the span produces has to
     // reach what the instrument declared it reads at. Failing any of those leaves
     // the tile unplaced, and the grid then gives it one cell, which is always
     // somewhere an instrument can be drawn.
-    const placeable = lines.columns > 0 && lines.rows > 0 && composition !== false
-      && gridHasLines(widgetDef.col, lines.columns)
-      && gridHasLines(widgetDef.row, lines.rows)
+    const placeable = columns > 0 && rows > 0
+      && pageFitsGrid(page.widgets, columns, rows)
+      && gridHasLines(widgetDef.col, columns)
+      && gridHasLines(widgetDef.row, rows)
     const honored = placeable && honorsSpan({
       columns: spanCells(widgetDef.col),
       rows: spanCells(widgetDef.row),
-    }, cell.width, cell.height, plugin.manifest?.minCell)
+    }, cellWidth, cellHeight, plugin.manifest?.minCell)
     if (honored) {
       tile.style.gridColumn = widgetDef.col
       tile.style.gridRow = widgetDef.row
@@ -154,20 +155,14 @@
   function placeGridTiles(track) {
     const layout = root.DESKTOP_LAYOUT
     if (!layout?.pages) return
-    const { pageFitsGrid } = root.odkGridPlacement
-    const lines = gridLines()
     for (const page of layout.pages) {
       if (page.kind !== 'grid') continue
       const grid = track.querySelector(`.page[data-page-id="${page.id}"] .widget-grid`)
       if (!grid) continue
-      // A page keeps the composition it was drawn as, or it becomes a list of
-      // single cells. Which of those is true is asked of the grid the layout model
-      // just produced, never of the window.
-      const composition = pageFitsGrid(page.widgets, lines.columns, lines.rows)
       for (const widgetDef of page.widgets) {
         const tile = grid.querySelector(`[data-widget="${widgetDef.id}"]`)
         if (!tile) continue
-        placeTile(tile, widgetDef, root.odkPlugins.get(widgetDef.id), composition)
+        placeTile(page, tile, widgetDef, root.odkPlugins.get(widgetDef.id))
       }
     }
   }
@@ -177,10 +172,13 @@
   // deferral is a timer rather than an animation frame on purpose: a frame never
   // runs in a window that is not painting, and a window the owner has behind
   // another one is still a window whose layout is live.
+  // A rebuild replaces the observer rather than stacking a second one behind it.
+  let cellWatcher = null
   function watchCellSize(track) {
-    if (typeof ResizeObserver === 'undefined') return () => {}
+    if (typeof ResizeObserver === 'undefined') return
+    if (cellWatcher) cellWatcher.disconnect()
     let queued = false
-    const observer = new ResizeObserver(() => {
+    cellWatcher = new ResizeObserver(() => {
       if (queued) return
       queued = true
       setTimeout(() => {
@@ -188,8 +186,7 @@
         placeGridTiles(track)
       }, 0)
     })
-    observer.observe(document.documentElement)
-    return () => observer.disconnect()
+    cellWatcher.observe(document.documentElement)
   }
 
   function build(layout, track, uiCtx) {
@@ -208,7 +205,7 @@
       if (page.kind === 'grid') {
         const grid = document.createElement('div')
         grid.className = 'widget-grid grid'
-        for (const widget of page.widgets) grid.append(buildTile(widget, uiCtx))
+        for (const widget of page.widgets) grid.append(buildTile(page, widget, uiCtx))
         section.append(grid)
       } else {
         const plugin = root.odkPlugins.get(page.plugin)
@@ -216,7 +213,7 @@
       }
     })
     // The cell changes when the window does, and the cell is what decides a span.
-    return watchCellSize(track)
+    watchCellSize(track)
   }
 
   root.odkComposer = { validate, build, filterLayout, placeGridTiles }
