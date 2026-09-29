@@ -114,8 +114,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
-| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/main.mjs | ~/.local/state | 持久状态目录 |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/host-paths.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
+| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/host-paths.mjs | ~/.local/state | 持久状态目录 |
 
 ## 天气定位与隐私取舍
 
