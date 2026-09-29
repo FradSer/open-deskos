@@ -32,14 +32,32 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   provisioned through the operator's normal secret-management process. The loopback
   bridge ignores a bearer and needs no credential, so a device using
   `integrations/local-stt-bridge` omits both this variable and its file.
+- `ODESK_VOICE_STT_PROVIDER`: optional; defaults to `openai`. It declares the
+  request shape the endpoint expects — `openai` is the multipart audio upload,
+  `aliyun` is a DashScope multimodal-generation JSON request with the audio
+  inlined. Nothing is inferred from the URL, so a desk that declares a provider
+  cannot send the wrong body to a gateway that happens to answer either.
+- `ALIYUNCS_TOKEN`: the bearer credential for `ODESK_VOICE_STT_PROVIDER=aliyun`,
+  read from the service environment rather than a file only this service can
+  open. The OpenAI provider keeps using `ODESK_VOICE_STT_KEY_FILE`; the two
+  credentials are declared separately on purpose. With the Aliyun provider and no
+  `ODESK_VOICE_STT_URL`, the service addresses DashScope's own endpoint; a
+  gateway (for example a MaaS proxy) is a device-local URL override.
 - `ODESK_VOICE_AUDIO_DEVICE=default`: uses the user's ALSA default input. Override
-  only after verifying the actual capture device as that user.
+  only after verifying the actual capture device as that user. On a Windows host
+  the value is a DirectShow device name such as `Microphone (2- USB Audio Device)`
+  and is required: the Unix default device name means nothing to DirectShow, so
+  an unset or `default` value stops startup with that guidance instead of opening
+  nothing. The name is what ffmpeg lists, without the `audio=` input prefix ffmpeg
+  adds itself; a name this host does not know makes the capture report the
+  microphone as unavailable rather than a recording that failed.
 - `ODESK_VOICE_STT_URL`: optional; defaults to
   `https://api.openai.com/v1/audio/transcriptions`. Plain HTTP is accepted only
   for loopback hosts when a device-local speech service (for example
   `integrations/local-stt-bridge`) handles transcription; remote hosts still
   require HTTPS and URLs never carry credentials.
-- `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1`. The loopback bridge
+- `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1` for the OpenAI
+  provider and `qwen3-asr-flash` for the Aliyun one. The loopback bridge
   ignores the field, so a device-local endpoint has no reason to set it.
 - `ODESK_VOICE_MODEL`: optional Pi `provider/id` model selection. Configure provider
   authentication separately on the CM5 under the kiosk user's Pi auth storage
@@ -55,6 +73,43 @@ Never copy the developer's `.pi`, auth files, `.env`, or `node_modules` to the
 CM5. Integration staging excludes these common private/local artifacts; release
 packaging copies only `package.json`, `pnpm-lock.yaml`, `src`, and `systemd`.
 Do not put secrets in source directories or systemd units.
+
+## On a Windows Shell Host
+
+The Voice Agent is a system component on every supported host, so a 64-bit
+Windows host runs the same service with two host-specific pieces: capture through
+ffmpeg's DirectShow input instead of ALSA, and the voice link bound as the
+`\\.\pipe\open-deskos-voice-agent` named pipe the host's own naming already
+declares. A pipe carries no owner, so the channel token in
+`%LOCALAPPDATA%\open-deskos\local-channel.token` is what authenticates the
+connection, and it is consumed before the voice protocol reads a byte (see
+@../../runtime/linux/docs/adr/0025-a-runtime-channel-is-authenticated-by-ownership-or-a-token.md).
+The device-local configuration uses the same two environment files as the CM5,
+`%LOCALAPPDATA%\open-deskos\runtime.env` and `voice-agent.env`.
+
+```powershell
+# What the host is missing, without installing or registering anything
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -Report
+# Stage the interactive task; -InstallFfmpeg is explicit, never automatic
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -InstallFfmpeg -Start
+```
+
+The service runs in the logged-on session because a microphone opened in session
+0 has no audio endpoint, so it is an interactive scheduled task with a restart
+loop — the counterpart of `Restart=on-failure` in the unit above. Acceptance on a
+device speaks the published protocol over the host's own endpoint and reports the
+states, the transcript and the answer:
+
+```powershell
+node scripts\voice-acceptance.mjs
+```
+
+The device needs its own Pi authentication for the agent run, which the Shell
+does not have and does not need: the Shell only reads remote Pi sessions. A host
+that points Pi at an OpenAI-compatible model service declares that provider in
+its own `~\.pi\agent\models.json`. The full host runbook, including the ffmpeg
+prerequisite and the device-scoped model credential, is
+@../../runtime/linux/docs/WINDOWS_HOST.md.
 
 ## Operator checks after an approved deployment
 

@@ -6,33 +6,33 @@ const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('../
 const { createDeskLinkClient, resolveDeskLinkSocketPath } = require('../src/desk-link-client')
 const { resolveShellHost } = require('../src/platform')
 
-// A Windows Shell Host has no runtime directory. The links that are not ported
-// to it state that instead of presenting a local or simulated link, so each
-// surface must answer with its unavailable reading rather than a healthy one.
+// A Windows Shell Host has no runtime directory. A link that is not ported to it
+// states that instead of presenting a local or simulated link, so its surface must
+// answer with its unavailable reading rather than a healthy one. The voice and Desk
+// Link links are ported: they bind the endpoint the host's own naming gives them.
 const WINDOWS_ENV = {}
 const WINDOWS_HOST = process.platform === 'win32'
 
 test('a link that is not ported to this host resolves no endpoint', () => {
-  for (const resolve of [resolveVoiceSocketPath, resolveRemoteBridgeSocketPath]) {
-    assert.equal(resolve(WINDOWS_ENV), null)
+  assert.equal(resolveVoiceSocketPath(WINDOWS_ENV), resolveDeskLinkSocketPath(WINDOWS_ENV))
+  assert.equal(resolveRemoteBridgeSocketPath(WINDOWS_ENV), null)
+
+  // A Unix host needs a runtime directory for a ported link; a Windows host has no
+  // such directory and binds the named pipe instead, which the channel token
+  // authenticates because a pipe carries no owner.
+  for (const [name, pipe] of [['voice-agent', 'open-deskos-voice-agent'], ['desk-link', 'open-deskos-desk-link']]) {
+    assert.equal(
+      resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\desk' }).endpoint(name),
+      `\\\\.\\pipe\\${pipe}`,
+    )
   }
 
-  // The Desk Link is ported. A Unix host needs a runtime directory for it; a
-  // Windows host has no such directory and binds the named pipe instead, which
-  // the channel token authenticates because a pipe carries no owner.
-  assert.equal(
-    resolveDeskLinkSocketPath(WINDOWS_ENV),
-    WINDOWS_HOST ? '\\\\.\\pipe\\open-deskos-desk-link' : null,
-  )
-
-  // The seam still names the endpoints a ported link would bind, so the
-  // transport is decided even where nothing is wired to it yet. These two facts
-  // are the difference between 'not ported' and 'no idea where it would go'.
+  // The seam still names the endpoint a link that is not ported would bind, so the
+  // transport is decided even where nothing is wired to it yet. That fact is the
+  // difference between 'not ported' and 'no idea where it would go'.
   const host = resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\desk' })
   assert.equal(host.runtimeDir, null)
-  assert.equal(host.endpoint('voice-agent'), '\\\\.\\pipe\\open-deskos-voice-agent')
   assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\open-deskos-remote-bridge')
-  assert.equal(host.endpoint('desk-link'), '\\\\.\\pipe\\open-deskos-desk-link')
 })
 
 test('the voice surface reads unavailable without a local endpoint', () => {

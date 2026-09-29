@@ -158,16 +158,89 @@ test('oversize transcription prompts fail startup with safe guidance', async t =
 
 test('main wires validated transcription context including empty opt-out', async () => {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
-  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate\) \{[\s\S]*?\n\}/)[0]
-  const { transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
-  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'transcriptionLanguage', 'transcriptionPrompt', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(
-    async () => {}, async () => ({}), join, () => '/test-home', transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }),
+  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform\) \{[\s\S]*?\n\}/)[0]
+  const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
+  const { prepareHostDirectories } = await import('../src/host-paths.mjs')
+  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'prepareHostDirectories', 'transcriptionLanguage', 'transcriptionPrompt', 'transcriptionProvider', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(
+    async () => {}, async () => ({}), join, () => '/test-home', prepareHostDirectories, transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }),
   )
   for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
     const runtime = await initialize({
       ODESK_WORKSPACE: '/test-checkout', ODESK_VOICE_STT_KEY_FILE: '/test-key', ODESK_VOICE_STT_PROMPT: prompt,
+      XDG_RUNTIME_DIR: '/tmp/test-runtime', XDG_STATE_HOME: '/tmp/test-state',
     }, () => {})
     assert.equal(runtime.stt.prompt, transcriptionPrompt(prompt))
+  }
+})
+
+// The transcription provider is a declared request shape, so a cloud desk says so
+// in its own configuration instead of having a URL pattern decide for it.
+async function initializeFor(t, env, platform) {
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform\) \{[\s\S]*?\n\}/)[0]
+  const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
+  const { prepareHostDirectories } = await import('../src/host-paths.mjs')
+  const initialize = Function('access', 'createVoiceAgent', 'join', 'homedir', 'prepareHostDirectories', 'transcriptionLanguage', 'transcriptionPrompt', 'transcriptionProvider', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(
+    async () => {}, async () => ({}), join, () => '/test-home', prepareHostDirectories, transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }),
+  )
+  const reports = []
+  return { reports, runtime: await initialize({ XDG_RUNTIME_DIR: '/tmp/test-runtime', XDG_STATE_HOME: '/tmp/test-state', ...env }, message => reports.push(message), () => {}, platform) }
+}
+
+test('the cloud provider declares its own endpoint, model and credential', async t => {
+  const credentialFile = await keyFile(t)
+  const { reports, runtime } = await initializeFor(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_PROVIDER: 'aliyun',
+    ALIYUNCS_TOKEN: 'device-local-bearer',
+  }, 'linux')
+  assert.equal(runtime.stt.provider, 'aliyun')
+  assert.equal(runtime.stt.model, 'qwen3-asr-flash', 'the cloud desk declares the model it expects, not a name only the multipart endpoint knows')
+  assert.equal(runtime.stt.url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+  assert.equal(runtime.stt.keyFile, undefined, 'the cloud credential is its own environment value, not a key file')
+  assert.ok(reports.some(message => message.includes('ALIYUNCS_TOKEN')))
+  // The multipart provider keeps its own credential, model and endpoint.
+  const openai = await initializeFor(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: credentialFile,
+  }, 'linux')
+  assert.equal(openai.runtime.stt.provider, 'openai')
+  assert.equal(openai.runtime.stt.model, 'whisper-1')
+  assert.equal(openai.runtime.stt.url, 'https://api.openai.com/v1/audio/transcriptions')
+  assert.ok(openai.reports.every(message => !message.includes('ALIYUNCS_TOKEN')))
+})
+
+test('an undeclared transcription provider is rejected with safe guidance', async t => {
+  await assert.rejects(initializeFor(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_PROVIDER: 'dashscope',
+  }, 'linux').then(result => result.runtime), /Invalid transcription provider/)
+  const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  assert.ok(source.includes('transcriptionProvider'), 'the provider is validated before it is used')
+})
+
+test('the cloud provider without its credential never reaches the endpoint', async t => {
+  await assert.rejects(initializeFor(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_PROVIDER: 'aliyun',
+  }, 'linux').then(result => result.runtime), { message: 'Credential missing' })
+})
+
+test('a Windows host declares its DirectShow microphone or says what is missing', async t => {
+  const credentialFile = await keyFile(t)
+  const { reports, runtime } = await initializeFor(t, {
+    ODESK_WORKSPACE: '/configured/desk-checkout',
+    ODESK_VOICE_STT_KEY_FILE: credentialFile,
+    ODESK_VOICE_AUDIO_DEVICE: 'Microphone (2- USB Audio Device)',
+  }, 'win32')
+  assert.ok(reports.some(message => message.includes('DirectShow')))
+  assert.ok(runtime.stt.url, 'a declared Windows microphone still reaches the transcription configuration')
+  for (const device of [undefined, '', 'default']) {
+    await assert.rejects(initializeFor(t, {
+      ODESK_WORKSPACE: '/configured/desk-checkout',
+      ODESK_VOICE_STT_KEY_FILE: credentialFile,
+      ODESK_VOICE_AUDIO_DEVICE: device,
+    }, 'win32').then(result => result.runtime), { message: 'Microphone device missing' })
   }
 })
 

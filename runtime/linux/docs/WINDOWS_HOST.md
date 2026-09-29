@@ -63,7 +63,7 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 | 能力 | Windows 宿主状态 |
 |---|---|
 | Remote Control（Remote Link / Remote Bridge） | 不可用：Unix socket 链路未移植，Windows 上也没有对应服务 |
-| 语音 Agent（Remote MIC、转写、录音） | 不可用：链路与采集（ALSA）均未移植 |
+| 语音 Agent（MIC、转写、录音、回答） | **可用**：同名管道 `\\.\pipe\open-deskos-voice-agent` + 通道令牌认证，采集走 ffmpeg DirectShow（需本机 ffmpeg 与交互式计划任务）；服务未跑时如实报 unavailable |
 | Desk Link / Hosted Pi 远程控制 | **可用**：宿主通道监听 TCP（默认 8765，令牌来自 `ODK_DESK_LINK_TOKEN_FILE`），运行时通道绑定为命名管道 `\\.\pipe\open-deskos-desk-link`，由通道令牌认证 |
 | 外部应用控制端点 | **已创建**：命名管道 `\\.\pipe\open-deskos-user-app-control`，由通道令牌认证。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
 | P4 摄像头 tile | 如实报 unavailable：`v4l2-ctl` 与 `/dev/open-deskos-p4-camera` 在 Windows 上不存在，代码无需改动 |
@@ -134,6 +134,41 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 
 看到 `ack: {"v":1,...,"ok":true}` 就说明令牌被接受、协议被送达。
 
+## 在 Windows 上跑语音 Agent（Voice Agent）
+
+语音 Agent 是桌面运行时的常驻组件，所以 64 位 Windows 也跑**同一个** `integrations/voice-agent`，只有两处按宿主不同：采集走 ffmpeg 的 DirectShow（不是 ALSA），链路绑定成主机接缝里已经声明的 `\\.\pipe\open-deskos-voice-agent`。管道没有属主可认证，因此连接由 `%LOCALAPPDATA%\open-deskos\local-channel.token` 里的通道令牌把门，并且在语音协议读到任何字节之前就被消费（见 ADR-0025）。
+
+设备本地配置与 CM5 是同一份格式的两个文件：`%LOCALAPPDATA%\open-deskos\runtime.env`（与桌面共享的 `ODESK_WORKSPACE`）和 `voice-agent.env`（转写 provider、模型、`ALIYUNCS_TOKEN`）。云端转写声明成 provider 而不是从 URL 推断：
+
+```ini
+# %LOCALAPPDATA%\open-deskos\voice-agent.env
+ODESK_VOICE_STT_PROVIDER=aliyun
+ODESK_VOICE_STT_MODEL=qwen3-asr-flash
+# 未设置 URL 时用 DashScope 官方端点；指向 MaaS 网关就写它的完整多模态端点
+ODESK_VOICE_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
+ALIYUNCS_TOKEN=<本机自己的设备本地值>
+# Windows 上必须是 DirectShow 设备名本身（ffmpeg 会自己加 audio= 前缀），Unix 的 default 在这里没有意义
+ODESK_VOICE_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
+```
+
+```powershell
+# 只报缺什么，不安装也不注册
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -Report
+# 装 ffmpeg（仅在 -InstallFfmpeg 时）、注册交互式计划任务并启动
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -InstallFfmpeg -Start
+```
+
+服务跑在已登录的交互会话里：**session 0 没有音频端点**，所以它是带重启循环的交互式计划任务（`scripts\windows-voice.ps1`，对应 unit 的 `Restart=on-failure`），而不是 Windows 服务。日志在 `%LOCALAPPDATA%\open-deskos\voice.log`。注册必须从 SSH 或登录会话发起：计划任务自身不能再注册任务。
+
+验收（走发布出去的协议，不打印任何凭据）：
+
+```powershell
+node scripts\voice-acceptance.mjs            # toggle 一次，报告状态序列、transcript 和回答
+node scripts\voice-acceptance.mjs --status   # 只读当前状态
+```
+
+如实的边界：服务没跑时语音面报 unavailable（不是本地或模拟）；ffmpeg 缺失时报麦克风不可用；DirectShow 设备名写错或设备不存在时 ffmpeg 会在收到任何采样前退出，同样报“麦克风不可用”而不是伪造一段录音（ffmpeg 自己的 stderr 不进入状态，ffmpeg 在 PATH 上但设备名错才是这类报错的真正原因）；语音回答需要**本机自己的** Pi 模型认证（`~\.pi\agent\models.json`），桌面只读远程会话、不代替 Pi 登录。
+
 ## 状态与配置位置
 
 | 内容 | Windows 位置 |
@@ -149,6 +184,7 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 | 键 | 用途 | 来源 |
 |---|---|---|
 | `WEREAD_API_KEY` | 微信读书同步凭据 | 与参考宿主**同一把**（CM5 的 release 本地 `.env.local`）；掌机实测 `status live` 且桌面自己写出了缓存 |
+| `ALIYUNCS_TOKEN` | 语音 Agent 的云端转写凭据（`ODESK_VOICE_STT_PROVIDER=aliyun`） | 本机**自己的**设备本地值，写在 `%LOCALAPPDATA%\open-deskos\voice-agent.env`，不进 `.env.local`、不进命令行 |
 | `ODK_HYDRA_MQTT_URL` | 浇水 MQTT 端点 | 设备本地（NAS 地址，不含凭据） |
 | `ODK_WEATHER_LAT/LON/PLACE` | 固定位置天气 | 可选：**不设**时改用设备定位（掌机即如此，会自动跟随城市） |
 | `ODK_LOCATION_URL` | 定位端点覆盖 | 默认 `https://ipwho.is/`，无密钥 |
@@ -161,7 +197,8 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 | 内容 | 为何不放 |
 |---|---|
 | Futu 网关 RSA 私钥与交易口令 | 掌机还没有 Futu poller 实例；且交易口令按约定只由你自己处理 |
-| 语音 agent 配置与 DiDi key | 语音 agent（含 `personal-agent.json` 里的 `didi`）未移植到 Windows |
+| 语音 agent 的个人配置（`personal-agent.json`）与 DiDi key | personal profile 里的 `didi` 能力仍未移植到 Windows；`coding` profile（默认）不需要它，所以语音 Agent 本身可以跑 |
+| 语音 Agent 用的 Pi 模型凭据 | 语音 Agent 在**本机**跑自己的 Pi session，因此本机需要自己的模型认证（`~\.pi\agent\models.json` 指向 OpenAI 兼容服务）。这与“桌面不代替 Pi agent 登录任何账号”不矛盾：桌面只读远程会话，语音 Agent 是另一个常驻组件 |
 | 参考宿主的 Desk Link 令牌与控制凭据 | 每个 desk 拥有自己的令牌；掌机没有 hosted Pi 宿主，控制凭据在那儿无事可做（它是只上报的 desk） |
 | Pi agent 自己的 `auth.json` | 桌面只**读取**远程 Pi 会话，不代替 Pi agent 登录任何账号 |
 | MQTT 凭据 | 局域网 broker 不要求；需要时另说 |
@@ -228,6 +265,24 @@ Get-Process electron -ErrorAction SilentlyContinue | Stop-Process
 
 注意：**计划任务自身不能再注册任务**（Windows 用受限令牌阻止这种链式持久化，会报“拒绝访问”）。要用任务包装的脚本里不要调 `Register-ScheduledTask`/`schtasks /Create`；从你的登录会话（或 SSH）里注册。
 
+## 从另一台机器同步改动到这台设备（带哈希门控）
+
+开发机的分支才是权威：这台设备上跑的是它的开发副本，所以“同步”不是 `scp` 一次就完事，而是**每个文件都要等于分支上的那个文件**。这一段记录已经被这个门挡下过的两类事故：把包解在子目录里、留下一棵 `runtime\runtime\…` 树而 desk 仍在读旧文件；以及设备上留着上一个 commit 的混合状态。
+
+流程（仓库根为打包根）：
+
+1. 在开发机按**仓库根相对路径**打 tar：`tar czf change.tgz runtime/linux/src/…`（不要 `cd` 进子目录再打）。
+2. 同一条 `md5 -q` 逐文件生成期望清单 `change.hashes`，格式 `<md5> <仓库根相对路径>`，一行一个，覆盖 tar 里的**每一个**文件。
+3. `scp` 两个文件到 `C:\Users\<user>\`。
+4. 设备上一个纯 ASCII 的 `.ps1` 调部署脚本：按 `ODESK_WORKSPACE`（仓库根）解包、逐文件比 MD5、任一不符就报失败、最后重建样式并重启 desk。只有全部相等才输出 `DEPLOY_OK`。
+5. 从 SSH 注册并启动一个交互计划任务来跑它（见上节；**任务自身不能再注册任务**），用**本次运行独有的**结束标记去轮询日志，**再把日志 scp 回来读**。
+
+只在这一步实测过的三个陷阱：
+
+- **PowerShell 5.1 的 `Join-Path` 是拼接，不是解析**：传绝对路径会得到 `C:\Users\xC:\Users\x\file`。给部署脚本的必须是**相对名**。
+- **ssh 里穿过去的 PowerShell 会被 cmd 吃掉引号与管道符**（`|`、`&`、`>` 都不是你想的那个意思）。要复杂逻辑就写 `.ps1` 上传再执行，不要拼一行命令。
+- **轮询日志必须用本次独有的哨兵**：旧日志里也有 `DONE`，读到它会把上一次运行当成这一次。同理，一次运行失败后重跑时，任务可能仍卡在上一次实例里（`schtasks /query` 看状态、必要时 `/end`）。
+
 ## Tailscale（从网络外部到达这台设备）
 
 Desk 从网络外部被操作：SSH、传文件、远程作业。Tailscale 是那条路径，所以它是**部署的一部分**，而不是可选件（决策见 [ADR-0024](adr/0024-tailscale-is-provisioned-and-a-host-install-is-reused.md)）。
@@ -240,6 +295,29 @@ powershell -ExecutionPolicy Bypass -File scripts\provision-tailscale.ps1 -Report
 **复用规则（重点）**：宿主机已经装了 Tailscale（`C:\Program Files\Tailscale\tailscale.exe` 存在）就**直接用它自己的**——不覆盖、不代登录、不改它的配置。脚本只在命令缺失时才装，且可重复执行。
 
 安装需要管理员权限（提权会话，或你点一次 UAC），所以它不是外壳启动的一部分；**登录也永远不自动化、不存凭据**：`tailscale up` 会打印一个 URL 让你打开，或用托盘应用。Desk 只如实报状态：`connected` / `needs-login` / `stopped` / 其它，拿不到就说原因。
+
+### SSH 进入这台设备
+
+```sh
+# 开发机（Mac）上，通 Tailscale
+ssh -i ~/.ssh/id_ed25519 frads@100.82.50.70
+ssh -i ~/.ssh/id_ed25519 frads@desktop-qlqd17f.tail27726.ts.net   # MagicDNS 同义
+ssh -i ~/.ssh/id_ed25519 frads@192.168.50.225                    # 同一局域网
+```
+
+`~/.ssh/config` 里**没有**这台机器的条目：连接一律用上面这些显式参数调用 ✓。
+
+实测事实：
+
+- 登录用户 `frads` 是**管理员**，从 SSH 拿到的是 High integrity，所以注册/启动计划任务要在 SSH 里做（见上节）。
+- 授权文件是 `C:\ProgramData\ssh\administrators_authorized_keys`（管理员用户的标准位置），**用户目录下没有** `.ssh\authorized_keys`。改动它需要管理员权限。
+- 开发机那把钥匙的公钥指纹：`SHA256:RNMyWZCU294srI7D8Eu5mUeD5KVnttqVKHKxZV5E/+I`（换机器时用它比对）。
+- `sshd_config` 里 `PasswordAuthentication` 与 `PubkeyAuthentication` 都还是注释掉的**默认值**，即口令登录仍然开着；端口只在 tailnet 上可见，这是不用口令的唯一理由。要关：
+  ```powershell
+  Add-Content C:\ProgramData\ssh\sshd_config "`nPasswordAuthentication no"
+  Restart-Service sshd     # 会断开现有会话，用新会话验证公钥仍能进
+  ```
+- 权限的其它边界：不要从 SSH 会话里直接跑 Electron（Session 0 没有交互桌面 ✓），GUI 类工作一律走交互计划任务 ✓。
 
 ### 登录与可达性（实机得到的事实）
 

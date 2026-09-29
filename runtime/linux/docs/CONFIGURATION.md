@@ -27,6 +27,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | 变量 | 层 | 声明者 | 消费者 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 
+| `ALIYUNCS_TOKEN` | L3 设备本地（敏感） | voice-agent.env | integrations/voice-agent/src/transcribe.mjs | — | 阿里云（DashScope）转写 provider 的 Bearer 凭据；仅 `ODESK_VOICE_STT_PROVIDER=aliyun` 读取，OpenAI provider 仍用 `ODESK_VOICE_STT_KEY_FILE` |
 | `DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | 由图形会话导入用户 systemd 环境 |
 | `FUTU_HOST` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 10.10.0.195 | 富途网关地址 |
 | `FUTU_INTERVAL` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 60 | 轮询间隔秒 |
@@ -65,6 +66,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_VOICE_STT_LANGUAGE` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | zh | 两或三位小写语言码 |
 | `ODESK_VOICE_STT_MODEL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | whisper-1 | 设备本地端点忽略该值，无需设置 |
 | `ODESK_VOICE_STT_PROMPT` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 内置中文上下文 | 上限 1024 字符，空值禁用 |
+| `ODESK_VOICE_STT_PROVIDER` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | openai | 声明端点要的请求形状：`openai` 为 multipart 音频上传，`aliyun` 为 DashScope 多模态 JSON（音频内联为 data URI）；不从 URL 推断 |
 | `ODESK_VOICE_STT_URL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 云端 OpenAI 端点 | 显式端点；未设置时由 ODK_STT_PORT 推导 loopback 端点 |
 | `ODESK_WORKSPACE` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, runtime/linux/src/user-app-system.js, integrations/voice-agent/src/main.mjs | — | Shell 与 Voice Agent 共享的可写 checkout |
 | `ODK_ELECTRON_HEADERS_URL` | L2 开发机 | 构建者 | runtime/linux/scripts/build-native.mjs | https://electronjs.org/headers | Electron 头文件来源；构建机访问不了 GitHub 时指向镜像（`npm_config_disturl` 同样生效）。远程 Windows 掌机上构建原生进程读取器时必须设置 |
@@ -112,7 +114,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, runtime/linux/src/voice-agent-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/main.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
 | `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/main.mjs | ~/.local/state | 持久状态目录 |
 
 ## 天气定位与隐私取舍

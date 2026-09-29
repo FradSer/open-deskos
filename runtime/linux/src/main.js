@@ -227,7 +227,7 @@ async function main() {
       console.error(`remote bridge disabled: ${error.message}`)
     }
   }
-  const voiceAgent = createVoiceAgentClient({ socketPath: smokeMode ? null : resolveVoiceSocketPath() })
+  const voiceAgent = createVoiceAgentClient({ socketPath: smokeMode ? null : resolveVoiceSocketPath(process.env, shellHost), host: shellHost })
   const broadcastVoiceStatus = (status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-status', status)
   }

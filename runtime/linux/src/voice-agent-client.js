@@ -1,23 +1,45 @@
 const net = require('node:net')
-const path = require('node:path')
+const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
+const { resolveShellHost } = require('./platform')
 
 const STATES = new Set(['idle', 'recording', 'transcribing', 'thinking', 'error'])
 const MAX_STATUS_BYTES = 131072
 const MAX_MESSAGE_CHARACTERS = 16384
 const MAX_TRANSCRIPT_CHARACTERS = 4096
 
-function resolveVoiceSocketPath(env = process.env) {
-  const dir = env.XDG_RUNTIME_DIR
-  return dir && path.isAbsolute(dir) ? path.join(dir, 'open-deskos-voice', 'agent.sock') : null
+/**
+ * The voice link is a runtime channel, so its endpoint comes from the host's own
+ * naming: a socket in the runtime directory on a Unix host, and the `voice-agent`
+ * named pipe on a Windows host. A Unix host with no runtime directory still
+ * resolves nothing rather than guessing where a service would listen.
+ */
+function resolveVoiceSocketPath(env = process.env, host = null) {
+  const resolved = host || resolveShellHost({ env })
+  return resolved.endpoint('voice-agent')
 }
 
-function createVoiceAgentClient({ socketPath, reconnectDelayMs = 1000 } = {}) {
+function createVoiceAgentClient({ socketPath, env = process.env, platform = process.platform, host = null, token = '', reconnectDelayMs = 1000 } = {}) {
+  const resolvedHost = host || resolveShellHost({ env, platform })
+  // A named pipe carries no owner, so the channel token is what authenticates the
+  // peer there. A Unix socket is already gated by ownership, and a client written
+  // before the token existed keeps reaching the protocol with every byte it sent.
+  const needsToken = Boolean(socketPath) && requiresToken({ endpoint: socketPath, platform })
+  let tokenPromise = null
   let socket = null
   let connected = false
   let running = false
   let timer = null
   let status = { state: 'unavailable', message: 'Voice service unavailable' }
   const listeners = new Set()
+
+  // The token is read when the endpoint needs one, not when the client is
+  // created, because the Shell builds its client before anything is listening.
+  async function channelToken() {
+    if (token) return token
+    if (!needsToken) return ''
+    if (!tokenPromise) tokenPromise = readOrCreateToken({ stateDir: resolvedHost.stateDir })
+    return tokenPromise
+  }
 
   function publish(next) {
     status = next
@@ -38,7 +60,14 @@ function createVoiceAgentClient({ socketPath, reconnectDelayMs = 1000 } = {}) {
     active.setEncoding('utf8')
     active.once('connect', () => {
       connected = true
-      write('status')
+      channelToken().then((value) => {
+        // A connection that lost its socket while the token was being read must
+        // not write into it, and an unreadable token is not a reason to present
+        // an unauthenticated connection: the service drops those anyway.
+        if (socket !== active || !connected || active.destroyed) return
+        if (value) writeHandshake(active, value)
+        write('status')
+      }, () => active.destroy())
     })
     active.on('data', (chunk) => {
       remainder += chunk

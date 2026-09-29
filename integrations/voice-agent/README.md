@@ -4,9 +4,11 @@ For configurable personal Skills, private `MEMORY.md`, and confirmed DiDi ride-h
 
 Independent Linux user service: Remote MIC toggle → streamed ALSA WAV capture with local WebRTC endpointing → cloud speech-to-text → a persistent Pi SDK coding session. The Electron shell is a control/status client, not the agent host. No wake-word listener or text-to-speech is included.
 
+The same service is a system component on a 64-bit Windows Shell Host, where the two host-specific pieces are ffmpeg's DirectShow capture (in place of ALSA) and the `\\.\pipe\open-deskos-voice-agent` named pipe the host's own naming declares, authenticated by the shared local-channel token. See @runtime/linux/docs/WINDOWS_HOST.md.
+
 ## Install and configure
 
-Requires Node 22.19+, pnpm, `arecord` from `alsa-utils`, working default ALSA capture, and a user runtime directory. Install as the kiosk user, not root:
+Requires Node 22.19+, pnpm, `arecord` from `alsa-utils`, working default ALSA capture, and a user runtime directory (on a Windows host: Node 22.19+, pnpm, `ffmpeg` with DirectShow, and a logged-on session). Install as the kiosk user, not root:
 
 ```sh
 cd integrations/voice-agent
@@ -41,6 +43,26 @@ the local service. Example:
 ```sh
 ODESK_VOICE_STT_URL=http://127.0.0.1:17840/inference
 ```
+
+A desk with no local ASR model transcribes through a declared cloud provider
+instead. `ODESK_VOICE_STT_PROVIDER` states the request shape the endpoint
+expects — `openai` (the multipart audio upload above, the default) or `aliyun` —
+and nothing is inferred from the URL:
+
+```sh
+ODESK_VOICE_STT_PROVIDER=aliyun
+ODESK_VOICE_STT_MODEL=qwen3-asr-flash          # the provider's default model
+ODESK_VOICE_STT_URL=https://maas.example.com/api/v1/services/aigc/multimodal-generation/generation
+ALIYUNCS_TOKEN=<Alibaba Cloud bearer>
+```
+
+`aliyun` addresses DashScope's own multimodal-generation endpoint when no URL is
+set, sends the captured WAV inline as a `data:audio/wav;x-pcm-16bit;base64,…`
+URI, carries the transcription context as a `system` message, and reads its
+bearer from `ALIYUNCS_TOKEN` instead of a key file; the OpenAI provider keeps
+`ODESK_VOICE_STT_KEY_FILE`. Recording size, the 45-second timeout, the 64 KiB
+response bound, Simplified Chinese normalization and the safe failure vocabulary
+are the same on every provider.
 
 Provision `stt.key` separately with mode 0600. Authenticate Pi under the same service user using Pi's `/login` or its supported provider environment configuration; do not copy root's credentials. Optional `ODESK_VOICE_MODEL=provider/model-id` selects a model, otherwise Pi uses its configured default/available model. Pi configuration/auth follows `PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 

@@ -50,7 +50,32 @@ function analyzeFrames(vad, onLevel, endpoint) {
   }
 }
 
-function trackProcess(child) {
+/**
+ * @typedef {object} Capture
+ * @property {string} command Executable that owns the microphone.
+ * @property {string[]} args
+ * @property {import('node:child_process').IOType[]} stdio
+ * @property {string|null} quit Standard input that asks the process to flush and exit, or null when only a signal stops it.
+ */
+
+/** @param {string} platform @param {string} device @returns {Capture} */
+function captureCommand(platform, device) {
+  if (platform === 'win32') return {
+    command: 'ffmpeg',
+    args: ['-hide_banner', '-loglevel', 'error', '-f', 'dshow', '-i', `audio=${device}`, '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1'],
+    stdio: ['pipe', 'pipe', 'ignore'],
+    quit: 'q\n',
+  }
+  return {
+    command: 'arecord',
+    args: ['-q', '-D', device, '-t', 'raw', '-f', 'S16_LE', '-r', '16000', '-c', '1'],
+    stdio: ['ignore', 'pipe', 'ignore'],
+    quit: null,
+  }
+}
+
+/** @param {import('node:child_process').ChildProcess} child @param {string|null} quit */
+function trackProcess(child, quit) {
   let stopped = false
   let exited = false
   let timer
@@ -59,21 +84,32 @@ function trackProcess(child) {
     child.once('close', (code, signal) => {
       exited = true
       clearTimeout(timer)
-      if (code === 0 || (stopped && (signal === 'SIGINT' || code === 1))) resolve(undefined)
+      // A capture we asked to quit has stopped even when the process reports a non-zero exit;
+      // only an unexpected crash or a signal we never sent is a failed capture.
+      const requested = quit !== null || signal === 'SIGINT' || code === 1
+      if (code === 0 || (stopped && requested)) resolve(undefined)
       else reject(Error('Recording failed'))
     })
   })
   void done.catch(() => {})
-  return { done, stop() {
+  return { done, requested: () => stopped, stop() {
     if (stopped || exited) return
     stopped = true
-    child.kill('SIGINT')
+    if (quit === null) child.kill('SIGINT')
+    else {
+      // ffmpeg has no SIGINT delivery; the quit command flushes buffered audio and ends the process.
+      const stdin = child.stdin
+      if (stdin && !stdin.destroyed) {
+        stdin.on('error', () => {})
+        stdin.end(quit)
+      }
+    }
     timer = setTimeout(() => child.kill('SIGKILL'), 2000)
     timer.unref()
   } }
 }
 
-async function streamWav(child, path, vad, onLevel, process, createOutput) {
+async function streamWav(child, path, vad, onLevel, process, createOutput, platform = process.platform) {
   let bytes = 0
   const analyze = analyzeFrames(vad, onLevel, () => process.stop())
   const frames = new Transform({
@@ -91,7 +127,16 @@ async function streamWav(child, path, vad, onLevel, process, createOutput) {
     const output = createOutput(path, { mode: 0o600 })
     const streaming = pipeline(child.stdout, frames, output).catch(error => { process.stop(); throw error })
     const results = await Promise.allSettled([streaming, process.done])
-    for (const result of results) if (result.status === 'rejected') throw result.reason
+    const failure = results.find(result => result.status === 'rejected')
+    if (failure) {
+      // A Windows capture that ends before a single sample arrived never opened a
+      // device: a name this host does not know, a device that was unplugged, or an
+      // input nobody is allowed to open. That is an unavailable microphone, and
+      // saying "recording failed" would send the operator looking at the audio path
+      // instead of at the one declaration that names the microphone.
+      if (platform === 'win32' && bytes === 0 && !process.requested()) throw Error('Microphone unavailable')
+      throw failure.reason
+    }
     if (bytes % 2 !== 0) throw Error('Incomplete microphone sample')
     const file = await open(path, 'r+')
     try { await file.write(wavHeader(bytes), 0, 44, 0) } finally { await file.close() }
@@ -103,17 +148,18 @@ async function streamWav(child, path, vad, onLevel, process, createOutput) {
 }
 
 export async function record(directory, device = 'default', onLevel = _level => {}, {
-  spawnProcess = spawn, createVad = createWebRtcVad, createOutput = createWriteStream,
+  spawnProcess = spawn, createVad = createWebRtcVad, createOutput = createWriteStream, platform = process.platform,
 } = {}) {
   const temporary = await mkdtemp(join(directory, 'capture-'))
   const path = join(temporary, 'audio.wav')
+  const capture = captureCommand(platform, device)
   let vad
   let child
   let process
   try {
     vad = await createVad()
-    child = spawnProcess('arecord', ['-q', '-D', device, '-t', 'raw', '-f', 'S16_LE', '-r', '16000', '-c', '1'], { stdio: ['ignore', 'pipe', 'ignore'] })
-    process = trackProcess(child)
+    child = spawnProcess(capture.command, capture.args, { stdio: capture.stdio })
+    process = trackProcess(child, capture.quit)
     await new Promise((resolve, reject) => {
       child.once('spawn', () => resolve(undefined))
       child.once('error', reject)
@@ -125,7 +171,7 @@ export async function record(directory, device = 'default', onLevel = _level => 
     await rm(temporary, { recursive: true, force: true })
     throw Error('Microphone unavailable')
   }
-  const done = streamWav(child, path, vad, onLevel, process, createOutput)
+  const done = streamWav(child, path, vad, onLevel, process, createOutput, platform)
   void done.catch(() => {})
   const stop = async () => { process.stop(); await done; return path }
   let cleaning

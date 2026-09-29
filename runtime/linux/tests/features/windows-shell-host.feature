@@ -80,11 +80,18 @@ Feature: 64-bit Windows as a Shell Host
     And process inspection uses the managed fallback
     And every working directory the fallback cannot provide stays unknown
 
-  Scenario: Unported links report unavailable rather than local
-    Given a Windows Shell Host
-    When the desk reads the Remote Link, voice, and Desk Link surfaces
-    Then each surface reports unavailable
-    And none of them reports a local, simulated, or healthy link
+  Scenario: A link that is not ported reports unavailable rather than local
+    Given a Windows Shell Host without a Remote Link service
+    When the desk reads the Remote Link surface
+    Then it reports unavailable
+    And it does not report a local, simulated, or healthy link
+
+  Scenario: The voice link binds the endpoint the host names
+    Given a Windows Shell Host running the Voice Agent
+    When the Shell reaches the voice service
+    Then it reaches it at the voice-agent named pipe
+    And the channel token authenticates the connection before the voice protocol reads a byte
+    And a host with no voice service listening still reports voice as unavailable
 
   Scenario: The camera source reports unavailable without a device
     Given a Windows Shell Host without a V4L2 camera device
