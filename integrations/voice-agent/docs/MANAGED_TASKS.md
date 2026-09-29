@@ -133,3 +133,13 @@ Session prompts, responses and Pi session logs are private coding data persisted
 ## Acceptance
 
 Automated fixtures validate transport and lifecycle without using model credentials. Production acceptance additionally requires each configured host to list sessions, execute a harmless Chinese read-only request, return a truthful terminal outcome, survive helper disconnect, and cancel a long-running request. A voice acceptance separately verifies that a spoken reference reaches an existing session's own identity: list the target's sessions, read one session's history, prompt it as a further turn, steer a working turn, and end it with its slot released. Test one approved Widget/App change and its verification separately. A Console acceptance separately verifies that a session started from another machine can be attached to, steered mid-turn, cancelled without losing its identity, ended with its slot released, and read back by position after a reconnect. Do not describe templates or fixture tests as deployed two-host support.
+
+## A target that is one Pi session
+
+A target does not have to be a session host. A Pi session can publish its own endpoint — `pi-open-deskos` in the operator's package set does this from inside the session, with no process — and a desk's target then declares that session's control helper instead of a daemon. The protocol, the verbs and the refusals are the same, so the coordinator's `coding_*` tools are unchanged; what differs is what the target can answer:
+
+- `list`, `status`, `prompt` and `cancel` reach the session. `prompt` becomes a real user message in that session, so an idle session runs it as another turn and a working one is steered or followed up.
+- `start`, `launch`, `end` and `history` are refused with one reason: that process is one session, not a session host. Do not re-describe it as a missing target, and do not start a second session to work around it.
+- The endpoint exists only while the session runs, so a desk reads a target that is not there as an absent session, not as a broken desk. The machine's declaration is what makes one reachable at all.
+
+Because the endpoint is per session, a machine with several sessions is reached by naming the project: the declared control helper resolves which session a project belongs to. A spoken request that names a workspace therefore resolves to the session working in it.
