@@ -114,11 +114,18 @@ while ($true) {
     if (Import-DeviceEnv $file) { $loaded += (Split-Path -Leaf $file) }
   }
   Write-VoiceLog "starting voice agent from $entryPoint (env: $($loaded -join ', '); ffmpeg=$($ffmpeg.Source))"
+  # A service that writes a note to standard error is reporting, not failing, and
+  # PowerShell turns native stderr into an error record: with Stop it would take the
+  # loop down over one informational line.
+  $strict = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
   try {
     # The service's own output is a convenience, not a channel it depends on.
     & $NodeBin $entryPoint 2>&1 | ForEach-Object { Write-VoiceLog "voice: $_" }
   } catch {
     Write-VoiceLog "voice service failed to start: $($_.Exception.Message)"
+  } finally {
+    $ErrorActionPreference = $strict
   }
   Write-VoiceLog "voice service exited; restarting in ${RestartDelaySeconds}s (log failures: $script:logFailures)"
   Start-Sleep -Seconds $RestartDelaySeconds

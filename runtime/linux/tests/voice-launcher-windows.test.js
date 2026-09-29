@@ -72,3 +72,47 @@ test('acceptance speaks the published protocol and never prints a credential', (
   assert.doesNotMatch(acceptance, /console\.(log|error)\(\s*`[^`]*\$\{[^}]*token/)
   assert.doesNotMatch(acceptance, /console\.(log|error)\([^)]*[, (]\s*token\s*[),]/)
 })
+
+// The Desk Link Service is what another machine's Pi sessions arrive on. It is a
+// resident service like the voice one, and the same two hazards apply: a launcher
+// that reads a log note as a crash, and a provisioner that installs something the
+// operator did not ask for.
+const deskLink = fs.readFileSync(path.join(scripts, 'windows-desk-link.ps1'), 'utf8')
+const deskLinkProvisioner = fs.readFileSync(path.join(scripts, 'provision-desk-link.ps1'), 'utf8')
+
+test('the desk link scripts stay ASCII so a code-page host can parse them', () => {
+  for (const [name, source] of [['windows-desk-link.ps1', deskLink], ['provision-desk-link.ps1', deskLinkProvisioner]]) {
+    const offending = [...source].filter(character => character.codePointAt(0) > 127)
+    assert.deepEqual(offending, [], `${name} carries non-ASCII characters: ${offending.slice(0, 5).join('')}`)
+  }
+})
+
+test('a service that writes a note to stderr is reporting, not failing', () => {
+  // PowerShell turns native stderr into an error record, so with Stop an
+  // informational line — an empty control credential, for instance — would take
+  // the whole loop down and take the link with it.
+  for (const [name, source] of [['windows-desk-link.ps1', deskLink], ['windows-voice.ps1', launcher]]) {
+    assert.match(source, /\$ErrorActionPreference = 'Continue'/, `${name} must not treat a service note as a crash`)
+    assert.match(source, /2>&1 \| ForEach-Object/, `${name} must relay the service's own output`)
+  }
+})
+
+test('the desk link launcher supervises the same entry point and environment the desk reads', () => {
+  assert.match(deskLink, /scripts\\desk-link-service\.js/)
+  assert.match(deskLink, /\.env\.local/, 'the desk\'s own device configuration is the input')
+  assert.match(deskLink, /while \(\$true\)/, 'the restart loop is the unit\'s Restart=on-failure')
+  assert.doesNotMatch(deskLink, /Register-ScheduledTask|schtasks/, 'a task cannot register a task')
+})
+
+test('the desk link provisioner states what is missing and registers nothing by default', () => {
+  assert.match(deskLinkProvisioner, /\[switch\]\$Report/)
+  assert.match(deskLinkProvisioner, /\[switch\]\$Start/)
+  assert.match(deskLinkProvisioner, /-LogonType Interactive/, 'a resident service runs in the logged-on session')
+  assert.match(deskLinkProvisioner, /holding no value|holds no value/, 'an empty token file is stated, not skipped')
+  assert.match(deskLinkProvisioner, /accepts reporting only/, 'an empty control credential is a truthful state the operator hears once')
+  assert.match(deskLinkProvisioner, /Register-ScheduledTask -TaskName \$TaskName/)
+  assert.ok(
+    deskLinkProvisioner.indexOf('if ($Report) { exit 0 }') < deskLinkProvisioner.indexOf('Register-ScheduledTask -TaskName'),
+    'a report must not register the task',
+  )
+})

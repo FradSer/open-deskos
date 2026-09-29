@@ -183,6 +183,11 @@
     if (reason === 'no-reported-events') {
       return `Pi is running, but no events have arrived${sourceLabel ? ` from ${sourceLabel}` : ''} yet.`
     }
+    if (reason === 'session-log-missing' && sourceLabel) {
+      // A remote machine keeps its own logs; this host simply has none of them, and
+      // saying so names the machine instead of implying the session produced nothing.
+      return `No session log is available for this session on ${sourceLabel}, and it has reported none.`
+    }
     return EVENT_NOTE[reason] || 'Session events are unavailable.'
   }
 
@@ -1231,11 +1236,12 @@
           detail.paint(eventsState, sourceLabel())
           return
         }
-        if (remoteSource()) {
-          eventsState = { reason: 'source-unsupported', ok: false, events: [] }
-          detail.paint(eventsState, sourceLabel())
-          return
-        }
+        // A remote session's events are not this host's business to judge: a machine
+        // that reports over a Desk Link brings its own bounded event tail with it, and
+        // the main process already asks that link first and falls back to a local log.
+        // What this surface must not do is refuse a remote session before the source
+        // that actually holds its events has been asked. When nothing holds them, the
+        // reason the main process returns is what the detail states.
         try {
           const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
             ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid, hostedPi: session.hostedPi === true })

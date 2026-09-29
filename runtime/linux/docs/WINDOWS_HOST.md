@@ -169,6 +169,19 @@ node scripts\voice-acceptance.mjs --status   # 只读当前状态
 
 如实的边界：服务没跑时语音面报 unavailable（不是本地或模拟）；ffmpeg 缺失时报麦克风不可用；DirectShow 设备名写错或设备不存在时 ffmpeg 会在收到任何采样前退出，同样报“麦克风不可用”而不是伪造一段录音（ffmpeg 自己的 stderr 不进入状态，ffmpeg 在 PATH 上但设备名错才是这类报错的真正原因）；语音回答需要**本机自己的** Pi 模型认证（`~\.pi\agent\models.json`），桌面只读远程会话、不代替 Pi 登录。
 
+### Desk Link 服务在这台机器上
+
+上报别的机器上的 Pi session、并在桌面侧读到它们的事件，靠的是 Desk Link 服务；它和语音服务一样是常驻进程，在 Windows 上就是一个交互式计划任务（`OdkDeskLink`，带重启循环，脚本 `scripts\provision-desk-link.ps1` / `scripts\windows-desk-link.ps1`）。SSH 会话（session 0）不需要桌面，但常驻服务要在已登录的会话里，所以用计划任务而不是 Windows 服务。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.ps1 -Report   # 只报缺什么
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.ps1 -Start   # 注册并启动
+```
+
+- 它读 `runtime\linux\.env.local`（与桌面同一份），需要 `ODK_DESK_LINK_TOKEN_FILE`（上报凭据）指向一个非空文件。
+- `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` 为空不是故障，而是"本桌只接受上报"：别的机器无法指挥本桌托管的 Hosted Pi。`provision-voice.ps1 -Report` 同理会把这句讲出来。
+- 服务只把服务进程自己写的说明记进 `%LOCALAPPDATA%\open-deskos\desk-link.log`；PowerShell 会把原生死输出当成错误记录，所以启动器必须把这一层与真正的崩溃分开，否则一行说明就能把重启循环打断。
+
 ## 状态与配置位置
 
 | 内容 | Windows 位置 |

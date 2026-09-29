@@ -152,10 +152,16 @@ Feature: Pi Sessions live session list with a Remote session reader
     And added, removed, context, and hunk diff lines each carry their own colour
     And a plain bulleted list is not mistaken for a diff
 
-  Scenario: A source without session events says so instead of showing an empty stream
-    Given the configured source is Mac over SSH
+  Scenario: A remote session is asked where its events are
+    Given the configured source is Mac over SSH and that machine reports an event tail
     When a Session Detail renders
-    Then it states that session events are unavailable for that source
+    Then it shows the events the reporting machine sent
+    And this host does not refuse a remote session before asking the source that holds them
+
+  Scenario: A remote session nothing has reported says so, naming the machine
+    Given the configured source is Mac over SSH and that machine has reported no events
+    When a Session Detail renders
+    Then it states that no session log is available for that session on that machine, and that it reported none
     And it does not present an empty successful stream
 
   Scenario: A session without a readable log says so
