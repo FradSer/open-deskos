@@ -79,6 +79,15 @@ Configure SSH keys and known hosts for the CM5 voice service user separately. Re
 
 Restart the voice service after configuration. `coding_targets` describes configured destinations, not proven availability. Confirm each host with `coding_tasks_list` before starting a real task.
 
+## A desk that is not a Unix host
+
+The target list, the helper, the SSH batch authentication and `StrictHostKeyChecking` apply unchanged to a Windows Shell Host, and two host facts do not:
+
+- **A remote target's project is a path on that target.** A desk judges it by the target host's rules — an absolute POSIX path without a parent segment or a control character — and never normalizes it with its own. A Windows desk normalizing `/srv/app` with Windows rules rewrote the separators and refused every project it was asked to carry.
+- **The request is a file and the reply is the frame.** A Windows OpenSSH client does not relay a piped stdin to a remote command, so a pipe arrives as nothing; and its session stays open after the remote command has finished, so a client that waits for the helper to exit reports answered work as a timeout. The client therefore hands the one bounded request over as a file on the helper's standard input and completes on the correlated frame, then stops the process. Both halves are host-neutral: one request, one frame, one answer.
+
+A helper is still the target host's own fixed launcher: no prompt, project or shell command is ever appended to it, and nothing about a request reaches a process list on either host.
+
 ## Lifecycle, turns, slots, and endings
 
 Hosted Pi Lifecycle and Hosted Pi Turn Outcome are separate facts:

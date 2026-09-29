@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { isAbsolute, normalize } from 'node:path'
+import { closeSync, mkdtempSync, openSync, writeFileSync } from 'node:fs'
+import { readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join, normalize } from 'node:path'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cleanPath = value => typeof value === 'string' && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value)
@@ -40,9 +42,28 @@ export async function loadTargets(path = process.env.ODESK_TASK_TARGETS_FILE) {
 // root was a symlink, so the request now travels and the daemon's own refusal is the answer.
 const submittedProject = value => cleanPath(value) && normalize(value) === value
 
-function validateRequest(request) {
+/**
+ * A remote target's project is a path on that host, so it is judged as that host writes
+ * it: an absolute POSIX path without control characters or a parent segment.
+ * Normalizing one with this host's rules is what a Windows Shell Host did to every
+ * project it was asked to carry — it rewrote each separator and prefixed a root — so a
+ * desk that can reach a target over SSH refused work it was configured to do.
+ */
+const remoteProject = value => typeof value === 'string' && value.startsWith('/') && !/[\x00-\x1f\x7f]/.test(value) && !value.split('/').includes('..')
+
+/**
+ * Whether this desk can put a project on the wire for that target at all. A remote
+ * target is judged by its host's rules, a local one by this host's.
+ * @param {unknown} value
+ * @param {boolean} [remote]
+ */
+export function carriedProject(value, remote = false) {
+  return remote ? remoteProject(value) : submittedProject(value)
+}
+
+function validateRequest(request, remote = false) {
   if (!['start', 'launch', 'status', 'list', 'prompt', 'cancel', 'end', 'history'].includes(request.command)) throw Error('Invalid task command')
-  if (!submittedProject(request.project)) throw Error('Invalid project: send an absolute normalized project path without control characters')
+  if (!carriedProject(request.project, remote)) throw Error('Invalid project: send an absolute normalized project path without control characters')
   if (['start', 'launch', 'prompt'].includes(request.command) && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
   if (request.command === 'prompt' && request.streamingBehavior !== undefined && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('Invalid streaming behavior')
   if (['status', 'prompt', 'cancel', 'end', 'history'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
@@ -50,7 +71,8 @@ function validateRequest(request) {
 }
 
 export async function taskRequest(target, request, signal = undefined, timeout = 10_000) {
-  validateRequest(request)
+  // Whether the project is carried on this host or on the target's decides how it is judged.
+  validateRequest(request, target.host !== undefined)
   const command = taskCommand(target.executable, target.host)
   const mutationId = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command) ? (request.mutationId ?? randomUUID()) : undefined
   const payload = { version: 1, requestId: randomUUID(), command: request.command, project: request.project,
@@ -78,32 +100,61 @@ export async function taskRequest(target, request, signal = undefined, timeout =
   return response
 }
 
+/**
+ * The request goes to the helper as a file rather than a pipe, and the correlated
+ * frame is what completes the request rather than the helper's exit.
+ *
+ * Both halves are host facts. A Windows OpenSSH client does not relay a piped stdin
+ * to a remote command, so a pipe arrives as nothing at all; and its session stays
+ * open after the remote command has finished, so waiting for the process to exit
+ * would report a request that is already answered as a timeout. One file handoff
+ * and one answered frame work the same on every host.
+ */
 function exchange(command, input, signal, timeout, failure) {
   return new Promise((resolve, reject) => {
     let settled = false
     let output = ''
-    const child = spawn(command.executable, command.args, { stdio: ['pipe', 'pipe', 'ignore'], signal })
+    const directory = mkdtempSync(join(tmpdir(), 'open-deskos-task-'))
+    const file = join(directory, 'request.json')
+    writeFileSync(file, input, { mode: 0o600 })
+    const stdin = openSync(file, 'r')
+    // The request is a file on the child's standard input, so there is no pipe to
+    // write, drain, or fail; the abort signal is what still tears the process down.
+    const child = spawn(command.executable, command.args, { stdio: [stdin, 'pipe', 'pipe'], signal })
+    closeSync(stdin)
+    const discard = () => { void rm(directory, { recursive: true, force: true }).catch(() => {}) }
     const finish = (error, value = undefined) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      if (error) child.kill('SIGKILL')
+      // The answer is the fact, and the process that produced it is disposable:
+      // a helper that keeps running after its frame would otherwise leave a session
+      // per request, which is exactly what a Windows OpenSSH client does on its own.
+      child.kill('SIGKILL')
+      discard()
       error ? reject(error) : resolve(value)
     }
     const timer = setTimeout(() => finish(failure('Task control timeout')), timeout)
+    const respond = () => {
+      let response
+      try { response = JSON.parse(output.trim()) } catch { return }
+      if (response && response.version === 1 && typeof response.requestId === 'string' && typeof response.ok === 'boolean') {
+        finish(null, response)
+      }
+    }
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', chunk => {
       output += chunk
-      if (Buffer.byteLength(output) > 262_144) finish(failure('Task response too large'))
+      if (Buffer.byteLength(output) > 262_144) return finish(failure('Task response too large'))
+      respond()
     })
     child.on('error', () => finish(failure('Task control failed')))
-    child.stdin.on('error', () => finish(failure('Task control failed')))
     child.once('close', code => {
-      if (code !== 0) return finish(failure('Task control failed'))
-      let response
-      try { response = JSON.parse(output.trim()) } catch { return finish(failure('Invalid task response')) }
-      finish(null, response)
+      // A helper that answered has said what happened; one that exits without
+      // answering failed the exchange, which is the transport's own vocabulary.
+      respond()
+      if (settled) return
+      finish(code === 0 ? failure('Invalid task response') : failure('Task control failed'))
     })
-    child.stdin.end(input)
   })
 }

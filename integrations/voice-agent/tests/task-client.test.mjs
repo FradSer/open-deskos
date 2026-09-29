@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, symlink, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
+import { carriedProject, loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
 
 const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: ['/work'] }
 const TASK_ID = '12345678-1234-1234-1234-123456789abc'
@@ -136,4 +136,67 @@ test('a refused prompt reports the reason rather than an unknown outcome', async
       return true
     })
   }
+})
+
+// A remote target's project is a path on that host, so a desk that reaches the target
+// over SSH must judge it as that host writes it. Normalizing a remote POSIX path with
+// this host's rules is what a Windows Shell Host did: it rewrote every separator and
+// prefixed a root, so every project it was asked to carry came back as invalid.
+test('a remote target carries a project its own host would resolve', () => {
+  for (const project of ['/Users/fradser/Developer/open-deskos', '/work/中文', '/srv/deep/path']) {
+    assert.equal(carriedProject(project, true), true, `a remote project must travel: ${project}`)
+  }
+  // What the target host could not resolve is refused before the wire: a relative
+  // path, a path of another host's syntax, a parent segment, a control character.
+  for (const project of ['work/project', 'C:\\Users\\desk\\project', '/work/../else', '/work\n', '', 42]) {
+    assert.equal(carriedProject(project, true), false, `a remote project must be refused: ${project}`)
+  }
+})
+
+test('a local target keeps judging a project with this host path rules', () => {
+  assert.equal(carriedProject('/work/中文'), true)
+  assert.equal(carriedProject('/work/../else'), false)
+  assert.equal(carriedProject('work/project'), false)
+})
+
+// The control helper's answer is one correlated frame, so that frame is the fact —
+// not the helper's exit. This matters on a Windows Shell Host, whose OpenSSH client
+// neither relays a piped stdin nor closes the session once the remote command has
+// finished, so a client that waits for the process would time out on work that is
+// already done.
+test('a helper that answers and then lingers still completes the request', async t => {
+  const helper = await fixture(t, `
+const request = require('node:fs').readFileSync(0, 'utf8')
+process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, tasks: [{ id: 'a' }], truncated: false }) + '\\n')
+setInterval(() => {}, 1000)
+`)
+  const response = await taskRequest(helper, { command: 'list', project: '/work' }, undefined, 5000)
+  assert.equal(response.ok, true)
+  assert.deepEqual(response.tasks, [{ id: 'a' }])
+})
+
+test('a helper that exits non-zero after a valid response does not undo it', async t => {
+  const helper = await fixture(t, `
+const request = require('node:fs').readFileSync(0, 'utf8')
+process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, tasks: [], truncated: false }) + '\\n')
+process.exit(3)
+`)
+  const response = await taskRequest(helper, { command: 'list', project: '/work' }, undefined, 5000)
+  assert.equal(response.ok, true, 'a completed request is the reply, not the exit status')
+})
+
+test('a helper that answers nothing is still a timeout with the same reason', async t => {
+  const helper = await fixture(t, 'setInterval(() => {}, 1000)\n')
+  await assert.rejects(taskRequest(helper, { command: 'list', project: '/work' }, undefined, 500), /timeout/)
+})
+
+test('the request arrives whole, including a non-ASCII project', async t => {
+  const helper = await fixture(t, `
+const request = require('node:fs').readFileSync(0, 'utf8')
+process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, received: request, tasks: [], truncated: false }) + '\\n')
+`)
+  const response = await taskRequest(helper, { command: 'list', project: '/work/中文' }, undefined, 5000)
+  assert.equal(response.ok, true)
+  assert.equal(response.received.includes('/work/中文'), true, 'the request must arrive whole')
+  assert.equal(response.received.trimEnd().split('\n').length, 1, 'and as the one bounded frame it is')
 })
