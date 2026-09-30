@@ -1,15 +1,15 @@
 scopes:
-    - name: cm5
-      description: the Shell runtime on its CM5 and Windows hosts, including renderer, deployment, and tests in runtime/linux/.
+    - name: shell
+      description: Display Shell runtime on every Shell Host, including renderer, deployment, and tests in runtime/linux/; named for the Shell, not a host device, and does not cover integration tools.
     - name: hw
-      description: required hardware peripherals in peripherals/.
+      description: Peripheral hardware implementations and ESP32 drivers in peripherals/; does not cover Linux runtime.
     - name: link
-      description: Remote Bridge transport and systemd integration in integrations/remote-bridge/.
+      description: Bridge and communication protocols in integrations/; handles multi-transport arbitration and system connectivity.
     - name: vision
-      description: opt-in Face Agent experiment in experiments/vision/face-agent/.
-    - name: s31
-      description: CM5/S31 gateway experiment in experiments/cm5-s31-gateway/.
+      description: Opt-in face agent and vision pipelines in experiments/vision/; does not cover shell UI components.
     - name: p4
-      description: preserved P4+C6 firmware, simulator, and specifications in research/esp32-p4-c6-deskos/firmware/ and docs/.
+      description: Firmware research, simulator, and specifications in research/esp32-p4-c6-deskos/firmware/; does not cover production hardware.
     - name: mac
-      description: preserved Apple P4 companion in research/esp32-p4-c6-deskos/apple/.
+      description: Apple-specific companion agent and management console in research/esp32-p4-c6-deskos/apple/.
+    - name: tool
+      description: Utility scripts, codegen tools, and build infrastructure in tools/; does not cover core application logic.
