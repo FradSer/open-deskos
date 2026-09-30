@@ -76,7 +76,8 @@ test('Given personal tools When reading skills Then only indexed reviewed files 
   const skill = join(dir, 'SKILL.md');
   await writeFile(skill, 'reviewed');
   const tools = createPersonalTools({ memory: createMemoryStore(join(dir, 'MEMORY.json')), skillPaths: [skill] });
-  assert.deepEqual(tools.map((tool) => tool.name), ['memory_read', 'memory_update', 'memory_forget', 'skill_read']);
+  assert.deepEqual(tools.map((tool) => tool.name), ['desk_data', 'memory_read', 'memory_update', 'memory_forget', 'skill_read']);
+  assert.deepEqual(tools.filter((tool) => tool.name.startsWith('memory') || tool.name === 'skill_read').map((tool) => tool.name), ['memory_read', 'memory_update', 'memory_forget', 'skill_read']);
   const tool = tools.at(-1);
   assert.equal((await tool.execute('id', { index: 0 })).content[0].text, 'reviewed');
   await assert.rejects(tool.execute('id', { index: 1 }), /skill/i);

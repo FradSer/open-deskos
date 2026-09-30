@@ -70,6 +70,21 @@ export async function readOrCreateChannelToken({ file, fsModule = fs } = {}) {
   return token
 }
 
+/**
+ * Read the host's channel token without creating one.
+ *
+ * A listener owns the token file and creates it; a client that finds none is
+ * talking to a host where the service is not running. Creating one there would
+ * write a credential into whatever directory the process happens to be standing
+ * in, so a client returns nothing and lets its caller report that.
+ *
+ * @param {{ file?: string, fsModule?: typeof fs }} options
+ */
+export async function readChannelToken({ file, fsModule = fs } = {}) {
+  if (typeof file !== 'string' || file.length === 0) return null
+  return await read(file, fsModule)
+}
+
 /** The one frame a client sends before its own first command. */
 export function channelHandshake(token) {
   return `${JSON.stringify({ v: CHANNEL_VERSION, token })}\n`

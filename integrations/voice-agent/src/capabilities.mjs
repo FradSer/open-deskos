@@ -1,51 +1,12 @@
-import { createConnection } from 'node:net'
-import { randomUUID } from 'node:crypto'
-import { pathToFileURL } from 'node:url'
 import { isAbsolute } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Type } from 'typebox'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { createDeskDataTool } from './desk-data.mjs'
+import { userAppsRequest } from './apps-control.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 
 const APP_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-function appSocket() {
-  return process.env.ODESK_APPS_CONTROL_SOCKET || `${process.env.XDG_RUNTIME_DIR || '/run/user/' + process.getuid()}/open-deskos-apps/control.sock`
-}
-
-async function userAppsRequest(command, appId, signal, placement) {
-  const request = { v: 1, id: randomUUID(), command, ...(appId ? { appId } : {}), ...(placement ? { placement } : {}) }
-  const timeout = command === 'install' ? 30_000 : 10_000
-  return await new Promise((resolve, reject) => {
-    let settled = false
-    let output = ''
-    const socket = createConnection(appSocket())
-    const finish = (error, value) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', abort)
-      socket.destroy()
-      error ? reject(error) : resolve(value)
-    }
-    const abort = () => finish(Error('Application lifecycle request aborted'))
-    const timer = setTimeout(() => finish(Error('Application lifecycle request timed out')), timeout)
-    socket.setEncoding('utf8')
-    socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`))
-    socket.on('data', chunk => {
-      output += chunk
-      if (Buffer.byteLength(output) > 512 * 1024) return finish(Error('Application lifecycle response too large'))
-      const newline = output.indexOf('\n')
-      if (newline < 0) return
-      let response
-      try { response = JSON.parse(output.slice(0, newline)) } catch { return finish(Error('Invalid application lifecycle response')) }
-      if (response.v !== 1 || response.id !== request.id || typeof response.ok !== 'boolean') return finish(Error('Invalid application lifecycle response'))
-      if (!response.ok) return finish(Error(typeof response.error === 'string' ? response.error : 'Application lifecycle request rejected'))
-      finish(null, response)
-    })
-    socket.on('error', () => finish(Error('Application lifecycle control unavailable')))
-    if (signal?.aborted) return abort()
-    signal?.addEventListener('abort', abort, { once: true })
-  })
-}
 
 function userAppTool(command, description, needsAppId = true) {
   const placement = Type.Object({
@@ -64,7 +25,7 @@ function userAppTool(command, description, needsAppId = true) {
     }, { additionalProperties: false }) : Type.Object({}),
     execute: async (_id, params, signal) => {
       const id = needsAppId && 'id' in params && typeof params.id === 'string' ? params.id : undefined
-      return result(await userAppsRequest(command, id, signal, 'placement' in params ? params.placement : undefined))
+      return result(await userAppsRequest(command, { appId: id, signal, placement: 'placement' in params ? params.placement : undefined }))
     },
   })
 }
@@ -117,6 +78,7 @@ function codingTaskTool(command, targets) {
 
 function coreCapabilities(targets) {
   return [
+    createDeskDataTool(),
     userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
     userAppTool('desktop', 'List desktop page IDs, one-based page numbers, grid dimensions and occupied cells before selecting a widget location. Only grid pages accept widgets.', false),
     userAppTool('install', 'Verify and install a resident user application draft. Optional widget placement uses pageId and CSS grid line strings col/row (for example 2 / 4). Occupied locations are rejected, never overwritten.', true),
