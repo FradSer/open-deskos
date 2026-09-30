@@ -20,7 +20,7 @@
   "devDependencies": {
     "@tabler/icons": "^3.46.0",
     "@unocss/cli": "^66.8.1",
-    "electron": "^43.4.1",
+    "electron": "^43.5.0",
     "unocss": "^66.8.1"
   },
   "dependencies": {
