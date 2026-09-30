@@ -1,5 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const path = require('node:path')
 
 const loadPlan = async () => (await import('../scripts/build-native.mjs')).resolveNativeBuildPlan
 
@@ -31,7 +32,7 @@ test('a Windows x64 host builds the reader against Electron headers', async () =
     assert.ok(plan.args.includes(expected), `missing ${expected}`)
   }
   assert.ok(plan.args.some((arg) => arg.startsWith('--directory=') && arg.endsWith('odk-process')), 'builds this addon only')
-  assert.ok(plan.cwd.endsWith('runtime/linux') || plan.cwd.endsWith('runtime\\linux'), 'runs from the runtime root')
+  assert.equal(path.resolve(plan.cwd), path.resolve(__dirname, '..'), 'runs from the runtime root, in a checkout or a release')
 })
 
 test('a Windows build without a known Electron version is refused instead of guessed', async () => {

@@ -10,6 +10,10 @@ _Avoid_: calling Linux a migration slice, making a Mac companion mandatory, or a
 The machine and operating system that runs the Display Shell. The CM5 (Linux arm64) is the reference host and 64-bit Windows is a supported host; a host is neither a release nor a product variant, and its platform half may not change what the desk states as true.
 _Avoid_: platform fork, separate product, release variant, Windows build
 
+**Panel**:
+What the desk is when it owns the screen: its geometry is the display's rather than the work area's, and the user cannot move, resize, maximize or minimize it. It covers the host's taskbar pixels while it is the active window and hands the screen back when another window comes forward, because a Shell Host still runs other applications. The reference host's kiosk mode is the panel; on a Windows Shell Host the panel is geometry the desk checks and asks for again.
+_Avoid_: fullscreen as a state, maximized window, topmost panel, hidden taskbar
+
 **Required Peripheral Architecture**:
 The ESP32-S3 Remote Control and the ESP32-P4 SC2336 Camera Sub-device are intended parts of the CM5 system architecture, but each has an independent hardware acceptance gate. Their absence must not prevent a base CM5 shell from installing, booting, or offering direct touch and keyboard operation.
 _Avoid_: treating every MCU as merely optional, or making an unaccepted peripheral a boot/install dependency.
@@ -28,6 +32,18 @@ _Avoid_: adapting P4 serial commands as CM5 product interfaces.
 The single plugin model going forward. A Widget shares desktop grid pages with other tiles; an App owns an individual page. Any Widget or App may additionally provide a Service Plugin for its data needs. There is no separate User Application concept: previously installed user packages are read as Widgets/Apps under this unified model.
 _Avoid_: user application, built-in versus user plugin tiers, generated file equals installed app, arbitrary Shell plugin injection
 
+**Device Location**:
+Where a Shell Host is, resolved from the host itself when it is given no coordinates, so a desk the owner carries between places states the weather where it stands. The lookup is keyless and never runs on a host that was given a location; a failed lookup leaves the desk unconfigured rather than substituting a place.
+_Avoid_: cached fallback location, placeholder city, lookup on a configured host
+
+**Weather Instrument**:
+The desk's weather reading, supplied by a provider seam the Shell owns rather than by the tile. Its location is configuration and never a guess, and exactly four internal states reach the tile: live, stale, unavailable, and unconfigured. Each is stated as itself; a successful reading is simply weather.
+_Avoid_: widget fetching weather, provider timestamp shown, silent fallback location
+
+**Appearance Context**:
+What the Shell serves into every package document: the theme, resolved `--odk-*` tokens for every theme, the appearance's own fonts, and the measured tile radius. It grants appearance and no authority — a package still has no network, no Shell DOM, and no preload — so a package needs no theme code of its own.
+_Avoid_: package CSS framework, package theme switcher, style injection into package source
+
 **Retired: User Application**:
 The former term for locally authored Widgets/Apps is retired and must not appear in new features, manifests, or docs. The unified Widget/App terms above replace it. The entries below (Application Candidate, Installed Revision) are retained only as lifecycle vocabulary until renamed under the unified model.
 A locally authored, versioned Widget or interactive App installed and managed by Open DeskOS. It is distinct from trusted built-in Shell plugins and from its editable draft.
@@ -35,7 +51,7 @@ Widgets share desktop grid pages with built-in tiles; their persisted placement 
 _Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
 
 **Voice Agent**:
-The resident CM5 component that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of the desk runtime, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start and then list, read, continue, steer, cancel, and end under the Controllable Pi Session rules.
+The resident component of the desk runtime that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of every supported Shell Host, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start and then list, read, continue, steer, cancel, and end under the Controllable Pi Session rules.
 _Avoid_: optional add-on, experimental service, voice feature toggle
 
 **Application Candidate**:
@@ -45,6 +61,14 @@ _Avoid_: agent self-certified installation, mutable installed workspace
 **Installed Revision**:
 The application version selected by the system catalog for presentation, independently of the Shell runtime release. Closing its interface does not uninstall it; uninstalling does not delete its draft.
 _Avoid_: running process, active Shell release, draft version
+
+**Tailscale**:
+The overlay network a desk deployment provisions on the host that runs the shell, so the owner can reach that desk from outside it. A host that already has Tailscale keeps that installation; the desk never logs in, and the login stays the owner's act.
+_Avoid_: VPN built by the desk, automated login, stored tailnet credentials
+
+**Native Module**:
+The optional compiled process reader a Shell Host may load for process identity, start time, command line, and working directory. It is an optional dependency, never a boot requirement: a host that cannot build or load it degrades the Session Work Directory to unknown and still starts.
+_Avoid_: required build step, boot dependency, PowerShell replacement
 
 ## Service Plugins
 
@@ -56,12 +80,28 @@ _Avoid_: user application with network access, built-in shell source, background
 A named secret a Service Plugin declares, the shell collects through system-owned UI, the user authorizes once, and the vault injects into the service process by name at runtime. The value never enters the package, the release, or plugin-drawn interface.
 _Avoid_: secret in the package, plugin-drawn password field, operator-only provisioning file
 
+**Service Plugin Endpoint**:
+Where a Service Plugin connects: an absolute socket path, a Windows named pipe, or a `tcp://host:port` address. The endpoint alone decides the transport, so one plugin declaration serves every Shell Host, and a plugin may feed more than one desk.
+_Avoid_: socket path as the only form, per-host plugin declaration, co-resident plugin requirement
+
+**Desk Data**:
+The runtime data a Widget, App, Service Plugin, or installed package exposes through the plugin system. The Shell holds it once, and the tile that displays a reading and the Voice Agent that answers about it read the same one. A reading is what the reading says: the measurements a spoken answer needs, plainly named and carrying the time each was taken, never the source's whole payload. It is a reading, never an instruction.
+_Avoid_: tile snapshot, agent cache, exported data file, plugin-owned state the Shell fetches on demand
+
+**Desk Data Link**:
+The Runtime Channel the Voice Agent opens to read Desk Data, with the Shell listening and the agent requesting. It resolves its transport and authentication like every other link, and it changes nothing: reading Desk Data is not an action.
+_Avoid_: agent data feed, shell push channel, snapshot file the agent polls
+
+**Declared Data**:
+What an installed package states in its manifest `data` declaration: the Desk Data it may publish, delivered through the system-owned bridge and validated by the Shell before it joins the registry. Its values are untrusted content, never instructions or authorization.
+_Avoid_: package API, arbitrary renderer channel, agent-trusted field
+
 **Open DeskOS Workspace**:
 The shared writable project workspace used by Open DeskOS development and automation capabilities. Voice is one entry point into it, not its owner. It is distinct from the active runtime release and each agent's conversation history.
 _Avoid_: voice workspace, active release directory, Pi session storage
 
 **Voice Agent**:
-The CM5-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
+The desk-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
 _Avoid_: Pi Sessions widget, microphone on the Remote, a new monitored session per button click
 
 **Spoken Turn**:
@@ -75,6 +115,10 @@ _Avoid_: cancelled task, new recording, discarded conversation
 **Voice Transcript**:
 The recognized user speech sent to the resident Voice Agent for the current Spoken Turn. It remains distinct from the agent's response and is shown before execution output.
 _Avoid_: agent interpretation, generated reply, editable prompt history
+
+**Transcription Provider**:
+The declared contract a Spoken Turn's audio is recognized through: a model on the desk itself, or a cloud service the desk reaches with a credential it owns. It is stated configuration and is never guessed from an endpoint address, and every provider owes the same Voice Transcript — recognized speech, normalized, or an honest failure. Where the speech was recognized is not part of the Voice Transcript.
+_Avoid_: inferred provider, endpoint-sniffed API shape, provider-specific transcript
 
 **Streaming Reply**:
 The current request's public assistant text shown while execution is still in progress. It is not a completed result until the request finishes, and excludes internal thinking and raw tool records.
@@ -245,6 +289,14 @@ _Avoid_: minimum width hint, breakpoint, viewport media query
 **HID Navigation**:
 Remote Control navigation conveyed to the focused Display Shell as standard USB HID `ArrowLeft` and `ArrowRight` key presses. It remains available whenever USB is enumerated, including while CDC state feedback is synchronizing.
 _Avoid_: serial command, custom USB protocol, global keyboard interception
+
+**Channel Token**:
+The 32-byte value a runtime channel presents as the first line of a connection where the platform cannot authenticate a peer by ownership. One token per host, created on first use, readable only by the user the desk runs as, and compared in constant time.
+_Avoid_: password, API key, shared secret configured per plugin
+
+**Runtime Channel**:
+A local connection the Shell listens on for a companion surface or control: a Service Plugin socket, the Desk Link channel, or a user-application control endpoint. Its authentication comes from the platform: ownership where the platform has it, a Channel Token where it does not.
+_Avoid_: open port, unauthenticated socket, per-feature channel protocol
 
 **Gamepad**:
 The owner's Xbox-style controller attached to a Shell Host, a second surface for the same navigation intents the Remote Control produces, plus the page intent its shoulders carry. It is read by the Display Shell itself, so every Shell Host supports one without a host-specific module, and a pad the Shell cannot read is stated as connected but drives nothing.

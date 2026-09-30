@@ -79,3 +79,16 @@ test('a span the grid has no lines for is never kept', () => {
   const placeable = gridHasLines('2 / 4', 1) && honorsSpan({ columns: 2, rows: 2 }, 282, 282, 217)
   assert.equal(placeable, false)
 })
+
+test('a tall instrument keeps its slot on a panel a little shorter than the promised one', () => {
+  // Hydra declares 120px as the narrowest cell it draws its 1x2 slot in. A 1280x740
+  // window computes a 174px cell, which is 12px narrower than the 1280x776 panel the
+  // desk promises, and the slot is still whole there: a floor set to the panel's own
+  // minimum cell would have dropped it and collapsed the tile into a square.
+  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 174, 174, 120), true)
+  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 128, 128, 120), true)
+  // Below the floor the grid takes the single cell the layout model can always give,
+  // and the tile re-composes inside it.
+  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 110, 110, 120), false)
+  assert.equal(honorsSpan({ columns: 1, rows: 1 }, 110, 110, 120), true)
+})

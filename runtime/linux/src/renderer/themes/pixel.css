@@ -198,27 +198,29 @@
 }
 
 /* Zpix digits are narrower than Montserrat's; keep Hydra numerals filling the tile
-   without the denser content escaping the 1x1 cell. */
+   without the denser content escaping the cell it is drawn in. The ramp is
+   cell-driven like every other type in this tile, so it is the cell that decides
+   the size and never the width of the window. */
 [data-theme='pixel'] .hydra-env-value,
 [data-theme='pixel'] .hydra-plant-soil {
-  /* Zpix digits; sized to keep the narrow 1x1 cell inside its frame.
+  /* Zpix digits; sized to keep the narrow cell inside its frame.
      Bitmap faces keep zero tracking so glyphs stay on the pixel grid. */
-  font-size: clamp(14px, 10cqi, 28px);
+  font-size: clamp(14px, 20cqi, 28px);
   line-height: 1;
   letter-spacing: normal;
 }
 
 [data-theme='pixel'] .hydra-title {
-  font-size: clamp(12px, 8cqi, 24px);
+  font-size: clamp(12px, 11cqi, 24px);
 }
 
 [data-theme='pixel'] .hydra-badge {
-  font-size: clamp(12px, 5.5cqi, 18px);
+  font-size: clamp(12px, 7cqi, 18px);
 }
 
 [data-theme='pixel'] .hydra-env-unit,
 [data-theme='pixel'] .hydra-plant-name {
-  font-size: clamp(12px, 7cqi, 28px);
+  font-size: clamp(12px, 8cqi, 18px);
 }
 
 [data-theme='pixel'] .hydra-env {
@@ -243,28 +245,6 @@
 
 [data-theme='pixel'] .hydra-body {
   gap: 2cqi;
-}
-
-/* Widescreen: the Hydra tile spans two grid rows, so the Zpix numerals scale up. */
-@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  [data-theme='pixel'] .hydra-env-value,
-  [data-theme='pixel'] .hydra-plant-soil {
-    font-size: clamp(14px, 20cqi, 28px);
-  }
-
-  [data-theme='pixel'] .hydra-plant-name,
-  [data-theme='pixel'] .hydra-env-unit {
-    font-size: clamp(12px, 8cqi, 18px);
-  }
-
-
-  [data-theme='pixel'] .hydra-title {
-    font-size: clamp(12px, 11cqi, 24px);
-  }
-
-  [data-theme='pixel'] .hydra-badge {
-    font-size: clamp(12px, 7cqi, 18px);
-  }
 }
 
 /* WeRead cover uses a pixel-only treatment; instrument and other themes keep the original image. */

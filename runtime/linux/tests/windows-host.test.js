@@ -6,6 +6,15 @@ const path = require('node:path')
 const RUNTIME = path.resolve(__dirname, '..')
 const REPO = path.resolve(RUNTIME, '..', '..')
 
+// A release flattens the runtime to the release root, so there is no repository
+// above it. A document that lives only in the repository is therefore absent from a
+// release by design, and an assertion about one states that rather than failing on
+// an artifact that was never meant to carry it.
+const inReleaseLayout = fs.existsSync(path.join(RUNTIME, 'integrations'))
+const repositoryOnly = inReleaseLayout
+  ? { skip: 'a repository document is not part of a release, so this runs in a checkout only' }
+  : {}
+
 const read = (...parts) => fs.readFileSync(path.join(...parts), 'utf8')
 
 test('the Windows Shell Host has executable scenarios', () => {
@@ -22,6 +31,11 @@ test('the Windows Shell Host has executable scenarios', () => {
   assert.match(feature, /Then it reports unavailable/)
   assert.match(feature, /the voice-agent named pipe/)
   assert.match(feature, /still reports voice as unavailable/)
+  // The panel is the desk's whole surface on this host: it covers the display
+  // and the user cannot move it. Both halves are scenarios, not only code.
+  assert.match(feature, /the panel geometry equals the display bounds/)
+  assert.match(feature, /it is asked again while the window is short of the display/)
+  assert.match(feature, /it is not movable, resizable, maximizable or minimizable/)
 })
 
 test('the Windows runbook states which surfaces are ported and which are not', () => {
@@ -49,6 +63,20 @@ test('the Windows runbook states which surfaces are ported and which are not', (
 
   assert.match(runbook, /工作目录可能未知/)
   assert.match(runbook, /pnpm run build:native/)
+
+  // The panel covers the display rather than the work area, and it is not a
+  // window the user can drag; both are stated with the measurement that
+  // established them, so a reader can tell a rule from a guess.
+  assert.match(runbook, /面板铺满的是屏幕，不是工作区/)
+  assert.match(runbook, /WS_THICKFRAME/)
+  assert.match(runbook, /不置顶/)
+})
+
+test('the panel decision is recorded where a reader looks for it', () => {
+  const adr = read(RUNTIME, 'docs/adr/0034-a-panel-covers-the-display-and-the-user-does-not-move-it.md')
+  assert.match(adr, /fullscreen is geometry/)
+  assert.match(adr, /not topmost/)
+  assert.match(adr, /WS_THICKFRAME/)
 })
 
 test('the Windows entry points do not require bash', () => {
@@ -67,7 +95,7 @@ test('the Windows entry points do not require bash', () => {
   assert.match(smoke, /layout-harness\.mjs/)
 })
 
-test('the supported-host decision is recorded where a reader looks for it', () => {
+test('the supported-host decision is recorded where a reader looks for it', repositoryOnly, () => {
   const adr = read(RUNTIME, 'docs/adr/0023-windows-x64-is-a-supported-shell-host.md')
   assert.match(adr, /64-bit Windows is a supported host/)
   assert.match(adr, /Windows on ARM is not/)

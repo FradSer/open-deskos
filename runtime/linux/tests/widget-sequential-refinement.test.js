@@ -106,7 +106,7 @@ test('Hydra clears live plant visuals after offline and missing snapshots', asyn
   function node(key) {
     if (!nodes.has(key)) {
       const classes = new Set()
-      nodes.set(key, { textContent: '', className: '', style: {}, classes,
+      nodes.set(key, { textContent: '', className: '', style: {}, classes, dataset: {},
         querySelector(selector) { return node(key + ' ' + selector) },
         classList: {
           add(value) { classes.add(value) },
@@ -121,8 +121,11 @@ test('Hydra clears live plant visuals after offline and missing snapshots', asyn
     odkPlugins: { register(value) { plugin = value } },
     odkPlatform: { async getHydraStatus() { return snapshot } },
   })
-  plugin.mount({ querySelector: node }, { onTick(callback) { tick = callback } })
+  // The tile composes from the cell it is drawn in, so the host it is mounted into
+  // has to answer with one: a 186x400 cell is the handheld's tall slot.
+  plugin.mount({ querySelector: node, getBoundingClientRect: () => ({ width: 186, height: 400 }) }, { onTick(callback) { tick = callback } })
   await new Promise(resolve => setImmediate(resolve))
+  assert.equal(node('.hydra-body').dataset.shape, 'tall')
   assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.width, '62%')
   snapshot.nodes[0].online = false
   tick()

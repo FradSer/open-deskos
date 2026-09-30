@@ -2,6 +2,32 @@
   'use strict'
 
   const REFRESH_EVERY_TICKS = 5
+  const ENV_KEYS = ['temp', 'humidity', 'pressure', 'lux']
+  // The plants carry their identity in the label as well as the reading, so a
+  // shorter shape states the short form of the same label rather than dropping it.
+  const PLANT_LABELS = ['Plant 1', 'Plant 2']
+  const PLANT_LABELS_SHORT = ['P1', 'P2']
+
+  // Hydra's full composition is a one-column by two-row slot: four stacked
+  // environment rows above two plant rows. Measured in this tile, the slot is
+  // whole from a 120px cell, so that is the Minimum Readable Cell it declares.
+  // A previous declaration used the layout model's minimum cell, which is a
+  // property of one panel rather than of this tile: on a window a few pixels
+  // shorter than that panel the grid refused the 1x2 span, the tile fell back to
+  // a single square, and the four environment rows were drawn straight through
+  // the two plant rows.
+  const MIN_CELL = 120
+  // Below the tall slot the tile re-composes in the cell it was given rather than
+  // letting the cell cut it. Each threshold is the cell this tile was measured
+  // drawing that shape in whole, across all three themes; a cell below the last
+  // one states that it cannot show the readings rather than showing a broken
+  // fragment of them.
+  const TALL_MIN_HEIGHT = 240
+  const TALL_ASPECT = 1.4
+  const COMPACT_MIN_HEIGHT = 180
+  const COMPACT_MIN_CELL = 130
+  const PLANTS_MIN_CELL = 116
+  const PLANTS_MIN_HEIGHT = 120
 
   function formatNumber(value, digits = 1) {
     return value.toFixed(digits)
@@ -31,6 +57,17 @@
     refs[key].unit.textContent = unit
   }
 
+  // The shape is decided from the cell the tile was given, never from the window:
+  // a 348x724 slot, a 186x400 slot and a 174x348 slot are all the tall shape, and
+  // a square cell is not, whatever panel the window was.
+  function shapeForCell(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 'tall'
+    if (width >= MIN_CELL && height >= TALL_MIN_HEIGHT && height >= width * TALL_ASPECT) return 'tall'
+    if (width >= COMPACT_MIN_CELL && height >= COMPACT_MIN_HEIGHT) return 'compact'
+    if (width >= PLANTS_MIN_CELL && height >= PLANTS_MIN_HEIGHT) return 'plants'
+    return 'small'
+  }
+
   function renderPlant(refs, index, entry) {
     const plant = refs.plants[index]
     if (!entry) {
@@ -54,9 +91,7 @@
 
   root.odkPlugins.register({
     id: 'odk.tile.hydra',
-    // Reads at the smallest cell the desk promises, so a span above one cell
-    // is only refused below that.
-    manifest: { schemaVersion: 1, minCell: 186 },
+    manifest: { schemaVersion: 1, minCell: MIN_CELL },
     kind: 'tile',
     app: 'Hydra plants',
     state: 'Unconfigured',
@@ -95,12 +130,13 @@
               <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
             </div>
           </div>
+          <p class="hydra-hint" hidden></p>
         </div>`
 
       const body = el.querySelector('.hydra-body')
       const q = (selector) => el.querySelector(selector)
       const badge = q('#hydra-badge')
-      const envCells = ['temp', 'humidity', 'pressure', 'lux'].reduce((acc, key) => {
+      const envCells = ENV_KEYS.reduce((acc, key) => {
         acc[key] = {
           value: q(`#hydra-env-${key} .hydra-env-value`),
           unit: q(`#hydra-env-${key} .hydra-env-unit`),
@@ -108,13 +144,47 @@
         return acc
       }, {})
       const plantRoots = [q('#hydra-plant-1'), q('#hydra-plant-2')]
+      const hint = q('.hydra-hint')
       const refs = {
         ...envCells,
         plants: plantRoots.map((rootEl) => ({
           root: rootEl,
+          name: rootEl.querySelector('.hydra-plant-name'),
           soil: rootEl.querySelector('.hydra-plant-soil'),
           meterFill: rootEl.querySelector('.hydra-meter-fill'),
         })),
+      }
+
+      // A glanceable tile re-composes rather than letting the cell cut it. The
+      // shape is read from the tile's own box, so the same tile is the tall slot
+      // on the reference panel and on a handheld and is something smaller in a
+      // square cell, with no host named anywhere in it.
+      const fitToCell = () => {
+        const box = el.getBoundingClientRect()
+        const shape = shapeForCell(box.width, box.height)
+        if (body.dataset.shape === shape) return
+        body.dataset.shape = shape
+        // A cell too small for the tile's own state line says so rather than
+        // drawing a fragment of it. A shape that leaves the environment out states
+        // the count, because a shortened reading that looks like the whole reading
+        // is the one way a glanceable instrument can be quietly wrong. The
+        // environment is the reading that goes first: the plants are what the tile
+        // is for.
+        const note = shape === 'small' ? 'Too small' : shape === 'plants' ? `Not shown · ${ENV_KEYS.length}` : ''
+        hint.textContent = note
+        hint.hidden = !note
+        const labels = shape === 'plants' ? PLANT_LABELS_SHORT : PLANT_LABELS
+        refs.plants.forEach((plant, index) => {
+          if (plant.name.textContent === labels[index]) return
+          plant.name.textContent = labels[index]
+          plant.root.title = PLANT_LABELS[index]
+        })
+      }
+      fitToCell()
+      if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(fitToCell)
+        observer.observe(el)
+        ctx.trackCleanup?.(() => observer.disconnect())
       }
 
       function render(snapshot) {

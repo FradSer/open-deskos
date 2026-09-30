@@ -65,7 +65,8 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 | Remote Control（Remote Link / Remote Bridge） | 不可用：Unix socket 链路未移植，Windows 上也没有对应服务 |
 | 语音 Agent（MIC、转写、录音、回答） | **可用**：同名管道 `\\.\pipe\open-deskos-voice-agent` + 通道令牌认证，采集走 ffmpeg DirectShow（需本机 ffmpeg 与交互式计划任务）；服务未跑时如实报 unavailable |
 | Desk Link / Hosted Pi 远程控制 | **可用**：宿主通道监听 TCP（默认 8765，令牌来自 `ODK_DESK_LINK_TOKEN_FILE`），运行时通道绑定为命名管道 `\\.\pipe\open-deskos-desk-link`，由通道令牌认证 |
-| 外部应用控制端点 | **已创建**：命名管道 `\\.\pipe\open-deskos-user-app-control`，由通道令牌认证。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
+| Desk Data Link（`desk_data` 读桌面运行数据） | **两端都可用**：Shell 侧监听命名管道 `\\.\pipe\open-deskos-desk-data`（通道令牌认证），语音 Agent 侧按主机解析同一端点名并出示该主机令牌，因此语音/文字都能读到 Widget 的实时读数（2026-09-30 实机验证） |
+| 外部应用控制端点 | **两端都可用**：Shell 侧创建命名管道 `\\.\pipe\open-deskos-user-app-control`（通道令牌认证），语音 Agent 侧按主机解析同一端点名并出示该主机令牌，因此 `user_apps_*` 工具在这台机器上真的能用（2026-09-30 实机验证）。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
 | P4 摄像头 tile | 如实报 unavailable：`v4l2-ctl` 与 `/dev/open-deskos-p4-camera` 在 Windows 上不存在，代码无需改动 |
 | Futu 监控（Service Plugin） | **可用**：桌面监听 `ODK_FUTU_ENDPOINT`，可为 socket 路径、命名管道或 `tcp://host:port`。插件在别的机器上时用网络形式，并必须出示本机的通道令牌（见下） |
 | CM5 硬件验收（Mali GPU、HDMI 时序、触摸） | 不适用 |
@@ -135,6 +136,8 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 看到 `ack: {"v":1,...,"ok":true}` 就说明令牌被接受、协议被送达。
 
 ## 在 Windows 上跑语音 Agent（Voice Agent）
+
+语音 Agent 通过两条独立的运行时通道接触 Shell：`desk-data`（读桌面 Widget 的运行数据）与 `user-app-control`（应用生命周期）。两条都按主机解析端点——Windows 是 `\\.\pipe\open-deskos-<link>` 命名管道并出示 `%LOCALAPPDATA%\open-deskos\local-channel.token`，Unix 是运行时目录里的 socket——所以 Windows 上不需要任何 `ODESK_*_SOCKET` 覆盖。覆盖仍然保留，仅用于测试。
 
 语音 Agent 是桌面运行时的常驻组件，所以 64 位 Windows 也跑**同一个** `integrations/voice-agent`，只有两处按宿主不同：采集走 ffmpeg 的 DirectShow（不是 ALSA），链路绑定成主机接缝里已经声明的 `\\.\pipe\open-deskos-voice-agent`。管道没有属主可认证，因此连接由 `%LOCALAPPDATA%\open-deskos\local-channel.token` 里的通道令牌把门，并且在语音协议读到任何字节之前就被消费（见 ADR-0025）。
 
@@ -227,6 +230,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.
 | 桌面在该设备上按自身尺寸开出窗口 | `node tests/smoke.mjs` → `{"ok":true,"width":1280,"height":776}` |
 | 验收与密度门禁均通过 | `ALL SMOKE CHECKS PASSED`；`WIDGET_DENSITY_RESULT {"ok":true,...,"violations":0}` @1280×776 |
 | 完整套件通过 | 457 测试 / 436 通过 / **0 失败** / 21 跳过（跳过项在 `tests/not-ported.js` 里逐条说明） |
+| 面板几何与“不能拖动”（2026-09-30 复测） | 修之前的运行实例：窗口 `0,0 1280x728`（显示 1280x800、工作区 1280x776），截图里底部露出桌面壁纸与任务栏；`SendInput` 手拖后窗口几何变成 `0,89 1280x639` |
+| 修之前是竞态而不是固定状态 | 同一份旧 `main.js` 在 00:45 重启后自己走到了 `0,0 1280x800`，而 11:14 开机那次停在 1280x728；所以“能不能铺满”由开机时序决定，不是配置问题 |
+| 修之后的实验窗口（四个不可用选项全 false） | `0,0 1280x800`，手拖后仍是 `0,0 1280x800`，`Win+Down` 无变化，`style=0x14000000`（无 `WS_THICKFRAME`、无 `WS_MAXIMIZEBOX`、无 `WS_MINIMIZEBOX`） |
+| 修之后的**已发布模块**在真机（`runtime/linux/src/panel.js`） | 带哈希门控只把这一个文件送到设备（未重启 desk），实验窗口用它的 `resolvePanelBounds` + `KIOSK_WINDOW_LOCK` + `enterPanel`：`created 1280x776` → `after panel 1280x800`，`covers display: true`，手拖与 `Win+Down` 均无变化，截图 1280x800 全屏无任务栏 |
+| Windows 的 fullscreen 不是状态而是几何 | 实验里 `setFullScreen(true)` 之后 `isFullScreen()` 始终为 `false`，而 `getBounds()` 变成 `0,0 1280x800`；`setBounds(显示边界)` 单独也能到达同一几何 |
+| 新建的 frameless 窗口会被压到工作区 | 以显示边界 1280x800 建窗，`getBounds()` 立刻就是 `0,0 1280x776`（当时的工作区），所以"建得比工作区大"并不能避开最大化 |
 | 加入运行时通道与位置定位后仍然通过 | 499 测试 / 472 通过 / **0 失败** / 27 跳过（其中若干条只在 Windows 上执行，所以在 macOS 上看不到它们） |
 | 命名管道 + 令牌握手在真机上验证 | `createDeskLinkClient()` 在设备上打印 `endpoint \\.\pipe\open-deskos-desk-link`，`snapshot ok=true`，即握手被消费、desk-link 协议被送达 |
 | Desk Link 服务常驻并把端点绑成命名管道 | 服务日志：`desk link service listening on 100.82.50.70:8765`；`Get-NetTCPConnection -LocalPort 8765` 有 Listen；`Test-Path '\\.\pipe\open-deskos-desk-link'` 为 `True`；Mac 侧 `nc -z` 该端口可达 |
@@ -267,7 +276,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\windows-kiosk.ps1
 
 **它刻意不隐藏任务栏。** 这是一台会跑其它应用的机器：Desk 只在它是活动窗口时铺满屏幕（Windows 自己会把任务栏让开），切到别的窗口时那个窗口与任务栏就回来了。隐藏 shell 会让其它应用变得不可达。因此 Desk 也**不置顶**。只有在参考宿主上（没有其它窗口可切）才会进 kiosk 模式。
 
-kiosk 窗口本身在 `src/main.js` 里**先 show、再 fullscreen**：Windows 上对尚未 show 的窗口请求 fullscreen 会让它留在不可见状态，而 Windows 的 kiosk 模式会按工作区尺寸建窗并锁死几何（这正是面板底部那条桌面缝的来源）。顺序与每宿主的取法由 `tests/kiosk-window-order.test.js` 钉住。
+**面板铺满的是屏幕，不是工作区。** Windows 上 Electron 的 fullscreen 对无边框窗口不是一个状态：实测 `setFullScreen(true)` 之后 `isFullScreen()` 仍然是 `false`，只是把窗口挪到了屏幕尺寸。所以桌面上"全屏"就是几何。几何在窗口 show 之后才施加，并且**被检查、被重试**：
+
+- 登录那一刻，fullscreen 请求可能被整个丢掉（实测：重启后的面板停在 1280x728，屏幕 1280x800、工作区 1280x776，底下就是那条桌面缝）；
+- 因此面板每次都同时要两样：fullscreen 请求，和“把窗口放到显示边界”的 `setBounds`；
+- 窗口没盖住显示边界就继续要（每 400 ms 一次，最多 8 次），盖住就停。
+
+重试本身由 `tests/kiosk-panel.test.js` 行为级覆盖，顺序与“不置顶、不隐藏任务栏”由 `tests/kiosk-window-order.test.js` 钉住；实现都在 `src/panel.js`，`src/main.js` 只负责接线。
+
+**面板不是用户能拖动的窗口。** kiosk 窗口建出来时就声明不可移动、不可缩放、不可最大化、不可最小化：实测这样一来宿主窗口不带 `WS_THICKFRAME` 和两个 box 按钮，手拖不动，`Win+Down` 也不再把它最小化（不声明时 `Win+Down` 会把它最小化到 -32000）。
+
+在真机上核验这两点（都要交互会话，见下节“在交互会话里跑 GUI 检查”）：
+
+```powershell
+# 面板几何：应当是 0,0 1280x800（= 显示边界），不是工作区高度
+Add-Type -Namespace Odk -Name W -MemberDefinition @'
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct RECT { public int L, T, R, B; }
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool GetWindowRect(IntPtr h, out RECT r);
+'@
+$h = (Get-Process electron | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1).MainWindowHandle
+$r = New-Object Odk.W+RECT; [void][Odk.W]::GetWindowRect($h, [ref]$r)
+"panel {0},{1} {2}x{3}" -f $r.L, $r.T, ($r.R - $r.L), ($r.B - $r.T)
+```
+
+拖动与最小化那一半用 `SendInput` 从同一个交互会话里试，截图用 `Graphics.CopyFromScreen` 取全屏 PNG 再 scp 回来读。
 
 停止面板：
 

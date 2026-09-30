@@ -177,7 +177,10 @@ function validateRuntimeComposition(releasePath) {
     .map((name) => fs.readFileSync(path.join(pluginDirectory, name), 'utf8'))
   if (pluginSources.length === 0) return { ok: false, reason: 'renderer plugins are missing' }
   for (const source of pluginSources) {
-    if (!/manifest:\s*\{\s*schemaVersion:\s*1\s*\}/.test(source)) {
+    // A plugin may declare more beside the schema version — the built-in tiles
+    // state the smallest cell they read at — so the gate looks for a manifest that
+    // *declares* the version, not for one whose only key happens to be the version.
+    if (!/manifest:\s*\{\s*schemaVersion:\s*1\b/.test(source)) {
       return { ok: false, reason: 'renderer plugin manifest is missing or unsupported' }
     }
   }

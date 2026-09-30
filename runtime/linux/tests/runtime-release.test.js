@@ -108,7 +108,7 @@ test('activates a preflighted staged release and keeps the previous release as r
       lastUpdate: { ok: true, release: 'candidate', reason: null },
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -131,7 +131,7 @@ test('does not activate a candidate that fails preflight', () => {
     assert.equal(currentRelease(runtime), 'stable')
     assert.equal(fs.existsSync(runtime.rollbackLink), false)
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -156,7 +156,7 @@ test('restores the previous release when post-activation verification fails', ()
     assert.deepEqual(calls, ['candidate', 'stable'])
     assert.equal(readRuntimeState(runtime).lastUpdate.reason, 'kiosk smoke timed out')
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -176,7 +176,7 @@ test('preflight rejects releases missing required metadata and smoke contract', 
       reason: 'release preflight failed',
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -198,7 +198,7 @@ test('release preflight rejects a built-in plugin missing schema-versioned manif
       reason: 'renderer plugin manifest is missing or unsupported',
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -247,7 +247,7 @@ test('user migrations are idempotent and base migration never enables experiment
     assert.deepEqual(second, [])
     assert.deepEqual(calls, ['base'])
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -281,7 +281,7 @@ test('reclaims releases that neither the active nor the rollback pointer referen
     assert.equal(fs.existsSync(oldest), false)
     assert.equal(fs.existsSync(previous), false)
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -306,7 +306,7 @@ test('a failed activation reclaims nothing so its candidate stays inspectable', 
     assert.equal(currentRelease(runtime), 'stable')
     for (const release of [oldest, stable, candidate]) assert.ok(fs.existsSync(release), release)
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -316,7 +316,7 @@ test('a candidate carrying the required voice and Hosted Pi components validates
     const candidate = makeCompleteRelease(runtime, 'candidate')
     assert.deepEqual(validateRuntimeComposition(candidate), { ok: true })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -330,7 +330,7 @@ test('a candidate missing the required voice integration is rejected', () => {
       reason: 'required voice integration is missing',
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -344,7 +344,7 @@ test('a candidate missing the required Hosted Pi control service is rejected', (
       reason: 'required Hosted Pi control service is missing',
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -362,7 +362,7 @@ test('required voice dependencies outside the candidate are rejected', () => {
       reason: 'required voice dependencies are missing or outside the candidate release',
     })
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
@@ -387,7 +387,27 @@ test('a candidate missing a required component records it and leaves the active 
     assert.equal(currentRelease(runtime), 'stable')
     assert.equal(readRuntimeState(runtime).lastUpdate.reason, 'required voice integration is missing')
   } finally {
-    cleanup(runtime)
+    fs.rmSync(runtime.root, { recursive: true, force: true })
   }
 })
 
+
+test('a plugin manifest that declares more than the schema version is still supported', () => {
+  // A built-in tile states the smallest cell it reads at, so its manifest carries
+  // a `minCell` beside the schema version. A release gate that only recognises the
+  // two-key form would refuse every release this branch builds, which is exactly
+  // what it did.
+  const runtime = makeRuntime()
+  try {
+    const release = makeCompleteRelease(runtime, 'with-min-cell')
+    const plugin = path.join(release, 'src', 'renderer', 'plugins', 'tile.js')
+    fs.writeFileSync(plugin, "id: 'odk.tile.test', manifest: { schemaVersion: 1, minCell: 186 }", 'utf8')
+    assert.deepEqual(validateRuntimeComposition(release), { ok: true })
+
+    fs.writeFileSync(plugin, "id: 'odk.tile.test', manifest: { minCell: 186 }", 'utf8')
+    assert.deepEqual(validateRuntimeComposition(release), { ok: false, reason: 'renderer plugin manifest is missing or unsupported' },
+      'a manifest without the schema version is still refused')
+  } finally {
+    fs.rmSync(runtime.root, { recursive: true, force: true })
+  }
+})

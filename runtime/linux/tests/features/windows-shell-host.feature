@@ -10,6 +10,27 @@ Feature: 64-bit Windows as a Shell Host
     Then the five desktop pages are reachable at the configured content size
     And no bash interpreter is required to start or verify it
 
+  Scenario: The panel covers the whole display after a restart
+    Given a 64-bit Windows host that boots into the panel launcher
+    When the panel window is shown at logon
+    Then the panel geometry equals the display bounds and not the work area
+    And no desktop or taskbar strip is left below the desk
+    And the maximized state is left before the panel is applied
+
+  Scenario: A panel request the host drops is asked again
+    Given the panel window is shown and the fullscreen request is dropped
+    When the desk checks its own geometry
+    Then the panel geometry is asked for as a window at the display bounds
+    And it is asked again while the window is short of the display
+    And it stops asking once the window covers the display
+
+  Scenario: A panel is not a window the user can move
+    Given a kiosk panel window on a Windows host
+    When the window is created
+    Then it is not movable, resizable, maximizable or minimizable
+    And a hand drag leaves its geometry unchanged
+    And the desk is not topmost and the host taskbar is not hidden
+
   Scenario: Host facts resolve the Shell Host
     Given the runtime resolves the Shell Host from host facts
     When the platform is win32 and the architecture is x64

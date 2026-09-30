@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('odkPlatform', {
 contextBridge.exposeInMainWorld('odkUserApps', {
   list: () => ipcRenderer.invoke('odk-user-apps-list'),
   dispatch: (request) => ipcRenderer.invoke('odk-user-apps-dispatch', request),
+  // Declared Data: a package publishes what its manifest declared, and the Shell
+  // decides what of that is a reading. Publishing is not an authority to change
+  // anything, so the frame's own app id is all this needs.
+  publishData: (appId, data) => ipcRenderer.invoke('odk-user-apps-publish', { appId, data }),
   subscribe(listener) {
     const handler = () => listener()
     ipcRenderer.on('odk-user-apps-changed', handler)

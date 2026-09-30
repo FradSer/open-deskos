@@ -3027,7 +3027,9 @@ body.kiosk {
 .hydra-env-value {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 8cqi, 28px);
+  /* A reading is held to the data floor: a cell narrower than the floor yields a
+     larger reading, never a smaller one. */
+  font-size: clamp(14px, 8cqi, 28px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -3114,25 +3116,6 @@ body.kiosk {
   .pomodoro-ring-wrap {
     gap: 1.5cqi;
   }
-
-  .hydra-body {
-    justify-content: space-between;
-  }
-
-  .hydra-env {
-    flex: none;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5cqi;
-  }
-
-  .hydra-env-value {
-    font-size: clamp(12px, 6cqi, 20px);
-  }
-
-  .hydra-meter {
-    height: 2cqi;
-  }
 }
 
 .hydra-meter-fill.hydra-meter-dry {
@@ -3166,7 +3149,7 @@ body.kiosk {
   opacity: 0.55;
 }
 
-/* Widescreen: Pomodoro is a 1x2 tall slot and Hydra spans two grid rows. */
+/* Widescreen: Pomodoro is a 1x2 tall slot, so its ring is drawn at full size. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   .pomodoro-ring-wrap svg {
     width: 62cqi;
@@ -3176,49 +3159,67 @@ body.kiosk {
   .ring-mmss {
     font-size: clamp(28px, 20cqi, 110px);
   }
-up. */
-@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  .hydra-head svg {
-    width: 13cqi;
-    height: 13cqi;
-  }
+}
 
-  .hydra-title {
-    font-size: clamp(18px, 13cqi, 44px);
-  }
+/* Hydra composes from the cell it is drawn in, so the shapes below are chosen by
+   the tile from its own box rather than by the width of the window: the tall slot
+   stacks the environment readings, a square cell pairs them two to a row, a short
+   cell keeps the plants and says what it is not showing, and a cell below every
+   one of those says it cannot draw the readings at all. */
+.hydra-body[data-shape='compact'] {
+  justify-content: space-between;
+}
 
-  .hydra-badge {
-    padding: 2cqi 3.5cqi;
-    font-size: clamp(13px, 7.5cqi, 28px);
-  }
+.hydra-body[data-shape='compact'] .hydra-env {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5cqi;
+}
 
-  .hydra-env {
-    gap: 2cqi;
-  }
+.hydra-body[data-shape='compact'] .hydra-env-value {
+  font-size: clamp(14px, 6cqi, 20px);
+}
 
-  .hydra-env-label {
-    font-size: clamp(14px, 6cqi, 22px);
-  }
+.hydra-body[data-shape='compact'] .hydra-meter {
+  height: 2cqi;
+}
 
-  .hydra-env-value {
-    font-size: clamp(24px, 17cqi, 60px);
-  }
+.hydra-body[data-shape='plants'] {
+  justify-content: space-between;
+}
 
-  .hydra-env-unit {
-    font-size: clamp(14px, 7cqi, 26px);
-  }
+.hydra-body[data-shape='plants'] .hydra-env {
+  display: none;
+}
 
-  .hydra-plants {
-    gap: 2cqi;
-  }
+.hydra-body[data-shape='plants'] .hydra-plants {
+  gap: 2cqi;
+}
 
-  .hydra-plant-name {
-    font-size: clamp(16px, 11cqi, 40px);
-  }
+.hydra-body[data-shape='small'] .hydra-head,
+.hydra-body[data-shape='small'] .hydra-env,
+.hydra-body[data-shape='small'] .hydra-plants {
+  display: none;
+}
 
-  .hydra-plant-soil {
-    font-size: clamp(24px, 18cqi, 64px);
-  }
+.hydra-body[data-shape='small'] {
+  justify-content: center;
+}
+
+/* The count of what a shape is not showing, and the only thing a cell too small
+   for the tile's state line can say. It wraps rather than being cut, because a
+   count that is clipped is not a count. */
+.hydra-hint {
+  margin: 0;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(12px, 5.5cqi, 18px);
+  line-height: 1.2;
+  text-align: center;
+}
+
+.hydra-body[data-shape='small'] .hydra-hint {
+  font-size: 12px;
 }
 
 .widget-error {

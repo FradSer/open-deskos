@@ -34,12 +34,13 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `FUTU_PORT` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | 富途网关端口 |
 | `FUTU_RSA_FILE` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 网关 RSA 私钥副本路径 |
 | `FUTU_TRADE_PWD` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 交易解锁口令 |
-| `ODK_CHANNEL_TOKEN_FILE` | L3 设备本地（敏感） | 外部消费者（插件侧） | integrations/futu-poller/poller.py | — | 插件连接 `tcp://` 或命名管道端点时出示的通道令牌文件；socket 路径端点不需要（属主已认证） |
+| `ODK_CHANNEL_TOKEN_FILE` | L3 设备本地（敏感） | 外部消费者（插件侧与 voice agent） | integrations/futu-poller/poller.py, integrations/voice-agent/src/runtime-channel.mjs | — | 连接 `tcp://` 或命名管道端点时出示的通道令牌文件（voice agent 用它连 app 控制与 desk data 通道；客户端只读不创建）；socket 路径端点不需要（属主已认证） |
 | `HOME` | 环境 | 登录会话 | runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
 | `LIBGL_ALWAYS_SOFTWARE` | 环境 | 运维 | runtime/linux/src/main.js | — | 强制软件渲染，诊断用 |
 | `LOCALAPPDATA` | 环境 | Windows 用户会话 | runtime/linux/src/platform/index.js | — | Windows Shell Host 的持久状态根（`%LOCALAPPDATA%`）；缺失时回退到用户目录下的 `AppData/Local` |
-| `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/capabilities.mjs | 运行时目录下的 app 控制 socket | 仅测试覆盖，生产用默认值 |
+| `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/apps-control.mjs | 运行时目录下的 app 控制 socket（Windows 为 `\\.\pipe\open-deskos-user-app-control`） | 仅测试覆盖；生产用按主机解析的默认值，Unix 主机缺少运行时目录时该通道不可用而不是猜测路径 |
 | `ODESK_CAMERA_DEVICE` | L3 设备本地 | 运维 | runtime/linux/src/camera-source.js | — | 相机设备覆盖 |
+| `ODESK_DESK_DATA_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/desk-data.mjs | 运行时目录下的 desk data socket（Windows 为 `\\.\pipe\open-deskos-desk-data`） | 仅测试覆盖；生产用默认值，Unix 主机缺少运行时目录时该数据通道不可用，而不是猜测一个 Shell 并未监听的路径 |
 | `ODESK_DESK_LINK_SOCKET` | 内部 | Shell | runtime/linux/src/desk-link-client.js | 运行时目录下的 desk link socket | Shell 到本机 desk link 服务的 socket 覆盖 |
 | `ODESK_DISABLED_PLUGINS` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 禁用插件列表 |
 | `ODESK_DISABLE_GPU` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 关闭 GPU 加速 |
@@ -114,7 +115,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/capabilities.mjs, integrations/voice-agent/src/host-paths.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/runtime-channel.mjs, integrations/voice-agent/src/host-paths.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
 | `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/host-paths.mjs | ~/.local/state | 持久状态目录 |
 
 ## 天气定位与隐私取舍

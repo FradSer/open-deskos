@@ -1,5 +1,14 @@
 # User application lifecycle
 
+## Status
+
+Superseded by ADR-0009, which retires the separate User Application concept in
+favour of one unified plugin model. What this record decided still stands: a
+user-created package is a local, versioned artifact that is snapshotted, verified
+in a bounded separate renderer, and published atomically, so a failed verification
+leaves the previous installed version intact. Only the name and the model's
+separateness are retired.
+
 ## Decision
 
 User-created applications are local, versioned packages, not modifications of the built-in Shell plugin set. `ODESK_WORKSPACE/apps/<id>` owns drafts. A package contains `manifest.json` and a self-contained `index.html`. The manifest declares schema version 1, ID, name, version, and kind (`widget` or `app`).

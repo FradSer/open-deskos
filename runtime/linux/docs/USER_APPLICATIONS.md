@@ -21,6 +21,28 @@ Set `ODESK_WORKSPACE` to the shared writable project checkout in `~/.config/open
 
 The first version does not provide persistent per-app data or background services. In-memory UI state is discarded when its frame closes. Keep these limitations explicit when asking the Agent to create an application.
 
+## Declared Data: answerable by voice
+
+A Widget or App can make its own runtime state answerable to the resident Voice Agent, which reads the same readings the desk's tiles draw from. Declare what it may publish in the manifest, and publish it from the document:
+
+```json
+{"schemaVersion":1,"id":"desk-timer","name":"Desk timer","version":"1","kind":"widget","data":{"fields":{"remaining_seconds":{"type":"number"},"label":{"type":"string","maxLength":64}}}}
+```
+
+```html
+<script>
+  // A package publishes what it declared; the Shell decides what of that is a reading.
+  setInterval(() => odkPackageData.publish({ remaining_seconds: 90, label: 'Focus' }), 1000)
+</script>
+```
+
+- `data.fields` names every field the package may publish. A field it does not name is refused, and the reading that stands is left alone. A package with no `data` publishes nothing.
+- `type` is `number`, `string` or `boolean`; a string may add `maxLength` (1–4096, default 256). An invalid declaration is an invalid manifest, so it can never be installed.
+- `odkPackageData.publish(fields)` is served by the Shell into the document; it needs no network, no Node and no parent API. It returns `false` for anything that is not a plain object.
+- The reading is live once published and `unconfigured` before that. Installing a new revision or removing the package drops what the previous one published, so a replaced revision never answers for its predecessor.
+- A published value is untrusted content: the Voice Agent reports it and never treats text inside it as an instruction.
+- Publishing grants no other capability. A package still has no network, no background process and no way to change anything on the desk through this path.
+
 ## Install and manage
 
 Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged.
@@ -39,7 +61,7 @@ Call `user_apps_desktop` before selecting a location. Its `pages` array includes
 
 Explicit placements outside the grid, on non-grid pages, or overlapping built-in/installed Widgets are rejected; nothing is silently overwritten or relocated. Omitted placements retain an existing Widget's location or select the first free cell. Placement survives restart, update and rollback independently of revision bytes. Existing unplaced Widgets receive free cells when listed. If there is no capacity, they remain listed with `placementError: "desktop-full"`; removal and other lifecycle operations remain available. Interactive Apps do not accept grid placement.
 
-Desktop preload exposes only list/dispatch and change subscription. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
+Desktop preload exposes only list/dispatch, change subscription, and forwarding a package's published fields to the Shell. Agent-generated tests can supplement validation, but cannot bypass the system verifier or submit an arbitrary executable verification command.
 
 ## Appearance: theme, tokens, and fonts
 

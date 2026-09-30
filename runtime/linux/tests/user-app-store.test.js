@@ -128,3 +128,21 @@ test('serializes concurrent installs without losing catalog entries', async () =
   assert.equal(results.every((r) => r.ok), true)
   assert.deepEqual((await store.list()).map((a) => a.id).sort(), ids)
 })
+
+test('a package declares the data it may publish and an invalid declaration is not installable', async () => {
+  const f = await fixture()
+  const declared = { schemaVersion: 1, id: 'pomodoro', name: 'Pomodoro', version: '1', kind: 'widget', data: { fields: { remaining_seconds: { type: 'number' } } } }
+  const dir = path.join(f.workspace, 'apps', 'pomodoro')
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(path.join(dir, 'index.html'), '<p>timer</p>')
+  await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify(declared))
+  const store = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
+  assert.equal((await store.install('pomodoro')).ok, true)
+  assert.deepEqual((await store.list())[0].data, { fields: { remaining_seconds: { type: 'number' } } })
+
+  const bad = path.join(f.workspace, 'apps', 'bad-data')
+  await fs.mkdir(bad, { recursive: true })
+  await fs.writeFile(path.join(bad, 'index.html'), '<p>x</p>')
+  await fs.writeFile(path.join(bad, 'manifest.json'), JSON.stringify({ ...declared, id: 'bad-data', name: 'Bad', data: { fields: { remaining_seconds: { type: 'number', extra: true } } } }))
+  assert.equal((await store.install('bad-data')).error, 'invalid-manifest')
+})

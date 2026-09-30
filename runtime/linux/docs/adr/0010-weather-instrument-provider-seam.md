@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted
+Accepted. ADR-0029 extends the location rule below: configured coordinates still
+win, and an explicit empty location still pins the lookup off, but a host given no
+location at all now resolves the device's own location instead of reading
+`Unconfigured` immediately. Everything else this record decided — the four internal
+states, validation before rendering, no refresh time on screen, offline smoke — is
+unchanged.
 
 ## Context
 

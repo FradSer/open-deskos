@@ -53,13 +53,14 @@
     const observer = observerFor(publishTheme)
     const resizeListener = () => publishTheme(activeTheme())
     // Readiness is settled once; the appearance subscription lives as long as the frame,
-    // so stopping the readiness watch must not disconnect the theme observer.
+    // and so does the data channel a package publishes through, so stopping the
+    // readiness watch must not disconnect either.
     const stopReadyWatch = () => {
-      root.removeEventListener('message', onMessage)
       if (timer) { clearTimeout(timer); timer = null }
     }
     const teardown = () => {
       stopReadyWatch()
+      root.removeEventListener('message', onMessage)
       root.removeEventListener('resize', resizeListener)
       observer?.disconnect()
     }
@@ -72,9 +73,17 @@
       rejectReady(error)
       if (typeof onError === 'function') onError(error)
     }
+    // A package publishes the data its manifest declared. The frame only carries it,
+    // from this package's own token-carrying document, and the Shell decides what of
+    // it is a reading.
+    const publishData = (data) => {
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return
+      try { root.odkUserApps?.publishData?.(frame.dataset.appId, data) } catch {}
+    }
     const onMessage = (event) => {
       const data = event.data
       if (event.source !== frame.contentWindow || !data || data.token !== token) return
+      if (data.type === 'odk-user-app-data') { publishData(data.data); return }
       if (data.type === 'odk-user-app-error') { fail(data.error || 'user app failed during startup'); return }
       if (data.type !== 'odk-user-app-ready') return
       if (!settled) { settled = true; stopReadyWatch(); resolveReady(frame) }

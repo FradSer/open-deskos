@@ -14,13 +14,16 @@ const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { createCameraSource } = require('./camera-source')
 const { createPiSessionsSource } = require('./pi-sessions-source')
 const { createDeskLinkClient } = require('./desk-link-client')
+const { KIOSK_WINDOW_LOCK, enterPanel, resolvePanelBounds } = require('./panel')
 const { createPiSessionEventsSource } = require('./pi-session-events-source')
 const { createHydraSource } = require('./hydra-mqtt')
 const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
 const { createWeReadSource } = require('./weread-source')
 const { createFutuSource } = require('./futu-source')
 const { createWeatherSource } = require('./weather-source')
-const { registerUserAppScheme, startUserAppSystem } = require('./user-app-system')
+const { registerUserAppScheme, startUserAppSystem, resolveUserAppSurface } = require('./user-app-system')
+const { createShellDeskData } = require('./desk-data')
+const { listenDeskData } = require('./desk-data-control')
 const deskLink = createDeskLinkClient()
 const scanPiSessions = createPiSessionsSource({ deskLink })
 const readPiSessionEvents = createPiSessionEventsSource({ deskLink })
@@ -94,6 +97,8 @@ function resolveLaunchOptions(argv, env) {
   }
 }
 
+// The panel itself is src/panel.js: what a kiosk panel covers, and how it asks
+// for that geometry again while a Windows Shell Host has dropped the request.
 function resolveDisabledPlugins(env = process.env) {
   return (env.ODESK_DISABLED_PLUGINS ?? '')
     .split(/[\s,]+/)
@@ -119,21 +124,15 @@ function rendererQuery(options) {
 }
 
 function createWindow(options) {
-  // A kiosk window is created at the display's own size, not at the configured
-  // content size: Windows maximizes a frameless window that is exactly the work
-  // area when it is shown, and a maximized window then ignores the fullscreen
-  // request that follows, which would leave the desk with the taskbar drawn over
-  // it. Creating it larger than the work area keeps that state out of the way.
-  const kioskBounds = options.kiosk && process.platform === 'win32'
-    ? electron.screen.getPrimaryDisplay().bounds
-    : null
+  const panelBounds = resolvePanelBounds(options)
   const win = new BrowserWindow({
-    width: kioskBounds ? kioskBounds.width : options.width,
-    height: kioskBounds ? kioskBounds.height : options.height,
+    width: panelBounds ? panelBounds.width : options.width,
+    height: panelBounds ? panelBounds.height : options.height,
     useContentSize: true,
     frame: false,
     hasShadow: false,
     thickFrame: false,
+    ...(panelBounds ? KIOSK_WINDOW_LOCK : {}),
     // Kiosk is applied after the window is shown, never in the constructor: a
     // Windows fullscreen transition requested on a window that has not been shown
     // yet can leave it invisible, and a kiosk desk with no visible window is a
@@ -218,7 +217,6 @@ async function main() {
       console.error(`Shell Host ${shellHost.id} is outside the supported set; behavior on this host is unverified`)
     }
   }
-  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode })
   let remoteSocketPath = null
   if (!smokeMode) {
     try {
@@ -353,7 +351,9 @@ async function main() {
           // A plugin declares where it listens: a socket path, a named pipe, or a
           // network address. The socket field is the historical name for it.
           const endpoint = entry.service.endpoint ?? entry.service.socket
-          futuServiceDefs[entry.service.id] = { revision: entry.revision, endpoint }
+          // The package that owns the service is what a reader calls it, which is
+          // why the declared service id alone is not the whole label.
+          futuServiceDefs[entry.service.id] = { revision: entry.revision, endpoint, label: entry.name }
         }
       }
     } catch {}
@@ -368,8 +368,6 @@ async function main() {
     }
   }
   ipcMain.handle('odk-futu-holdings', (_event, request) => futuSource.snapshot(request?.service || 'futu-poller'))
-  void refreshFutuServices()
-  setInterval(refreshFutuServices, 60 * 1000).unref?.()
 
   // The desk's weather instrument is the only surface allowed to reach a weather
   // provider: the renderer asks for a snapshot and never performs network I/O.
@@ -386,6 +384,44 @@ async function main() {
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
   ipcMain.handle('odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent))
 
+  // Desk Data (ADR 0033): one registry of what the desk holds. Every reading here
+  // resolves the source the tile above already draws from, so a spoken answer and
+  // the screen cannot disagree, and the Voice Agent reaches it over the Desk Data
+  // Link rather than a second integration of any provider.
+  const { createUserAppStore } = require('./user-app-store')
+  const installedStore = createUserAppStore({
+    workspace: process.env.ODESK_WORKSPACE,
+    stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
+  })
+  const deskData = createShellDeskData({
+    hydra: hydraSource,
+    weather: weatherSource,
+    weread: wereadSource,
+    futu: futuSource,
+    piSessions: { scan: () => scanPiSessions() },
+    quota: { read: () => fetchOpenCodeGo(resolveOpenCodeGoConfig()) },
+    store: installedStore,
+    // A Service Plugin is answerable under the id its own package declared, so the
+    // reading follows the installed catalog rather than one hardcoded service.
+    services: () => Object.fromEntries(Object.entries(futuServiceDefs).map(([id, def]) => [id, def.label])),
+  })
+  if (!smokeMode) {
+    // The catalog settles before the window exists, so nothing that reads a
+    // reading after boot can race the first synchronization.
+    await deskData.syncPackages()
+    void refreshFutuServices().then(() => deskData.syncServices())
+    setInterval(() => { void refreshFutuServices().then(() => deskData.syncServices()) }, 60 * 1000).unref?.()
+  }
+  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, deskData })
+  // A smoke run reads nothing the device owns, so it also decides nothing about
+  // which installed packages may answer.
+  if (!smokeMode) void deskData.syncPackages()
+  if (!smokeMode && shellHost.provisionsDeskData) {
+    listenDeskData({ endpoint: shellHost.deskDataEndpoint, control: deskData.control, stateDir: shellHost.stateDir, platform: shellHost.platform })
+      .then(server => app.once('before-quit', () => { void server.close().catch(() => {}) }))
+      .catch(error => console.error(`desk data link unavailable: ${error.message}`))
+  }
+
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
@@ -399,28 +435,7 @@ async function main() {
   win.once('ready-to-show', () => {
     if (!options.smoke) {
       win.show()
-      if (options.kiosk) {
-        // Fullscreen the way a game is fullscreen: the desk covers the whole
-        // display, taskbar included, while it is the active window, and Windows
-        // brings the taskbar back when the user switches to another window. Nothing
-        // here is topmost and nothing hides the shell, because this machine runs
-        // other applications.
-        //
-        // Windows maximizes a frameless window that is exactly the work area when
-        // it is shown, and a maximized window ignores a fullscreen request made in
-        // the same tick as leaving that state — measured on a real host, where a
-        // fullscreen request 600 ms later takes the window to the display bounds.
-        const enterPanel = () => {
-          win.setFullScreen(true)
-          if (process.platform !== 'win32') win.setKiosk(true)
-        }
-        if (process.platform === 'win32' && win.isMaximized()) {
-          win.unmaximize()
-          setTimeout(enterPanel, 500)
-        } else {
-          enterPanel()
-        }
-      }
+      if (options.kiosk) enterPanel(win, resolvePanelBounds(options), process.platform)
     }
   })
 }

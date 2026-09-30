@@ -12,6 +12,9 @@ const LINK_ENDPOINTS = {
   'remote-bridge': ['open-deskos-remote', 'bridge.sock'],
   'voice-agent': ['open-deskos-voice', 'agent.sock'],
   'desk-link': ['open-deskos-desk-link', 'service.sock'],
+  // The Desk Data Link the Voice Agent reads through: one name, one transport
+  // decision per host, no second copy of any reading.
+  'desk-data': ['open-deskos-desk-data', 'service.sock'],
 }
 
 const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\open-deskos-'
@@ -72,6 +75,10 @@ function resolveShellHost({ platform = process.platform, arch = process.arch, en
     // socket owned by this user, or a named pipe gated by the channel token.
     // Widget and App control through the shell itself never needs it.
     provisionsUserAppControl: endpoint('user-app-control') !== null,
+    // The Desk Data Link is the same arrangement for a reading: the Voice Agent
+    // reads through it, and it exists wherever the endpoint itself exists.
+    provisionsDeskData: endpoint('desk-data') !== null,
+    deskDataEndpoint: endpoint('desk-data'),
   }
 }
 

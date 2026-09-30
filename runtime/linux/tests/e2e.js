@@ -899,6 +899,11 @@ async function main() {
     timeout: 120000,
   })
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
+  const hydraComposition = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'hydra-style.cjs')], {
+    stdio: 'inherit',
+    timeout: 120000,
+  })
+  if (hydraComposition.error) console.error(`FAIL  hydra composition checks: ${hydraComposition.error.message}`)
   const densityRuns = [
     ['--state=unavailable', '--theme=instrument'],
     ['--state=live', '--theme=instrument'],
@@ -919,6 +924,7 @@ async function main() {
     driverFailures, motionFailures, sweepFailures,
     interiors: interiors.status,
     sequential: sequential.status,
+    hydraComposition: hydraComposition.status,
     density: densityRuns.map(r => r.status),
     theme: themeUiRuns.map(r => r.status),
   }

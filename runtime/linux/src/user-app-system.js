@@ -31,7 +31,7 @@ function registerUserAppScheme(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 }
 
-async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false }) {
+async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, deskData = null }) {
   const surface = resolveUserAppSurface({ env })
   const verifier = createUserAppVerifier({ electronPath: process.execPath })
   const store = smokeMode
@@ -39,9 +39,13 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     : createUserAppStore({ workspace: env.ODESK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle) })
   const control = createUserAppControl(store, () => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
+    // An installed revision drives which packages may answer, so a new, replaced
+    // or removed revision re-registers what those packages may publish.
+    void deskData?.syncPackages()
   })
   ipcMain.handle('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   ipcMain.handle('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))
+  ipcMain.handle('odk-user-apps-publish', (_event, request) => deskData?.registry.publish(request?.appId, request?.data) ?? { ok: false, error: 'unknown-reading' })
   protocol.handle('odk-user-app', request => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP))
   if (smokeMode || !surface.controlEndpoint) return
   try {

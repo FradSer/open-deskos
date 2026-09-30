@@ -125,3 +125,21 @@ test('a host without a theme or an observer still mounts', () => {
   assert.equal(new URL(h.frame.src).searchParams.get('radius'), null, 'a host without a measured radius adds none')
   disposeQuietly(mounted)
 })
+test('a package publishes its declared data to the Shell and nothing else reaches it', async () => {
+  const h = create()
+  const published = []
+  h.root.odkUserApps = { publishData: (appId, data) => published.push({ appId, data }) }
+  const mounted = h.mount(h.container, { id: 'pomodoro', url: 'odk-user-app://app/pomodoro/r', timeoutMs: 1000 })
+  const [listener] = h.listeners
+  listener({ source: h.frame.contentWindow, data: { type: 'odk-user-app-ready', token: 'token' } })
+  await mounted.ready
+
+  listener({ source: h.frame.contentWindow, data: { type: 'odk-user-app-data', token: 'token', data: { remaining_seconds: 90 } } })
+  assert.deepEqual(published, [{ appId: 'pomodoro', data: { remaining_seconds: 90 } }])
+
+  listener({ source: h.frame.contentWindow, data: { type: 'odk-user-app-data', token: 'forged', data: { remaining_seconds: 1 } } })
+  listener({ source: {}, data: { type: 'odk-user-app-data', token: 'token', data: { remaining_seconds: 2 } } })
+  listener({ source: h.frame.contentWindow, data: { type: 'odk-user-app-data', token: 'token', data: 'not-an-object' } })
+  assert.equal(published.length, 1, 'only a token-carrying object from this frame is published')
+  mounted.dispose()
+})

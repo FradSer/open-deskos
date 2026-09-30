@@ -178,6 +178,8 @@ bash runtime/linux/scripts/cm5-stage-release.sh
 ssh cm5 'cd /opt/open-deskos/current && bash scripts/cm5-acceptance.sh'
 ```
 
+release 门禁 `validateRuntimeComposition` 认可任何**声明了** `schemaVersion: 1` 的 plugin manifest：内置 tile 除 schema 版本外还声明 `minCell`（它能读的最小 cell），只认「唯一键就是 schema 版本」的形式会把这个分支上的任何 release 都判为不合格。缺 schema 版本仍然被拒，两个方向都有测试（`tests/runtime-release.test.js`）。
+
 在 kiosk 用户会话中配置 OpenCode Go 环境变量后，由图形会话自启项导入显示环境并启动 `open-deskos-shell.service`。该服务解析 active release，外壳退出后自动重启；日志位于 `~/.local/state/open-deskos-shell/launcher.log`。
 
 ## 受控 Runtime 更新

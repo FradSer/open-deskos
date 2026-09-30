@@ -4,6 +4,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const vm = require('node:vm')
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
 const { createUserAppVerifier } = require('../src/user-app-verifier')
 
@@ -105,4 +106,23 @@ test('real Electron verifier keeps network-disabled bundle confined', async () =
   const result = await verifier().verify({ html })
   assert.equal(result.ok, false)
   assert.match(result.error, /Content Security Policy|Refused to connect|network/i)
+})
+
+test('the served package document publishes data through the system bridge it already carries', () => {
+  const html = buildUserAppDocument('<body><p>ready</p></body>', { token: 'secret-token' })
+  const posted = []
+  const documentElement = { dataset: {}, style: { setProperty() {} } }
+  const packageWindow = {
+    document: { documentElement, readyState: 'complete', addEventListener() {} },
+    addEventListener() {},
+    setTimeout, clearTimeout,
+  }
+  packageWindow.parent = { postMessage: (message) => posted.push(message) }
+  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], { window: packageWindow, globalThis: packageWindow, document: packageWindow.document, parent: packageWindow.parent, setTimeout, clearTimeout })
+  assert.equal(typeof packageWindow.odkPackageData?.publish, 'function', 'a package needs no new API surface to publish')
+  packageWindow.odkPackageData.publish({ remaining_seconds: 90 })
+  const dataMessages = () => posted.filter(message => message.type === 'odk-user-app-data')
+  assert.deepEqual(JSON.parse(JSON.stringify(dataMessages().at(-1))), { type: 'odk-user-app-data', token: 'secret-token', data: { remaining_seconds: 90 } })
+  packageWindow.odkPackageData.publish('not-an-object')
+  assert.equal(dataMessages().length, 1, 'the bridge sends only an object')
 })

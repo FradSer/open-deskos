@@ -43,17 +43,31 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
       resolveVoiceSocketPath: () => '/test.sock',
       createVoiceAgentClient: () => ({ subscribe(fn) { publishStatus = fn }, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? state : 'unavailable' }) }),
     },
-    './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {} },
+    './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {}, resolveUserAppSurface: () => ({ stateDir: '/test/state/open-deskos/user-apps' }) },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
     './pi-sessions': { readSessionEvents: () => { throw new Error('MIC must not read monitor session events') } },
     './pi-session-events-source': { createPiSessionEventsSource: () => () => { throw new Error('MIC must not read monitor session events') } },
     './desk-link-client': { createDeskLinkClient: () => ({ machines: async () => [], snapshot: async () => null, sessionEvents: async () => ({ ok: false }) }) },
     './desk-link-service': { SESSION_LOG_MISSING: 'session-log-missing' },
+    // The panel module is only reached by a kiosk launch, and this harness is
+    // not one; it is named here so a new dependency in main.js is a stated
+    // choice rather than a module that silently fails to resolve.
+    './panel': { KIOSK_WINDOW_LOCK: {}, enterPanel() {}, resolvePanelBounds: () => null },
     './hydra-mqtt': { createHydraSource: () => ({ snapshot() {} }) },
     './weread-source': { createWeReadSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unconfigured' }) }) },
     './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }), snapshot: () => ({ status: 'unconfigured' }) }) },
     './futu-source': { createFutuSource: () => ({ refreshServices: async () => {}, snapshot: () => ({ state: 'unconfigured' }) }), STALE_MS: 60000 },
     './app-manager-endpoint': { createAppManagerEndpoint: () => ({}) },
+    './desk-data': {
+      createShellDeskData: () => ({
+        registry: { publish: () => ({ ok: false, error: 'unknown-reading' }) },
+        control: { dispatch: async () => ({ ok: false, error: 'invalid-command' }) },
+        syncPackages: async () => {},
+        syncServices: () => {},
+      }),
+    },
+    './desk-data-control': { listenDeskData: async () => ({ close: async () => {} }) },
+    './user-app-store': { createUserAppStore: () => ({ list: async () => [] }) },
     './opencode-go': {},
     './camera-source': { createCameraSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unavailable' }) }) },
   }

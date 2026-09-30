@@ -102,3 +102,23 @@ Feature: Hydra plant and environment widget on the Home grid
     Then the Hydra widget is a one-column by two-row tile
     And the former screen-size desk-status widget is removed from the grid
     And the Home grid still declares ten widgets in total
+
+  Scenario: A panel a little shorter than the promised minimum keeps the tall slot
+    Given the desk is drawn on a panel whose cells are narrower than the promised minimum cell
+    When the Home grid renders
+    Then the Hydra widget keeps its one-column by two-row slot
+    And every environment row and plant row is drawn inside that slot without overlapping
+    And the floor the widget declares is the narrowest cell it reads at, not the panel's minimum
+
+  Scenario: A cell too small for the tall composition re-composes instead of overlapping
+    Given the Home grid gives the Hydra widget a single cell
+    When the cell cannot hold the tall composition
+    Then the widget lays out the shape the cell can hold
+    And no reading is drawn outside the tile or over another reading
+    And the shape it chose is the same one in every theme
+
+  Scenario: A shape that leaves readings out says how many
+    Given the Hydra widget is drawn in a cell too small for the environment readings
+    Then the environment readings are left out as whole readings rather than truncated
+    And the widget states in its own text how many readings it is not showing
+    And no reading is drawn below the readable floor

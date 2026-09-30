@@ -2,6 +2,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { readBoundedFile, ensureDirectory, writeExclusive } = require('./user-app-files')
+const { parseDeclaration } = require('./desk-data-registry')
 
 const MAX_APPS = 32
 const MAX_HTML_BYTES = 256 * 1024
@@ -12,7 +13,7 @@ const validId = id => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id
 const validRevision = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value)
 const PLACEMENT_SHAPE = /^\d+(?:\s*\/\s*\d+)?$/
 const failure = error => ({ ok: false, error })
-const metadata = ({ id, name, version, kind, revision, placement, placementError, service }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}) })
+const metadata = ({ id, name, version, kind, revision, placement, placementError, service, data }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}), ...(data ? { data: { fields: { ...data.fields } } } : {}) })
 const digestOf = (manifest, html) => crypto.createHash('sha256').update(manifest).update(html).digest('hex')
 
 function parseService(service) {
@@ -38,13 +39,25 @@ function parseService(service) {
   return { id, exec, version, secrets: [...names], egress: egress.map(rule => ({ ...rule })), socket }
 }
 
+// A package declares what it may publish, and the declaration is parsed here so an
+// invalid one is an invalid manifest: it can never reach an installed revision.
+function parseData(data) {
+  if (data === undefined) return undefined
+  try {
+    return parseDeclaration(data)
+  } catch {
+    throw Error('invalid-manifest')
+  }
+}
+
 function parseManifest(bytes, id) {
   const manifest = JSON.parse(bytes.toString('utf8'))
   if (manifest?.id !== id || manifest.schemaVersion !== 1 || !['widget', 'app'].includes(manifest.kind)
     || typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 128
     || typeof manifest.version !== 'string' || !manifest.version.trim() || manifest.version.length > 64) throw Error('invalid-manifest')
   const service = parseService(manifest.service)
-  return service === undefined ? manifest : { ...manifest, service }
+  const data = parseData(manifest.data)
+  return { ...manifest, ...(service === undefined ? {} : { service }), ...(data === undefined ? {} : { data }) }
 }
 
 function loadDesktopLayout() {
