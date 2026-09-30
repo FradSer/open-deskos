@@ -9,4 +9,5 @@ Descriptions shortened for bounded metadata reads/rows have an explicit notice; 
 - [open-deskos-cm5-workspace-runtime.md](open-deskos-cm5-workspace-runtime.md) — CM5 runtime.env 的 ODESK_WORKSPACE 是 Shell 与 voice agent 共享的可写 Git checkout
 - [open-deskos-mac-pi-task-host.md](open-deskos-mac-pi-task-host.md) — Mac 受管 Pi 任务主机曾按 operator 部署并验收后回滚；launchd 必须用稳定 fnm 别名路径
 - [open-deskos-user-application-lifecycle.md](open-deskos-user-application-lifecycle.md) — 本地用户应用是 ODESK_WORKSPACE/apps/&#60;id&#62; 下经系统验证的自包含包，独立于 Shell 插件
+- [open-deskos-windows-handheld-access.md](open-deskos-windows-handheld-access.md) — 64-bit Windows 掌机接入：Tailscale 上的公钥 SSH、Session 0 无桌面故 GUI 工作走交互计划任务、带哈希门控的同步部署
 - [project-widget-skill-inheritance.md](project-widget-skill-inheritance.md) — Upstream interface skills are inherited as flat references inside open-deskos-widget with a two-phase reading protocol; interface-review is a separate post-creation flow, not an implementation phase.

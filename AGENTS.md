@@ -13,5 +13,7 @@
 - Keep credentials, tokens, diagnostic dumps, and temporary build outputs out of commits.
 
 ## Commit & Pull Request Guidelines
-- Use `git-agent commit` or the `/git:commit` skill for commits; never run raw `git add` or `git commit`.
+- Commits go through the project's commit workflow, never a raw `git add` or `git commit`: a commit that bypasses it is not atomic with the changes it claims, and the scope taxonomy in `.git-agent/config.yml` is the project's.
+- Do not hand-stage paths or manipulate the index to work around a tree that carries another task's or another author's uncommitted work. The fix is isolation: give a concurrent task its own worktree with a non-overlapping scope. If a tree cannot be isolated, stop and settle ownership before committing.
+- A commit is not finished when it exists: before committing, check what the tree actually carries and leave another author's in-flight work exactly as it was found.
 - Use focused Conventional Commits (`fix(cm5):`, `feat(hw):`, `refactor(link):`, `feat(vision):`, `fix(p4):`, `refactor(mac):`). The `cm5` scope covers the Shell runtime on both of its hosts. State validation commands and scope in commit messages.
