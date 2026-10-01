@@ -6,6 +6,7 @@ connected plugin and a desk that displayed nothing, and the unread answers piled
 up in the socket until the desk's writes blocked.
 """
 
+import io
 import json
 import os
 import socket
@@ -171,3 +172,100 @@ def test_a_persistent_failure_is_stated_once_and_a_recovery_resets_it(capsys):
     link._failures = 0
     link._note_failure("send failed: broken pipe")
     assert capsys.readouterr().err == "", "a recovery means the next failure counts from one"
+
+
+class ResetConn:
+    """A connection the desk reset: writes land, the next read does not."""
+
+    def __init__(self):
+        self.written = []
+
+    def gettimeout(self):
+        return 10
+
+    def settimeout(self, _timeout):
+        pass
+
+    def sendall(self, data):
+        self.written.append(data)
+
+    def recv(self, _n):
+        raise ConnectionResetError(104, "Connection reset by peer")
+
+
+class SilentConn:
+    """A connection to a desk that says nothing back, which is a healthy link."""
+
+    def __init__(self):
+        self.written = []
+
+    def gettimeout(self):
+        return 10
+
+    def settimeout(self, _timeout):
+        pass
+
+    def sendall(self, data):
+        self.written.append(data)
+
+    def recv(self, _n):
+        raise socket.timeout()
+
+
+def stub_link(name, conn):
+    target = poller.Target(endpoint="/tmp/%s.sock" % name, parsed=poller.parse_endpoint("/tmp/%s.sock" % name), label=name)
+    link = poller.ShellLink(target, "futu-poller", "dev")
+    link.conn = conn
+    return link
+
+
+def test_a_reset_desk_does_not_stop_the_others(capsys):
+    """One desk's dead connection is one unavailable desk.
+
+    The poller fans one record out to every configured desk, and a fan-out that
+    aborts on the first failure silently stops feeding the desks that were fine:
+    the record never reaches them and the failure surfaces as a crash rather than
+    as the one desk that dropped. The failure is counted on the desk that had it,
+    so the run has to keep going long enough for the count to be the news.
+    """
+    reset = stub_link("reset", ResetConn())
+    healthy = stub_link("healthy", SilentConn())
+    links = poller.LinkSet([reset, healthy], "futu-poller", stdout=io.StringIO())
+
+    for _ in range(poller.FAILURE_ALERT_AFTER):
+        links.send(record())
+        reset.conn = ResetConn()  # the next attempt reconnects onto a desk that resets again
+
+    assert healthy._failures == 0, "a healthy desk carries no failure"
+    assert capsys.readouterr().err.count("reset: cannot keep a connection") == 1, (
+        "the persistent failure is stated once, and it names the desk it is about"
+    )
+
+
+def test_the_healthy_desk_still_receives_every_publish():
+    """The desk that is fine is fed on every poll, including the ones that fail."""
+    reset = stub_link("reset", ResetConn())
+    healthy = stub_link("healthy", SilentConn())
+    links = poller.LinkSet([reset, healthy], "futu-poller", stdout=io.StringIO())
+
+    for _ in range(3):
+        links.send(record())
+        reset.conn = ResetConn()
+
+    assert len(healthy.conn.written) == 3, "one unreachable desk must not starve the others"
+
+
+def test_reading_a_reset_desk_is_reported_not_raised(capsys):
+    """A read that fails is a connection to drop, not an exception to propagate.
+
+    The failure path closes the connection before the read loop's finally clause
+    restores the timeout, so the restore has to act on the connection it started
+    with rather than on whatever the field holds afterwards.
+    """
+    link = stub_link("reset", ResetConn())
+    try:
+        link._read_replies()
+    except Exception as exc:  # noqa: BLE001 - the point of the test
+        raise AssertionError("a dropped desk raised %s: %s" % (type(exc).__name__, exc)) from exc
+    assert link.conn is None, "the dead connection is released so the next attempt reconnects"
+    assert link._failures == 1, "the failure is recorded on the desk it happened to"

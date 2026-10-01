@@ -243,7 +243,13 @@ class ShellLink:
             if not self.ensure():
                 return False
             self.conn.sendall(frame(record))
-            self._read_replies()
+            if not self._read_replies():
+                # The answer never arrived because the link went away mid-record.
+                # The write is not a delivery, so this poll is not a success: a
+                # report of success here would clear the failure count of a desk
+                # that is in fact never being fed, and the one alert that exists
+                # would never be raised.
+                return False
             self._failures = 0
             return True
         except OSError as exc:
@@ -281,27 +287,34 @@ class ShellLink:
         desk's writes blocked and the next send failed with a broken pipe. A
         named pipe cannot be read with a timeout, so it keeps the write-only
         path. Reading never blocks the poll loop: one short timeout bounds it.
+
+        Returns whether the link is still usable, so a record whose answer was
+        never received is not counted as delivered.
         """
-        if not hasattr(self.conn, "recv"):
-            return
+        # The connection is held locally: the failure path below closes the link,
+        # so the finally clause has to restore the timeout on the connection this
+        # read started with rather than on whatever self.conn holds afterwards.
+        conn = self.conn
+        if conn is None or not hasattr(conn, "recv"):
+            return True
         previous = None
         try:
-            previous = self.conn.gettimeout()
+            previous = conn.gettimeout()
         except OSError:
             previous = None
         try:
-            self.conn.settimeout(REPLY_TIMEOUT)
+            conn.settimeout(REPLY_TIMEOUT)
             while True:
                 try:
-                    chunk = self.conn.recv(4096)
+                    chunk = conn.recv(4096)
                 except socket.timeout:
-                    return
+                    return True
                 except OSError as exc:
                     self._note_failure("cannot read the desk's answer: %s" % exc)
                     self.close()
-                    return
+                    return False
                 if not chunk:
-                    return
+                    return True
                 self._replies += chunk
                 if len(self._replies) > MAX_REPLY_BYTES:
                     # A peer that never sends a newline must not grow this buffer.
@@ -312,7 +325,7 @@ class ShellLink:
         finally:
             if previous is not None:
                 try:
-                    self.conn.settimeout(previous)
+                    conn.settimeout(previous)
                 except OSError:
                     pass
 
@@ -369,7 +382,14 @@ class LinkSet:
             self.stdout.flush()
             return
         for link in self.links:
-            link.send(record)
+            # One desk is one desk. A failure is already recorded on the link that
+            # had it, and letting it escape here would abandon the desks this
+            # loop had not reached yet, so a single dead desk would stop feeding
+            # every desk after it in the list.
+            try:
+                link.send(record)
+            except Exception as exc:  # noqa: BLE001 - one desk must not end the fan-out
+                _warn("%s: cannot publish: %s: %s" % (link.target.label, type(exc).__name__, exc))
 
     def close(self):
         for link in self.links:
