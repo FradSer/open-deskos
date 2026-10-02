@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:net'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
@@ -10,10 +11,10 @@ import { agentOptions, validateWorkspace, createResourceLoader, sessionAdapter }
 test('real SDK resource loader loads the widget skill without undefined agentDir', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const loader = await createResourceLoader(new URL('../../..', import.meta.url).pathname, dir)
+  const loader = await createResourceLoader(fileURLToPath(new URL('../../..', import.meta.url)), dir)
   assert.ok(loader.getSkills().skills.some(skill => skill.name === 'open-deskos-widget'))
   assert.match(loader.getAppendSystemPrompt().join('\n'), /never edit active/i)
-  assert.equal(loader.getExtensions().extensions.length, 0)
+  assert.equal(loader.getExtensions().extensions.length, 1, 'only the installed SDK codemode factory loads')
   const instructions = loader.getAppendSystemPrompt().join('\n')
   assert.match(instructions, /默认使用简体中文/)
   assert.match(instructions, /尊重用户明确指定的其他语言/)
@@ -225,7 +226,7 @@ test('user application lifecycle tools use the bounded shell control protocol', 
   assert.equal(JSON.parse(installed.content[0].text).ok, true)
 })
 
-test('trusted capability modules augment real coding tools and resume dedicated sessions', async t => {
+test('trusted capability modules augment readonly coordination tools and resume dedicated sessions', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-cap-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await writeFile(join(dir, 'custom.mjs'), 'export default async () => [{name:"custom",execute:async()=>({content:[],details:{}})}]')
@@ -235,10 +236,22 @@ test('trusted capability modules augment real coding tools and resume dedicated 
   assert.ok(!tools.some(tool => ['live_sessions', 'send_to_session'].includes(tool.name)))
   assert.ok(tools.some(tool => tool.name === 'custom'))
   const options = agentOptions('/work/checkout', dir, tools)
-  assert.ok(options.tools.includes('bash'))
-  assert.ok(options.tools.includes('custom'))
+  assert.equal(options.tools, undefined, 'activation must not declare codemode-only customs')
+  assert.deepEqual(options.settingsManager.getDefaultTools(), ['read', 'grep', 'find', 'ls', 'codemode'])
+  for (const name of ['bash', 'powershell', 'edit', 'write']) assert.ok(options.excludeTools.includes(name))
+  assert.ok(options.customTools.every(tool => tool.exposure === 'codemode'))
   assert.equal(options.cwd, '/work/checkout')
   await assert.rejects(validateWorkspace('/opt/open-deskos/current'), /Workspace/)
+})
+
+test('capability modules cannot replace builtin inspection or shell names', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-reserved-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  for (const name of ['grep', 'find', 'ls', 'powershell', 'codemode', 'tool_search']) {
+    const file = join(dir, name + '.mjs')
+    await writeFile(file, 'export default async () => [{name:' + JSON.stringify(name) + ',execute:async()=>({content:[],details:{}})}]')
+    await assert.rejects(loadCapabilities([file]), /Invalid or duplicate capability/)
+  }
 })
 
 test('coding tools list configuration only and route explicit project requests', async t => {
@@ -254,6 +267,12 @@ test('coding tools list configuration only and route explicit project requests',
   const tools = await loadCapabilities()
   const targets = await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)
   assert.deepEqual(JSON.parse(targets.content[0].text), { targets: [{ id: 'cm5', name: '开发板', roots: ['/work'] }] })
+  const targetTool = tools.find(tool => tool.name === 'coding_targets')
+  assert.ok(targetTool.outputSchema)
+  assert.deepEqual(targets.structuredContent, JSON.parse(targets.content[0].text))
+  assert.equal(targetTool.exposure, 'codemode')
+  assert.equal(targetTool.annotations.readOnlyHint, true)
+  assert.equal(tools.find(tool => tool.name === 'coding_task_start').annotations.readOnlyHint, false)
   for (const command of ['start', 'status', 'history', 'prompt', 'cancel', 'end', 'list']) {
     const tool = tools.find(tool => tool.name === (command === 'list' ? 'coding_tasks_list' : `coding_task_${command}`))
     const params = { target: 'cm5', project: '/work/天气', prompt: '修改已有应用', taskId: '12345678-1234-1234-1234-123456789abc' }

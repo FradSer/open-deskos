@@ -31,12 +31,21 @@ export function createDidiTools(controller) {
     ['didi_driver_location','司机位置','查询已确认的进行中订单司机位置。','driverLocation',empty],
   ];
   return specs.map(([name,label,description,method,parameters]) => defineTool({
-    name, label, description, parameters,
+    name, label, description, parameters, exposure: 'codemode', executionMode: 'sequential',
+    namespace: { name: 'didi', description: 'Ordered ride workflow. Host-owned current-turn confirmation is required; unknown results are not retried.' },
+    annotations: { readOnlyHint: ['search', 'driverLocation'].includes(method), destructiveHint: !['search', 'driverLocation'].includes(method),
+      idempotentHint: false, openWorldHint: true },
+    outputSchema: Type.Object({ sandbox: Type.Boolean(), result: Type.Optional(Type.Unknown()), error: Type.Optional(Type.String()) }),
     async execute(_id,args) {
       try {
         const result=await controller[method](args);
-        return {content:[{type:'text',text:JSON.stringify({sandbox:controller.snapshot().sandbox,result})}],details:{}};
-      } catch (error) { return {content:[{type:'text',text:`${controller.snapshot().sandbox ? '调试模拟环境。' : '真实订单环境。'}${error instanceof DidiError ? error.message : '滴滴请求未完成。请先查询状态，不要自动重试下单或取消。'}`} ],details:{},isError:true}; }
+        const value={sandbox:controller.snapshot().sandbox,result};
+        return {content:[{type:'text',text:JSON.stringify(value)}],details:{},structuredContent:value};
+      } catch (error) {
+        const sandbox=controller.snapshot().sandbox;
+        const message=`${sandbox ? '调试模拟环境。' : '真实订单环境。'}${error instanceof DidiError ? error.message : '滴滴请求未完成。请先查询状态，不要自动重试下单或取消。'}`;
+        return {content:[{type:'text',text:message}],details:{},isError:true,structuredContent:{sandbox,error:message}};
+      }
     },
   }));
 }

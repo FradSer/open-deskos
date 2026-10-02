@@ -10,8 +10,11 @@ test('personal SDK options exclude builtin tools and isolate persisted sessions'
   const dir = await mkdtemp(join(tmpdir(), 'personal-integration-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const options = agentOptions(dir, dir, [{ name: 'ride_status' }], 'personal')
-  assert.deepEqual(options.tools, ['ride_status'])
-  assert.equal(options.noTools, 'builtin')
+  assert.equal(options.tools, undefined)
+  assert.equal(options.noTools, undefined)
+  assert.deepEqual(options.settingsManager.getDefaultTools(), ['codemode'])
+  assert.equal(options.customTools[0].exposure, 'codemode')
+  for (const name of ['read', 'grep', 'find', 'ls', 'write', 'edit', 'bash', 'powershell']) assert.ok(options.excludeTools.includes(name))
   assert.ok(options.sessionManager.getSessionDir().includes('personal'))
 })
 

@@ -371,6 +371,7 @@ test('SDK adapter uses persistent isolated resources and waits for final stop re
     },
     abort: async () => { aborted = true; finish(); },
     subscribe: () => () => {},
+    bindExtensions: async () => {},
     dispose: () => { disposed = true; },
   }
   const job = runTask({ task: { project: f.root, prompt: '任务' }, signal: controller.signal, sessionDir: join(f.config.stateDir, 'sdk') }, {
@@ -379,10 +380,14 @@ test('SDK adapter uses persistent isolated resources and waits for final stop re
   })
   while (!finish) await new Promise(resolve => setTimeout(resolve, 5))
   assert.equal(options.sessionManager.isPersisted(), true)
-  assert.equal(options.resourceLoader.getExtensions().extensions.length, 0)
+  assert.equal(options.resourceLoader.getExtensions().extensions.length, 2, 'only codemode and host check evidence factories load')
   assert.equal(options.resourceLoader.getPrompts().prompts.length, 0)
   assert.ok(options.resourceLoader.getAgentsFiles().agentsFiles.some(file => file.content.includes('Managed test context')))
   assert.equal(options.resourceLoader.getSkills().skills.length, 0)
+  assert.equal(options.tools, undefined, 'Hosted Pi must not acquire a restricted voice profile')
+  assert.equal(options.noTools, undefined)
+  assert.equal(options.excludeTools, undefined)
+  assert.ok(options.customTools?.some(tool => tool.name === 'coding_check'), 'host-observed checks must be available')
   controller.abort()
   assert.equal((await job).stopReason, 'aborted')
   assert.equal(aborted, true)

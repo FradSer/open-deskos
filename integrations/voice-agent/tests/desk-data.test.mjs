@@ -65,12 +65,15 @@ test('the coding coordinator reads the readings the desk holds', async t => {
   const tool = (await loadCapabilities()).find(candidate => candidate.name === 'desk_data')
   assert.ok(tool, 'the coordinator must be able to reach the desk own readings')
 
+  const listed = await tool.execute('structured-read', {})
+  assert.ok(tool.outputSchema, 'codemode requires a declared structured result')
+  assert.deepEqual(listed.structuredContent, { readings: [{ id: HYDRA, label: 'Hydra plants', kind: 'tile' }] })
   assert.deepEqual(await read(tool), { readings: [{ id: HYDRA, label: 'Hydra plants', kind: 'tile' }] })
   const reading = await read(tool, { id: HYDRA })
   assert.equal(reading.reading.state, 'live')
   assert.equal(reading.reading.value.nodes[0].soilPercent, 30)
-  assert.deepEqual(requests.map(request => request.command), ['list', 'read'])
-  assert.equal(requests[1].readingId, HYDRA)
+  assert.deepEqual(requests.map(request => request.command), ['list', 'list', 'read'])
+  assert.equal(requests[2].readingId, HYDRA)
 })
 
 test('both profiles read the one desk they share', async t => {

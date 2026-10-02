@@ -144,12 +144,13 @@ Feature: Resident push-to-talk coding agent
     Then the loopback URL is accepted for transcription
     And plain HTTP URLs outside loopback are rejected before any request
 
-  Scenario: Persistent coding and extensible capabilities
-    Given a configured writable checkout and trusted local capability modules
+  Scenario: Persistent coordination and extensible capabilities
+    Given a configured checkout and trusted local capability modules
     When the resident Pi session starts
-    Then it resumes its own durable session with real coding tools and the widget skill
-    And live session list and send tools use the bounded session-control JSON protocol
-    And coding instructions require tests before staged activation and forbid editing active releases
+    Then it resumes its own durable session with readonly inspection tools and the widget skill
+    And generic source mutation and shell tools are not available to the coordinator
+    And Hosted Pi list and control tools use the bounded task JSON protocol
+    And delegated coding instructions require tests before staged activation and forbid editing active releases
 
   Scenario: Manage resident user applications through the shell lifecycle
     Given the shell application control socket is available

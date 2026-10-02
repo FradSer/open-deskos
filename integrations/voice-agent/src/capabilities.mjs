@@ -7,6 +7,9 @@ import { userAppsRequest } from './apps-control.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 
 const APP_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const OBJECT_OUTPUT = Type.Record(Type.String(), Type.Unknown())
+const readingHints = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+const mutationHints = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false }
 
 function userAppTool(command, description, needsAppId = true) {
   const placement = Type.Object({
@@ -17,7 +20,10 @@ function userAppTool(command, description, needsAppId = true) {
   return defineTool({
     name: ['list', 'desktop'].includes(command) ? `user_apps_${command}` : `user_app_${command}`,
     label: `User app ${command}`,
-    description,
+    description, exposure: 'codemode', outputSchema: OBJECT_OUTPUT,
+    namespace: { name: 'desk_apps', description: 'System-owned Widget/App lifecycle. Mutations need the actual user request; no unknown-outcome retries.' },
+    annotations: ['list', 'desktop'].includes(command) ? readingHints : mutationHints,
+    executionMode: ['list', 'desktop'].includes(command) ? 'parallel' : 'sequential',
     parameters: needsAppId ? Type.Object({
       id: Type.String({ pattern: APP_ID.source, minLength: 1, maxLength: 64 }),
       ...(command === 'install' ? { placement: Type.Optional(placement) } : {}),
@@ -42,7 +48,7 @@ function userAppTool(command, description, needsAppId = true) {
 const SESSION_IDENTITY = "Pass the session's own project exactly as coding_tasks_list reported it, not a broader root."
 const TASK_COMMANDS = {
   start: { tool: 'coding_task_start', extra: { prompt: Type.String({ minLength: 1, maxLength: 16_384 }) },
-    description: 'Start an independent Pi session on an explicit configured target and project. Accepted is not completed or verified. Never retry a mutation after an unknown outcome; reconcile with status.' },
+    description: 'Start an independent Pi session on an explicit configured target and project for source implementation and command execution. Report the durable receipt and return without waiting/polling for coding completion. Accepted is not completed or independently verified. Never retry a mutation after an unknown outcome; reconcile with status.' },
   list: { tool: 'coding_tasks_list',
     description: 'List the sessions recorded on a target, most recently updated first, with their project, state, lifecycle, activity, last turn outcome and a goal preview. A project scope covers that project and everything under it, so a configured development root is a valid project and lists every session under it. This is how a spoken reference such as the second working session on the desk is resolved to a durable task ID and that session\'s own project.' },
   status: { tool: 'coding_task_status', extra: { taskId: Type.String({ minLength: 36, maxLength: 36 }) },
@@ -62,7 +68,10 @@ function codingTaskTool(command, targets) {
   const spec = TASK_COMMANDS[command]
   return defineTool({
     name: spec.tool, label: command === 'list' ? 'Coding tasks list' : `Coding task ${command}`,
-    description: spec.description,
+    description: spec.description, exposure: 'codemode', outputSchema: OBJECT_OUTPUT,
+    namespace: { name: 'hosted_pi', description: 'Configured Hosted Pi identities, receipt-based work and bounded control.' },
+    annotations: ['list', 'status', 'history'].includes(command) ? readingHints : mutationHints,
+    executionMode: ['list', 'status', 'history'].includes(command) ? 'parallel' : 'sequential',
     parameters: Type.Object({
       target: Type.Union([Type.Literal('cm5'), Type.Literal('mac')]),
       project: Type.String({ minLength: 1 }),
@@ -87,6 +96,8 @@ function coreCapabilities(targets) {
     userAppTool('remove', 'Remove a resident user application through the shell lifecycle backend.', true),
     defineTool({
       name: 'coding_targets', label: 'Coding targets', description: 'List configured target IDs, names and development roots. Configuration is not a network health or availability check.',
+      exposure: 'codemode', outputSchema: OBJECT_OUTPUT, annotations: readingHints,
+      namespace: { name: 'hosted_pi', description: 'Configured Hosted Pi identities, receipt-based work and bounded control.' },
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async () => result({ targets: targets.map(({ id, name, roots }) => ({ id, name, roots })) }),
     }),
@@ -95,12 +106,12 @@ function coreCapabilities(targets) {
 }
 
 function result(value) {
-  return { content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {} }
+  return { content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value }
 }
 
 export async function loadCapabilities(paths = []) {
   const tools = coreCapabilities(await loadTargets())
-  const names = new Set(['read', 'write', 'edit', 'bash', ...tools.map(tool => tool.name)])
+  const names = new Set(['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls', 'codemode', 'tool_search', ...tools.map(tool => tool.name)])
   for (const path of paths) {
     if (!isAbsolute(path)) throw Error('Capability paths must be absolute')
     const module = await import(pathToFileURL(path).href)
