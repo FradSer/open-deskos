@@ -24,7 +24,9 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
 - `ODESK_WORKSPACE`: the shared Open DeskOS writable Git checkout, consumed by
   voice and other system entry points rather than owned by voice. It is explicitly provisioned,
   outside `/opt/open-deskos` (for example under the kiosk user's `~/Developer`).
-  This is where coding tools work, never the `current` symlink or release tree.
+  The resident coordinator inspects this checkout without generic mutation or shell
+  tools. Source implementation and command execution belong to an explicit Hosted Pi
+  target/project, never the `current` symlink or release tree (ADR-0014).
   The installer does not clone a repository, configure Git identity, or deploy
   changes produced by the agent.
 - `ODESK_VOICE_STT_KEY_FILE`: required only when transcription is not the
@@ -59,6 +61,15 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
 - `ODESK_VOICE_STT_MODEL`: optional; defaults to `whisper-1` for the OpenAI
   provider and `qwen3-asr-flash` for the Aliyun one. The loopback bridge
   ignores the field, so a device-local endpoint has no reason to set it.
+- Pi SDK: the release installs `@earendil-works/pi-coding-agent` 1.0.0 as a voice
+  package dependency. The resident coordinator and Hosted Pi sessions load the SDK's
+  own `codemode` extension; extension discovery from user and project configuration
+  stays disabled. No MCP server is registered.
+- Pi settings: only the kiosk user's Pi agent directory configures these sessions. A
+  checkout in `ODESK_WORKSPACE` never does, which also keeps it from declaring a
+  package to install. Set `"cacheWarming": "off"` there to stop Pi spending provider
+  credentials on an idle prompt-cache refresh; the integration does not write that
+  setting for you.
 - `ODESK_VOICE_MODEL`: optional Pi `provider/id` model selection. Configure provider
   authentication separately on the CM5 under the kiosk user's Pi auth storage
   (`~/.pi/agent/auth.json`); the STT key does not authenticate the coding model.
@@ -67,7 +78,11 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   voice service's environment — `voice-agent.env`, or a
   `open-deskos-voice-agent.service.d/*.conf` drop-in when the operator prefers
   to keep it beside the host's `pi-tasks.json`. systemd applies both, and a
-  drop-in wins over the env file, so set it in exactly one of them.
+  drop-in wins over the env file, so set it in exactly one of them. Source coding
+  requests require a configured target; the coordinator has no direct resident
+  implementation fallback. Existing installations that used that fallback must
+  configure a Hosted Pi before they can implement spoken requests. This revision
+  does not restrict the worker's full capability or add global second confirmation.
 
 Never copy the developer's `.pi`, auth files, `.env`, or `node_modules` to the
 CM5. Integration staging excludes these common private/local artifacts; release
@@ -167,5 +182,6 @@ hardware gate after firmware, kernel, cable, or board changes:
 
 The P4 native USB2.0 data port is distinct from the CH343P debug/flash Type-C
 port. Both may remain connected: the native port carries UVC+UAC, while CH343P
-carries firmware logs and flashing. Model/STT authentication and optional
-session-control remain separately provisioned device-local concerns.
+carries firmware logs and flashing. Model/STT authentication and
+Hosted Pi control remain separately provisioned device-local concerns. Hosted Pi
+control is required for source implementation requests, not for desk readings.

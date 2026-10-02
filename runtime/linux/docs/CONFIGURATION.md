@@ -112,6 +112,8 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `PATH` | 环境 | unit / 安装器 | runtime/linux/scripts/cm5-install.sh | — | 单元固定 kiosk 会话的 node 与垫片目录，不走交互式版本管理者的 PATH |
 | `PI_AGENT_DIR` | 环境 | Pi 运行时 | runtime/linux/src/pi-sessions.js | ~/.pi/agent | Pi 会话与认证目录 |
 | `ODESK_FUTU_SERVICE_REVISION` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, integrations/futu-poller/poller.py | dev | 富途服务修订号：握手与预期都用这一处声明 |
+| `SystemRoot` | 环境 | Windows 用户会话 | integrations/voice-agent/src/candidate-checks.mjs | — | `coding_check` 派生源码样本时构造的最小环境在 Windows 上透传 `SystemRoot` 与 `WINDIR`，否则子进程无法启动；它们不是设备配置，也不得由设备声明 |
+| `WINDIR` | 环境 | Windows 用户会话 | integrations/voice-agent/src/candidate-checks.mjs | — | 与 `SystemRoot` 同一次透传；缺失时 Windows 子进程无法解析系统目录 |
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |

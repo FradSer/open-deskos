@@ -101,8 +101,8 @@ The shared writable project workspace used by Open DeskOS development and automa
 _Avoid_: voice workspace, active release directory, Pi session storage
 
 **Voice Agent**:
-The desk-resident Pi agent that interprets a Remote-triggered spoken request and invokes explicitly installed capabilities. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
-_Avoid_: Pi Sessions widget, microphone on the Remote, a new monitored session per button click
+The desk-resident Pi coordinator that interprets a Remote-triggered spoken request, reads desk state, and invokes explicitly installed capabilities. Source implementation belongs to a Hosted Pi it delegates to, not to the resident conversation. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
+_Avoid_: resident source implementer, Pi Sessions widget, microphone on the Remote, a new monitored session per button click
 
 **Spoken Turn**:
 A Remote-triggered voice recording submitted by MIC or by local detection of silence after speech. Waiting without speech is not a completed turn.
