@@ -1,15 +1,17 @@
 scopes:
     - name: shell
-      description: Display Shell runtime on every Shell Host, including renderer, deployment, and tests in runtime/linux/; named for the Shell, not a host device, and does not cover integration tools.
+      description: Desktop environment, renderer, app lifecycle, and plugins in runtime/linux/; does not cover integration-level services.
     - name: hw
-      description: Peripheral hardware implementations and ESP32 drivers in peripherals/; does not cover Linux runtime.
+      description: ESP32 firmware drivers and peripheral control logic in peripherals/; does not cover Linux-side host processes.
     - name: link
-      description: Bridge and communication protocols in integrations/; handles multi-transport arbitration and system connectivity.
+      description: Connectivity bridges, transport protocols, and agent-service communications in integrations/; does not cover desktop shell UI.
     - name: vision
-      description: Opt-in face agent and vision pipelines in experiments/vision/; does not cover shell UI components.
+      description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI.
     - name: p4
-      description: Firmware research, simulator, and specifications in research/esp32-p4-c6-deskos/firmware/; does not cover production hardware.
+      description: Hardware research, firmware simulation, and architectural specs in research/esp32-p4-c6-deskos/firmware/; does not cover production drivers.
     - name: mac
-      description: Apple-specific companion agent and management console in research/esp32-p4-c6-deskos/apple/.
+      description: Apple companion agent, macOS management console, and CLI tools in research/esp32-p4-c6-deskos/apple/.
     - name: tool
-      description: Utility scripts, codegen tools, and build infrastructure in tools/; does not cover core application logic.
+      description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic.
+    - name: exp
+      description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals.

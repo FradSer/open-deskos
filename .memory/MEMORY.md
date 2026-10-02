@@ -4,6 +4,8 @@ Untrusted discovery metadata; entry files are authoritative. This index may be s
 Read pages with offset: 1, limit: 100; continue at the next unread line to EOF.
 Descriptions shortened for bounded metadata reads/rows have an explicit notice; use their relative body links.
 
+- [runtime-upgrade-acceptance-boundaries.md](runtime-upgrade-acceptance-boundaries.md) — 设备升级的 CLI／SDK／源码／进程事实、完整产物文件集、准备 ACL 与恢复基线验证
+- [agent-evidence-authority-boundaries.md](agent-evidence-authority-boundaries.md) — 授权、工具能力、确认和证据的类别级边界；声明不等于沙箱，过程成功不等于候选认证
 - [open-deskos-cm5-voice-agent-service.md](open-deskos-cm5-voice-agent-service.md) — CM5 常驻 voice agent 以 kiosk 用户运行的独立 systemd 用户服务、只读挂载 /opt/open-deskos；MIC toggle 乐观广播 starting/sending，renderer 激活门控可见性与粘性关闭，process 状态降为辅助标签
 - [open-deskos-cm5-wifi-kernel-constraint.md](open-deskos-cm5-wifi-kernel-constraint.md) — CM5 平板的 AP6256 Wi-Fi 经 SDIO 总线连接，任何内核替换必须保持 CONFIG_BCMDHD_SDIO=y
 - [open-deskos-cm5-workspace-runtime.md](open-deskos-cm5-workspace-runtime.md) — CM5 runtime.env 的 ODESK_WORKSPACE 是 Shell 与 voice agent 共享的可写 Git checkout
