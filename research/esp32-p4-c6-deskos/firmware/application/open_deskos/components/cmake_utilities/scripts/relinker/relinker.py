@@ -6,7 +6,6 @@
 
 import logging
 import argparse
-import csv
 import os
 import subprocess
 import sys
@@ -73,7 +72,7 @@ class filter_c:
         self.libs = ''
         for l in lines:
             if ') .iram1 EXCLUDE_FILE(*' in l and ') .iram1.*)' in l:
-                desc = '\(EXCLUDE_FILE\((.*)\) .iram1 '
+                desc = r'\(EXCLUDE_FILE\((.*)\) .iram1 '
                 self.libs_desc = re.search(desc, l)[1]
                 self.libs = self.libs_desc.replace('*', '')
                 return
@@ -104,7 +103,7 @@ class target_c:
         self.isecs = strip_secs(self.secs, self.fsecs)
 
     def __str__(self):
-        s = 'lib=%s\nfile=%s\lib_path=%s\ndesc=%s\nsecs=%s\nfsecs=%s\nisecs=%s\n'%(\
+        s = 'lib=%s\nfile=%s\\lib_path=%s\ndesc=%s\nsecs=%s\nfsecs=%s\nisecs=%s\n'%(\
             self.lib, self.file, self.lib_path, self.desc, self.secs, self.fsecs,\
             self.isecs)
         return s

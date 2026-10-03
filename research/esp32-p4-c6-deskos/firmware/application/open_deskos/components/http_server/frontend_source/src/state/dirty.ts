@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from 'solid-js';
+import { createSignal } from 'solid-js';
 import { t } from '../i18n';
 
 export type TabId =
@@ -37,19 +37,6 @@ export function anyDirty() {
 export function markDirty(tab: TabId, dirty: boolean) {
   if (dirtyTabs()[tab] === dirty) return;
   setDirtyTabs({ ...dirtyTabs(), [tab]: dirty });
-}
-
-export function dirtySnapshot() {
-  return dirtyTabs();
-}
-
-export function useDirtyTracker(tab: TabId, dirty: () => boolean) {
-  createEffect(() => {
-    markDirty(tab, dirty());
-  });
-  onCleanup(() => {
-    markDirty(tab, false);
-  });
 }
 
 export function installUnsavedGuard() {

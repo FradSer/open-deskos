@@ -2,10 +2,9 @@
  * Host harness sanity test.
  *
  * Proves two things about a clean host build (ESP-IDF toolchain inactive):
- *   1. Unity links and runs.
- *   2. The vendored Lua VM compiles on the host and executes bytecode: it runs
+ *   1. The vendored Lua VM compiles on the host and executes bytecode: it runs
  *      "return 1+1" and the result is asserted to equal 2.
- *   3. Periodic work can be coalesced without replaying stale timer callbacks.
+ *   2. Periodic work can be coalesced without replaying stale timer callbacks.
  */
 #include "unity.h"
 #include "odk_tick_gate.h"
@@ -15,11 +14,6 @@
 
 void setUp(void) {}
 void tearDown(void) {}
-
-static void test_unity_is_alive(void)
-{
-    TEST_ASSERT_EQUAL_INT(2, 1 + 1);
-}
 
 static void test_lua_vm_evaluates_expression(void)
 {
@@ -61,7 +55,6 @@ static void test_tick_gate_coalesces_pending_work(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_unity_is_alive);
     RUN_TEST(test_lua_vm_evaluates_expression);
     RUN_TEST(test_tick_gate_coalesces_pending_work);
     return UNITY_END();

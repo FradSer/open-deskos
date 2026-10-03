@@ -31,11 +31,6 @@ test('buildUserAppDocument injects token readiness without srcdoc', () => {
   assert.match(USER_APP_CSP, /frame-ancestors 'self' file:/)
 })
 
-test('verifier accepts a maximum-sized visible HTML bundle without Buffer duplication', async () => {
-  const result = await verifier(15000).verify({ html: `<body>${'x'.repeat(256 * 1024 - 32)}</body>`, manifestBytes: Buffer.alloc(500000), htmlBytes: Buffer.alloc(500000) })
-  assert.deepEqual(result, { ok: true })
-})
-
 test('verifier rejects oversized input before spawning a child', async () => {
   const result = await verifier().verify({ html: 'x'.repeat(256 * 1024 + 1) })
   assert.deepEqual(result, { ok: false, error: 'html-too-large' })
@@ -53,11 +48,12 @@ test('verifier hands the bundle over as a file and reads the result from one', a
     fs.writeFileSync(resultPath, `${JSON.stringify({ ok: true })}\n`, 'utf8')
     return fakeChild()
   }
-  const result = await createUserAppVerifier({ electronPath: 'electron', spawnProcess }).verify({ html: '<body><p>file channel</p></body>' })
+  const html = maximumSizedHtml()
+  const result = await createUserAppVerifier({ electronPath: 'electron', spawnProcess }).verify({ html, manifestBytes: Buffer.alloc(500000), htmlBytes: Buffer.alloc(500000) })
 
   assert.deepEqual(result, { ok: true })
   assert.equal(seen.length, 1)
-  assert.equal(JSON.parse(seen[0].bundle).html, '<body><p>file channel</p></body>')
+  assert.deepEqual(JSON.parse(seen[0].bundle), { html }, 'only semantic fields cross the file channel, without duplicating Buffers')
   assert.ok(path.isAbsolute(seen[0].bundlePath), 'the runner needs a path it can open')
   assert.ok(path.isAbsolute(seen[0].resultPath))
 })
@@ -67,15 +63,21 @@ function fakeChild() {
   const child = new EventEmitter()
   child.stdout = new EventEmitter()
   child.stderr = new EventEmitter()
-  child.stdin = Object.assign(new EventEmitter(), { end() {}, on() {} })
   child.kill = () => {}
   child.pid = 4242
   setImmediate(() => child.emit('close', 0))
   return child
 }
 
-test('real Electron verifier accepts a visible self-contained bundle', async () => {
-  const result = await verifier().verify({ html: '<body><p>verified</p></body>' })
+function maximumSizedHtml() {
+  const prefix = '<body><p>verified</p><!--'
+  const suffix = '--></body>'
+  // Exercise the byte limit without asking layout to shape a 256 KiB word.
+  return `${prefix}${'x'.repeat(256 * 1024 - prefix.length - suffix.length)}${suffix}`
+}
+
+test('real Electron verifier accepts a maximum-sized visible self-contained bundle', async () => {
+  const result = await verifier().verify({ html: maximumSizedHtml() })
   assert.deepEqual(result, { ok: true })
 })
 

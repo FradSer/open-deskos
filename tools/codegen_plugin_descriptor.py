@@ -18,11 +18,18 @@ KIND_MAP = {
 }
 
 
-def sanitize_ident(name):
+def sanitize_ident(name: str) -> str:
     return name.replace(".", "_").replace("-", "_").replace("/", "_")
 
 
-def generate_c_descriptors(manifest_paths, out_header, out_source):
+def c_string(value: str) -> str:
+    # Fixed-width octal escapes keep control bytes separate from following text.
+    escapes = {byte: f"\\{byte:03o}" for byte in range(32)}
+    escapes.update({127: "\\177", ord('"'): '\\"', ord("\\"): "\\\\", ord("?"): "\\?"})
+    return '"' + value.translate(escapes) + '"'
+
+
+def generate_c_descriptors(manifest_paths: list[str], out_header: str, out_source: str) -> None:
     plugins = []
     for path in manifest_paths:
         with open(path, "r", encoding="utf-8") as f:
@@ -67,7 +74,7 @@ def generate_c_descriptors(manifest_paths, out_header, out_source):
                 f.write(f"static const odk_port_desc_t s_provides_{ident}[] = {{\n")
                 for port in provides:
                     uri = port.get("interface", "")
-                    f.write(f'    {{ "{uri}", false }},\n')
+                    f.write(f'    {{ {c_string(uri)}, false }},\n')
                 f.write("};\n\n")
 
             if requires:
@@ -75,7 +82,7 @@ def generate_c_descriptors(manifest_paths, out_header, out_source):
                 for port in requires:
                     uri = port.get("interface", "")
                     opt = "true" if port.get("optional") else "false"
-                    f.write(f'    {{ "{uri}", {opt} }},\n')
+                    f.write(f'    {{ {c_string(uri)}, {opt} }},\n')
                 f.write("};\n\n")
 
         f.write(f"const odk_plugin_descriptor_t g_odk_plugins[{len(plugins)}] = {{\n")
@@ -89,8 +96,8 @@ def generate_c_descriptors(manifest_paths, out_header, out_source):
             req_ptr = f"s_requires_{ident}" if requires else "NULL"
 
             f.write("    {\n")
-            f.write(f'        .id = "{p["id"]}",\n')
-            f.write(f'        .name = "{p.get("name", p["id"])}",\n')
+            f.write(f'        .id = {c_string(p["id"])},\n')
+            f.write(f'        .name = {c_string(p.get("name", p["id"]))},\n')
             f.write(f"        .version = 1,\n")
             f.write(f"        .kind = {kind},\n")
             f.write("        .lifecycle = NULL,\n")

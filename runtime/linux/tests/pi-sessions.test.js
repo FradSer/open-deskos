@@ -575,6 +575,7 @@ test('Pi Sessions widget reports scanner failure without fabricating zero sessio
   }
   const fakeEl = {
     innerHTML: '',
+    classList: { add() {}, remove() {} },
     querySelector(selector) { return nodes[selector] || null },
     // A tile measures the Cell it was given, so the double answers with the
     // reference panel's cell.

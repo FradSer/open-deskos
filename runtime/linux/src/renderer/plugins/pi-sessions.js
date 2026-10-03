@@ -145,10 +145,6 @@
     return String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1)
   }
 
-  function workspaceLabel(session) {
-    return session.workspaceName || session.cwd || 'Unknown workspace'
-  }
-
   function sessionPath(session) {
     return session.cwd || session.workspaceName || 'Unknown directory'
   }
@@ -241,12 +237,24 @@
       const activityEl = el.querySelector('.pi-widget-activity')
 
       let tickCount = 0
+      let scanToken = 0
+      let appliedScanToken = 0
+      let disposed = false
+      ctx.trackCleanup?.(() => { disposed = true; scanToken++ })
 
       const refresh = async () => {
+        if (disposed) return
+        const token = ++scanToken
         try {
           const res = typeof root.odkPlatform?.getPiSessions === 'function'
             ? await root.odkPlatform.getPiSessions()
             : null
+          // Polling can outpace a remote scan: discard older applied results,
+          // rather than starving all completions while the next poll is pending.
+          if (disposed || token < appliedScanToken) return
+          appliedScanToken = token
+          el.classList.remove('pi-widget-detailed')
+          el.classList.remove('pi-widget-wide-count')
           if (!res || res.ok === false) {
             countEl.textContent = '--'
             dotEl.className = 'pi-indicator-dot pi-indicator-idle'
@@ -270,6 +278,7 @@
           const wsCount = res?.summary?.workspacesCount ?? 0
 
           countEl.textContent = String(running)
+          if (countEl.textContent.length > 2) el.classList.add('pi-widget-wide-count')
           summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${live} live`
 
           const activeSession = res.sessions?.find((session) => session.status === 'running')
@@ -280,6 +289,7 @@
             tagLabelEl.className = 'pi-widget-tag-label text-odk-green'
 
             if (activeSession && (activeSession.latestGoal || activeSession.activity)) {
+              el.classList.add('pi-widget-detailed')
               if (stateEl) stateEl.innerHTML = renderGoalHtml(activeSession.latestGoal || `${running} working`)
               if (activityEl) {
                 activityEl.hidden = false
@@ -307,13 +317,20 @@
               (Date.parse(session.updatedAt) || 0) > (Date.parse(best?.updatedAt) || 0) ? session : best, null)
             const goal = normalizeInline(freshest?.latestGoal)
             if (stateEl) {
-              if (goal) stateEl.innerHTML = renderGoalHtml(goal)
+              if (goal) {
+                el.classList.add('pi-widget-detailed')
+                stateEl.innerHTML = renderGoalHtml(goal)
+              }
               // A set with no goal to report falls back to its own count, which is
               // the reading the tile's density profile is measured against.
               else stateEl.textContent = live > 0 ? `${live} idle` : 'Idle'
             }
           }
         } catch {
+          if (disposed || token < appliedScanToken) return
+          appliedScanToken = token
+          el.classList.remove('pi-widget-detailed')
+          el.classList.remove('pi-widget-wide-count')
           countEl.textContent = '--'
           dotEl.className = 'pi-indicator-dot pi-indicator-idle'
           tagLabelEl.textContent = 'ERROR'

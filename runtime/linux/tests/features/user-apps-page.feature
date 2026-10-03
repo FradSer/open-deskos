@@ -67,3 +67,9 @@ Feature: Installed packages belong on the desktop
     When its sandbox reports the failure
     Then its tile shows an unavailable message
     And other desktop content stays mounted
+
+  Scenario: Installed widgets adapt without creating implicit grid columns
+    Given an installed Widget has a persisted fifth-column placement
+    When the desktop shrinks to a one-column viewport
+    Then the Widget receives one available cell instead of creating a narrow implicit column
+    And expanding the desktop restores its persisted placement without reloading its frame

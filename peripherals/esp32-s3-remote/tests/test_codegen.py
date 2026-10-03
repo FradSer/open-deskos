@@ -1,5 +1,8 @@
-import os
+import json
+from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -21,17 +24,24 @@ MANIFEST_ST7789 = """{
 
 class TestCodegenPluginDescriptor(unittest.TestCase):
     def test_c_descriptor_generation(self):
+        compiler = shutil.which("cc")
+        if compiler is None:
+            self.skipTest("Host C compiler required for descriptor acceptance")
         with tempfile.TemporaryDirectory() as tmpdir:
-            m_path = os.path.join(tmpdir, "manifest.json")
-            h_path = os.path.join(tmpdir, "out.h")
-            c_path = os.path.join(tmpdir, "out.c")
+            root = Path(tmpdir)
+            m_path = root / "manifest.json"
+            h_path = root / "out.h"
+            c_path = root / "out.c"
+            manifest = json.loads(MANIFEST_ST7789)
+            manifest["name"] = 'Panel "A" \\ ??/\n\t\x00\x1f Control'
 
             with open(m_path, "w", encoding="utf-8") as f:
-                f.write(MANIFEST_ST7789)
+                json.dump(manifest, f)
 
             res = subprocess.run(
-                ["python3", "tools/codegen_plugin_descriptor.py", h_path, c_path, m_path],
+                [sys.executable, str(Path(__file__).resolve().parents[3] / "tools/codegen_plugin_descriptor.py"), h_path, c_path, m_path],
                 capture_output=True,
+                cwd=tmpdir,
                 text=True,
                 check=False,
             )
@@ -46,6 +56,21 @@ class TestCodegenPluginDescriptor(unittest.TestCase):
             self.assertIn("odk.s3.driver.st7789", c_content)
             self.assertIn("odk.driver.display/v1", c_content)
             self.assertIn("odk.port.spi/v1", c_content)
+            (root / "esp_err.h").write_text("typedef int esp_err_t;\n", encoding="utf-8")
+            (root / "main.c").write_text(
+                '#include "out.h"\n#include <stdio.h>\n#include <string.h>\n'
+                'int main(void) { return fwrite(g_odk_plugins[0].name, 1, '
+                f'{len(manifest["name"].encode("utf-8"))}, stdout) == '
+                f'{len(manifest["name"].encode("utf-8"))} ? 0 : 1; }}\n',
+                encoding="utf-8",
+            )
+            built = subprocess.run(
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", str(c_path), str(root / "main.c"), "-I", tmpdir, "-o", str(root / "descriptor")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(built.returncode, 0, built.stderr)
+            output = subprocess.run([str(root / "descriptor")], capture_output=True, check=True)
+            self.assertEqual(output.stdout, manifest["name"].encode("utf-8"))
 
 
 if __name__ == "__main__":

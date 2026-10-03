@@ -44,6 +44,18 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     And a Unix host without an absolute XDG_RUNTIME_DIR cannot place the endpoint, and the service refuses to start rather than inventing a path
     And the reference host behavior, including these refusals, does not change
 
+  Scenario: Handshake limits apply to the handshake rather than the first command
+    Given a Windows peer with the shared channel token
+    When it sends a valid handshake and a proposal response larger than 512 bytes in one write
+    Then the handshake is admitted and the proposal response reaches the service
+    And commands beyond the 4096-byte input limit remain refused
+
+  Scenario: Shutdown releases peers still waiting at the handshake
+    Given a Unix or Windows listener with a connected peer that has sent no bytes
+    When the listener is closed
+    Then the peer is disconnected and shutdown completes without waiting for a command
+    And the peer never receives a status broadcast
+
   Scenario: Ownership stays the gate on a Unix host, and the token is a second layer there
     Given a Unix host whose personal bot service is given a channel token
     When a client presents a valid handshake as its first line

@@ -121,16 +121,23 @@ async function captureWidgets(win, widgets, width, height) {
   fs.mkdirSync(captureDir, { recursive: true })
   const prefix = `home-${fixtureState}-${width}x${height}`
   await saveCapture(win, path.join(captureDir, `${prefix}.png`), { x: 0, y: 0, width, height })
-  for (const widget of widgets) {
-    await win.webContents.executeJavaScript(`document.querySelector('[data-widget="${widget.id}"]').scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })`)
-    const bounds = await win.webContents.executeJavaScript(`(() => {
-      const r = document.querySelector('[data-widget="${widget.id}"]').getBoundingClientRect()
-      return { x: Math.ceil(r.left), y: Math.ceil(r.top), width: Math.floor(r.width), height: Math.floor(r.height) }
-    })()`)
-    if (bounds.x < 0 || bounds.y < 0 || bounds.x + bounds.width > width || bounds.y + bounds.height > height) {
-      throw new Error(`Widget capture is outside the viewport: ${widget.id}`)
+  const scrollLeft = await win.webContents.executeJavaScript(`document.querySelector('#pages-viewport').scrollLeft`)
+  try {
+    for (const widget of widgets) {
+      await win.webContents.executeJavaScript(`document.querySelector('[data-widget="${widget.id}"]').scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })`)
+      const bounds = await win.webContents.executeJavaScript(`(() => {
+        const r = document.querySelector('[data-widget="${widget.id}"]').getBoundingClientRect()
+        return { x: Math.ceil(r.left), y: Math.ceil(r.top), width: Math.floor(r.width), height: Math.floor(r.height) }
+      })()`)
+      if (bounds.x < 0 || bounds.y < 0 || bounds.x + bounds.width > width || bounds.y + bounds.height > height) {
+        throw new Error(`Widget capture is outside the viewport: ${widget.id}`)
+      }
+      await saveCapture(win, path.join(captureDir, `${prefix}-${widget.id}.png`), bounds)
     }
-    await saveCapture(win, path.join(captureDir, `${prefix}-${widget.id}.png`), bounds)
+  } finally {
+    // scrollIntoView also scrolls the hidden horizontal pager when capturing
+    // another grid page. Restore it so the next viewport measures the Home page.
+    await win.webContents.executeJavaScript(`document.querySelector('#pages-viewport').scrollLeft = ${scrollLeft}`)
   }
 }
 

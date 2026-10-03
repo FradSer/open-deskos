@@ -48,7 +48,7 @@ if (!exists('.git')) {
     const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
     const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
     assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, P4, Mac, tooling, and experiments/)
-    assert.deepEqual(names, ['shell', 'hw', 'link', 'vision', 'p4', 'mac', 'tool', 'exp'])
+    assert.deepEqual(names, ['shell', 'hw', 'link', 'vision', 'p4', 'mac', 'tool', 'exp', 'research'])
     assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
   })
 

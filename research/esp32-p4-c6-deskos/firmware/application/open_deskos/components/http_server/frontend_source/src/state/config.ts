@@ -5,7 +5,6 @@ import {
   fetchConfigGroups,
   fetchLuaModules,
   fetchStatus,
-  saveConfigPatch,
   type AppConfig,
   type CapabilityItem,
   type ConfigGroup,
@@ -61,7 +60,6 @@ export async function ensureConfigGroups(groups: ConfigGroup[]): Promise<void> {
   const missing = Array.from(new Set(groups.filter((group) => !loadedGroups().has(group))));
   if (missing.length === 0) return;
 
-  const alreadyPending = missing.filter((group) => pending.has(group));
   const toFetch = missing.filter((group) => !pending.has(group));
 
   if (toFetch.length > 0) {
@@ -80,7 +78,6 @@ export async function ensureConfigGroups(groups: ConfigGroup[]): Promise<void> {
   }
 
   await Promise.all(missing.map((group) => pending.get(group)).filter(Boolean) as Promise<void>[]);
-  void alreadyPending;
 }
 
 /** Force-reload a set of groups, bypassing the cache. */
@@ -98,10 +95,4 @@ export async function reloadConfigGroups(groups: ConfigGroup[]): Promise<void> {
 /** Apply a locally-known patch to the cache after a successful save. */
 export function patchConfigLocal(patch: Partial<AppConfig>) {
   setConfigStore(patch);
-}
-
-export async function saveConfig(patch: Partial<AppConfig>) {
-  const result = await saveConfigPatch(patch);
-  setConfigStore(patch);
-  return result;
 }

@@ -1,6 +1,5 @@
 import { migratePersonalBotState, personalBotEnvironment } from './personal-bot-migration.mjs'
 import { readdir, rm, access } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createPersonalBot } from './agent.mjs'
 import { record } from './recorder.mjs'

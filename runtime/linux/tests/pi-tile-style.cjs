@@ -6,7 +6,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
-const { installGeometryFixtures } = require('./helpers/live-fixtures.js')
+const { installGeometryFixtures, WIDE_SESSIONS } = require('./helpers/live-fixtures.js')
 const root = path.resolve(__dirname, '..')
 app.commandLine.appendSwitch('ozone-platform', 'headless')
 app.disableHardwareAcceleration()
@@ -28,6 +28,15 @@ const GOAL_FLOOR = 14
 
 // The tile's own scan, including a goal longer than the tile is wide.
 installGeometryFixtures(ipcMain, { state: 'live', wide: true })
+const SCANS = [
+  ['working goal', { summary: { running: 2, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS }],
+  ['idle goal', { summary: { running: 0, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS.map(session => ({ ...session, status: session.status === 'running' ? 'settled' : session.status, updatedAt: new Date(session.updatedAt).toISOString() })) }],
+  ['empty scan', { summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }],
+  ['three-digit count', { summary: { running: 123, total: 123, workspacesCount: 1 }, sessions: Array.from({ length: 123 }, (_, index) => ({ sessionId: String(index), status: 'running' })) }],
+]
+let scan = SCANS[0][1]
+ipcMain.removeHandler('odk-pi-sessions')
+ipcMain.handle('odk-pi-sessions', () => scan)
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -38,6 +47,10 @@ const READ = `(() => { try {
   const goal = host.querySelector('.pi-widget-context .w-state')
   const summary = host.querySelector('.pi-widget-summary')
   const count = host.querySelector('.pi-widget-count')
+  const countRange = document.createRange()
+  countRange.selectNodeContents(count)
+  const countBounds = countRange.getBoundingClientRect()
+  const metricBounds = count.parentElement.getBoundingClientRect()
   const style = getComputedStyle(goal)
   const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5
   const lines = Math.round(goal.getBoundingClientRect().height / lineHeight)
@@ -66,6 +79,7 @@ const READ = `(() => { try {
     summaryVisible: summary.getBoundingClientRect().height > 0,
     summaryFont: parseFloat(getComputedStyle(summary).fontSize),
     countVisible: count.getBoundingClientRect().height > 0,
+    countContained: countBounds.left >= metricBounds.left - 1 && countBounds.right <= metricBounds.right + 1,
   }
 } catch (error) { return { error: String((error && error.stack) || error) } } })()`
 
@@ -74,19 +88,20 @@ async function main() {
     width: 1280, height: 776, frame: false, show: false, useContentSize: true,
     webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   })
-  await win.loadFile(path.join(root, 'src/renderer/index.html'))
-  win.webContents.debugger.attach('1.3')
-  await win.webContents.debugger.sendCommand('Page.enable')
   const results = []
-  for (const [name, cell, width, height] of CASES) {
-    win.setContentSize(width, height)
-    await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
-    await wait(500)
-    for (const theme of THEMES) {
-      await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
-      await wait(400)
-      const reading = await win.webContents.executeJavaScript(READ)
-      results.push({ panel: name, theme, ...reading })
+  for (const [state, payload] of SCANS) {
+    scan = payload
+    await win.loadFile(path.join(root, 'src/renderer/index.html'))
+    for (const [name, cell, width, height] of CASES) {
+      win.setContentSize(width, height)
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
+      await wait(500)
+      for (const theme of THEMES) {
+        await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
+        await wait(400)
+        const reading = await win.webContents.executeJavaScript(READ)
+        results.push({ panel: name, state, theme, ...reading })
+      }
     }
   }
   for (const [name, cell] of CASES) {
@@ -95,7 +110,7 @@ async function main() {
   }
   for (const reading of results) {
     assert.ok(!reading.error, JSON.stringify(reading))
-    const where = `${reading.panel} ${reading.theme}`
+    const where = `${reading.panel} ${reading.state} ${reading.theme}`
     // A goal too wide for its cell wraps instead of being cut away; a goal that
     // fits stays on one line, because bounding is not the same as using up space.
     assert.equal(reading.wrapped, reading.needsWrap, `${where}: the goal wraps only when it has to (needs ${reading.needsWrap})`)
@@ -107,6 +122,7 @@ async function main() {
     assert.ok(reading.hiddenV <= 1, `${where}: the tile hides ${reading.hiddenV}px of its own content`)
     // The rest of the instrument survives the bound.
     assert.equal(reading.countVisible, true, `${where}: the count stays visible`)
+    assert.equal(reading.countContained, true, `${where}: every count digit stays inside its metric row`)
     // The summary is the line that goes when the cell is smaller than the tile
     // declared it reads at; the primary reading never goes.
     if (reading.panel !== 'small cell') assert.equal(reading.summaryVisible, true, `${where}: the summary stays visible`)
@@ -114,7 +130,7 @@ async function main() {
   // Below the declared minimum the tile drops its least essential line rather
   // than letting the cell cut it off.
   for (const reading of results.filter((item) => item.panel === 'small cell')) {
-    const where = `${reading.panel} ${reading.theme}`
+    const where = `${reading.panel} ${reading.state} ${reading.theme}`
     assert.ok(reading.hiddenV <= 1, `${where}: the tile hides ${reading.hiddenV}px of its own content`)
     assert.equal(reading.countVisible, true, `${where}: the primary reading stays visible`)
     assert.equal(reading.summaryVisible, false, `${where}: a cell below the declared minimum drops the summary rather than clipping it`)

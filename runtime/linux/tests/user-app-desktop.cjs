@@ -11,7 +11,10 @@ let win
 let profile
 let apps = []
 let failure = false
-const widget = (revision, pageId = 'reading') => ({ id: 'note', name: 'Notes 笔记', kind: 'widget', revision, placement: { pageId, col: '4', row: '3' } })
+// Keep the process alive through asynchronous profile cleanup so failures
+// retain their exit status after the last window is destroyed.
+app.on('window-all-closed', () => {})
+const widget = (revision, pageId = 'reading', col = '4') => ({ id: 'note', name: 'Notes 笔记', kind: 'widget', revision, placement: { pageId, col, row: '3' } })
 const interactive = { id: 'counter', name: 'Counter', kind: 'app', revision: 'r1' }
 const js = source => win.webContents.executeJavaScript(source)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -63,27 +66,32 @@ app.whenReady().then(async () => {
   const appFrame = win.webContents.mainFrame.frames.find(frame => frame.url.includes('/counter/'))
   await appFrame.executeJavaScript('counter.click()')
   await js(`window.oldWidget=document.querySelector('[data-user-app-id="note"] iframe'); document.querySelectorAll('#dots .dot')[2].click()`)
-  await update([widget('r2', 'home'), interactive])
+  await update([widget('r2', 'reading', '5'), interactive])
   await wait(`document.querySelector('[data-user-app-id="note"] iframe')?.dataset.revision === 'r2'`)
   assert.equal(await js(`oldWidget.isConnected`), false)
   assert.equal(await js(`originalBuiltin === document.querySelector('[data-widget="odk.tile.clock"]') && originalPage === document.querySelector('[data-page-id="home"]')`), true)
   assert.equal(await appFrame.executeJavaScript('counter.textContent'), '1')
   assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Page 3, Reading')
+  await js(`window.responsiveWidget=document.querySelector('[data-user-app-id="note"] iframe')`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
-    await js(`odkTheme.set('${theme}'); document.querySelectorAll('#dots .dot')[1].click()`)
+    await js(`odkTheme.set('${theme}'); document.querySelectorAll('#dots .dot')[2].click()`)
     for (const width of [1920, 320]) {
       win.setContentSize(width, width === 1920 ? 1280 : 480)
       await delay(150)
-      const geometry = await js(`(()=>{const tile=document.querySelector('[data-user-app-id="note"]');const frame=tile.querySelector('iframe');const r=frame.getBoundingClientRect();const t=tile.getBoundingClientRect();return {width:r.width,height:r.height,contained:r.left>=t.left&&r.right<=t.right+1,horizontal:document.querySelector('[data-page-id="home"]').scrollWidth<=innerWidth+1}})()`)
+      const geometry = await js(`(()=>{const tile=document.querySelector('[data-user-app-id="note"]');const frame=tile.querySelector('iframe');const r=frame.getBoundingClientRect();const t=tile.getBoundingClientRect();return {width:r.width,height:r.height,contained:r.left>=t.left&&r.right<=t.right+1,horizontal:document.querySelector('[data-page-id="reading"]').scrollWidth<=innerWidth+1,col:tile.style.gridColumn,row:tile.style.gridRow,sameFrame:frame===responsiveWidget,overlaps:[...tile.parentElement.querySelectorAll('[data-widget]')].some(other=>{const b=other.getBoundingClientRect();return Math.min(t.right,b.right)-Math.max(t.left,b.left)>1&&Math.min(t.bottom,b.bottom)-Math.max(t.top,b.top)>1})}})()`)
       assert.ok(geometry.width > 100 && geometry.height > 100 && geometry.contained && geometry.horizontal, JSON.stringify({ theme, width, geometry }))
+      assert.equal(geometry.col, width === 1920 ? '5' : '')
+      assert.equal(geometry.row, width === 1920 ? '3' : '')
+      assert.equal(geometry.sameFrame, true)
+      assert.equal(geometry.overlaps, false)
     }
   }
-  await update([widget('r2', 'home'), { ...interactive, id: 'earlier', name: 'Earlier' }, interactive])
+  await update([widget('r2', 'reading', '5'), { ...interactive, id: 'earlier', name: 'Earlier' }, interactive])
   // Existing App pages retain their DOM position; add another after Counter.
   await update([...apps, { ...interactive, id: 'later', name: 'Later' }])
   await wait(`document.querySelectorAll('#dots .dot').length === 8`)
   await js(`document.querySelectorAll('#dots .dot')[7].click(); window.savedVoice=odkPersonalBotStatus; window.odkPersonalBotStatus={visible:()=>true}; true`)
-  await update([widget('r2', 'home'), interactive, { ...interactive, id: 'later', name: 'Later' }])
+  await update([widget('r2', 'reading', '5'), interactive, { ...interactive, id: 'later', name: 'Later' }])
   assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Page 7, Later')
   await js(`window.odkPersonalBotStatus=window.savedVoice; true`)
   failure = true; await update(apps)

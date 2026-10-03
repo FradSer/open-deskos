@@ -41,47 +41,8 @@ export type AppConfig = {
   time_timezone: string;
 };
 
-/** Server-side configuration groups (must stay in sync with
- * CONFIG_FIELDS in http_server_config_api.c). */
+/** Server-side configuration groups. */
 export type ConfigGroup = 'wifi' | 'llm' | 'im' | 'search' | 'capabilities' | 'skills' | 'time';
-
-export const GROUP_FIELDS: Record<ConfigGroup, (keyof AppConfig)[]> = {
-  wifi: ['wifi_ssid', 'wifi_password', 'ap_ssid', 'ap_password', 'ap_behavior'],
-  llm: [
-    'llm_api_key',
-    'llm_backend_type',
-    'llm_model',
-    'llm_base_url',
-    'llm_auth_type',
-    'llm_timeout_ms',
-    'llm_max_tokens',
-    'llm_default_image_max_bytes',
-    'llm_max_tokens_field',
-    'llm_supports_tools',
-    'llm_supports_vision',
-    'llm_image_remote_url_only',
-  ],
-  im: [
-    'qq_app_id',
-    'qq_app_secret',
-    'qq_msg_type',
-    'feishu_app_id',
-    'feishu_app_secret',
-    'tg_bot_token',
-    'wechat_token',
-    'wechat_base_url',
-    'wechat_cdn_base_url',
-    'wechat_account_id',
-  ],
-  search: ['search_brave_key', 'search_tavily_key', 'search_http_allowlist'],
-  capabilities: ['enabled_cap_groups', 'llm_visible_cap_groups'],
-  skills: ['enabled_lua_modules'],
-  time: ['time_timezone'],
-};
-
-export function blankConfig(): Partial<AppConfig> {
-  return {};
-}
 
 export type StatusInfo = {
   wifi_connected: boolean;
@@ -181,13 +142,6 @@ export function fetchConfigGroups(groups: ConfigGroup[] | 'all') {
     return Promise.resolve({} as Partial<AppConfig>);
   }
   const qs = 'groups=' + encodeURIComponent(groups.join(','));
-  return request<Partial<AppConfig>>('/api/config?' + qs, undefined, 'Failed to load config');
-}
-
-/** Fetch individual named fields (advanced). */
-export function fetchConfigFields(fields: (keyof AppConfig)[]) {
-  if (fields.length === 0) return Promise.resolve({} as Partial<AppConfig>);
-  const qs = 'fields=' + encodeURIComponent(fields.join(','));
   return request<Partial<AppConfig>>('/api/config?' + qs, undefined, 'Failed to load config');
 }
 

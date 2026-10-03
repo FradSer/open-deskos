@@ -30,7 +30,7 @@ export function resolveChannelEndpoint({ name, override, unixSubdirectory, unixF
 export function channelRequiresToken(endpoint, platform = process.platform) {
   if (platform === 'win32') return true
   if (typeof endpoint !== 'string') return false
-  return /^\\\\\.\\pipe\//i.test(endpoint) || /^tcp:\/\//i.test(endpoint)
+  return /^\\\\\.\\pipe\\/i.test(endpoint) || /^tcp:\/\//i.test(endpoint)
 }
 
 /**
@@ -62,6 +62,7 @@ export async function clientChannelToken({ env = process.env, platform = process
  * }} request
  */
 export function channelRequest({ endpoint, payload, label, timeoutMs = 10_000, maxResponseBytes = 512 * 1024, token = null, tokenRequired = false, signal, connect = createConnection }) {
+  if (signal?.aborted) return Promise.reject(Error(`${label} request aborted`))
   return new Promise((resolve, reject) => {
     let settled = false
     let output = ''
@@ -105,6 +106,7 @@ export function channelRequest({ endpoint, payload, label, timeoutMs = 10_000, m
       finish(null, response)
     })
     socket.on('error', () => finish(Error(`${label} unavailable`)))
+    socket.on('close', () => finish(Error(`${label} channel closed before a complete response`)))
     if (signal?.aborted) return abort()
     signal?.addEventListener('abort', abort, { once: true })
   })

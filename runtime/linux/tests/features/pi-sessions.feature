@@ -230,3 +230,16 @@ Scenario: A running Desk Link session distinguishes missing delivery from an idl
   Then Session Detail says that Pi is running but no events have arrived yet
   And it does not say that the session has not reported any events
   And the session goal and directory remain visible
+
+Scenario: Delayed scans cannot restore obsolete Widget state
+  Given an older Pi scan is still pending when a newer scan starts
+  When the newer scan reports an idle count before the older scan completes
+  Then the count and layout reflect the newer scan
+  And a late success or error from the older scan cannot replace that reading
+  And a scan completing after the Widget is disposed cannot repaint it
+
+Scenario: Slow scans still produce readings while the next poll is pending
+  Given a Pi scan takes longer than the polling interval
+  When that scan completes while a newer poll is still pending
+  Then it may update the reading if no newer scan result has been applied
+  And the newer result replaces it when available

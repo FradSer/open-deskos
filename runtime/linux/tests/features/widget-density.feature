@@ -28,6 +28,7 @@ Feature: Widget content density around sixty-two percent
     And an optional capture directory receives a Home screenshot for visual comparison
     And every captured image is normalized and checked against its requested CSS-pixel dimensions
     And each Widget capture is completely inside the viewport after scrolling
+    And capturing another grid page restores the horizontal pager before the next viewport is measured
 
   Scenario: Denser content remains truthful
     Given a Widget has little source data or an unavailable capability
@@ -37,3 +38,11 @@ Feature: Widget content density around sixty-two percent
     And live and unavailable fixtures are measured independently
     And single-digit dates, double-digit dates, and year-end 100 percent values are measured with a deterministic clock
     And wider numeric values adapt their type size without clipping
+
+  Scenario: The Pixel Pi Sessions count retains its hierarchy at every cell size
+    Given the Pi Sessions Widget renders the local Zpix face in the Pixel theme
+    When live or idle readings are drawn at reference and compact panel sizes
+    Then the primary count scales with its allocated cell
+    And the Widget passes the existing content density and containment bounds
+    And a theme override does not duplicate the same count rule for viewport widths
+    And a three-digit running count remains completely inside its metric row in every theme

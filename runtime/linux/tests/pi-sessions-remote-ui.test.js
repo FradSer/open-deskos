@@ -14,17 +14,19 @@ function mount(file, id) {
   let response
   let tick
   const contributions = []
+  const cleanups = []
   const root = { odkPlugins: { register(p) { plugins.push(p) } }, odkPlatform: { getPiSessions: async () => response } }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins', file), 'utf8'), { window: root })
   // A tile is a DOM element, and a Widget that adapts to its Cell measures the
   // one it was given: the double answers with a width the cell would have.
-  const el = { innerHTML: '', querySelector: node, querySelectorAll: () => [], addEventListener() {}, getBoundingClientRect: () => ({ width: 400, height: 400, top: 0, bottom: 400 }) }
+  const classes = new Set()
+  const el = { innerHTML: '', classList: { add(name) { classes.add(name) }, remove(name) { classes.delete(name) } }, querySelector: node, querySelectorAll: () => [], addEventListener() {}, getBoundingClientRect: () => ({ width: 400, height: 400, top: 0, bottom: 400 }) }
   const statementText = () => contributions.at(-1)?.parts.map((part) => part.text).join('')
-  return { node, contributions, statementText, async show(value) {
+  return { node, classes, contributions, statementText, dispose() { for (const cleanup of cleanups) cleanup() }, async show(value) {
     response = value
     if (!tick) {
       const plugin = plugins.find((p) => p.id === id)
-      const ctx = { onTick(fn) { tick = fn }, briefing: { contribute(statement) { contributions.push(statement); return true } } }
+      const ctx = { onTick(fn) { tick = fn }, trackCleanup(fn) { cleanups.push(fn) }, briefing: { contribute(statement) { contributions.push(statement); return true } } }
       if (plugin.mount) plugin.mount(el, ctx)
       else plugin.lifecycle.mount(el, ctx)
     } else { for (let i = 0; i < 15; i++) tick() }
@@ -53,11 +55,19 @@ test('tile summary reads source, workspace count, and live count while idle stat
   assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 1 workspace · 2 live')
   assert.equal(view.node('.w-state').textContent, '2 idle')
   assert.equal(view.node('.pi-widget-tag-label').textContent, 'IDLE')
+  assert.equal(view.classes.has('pi-widget-detailed'), false)
+
+  await view.show({ ...idle, sessions: [{ ...settled('a'), updatedAt: '2026-10-03T00:00:00Z', latestGoal: 'Review the desktop' }] })
+  assert.equal(view.classes.has('pi-widget-detailed'), true)
 
   const empty = { ok: true, source, summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [], workspaces: [] }
+  await view.show({ ...empty, summary: { running: 123, total: 123, workspacesCount: 1 } })
+  assert.equal(view.classes.has('pi-widget-wide-count'), true)
   await view.show(empty)
   assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 0 workspaces · 0 live')
   assert.equal(view.node('.w-state').textContent, 'Idle')
+  assert.equal(view.classes.has('pi-widget-detailed'), false)
+  assert.equal(view.classes.has('pi-widget-wide-count'), false)
 })
 
 test('status bar identifies Mac and reports unavailable after a successful scan', async () => {
@@ -71,4 +81,50 @@ test('status bar identifies Mac and reports unavailable after a successful scan'
   assert.match(view.node('#sb-pi-status').attrs['aria-label'], /unavailable/i)
   assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
   assert.deepEqual(view.statementText(), 'Pi session status is unavailable.')
+})
+
+test('a late scan success or error cannot overwrite the newer idle Widget reading', async t => {
+  for (const outcome of ['success', 'error']) {
+    await t.test(outcome, async () => {
+      const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+      const oldScan = Promise.withResolvers()
+      const newScan = Promise.withResolvers()
+      await view.show(oldScan.promise)
+      await view.show(newScan.promise)
+      newScan.resolve({ ...live, summary: { running: 0, total: 0, workspacesCount: 0 } })
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(view.node('.pi-widget-count').textContent, '0')
+      if (outcome === 'success') oldScan.resolve({ ...live, summary: { running: 123, total: 123, workspacesCount: 1 } })
+      else oldScan.reject(new Error('Old scan failed'))
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(view.node('.pi-widget-count').textContent, '0')
+      assert.equal(view.node('.pi-widget-tag-label').textContent, 'IDLE')
+      assert.equal(view.classes.has('pi-widget-wide-count'), false)
+    })
+  }
+})
+
+test('a scan finishing after Widget disposal cannot repaint it', async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+  const scan = Promise.withResolvers()
+  await view.show(scan.promise)
+  const before = view.node('.pi-widget-count').textContent
+  view.dispose()
+  scan.resolve(live)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.node('.pi-widget-count').textContent, before)
+})
+
+test('a slow completed scan is usable while the next poll is still pending', async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+  const oldScan = Promise.withResolvers()
+  const nextScan = Promise.withResolvers()
+  await view.show(oldScan.promise)
+  await view.show(nextScan.promise)
+  oldScan.resolve(live)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.node('.pi-widget-count').textContent, '2')
+  nextScan.resolve({ ...live, summary: { running: 0, total: 0, workspacesCount: 0 } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.node('.pi-widget-count').textContent, '0')
 })

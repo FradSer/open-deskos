@@ -2,9 +2,7 @@ import fs from 'node:fs/promises'
 import net from 'node:net'
 import { dirname, isAbsolute, join } from 'node:path'
 import {
-  CHANNEL_VERSION,
   MAX_HANDSHAKE_BYTES,
-  channelHandshake,
   channelTokenFile,
   parseHandshake,
   readOrCreateChannelToken,
@@ -114,13 +112,13 @@ export async function listen(path, service, options = {}) {
     await removeStale(path, fsModule, netModule)
   }
   const clients = new Set()
+  const connections = new Set()
 
   /** An admitted client joins the broadcast list and starts reading commands. */
   function open(client, remainder) {
     clients.add(client)
     client.setEncoding('utf8')
     let pending = ''
-    client.on('error', () => client.destroy())
     client.on('close', () => clients.delete(client))
     client.on('data', data => {
       pending += data
@@ -181,9 +179,13 @@ export async function listen(path, service, options = {}) {
     }
     function onData(chunk) {
       buffer = Buffer.concat([buffer, chunk])
-      if (buffer.length > (ownership ? MAX_INPUT_BYTES : MAX_HANDSHAKE_BYTES)) return refuse()
+      if (buffer.length > MAX_INPUT_BYTES + MAX_HANDSHAKE_BYTES) return refuse()
       const newline = buffer.indexOf(0x0a)
-      if (newline === -1) return
+      if (newline === -1) {
+        if (buffer.length > (ownership ? MAX_INPUT_BYTES : MAX_HANDSHAKE_BYTES)) refuse()
+        return
+      }
+      if (!ownership && newline + 1 > MAX_HANDSHAKE_BYTES) return refuse()
       const line = buffer.subarray(0, newline).toString('utf8')
       const remainder = buffer.subarray(newline + 1)
       if (Buffer.byteLength(line) <= MAX_HANDSHAKE_BYTES) {
@@ -200,6 +202,8 @@ export async function listen(path, service, options = {}) {
   }
 
   const server = netModule.createServer(client => {
+    connections.add(client)
+    client.on('close', () => connections.delete(client))
     client.on('error', () => client.destroy())
     gate(client)
   })
@@ -219,7 +223,7 @@ export async function listen(path, service, options = {}) {
   if (ownership) await fsModule.chmod(path, 0o600)
   return { path, tokenRequired: !ownership, close: async () => {
     unsubscribe()
-    for (const client of clients) client.destroy()
+    for (const client of connections) client.destroy()
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined)))
   } }
 }

@@ -155,6 +155,49 @@ test('a Windows listener accepts a peer presenting the shared channel token', as
   assert.equal(records[0].state, 'recording')
 })
 
+test('a Windows handshake admits a coalesced proposal command larger than its own limit', async t => {
+  const dir = await temp(t)
+  const pipeNet = standInPipeNet(dir)
+  const service = fakeService()
+  const commands = []
+  service.proposalCommand = async command => { commands.push(command) }
+  const token = 'channel-token-for-this-host'
+  const server = await listen(PIPE, service, { platform: 'win32', token, net: pipeNet })
+  const { client } = openPipe(pipeNet)
+  t.after(async () => { client.destroy(); await server.close() })
+  const command = { v: 1, type: 'proposal_respond', id: '12345678-1234-1234-1234-123456789abc', decision: 'accept', confirmation: 'x'.repeat(1024) }
+  client.write(`${channelHandshake(token)}${JSON.stringify(command)}\n`)
+  await within(once(client, 'data'), 'the response to a coalesced proposal command')
+  assert.deepEqual(commands, [command])
+  const oversized = { v: 1, type: 'status', padding: 'x'.repeat(4096) }
+  const refused = await attempt(pipeNet, `${channelHandshake(token)}${JSON.stringify(oversized)}\n`)
+  assert.equal(refused.closed, true, 'a coalesced command still has its own 4096-byte bound')
+  assert.equal(refused.received, '', 'an oversized command receives no response')
+})
+
+test('shutdown closes peers that have not sent a handshake or command', async t => {
+  for (const platform of ['linux', 'win32']) {
+    await t.test(platform, async t => {
+      const dir = await temp(t)
+      const pipeNet = standInPipeNet(dir)
+      const endpoint = platform === 'win32' ? PIPE : join(dir, 'agent.sock')
+      const server = await listen(endpoint, fakeService(), { platform, token: 'host-token', ...(platform === 'win32' ? { net: pipeNet } : {}) })
+      const client = net.connect(platform === 'win32' ? pipeNet.path(endpoint) : endpoint)
+      client.on('error', () => {})
+      await once(client, 'connect')
+      const closed = once(client, 'close')
+      const closing = server.close()
+      try {
+        await within(closing, 'shutdown with an idle peer')
+        await within(closed, 'idle peer disconnection')
+      } finally {
+        client.destroy()
+        await closing
+      }
+    })
+  }
+})
+
 test('a Windows listener refuses a peer that presents the wrong token', async t => {
   const dir = await temp(t)
   const pipeNet = standInPipeNet(dir)

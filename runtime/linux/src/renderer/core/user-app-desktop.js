@@ -33,6 +33,8 @@
       host.setAttribute('aria-label', app.name)
       if (widget) {
         host.dataset.interaction = 'display-only'
+        host.dataset.col = app.placement.col
+        host.dataset.row = app.placement.row
         host.style.gridColumn = app.placement.col
         host.style.gridRow = app.placement.row
       } else {
@@ -85,6 +87,7 @@
         add(app, parent, JSON.stringify([app.kind, app.revision, app.name, app.placement]))
         pagesChanged ||= app.kind === 'app'
       }
+      root.odkComposer?.placeGridTiles(track)
       if (pagesChanged) onPagesChanged?.()
       onCatalogChanged?.()
     }

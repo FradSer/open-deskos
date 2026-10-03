@@ -111,9 +111,16 @@
 }
 
 [data-theme='pixel'] .pi-widget-count {
-  font-size: clamp(80px, 42cqi, 380px);
+  /* Zpix digits have narrow advances; retain the count's hierarchy in its cell. */
+  font-size: clamp(80px, 80cqi, 380px);
   letter-spacing: normal;
   line-height: 1;
+}
+
+/* Goals/activity and wider counts share the cell's space with more content. */
+[data-theme='pixel'] .pi-widget-detailed .pi-widget-count,
+[data-theme='pixel'] .pi-widget-wide-count .pi-widget-count {
+  font-size: clamp(80px, 42cqi, 380px);
 }
 
 [data-theme='pixel'] .pi-widget-unit {
@@ -126,7 +133,6 @@
 }
 
 [data-theme='pixel'] .pi-widget-summary {
-  font-size: clamp(12px, 4cqi, 16px);
   line-height: 1.35;
 }
 
@@ -143,13 +149,6 @@
 
 [data-theme='pixel'] .pi-skill-bracket {
   color: var(--odk-accent-green) !important;
-}
-
-@media (width < 1000px), (orientation: portrait) {
-  [data-theme='pixel'] .pi-widget-count {
-    font-size: clamp(80px, 42cqi, 380px);
-    letter-spacing: normal;
-  }
 }
 
 @container (width < 190px) {

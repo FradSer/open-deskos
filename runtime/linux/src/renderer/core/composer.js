@@ -164,6 +164,9 @@
         if (!tile) continue
         placeTile(page, tile, widgetDef, root.odkPlugins.get(widgetDef.id))
       }
+      for (const tile of grid.querySelectorAll('[data-user-app-id]')) {
+        placeTile(page, tile, { col: tile.dataset.col, row: tile.dataset.row }, {})
+      }
     }
   }
 

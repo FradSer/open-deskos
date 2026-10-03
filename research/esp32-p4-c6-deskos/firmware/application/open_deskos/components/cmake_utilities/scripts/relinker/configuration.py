@@ -8,7 +8,6 @@ import argparse
 import csv
 import os
 import subprocess
-import sys
 import re
 from io import StringIO
 
@@ -204,8 +203,7 @@ def main():
 
     args = argparser.parse_args()
 
-    libraries = generator(args.library, args.object, args.function, args.sdkconfig)
-    # libraries.dump()
+    generator(args.library, args.object, args.function, args.sdkconfig)
 
 if __name__ == '__main__':
     main()
