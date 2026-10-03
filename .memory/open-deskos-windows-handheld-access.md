@@ -3,7 +3,7 @@ description: 64-bit Windows 掌机的接入方式：Tailscale 上的公钥 SSH�
 type: project
 ---
 
-这是 64-bit Windows 掌机（Open DeskOS 的第二个 Shell Host ✓）的实测接入事实。完整流程归 `runtime/linux/docs/WINDOWS_HOST.md` ✓ ✓，本文件只留跨会话最容易忘的连接与操作约定 ✓ ✓。
+这是 64-bit Windows 掌机（Open DeskOS 的第二个 Shell Host ✓）的实测接入事实。完整流程归 `runtime/linux/docs/WINDOWS_HOST.md` ✓ ✓，本文件只留跨会话最容易忘的连接与操作约定 ✓ ✓。CM5 参考宿主的接入归 `open-deskos-cm5-ssh-access.md` ✓，两者共用的排障陷阱归 `open-deskos-device-diagnostic-gotchas.md` ✓，Futu 持仓事故归 `open-deskos-futu-holdings-refresh.md` ✓。
 
 **怎么连** ✓：用户 `frads`（管理员 ✓，从 SSH 拿到 High integrity ✓）。`ssh -i ~/.ssh/id_ed25519 frads@100.82.50.70`（Tailscale ✓）✓，MagicDNS 同义 `frads@desktop-qlqd17f.tail27726.ts.net` ✓，局域网 `frads@192.168.50.225` ✓。`~/.ssh/config` **没有**这台机器的条目 ✓ —— 一律用显式参数调用 ✓ ✓。授权文件是 `C:\ProgramData\ssh\administrators_authorized_keys` ✓（管理员标准位置 ✓，用户目录没有 `.ssh\authorized_keys` ✓）；开发机那把钥匙的指纹 `SHA256:RNMyWZCU294srI7D8Eu5mUeD5KVnttqVKHKxZV5E/+I` ✓ ✓，换机器时用它比对 ✓。
 

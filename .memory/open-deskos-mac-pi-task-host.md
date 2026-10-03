@@ -1,16 +1,14 @@
 ---
-description: Mac 受管 Pi 任务主机曾按 operator 部署并验收后回滚；launchd 必须用稳定 fnm 别名路径
+description: Mac 受管 Pi 任务主机已按 operator 要求完整回滚；launchd 必须用稳定 fnm 别名路径（fnm_multishells 每次登录都变）；CM5 语音端曾因缺 task-*.mjs 未打通，该阻塞现已不存在
 type: project
 ---
 
-2026-09-16 在本机（Frad-MacBook-Pro）按 `integrations/personal-bot/docs/MANAGED_TASKS.md` 完整部署过受管 Pi 任务主机，随后 operator 要求「清理本地进程、不要安装」，已全部回滚：LaunchAgent `~/Library/LaunchAgents/com.open-deskos.pi-tasks.plist`、`~/.local/bin/pi-task-control`、`~/.config/open-deskos/`、`~/.local/state/open-deskos/`、`~/.local/run/` 均已删除，`launchctl print gui/501/com.open-deskos.pi-tasks` 现为不存在。仓库代码未改动，无待提交产物。
+**本机没有在跑受管 Pi 任务主机** ✓。2026-09-16 曾按 `integrations/voice-agent/docs/MANAGED_TASKS.md` 完整部署并做过真机验收 ✓，随后 operator 要求「清理本地进程、不要安装」✓，已**全部回滚** ✓：LaunchAgent `~/Library/LaunchAgents/com.open-deskos.pi-tasks.plist` ✓、`~/.local/bin/pi-task-control` ✓、`~/.config/open-deskos/` ✓、`~/.local/state/open-deskos/` ✓、`~/.local/run/` ✓ 均已删除 ✓，`launchctl print gui/501/com.open-deskos.pi-tasks` 现为不存在 ✓。仓库代码未改动 ✓。
 
-移植要点（下次部署仍需如此）：
+**下次部署最容易忘的一条** ✓：launchd 里的 node 路径必须写**稳定别名** `/Users/FradSer/.local/share/fnm/aliases/default/bin` ✓ —— fnm 的 `~/.local/state/fnm_multishells/<pid>_<ts>/bin` **每个 shell 都不同** ✓，写进 plist 会在下次登录失效 ✓ ✓。准入检查也严 ✓：`ODESK_TASK_CONFIG` 必须绝对路径、当前用户拥有、mode 不含 `022` ✓；socket 父目录由守护进程建为 `0700`、socket `0600` ✓ ✓。可复用顺序：前台冒烟 → `plutil -lint` → `launchctl bootstrap gui/$(id -u)` ✓ ✓。
 
-- launchd 的 node 路径必须用稳定别名 `/Users/FradSer/.local/share/fnm/aliases/default/bin`。fnm 的 `~/.local/state/fnm_multishells/<pid>_<ts>/bin` 每个 shell 都不同，写进 plist 会在下次登录失效。
-- 助手/配置的准入检查很严：`ODESK_TASK_CONFIG` 必须绝对路径、当前用户拥有且 mode 无 `022` 位；socket 父目录由守护进程建为 0700，socket 0600。
-- 前台冒烟 → `plutil -lint` → `launchctl bootstrap gui/$(id -u)` 的顺序可复用。
+**CM5 语音端这一段已过期，本文件曾记错** ✓。本文件先前写「仍未打通，因为 `voice-agent/src/` 无 `task-*.mjs`、无 `coding_task_*` 工具」✓ —— 2026-10-01 复核时 `integrations/voice-agent/src/` 下**已有 8 个 `task-*.mjs`**（`task-agent` / `task-cli` / `task-client` / `task-daemon` / `task-endpoint` / `task-protocol` / `task-service` / `task-store`）✓ ✓，那个阻塞**不再成立** ✓。是否已在新 release 上真正打通要以**当前 CM5 release 为准**去查，不要引用本文件的旧结论 ✓ ✓ —— 记忆里的"现状"比代码更容易骗人 ✓。
 
-真机验收结论（非 fixture，回滚前测得）：只读中文任务 19s `finished` 且 `verification: not_run`；运行中 `cancel` → `cancelled`；SIGTERM（`kickstart -k`）走优雅退出，活动任务落 `cancelled` 并保留截断响应；`kill -9` 后重启把记录改判 `interrupted`，两种情况都不重放。
+**Why:** 一次回滚 + 一次验收是历史事件，值得留；一条基于当时 release 的"仍未打通"结论会随 release 前进而失效，留在记忆里只会误导。
 
-仍未打通的是 CM5 语音端：`current` 为 `20260915T164708Z-voice-hydra`，其 `personal-bot/src/` 无 `task-*.mjs`（无 `coding_task_*` 工具），`ODESK_TASK_TARGETS_FILE` 未配置。本机构建/激活新 release、授予 CM5 入站 SSH 之前，这两步都需要 operator 明确确认。
+**How to apply:** 在 Mac 上重新部署前先确认是否仍需要 operator 点头 ✓；验证 CM5 侧能力时**先读当前 release 的代码**再下结论 ✓ ✓；任务机制的权威是 `MANAGED_TASKS.md` ✓，本文件只留 fnm 别名与准入检查这两条最容易踩的 ✓。
