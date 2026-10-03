@@ -8,7 +8,7 @@ set -euo pipefail
 BRIDGE_DIR="/opt/stt-bridge"
 MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
 SAMPLE_WAV="${STT_SAMPLE_WAV:-/opt/qwen3-asr-1.7b/tests/test_zh.wav}"
-# The same single declaration the unit and the voice agent read: this script only mirrors the
+# The same single declaration the unit and the personal bot read: this script only mirrors the
 # default so that provisioning, the service and the agent cannot disagree about one port.
 STT_PORT="${ODK_STT_PORT:-17840}"
 if ! [[ "${STT_PORT}" =~ ^[0-9]{1,5}$ ]]; then
@@ -94,4 +94,4 @@ if [ -f "${SAMPLE_WAV}" ]; then
   echo
   echo "${TEXT}" | grep -q '"text"' || { echo "Transcription contract failed." >&2; exit 1; }
 fi
-echo "done. the bridge listens on 127.0.0.1:${STT_PORT}; set ODK_STT_PORT in runtime.env only to change it, and the voice agent follows that value."
+echo "done. the bridge listens on 127.0.0.1:${STT_PORT}; set ODK_STT_PORT in runtime.env only to change it, and the personal bot follows that value."

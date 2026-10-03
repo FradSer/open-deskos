@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "pollMs": 60000,
+  "maxAgeMs": 1800000,
+  "cooldownMs": 3600000,
+  "quietHours": { "start": "22:00", "end": "08:00", "timeZone": "Asia/Shanghai" },
+  "suppressed": [],
+  "snoozed": {},
+  "rules": [
+    {
+      "id": "soil-very-dry", "delivery": "immediate", "urgent": true,
+      "advice": "土壤读数低于设定阈值。建议先检查盆土，再决定是否浇水。",
+      "conditions": [{ "readingId": "odk.tile.hydra", "field": "plants.0.soilPercent", "measuredAtField": "plants.0.measuredAt", "op": "lt", "value": 15 }],
+      "action": { "tool": "memory_update", "params": { "category": "plant_care", "value": "检查盆土后决定是否浇水" } }
+    },
+    {
+      "id": "dry-soil-warm-weather", "delivery": "immediate", "urgent": false,
+      "advice": "土壤和天气读数都满足 owner 条件。建议检查植物的需水情况。",
+      "conditions": [
+        { "readingId": "odk.tile.hydra", "field": "plants.0.soilPercent", "measuredAtField": "plants.0.measuredAt", "op": "lt", "value": 30 },
+        { "readingId": "odk.tile.weather", "field": "temperatureC", "op": "gte", "value": 28 }
+      ]
+    },
+    {
+      "id": "morning-weather", "delivery": "immediate", "urgent": false,
+      "advice": "出门前按当前气温选择衣着，并查看降雨信息再决定是否带伞。",
+      "conditions": [{ "readingId": "odk.tile.weather", "field": "temperatureC", "op": "gte", "value": -100 }]
+    },
+    {
+      "id": "coding-completion", "delivery": "immediate", "urgent": false,
+      "advice": "已观察到编程任务回合完成。验证状态请以证据字段为准。要查看任务历史吗？",
+      "coding": { "target": "mac", "project": "/explicit/configured/development/root" }
+    }
+  ]
+}

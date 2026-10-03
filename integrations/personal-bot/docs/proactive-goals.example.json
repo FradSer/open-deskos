@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "pollMs": 60000,
+  "maxAgeMs": 1800000,
+  "cooldownMs": 3600000,
+  "maxCandidates": 8,
+  "maxPush": 3,
+  "quietHours": {
+    "start": "22:00",
+    "end": "08:00",
+    "timeZone": "Asia/Shanghai"
+  },
+  "suppressed": [],
+  "snoozed": {},
+  "rules": [
+    {
+      "id": "plant-care",
+      "goal": "关注这盆植物的维护；当真实读数提示需要检查时给出具体建议，正常读数无需重复提醒。",
+      "delivery": "immediate",
+      "urgent": false,
+      "observations": [
+        {
+          "readingId": "odk.tile.hydra",
+          "fields": [
+            "plants.0.soilPercent"
+          ],
+          "measuredAtField": "plants.0.measuredAt",
+          "liveWhen": {
+            "field": "plants.0.online",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "weather-planning",
+      "goal": "有实际天气变化需要留意时给出有依据的建议。不要假设我即将出门、会下雨或存在未观测的天气风险。",
+      "delivery": "immediate",
+      "urgent": false,
+      "observations": [
+        {
+          "readingId": "odk.tile.weather",
+          "fields": [
+            "temperatureC",
+            "condition",
+            "highC",
+            "lowC"
+          ]
+        }
+      ]
+    }
+  ]
+}

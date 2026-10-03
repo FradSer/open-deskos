@@ -1,0 +1,23 @@
+[Unit]
+Description=Open DeskOS resident personal bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__OPEN_DESKOS_PERSONAL_BOT_DIR__
+# Legacy configuration is read first during upgrades; canonical settings win.
+EnvironmentFile=-%h/.config/open-deskos/voice-agent.env
+EnvironmentFile=-%h/.config/open-deskos/personal-bot.env
+EnvironmentFile=-%h/.config/open-deskos/runtime.env
+Environment=PATH=__OPEN_DESKOS_NODE_BIN__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__OPEN_DESKOS_NODE_BIN__/node __OPEN_DESKOS_PERSONAL_BOT_DIR__/src/main.mjs
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+ReadOnlyPaths=/opt/open-deskos
+
+[Install]
+WantedBy=default.target
