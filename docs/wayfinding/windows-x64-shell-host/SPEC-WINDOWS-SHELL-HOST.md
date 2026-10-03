@@ -78,7 +78,7 @@ A good test here states an observable contract: given these host facts or this c
 
 ## Out of Scope
 
-- Porting the Remote Bridge, the resident Voice Agent, or Desk Link / Hosted Pi control to Windows. Those surfaces report unavailable.
+- Porting the Remote Bridge, the resident Personal Bot, or Desk Link / Hosted Pi control to Windows. Those surfaces report unavailable.
 - Windows on ARM, 32-bit Windows, and non-Windows non-Linux hosts.
 - Packaging (installer or portable bundle) and boot autostart.
 - Windows hardware acceptance: GPU path, display topology, and touch behavior on a real Windows desk.

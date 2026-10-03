@@ -1,4 +1,4 @@
-# Voice Agent and Hosted Pi control are required OS components
+# Personal Bot and Hosted Pi control are required OS components
 
 **Status:** ready-for-agent
 **Tracker:** local markdown (`.scratch/<feature>/spec.md`), tickets land in `issues/NN-*.md`
@@ -8,7 +8,7 @@
 The desk can look complete while two capabilities the owner considers part of the OS were never
 installed at all.
 
-The runtime's own vocabulary already says the Voice Agent is a system component: `CONTEXT.md` states
+The runtime's own vocabulary already says the Personal Bot is a system component: `CONTEXT.md` states
 it "is a system component of the desk runtime, not an optional plugin, so a desk without it is not a
 complete desk rather than a lesser one", and explicitly avoids "optional add-on, experimental
 service, voice feature toggle". Hosted Pi control, which is what a Console on another machine drives
@@ -16,13 +16,13 @@ and what a Spoken Turn can start, is treated the same way in practice.
 
 The implementation does not agree with that:
 
-- The CM5 installer treats both as optional. A failure to install or start the voice service prints
-  `Voice Agent unavailable; base shell remains active`, and the hosted Pi task service prints its own
+- The CM5 installer treats both as optional. A failure to install or start the personal bot service prints
+  `Personal Bot unavailable; base shell remains active`, and the hosted Pi task service prints its own
   warning. Installation continues and reports success.
 - Release composition validation only checks the renderer plugin contract. A release that cannot
   serve voice or host a Pi session activates normally.
 - `PRODUCT.md` names two required architecture *peripherals* and the Hosted Pi/Console route, but
-  never names the Voice Agent as a component, so product authority and runtime vocabulary disagree.
+  never names the Personal Bot as a component, so product authority and runtime vocabulary disagree.
 - Nothing on the desk distinguishes "this capability is missing" from "this capability needs
   configuration". A missing STT credential, a microphone that is not plugged in, or a Pi target that
   was never configured can all present as a quiet, healthy desk.
@@ -36,7 +36,7 @@ never pretends a capability works when it does not.
 
 Bring the OS into line with its own vocabulary.
 
-The CM5 runtime is the Display Shell plus two required components: the **Voice Agent** and **Hosted
+The CM5 runtime is the Display Shell plus two required components: the **Personal Bot** and **Hosted
 Pi control** (a Pi session hosted by the runtime and drivable from a Console, or started by a Spoken
 Turn). Required means:
 
@@ -50,7 +50,7 @@ Turn). Required means:
 
 ## User Stories
 
-1. As a desk owner, I want the Voice Agent to be part of the OS I install, so that a desk which
+1. As a desk owner, I want the Personal Bot to be part of the OS I install, so that a desk which
    reports a successful installation is a complete desk rather than a lesser one.
 2. As a desk owner, I want Hosted Pi control to be part of the OS I install, so that "drive a Pi
    session from my Mac" is a capability the desk has, not an integration someone remembered to add.
@@ -58,18 +58,18 @@ Turn). Required means:
    so that I never get a success report for a desk that cannot serve voice or host a session.
 4. As a desk owner, I want the installation failure to name the component and the device-local file
    involved, so that I know what to fix without reading the installer.
-5. As a desk owner, I want a release that does not carry the Voice Agent to be rejected before
+5. As a desk owner, I want a release that does not carry the Personal Bot to be rejected before
    activation, so that a broken or partial release cannot replace one that works.
 6. As a desk owner, I want the same rejection for a release that does not carry Hosted Pi control,
    so that both required components are gated by the same rule.
-7. As a desk owner, I want the Shell to show the Voice Agent's real state — ready, needs
+7. As a desk owner, I want the Shell to show the Personal Bot's real state — ready, needs
    configuration, or unavailable — so that I can tell a missing capability from a missing credential.
 8. As a desk owner, I want the needs-configuration message to name the device-local file and the
    missing setting, so that the desk tells me what to do next.
 9. As a desk owner, I want the Shell to show the same truth for Hosted Pi control — configured or
    not, and whether a Console is currently driving a session — so that the two required features are
    reported the same way.
-10. As a desk owner, I want the microphone control to be operable only when the Voice Agent can
+10. As a desk owner, I want the microphone control to be operable only when the Personal Bot can
     actually capture a Spoken Turn, so that pressing it never lies about what will happen.
 11. As a desk owner, I want to start a Hosted Pi session by voice when that feature is configured and
     the target is reachable, so that speaking and remote control are one capability rather than two.
@@ -77,18 +77,18 @@ Turn). Required means:
     fully usable through direct touch and keyboard, so that configuration work never costs me the desk.
 13. As a desk owner, I want a broken voice feature to leave Hosted Pi hosting working, and vice
     versa, so that one required component's fault does not take the other down.
-14. As a Console operator, I want a desk whose Voice Agent is unavailable to still host and keep my
+14. As a Console operator, I want a desk whose Personal Bot is unavailable to still host and keep my
     session across a disconnect, so that the two capabilities are independent in operation while both
     are required in the product.
 15. As a desk owner, I want the desk to keep naming which Console currently drives a Hosted Pi for as
     long as that lasts, so that remote control stays attributable and local input keeps its authority.
-16. As a desk owner, I want release updates to update the Voice Agent along with everything else, so
+16. As a desk owner, I want release updates to update the Personal Bot along with everything else, so
     that a fix ships in one artifact instead of being pinned to a versioned side directory.
 17. As a desk owner, I want an update that cannot install a required component to leave the previous
     release active, so that a failed update leaves me with a working desk.
 18. As a desk owner, I want configuration to remain device-local files with restrictive permissions,
     so that credentials never travel through the Shell or through a release.
-19. As a maintainer, I want `PRODUCT.md` to name the Shell, the Voice Agent, and Hosted Pi control as
+19. As a maintainer, I want `PRODUCT.md` to name the Shell, the Personal Bot, and Hosted Pi control as
     required components, so that product authority, runtime vocabulary, and the release gates agree.
 20. As a maintainer, I want one release gate that proves both required components are inside the
     artifact, so that a partial build cannot activate.
@@ -102,8 +102,8 @@ Turn). Required means:
 ## Scenarios
 
 Stored with the suites that already own these contracts:
-`runtime/linux/tests/features/runtime-release.feature`, `voice-agent.feature`,
-`voice-status-protocol.feature`, `pi-sessions-remote.feature`.
+`runtime/linux/tests/features/runtime-release.feature`, `personal-bot.feature`,
+`personal-bot-status-protocol.feature`, `pi-sessions-remote.feature`.
 
 ```gherkin
 Feature: Required voice and Hosted Pi control components
@@ -126,7 +126,7 @@ Feature: Required voice and Hosted Pi control components
     Then validation rejects it naming Hosted Pi control as the missing required component
 
   Scenario: An uninstallable required component fails the installation
-    Given a release candidate and a host where the voice service cannot be installed
+    Given a release candidate and a host where the personal bot service cannot be installed
     When the installer installs the release
     Then the installation reports failure naming the voice component
     And it does not report the release as successfully installed
@@ -163,7 +163,7 @@ Feature: Required voice and Hosted Pi control components
     And both features present their needs-configuration state
 
   Scenario: A voice fault does not stop Hosted Pi hosting
-    Given the voice service is unavailable
+    Given the personal bot service is unavailable
     When a Console lists and launches a Hosted Pi session
     Then the session is hosted normally
     And the desk still reports voice as unavailable
@@ -176,11 +176,11 @@ Feature: Required voice and Hosted Pi control components
 
 ## Implementation Decisions
 
-- **Product authority.** `PRODUCT.md` names the Display Shell, the Voice Agent, and Hosted Pi control
+- **Product authority.** `PRODUCT.md` names the Display Shell, the Personal Bot, and Hosted Pi control
   as required components of the CM5 runtime, in the active architecture, and its principles gain the
   rule this feature establishes: required components are gated at release and installation, while
   missing device configuration or hardware is reported truthfully and never blocks the base Shell.
-- **Runtime vocabulary.** `CONTEXT.md` already states the Voice Agent's required-ness and is the
+- **Runtime vocabulary.** `CONTEXT.md` already states the Personal Bot's required-ness and is the
   authority for it; the Hosted Pi entries gain the same clause so both components are classified once.
   The capability the owner calls "remote" is expressed as a Hosted Pi driven from a Console — the
   glossary reserves "remote" for `Remote Control` and `Remote Bridge`, which are the S3 peripheral.
@@ -223,10 +223,10 @@ Feature: Required voice and Hosted Pi control components
 - **Modules under test.** Runtime release composition validation and the installer's voice and Hosted
   Pi control install steps; the renderer's voice status and Pi sessions state mapping.
 - **Prior art.** `runtime/linux/tests/runtime-release.test.js` builds a temporary runtime root and
-  release directories and asserts preflight and activation outcomes; `tests/voice-agent-deployment.test.js`
+  release directories and asserts preflight and activation outcomes; `tests/personal-bot-deployment.test.js`
   sources the installer scripts with stubs and asserts both content and forwarded arguments;
-  `tests/voice-status.cjs` and the Pi sessions suites drive the existing state contracts.
-- **Existing scenario that changes.** `voice-agent.feature`'s "Voice activation cannot block the shell"
+  `tests/personal-bot-status.cjs` and the Pi sessions suites drive the existing state contracts.
+- **Existing scenario that changes.** `personal-bot.feature`'s "Voice activation cannot block the shell"
   conflates installation with runtime configuration. It is replaced by two scenarios: an uninstallable
   required component fails the installation, and an unconfigured or unplugged feature keeps the base
   Shell usable.
@@ -252,5 +252,5 @@ Feature: Required voice and Hosted Pi control components
   toolchain is declared by the release) and `ADR 0018` (releases are reclaimed by pointer reference).
   Because voice now follows releases, a voice regression in a release reaches the desk directly —
   which is exactly why the release gate must require it.
-- `MANAGED_TASKS.md` and `VOICE_AGENT_DEPLOYMENT.md` are updated with this decision: the components are
+- `MANAGED_TASKS.md` and `PERSONAL_BOT_DEPLOYMENT.md` are updated with this decision: the components are
   required and staged by the installer, and their services start once the host is configured.

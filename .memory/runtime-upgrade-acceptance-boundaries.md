@@ -7,7 +7,7 @@ type: project
 
 全局 CLI、组件 SDK、部署源码和活动进程是四个事实。逐项读版本与哈希，核对启动 action/unit、PID/创建时间及实际源码目录；旧历史 release、回退安装和其他工作树不自动成为活动版本。不要为了统一版本覆盖操作者配置、凭据或中断活会话。
 
-证据：Pi v1.0 迁移中 Windows 的 CLI 与旧 Voice SDK 分别检查；CM5 和 Windows 在只重启 agent 后验证实际新进程，Shell PID/start 保持不变。当前权威是 @integrations/voice-agent/docs/PI_V1_MIGRATION.md；宿主操作条件见 @runtime/linux/docs/WINDOWS_HOST.md 与 @runtime/linux/AGENTS.md。
+证据：Pi v1.0 迁移中 Windows 的 CLI 与旧 Voice SDK 分别检查；CM5 和 Windows 在只重启 agent 后验证实际新进程，Shell PID/start 保持不变。当前权威是 @integrations/personal-bot/docs/PI_V1_MIGRATION.md；宿主操作条件见 @runtime/linux/docs/WINDOWS_HOST.md 与 @runtime/linux/AGENTS.md。
 
 ## 类别：只校验清单内字节而遗漏产物文件集
 

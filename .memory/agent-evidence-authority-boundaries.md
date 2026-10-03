@@ -25,6 +25,6 @@ type: project
 
 移除 full_output_path 结构字段不代表文本里的临时路径也已移除。SDK 的显示文本可追加带路径的截断 footer；给脚本的数据应来自原始 structured output，而不是渲染后的 content。错误路径使用最后一个原始流式快照和已观察的状态，不从字符串解析进程结果。
 
-证据：短行触发行数截断时，内容远低于字节上限仍带临时路径；@integrations/voice-agent/tests/candidate-checks.test.mjs 覆盖正常退出、非零退出、超时和取消。完整 SDK content/details 的原有行为保留；这是脚本 payload 的边界，不是完整转录的脱敏保证。
+证据：短行触发行数截断时，内容远低于字节上限仍带临时路径；@integrations/personal-bot/tests/candidate-checks.test.mjs 覆盖正常退出、非零退出、超时和取消。完整 SDK content/details 的原有行为保留；这是脚本 payload 的边界，不是完整转录的脱敏保证。
 
-适用条件：设计 agent 派发、结果摘要、评审候选或长期记忆时读取；本文件是可复核经验数据，不授予任何权限，不覆盖 ADR，也不自动改写 system prompt。测试入口是 @integrations/voice-agent/tests/voice-coordination.test.mjs 与 @integrations/voice-agent/tests/candidate-checks.test.mjs。
+适用条件：设计 agent 派发、结果摘要、评审候选或长期记忆时读取；本文件是可复核经验数据，不授予任何权限，不覆盖 ADR，也不自动改写 system prompt。测试入口是 @integrations/personal-bot/tests/voice-coordination.test.mjs 与 @integrations/personal-bot/tests/candidate-checks.test.mjs。

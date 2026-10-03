@@ -1,6 +1,6 @@
 # 03 — The installer treats required components as required
 
-**What to build:** Installing a release that cannot install the Voice Agent or Hosted Pi control fails as an installation, instead of printing a warning and reporting success. The failure names the component and the device-local file involved. The base Shell unit is still written first, the previous release stays active and keeps serving both capabilities, and a host whose required service is merely unconfigured installs normally and reports that state through the Shell rather than through a crash loop.
+**What to build:** Installing a release that cannot install the Personal Bot or Hosted Pi control fails as an installation, instead of printing a warning and reporting success. The failure names the component and the device-local file involved. The base Shell unit is still written first, the previous release stays active and keeps serving both capabilities, and a host whose required service is merely unconfigured installs normally and reports that state through the Shell rather than through a crash loop.
 
 **Blocked by:** None — can start immediately.
 

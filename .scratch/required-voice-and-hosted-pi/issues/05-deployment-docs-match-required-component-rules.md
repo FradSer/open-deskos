@@ -1,6 +1,6 @@
 # 05 — Deployment documentation matches the required-component rules
 
-**What to build:** The deployment documentation states what the OS now requires: the Voice Agent and Hosted Pi control are required components of a release, the installer stages both with the stable release path, their services start once the host has its device-local configuration, and an installation that cannot install a required component fails instead of reporting success. Documentation no longer implies either component is an optional extra.
+**What to build:** The deployment documentation states what the OS now requires: the Personal Bot and Hosted Pi control are required components of a release, the installer stages both with the stable release path, their services start once the host has its device-local configuration, and an installation that cannot install a required component fails instead of reporting success. Documentation no longer implies either component is an optional extra.
 
 **Blocked by:** 01 — Product authority and vocabulary name the required components. 02 — The release gate requires both required components. 03 — The installer treats required components as required.
 

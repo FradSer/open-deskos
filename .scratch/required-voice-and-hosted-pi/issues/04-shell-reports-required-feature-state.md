@@ -1,6 +1,6 @@
 # 04 — The Shell reports required-feature state truthfully
 
-**What to build:** The desk presents the Voice Agent and Hosted Pi control as the runtime's required features, each with real state: ready, needs configuration, or unavailable, with the device-local file to create or fix named in the message. An unconfigured or unplugged feature never reports ready or idle, the microphone control stays inert while the agent cannot capture, and neither feature's state blocks direct touch or keyboard use or takes the other feature down.
+**What to build:** The desk presents the Personal Bot and Hosted Pi control as the runtime's required features, each with real state: ready, needs configuration, or unavailable, with the device-local file to create or fix named in the message. An unconfigured or unplugged feature never reports ready or idle, the microphone control stays inert while the agent cannot capture, and neither feature's state blocks direct touch or keyboard use or takes the other feature down.
 
 **Blocked by:** 01 — Product authority and vocabulary name the required components.
 
