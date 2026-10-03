@@ -47,7 +47,7 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
     Then the host receives one versioned back input record
     When I tap the Voice button below the touchpad
     Then the host receives one versioned mic input record
-    And the CM5 starts the resident Pi Voice Agent recording through the configured P4 microphone
+    And the CM5 starts the resident Pi Personal Bot recording through the configured P4 microphone
 
   Scenario: Remote input remains available after release cleanup
     Given the Remote Bridge was installed from an isolated staging snapshot

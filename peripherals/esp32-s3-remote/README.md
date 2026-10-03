@@ -21,7 +21,7 @@ The remote interface is divided into three functional vertical sections:
 2. **Middle Section: Dedicated System Controls**
    - Directly below the touchpad:
      - **`< BACK`**: Tapping emits `back` (returns from focused controls, closes modals, or goes back).
-     - **`MIC`**: Emits `mic` to the CM5 resident Voice Agent. Click once to record from the configured Voice Agent microphone, then again to stop and submit; recording also ends after 30 seconds. The accepted CM5 configuration uses the P4 UAC input `plughw:CARD=Microphone,DEV=0`. The Remote transports button input, not audio. The independent service transcribes through a configured OpenAI-compatible endpoint and invokes Pi capabilities; missing microphone, credentials, or service is reported by the shell rather than treated as success. See [Voice Agent](../../integrations/voice-agent/README.md) for setup and verification limits.
+     - **`MIC`**: Emits `mic` to the CM5 resident Personal Bot. Click once to record from the configured Personal Bot microphone, then again to stop and submit; recording also ends after 30 seconds. The accepted CM5 configuration uses the P4 UAC input `plughw:CARD=Microphone,DEV=0`. The Remote transports button input, not audio. The independent service transcribes through a configured OpenAI-compatible endpoint and invokes Pi capabilities; missing microphone, credentials, or service is reported by the shell rather than treated as success. See [Personal Bot](../../integrations/personal-bot/README.md) for setup and verification limits.
 
 3. **Bottom Section: Contextual Touch Bar**
    - A dynamic action bar at the bottom of the screen (similar to MacBook Touch Bar).
