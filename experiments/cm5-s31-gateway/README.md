@@ -91,7 +91,7 @@ ESP32-S31 官方规格包含 Bluetooth 5.4（LE + BR/EDR）和 ESP-NOW 所需的
 
 ## 8. CM5 应用链路首片与首次上机记录（2026-08-23）
 
-`runtime/linux/`（Electron 外壳）已在真机 CM5（aarch64，Debian 12 bookworm，16GB RAM）完成无屏首次上机。设备无物理面板，显示层用 Xvfb 模拟。
+`runtime/shell/`（Electron 外壳）已在真机 CM5（aarch64，Debian 12 bookworm，16GB RAM）完成无屏首次上机。设备无物理面板，显示层用 Xvfb 模拟。
 
 **验证通过：**
 
