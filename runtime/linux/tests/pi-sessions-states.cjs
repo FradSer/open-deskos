@@ -497,8 +497,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('odk-app-manager-state', () => null)
   ipcMain.handle('odk-app-manager-intent', () => ({ ok: false, error: 'fixture does not dispatch intents' }))
   ipcMain.handle('odk-remote-publish-page-state', () => true)
-  ipcMain.handle('odk-voice-status', () => ({ state: 'unavailable', message: 'Voice service unavailable' }))
-  ipcMain.handle('odk-voice-toggle', () => false)
+  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable', message: 'Personal Bot service unavailable' }))
+  ipcMain.handle('odk-personal-bot-toggle', () => false)
   try {
     const code = await main()
     clearTimeout(timeout)

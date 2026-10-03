@@ -1,23 +1,23 @@
-# Provision the resident Voice Agent on a Windows Shell Host.
+# Provision the resident Personal Bot on a Windows Shell Host.
 #
 # The service runs in the logged-on session because a microphone opened in
 # session 0 has no audio endpoint, so it is an interactive scheduled task with a
 # restart loop rather than a Windows service. This script stages that task, states
 # exactly what the host is missing, and installs nothing unless it is told to.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -Report
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -InstallFfmpeg
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -Report
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg
 #
 # Run it from an SSH session or the login session: Windows blocks a scheduled
 # task from registering another task, so this must never run from inside one.
 #
 # Reuse rules, in the same spirit as scripts/provision-tailscale.ps1: a host that
-# already has ffmpeg keeps its own, and an existing OdkVoice task is updated in
+# already has ffmpeg keeps its own, and an existing OdkPersonalBot task is updated in
 # place rather than duplicated.
 
 param(
-  [string]$TaskName = 'OdkVoice',
+  [string]$TaskName = 'OdkPersonalBot',
   [string]$RuntimeRoot = (Join-Path $PSScriptRoot '..'),
   [switch]$Report,
   [switch]$InstallFfmpeg,
@@ -30,21 +30,22 @@ $ErrorActionPreference = 'Stop'
 # beside it; a development checkout keeps runtime/linux as a directory and
 # integrations/ at the repository root, two levels up. Both layouts are probed so
 # this host reports the truth instead of one layout's path.
-$voiceCandidates = @(
-  (Join-Path $RuntimeRoot 'integrations\voice-agent'),
-  (Join-Path (Join-Path (Join-Path $RuntimeRoot '..') '..') 'integrations\voice-agent')
+$personalBotCandidates = @(
+  (Join-Path $RuntimeRoot 'integrations\personal-bot'),
+  (Join-Path (Join-Path (Join-Path $RuntimeRoot '..') '..') 'integrations\personal-bot')
 )
-$voiceRoot = $null
-foreach ($candidate in $voiceCandidates) {
-  if (Test-Path -LiteralPath (Join-Path $candidate 'src\main.mjs')) { $voiceRoot = $candidate; break }
+$personalBotRoot = $null
+foreach ($candidate in $personalBotCandidates) {
+  if (Test-Path -LiteralPath (Join-Path $candidate 'src\main.mjs')) { $personalBotRoot = $candidate; break }
 }
-if (-not $voiceRoot) { $voiceRoot = $voiceCandidates[0] }
+if (-not $personalBotRoot) { $personalBotRoot = $personalBotCandidates[0] }
 
 $configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'open-deskos' } else { $env:TEMP }
-$voiceEnv = Join-Path $configDir 'voice-agent.env'
+$personalBotEnv = Join-Path $configDir 'personal-bot.env'
+if (-not (Test-Path $personalBotEnv)) { $personalBotEnv = Join-Path $configDir 'voice-agent.env' }
 $runtimeEnv = Join-Path $configDir 'runtime.env'
-$launcher = Join-Path $PSScriptRoot 'windows-voice.ps1'
-$entryPoint = Join-Path $voiceRoot 'src\main.mjs'
+$launcher = Join-Path $PSScriptRoot 'windows-personal-bot.ps1'
+$entryPoint = Join-Path $personalBotRoot 'src\main.mjs'
 $token = Join-Path $configDir 'local-channel.token'
 
 function Test-Command([string]$name) {
@@ -53,14 +54,14 @@ function Test-Command([string]$name) {
 
 $problems = @()
 
-if (-not (Test-Path -LiteralPath $entryPoint)) { $problems += "voice agent entry point missing: $entryPoint" }
-if (-not (Test-Path -LiteralPath $launcher)) { $problems += "voice launcher missing: $launcher" }
+if (-not (Test-Path -LiteralPath $entryPoint)) { $problems += "personal bot entry point missing: $entryPoint" }
+if (-not (Test-Path -LiteralPath $launcher)) { $problems += "Personal Bot launcher missing: $launcher" }
 if (-not (Test-Command 'node.exe')) { $problems += 'node.exe is not on PATH' }
 if (-not (Test-Path -LiteralPath $runtimeEnv)) { $problems += "shared device configuration missing: $runtimeEnv (ODESK_WORKSPACE)" }
-if (-not (Test-Path -LiteralPath $voiceEnv)) { $problems += "voice configuration missing: $voiceEnv (transcription provider, model, ALIYUNCS_TOKEN)" }
+if (-not (Test-Path -LiteralPath $personalBotEnv)) { $problems += "Personal Bot configuration missing: $personalBotEnv (transcription provider, model, ALIYUNCS_TOKEN)" }
 if (-not (Test-Command 'ffmpeg.exe')) { $problems += 'ffmpeg is not on PATH; Windows capture needs it for DirectShow input' }
-$listening = Test-Path -LiteralPath '\\.\pipe\open-deskos-voice-agent'
-"voice: node=$((Test-Command 'node.exe')) ffmpeg=$((Test-Command 'ffmpeg.exe')) pipe=$listening token=$([bool](Test-Path -LiteralPath $token))"
+$listening = Test-Path -LiteralPath '\\.\pipe\open-deskos-personal-bot'
+"personal-bot: node=$((Test-Command 'node.exe')) ffmpeg=$((Test-Command 'ffmpeg.exe')) pipe=$listening token=$([bool](Test-Path -LiteralPath $token))"
 foreach ($problem in $problems) { "needs: $problem" }
 
 if ($Report) { exit 0 }
@@ -92,10 +93,22 @@ $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interac
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
 "registered $TaskName (interactive logon, restart loop); launcher: $launcher"
-"the service reads $runtimeEnv and $voiceEnv, and the channel token is $token"
+"the service reads $runtimeEnv and $personalBotEnv, and the channel token is $token"
+
+# Retire the previous product service before admitting microphone capture.
+$legacyTask = Get-ScheduledTask -TaskName OdkVoice -ErrorAction SilentlyContinue
+if ($legacyTask) {
+  Stop-ScheduledTask -TaskName OdkVoice
+  Disable-ScheduledTask -TaskName OdkVoice | Out-Null
+  Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine -match '[\\/]integrations[\\/]voice-agent[\\/]src[\\/]main\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+}
+
+# Run under the installer identity before the limited interactive task.
+& node.exe (Join-Path $personalBotRoot 'src\migrate-personal-bot.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Personal Bot state migration failed; task remains stopped' }
 
 if ($Start) {
   Start-ScheduledTask -TaskName $TaskName
   Start-Sleep -Seconds 2
-  "started $TaskName; pipe present=$([bool](Test-Path -LiteralPath '\\.\pipe\open-deskos-voice-agent'))"
+  "started $TaskName; pipe present=$([bool](Test-Path -LiteralPath '\\.\pipe\open-deskos-personal-bot'))"
 }

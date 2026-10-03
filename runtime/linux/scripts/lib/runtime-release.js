@@ -194,16 +194,16 @@ function validateRuntimeComposition(releasePath) {
   return validateRequiredComponents(releasePath)
 }
 
-// The runtime's required components must be inside the artifact: the Voice Agent integration with its
+// The runtime's required components must be inside the artifact: the Personal Bot integration with its
 // service unit, and the Hosted Pi control service that hosts the sessions a Console drives or a
 // Spoken Turn starts. Installed production dependencies must resolve inside the release, the same way
 // renderer and runtime dependencies already must.
 function validateRequiredComponents(releasePath) {
-  const integration = path.join(releasePath, 'integrations', 'voice-agent')
-  const voiceEntry = path.join(integration, 'src', 'main.mjs')
-  const voiceUnit = path.join(integration, 'systemd', 'open-deskos-voice-agent.service')
-  if (!fs.existsSync(path.join(integration, 'package.json')) || !fs.existsSync(voiceEntry) || !fs.existsSync(voiceUnit)) {
-    return { ok: false, reason: 'required voice integration is missing' }
+  const integration = path.join(releasePath, 'integrations', 'personal-bot')
+  const botEntry = path.join(integration, 'src', 'main.mjs')
+  const botUnit = path.join(integration, 'systemd', 'open-deskos-personal-bot.service')
+  if (!fs.existsSync(path.join(integration, 'package.json')) || !fs.existsSync(botEntry) || !fs.existsSync(botUnit)) {
+    return { ok: false, reason: 'required Personal Bot integration is missing' }
   }
   if (!fs.existsSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'))) {
     return { ok: false, reason: 'required Hosted Pi control service is missing' }
@@ -211,7 +211,7 @@ function validateRequiredComponents(releasePath) {
   const modules = path.join(integration, 'node_modules')
   const root = `${fs.realpathSync(releasePath)}${path.sep}`
   if (!fs.existsSync(modules) || !fs.realpathSync(modules).startsWith(root)) {
-    return { ok: false, reason: 'required voice dependencies are missing or outside the candidate release' }
+    return { ok: false, reason: 'required Personal Bot dependencies are missing or outside the candidate release' }
   }
   return { ok: true }
 }

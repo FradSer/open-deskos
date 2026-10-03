@@ -108,11 +108,11 @@ Feature: 64-bit Windows as a Shell Host
     And it does not report a local, simulated, or healthy link
 
   Scenario: The voice link binds the endpoint the host names
-    Given a Windows Shell Host running the Voice Agent
-    When the Shell reaches the voice service
-    Then it reaches it at the voice-agent named pipe
+    Given a Windows Shell Host running the Personal Bot
+    When the Shell reaches the personal bot service
+    Then it reaches it at the personal-bot named pipe
     And the channel token authenticates the connection before the voice protocol reads a byte
-    And a host with no voice service listening still reports voice as unavailable
+    And a host with no personal bot service listening still reports voice as unavailable
 
   Scenario: The camera source reports unavailable without a device
     Given a Windows Shell Host without a V4L2 camera device

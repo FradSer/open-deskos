@@ -5,9 +5,9 @@ Scope: @runtime/linux/docs/VOICE_REOPEN_SPEC.md and @runtime/linux/docs/VOICE_LA
 ## Passed verification
 
 - Runtime main routing, preload MIC subscription and renderer state matrix tests. Remote MIC dispatches an intent, never an unconditional toggle; hidden current interactions restore without capture, visible busy states do nothing, visible recording submits, visible completed/error begins next turn. Latest reply/input, scroll, focus, dismissal and rapid IPC behavior are covered.
-- Actual Electron `tests/voice-input-ui.cjs` (three themes and three sizes), `tests/voice-status.cjs`, and floating panel regression.
+- Actual Electron `tests/voice-input-ui.cjs` (three themes and three sizes), `tests/personal-bot-status.cjs`, and floating panel regression.
 - Final runtime `pnpm test` full suite.
-- Final Voice Agent `pnpm test` full suite and `pnpm typecheck`, including real OpenCC conversion, mixed Latin/Chinese preservation, transcription prompt validation, startup wiring, local/standard auto semantics, and socket retry acknowledgement.
+- Final Personal Bot `pnpm test` full suite and `pnpm typecheck`, including real OpenCC conversion, mixed Latin/Chinese preservation, transcription prompt validation, startup wiring, local/standard auto semantics, and socket retry acknowledgement.
 - Source syntax and scoped `git diff --check`.
 
 ## Independent reviews

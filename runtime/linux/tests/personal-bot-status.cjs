@@ -3,7 +3,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const assert = require('node:assert/strict')
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-voice-ui-'))
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-bot-ui-'))
 app.setPath('userData', profile)
 const timeout = setTimeout(() => app.exit(1), 60000)
 const pause = () => new Promise((resolve) => setTimeout(resolve, 30))
@@ -17,11 +17,11 @@ app.whenReady().then(async () => {
     preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, sandbox: true,
   } })
   const evaluate = (script) => win.webContents.executeJavaScript(script)
-  const send = async (status) => { win.webContents.send('odk-voice-status', status); await pause() }
+  const send = async (status) => { win.webContents.send('odk-personal-bot-status', status); await pause() }
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
   for (const state of ['idle', 'error', 'unavailable']) {
     await send({ state, message: 'Previous result' })
-    assert.equal(await evaluate('document.getElementById("voice-status").hidden'), true)
+    assert.equal(await evaluate('document.getElementById("personal-bot-status").hidden'), true)
   }
   await evaluate(`document.querySelectorAll('#dots .dot')[1].click(); document.querySelectorAll('#dots .dot')[1].focus()`)
   const originalPage = await evaluate(`document.getElementById('page-context').textContent`)
@@ -43,7 +43,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.getElementById('pages-viewport').hasPointerCapture(window.voiceCapturedPointer)`), false, 'Voice activation releases pager pointer capture')
   await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 50, y: 300, button: 'left', buttons: 0, clickCount: 1 })
   win.webContents.debugger.detach()
-  assert.equal(await evaluate(`document.activeElement.classList.contains('voice-status-content')`), true)
+  assert.equal(await evaluate(`document.activeElement.classList.contains('personal-bot-status-content')`), true)
   assert.equal(pageState.canPrev, false)
   assert.equal(pageState.canNext, false)
   assert.deepEqual(pageState.actions, [])
@@ -69,31 +69,31 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`window.voiceActions`), 0)
   await send({ state: 'idle', message: 'Scrollable response 测试结果\n'.repeat(200) })
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'down' }))`)
-  assert.ok(await evaluate(`document.querySelector('.voice-status-content').scrollTop > 0`))
+  assert.ok(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop > 0`))
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'up' }))`)
-  assert.equal(await evaluate(`document.querySelector('.voice-status-content').scrollTop`), 0)
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop`), 0)
   win.show()
   win.focus()
   for (const keyCode of ['Down', 'PageDown', 'End']) {
-    await evaluate(`document.querySelector('.voice-status-content').scrollTop = 0; document.querySelector('.voice-status-content').focus()`)
+    await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 0; document.querySelector('.personal-bot-status-content').focus()`)
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode })
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode })
     await new Promise((resolve) => setTimeout(resolve, 200))
-    assert.ok(await evaluate(`document.querySelector('.voice-status-content').scrollTop > 0`), `${keyCode} scrolls the response`)
+    assert.ok(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop > 0`), `${keyCode} scrolls the response`)
     assert.equal(await evaluate(`document.getElementById('page-context').textContent`), originalPage)
   }
   await new Promise((resolve) => setTimeout(resolve, 300))
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 0`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 0`)
   await pause()
   win.webContents.sendInputEvent({ type: 'mouseWheel', x: 200, y: 300, deltaY: -200, canScroll: true })
   await new Promise((resolve) => setTimeout(resolve, 150))
-  assert.ok(await evaluate(`document.querySelector('.voice-status-content').scrollTop > 0`), 'Wheel scrolls the response')
+  assert.ok(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop > 0`), 'Wheel scrolls the response')
   win.webContents.debugger.attach('1.3')
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 0`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 0`)
   await win.webContents.debugger.sendCommand('Input.synthesizeScrollGesture', {
     x: 200, y: 400, yDistance: -180, gestureSourceType: 'touch', speed: 600,
   })
-  assert.ok(await evaluate(`document.querySelector('.voice-status-content').scrollTop > 0`), 'Vertical touch swipe scrolls the response')
+  assert.ok(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop > 0`), 'Vertical touch swipe scrolls the response')
   await win.webContents.debugger.sendCommand('Input.synthesizeScrollGesture', {
     x: 300, y: 400, xDistance: -200, gestureSourceType: 'touch', speed: 600,
   })
@@ -111,10 +111,10 @@ app.whenReady().then(async () => {
         const message = ['error', 'idle'].includes(state) ? 'Result 测试结果 https://example.test/\n'.repeat(100) : ''
         await send({ state, message })
         const result = await evaluate(`(() => {
-          const node = document.getElementById('voice-status'); const r = node.getBoundingClientRect();
-          const content = node.querySelector('.voice-status-content');
-          const title = node.querySelector('.voice-status-title'); const stage = node.querySelector('.voice-status-stage');
-          const detail = node.querySelector('.voice-status-detail');
+          const node = document.getElementById('personal-bot-status'); const r = node.getBoundingClientRect();
+          const content = node.querySelector('.personal-bot-status-content');
+          const title = node.querySelector('.personal-bot-status-title'); const stage = node.querySelector('.personal-bot-status-stage');
+          const detail = node.querySelector('.personal-bot-status-detail');
           content.scrollTop = content.scrollHeight;
           return { hidden: node.hidden, title: title.textContent, titleHidden: title.hidden,
             contained: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight,
@@ -122,8 +122,8 @@ app.whenReady().then(async () => {
             hasButton: !!node.querySelector('button'), detailFont: parseFloat(getComputedStyle(detail).fontSize),
             titleFont: parseFloat(getComputedStyle(title).fontSize), stageFont: parseFloat(getComputedStyle(stage).fontSize),
             fullscreen: r.x === 0 && r.y === 0 && r.width === innerWidth && r.height === innerHeight,
-            headingHidden: node.querySelector('.voice-status-heading').hidden,
-            progressHidden: node.querySelector('.voice-status-progress').hidden,
+            headingHidden: node.querySelector('.personal-bot-status-heading').hidden,
+            progressHidden: node.querySelector('.personal-bot-status-progress').hidden,
             modal: node.getAttribute('role') === 'dialog' && node.getAttribute('aria-modal') === 'true',
             outside: !node.contains(document.elementFromPoint(5, 5)) };
         })()`)
@@ -145,7 +145,7 @@ app.whenReady().then(async () => {
         if (state === 'idle') assert.equal(result.progressHidden, true)
         if (state === 'idle') { assert.equal(result.title, message); assert.ok(result.scroll > 0) }
       }
-      await evaluate(`document.querySelector('.voice-status-content').focus(); document.querySelector('.voice-status-content').scrollTop = 0`)
+      await evaluate(`document.querySelector('.personal-bot-status-content').focus(); document.querySelector('.personal-bot-status-content').scrollTop = 0`)
       const keyHandled = await evaluate(`(() => { const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }); document.activeElement.dispatchEvent(event); return event.defaultPrevented })()`)
       assert.equal(keyHandled, false, 'Shell paging must not consume voice content scroll keys')
       win.show()
@@ -155,11 +155,11 @@ app.whenReady().then(async () => {
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
       await pause()
-      assert.equal(await evaluate('document.getElementById("voice-status").hidden'), true)
+      assert.equal(await evaluate('document.getElementById("personal-bot-status").hidden'), true)
       await send({ state: 'idle', message: 'Repeated result' })
-      assert.equal(await evaluate('document.getElementById("voice-status").hidden'), true)
+      assert.equal(await evaluate('document.getElementById("personal-bot-status").hidden'), true)
       await send({ state: 'unavailable', activated: true })
-      assert.equal(await evaluate('document.getElementById("voice-status").hidden'), false)
+      assert.equal(await evaluate('document.getElementById("personal-bot-status").hidden'), false)
       await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
     }
   }
@@ -180,36 +180,36 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))`)
   assert.equal(await evaluate(`window.voiceControlClicks`), 1, 'Remote primary activates the restored control')
   await evaluate(`document.getElementById('app-view').hidden = false`)
-  win.webContents.send('odk-voice-mic')
+  win.webContents.send('odk-personal-bot-mic')
   await pause()
-  assert.equal(await evaluate(`document.getElementById('voice-status').parentElement === document.body && document.getElementById('app-view').inert`), true)
-  await evaluate(`document.querySelector('.voice-status-content').focus()`)
-  const trapped = await evaluate(`(() => { const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); document.activeElement.dispatchEvent(event); return event.defaultPrevented && document.activeElement.classList.contains('voice-status-content') })()`)
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').parentElement === document.body && document.getElementById('app-view').inert`), true)
+  await evaluate(`document.querySelector('.personal-bot-status-content').focus()`)
+  const trapped = await evaluate(`(() => { const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); document.activeElement.dispatchEvent(event); return event.defaultPrevented && document.activeElement.classList.contains('personal-bot-status-content') })()`)
   assert.equal(trapped, true, 'Voice owns the Tab cycle above the App')
   await evaluate(`document.getElementById('app-back').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
   await pause()
-  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true)
-  win.webContents.send('odk-voice-mic')
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden && !document.getElementById('app-view').hidden`), true)
+  win.webContents.send('odk-personal-bot-mic')
   await pause()
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
-  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('app-view').hidden`), true, 'Remote Back closes feedback before the App')
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden && !document.getElementById('app-view').hidden`), true, 'Remote Back closes feedback before the App')
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
   assert.equal(await evaluate(`document.getElementById('app-view').hidden`), true, 'The next Back closes the App')
   await pause()
-  assert.equal(await evaluate(`document.getElementById('voice-status').parentElement === document.body`), true)
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').parentElement === document.body`), true)
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
   })
-  win.webContents.send('odk-voice-mic')
+  win.webContents.send('odk-personal-bot-mic')
   await pause()
   await send({ state: 'thinking' })
-  assert.equal(await evaluate('getComputedStyle(document.querySelector(".voice-status-progress span")).animationName'), 'none')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".personal-bot-status-progress span")).animationName'), 'none')
   win.webContents.setZoomFactor(2)
   await send({ state: 'error', message: 'Configuration required. '.repeat(30) })
-  assert.equal(await evaluate(`(() => { const n = document.getElementById('voice-status'); const r = n.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight })()`), true)
+  assert.equal(await evaluate(`(() => { const n = document.getElementById('personal-bot-status'); const r = n.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight })()`), true)
   console.log('VOICE_STATUS_UI_PASS')
   clearTimeout(timeout)
   win.destroy()

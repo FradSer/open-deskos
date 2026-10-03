@@ -7,7 +7,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
-const { createVoiceAgentClient } = require('../src/voice-agent-client')
+const { createPersonalBotClient } = require('../src/personal-bot-client')
 const { pathToFileURL } = require('node:url')
 const { findRepositoryRoot } = require('./helpers/repo-root')
 
@@ -23,15 +23,15 @@ function waitFor(client, predicate) {
 }
 
 test('resident transcription and partial reply reach the Shell before completion over the real socket', { timeout: 5000 }, async (t) => {
-  const backend = path.join(findRepositoryRoot(__dirname), 'integrations', 'voice-agent', 'src')
-  const { VoiceService } = await import(pathToFileURL(path.join(backend, 'service.mjs')).href)
+  const backend = path.join(findRepositoryRoot(__dirname), 'integrations', 'personal-bot', 'src')
+  const { PersonalBotService } = await import(pathToFileURL(path.join(backend, 'service.mjs')).href)
   const { listen } = await import(pathToFileURL(path.join(backend, 'socket.mjs')).href)
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-stream-'))
   const socketPath = path.join(directory, 'voice.sock')
   const transcript = '帮我总结这个项目'
   let emitText
   let complete
-  const service = new VoiceService({
+  const service = new PersonalBotService({
     record: async () => ({ done: new Promise(() => {}), stop: async () => 'fixture.wav', cleanup: async () => {} }),
     transcribe: async () => transcript,
     prompt: async (_text, onText) => {
@@ -40,7 +40,7 @@ test('resident transcription and partial reply reach the Shell before completion
     },
   })
   const server = await listen(socketPath, service)
-  const client = createVoiceAgentClient({ socketPath })
+  const client = createPersonalBotClient({ socketPath })
   t.after(async () => {
     complete?.('')
     client.stop()

@@ -26,7 +26,7 @@ function createDeskDataControl(registry) {
 }
 
 /**
- * The Desk Data Link the Voice Agent opens: the Shell listens, the agent asks.
+ * The Desk Data Link the Personal Bot opens: the Shell listens, the agent asks.
  * The transport and its authentication belong to the local channel, so a Unix
  * host authenticates by ownership and a Windows pipe by the shared channel token.
  */

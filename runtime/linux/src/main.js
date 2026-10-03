@@ -17,7 +17,7 @@ const { createDeskLinkClient } = require('./desk-link-client')
 const { KIOSK_WINDOW_LOCK, enterPanel, resolvePanelBounds } = require('./panel')
 const { createPiSessionEventsSource } = require('./pi-session-events-source')
 const { createHydraSource } = require('./hydra-mqtt')
-const { createVoiceAgentClient, resolveVoiceSocketPath } = require('./voice-agent-client')
+const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('./personal-bot-client')
 const { createWeReadSource } = require('./weread-source')
 const { createFutuSource } = require('./futu-source')
 const { createWeatherSource } = require('./weather-source')
@@ -225,40 +225,46 @@ async function main() {
       console.error(`remote bridge disabled: ${error.message}`)
     }
   }
-  const voiceAgent = createVoiceAgentClient({ socketPath: smokeMode ? null : resolveVoiceSocketPath(process.env, shellHost), host: shellHost })
-  const broadcastVoiceStatus = (status) => {
-    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-status', status)
+  const personalBot = createPersonalBotClient({ socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost })
+  const broadcastPersonalBotStatus = (status) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-personal-bot-status', status)
   }
-  let pendingVoiceToggle = null
-  voiceAgent.subscribe((status) => {
-    if (pendingVoiceToggle === 'starting' && status.state === 'idle') return
-    if (pendingVoiceToggle === 'sending' && status.state === 'recording') return
-    pendingVoiceToggle = null
-    broadcastVoiceStatus(status)
+  let pendingPersonalBotToggle = null
+  personalBot.subscribe((status) => {
+    if (pendingPersonalBotToggle === 'starting' && status.state === 'idle') return
+    if (pendingPersonalBotToggle === 'sending' && status.state === 'recording') return
+    pendingPersonalBotToggle = null
+    broadcastPersonalBotStatus(status)
   })
-  if (!smokeMode) voiceAgent.start()
-  ipcMain.handle('odk-voice-status', () => voiceAgent.snapshot())
-  const toggleVoiceAgent = () => {
-    const current = voiceAgent.snapshot()
-    if (pendingVoiceToggle || ['transcribing', 'thinking'].includes(current.state)) return false
-    const sent = voiceAgent.toggle()
+  if (!smokeMode) personalBot.start()
+  ipcMain.handle('odk-personal-bot-status', () => personalBot.snapshot())
+  const togglePersonalBot = () => {
+    const current = personalBot.snapshot()
+    if (pendingPersonalBotToggle || ['transcribing', 'thinking'].includes(current.state)) return false
+    const sent = personalBot.toggle()
     if (sent) {
-      pendingVoiceToggle = current.state === 'recording' ? 'sending' : 'starting'
-      broadcastVoiceStatus({
-        state: pendingVoiceToggle,
+      pendingPersonalBotToggle = current.state === 'recording' ? 'sending' : 'starting'
+      broadcastPersonalBotStatus({
+        state: pendingPersonalBotToggle,
         message: '',
       })
     } else {
-      broadcastVoiceStatus({ ...current, activated: true })
+      broadcastPersonalBotStatus({ ...current, activated: true })
     }
     return sent
   }
-  ipcMain.handle('odk-voice-toggle', () => ({ accepted: toggleVoiceAgent() }))
-  app.once('before-quit', () => voiceAgent.stop())
+  ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: togglePersonalBot() }))
+  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => {
+    if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
+    if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
+    if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return { accepted: false }
+    return { accepted: personalBot.proposalCommand(command) }
+  })
+  app.once('before-quit', () => personalBot.stop())
   const remoteBridge = createRemoteBridgeClient({
     socketPath: remoteSocketPath,
     onRemoteMic: () => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-voice-mic')
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-personal-bot-mic')
     },
   })
   let remoteSequence = 0
@@ -304,6 +310,7 @@ async function main() {
     : createHydraSource({
       url: process.env.ODK_HYDRA_MQTT_URL,
       topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
+      onUpdate: () => personalBot.servicePush(['odk.tile.hydra']),
     })
   ipcMain.handle('odk-hydra-status', () => hydraSource.snapshot())
   const wereadSource = createWeReadSource({
@@ -327,6 +334,7 @@ async function main() {
     return require('node:path').join(base, 'open-deskos')
   })()
   const futuSource = createFutuSource({
+    onUpdate: id => personalBot.servicePush([id]),
     runtimeDir: futuRuntimeDir,
     // A declared endpoint that has no owner to authenticate it (a named pipe, or
     // a network address a plugin on another host connects to) is gated by the
@@ -376,6 +384,7 @@ async function main() {
     ? createWeatherSource({ latitude: null, longitude: null })
     : createWeatherSource({
       cacheFile: require('node:path').join(app.getPath('userData'), 'weather-reading.json'),
+      onUpdate: () => personalBot.servicePush(['odk.tile.weather']),
     })
   ipcMain.handle('odk-weather-status', (_event, request) => weatherSource.refresh({ force: Boolean(request?.force) }))
 
@@ -386,7 +395,7 @@ async function main() {
 
   // Desk Data (ADR 0033): one registry of what the desk holds. Every reading here
   // resolves the source the tile above already draws from, so a spoken answer and
-  // the screen cannot disagree, and the Voice Agent reaches it over the Desk Data
+  // the screen cannot disagree, and the Personal Bot reaches it over the Desk Data
   // Link rather than a second integration of any provider.
   const { createUserAppStore } = require('./user-app-store')
   const installedStore = createUserAppStore({
@@ -394,6 +403,7 @@ async function main() {
     stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
   })
   const deskData = createShellDeskData({
+    onUpdate: id => personalBot.servicePush([id]),
     hydra: hydraSource,
     weather: weatherSource,
     weread: wereadSource,
@@ -426,7 +436,7 @@ async function main() {
   const win = createWindow(options)
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
   win.webContents.once('did-finish-load', () => {
-    broadcastVoiceStatus(voiceAgent.snapshot())
+    broadcastPersonalBotStatus(personalBot.snapshot())
     win.webContents.send('odk-remote-link-state', {
       state: remoteBridge.getLinkState(),
       sequence: remoteSequence,

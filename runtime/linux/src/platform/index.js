@@ -10,9 +10,9 @@ const { tokenFile } = require('../local-channel')
 const LINK_ENDPOINTS = {
   'user-app-control': ['open-deskos-apps', 'control.sock'],
   'remote-bridge': ['open-deskos-remote', 'bridge.sock'],
-  'voice-agent': ['open-deskos-voice', 'agent.sock'],
+  'personal-bot': ['open-deskos-personal-bot', 'agent.sock'],
   'desk-link': ['open-deskos-desk-link', 'service.sock'],
-  // The Desk Data Link the Voice Agent reads through: one name, one transport
+  // The Desk Data Link the Personal Bot reads through: one name, one transport
   // decision per host, no second copy of any reading.
   'desk-data': ['open-deskos-desk-data', 'service.sock'],
 }
@@ -75,7 +75,7 @@ function resolveShellHost({ platform = process.platform, arch = process.arch, en
     // socket owned by this user, or a named pipe gated by the channel token.
     // Widget and App control through the shell itself never needs it.
     provisionsUserAppControl: endpoint('user-app-control') !== null,
-    // The Desk Data Link is the same arrangement for a reading: the Voice Agent
+    // The Desk Data Link is the same arrangement for a reading: the Personal Bot
     // reads through it, and it exists wherever the endpoint itself exists.
     provisionsDeskData: endpoint('desk-data') !== null,
     deskDataEndpoint: endpoint('desk-data'),

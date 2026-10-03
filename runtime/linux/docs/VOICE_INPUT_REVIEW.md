@@ -2,7 +2,7 @@
 
 ## Scope
 
-Working changes to the Shell voice feedback surface and resident Voice Agent: Markdown replies, measured input level, local speech endpointing and removal of the 30-second recording cutoff. Framework-free Electron DOM, existing `--odk-*` tokens and Instrument/Pixel/Border Beam themes. Product and standards: @PRODUCT.md, @DESIGN.md, @runtime/linux/AGENTS.md, @runtime/linux/docs/VOICE_INPUT_SPEC.md.
+Working changes to the Shell voice feedback surface and resident Personal Bot: Markdown replies, measured input level, local speech endpointing and removal of the 30-second recording cutoff. Framework-free Electron DOM, existing `--odk-*` tokens and Instrument/Pixel/Border Beam themes. Product and standards: @PRODUCT.md, @DESIGN.md, @runtime/linux/AGENTS.md, @runtime/linux/docs/VOICE_INPUT_SPEC.md.
 
 Lockfiles and generated `uno.css` were excluded from visual review. Neighboring Widget/App styles and density were checked for regressions. Peripheral firmware and deployment are outside this change.
 
@@ -21,16 +21,16 @@ An entity/escaped-punctuation issue in the plain-text Markdown optimization was 
 
 ## Passed checks
 
-- `cd integrations/voice-agent && pnpm test` — 84 tests passed.
-- `cd integrations/voice-agent && pnpm typecheck`.
+- `cd integrations/personal-bot && pnpm test` — 84 tests passed.
+- `cd integrations/personal-bot && pnpm typecheck`.
 - `cd runtime/linux && pnpm test` — 258 tests passed in the serial run.
 - `pnpm styles`, `pnpm smoke`, and `bash tests/smoke.sh` in the runtime.
 - `pnpm exec electron tests/voice-input-ui.cjs` — Markdown semantics/security, real meter geometry, three themes and three sizes, hidden offscreen window.
-- `pnpm exec electron tests/voice-floating-panel.cjs` and `pnpm exec electron tests/voice-status.cjs`.
+- `pnpm exec electron tests/personal-bot-floating-panel.cjs` and `pnpm exec electron tests/personal-bot-status.cjs`.
 - `pnpm exec electron tests/widget-app-styles.cjs` and `pnpm exec electron tests/widget-density.cjs`.
 - `pnpm e2e` — full sequential suite including the new recurring voice-input regression.
 - Runtime composition and dependency validation; `node --check` for changed Shell/client/release JavaScript; `git diff --check`.
-- Scoped Impeccable detector on `src/renderer/voice-status.css` returned an empty findings list.
+- Scoped Impeccable detector on `src/renderer/personal-bot-status.css` returned an empty findings list.
 
 During concurrent Electron checks, three user-app verifier tests timed out; all passed on serial rerun. An earlier full runtime run intentionally encountered the new Listening regression while its implementation was still RED.
 
@@ -46,7 +46,7 @@ Independent read-only review found no confirmed introduced standards violations 
 
 Independent read-only review passed the changed voice-input behavior. It challenged shutdown during unresolved capture startup, concurrent manual/automatic submission, fragmented PCM, backpressure, disk errors, maximum escaped status frames, nested Markdown and unsafe URLs. No actionable introduced implementation defect was established. Spec axis: PASS for this change.
 
-One nonblocking pre-existing mismatch remains: `integrations/voice-agent/features/voice.feature` still contains historical live-session control scenarios despite the separately completed move to managed coding tasks. Those scenarios were not restored or changed as part of voice input; the managed-task README and implementation remain authoritative for that separate capability.
+One nonblocking pre-existing mismatch remains: `integrations/personal-bot/features/voice.feature` still contains historical live-session control scenarios despite the separately completed move to managed coding tasks. Those scenarios were not restored or changed as part of voice input; the managed-task README and implementation remain authoritative for that separate capability.
 
 ## Verdict
 

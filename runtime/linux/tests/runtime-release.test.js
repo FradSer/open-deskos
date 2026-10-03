@@ -54,13 +54,13 @@ function makeCompleteRelease(runtime, id) {
   for (const kind of ['page', 'tile', 'status']) {
     fs.writeFileSync(path.join(renderer, 'plugins', `${kind}.js`), `id: 'odk.${kind}.test', manifest: { schemaVersion: 1 }`)
   }
-  const integration = path.join(release, 'integrations', 'voice-agent')
+  const integration = path.join(release, 'integrations', 'personal-bot')
   fs.mkdirSync(path.join(integration, 'src'), { recursive: true })
   fs.mkdirSync(path.join(integration, 'systemd'), { recursive: true })
   fs.mkdirSync(path.join(integration, 'node_modules'))
   fs.writeFileSync(path.join(integration, 'package.json'), '{}')
   fs.writeFileSync(path.join(integration, 'src', 'main.mjs'), 'entry')
-  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-voice-agent.service'), 'unit')
+  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-personal-bot.service'), 'unit')
   fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'), 'unit')
   return release
 }
@@ -310,7 +310,7 @@ test('a failed activation reclaims nothing so its candidate stays inspectable', 
   }
 })
 
-test('a candidate carrying the required voice and Hosted Pi components validates', () => {
+test('a candidate carrying the required Personal Bot and Hosted Pi components validates', () => {
   const runtime = makeRuntime()
   try {
     const candidate = makeCompleteRelease(runtime, 'candidate')
@@ -320,14 +320,14 @@ test('a candidate carrying the required voice and Hosted Pi components validates
   }
 })
 
-test('a candidate missing the required voice integration is rejected', () => {
+test('a candidate missing the required Personal Bot integration is rejected', () => {
   const runtime = makeRuntime()
   try {
     const candidate = makeRelease(runtime, 'candidate')
     makeRenderer(candidate)
     assert.deepEqual(validateRuntimeComposition(candidate), {
       ok: false,
-      reason: 'required voice integration is missing',
+      reason: 'required Personal Bot integration is missing',
     })
   } finally {
     fs.rmSync(runtime.root, { recursive: true, force: true })
@@ -338,7 +338,7 @@ test('a candidate missing the required Hosted Pi control service is rejected', (
   const runtime = makeRuntime()
   try {
     const candidate = makeCompleteRelease(runtime, 'candidate')
-    fs.rmSync(path.join(candidate, 'integrations', 'voice-agent', 'systemd', 'open-deskos-pi-tasks.service'))
+    fs.rmSync(path.join(candidate, 'integrations', 'personal-bot', 'systemd', 'open-deskos-pi-tasks.service'))
     assert.deepEqual(validateRuntimeComposition(candidate), {
       ok: false,
       reason: 'required Hosted Pi control service is missing',
@@ -348,18 +348,18 @@ test('a candidate missing the required Hosted Pi control service is rejected', (
   }
 })
 
-test('required voice dependencies outside the candidate are rejected', () => {
+test('required Personal Bot dependencies outside the candidate are rejected', () => {
   const runtime = makeRuntime()
   try {
     const candidate = makeCompleteRelease(runtime, 'candidate')
-    const modules = path.join(candidate, 'integrations', 'voice-agent', 'node_modules')
+    const modules = path.join(candidate, 'integrations', 'personal-bot', 'node_modules')
     fs.rmSync(modules, { recursive: true, force: true })
     const outside = path.join(runtime.root, 'ambient-voice-modules')
     fs.mkdirSync(outside)
     fs.symlinkSync(outside, modules)
     assert.deepEqual(validateRuntimeComposition(candidate), {
       ok: false,
-      reason: 'required voice dependencies are missing or outside the candidate release',
+      reason: 'required Personal Bot dependencies are missing or outside the candidate release',
     })
   } finally {
     fs.rmSync(runtime.root, { recursive: true, force: true })
@@ -383,9 +383,9 @@ test('a candidate missing a required component records it and leaves the active 
     })
 
     assert.equal(result.ok, false)
-    assert.equal(result.reason, 'required voice integration is missing')
+    assert.equal(result.reason, 'required Personal Bot integration is missing')
     assert.equal(currentRelease(runtime), 'stable')
-    assert.equal(readRuntimeState(runtime).lastUpdate.reason, 'required voice integration is missing')
+    assert.equal(readRuntimeState(runtime).lastUpdate.reason, 'required Personal Bot integration is missing')
   } finally {
     fs.rmSync(runtime.root, { recursive: true, force: true })
   }

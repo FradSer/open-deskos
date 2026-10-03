@@ -34,7 +34,7 @@ Feature: Immutable runtime release deployment
     Then composition validation rejects the candidate
     And an installed browser bundle inside the candidate passes
 
-  Scenario: A candidate carries the required voice and Hosted Pi components
+  Scenario: A candidate carries the required Personal Bot and Hosted Pi components
     Given a candidate whose release contains the voice integration, its service units, and its installed production dependencies
     When composition validation runs
     Then the candidate passes with both required components present

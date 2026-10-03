@@ -63,7 +63,7 @@ pnpm run build:native       # 可选：再确认原生模块能编译
 | 能力 | Windows 宿主状态 |
 |---|---|
 | Remote Control（Remote Link / Remote Bridge） | 不可用：Unix socket 链路未移植，Windows 上也没有对应服务 |
-| 语音 Agent（MIC、转写、录音、回答） | **可用**：同名管道 `\\.\pipe\open-deskos-voice-agent` + 通道令牌认证，采集走 ffmpeg DirectShow（需本机 ffmpeg 与交互式计划任务）；服务未跑时如实报 unavailable |
+| 语音 Agent（MIC、转写、录音、回答） | **可用**：同名管道 `\\.\pipe\open-deskos-personal-bot` + 通道令牌认证，采集走 ffmpeg DirectShow（需本机 ffmpeg 与交互式计划任务）；服务未跑时如实报 unavailable |
 | Desk Link / Hosted Pi 远程控制 | **可用**：宿主通道监听 TCP（默认 8765，令牌来自 `ODK_DESK_LINK_TOKEN_FILE`），运行时通道绑定为命名管道 `\\.\pipe\open-deskos-desk-link`，由通道令牌认证 |
 | Desk Data Link（`desk_data` 读桌面运行数据） | **两端都可用**：Shell 侧监听命名管道 `\\.\pipe\open-deskos-desk-data`（通道令牌认证），语音 Agent 侧按主机解析同一端点名并出示该主机令牌，因此语音/文字都能读到 Widget 的实时读数（2026-09-30 实机验证） |
 | 外部应用控制端点 | **两端都可用**：Shell 侧创建命名管道 `\\.\pipe\open-deskos-user-app-control`（通道令牌认证），语音 Agent 侧按主机解析同一端点名并出示该主机令牌，因此 `user_apps_*` 工具在这台机器上真的能用（2026-09-30 实机验证）。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响 |
@@ -135,39 +135,39 @@ node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.read
 
 看到 `ack: {"v":1,...,"ok":true}` 就说明令牌被接受、协议被送达。
 
-## 在 Windows 上跑语音 Agent（Voice Agent）
+## 在 Windows 上跑语音 Agent（Personal Bot）
 
 语音 Agent 通过两条独立的运行时通道接触 Shell：`desk-data`（读桌面 Widget 的运行数据）与 `user-app-control`（应用生命周期）。两条都按主机解析端点——Windows 是 `\\.\pipe\open-deskos-<link>` 命名管道并出示 `%LOCALAPPDATA%\open-deskos\local-channel.token`，Unix 是运行时目录里的 socket——所以 Windows 上不需要任何 `ODESK_*_SOCKET` 覆盖。覆盖仍然保留，仅用于测试。
 
-语音 Agent 是桌面运行时的常驻组件，所以 64 位 Windows 也跑**同一个** `integrations/voice-agent`，只有两处按宿主不同：采集走 ffmpeg 的 DirectShow（不是 ALSA），链路绑定成主机接缝里已经声明的 `\\.\pipe\open-deskos-voice-agent`。管道没有属主可认证，因此连接由 `%LOCALAPPDATA%\open-deskos\local-channel.token` 里的通道令牌把门，并且在语音协议读到任何字节之前就被消费（见 ADR-0025）。
+语音 Agent 是桌面运行时的常驻组件，所以 64 位 Windows 也跑**同一个** `integrations/personal-bot`，只有两处按宿主不同：采集走 ffmpeg 的 DirectShow（不是 ALSA），链路绑定成主机接缝里已经声明的 `\\.\pipe\open-deskos-personal-bot`。管道没有属主可认证，因此连接由 `%LOCALAPPDATA%\open-deskos\local-channel.token` 里的通道令牌把门，并且在语音协议读到任何字节之前就被消费（见 ADR-0025）。
 
-设备本地配置与 CM5 是同一份格式的两个文件：`%LOCALAPPDATA%\open-deskos\runtime.env`（与桌面共享的 `ODESK_WORKSPACE`）和 `voice-agent.env`（转写 provider、模型、`ALIYUNCS_TOKEN`）。云端转写声明成 provider 而不是从 URL 推断：
+设备本地配置与 CM5 是同一份格式的两个文件：`%LOCALAPPDATA%\open-deskos\runtime.env`（与桌面共享的 `ODESK_WORKSPACE`）和 `personal-bot.env`（转写 provider、模型、`ALIYUNCS_TOKEN`）。云端转写声明成 provider 而不是从 URL 推断：
 
 ```ini
-# %LOCALAPPDATA%\open-deskos\voice-agent.env
-ODESK_VOICE_STT_PROVIDER=aliyun
-ODESK_VOICE_STT_MODEL=qwen3-asr-flash
+# %LOCALAPPDATA%\open-deskos\personal-bot.env
+ODESK_PERSONAL_BOT_STT_PROVIDER=aliyun
+ODESK_PERSONAL_BOT_STT_MODEL=qwen3-asr-flash
 # 未设置 URL 时用 DashScope 官方端点；指向 MaaS 网关就写它的完整多模态端点
-ODESK_VOICE_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
+ODESK_PERSONAL_BOT_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
 ALIYUNCS_TOKEN=<本机自己的设备本地值>
 # Windows 上必须是 DirectShow 设备名本身（ffmpeg 会自己加 audio= 前缀），Unix 的 default 在这里没有意义
-ODESK_VOICE_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
+ODESK_PERSONAL_BOT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
 ```
 
 ```powershell
 # 只报缺什么，不安装也不注册
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -Report
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -Report
 # 装 ffmpeg（仅在 -InstallFfmpeg 时）、注册交互式计划任务并启动
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-voice.ps1 -InstallFfmpeg -Start
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg -Start
 ```
 
-服务跑在已登录的交互会话里：**session 0 没有音频端点**，所以它是带重启循环的交互式计划任务（`scripts\windows-voice.ps1`，对应 unit 的 `Restart=on-failure`），而不是 Windows 服务。日志在 `%LOCALAPPDATA%\open-deskos\voice.log`。注册必须从 SSH 或登录会话发起：计划任务自身不能再注册任务。
+服务跑在已登录的交互会话里：**session 0 没有音频端点**，所以它是带重启循环的交互式计划任务（`scripts\windows-personal-bot.ps1`，对应 unit 的 `Restart=on-failure`），而不是 Windows 服务。日志在 `%LOCALAPPDATA%\open-deskos\personal-bot.log`。注册必须从 SSH 或登录会话发起：计划任务自身不能再注册任务。
 
 验收（走发布出去的协议，不打印任何凭据）：
 
 ```powershell
-node scripts\voice-acceptance.mjs            # toggle 一次，报告状态序列、transcript 和回答
-node scripts\voice-acceptance.mjs --status   # 只读当前状态
+node scripts\personal-bot-acceptance.mjs            # toggle 一次，报告状态序列、transcript 和回答
+node scripts\personal-bot-acceptance.mjs --status   # 只读当前状态
 ```
 
 如实的边界：服务没跑时语音面报 unavailable（不是本地或模拟）；ffmpeg 缺失时报麦克风不可用；DirectShow 设备名写错或设备不存在时 ffmpeg 会在收到任何采样前退出，同样报“麦克风不可用”而不是伪造一段录音（ffmpeg 自己的 stderr 不进入状态，ffmpeg 在 PATH 上但设备名错才是这类报错的真正原因）；语音回答需要**本机自己的** Pi 模型认证（`~\.pi\agent\models.json`），桌面只读远程会话、不代替 Pi 登录。
@@ -182,7 +182,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.
 ```
 
 - 它读 `runtime\linux\.env.local`（与桌面同一份），需要 `ODK_DESK_LINK_TOKEN_FILE`（上报凭据）指向一个非空文件。
-- `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` 为空不是故障，而是"本桌只接受上报"：别的机器无法指挥本桌托管的 Hosted Pi。`provision-voice.ps1 -Report` 同理会把这句讲出来。
+- `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` 为空不是故障，而是"本桌只接受上报"：别的机器无法指挥本桌托管的 Hosted Pi。`provision-personal-bot.ps1 -Report` 同理会把这句讲出来。
 - 服务只把服务进程自己写的说明记进 `%LOCALAPPDATA%\open-deskos\desk-link.log`；PowerShell 会把原生死输出当成错误记录，所以启动器必须把这一层与真正的崩溃分开，否则一行说明就能把重启循环打断。
 
 ## 状态与配置位置
@@ -200,7 +200,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.
 | 键 | 用途 | 来源 |
 |---|---|---|
 | `WEREAD_API_KEY` | 微信读书同步凭据 | 与参考宿主**同一把**（CM5 的 release 本地 `.env.local`）；掌机实测 `status live` 且桌面自己写出了缓存 |
-| `ALIYUNCS_TOKEN` | 语音 Agent 的云端转写凭据（`ODESK_VOICE_STT_PROVIDER=aliyun`） | 本机**自己的**设备本地值，写在 `%LOCALAPPDATA%\open-deskos\voice-agent.env`，不进 `.env.local`、不进命令行 |
+| `ALIYUNCS_TOKEN` | 语音 Agent 的云端转写凭据（`ODESK_PERSONAL_BOT_STT_PROVIDER=aliyun`） | 本机**自己的**设备本地值，写在 `%LOCALAPPDATA%\open-deskos\personal-bot.env`，不进 `.env.local`、不进命令行 |
 | `ODK_HYDRA_MQTT_URL` | 浇水 MQTT 端点 | 设备本地（NAS 地址，不含凭据） |
 | `ODK_WEATHER_LAT/LON/PLACE` | 固定位置天气 | 可选：**不设**时改用设备定位（掌机即如此，会自动跟随城市） |
 | `ODK_LOCATION_URL` | 定位端点覆盖 | 默认 `https://ipwho.is/`，无密钥 |
@@ -213,7 +213,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.
 | 内容 | 为何不放 |
 |---|---|
 | Futu 网关 RSA 私钥与交易口令 | 掌机还没有 Futu poller 实例；且交易口令按约定只由你自己处理 |
-| 语音 agent 的个人配置（`personal-agent.json`）与 DiDi key | personal profile 里的 `didi` 能力仍未移植到 Windows；`coding` profile（默认）不需要它，所以语音 Agent 本身可以跑 |
+| 语音 agent 的个人配置（`personal-bot.json`）与 DiDi key | personal profile 里的 `didi` 能力仍未移植到 Windows；`coding` profile（默认）不需要它，所以语音 Agent 本身可以跑 |
 | 语音 Agent 用的 Pi 模型凭据 | 语音 Agent 在**本机**跑自己的 Pi session，因此本机需要自己的模型认证（`~\.pi\agent\models.json` 指向 OpenAI 兼容服务）。这与“桌面不代替 Pi agent 登录任何账号”不矛盾：桌面只读远程会话，语音 Agent 是另一个常驻组件 |
 | 参考宿主的 Desk Link 令牌与控制凭据 | 每个 desk 拥有自己的令牌；掌机没有 hosted Pi 宿主，控制凭据在那儿无事可做（它是只上报的 desk） |
 | Pi agent 自己的 `auth.json` | 桌面只**读取**远程 Pi 会话，不代替 Pi agent 登录任何账号 |

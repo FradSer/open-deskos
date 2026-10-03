@@ -9,7 +9,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const { once } = require('node:events')
-const { createVoiceAgentClient, resolveVoiceSocketPath } = require('../src/voice-agent-client')
+const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 
 test('microphone toggles a resident service and receives truthful status', async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-v-'))
@@ -18,7 +18,7 @@ test('microphone toggles a resident service and receives truthful status', async
   t.after(async () => { server.close(); await fs.rm(dir, { recursive: true, force: true }) })
   server.listen(socketPath)
   await once(server, 'listening')
-  const client = createVoiceAgentClient({ socketPath })
+  const client = createPersonalBotClient({ socketPath })
   t.after(() => client.stop())
   const connection = once(server, 'connection')
   client.start()
@@ -48,7 +48,7 @@ test('voice levels and long Markdown replies cross the socket with validated bou
   t.after(async () => { server.close(); await fs.rm(dir, { recursive: true, force: true }) })
   server.listen(socketPath)
   await once(server, 'listening')
-  const client = createVoiceAgentClient({ socketPath, reconnectDelayMs: 60_000 })
+  const client = createPersonalBotClient({ socketPath, reconnectDelayMs: 60_000 })
   t.after(() => client.stop())
   const connection = once(server, 'connection')
   client.start()
@@ -92,12 +92,30 @@ test('voice levels and long Markdown replies cross the socket with validated bou
 })
 
 test('missing runtime path never queues a microphone toggle', () => {
-  assert.equal(resolveVoiceSocketPath({}), null)
-  assert.equal(resolveVoiceSocketPath({ XDG_RUNTIME_DIR: 'relative' }), null)
-  assert.equal(resolveVoiceSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/open-deskos-voice/agent.sock')
-  const client = createVoiceAgentClient({ socketPath: null })
+  assert.equal(resolvePersonalBotSocketPath({}), null)
+  assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: 'relative' }), null)
+  assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/open-deskos-personal-bot/agent.sock')
+  const client = createPersonalBotClient({ socketPath: null })
   client.start()
   assert.equal(client.toggle(), false)
   assert.equal(client.snapshot().state, 'unavailable')
   client.stop()
+})
+
+test('proposals cross the existing private voice link and decisions return on it', { timeout: 5000 }, async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-proposal-'))
+  const socketPath = path.join(dir, 'v.sock')
+  const server = net.createServer()
+  server.listen(socketPath); await once(server, 'listening')
+  const client = createPersonalBotClient({ socketPath })
+  let peer
+  t.after(async () => { client.stop(); peer?.destroy(); server.close(); await fs.rm(dir, { recursive: true, force: true }) })
+  const connection = once(server, 'connection'); client.start(); [peer] = await connection; await once(peer, 'data')
+  const proposal = { id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', advice: '检查盆土', evidence: [], confirmation: '记住 watering：检查盆土' }
+  const received = new Promise(resolve => { const off = client.subscribe(status => { if (status.proposals?.length) { off(); resolve(status) } }) })
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', proposals: [proposal], proposalPopup: true }) + '\n')
+  const frame = await received
+  assert.equal(frame.proposalPopup, true); assert.deepEqual(frame.proposals, [proposal])
+  const command = once(peer, 'data'); assert.equal(client.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation }), true)
+  assert.deepEqual(JSON.parse((await command)[0]), { v: 1, type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation })
 })

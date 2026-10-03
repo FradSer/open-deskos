@@ -59,11 +59,11 @@ function boundedValue(value) {
  * The Shell's Desk Data registry: one reading per plugin, each held once.
  *
  * A reading is registered with the source that owns it, so the tile that draws it
- * and the Voice Agent that answers about it read the same one. Sources decide
+ * and the Personal Bot that answers about it read the same one. Sources decide
  * whether a read performs I/O; this registry adds no refresh of its own, and it
  * changes nothing when it is read.
  */
-function createDeskDataRegistry() {
+function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
   const entries = new Map()
   const published = new Map()
 
@@ -161,6 +161,7 @@ function createDeskDataRegistry() {
         accepted[name] = value[name]
       }
       published.set(id, { value: accepted, publishedAt: Date.now() })
+      onPublish(id)
       return { ok: true }
     },
   }

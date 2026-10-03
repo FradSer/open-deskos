@@ -5,13 +5,13 @@ const os = require('node:os')
 const path = require('node:path')
 
 if (process.platform === 'darwin') app.dock.hide()
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-voice-floating-'))
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-bot-floating-'))
 app.setPath('userData', profile)
 let win
 let pageState
 const pause = () => new Promise((resolve) => setTimeout(resolve, 50))
 const evaluate = (script) => win.webContents.executeJavaScript(script)
-const send = async (status) => { win.webContents.send('odk-voice-status', status); await pause() }
+const send = async (status) => { win.webContents.send('odk-personal-bot-status', status); await pause() }
 function finish(code) {
   clearTimeout(timeout)
   if (win && !win.isDestroyed()) win.destroy()
@@ -22,8 +22,8 @@ const timeout = setTimeout(() => { console.error('Voice floating panel test time
 
 async function geometry(state, width) {
   const result = await evaluate(`(() => {
-    const root = document.getElementById('voice-status');
-    const panel = root.querySelector('.voice-status-content');
+    const root = document.getElementById('personal-bot-status');
+    const panel = root.querySelector('.personal-bot-status-content');
     const r = root.getBoundingClientRect(); const p = panel.getBoundingClientRect();
     const css = getComputedStyle(panel); const rootCss = getComputedStyle(root);
     const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -42,11 +42,11 @@ async function geometry(state, width) {
       hit: document.elementFromPoint(5, 5) === root,
       inert: document.getElementById('pages-viewport').inert,
       modal: root.getAttribute('role') === 'dialog' && root.getAttribute('aria-modal') === 'true',
-      stageFont: parseFloat(getComputedStyle(root.querySelector('.voice-status-stage')).fontSize),
-      titleFont: parseFloat(getComputedStyle(root.querySelector('.voice-status-title')).fontSize),
-      detailFont: parseFloat(getComputedStyle(root.querySelector('.voice-status-detail')).fontSize),
+      stageFont: parseFloat(getComputedStyle(root.querySelector('.personal-bot-status-stage')).fontSize),
+      titleFont: parseFloat(getComputedStyle(root.querySelector('.personal-bot-status-title')).fontSize),
+      detailFont: parseFloat(getComputedStyle(root.querySelector('.personal-bot-status-detail')).fontSize),
       button: !!root.querySelector('button'),
-      headingHidden: root.querySelector('.voice-status-heading').hidden,
+      headingHidden: root.querySelector('.personal-bot-status-heading').hidden,
       scrollable: panel.scrollHeight > panel.clientHeight && css.overflowY === 'auto'
     };
   })()`)
@@ -63,7 +63,7 @@ async function geometry(state, width) {
 
 async function blockedInputs(originalPage) {
   await evaluate(`(() => {
-    const root = document.getElementById('voice-status');
+    const root = document.getElementById('personal-bot-status');
     document.elementFromPoint(5, 5).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 }));
     root.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 300, clientY: 5 }));
     for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
@@ -91,11 +91,11 @@ async function checkSize(width, height) {
   const message = `Response 测试结果 ${'unbroken'.repeat(60)}\n`.repeat(100)
   await send({ state: 'idle', message })
   await geometry('idle', width)
-  assert.equal(await evaluate(`document.querySelector('.voice-status-title').textContent`), message)
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-title').textContent`), message)
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'down' }))`)
-  assert.ok(await evaluate(`document.querySelector('.voice-status-content').scrollTop > 0`))
+  assert.ok(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop > 0`))
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
-  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && !document.getElementById('pages-viewport').inert && document.activeElement === document.querySelectorAll('#dots .dot')[1]`), true)
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden && !document.getElementById('pages-viewport').inert && document.activeElement === document.querySelectorAll('#dots .dot')[1]`), true)
   assert.equal(await evaluate(`document.getElementById('page-context').textContent`), originalPage)
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'left' }))`)
   assert.notEqual(await evaluate(`document.getElementById('page-context').textContent`), originalPage)

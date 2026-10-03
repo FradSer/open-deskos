@@ -2,7 +2,7 @@
 
 ## Confirmed behavior
 
-- Final Voice Agent replies render Markdown: headings, emphasis, lists, quotes, code blocks and tables. Untrusted HTML and unsafe links must not execute or navigate the Shell.
+- Final Personal Bot replies render Markdown: headings, emphasis, lists, quotes, code blocks and tables. Untrusted HTML and unsafe links must not execute or navigate the Shell.
 - Listening uses the same compact status heading as later stages: one microphone icon and one text line. A line underneath changes length with measured microphone input, not a decorative animation.
 - Recording has no 30-second cutoff. Local voice activity detection on CM5 ends a spoken turn after approximately 1.2 seconds of classified silence. MIC still submits manually.
 - Silence before any speech keeps Listening active and must not automatically submit an empty recording.
@@ -13,7 +13,7 @@
 
 ## Verification seams
 
-Use the resident VoiceService and recorder boundaries for lifecycle, VAD, cleanup, long recording and measured-level publication. Use the socket client boundary for validated level propagation. Use the actual Electron voice surface for Markdown semantics, unsafe input, changing line geometry, keyboard navigation, three themes and compact/native sizes.
+Use the resident PersonalBotService and recorder boundaries for lifecycle, VAD, cleanup, long recording and measured-level publication. Use the socket client boundary for validated level propagation. Use the actual Electron voice surface for Markdown semantics, unsafe input, changing line geometry, keyboard navigation, three themes and compact/native sizes.
 
 ## Out of scope
 

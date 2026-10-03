@@ -56,7 +56,7 @@ function readCmap(filePath) {
 }
 
 function rendererStyleSources() {
-  return ['shell.css', 'uno.css', 'voice-status.css', 'user-app-desktop.css']
+  return ['shell.css', 'uno.css', 'personal-bot-status.css', 'user-app-desktop.css']
     .map((name) => path.join(RENDERER, name))
     .concat(fs.readdirSync(path.join(RENDERER, 'plugins')).filter((name) => name.endsWith('.css')).map((name) => path.join(RENDERER, 'plugins', name)))
     .concat(fs.readdirSync(path.join(RENDERER, 'themes')).filter((name) => name.endsWith('.css')).map((name) => path.join(RENDERER, 'themes', name)))

@@ -16,7 +16,7 @@ const sizes = (value('--sizes') || '1920x1280,1920x1080,960x640,480x854,320x480'
 })
 const fixtureDate = value('--date') || '2026-09-05T13:12:00'
 if (!Number.isFinite(Date.parse(fixtureDate))) throw new Error(`Invalid fixture date: ${fixtureDate}`)
-const fixtureTheme = value('--date-theme') || value('--theme') || null
+const fixtureTheme = value('--date-theme') || value('--theme') || 'instrument'
 if (fixtureTheme && !['instrument', 'border-beam', 'pixel'].includes(fixtureTheme)) throw new Error(`Invalid fixture theme: ${fixtureTheme}`)
 const fixtureState = value('--state') || 'unavailable'
 if (!['unavailable', 'live'].includes(fixtureState)) throw new Error(`Invalid fixture state: ${fixtureState}`)
@@ -160,6 +160,11 @@ async function main() {
   if (fixtureTheme) {
     await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(fixtureTheme)})`)
     await waitFor(win, `document.documentElement.dataset.theme === ${JSON.stringify(fixtureTheme)}`)
+    await win.webContents.executeJavaScript(`(async () => {
+      void document.body.offsetHeight
+      await document.fonts.ready
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    })()`)
   }
   await waitFor(win, `document.querySelector('.pi-widget-count').textContent === '${fixtureState === 'live' ? 3 : 0}'`)
   await require('./widget-density-dom.cjs').verifyCollector(win)

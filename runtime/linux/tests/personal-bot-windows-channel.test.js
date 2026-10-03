@@ -1,7 +1,7 @@
 'use strict'
-// The Voice Agent is a resident component on every supported Shell Host, so the
+// The Personal Bot is a resident component on every supported Shell Host, so the
 // Shell reaches it through the host's own endpoint naming: a Unix socket in the
-// runtime directory on the reference host, and the `voice-agent` named pipe on a
+// runtime directory on the reference host, and the `personal-bot` named pipe on a
 // Windows host. A pipe carries no owner, so the channel token is what
 // authenticates the connection there (ADR-0025) and it is consumed before the
 // voice protocol reads a byte.
@@ -17,11 +17,11 @@ const os = require('node:os')
 const path = require('node:path')
 const { once } = require('node:events')
 
-const { createVoiceAgentClient, resolveVoiceSocketPath } = require('../src/voice-agent-client')
+const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 const { resolveShellHost } = require('../src/platform')
 const { readOrCreateToken, requiresToken } = require('../src/local-channel')
 
-const WINDOWS_PIPE = '\\\\.\\pipe\\open-deskos-voice-agent'
+const WINDOWS_PIPE = '\\\\.\\pipe\\open-deskos-personal-bot'
 
 function hostFor(platform, env) {
   return resolveShellHost({
@@ -42,7 +42,7 @@ function isolatedHost(dir) {
 }
 
 async function stateDir(t) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-voice-win-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-personal-bot-win-'))
   t.after(() => fs.rm(dir, { recursive: true, force: true }))
   return dir
 }
@@ -62,13 +62,15 @@ function within(promise, label, ms = 5000) {
   ])
 }
 
-function stateIs(client, expected, label) {
+function stateIs(client, expected, label, skipInitial = false) {
   return within(new Promise((resolve) => {
     // A new subscriber is handed the current status synchronously, so the
     // unsubscribe handle does not exist yet when that first call arrives.
     let unsubscribe = () => {}
     let settled = false
+    let initial = true
     unsubscribe = client.subscribe((status) => {
+      if (initial) { initial = false; if (skipInitial) return }
       if (settled || status.state !== expected) return
       settled = true
       resolve(status)
@@ -78,7 +80,7 @@ function stateIs(client, expected, label) {
 }
 
 /**
- * A stand-in for the voice service's own listener: the handshake is one line,
+ * A stand-in for the personal bot service's own listener: the handshake is one line,
  * it is compared without leaking the token, and a connection that does not
  * present the right one is dropped before any command reaches the service.
  */
@@ -115,20 +117,20 @@ function voiceService(token, onCommand = () => {}) {
 }
 
 test('the voice link keeps the host endpoint name on every host', () => {
-  assert.equal(resolveVoiceSocketPath({}, hostFor('win32', {})), WINDOWS_PIPE)
+  assert.equal(resolvePersonalBotSocketPath({}, hostFor('win32', {})), WINDOWS_PIPE)
   assert.equal(
-    resolveVoiceSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }, hostFor('linux', { XDG_RUNTIME_DIR: '/run/user/1000' })),
-    '/run/user/1000/open-deskos-voice/agent.sock',
+    resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }, hostFor('linux', { XDG_RUNTIME_DIR: '/run/user/1000' })),
+    '/run/user/1000/open-deskos-personal-bot/agent.sock',
   )
   // A Unix host still refuses to guess where a service would listen, so a host
   // without a runtime directory keeps reporting voice as unavailable.
-  assert.equal(resolveVoiceSocketPath({}, hostFor('linux', {})), null)
-  assert.equal(resolveVoiceSocketPath({ XDG_RUNTIME_DIR: 'relative' }, hostFor('linux', { XDG_RUNTIME_DIR: 'relative' })), null)
+  assert.equal(resolvePersonalBotSocketPath({}, hostFor('linux', {})), null)
+  assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: 'relative' }, hostFor('linux', { XDG_RUNTIME_DIR: 'relative' })), null)
 })
 
 test('the Windows voice pipe is one the channel token must authenticate', () => {
   assert.equal(requiresToken({ endpoint: WINDOWS_PIPE, platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: '/run/user/1000/open-deskos-voice/agent.sock', platform: 'linux' }), false)
+  assert.equal(requiresToken({ endpoint: '/run/user/1000/open-deskos-personal-bot/agent.sock', platform: 'linux' }), false)
 })
 
 test('a Windows voice connection presents the channel token before the protocol', async (t) => {
@@ -150,7 +152,7 @@ test('a Windows voice connection presents the channel token before the protocol'
   server.listen(socketPath)
   await once(server, 'listening')
 
-  const client = createVoiceAgentClient({ socketPath, platform: 'win32', host, reconnectDelayMs: 60_000 })
+  const client = createPersonalBotClient({ socketPath, platform: 'win32', host, reconnectDelayMs: 60_000 })
   t.after(() => client.stop())
   const settled = stateIs(client, 'idle', 'the service to report idle')
   client.start()
@@ -165,16 +167,19 @@ test('a voice connection without the token never reaches the protocol', async (t
   const dir = await stateDir(t)
   const host = isolatedHost(dir)
   const socketPath = path.join(dir, 'voice.sock')
-  const { server, commands } = voiceService('a-different-token')
+  const { server, commands, handshakes } = voiceService('a-different-token')
   t.after(() => server.close())
   server.listen(socketPath)
   await once(server, 'listening')
 
-  const client = createVoiceAgentClient({ socketPath, platform: 'win32', host, reconnectDelayMs: 60_000 })
+  const client = createPersonalBotClient({ socketPath, platform: 'win32', host, reconnectDelayMs: 60_000 })
   t.after(() => client.stop())
-  const dropped = stateIs(client, 'unavailable', 'the rejected connection to report unavailable')
+  const closed = within(new Promise(resolve => server.once('connection', peer => peer.once('close', resolve))), 'the server to reject the actual handshake')
+  const dropped = stateIs(client, 'unavailable', 'the rejected connection to report unavailable', true)
   client.start()
+  await closed
   await dropped
+  assert.equal(handshakes.length, 1, 'the test must exercise an actual rejected handshake')
   assert.deepEqual(commands, [], 'a rejected handshake must not deliver a voice command')
   assert.equal(client.toggle(), false)
 })
@@ -190,7 +195,7 @@ test('a Unix voice socket still receives the protocol with no handshake', async 
   await once(server, 'listening')
   // Ownership already authenticated this peer, so a client written before the
   // token existed still reaches the protocol with every byte it sent intact.
-  const client = createVoiceAgentClient({ socketPath, platform: 'linux' })
+  const client = createPersonalBotClient({ socketPath, platform: 'linux' })
   t.after(() => client.stop())
   client.start()
   await stateIs(client, 'recording', 'the service to report recording')

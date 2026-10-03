@@ -12,10 +12,10 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | L3 设备本地 | 只放发布定不了的值：设备路径、端点、凭据 | `~/.config/open-deskos/*.env` 与 JSON 配置，`0600` |
 | 测试 | 只被测试设置，生产必须走默认值 | 测试进程环境 |
 
-- **声明者等于资源所有者。** 端口与 socket 路径由绑定方声明，连接方读取同一处或向对方询问，不得复述。`ODK_STT_PORT` 是这条规则的样板：bridge 单元声明它，voice agent 由它推导 loopback 端点。
+- **声明者等于资源所有者。** 端口与 socket 路径由绑定方声明，连接方读取同一处或向对方询问，不得复述。`ODK_STT_PORT` 是这条规则的样板：bridge 单元声明它，personal bot 由它推导 loopback 端点。
 - **准入只实现一次。** 项目是否在允许的开发根目录内由 Hosted Pi daemon 判定；客户端只拒绝无法上路的路径。
 - **发布能定的默认值不写进设备层。** 等于代码默认值的行是噪声，删掉它而不是同步它。
-- **unit 由安装器从 release 模板生成。** voice-agent、pi-tasks、remote-bridge、desk-link 四个单元都是这样安装的。
+- **unit 由安装器从 release 模板生成。** personal-bot、pi-tasks、remote-bridge、desk-link 四个单元都是这样安装的。
 - **一个决定一种载体。** drop-in 只用于临时覆盖，用完删除；长期配置写进 env 文件。systemd 的合并顺序是"后写覆盖先写"，所以 drop-in 会静默覆盖 `EnvironmentFile=` 的值，二者只能有一个声明同一个变量。
 - **前缀冻结。** 新变量一律 `ODESK_`；存量 `ODK_` 保留在清单里，不再扩增。
 
@@ -27,20 +27,20 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | 变量 | 层 | 声明者 | 消费者 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 
-| `ALIYUNCS_TOKEN` | L3 设备本地（敏感） | voice-agent.env | integrations/voice-agent/src/transcribe.mjs | — | 阿里云（DashScope）转写 provider 的 Bearer 凭据；仅 `ODESK_VOICE_STT_PROVIDER=aliyun` 读取，OpenAI provider 仍用 `ODESK_VOICE_STT_KEY_FILE` |
+| `ALIYUNCS_TOKEN` | L3 设备本地（敏感） | personal-bot.env | integrations/personal-bot/src/transcribe.mjs | — | 阿里云（DashScope）转写 provider 的 Bearer 凭据；仅 `ODESK_PERSONAL_BOT_STT_PROVIDER=aliyun` 读取，OpenAI provider 仍用 `ODESK_PERSONAL_BOT_STT_KEY_FILE` |
 | `DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | 由图形会话导入用户 systemd 环境 |
 | `FUTU_HOST` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 10.10.0.195 | 富途网关地址 |
 | `FUTU_INTERVAL` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 60 | 轮询间隔秒 |
 | `FUTU_PORT` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | 富途网关端口 |
 | `FUTU_RSA_FILE` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 网关 RSA 私钥副本路径 |
 | `FUTU_TRADE_PWD` | 外部工具（敏感） | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | 交易解锁口令 |
-| `ODK_CHANNEL_TOKEN_FILE` | L3 设备本地（敏感） | 外部消费者（插件侧与 voice agent） | integrations/futu-poller/poller.py, integrations/voice-agent/src/runtime-channel.mjs | — | 连接 `tcp://` 或命名管道端点时出示的通道令牌文件（voice agent 用它连 app 控制与 desk data 通道；客户端只读不创建）；socket 路径端点不需要（属主已认证） |
+| `ODK_CHANNEL_TOKEN_FILE` | L3 设备本地（敏感） | 外部消费者（插件侧与 personal bot） | integrations/futu-poller/poller.py, integrations/personal-bot/src/runtime-channel.mjs | — | 连接 `tcp://` 或命名管道端点时出示的通道令牌文件（personal bot 用它连 app 控制与 desk data 通道；客户端只读不创建）；socket 路径端点不需要（属主已认证） |
 | `HOME` | 环境 | 登录会话 | runtime/linux/src/opencode-go.js, runtime/linux/scripts/open-deskos-plugin-cli.js | — | 定位设备本地配置与凭据 |
 | `LIBGL_ALWAYS_SOFTWARE` | 环境 | 运维 | runtime/linux/src/main.js | — | 强制软件渲染，诊断用 |
 | `LOCALAPPDATA` | 环境 | Windows 用户会话 | runtime/linux/src/platform/index.js | — | Windows Shell Host 的持久状态根（`%LOCALAPPDATA%`）；缺失时回退到用户目录下的 `AppData/Local` |
-| `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/apps-control.mjs | 运行时目录下的 app 控制 socket（Windows 为 `\\.\pipe\open-deskos-user-app-control`） | 仅测试覆盖；生产用按主机解析的默认值，Unix 主机缺少运行时目录时该通道不可用而不是猜测路径 |
+| `ODESK_APPS_CONTROL_SOCKET` | 测试 | 测试进程 | integrations/personal-bot/src/apps-control.mjs | 运行时目录下的 app 控制 socket（Windows 为 `\\.\pipe\open-deskos-user-app-control`） | 仅测试覆盖；生产用按主机解析的默认值，Unix 主机缺少运行时目录时该通道不可用而不是猜测路径 |
 | `ODESK_CAMERA_DEVICE` | L3 设备本地 | 运维 | runtime/linux/src/camera-source.js | — | 相机设备覆盖 |
-| `ODESK_DESK_DATA_SOCKET` | 测试 | 测试进程 | integrations/voice-agent/src/desk-data.mjs | 运行时目录下的 desk data socket（Windows 为 `\\.\pipe\open-deskos-desk-data`） | 仅测试覆盖；生产用默认值，Unix 主机缺少运行时目录时该数据通道不可用，而不是猜测一个 Shell 并未监听的路径 |
+| `ODESK_DESK_DATA_SOCKET` | 测试 | 测试进程 | integrations/personal-bot/src/desk-data.mjs | 运行时目录下的 desk data socket（Windows 为 `\\.\pipe\open-deskos-desk-data`） | 仅测试覆盖；生产用默认值，Unix 主机缺少运行时目录时该数据通道不可用，而不是猜测一个 Shell 并未监听的路径 |
 | `ODESK_DESK_LINK_SOCKET` | 内部 | Shell | runtime/linux/src/desk-link-client.js | 运行时目录下的 desk link socket | Shell 到本机 desk link 服务的 socket 覆盖 |
 | `ODESK_DISABLED_PLUGINS` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 禁用插件列表 |
 | `ODESK_DISABLE_GPU` | L3 设备本地 | 运维 | runtime/linux/src/main.js | — | 关闭 GPU 加速 |
@@ -57,19 +57,20 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODESK_SKIP_GPU_USERSPACE` | L2 安装期 | 安装者临时设置 | runtime/linux/scripts/cm5-install.sh | 0 | 跳过 Mali 用户态安装 |
 | `ODESK_SMOKE_RESULT_FILE` | 测试 | smoke 运行 | runtime/linux/src/main.js | — | smoke 结果输出文件 |
 | `ODESK_TAILSCALE_BIN` | L3 设备本地 | 运维 | runtime/linux/scripts/provision-tailscale.sh | /usr/bin/tailscale | 非标准路径安装的 Tailscale 命令覆盖；宿主已有安装时优先复用 |
-| `ODESK_TASK_CONFIG` | L2 安装期 | pi-tasks unit | integrations/voice-agent/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Hosted Pi daemon 私有配置路径：只有 daemon 读它，属主与权限也只校验一次；客户端读它发布的端点描述符 |
-| `ODESK_TASK_TARGETS_FILE` | L3 设备本地 | voice unit 环境或 drop-in | integrations/voice-agent/src/task-client.mjs | 未配置 | voice 侧目标清单；未配置即报告需要配置 |
-| `ODESK_VOICE_AGENT_CONFIG` | L3 设备本地（敏感） | voice-agent.env | integrations/voice-agent/src/personal-config.mjs | coding profile | 个人 profile 与技能/凭据路径清单 |
-| `ODESK_VOICE_AUDIO_DEVICE` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | default | ALSA 采集设备 |
-| `ODESK_VOICE_CAPABILITIES` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 空 | 受信能力模块路径列表 |
-| `ODESK_VOICE_MODEL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | — | Pi provider/id 模型选择 |
-| `ODESK_VOICE_STT_KEY_FILE` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 未配置 | 仅非设备本地端点需要 |
-| `ODESK_VOICE_STT_LANGUAGE` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | zh | 两或三位小写语言码 |
-| `ODESK_VOICE_STT_MODEL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | whisper-1 | 设备本地端点忽略该值，无需设置 |
-| `ODESK_VOICE_STT_PROMPT` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 内置中文上下文 | 上限 1024 字符，空值禁用 |
-| `ODESK_VOICE_STT_PROVIDER` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | openai | 声明端点要的请求形状：`openai` 为 multipart 音频上传，`aliyun` 为 DashScope 多模态 JSON（音频内联为 data URI）；不从 URL 推断 |
-| `ODESK_VOICE_STT_URL` | L3 设备本地 | voice-agent.env | integrations/voice-agent/src/main.mjs | 云端 OpenAI 端点 | 显式端点；未设置时由 ODK_STT_PORT 推导 loopback 端点 |
-| `ODESK_WORKSPACE` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, runtime/linux/src/user-app-system.js, integrations/voice-agent/src/main.mjs | — | Shell 与 Voice Agent 共享的可写 checkout |
+| `ODESK_TASK_CONFIG` | L2 安装期 | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Hosted Pi daemon 私有配置路径：只有 daemon 读它，属主与权限也只校验一次；客户端读它发布的端点描述符 |
+| `ODESK_TASK_TARGETS_FILE` | L3 设备本地 | voice unit 环境或 drop-in | integrations/personal-bot/src/task-client.mjs | 未配置 | voice 侧目标清单；未配置即报告需要配置 |
+| `ODESK_PROACTIVE_CONFIG` | L3 设备本地（敏感） | personal-bot.env | integrations/personal-bot/src/main.mjs | 未配置、不轮询 | 私有 owner 规则 JSON；阈值、组合、安静时段、限频与静音；0600，参见 PROACTIVE_SUGGESTIONS.md |
+| `ODESK_PERSONAL_BOT_CONFIG` | L3 设备本地（敏感） | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | 个人 profile 与技能/凭据路径清单 |
+| `ODESK_PERSONAL_BOT_AUDIO_DEVICE` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | default | ALSA 采集设备 |
+| `ODESK_PERSONAL_BOT_CAPABILITIES` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | 空 | 受信能力模块路径列表 |
+| `ODESK_PERSONAL_BOT_MODEL` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | — | Pi provider/id 模型选择 |
+| `ODESK_PERSONAL_BOT_STT_KEY_FILE` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | 未配置 | 仅非设备本地端点需要 |
+| `ODESK_PERSONAL_BOT_STT_LANGUAGE` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | zh | 两或三位小写语言码 |
+| `ODESK_PERSONAL_BOT_STT_MODEL` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | whisper-1 | 设备本地端点忽略该值，无需设置 |
+| `ODESK_PERSONAL_BOT_STT_PROMPT` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | 内置中文上下文 | 上限 1024 字符，空值禁用 |
+| `ODESK_PERSONAL_BOT_STT_PROVIDER` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | openai | 声明端点要的请求形状：`openai` 为 multipart 音频上传，`aliyun` 为 DashScope 多模态 JSON（音频内联为 data URI）；不从 URL 推断 |
+| `ODESK_PERSONAL_BOT_STT_URL` | L3 设备本地 | personal-bot.env | integrations/personal-bot/src/main.mjs | 云端 OpenAI 端点 | 显式端点；未设置时由 ODK_STT_PORT 推导 loopback 端点 |
+| `ODESK_WORKSPACE` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, runtime/linux/src/user-app-system.js, integrations/personal-bot/src/main.mjs | — | Shell 与 Personal Bot 共享的可写 checkout |
 | `ODK_ELECTRON_HEADERS_URL` | L2 开发机 | 构建者 | runtime/linux/scripts/build-native.mjs | https://electronjs.org/headers | Electron 头文件来源；构建机访问不了 GitHub 时指向镜像（`npm_config_disturl` 同样生效）。远程 Windows 掌机上构建原生进程读取器时必须设置 |
 | `ODK_CANDIDATE_RELEASE` | L2 安装期 | cm5-install.sh → update-runtime.js | runtime/linux/scripts/update-runtime.js | — | 本事务要激活的候选 release 绝对路径 |
 | `ODK_CLIPROXY_MANAGEMENT_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/opencode-go.js | — | 管理密钥本体；优选文件形式 |
@@ -104,7 +105,7 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `ODK_PI_SSH_NODE` | L3 设备本地 | shell drop-in | runtime/linux/src/pi-sessions-source.js | — | 该主机上的 node 绝对路径 |
 | `ODK_RUNTIME_ROOT` | L2 安装期 | cm5-install.sh | runtime/linux/src/user-app-context.js, runtime/linux/scripts/cm5-acceptance.sh, runtime/linux/scripts/cm5-install.sh, runtime/linux/scripts/cm5-stage-release.sh, runtime/linux/scripts/migrate-runtime.js, runtime/linux/scripts/start-kiosk.sh, runtime/linux/scripts/update-runtime.js | /opt/open-deskos | release 与 state 的根 |
 | `ODK_STAGING_ID` | L2 开发机 | cm5-stage-release.sh | runtime/linux/scripts/cm5-stage-release.sh | 时间戳-$-随机 | 隔离暂存目录标识 |
-| `ODK_STT_PORT` | L3 设备本地 | stt-bridge unit（runtime.env 可覆盖） | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/voice-agent/src/main.mjs | 17840 | 设备本地 STT 端口：唯一声明，voice 由此推导端点 |
+| `ODK_STT_PORT` | L3 设备本地 | stt-bridge unit（runtime.env 可覆盖） | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/personal-bot/src/main.mjs | 17840 | 设备本地 STT 端口：唯一声明，voice 由此推导端点 |
 | `ODK_WEATHER_LAT` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器纬度；与经度同时存在时不再查询设备定位 |
 | `ODK_WEATHER_LON` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器经度；与纬度同时存在时不再查询设备定位 |
 | `ODK_WEATHER_PLACE` | L3 设备本地 | runtime.env | runtime/linux/src/weather-source.js | — | 天气仪器地点名 |
@@ -112,13 +113,13 @@ the same change — `tests/config-inventory.test.js` fails when the list and the
 | `PATH` | 环境 | unit / 安装器 | runtime/linux/scripts/cm5-install.sh | — | 单元固定 kiosk 会话的 node 与垫片目录，不走交互式版本管理者的 PATH |
 | `PI_AGENT_DIR` | 环境 | Pi 运行时 | runtime/linux/src/pi-sessions.js | ~/.pi/agent | Pi 会话与认证目录 |
 | `ODESK_FUTU_SERVICE_REVISION` | L3 设备本地 | runtime.env | runtime/linux/src/main.js, integrations/futu-poller/poller.py | dev | 富途服务修订号：握手与预期都用这一处声明 |
-| `SystemRoot` | 环境 | Windows 用户会话 | integrations/voice-agent/src/candidate-checks.mjs | — | `coding_check` 派生源码样本时构造的最小环境在 Windows 上透传 `SystemRoot` 与 `WINDIR`，否则子进程无法启动；它们不是设备配置，也不得由设备声明 |
-| `WINDIR` | 环境 | Windows 用户会话 | integrations/voice-agent/src/candidate-checks.mjs | — | 与 `SystemRoot` 同一次透传；缺失时 Windows 子进程无法解析系统目录 |
+| `SystemRoot` | 环境 | Windows 用户会话 | integrations/personal-bot/src/candidate-checks.mjs | — | `coding_check` 派生源码样本时构造的最小环境在 Windows 上透传 `SystemRoot` 与 `WINDIR`，否则子进程无法启动；它们不是设备配置，也不得由设备声明 |
+| `WINDIR` | 环境 | Windows 用户会话 | integrations/personal-bot/src/candidate-checks.mjs | — | 与 `SystemRoot` 同一次透传；缺失时 Windows 子进程无法解析系统目录 |
 | `SERVICE_ID` | 外部工具 | 外部消费者 integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | 服务身份；Shell 侧的注册键是同一协议身份 |
 | `WAYLAND_DISPLAY` | 环境 | 图形会话 | runtime/linux/src/main.js | — | Wayland 会话时用于 ozone 平台提示 |
 | `WEREAD_API_KEY` | L3 设备本地（敏感） | runtime.env | runtime/linux/src/weread-source.js | — | 微信读书同步凭据 |
-| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/voice-agent/src/runtime-channel.mjs, integrations/voice-agent/src/host-paths.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
-| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/voice-agent/src/host-paths.mjs | ~/.local/state | 持久状态目录 |
+| `XDG_RUNTIME_DIR` | 环境 | 登录会话 | runtime/linux/src/platform/index.js, runtime/linux/src/main.js, runtime/linux/src/remote-bridge-client.js, integrations/remote-bridge/lib/remote-bridge.js, integrations/personal-bot/src/runtime-channel.mjs, integrations/personal-bot/src/host-paths.mjs | — | Unix 主机上 IPC socket 与运行时目录的根；本机端点由平台接缝命名，Windows Shell Host 改用命名管道（channel token 认证） |
+| `XDG_STATE_HOME` | 环境 | 登录会话 | runtime/linux/src/main.js, runtime/linux/src/platform/index.js, integrations/personal-bot/src/host-paths.mjs | ~/.local/state | 持久状态目录 |
 
 ## 天气定位与隐私取舍
 
@@ -127,3 +128,14 @@ CM5 在 `runtime.env` 中设置 `ODK_WEATHER_LAT` / `ODK_WEATHER_LON` / `ODK_WEA
 未配置定位的宿主（例如会移动的 64 位 Windows 掌机）在天气刷新时先向无密钥的 IP 定位端点查询一次设备位置，把结果缓存 `ODK_LOCATION_REFRESH_MS` 毫秒（默认 30 分钟）后再判断是否重查，因此换城市后会自动更新。请把这看作一项隐私取舍：这等于向第三方询问本机所在的城市。若不愿如此，请像 CM5 一样显式配置经纬度，此时不会有任何定位请求。
 
 端点可用 `ODK_LOCATION_URL` 覆盖（默认 `https://ipwho.is/`，可用 `loc: "lat,lon"` 或 `latitude`/`longitude` 加 `city` 的响应）。请求超时上限 3 秒；定位失败只会让天气仪器显示 Unavailable 并在快照中带上原因，不会阻塞桌面，也不会猜测城市。定位查询只在异步的天气刷新路径上发生，渲染路径从不调用。
+
+## Personal Bot judgment and generation
+
+| Variable | Layer | Default | Consumer | Kind | Note |
+| --- | --- | --- | --- | --- | --- |
+| `ODESK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/proactive-jev.mjs | config | Private credential path; never expose file contents |
+| `ODESK_JEV_MODEL` | device | jev-1.13.0 | integrations/personal-bot/src/proactive-jev.mjs | config | Typed push judgments |
+| `ODESK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
+| `ODESK_JEV_TIMEOUT_MS` | device | 15000 | integrations/personal-bot/src/proactive-jev.mjs | config | Judgment deadline in milliseconds |
+| `TYPESAFE_API_KEY` | device | none | integrations/personal-bot/src/proactive-jev.mjs | config | Private environment credential fallback |
+| `ODESK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-bot/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |

@@ -219,8 +219,8 @@ const serviceLabel = (label, id) => (typeof label === 'string' && label.trim() ?
  * declaration, which is the only way an installed Widget or App becomes
  * answerable.
  */
-function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, store, services = () => ({}) } = {}) {
-  const registry = createDeskDataRegistry()
+function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, store, services = () => ({}), onUpdate = (_id) => {} } = {}) {
+  const registry = createDeskDataRegistry({ onPublish: onUpdate })
   const control = createDeskDataControl(registry)
 
   /**

@@ -1,4 +1,10 @@
-Feature: Independent CM5 voice service deployment
+Feature: Independent CM5 personal bot service deployment
+  Scenario: Windows preserves UTF-8 microphone names from device configuration
+    Given a Windows PowerShell 5.1 host with a Chinese DirectShow microphone name
+    And its device environment file is UTF-8 without a BOM
+    When the Personal Bot launcher imports the device environment
+    Then the microphone name reaches the recorder unchanged
+
   Scenario: Stage voice code without device credentials or host dependencies
     Given a development checkout containing the voice integration
     When a CM5 release is staged
@@ -16,7 +22,7 @@ Feature: Independent CM5 voice service deployment
     Then preparation fails with an explicit minimum-version diagnostic
     And the active release is not changed
 
-  Scenario: The Voice Agent is a required component of the release
+  Scenario: The Personal Bot is a required component of the release
     Given a release candidate and a host where the voice component cannot be installed
     When the installer stages the required components
     Then the installation fails naming the voice component and its device-local configuration file
@@ -35,7 +41,7 @@ Feature: Independent CM5 voice service deployment
     Given the shell release has been activated
     And STT authentication or the default ALSA microphone is unavailable
     When the desk starts
-    Then the shell remains usable without a voice service dependency
-    And the Voice Agent reports its needs-configuration or unavailable state truthfully
+    Then the shell remains usable without a personal bot service dependency
+    And the Personal Bot reports its needs-configuration or unavailable state truthfully
     And voice configuration is read only from a device-local environment file
     And coding uses an explicitly provisioned writable checkout outside immutable releases

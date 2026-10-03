@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 if (process.platform === 'darwin') app.dock.hide()
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-voice-input-'))
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-bot-input-'))
 app.setPath('userData', profile)
 let win
 const requests = []
@@ -16,8 +16,8 @@ let deferToggle = false
 let rejectToggle = false
 const pause = () => new Promise((resolve) => setTimeout(resolve, 30))
 const evaluate = (script) => win.webContents.executeJavaScript(script)
-const send = async (status) => { win.webContents.send('odk-voice-status', status); await pause() }
-const mic = async () => { win.webContents.send('odk-voice-mic'); await pause() }
+const send = async (status) => { win.webContents.send('odk-personal-bot-status', status); await pause() }
+const mic = async () => { win.webContents.send('odk-personal-bot-mic'); await pause() }
 const timeout = setTimeout(() => finish(1), 60000)
 function finish(code) {
   clearTimeout(timeout)
@@ -29,10 +29,10 @@ function finish(code) {
 async function listening() {
   await send({ state: 'starting' })
   await send({ state: 'recording', level: 0 })
-  assert.equal(await evaluate(`document.querySelector('.voice-status-content').innerText.trim()`), 'Listening')
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-content').innerText.trim()`), 'Listening')
   const initial = await evaluate(`(() => {
-    const panel = document.querySelector('.voice-status-content');
-    const meter = panel.querySelector('.voice-status-level');
+    const panel = document.querySelector('.personal-bot-status-content');
+    const meter = panel.querySelector('.personal-bot-status-level');
     window.voiceMutations = [];
     window.voiceObserver = new MutationObserver(records => window.voiceMutations.push(...records));
     window.voiceObserver.observe(panel.querySelector('[role="status"]'), { childList: true, subtree: true, characterData: true });
@@ -45,12 +45,12 @@ async function listening() {
   let previous = 0
   for (const level of [0.01, 0.04, 0.25, 1]) {
     await send({ state: 'recording', level, message: 'Unwanted recording guidance' })
-    const width = await evaluate(`document.querySelector('.voice-status-level span').getBoundingClientRect().width`)
+    const width = await evaluate(`document.querySelector('.personal-bot-status-level span').getBoundingClientRect().width`)
     assert.ok(width > previous, 'Measured level grows the line monotonically')
     previous = width
   }
   await send({ state: 'recording' })
-  assert.equal(await evaluate(`document.querySelector('.voice-status-level span').getBoundingClientRect().width`), 0)
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-level span').getBoundingClientRect().width`), 0)
   assert.equal(await evaluate('window.voiceMutations.length'), 0, 'Level updates do not rewrite the live region')
   await evaluate('window.voiceObserver.disconnect()')
 }
@@ -70,10 +70,10 @@ const markdown = [
 
 async function reply(theme, width) {
   await send({ state: 'idle', message: 'A &amp; B / \\*literal\\*' })
-  assert.equal(await evaluate(`document.querySelector('.voice-status-title').textContent.trim()`), 'A & B / *literal*')
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-title').textContent.trim()`), 'A & B / *literal*')
   await send({ state: 'idle', message: markdown })
   const result = await evaluate(`(() => {
-    const root = document.querySelector('.voice-status-title'); const panel = root.closest('.voice-status-content');
+    const root = document.querySelector('.personal-bot-status-title'); const panel = root.closest('.personal-bot-status-content');
     const strong = root.querySelector('strong'); const em = root.querySelector('em');
     window.voiceReplyNode = root.firstChild;
     return { heading: root.querySelector('h1')?.textContent, strong: strong?.textContent,
@@ -83,7 +83,7 @@ async function reply(theme, width) {
       text: root.textContent, executed: !!window.voiceUnsafe,
       overflow: panel.scrollWidth > panel.clientWidth + 1,
       scrollable: panel.scrollHeight > panel.clientHeight,
-      stageFont: parseFloat(getComputedStyle(document.querySelector('.voice-status-stage')).fontSize),
+      stageFont: parseFloat(getComputedStyle(document.querySelector('.personal-bot-status-stage')).fontSize),
       font: parseFloat(getComputedStyle(root).fontSize),
       emphasis: strong && getComputedStyle(strong).textDecorationLine,
       emStyle: em && getComputedStyle(em).fontStyle,
@@ -112,9 +112,9 @@ async function reply(theme, width) {
     assert.equal(result.emStyle, 'normal')
     assert.equal(result.synthesis, 'none')
   }
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 100`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 100`)
   await send({ state: 'idle', message: markdown })
-  assert.equal(await evaluate(`document.querySelector('.voice-status-title').firstChild === window.voiceReplyNode && document.querySelector('.voice-status-content').scrollTop === 100`), true)
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-title').firstChild === window.voiceReplyNode && document.querySelector('.personal-bot-status-content').scrollTop === 100`), true)
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
 }
 
@@ -124,23 +124,23 @@ const partial = '# Live response\n\n**Actual** assistant text.\n\n' + 'Streaming
 async function streamSnapshot(state, message = '', input = transcript) {
   await send({ state, message, transcript: input })
   return evaluate(`(() => {
-    const panel = document.querySelector('.voice-status-content');
-    const input = panel.querySelector('.voice-status-input');
-    const text = panel.querySelector('.voice-status-transcript');
-    const heading = panel.querySelector('.voice-status-heading');
-    const progress = panel.querySelector('.voice-status-progress');
-    const reply = panel.querySelector('.voice-status-title');
+    const panel = document.querySelector('.personal-bot-status-content');
+    const input = panel.querySelector('.personal-bot-status-input');
+    const text = panel.querySelector('.personal-bot-status-transcript');
+    const heading = panel.querySelector('.personal-bot-status-heading');
+    const progress = panel.querySelector('.personal-bot-status-progress');
+    const reply = panel.querySelector('.personal-bot-status-title');
     const rect = panel.getBoundingClientRect();
     return { input: text.textContent, inputHidden: input.hidden, elements: text.children.length,
-      label: input.querySelector('.voice-status-input-label')?.textContent || '',
+      label: input.querySelector('.personal-bot-status-input-label')?.textContent || '',
       inputName: input.getAttribute('aria-label'),
       inputIcon: !!input.querySelector('svg[aria-hidden="true"]'),
       iconWidth: input.querySelector('svg')?.getBoundingClientRect().width || 0,
       inlineIcon: !!input.querySelector('svg') && input.querySelector('svg').getBoundingClientRect().right <= text.getBoundingClientRect().left,
       firstLineIcon: !!input.querySelector('svg') && Math.abs(input.querySelector('svg').getBoundingClientRect().top - text.getBoundingClientRect().top) <= 16,
-      heading: heading.hidden ? '' : panel.querySelector('.voice-status-stage').textContent,
+      heading: heading.hidden ? '' : panel.querySelector('.personal-bot-status-stage').textContent,
       progress: !progress.hidden, reply: reply.textContent, replyHidden: reply.hidden,
-      detail: panel.querySelector('.voice-status-detail').textContent,
+      detail: panel.querySelector('.personal-bot-status-detail').textContent,
       order: !!(input.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)
         && !!(progress.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING),
       live: reply.getAttribute('aria-live'), atomic: reply.getAttribute('aria-atomic'), busy: reply.getAttribute('aria-busy'),
@@ -150,21 +150,21 @@ async function streamSnapshot(state, message = '', input = transcript) {
       inputFont: parseFloat(getComputedStyle(text).fontSize),
       selectable: getComputedStyle(text).userSelect,
       bottom: Math.abs(panel.scrollHeight - panel.clientHeight - panel.scrollTop) <= 1,
-      top: panel.scrollTop, hidden: document.getElementById('voice-status').hidden };
+      top: panel.scrollTop, hidden: document.getElementById('personal-bot-status').hidden };
   })()`)
 }
 
 async function unchangedStream(state, message) {
   await evaluate(`(() => {
-    const panel = document.querySelector('.voice-status-content'); panel.scrollTop = 100;
-    window.streamNodes = [panel.querySelector('.voice-status-title').firstChild, panel.querySelector('.voice-status-transcript').firstChild];
+    const panel = document.querySelector('.personal-bot-status-content'); panel.scrollTop = 100;
+    window.streamNodes = [panel.querySelector('.personal-bot-status-title').firstChild, panel.querySelector('.personal-bot-status-transcript').firstChild];
     window.streamMutations = [];
     window.streamObserver = new MutationObserver(records => window.streamMutations.push(...records));
     window.streamObserver.observe(panel, { childList: true, subtree: true, characterData: true });
   })()`)
   const snapshot = await streamSnapshot(state, message)
   assert.equal(snapshot.top, 100, 'Repeated snapshot preserves scroll')
-  assert.equal(await evaluate(`window.streamNodes[0] === document.querySelector('.voice-status-title').firstChild && window.streamNodes[1] === document.querySelector('.voice-status-transcript').firstChild && window.streamMutations.length === 0`), true, 'Repeated snapshot retains DOM')
+  assert.equal(await evaluate(`window.streamNodes[0] === document.querySelector('.personal-bot-status-title').firstChild && window.streamNodes[1] === document.querySelector('.personal-bot-status-transcript').firstChild && window.streamMutations.length === 0`), true, 'Repeated snapshot retains DOM')
   await evaluate('window.streamObserver.disconnect()')
 }
 
@@ -187,7 +187,7 @@ async function streaming(width) {
   assert.equal(result.separate, true, 'Static stage live region excludes input and streamed reply')
   assert.equal(result.selectable, 'text')
   assert.ok(result.inputFont >= (width === 1920 ? 32 : 24))
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 1e6`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 1e6`)
   result = await streamSnapshot('thinking', partial)
   assert.equal(result.bottom, true, 'Streaming follows an already-bottom reader')
   assert.equal(result.bounded, true)
@@ -195,11 +195,11 @@ async function streaming(width) {
   assert.equal(result.live, 'polite')
   assert.equal(result.atomic, 'false')
   assert.equal(result.busy, 'true', 'Streaming is not announced as repeated completed replies')
-  assert.equal(await evaluate(`document.querySelector('.voice-status-title strong').textContent`), 'Actual')
+  assert.equal(await evaluate(`document.querySelector('.personal-bot-status-title strong').textContent`), 'Actual')
   await unchangedStream('thinking', partial)
   result = await streamSnapshot('thinking', partial + '\nMore response')
   assert.equal(result.top, 100, 'Growing stream does not pull a scrolled-up reader down')
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 1e6`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 1e6`)
   result = await streamSnapshot('thinking', partial + '\nMore response\n\nAnother paragraph')
   assert.equal(result.bottom, true, 'Returning to bottom resumes following')
   await streamingOutcome()
@@ -240,7 +240,7 @@ async function streamingOutcome() {
     assert.equal(result.reply, '')
   }
   await streamSnapshot('thinking', partial)
-  await evaluate(`window.odkVoiceStatus.close()`)
+  await evaluate(`window.odkPersonalBotStatus.close()`)
   await pause()
   await evaluate(`window.streamRestoredFocus = document.activeElement`)
   for (const state of ['thinking', 'idle', 'error']) {
@@ -262,10 +262,10 @@ async function firstMic() {
     toggleStatus = state === 'unavailable' ? { state, activated: true } : { state: 'starting' }
     await mic()
     assert.equal(toggleCount, before + 1, `${state}: first MIC invokes recording control`)
-    assert.equal(await evaluate(`document.getElementById('voice-status').hidden`), false)
-    assert.equal(await evaluate(`document.querySelector('.voice-status-transcript').textContent`), '')
+    assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden`), false)
+    assert.equal(await evaluate(`document.querySelector('.personal-bot-status-transcript').textContent`), '')
     if (state === 'unavailable') {
-      assert.match(await evaluate(`document.querySelector('.voice-status-detail').textContent`), /service.*configuration/i)
+      assert.match(await evaluate(`document.querySelector('.personal-bot-status-detail').textContent`), /service.*configuration/i)
     }
   }
 }
@@ -274,25 +274,25 @@ async function restoreMic(state) {
   await send({ state: 'starting' })
   const text = state === 'error' ? 'Failure detail.\n\n'.repeat(100) : partial
   await streamSnapshot(['idle', 'error'].includes(state) ? 'thinking' : state, text)
-  await evaluate(`document.querySelector('.voice-status-content').scrollTop = 100`)
-  const top = await evaluate(`document.querySelector('.voice-status-content').scrollTop`)
+  await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop = 100`)
+  const top = await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop`)
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
   await pause()
   await evaluate(`window.reopenFocus = document.activeElement`)
   await streamSnapshot(state, text + '\nLatest update')
-  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && document.activeElement === window.reopenFocus`), true, `${state}: background update retains dismissal and focus`)
-  await evaluate(`window.reopenReplyNode = document.querySelector('.voice-status-title').firstChild`)
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden && document.activeElement === window.reopenFocus`), true, `${state}: background update retains dismissal and focus`)
+  await evaluate(`window.reopenReplyNode = document.querySelector('.personal-bot-status-title').firstChild`)
   const before = toggleCount
   await mic()
   assert.equal(toggleCount, before, `${state}: hidden MIC restores without invoking toggle`)
-  assert.equal(await evaluate(`window.reopenReplyNode === document.querySelector('.voice-status-title').firstChild`), true, 'Reopening retains rendered Markdown nodes')
+  assert.equal(await evaluate(`window.reopenReplyNode === document.querySelector('.personal-bot-status-title').firstChild`), true, 'Reopening retains rendered Markdown nodes')
   const result = await evaluate(`(() => {
-    const panel = document.querySelector('.voice-status-content');
-    return { hidden: document.getElementById('voice-status').hidden, top: panel.scrollTop,
-      state: document.getElementById('voice-status').dataset.state, focus: document.activeElement === panel,
-      input: document.querySelector('.voice-status-transcript').textContent,
-      markdown: document.querySelector('.voice-status-title strong')?.textContent,
-      text: panel.textContent, inert: [...document.body.children].filter(n => n.id !== 'voice-status' && n.tagName !== 'SCRIPT').every(n => n.inert) };
+    const panel = document.querySelector('.personal-bot-status-content');
+    return { hidden: document.getElementById('personal-bot-status').hidden, top: panel.scrollTop,
+      state: document.getElementById('personal-bot-status').dataset.state, focus: document.activeElement === panel,
+      input: document.querySelector('.personal-bot-status-transcript').textContent,
+      markdown: document.querySelector('.personal-bot-status-title strong')?.textContent,
+      text: panel.textContent, inert: [...document.body.children].filter(n => n.id !== 'personal-bot-status' && n.tagName !== 'SCRIPT').every(n => n.inert) };
   })()`)
   assert.equal(result.hidden, false)
   assert.equal(result.state, state)
@@ -308,12 +308,12 @@ async function restoreMic(state) {
   await mic()
   assert.equal(toggleCount, before + (['recording', 'idle', 'error'].includes(state) ? 1 : 0), `${state}: second MIC applies visible policy`)
   if (['idle', 'error'].includes(state)) {
-    assert.equal(await evaluate(`document.querySelector('.voice-status-content').scrollTop`), 0, 'A new recording resets reader position')
-    assert.equal(await evaluate(`document.querySelector('.voice-status-transcript').textContent + document.querySelector('.voice-status-title').textContent`), '')
+    assert.equal(await evaluate(`document.querySelector('.personal-bot-status-content').scrollTop`), 0, 'A new recording resets reader position')
+    assert.equal(await evaluate(`document.querySelector('.personal-bot-status-transcript').textContent + document.querySelector('.personal-bot-status-title').textContent`), '')
   }
   await evaluate(`window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'back' }))`)
   await pause()
-  assert.equal(await evaluate(`document.getElementById('voice-status').hidden && document.activeElement === window.reopenFocus`), true)
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden && document.activeElement === window.reopenFocus`), true)
 }
 
 async function rapidMic() {
@@ -334,7 +334,7 @@ async function rapidMic() {
   deferToggle = false
   rejectToggle = true
   await mic()
-  assert.equal(await evaluate(`document.getElementById('voice-status').dataset.state`), 'error')
+  assert.equal(await evaluate(`document.getElementById('personal-bot-status').dataset.state`), 'error')
   assert.deepEqual(await evaluate('window.voiceRejections'), [])
   rejectToggle = false
   toggleStatus = { state: 'starting' }
@@ -343,10 +343,10 @@ async function rapidMic() {
 }
 
 app.whenReady().then(async () => {
-  ipcMain.handle('odk-voice-toggle', () => {
+  ipcMain.handle('odk-personal-bot-toggle', () => {
     toggleCount += 1
     if (rejectToggle) throw new Error('Recording control unavailable')
-    if (toggleStatus) win.webContents.send('odk-voice-status', toggleStatus)
+    if (toggleStatus) win.webContents.send('odk-personal-bot-status', toggleStatus)
     if (deferToggle) return new Promise(resolve => { settleToggle = resolve })
     return { accepted: toggleStatus?.state !== 'unavailable' }
   })

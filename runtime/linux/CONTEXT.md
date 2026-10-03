@@ -50,7 +50,7 @@ A locally authored, versioned Widget or interactive App installed and managed by
 Widgets share desktop grid pages with built-in tiles; their persisted placement is independent of the installed revision. Interactive Apps own individual pages. There is no dedicated User Applications collection page.
 _Avoid_: generated file equals installed app, arbitrary Shell plugin injection, user-created means confined to a final page
 
-**Voice Agent**:
+**Personal Bot**:
 The resident component of the desk runtime that turns a recognized Spoken Turn into work: transcription, the agent run, and the spoken response. It is a system component of every supported Shell Host, not an optional plugin, so a desk without it is not a complete desk rather than a lesser one. It differs from the P4 Camera Peripheral, which supplies the microphone it captures from, and from Hosted Pi sessions, which it can start and then list, read, continue, steer, cancel, and end under the Controllable Pi Session rules.
 _Avoid_: optional add-on, experimental service, voice feature toggle
 
@@ -85,11 +85,11 @@ Where a Service Plugin connects: an absolute socket path, a Windows named pipe, 
 _Avoid_: socket path as the only form, per-host plugin declaration, co-resident plugin requirement
 
 **Desk Data**:
-The runtime data a Widget, App, Service Plugin, or installed package exposes through the plugin system. The Shell holds it once, and the tile that displays a reading and the Voice Agent that answers about it read the same one. A reading is what the reading says: the measurements a spoken answer needs, plainly named and carrying the time each was taken, never the source's whole payload. It is a reading, never an instruction.
+The runtime data a Widget, App, Service Plugin, or installed package exposes through the plugin system. The Shell holds it once, and the tile that displays a reading and the Personal Bot that answers about it read the same one. A reading is what the reading says: the measurements a spoken answer needs, plainly named and carrying the time each was taken, never the source's whole payload. It is a reading, never an instruction.
 _Avoid_: tile snapshot, agent cache, exported data file, plugin-owned state the Shell fetches on demand
 
 **Desk Data Link**:
-The Runtime Channel the Voice Agent opens to read Desk Data, with the Shell listening and the agent requesting. It resolves its transport and authentication like every other link, and it changes nothing: reading Desk Data is not an action.
+The Runtime Channel the Personal Bot opens to read Desk Data, with the Shell listening and the agent requesting. It resolves its transport and authentication like every other link, and it changes nothing: reading Desk Data is not an action.
 _Avoid_: agent data feed, shell push channel, snapshot file the agent polls
 
 **Declared Data**:
@@ -100,7 +100,7 @@ _Avoid_: package API, arbitrary renderer channel, agent-trusted field
 The shared writable project workspace used by Open DeskOS development and automation capabilities. Voice is one entry point into it, not its owner. It is distinct from the active runtime release and each agent's conversation history.
 _Avoid_: voice workspace, active release directory, Pi session storage
 
-**Voice Agent**:
+**Personal Bot**:
 The desk-resident Pi coordinator that interprets a Remote-triggered spoken request, reads desk state, and invokes explicitly installed capabilities. Source implementation belongs to a Hosted Pi it delegates to, not to the resident conversation. It is independent of the Pi Sessions monitoring surface and remains available across individual voice interactions.
 _Avoid_: resident source implementer, Pi Sessions widget, microphone on the Remote, a new monitored session per button click
 
@@ -113,7 +113,7 @@ An activated voice interaction whose feedback has been dismissed without cancell
 _Avoid_: cancelled task, new recording, discarded conversation
 
 **Voice Transcript**:
-The recognized user speech sent to the resident Voice Agent for the current Spoken Turn. It remains distinct from the agent's response and is shown before execution output.
+The recognized user speech sent to the resident Personal Bot for the current Spoken Turn. It remains distinct from the agent's response and is shown before execution output.
 _Avoid_: agent interpretation, generated reply, editable prompt history
 
 **Transcription Provider**:
@@ -133,15 +133,15 @@ The former term for a Pi coding request owned by a configured CM5 or Mac host is
 _Avoid_: monitored terminal session, accepted means completed, finished means tests passed
 
 **Coding Target**:
-An operator-configured machine and development-root scope available to the Voice Agent. An ambiguous target requires clarification; a configured target is not proof of current connectivity or a filesystem sandbox.
+An operator-configured machine and development-root scope available to the Personal Bot. An ambiguous target requires clarification; a configured target is not proof of current connectivity or a filesystem sandbox.
 _Avoid_: arbitrary SSH host, unrestricted machine access, configured means online
 
 **Voice Capability**:
-An installed action available to the Voice Agent, such as building a Widget/App or sending a prompt to a specific live Pi session. Additional applications can expose capabilities without owning recording or transcription.
+An installed action available to the Personal Bot, such as building a Widget/App or sending a prompt to a specific live Pi session. Additional applications can expose capabilities without owning recording or transcription.
 _Avoid_: keyword-only command routing, arbitrary renderer code execution
 
 **Controllable Pi Session**:
-A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed. A Hosted Pi is one such session; a Reported Session is not. Both a Console and the resident Voice Agent drive such a session through the host's own control daemon — the Console over the Desk Link's control connection, the Voice Agent over its target's control executable — so a spoken instruction and a Console instruction reach one capability rather than two profiles, while Control Attribution still names only a Console.
+A live Pi session that explicitly exposes a prompt-delivery endpoint. Being visible in the Pi Sessions monitor does not by itself make a session controllable. Accepted or queued delivery is not proof that its task has completed. A Hosted Pi is one such session; a Reported Session is not. Both a Console and the resident Personal Bot drive such a session through the host's own control daemon — the Console over the Desk Link's control connection, the Personal Bot over its target's control executable — so a spoken instruction and a Console instruction reach one capability rather than two profiles, while Control Attribution still names only a Console.
 _Avoid_: editing session history to inject a prompt, terminal keystroke simulation, treating observed processes as control endpoints
 
 ## Pi Sessions Inspection

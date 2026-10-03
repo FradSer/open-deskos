@@ -25,10 +25,10 @@
     const env = { linkUrls: [] }
     const tokens = markdown.parse(message, env)
     const plain = isPlainText(tokens)
-    target.classList.toggle('voice-status-markdown', !plain)
+    target.classList.toggle('personal-bot-status-markdown', !plain)
     if (plain) target.textContent = message
     else target.innerHTML = markdown.renderer.render(tokens, markdown.options, env)
   }
 
-  window.odkVoiceReply = { render }
+  window.odkPersonalBotReply = { render }
 })()

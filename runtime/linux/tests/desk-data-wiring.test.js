@@ -7,7 +7,7 @@ const vm = require('node:vm')
 const { createShellDeskData } = require('../src/desk-data')
 
 // The wired main process is the seam where the tile, the installed packages and
-// the Voice Agent meet. Only the launcher, the display and the store's bytes are
+// the Personal Bot meet. Only the launcher, the display and the store's bytes are
 // stood in for: the user-application system that owns the publish handler and
 // the catalog hook runs for real, or this file would test nothing.
 function wireShell({ installed = [] } = {}) {
@@ -48,7 +48,7 @@ function wireShell({ installed = [] } = {}) {
     './local-channel': require('../src/local-channel'),
     './panel': { KIOSK_WINDOW_LOCK: {}, enterPanel() {}, resolvePanelBounds: () => null },
     './remote-bridge-client': { resolveRemoteBridgeSocketPath: () => null, createRemoteBridgeClient: () => ({ onLinkState() {}, onNavigation() {}, onInput() {}, start() {}, getLinkState: () => 'disconnected' }) },
-    './voice-agent-client': { resolveVoiceSocketPath: () => null, createVoiceAgentClient: () => ({ subscribe() {}, start() {}, stop() {}, toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
+    './personal-bot-client': { resolvePersonalBotSocketPath: () => null, createPersonalBotClient: () => ({ subscribe() {}, start() {}, stop() {}, servicePush() {}, toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
     './desk-data-control': { listenDeskData: async () => ({ close: async () => {} }) },
     './user-app-store': { createUserAppStore: () => installedStore },
     // The verifier is a construct-only dependency here: nothing is verified

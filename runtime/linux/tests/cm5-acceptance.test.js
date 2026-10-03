@@ -65,7 +65,7 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /"stt-bridge-listening"/)
   assert.match(script, /"no-shadowed-configuration"/)
   assert.match(script, /"no-zombie-config"/)
-  assert.match(script, /"single-voice-installation"/)
+  assert.match(script, /"single-bot-installation"/)
   assert.match(script, /"no-stray-runtime-code"/)
   assert.match(script, /"hosted-pi-endpoint"/)
   assert.match(script, /^configuration_evidence$/m)
@@ -80,10 +80,10 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
 test('CM5 acceptance reports duplicated and leftover device-local configuration', t => {
   const home = fixture(t, {
     '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
-    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_STT_URL=http://127.0.0.1:19999/inference\nODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
-    '.config/systemd/user/open-deskos-voice-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
-    '.config/systemd/user/open-deskos-voice-agent.service.d/personal-agent.conf.disabled': '[Service]\n',
-    '.local/share/open-deskos/voice-releases/personal-1/src/main.mjs': '',
+    '.config/open-deskos/personal-bot.env': 'ODESK_PERSONAL_BOT_STT_URL=http://127.0.0.1:19999/inference\nODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/systemd/user/open-deskos-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/systemd/user/open-deskos-personal-bot.service.d/personal-bot.conf.disabled': '[Service]\n',
+    '.local/share/open-deskos/personal-bot-releases/personal-1/src/main.mjs': '',
   })
   const check = acceptance(home)
   const endpoint = check('stt-endpoint-consistency')
@@ -94,23 +94,23 @@ test('CM5 acceptance reports duplicated and leftover device-local configuration'
   assert.equal(shadowed.ok, false)
   assert.match(shadowed.detail, /ODESK_WORKSPACE/)
   assert.equal(check('no-zombie-config').ok, false)
-  assert.match(check('no-zombie-config').detail, /personal-agent\.conf\.disabled/)
-  assert.equal(check('single-voice-installation').ok, false)
-  assert.equal(check('single-voice-installation').required, true)
+  assert.match(check('no-zombie-config').detail, /personal-bot\.conf\.disabled/)
+  assert.equal(check('single-bot-installation').ok, false)
+  assert.equal(check('single-bot-installation').required, true)
 })
 
 test('CM5 acceptance accepts one declaration per fact', t => {
   const home = fixture(t, {
     '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
-    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_AUDIO_DEVICE=default\n',
-    '.config/systemd/user/open-deskos-voice-agent.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_TASK_TARGETS_FILE=/home/kiosk/.config/open-deskos/task-targets.json\n',
+    '.config/open-deskos/personal-bot.env': 'ODESK_PERSONAL_BOT_AUDIO_DEVICE=default\n',
+    '.config/systemd/user/open-deskos-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_TASK_TARGETS_FILE=/home/kiosk/.config/open-deskos/task-targets.json\n',
   })
   const check = acceptance(home)
   assert.equal(check('stt-endpoint-consistency').ok, true)
   assert.match(check('stt-endpoint-consistency').detail, /derives port 17840/)
   assert.equal(check('no-shadowed-configuration').ok, true)
   assert.equal(check('no-zombie-config').ok, true)
-  assert.equal(check('single-voice-installation').ok, true)
+  assert.equal(check('single-bot-installation').ok, true)
   assert.equal(check('no-stray-runtime-code').ok, true)
 })
 
@@ -180,11 +180,22 @@ test('CM5 acceptance accepts a display that answers even from a non-graphical se
 test('CM5 acceptance reports runtime code copied outside the release', t => {
   const home = fixture(t, {
     '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
-    'runtime/integrations/voice-agent/src/main.mjs': '// stale copy\n',
+    'runtime/integrations/personal-bot/src/main.mjs': '// stale copy\n',
   })
   const check = acceptance(home, { ODK_RUNTIME_ROOT: path.join(home, 'runtime') })
   const stray = check('no-stray-runtime-code')
   assert.equal(stray.ok, false)
   assert.equal(stray.required, true)
   assert.match(stray.detail, /runtime\/integrations/)
+})
+
+
+test('CM5 acceptance accepts legacy Personal Bot upgrade configuration', t => {
+  const home = fixture(t, {
+    '.config/open-deskos/runtime.env': 'ODK_STT_PORT=17840\n',
+    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_STT_URL=http://127.0.0.1:19999/inference\n',
+  })
+  const endpoint = acceptance(home)('stt-endpoint-consistency')
+  assert.equal(endpoint.ok, false)
+  assert.match(endpoint.detail, /19999.*17840/)
 })

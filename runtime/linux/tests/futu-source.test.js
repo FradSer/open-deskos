@@ -48,7 +48,9 @@ test('an absolute declared socket is used as declared, a name resolves under the
 
 test('a declared service data record becomes a live snapshot', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const updates = []
   const source = createFutuSource({
+    onUpdate: id => updates.push(id),
     runtimeDir: dir,
     services: () => ({ 'futu-poller': { revision: 'r1', socket: 'futu-poller.sock' } }),
   })
@@ -62,6 +64,7 @@ test('a declared service data record becomes a live snapshot', async () => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     const reading = source.snapshot('futu-poller')
     assert.equal(reading.state, 'live')
+    assert.deepEqual(updates, ['futu-poller'])
     assert.deepEqual(reading.snapshot.positions, [])
   } finally {
     await source.stop()

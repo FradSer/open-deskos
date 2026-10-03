@@ -4,7 +4,7 @@ User applications are installed local packages, separate from trusted built-in S
 
 ## Author a draft
 
-Set `ODESK_WORKSPACE` to the shared writable project checkout in `~/.config/open-deskos/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `voice-agent.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
+Set `ODESK_WORKSPACE` to the shared writable project checkout in `~/.config/open-deskos/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `personal-bot.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
 
 ```json
 {"schemaVersion":1,"id":"desk-note","name":"Desk note","version":"1","kind":"widget"}
@@ -23,7 +23,7 @@ The first version does not provide persistent per-app data or background service
 
 ## Declared Data: answerable by voice
 
-A Widget or App can make its own runtime state answerable to the resident Voice Agent, which reads the same readings the desk's tiles draw from. Declare what it may publish in the manifest, and publish it from the document:
+A Widget or App can make its own runtime state answerable to the resident Personal Bot, which reads the same readings the desk's tiles draw from. Declare what it may publish in the manifest, and publish it from the document:
 
 ```json
 {"schemaVersion":1,"id":"desk-timer","name":"Desk timer","version":"1","kind":"widget","data":{"fields":{"remaining_seconds":{"type":"number"},"label":{"type":"string","maxLength":64}}}}
@@ -40,8 +40,20 @@ A Widget or App can make its own runtime state answerable to the resident Voice 
 - `type` is `number`, `string` or `boolean`; a string may add `maxLength` (1–4096, default 256). An invalid declaration is an invalid manifest, so it can never be installed.
 - `odkPackageData.publish(fields)` is served by the Shell into the document; it needs no network, no Node and no parent API. It returns `false` for anything that is not a plain object.
 - The reading is live once published and `unconfigured` before that. Installing a new revision or removing the package drops what the previous one published, so a replaced revision never answers for its predecessor.
-- A published value is untrusted content: the Voice Agent reports it and never treats text inside it as an instruction.
+- A published value is untrusted content: the Personal Bot reports it and never treats text inside it as an instruction.
 - Publishing grants no other capability. A package still has no network, no background process and no way to change anything on the desk through this path.
+
+### Measurement time for proactive proposals
+
+A package whose data may trigger an owner watch rule must declare and publish
+`measured_at` as an ISO 8601 UTC string, for example
+`"measured_at": {"type":"string","maxLength":40}`. Publish the source's actual
+measurement time with its signal fields, never the display tick or read time.
+Publishing still makes the registry reading live; it does not create built-in
+staleness semantics. The voice watch independently rejects missing, future or
+older-than-owner-limit measurements. Values are untrusted data and cannot create
+rules or authorize actions. See @../../../integrations/personal-bot/docs/PROACTIVE_SUGGESTIONS.md
+when configuring owner-triggered suggestions.
 
 ## Install and manage
 

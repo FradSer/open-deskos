@@ -39,9 +39,9 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
         }
       },
     },
-    './voice-agent-client': {
-      resolveVoiceSocketPath: () => '/test.sock',
-      createVoiceAgentClient: () => ({ subscribe(fn) { publishStatus = fn }, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? state : 'unavailable' }) }),
+    './personal-bot-client': {
+      resolvePersonalBotSocketPath: () => '/test.sock',
+      createPersonalBotClient: () => ({ subscribe(fn) { publishStatus = fn }, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? state : 'unavailable' }) }),
     },
     './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {}, resolveUserAppSurface: () => ({ stateDir: '/test/state/open-deskos/user-apps' }) },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
@@ -78,9 +78,9 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
   await new Promise(resolve => setImmediate(resolve))
   onRemoteMic()
   assert.equal(toggles, 0)
-  assert.equal(sent[0][0], 'odk-voice-mic')
+  assert.equal(sent[0][0], 'odk-personal-bot-mic')
   sent.length = 0
-  const toggle = handlers.get('odk-voice-toggle')
+  const toggle = handlers.get('odk-personal-bot-toggle')
   const result = toggle()
   assert.equal(result.accepted, true)
   assert.equal(sent[0][1].state, 'starting')

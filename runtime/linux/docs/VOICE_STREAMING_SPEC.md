@@ -12,4 +12,4 @@ Keep existing status states. Add `transcript` (plain string, bounded to 4096 UTF
 
 ## Verification
 
-Feature-first regression tests through sessionAdapter event subscription, VoiceService and socket client, then real Electron DOM assertions for input/Working/partial/final/error/new-turn/dismissed states, Markdown safety, scroll follow/preservation and compact geometry. Existing complete runtime and voice backend suites remain gates. No deployment, actual LLM/provider call or hardware acceptance in scope.
+Feature-first regression tests through sessionAdapter event subscription, PersonalBotService and socket client, then real Electron DOM assertions for input/Working/partial/final/error/new-turn/dismissed states, Markdown safety, scroll follow/preservation and compact geometry. Existing complete runtime and voice backend suites remain gates. No deployment, actual LLM/provider call or hardware acceptance in scope.

@@ -98,19 +98,20 @@ configuration_evidence() {
     check "device-configuration" "false" "false" "runtime" "no ${config}; run this as the kiosk user to inspect device-local configuration"
     return
   fi
-  local voice_env="${config}/voice-agent.env"
+  local bot_env="${config}/personal-bot.env"
+  if [ ! -f "$bot_env" ]; then bot_env="${config}/voice-agent.env"; fi
   local runtime_env="${config}/runtime.env"
   local stt_port
   stt_port="$(sed -n 's/^ODK_STT_PORT=\([0-9]\{1,5\}\)$/\1/p' "$runtime_env" 2>/dev/null | tail -n1)"
   [ -n "$stt_port" ] || stt_port="17840"
   local declared
-  declared="$(sed -n 's|^ODESK_VOICE_STT_URL=http://127\.0\.0\.1:\([0-9]\{1,5\}\)/.*|\1|p' "$voice_env" 2>/dev/null | tail -n1)"
+  declared="$(sed -En 's#^ODESK_(PERSONAL_BOT|VOICE)_STT_URL=http://127\.0\.0\.1:([0-9]{1,5})/.*#\2#p' "$bot_env" 2>/dev/null | tail -n1)"
   if [ -z "$declared" ]; then
-    check "stt-endpoint-consistency" "true" "false" "runtime" "no explicit loopback STT URL; the voice agent derives port ${stt_port}"
+    check "stt-endpoint-consistency" "true" "false" "runtime" "no explicit loopback STT URL; the personal bot derives port ${stt_port}"
   elif [ "$declared" = "$stt_port" ]; then
     check "stt-endpoint-consistency" "true" "false" "runtime" "the declared loopback endpoint and the bridge agree on port ${stt_port}"
   else
-    check "stt-endpoint-consistency" "false" "true" "runtime" "ODESK_VOICE_STT_URL declares port ${declared} while the bridge declares ${stt_port}"
+    check "stt-endpoint-consistency" "false" "true" "runtime" "ODESK_PERSONAL_BOT_STT_URL declares port ${declared} while the bridge declares ${stt_port}"
   fi
   if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q "127.0.0.1:${stt_port}"; then
     check "stt-bridge-listening" "true" "false" "runtime" "the device-local bridge listens on 127.0.0.1:${stt_port}"
@@ -123,7 +124,7 @@ configuration_evidence() {
   for conf in "${units}"/*.service.d/*.conf; do
     [ -f "$conf" ] || continue
     for name in $(sed -n 's/^Environment=//p' "$conf" 2>/dev/null | tr ' ' '\n' | sed -n 's/=.*//p' | grep -E '^(ODK|ODESK)_'); do
-      if grep -qE "^${name}=" "$voice_env" "$runtime_env" 2>/dev/null; then shadowed="${shadowed} ${name}"; fi
+      if grep -qE "^${name}=" "$bot_env" "$runtime_env" 2>/dev/null; then shadowed="${shadowed} ${name}"; fi
     done
   done
   if [ -z "$shadowed" ]; then
@@ -140,10 +141,10 @@ configuration_evidence() {
   fi
   # The immutable release is the only source of runtime code. A second installation elsewhere can
   # bypass release rollback and the unit's read-only view of /opt/open-deskos.
-  if [ -e "${HOME}/.local/share/open-deskos/voice-releases" ]; then
-    check "single-voice-installation" "false" "true" "runtime" "a voice agent is installed outside the immutable release"
+  if [ -e "${HOME}/.local/share/open-deskos/personal-bot-releases" ]; then
+    check "single-bot-installation" "false" "true" "runtime" "a personal bot is installed outside the immutable release"
   else
-    check "single-voice-installation" "true" "false" "runtime" "runtime code exists only under the active release"
+    check "single-bot-installation" "true" "false" "runtime" "runtime code exists only under the active release"
   fi
   local root="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
   local strays="" candidate

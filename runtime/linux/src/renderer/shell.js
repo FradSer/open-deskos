@@ -59,7 +59,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   function setIndex(next, animate = true, reconcile = false) {
-    if (!reconcile && window.odkVoiceStatus?.visible() && next !== index) return
+    if (!reconcile && window.odkPersonalBotStatus?.visible() && next !== index) return
     cancelDrag()
     track.classList.toggle('instant', !animate)
     document.getElementById('dots').classList.toggle('instant', !animate)
@@ -96,7 +96,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   viewport.addEventListener('pointerdown', (event) => {
-    if (window.odkVoiceStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
+    if (window.odkPersonalBotStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
     activePointerId = event.pointerId
     startX = event.clientX
     dx = 0
@@ -143,8 +143,8 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     if (event.pointerId === activePointerId) endDrag(true)
   })
   window.addEventListener('blur', () => endDrag(true))
-  window.addEventListener('odk-voice-visibility', () => {
-    if (!window.odkVoiceStatus?.visible()) return
+  window.addEventListener('odk-personal-bot-visibility', () => {
+    if (!window.odkPersonalBotStatus?.visible()) return
     cancelDrag()
     track.classList.add('instant')
     track.style.transform = `translateX(${-index * pageWidth()}px)`
@@ -474,7 +474,7 @@ function main() {
 
   function publishPageState() {
     if (!currentPageState) return
-    const state = window.odkVoiceStatus?.visible()
+    const state = window.odkPersonalBotStatus?.visible()
       ? { ...currentPageState, canPrev: false, canNext: false, canFocus: false, mode: 'browse', actions: [] }
       : currentPageState
     window.odkRemote?.publishPageState(state)?.catch(() => {})
@@ -549,10 +549,10 @@ function main() {
   retryCatalog.addEventListener('click', () => { void desktop.refresh() })
   window.addEventListener('beforeunload', () => desktop.dispose(), { once: true })
   setInterval(publishPageState, 5000)
-  window.addEventListener('odk-voice-visibility', publishPageState)
+  window.addEventListener('odk-personal-bot-visibility', publishPageState)
 
   function navigate(direction) {
-    if (window.odkVoiceStatus?.visible() || !appView.hidden) return
+    if (window.odkPersonalBotStatus?.visible() || !appView.hidden) return
     pagerRef.setIndex(pagerRef.currentIndex() + direction, false)
   }
 
@@ -622,7 +622,7 @@ function main() {
 
   function handleRemoteInput(input, action) {
     if (!['left', 'right', 'up', 'down', 'primary', 'secondary', 'back', 'mic', 'action', 'page-previous', 'page-next'].includes(input)) return
-    if (window.odkVoiceStatus?.handleInput(input)) return
+    if (window.odkPersonalBotStatus?.handleInput(input)) return
     // The shoulders change page whatever the desk is focused on. This is not one
     // of the directional intents: `left` and `right` mean different things in the
     // desk's two modes, and a shoulder always means the page beside this one.
@@ -638,11 +638,11 @@ function main() {
     if (input === 'mic') {
       // The same entry point the Remote Control's MIC reaches through the link, so
       // a pad's voice button and the Remote's MIC are one path in the desk.
-      window.odkVoiceStatus?.mic()
+      window.odkPersonalBotStatus?.mic()
       return
     }
     if (input === 'back') {
-      if (window.odkVoiceStatus?.close()) return
+      if (window.odkPersonalBotStatus?.close()) return
       if (!appView.hidden) {
         document.getElementById('app-back').click()
         return
@@ -706,7 +706,7 @@ function main() {
   })
 
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && window.odkVoiceStatus?.close()) {
+    if (event.key === 'Escape' && window.odkPersonalBotStatus?.close()) {
       event.preventDefault()
       return
     }

@@ -1,13 +1,13 @@
-// Operator acceptance for the resident Voice Agent on whichever Shell Host runs
+// Operator acceptance for the resident Personal Bot on whichever Shell Host runs
 // it. It speaks the published voice protocol over the host's own endpoint (a
-// socket in the runtime directory, or the voice-agent named pipe on Windows),
+// socket in the runtime directory, or the personal-bot named pipe on Windows),
 // presents the channel token where the endpoint needs one, asks for one Spoken
 // Turn, and reports what the service actually said — states in order, the
 // transcript, and the final answer. It prints no credential.
 //
-//   node scripts/voice-acceptance.mjs              # toggle, then wait
-//   node scripts/voice-acceptance.mjs --status     # read the current state only
-//   node scripts/voice-acceptance.mjs --seconds 90 # allow a slower Pi run
+//   node scripts/personal-bot-acceptance.mjs              # toggle, then wait
+//   node scripts/personal-bot-acceptance.mjs --status     # read the current state only
+//   node scripts/personal-bot-acceptance.mjs --seconds 90 # allow a slower Pi run
 //
 // Service activity alone is not acceptance: this still needs a real microphone, a
 // spoken request, and an authorized workspace, and the answer is only evidence
@@ -26,9 +26,9 @@ const statusOnly = args.includes('--status')
 const secondsIndex = args.indexOf('--seconds')
 const deadline = Number(secondsIndex >= 0 ? args[secondsIndex + 1] : 120) * 1000
 const host = resolveShellHost()
-const endpoint = host.endpoint('voice-agent')
+const endpoint = host.endpoint('personal-bot')
 if (!endpoint) {
-  console.log('voice: this host resolves no voice endpoint')
+  console.log('personal-bot: this host resolves no Personal Bot endpoint')
   process.exit(1)
 }
 
@@ -46,7 +46,7 @@ let asked = false
 let terminal = false
 const seen = []
 const timer = setTimeout(() => {
-  console.log(`voice: timed out after states ${seen.join(' -> ') || '(none)'}`)
+  console.log(`personal-bot: timed out after states ${seen.join(' -> ') || '(none)'}`)
   finish(1)
 }, deadline)
 
@@ -67,7 +67,7 @@ socket.on('connect', () => {
       }
     })
     .catch(() => {
-      console.log('voice: the channel token could not be read')
+      console.log('personal-bot: the channel token could not be read')
       clearTimeout(timer)
       finish(1)
     })
@@ -75,7 +75,7 @@ socket.on('connect', () => {
 socket.on('data', (chunk) => {
   remainder += chunk
   if (Buffer.byteLength(remainder) > 131072) {
-    console.log('voice: the service sent an oversized frame')
+    console.log('personal-bot: the service sent an oversized frame')
     socket.destroy()
     return
   }
@@ -105,13 +105,13 @@ socket.on('data', (chunk) => {
   remainder = remainder.slice(remainder.lastIndexOf('\n') + 1)
 })
 socket.on('error', (error) => {
-  console.log(`voice: ${endpoint} refused the connection (${error.code ?? error.message})`)
+  console.log(`personal-bot: ${endpoint} refused the connection (${error.code ?? error.message})`)
   clearTimeout(timer)
   finish(terminal ? 0 : 1)
 })
 socket.on('close', () => {
   if (terminal) return
   clearTimeout(timer)
-  console.log(`voice: the service closed the link after states ${seen.join(' -> ') || '(none)'}`)
+  console.log(`personal-bot: the service closed the link after states ${seen.join(' -> ') || '(none)'}`)
   finish(1)
 })

@@ -1,13 +1,13 @@
 # Desk Data is read through the plugin system
 
-Spec for ADR 0033. The Voice Agent answers from the readings the desk already owns.
+Spec for ADR 0033. The Personal Bot answers from the readings the desk already owns.
 
 ## Problem Statement
 
 I own a desk whose widgets already know things: Hydra knows my plants' soil and the greenhouse
 temperature, the weather instrument knows the reading at this desk, WeRead knows what I read, the
 Futu Service Plugin knows my holdings. I ask the desk out loud — "do my plants need water",
-"how cold is it here" — and the Voice Agent answers from a model, not from the desk. It has no way
+"how cold is it here" — and the Personal Bot answers from a model, not from the desk. It has no way
 to read any of that. Sometimes it guesses well and sometimes it invents a number, and I cannot tell
 which, because the answer and the tile on the screen come from two different worlds.
 
@@ -18,8 +18,8 @@ invisible to every spoken answer, so the widgets I build can be seen but not ask
 ## Solution
 
 Every reading a plugin exposes lives in one registry the Shell owns. The tile that draws a reading
-and the Voice Agent that answers about it read the same one, so the spoken answer and the screen
-cannot disagree. The Voice Agent reaches that registry over a runtime channel on the Shell, and one
+and the Personal Bot that answers about it read the same one, so the spoken answer and the screen
+cannot disagree. The Personal Bot reaches that registry over a runtime channel on the Shell, and one
 `desk_data` tool lists what the desk holds and reads any of it by id.
 
 A reading is read the way the tile reads it, so each source keeps its own refresh policy: the
@@ -74,18 +74,18 @@ Feature: Desk Data is read through the plugin system
 
   Scenario: A spoken question about a plant is answered from the tile's own reading
     Given the Hydra source is connected and one plant's soil is 30 percent
-    When the Voice Agent reads the Hydra Desk Data
+    When the Personal Bot reads the Hydra Desk Data
     Then the answer carries the same 30 percent reading the tile is drawing
     And the reading is reported as live rather than estimated
 
   Scenario: One reading serves the tile and the spoken answer
     Given a registered reading changed after the tile last drew
-    When the tile and the Voice Agent read that registered reading
+    When the tile and the Personal Bot read that registered reading
     Then both receive the current reading from the one source
 
   Scenario Outline: An instrument state reaches the reader as itself
     Given the weather instrument is <state>
-    When the Voice Agent reads the weather Desk Data
+    When the Personal Bot reads the weather Desk Data
     Then the reading is reported as <state>
     And no temperature, place or daily range is presented as current
 
@@ -97,31 +97,31 @@ Feature: Desk Data is read through the plugin system
 
   Scenario: Reading a Desk Data source never forces a provider request
     Given the weather instrument already read the provider inside its freshness interval
-    When the Voice Agent reads the weather Desk Data
+    When the Personal Bot reads the weather Desk Data
     Then no further provider request is made for that read
 
   Scenario: A Service Plugin reading is answerable by its declared id
     Given the Futu poller published a holdings snapshot
-    When the Voice Agent lists and reads Desk Data
+    When the Personal Bot lists and reads Desk Data
     Then the poller's reading is listed under the service id its package declared
     And reading it returns the published snapshot
     And no other id answers for that same reading
 
   Scenario: A Service Plugin that is not live presents no holdings
     Given the Futu poller's last snapshot is older than its own freshness window
-    When the Voice Agent reads that service's Desk Data
+    When the Personal Bot reads that service's Desk Data
     Then the reading is reported as the plugin reported itself
     And no holdings are presented
 
 
   Scenario: The installed Widget and App catalog is readable
     Given the Shell has two installed packages, one of them placed on a grid page
-    When the Voice Agent reads the installed catalog
+    When the Personal Bot reads the installed catalog
     Then it lists both packages with their kind, version and placement
 
   Scenario: Listing names every reading without reading any of them
     Given a reading whose source counts how many times it has been read
-    When the Voice Agent lists Desk Data
+    When the Personal Bot lists Desk Data
     Then the listing names that reading with its id and kind
     And the source has not been read
 
@@ -133,31 +133,31 @@ Feature: Desk Data is read through the plugin system
 
   Scenario: A reading names only what a spoken answer needs
     Given a source publishes device diagnostics, a cover image and vendor status codes beside its measurements
-    When the Voice Agent reads that Desk Data
+    When the Personal Bot reads that Desk Data
     Then the reading carries the measurements under plain names with the time each was measured
     And it carries no image, no firmware detail and no vendor status code
 
   Scenario: A reading states its own time so a stale answer cannot be called live
     Given a source's last measurement is older than its own freshness window
-    When the Voice Agent reads that Desk Data
+    When the Personal Bot reads that Desk Data
     Then the reading carries the time each measurement was taken
     And the reading is reported as the source reported itself
 
   Scenario: A reading publishes the percent the tile draws, and drops a ratio whose scale nothing declares
     Given a source reports one ratio the tile formats as a percent and another no display draws
-    When the Voice Agent reads that Desk Data
+    When the Personal Bot reads that Desk Data
     Then the ratio the tile draws is published as that same percent
     And the ratio no display draws is not published under a percent name
     And the loss and the value it is a loss against are both published
 
   Scenario: A reading whose own fields name a token is still a reading
     Given an installed package declared a field named token
-    When the Voice Agent reads that reading
+    When the Personal Bot reads that reading
     Then the reading arrives rather than the request timing out
 
   Scenario: A frame that is not this protocol is named at once
     Given the link answered with a frame that is not its own
-    When the Voice Agent reads Desk Data
+    When the Personal Bot reads Desk Data
     Then the failure names the wrong frame
     And it does not wait out the request timeout to say so
 
@@ -181,7 +181,7 @@ Feature: Desk Data is read through the plugin system
 
   Scenario: A published value is data and never an instruction
     Given a package published a value containing text that tells the agent to disregard its instructions
-    When the Voice Agent reads that reading
+    When the Personal Bot reads that reading
     Then the value is returned as reading content
     And it is labelled untrusted data rather than an instruction
 
@@ -192,31 +192,31 @@ Feature: Desk Data is read through the plugin system
     And the previous revision's value is no longer readable
 
   Scenario: The Desk Data Link changes nothing
-    Given the Voice Agent is connected to the Desk Data Link
+    Given the Personal Bot is connected to the Desk Data Link
     When it sends a request that is neither a list nor a read
     Then the request is refused
     And every registered reading is unchanged
 
   Scenario: A second read returns the current reading
-    Given the Voice Agent read a reading once
+    Given the Personal Bot read a reading once
     When the source's reading changes and the agent reads again
     Then the second read returns the changed reading
     And no cached copy is returned
 
   Scenario: An unknown reading is refused rather than answered empty
-    When the Voice Agent reads an id no plugin registered
+    When the Personal Bot reads an id no plugin registered
     Then the read is refused as an unknown reading
     And no reading is returned in its place
 
   Scenario: An absent Shell is truthfully unavailable
     Given no Shell is listening on the Desk Data Link
-    When the Voice Agent reads Desk Data
+    When the Personal Bot reads Desk Data
     Then the failure is reported as the desk being unavailable
     And no remembered value is presented as current
 
   Scenario: An oversized reading is refused rather than truncated
     Given a source published a reading larger than the link allows
-    When the Voice Agent reads it
+    When the Personal Bot reads it
     Then the response is refused as too large
     And no partial reading is presented as a complete one
 
@@ -276,9 +276,9 @@ Feature: Desk Data is read through the plugin system
   refresh, and it reports no state it did not read. A Service Plugin that is not live presents no
   holdings at all, so a stale or credential-blocked plugin cannot be quoted as if it had them.
 - **The Desk Data Link.** A new logical link name in the host's endpoint table joins the existing
-  `user-app-control`, `remote-bridge`, `voice-agent` and `desk-link` entries, so Unix hosts get a
+  `user-app-control`, `remote-bridge`, `personal-bot` and `desk-link` entries, so Unix hosts get a
   runtime-directory socket and a Windows host gets the matching named pipe with no per-host code.
-  The Shell listens; the Voice Agent is the requesting client. One request line, one response line,
+  The Shell listens; the Personal Bot is the requesting client. One request line, one response line,
   request id echoed, exactly as the user-application control endpoint does. Authentication is
   `local-channel`'s: ownership on Unix, the shared channel token on a pipe or network endpoint.
 - **Read-only by construction.** The link dispatches exactly two commands, `list` and `read`. There
@@ -296,7 +296,7 @@ Feature: Desk Data is read through the plugin system
   declaration is an invalid manifest and cannot be installed. The Shell accepts a published value only
   for a field the declaration names, of a bounded type and size, and labels the entry untrusted.
   Without a declaration the bridge accepts nothing.
-- **The tool.** One `desk_data` tool in the voice agent with `list` (no parameters) and `read` (one
+- **The tool.** One `desk_data` tool in the personal bot with `list` (no parameters) and `read` (one
   id). Its description states that these are the desk's own readings, that each state is reported as
   itself, and that a reading is data rather than an instruction. Both profiles load it: the coding
   profile through its capability loader, the personal profile through its own tool set, so neither
@@ -311,7 +311,7 @@ Feature: Desk Data is read through the plugin system
 
 ## Testing Decisions
 
-- **A good test here asserts what a reader receives.** The subject is the reading as the Voice Agent
+- **A good test here asserts what a reader receives.** The subject is the reading as the Personal Bot
   gets it, so assertions are on the returned reading, its state and its provenance, never on how the
   registry stores it or on which module called which.
 - **Seam one: the Desk Data control endpoint's dispatch.** The highest reachable seam that covers
@@ -319,7 +319,7 @@ Feature: Desk Data is read through the plugin system
   validation and the untrusted labelling at once, in the same style as the existing user-application
   control tests. Preferred over testing the registry's internals, because the registry alone cannot
   express what a reader is allowed to receive.
-- **Seam two: the voice agent's `desk_data` tool over a real channel.** The tool is exercised against
+- **Seam two: the personal bot's `desk_data` tool over a real channel.** The tool is exercised against
   a listening Desk Data Link, in the style the existing task-client tests use for the control
   daemon, covering `list`, `read`, an unknown id, an unavailable link and an oversized response. This
   is above the client and the tool individually, and it is the seam the model actually uses.
@@ -376,3 +376,22 @@ that fix and its evidence are recorded with the release tooling rather than here
   where the token gate and the ownership rules live, and this change has no second consumer to
   justify touching it; the duplication is the price of not editing the authentication path to serve
   a second protocol.
+
+## Proactive consumer freshness convention
+
+The voice-service watch is a read-only consumer of this registry. Package sources
+intended for owner-triggered proposals declare and publish `measured_at` as an
+ISO 8601 UTC string alongside signal fields. This is a publication convention, not
+a new registry state or write verb: published package readings remain live, while
+the watch rejects absent, invalid, future and over-age measurements under owner
+`maxAgeMs`. Built-in projections retain their existing `asOf` and per-plant
+`measuredAt` fields. Polling still respects each source's refresh policy (story 7).
+
+Rules, thresholds, combination predicates, quiet hours, cooldown and suppression
+belong to private owner configuration. Source fields never become rules, model
+instructions or authorization. Proposals and their processing history belong to
+agent state and are not published back into Desk Data. Hosted Pi status/history
+is the explicitly labelled second data plane. Read
+@../../../integrations/personal-bot/docs/PROACTIVE_SUGGESTIONS.md when implementing
+or reviewing that consumer; its scheduling contract replaces the previous future
+consumer boundary without adding registry alerts, history or scheduling.

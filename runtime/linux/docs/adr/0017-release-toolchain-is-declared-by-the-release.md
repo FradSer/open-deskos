@@ -14,9 +14,9 @@ on that device, and it moves when Corepack refreshes its cache.
 
 That drift broke an activation on the CM5:
 
-- Corepack's cache was rebuilt, so it began supplying pnpm 12.4.2 while `integrations/voice-agent`
+- Corepack's cache was rebuilt, so it began supplying pnpm 12.4.2 while `integrations/personal-bot`
   declared `devEngines.packageManager` pnpm `^11.22.0`. pnpm refuses to run under a package manager
-  that contradicts the declaration, so the voice-agent install failed with
+  that contradicts the declaration, so the personal-bot install failed with
   `ERR_PNPM_BAD_PM_VERSION`. Corepack never reads `devEngines`, so the declaration alone could not
   select a version.
 - pnpm's `verifyDepsBeforeRun` defaults to `install`, so `pnpm verify-release` ran a dependency pass
@@ -30,7 +30,7 @@ release was decided by the device at run time rather than by the release itself.
 ## Decision
 
 - Every installable project declares the pnpm that produced its lockfile in `packageManager`
-  (`pnpm@11.22.0` for `runtime/linux` and `integrations/voice-agent`), kept exactly equal to its
+  (`pnpm@11.22.0` for `runtime/linux` and `integrations/personal-bot`), kept exactly equal to its
   `devEngines.packageManager`. Corepack only reads `packageManager`, pnpm enforces both, and an
   exact agreement is what stops pnpm from warning that the declaration is ignored.
 - Both the installer and the activation path pass `COREPACK_ENABLE_PROJECT_SPEC=1`, so installs and
@@ -51,7 +51,7 @@ release was decided by the device at run time rather than by the release itself.
   different major.
 - Upgrading pnpm is a deliberate re-pin of both manifests, which invalidates lockfiles authored by
   the previous major; it is no longer something that happens by refreshing a cache.
-- Installing dependencies for the voice-agent integration now downloads pnpm 11.22.0 on the device
+- Installing dependencies for the personal-bot integration now downloads pnpm 11.22.0 on the device
   (observed as `Done in 2.7s using pnpm v11.22.0` during a successful activation), which is the
   version that authored its lockfile.
 - Verified on the CM5: activation completed, the regenerated `open-deskos-pi-tasks.service` runs

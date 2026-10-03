@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The Display Shell was written for one host, the CM5 (Linux arm64), and its platform assumptions were never separated from the shell itself: process inspection reads `ps` plus `/proc/<pid>/cwd` with an `lsof` fallback, the camera source shells out to `v4l2-ctl`, every entry point is bash, and the optional links (Remote Bridge, voice agent, Desk Link, user-app control) are Unix domain sockets. A 64-bit Windows desk is now wanted, and the transport cannot simply carry over: Node and libuv have no `AF_UNIX` on Windows in any released version, so a Windows host needs its own platform half rather than a portable path.
+The Display Shell was written for one host, the CM5 (Linux arm64), and its platform assumptions were never separated from the shell itself: process inspection reads `ps` plus `/proc/<pid>/cwd` with an `lsof` fallback, the camera source shells out to `v4l2-ctl`, every entry point is bash, and the optional links (Remote Bridge, personal bot, Desk Link, user-app control) are Unix domain sockets. A 64-bit Windows desk is now wanted, and the transport cannot simply carry over: Node and libuv have no `AF_UNIX` on Windows in any released version, so a Windows host needs its own platform half rather than a portable path.
 
 ## Decision
 
@@ -14,7 +14,7 @@ The Display Shell was written for one host, the CM5 (Linux arm64), and its platf
 - Platform-specific behaviour lives behind a platform seam inside `runtime/linux/src/platform/`, not in a second runtime tree, so one release pipeline, one test suite, and one set of Widget/App contracts keep serving both hosts.
 - On Windows the seam owns process inspection, state and device locations, executable-name rules, and endpoint naming. Endpoint naming keeps the Unix-socket shape of the existing links and maps it to a Windows named pipe, so a ported link does not invent a second protocol.
 - Windows process inspection is owned by an optional native module: `CreateToolhelp32Snapshot` for process identity and parentage, `GetProcessTimes` for start time, and a PEB read over `ReadProcessMemory` for command line and working directory. PowerShell is the degradation source only when the module cannot load.
-- The Windows host does not port the Remote Bridge, Voice Agent, or Desk Link. Those surfaces report unavailable rather than degraded, guessed, or silently local, under the same rule that an unaccepted peripheral cannot block base-shell operation.
+- The Windows host does not port the Remote Bridge, Personal Bot, or Desk Link. Those surfaces report unavailable rather than degraded, guessed, or silently local, under the same rule that an unaccepted peripheral cannot block base-shell operation.
 - Native module build failure must never block shell start. The module is an optional dependency, and its absence degrades the Session Work Directory to unknown.
 
 ## Considered Options

@@ -68,7 +68,7 @@ function fakeHost() {
 }
 
 /** Mirrors the real Pi host's history contract: it REFUSES a page larger than 100 entries
- *  (integrations/voice-agent/src/task-service.mjs) and breaks a page on bytes, so a mock that
+ *  (integrations/personal-bot/src/task-service.mjs) and breaks a page on bytes, so a mock that
  *  merely clamps the limit would certify behaviour the real host never produces. */
 const HOST_HISTORY_BYTES = 192 * 1024
 

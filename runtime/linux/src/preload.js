@@ -28,18 +28,19 @@ contextBridge.exposeInMainWorld('odkUserApps', {
   },
 })
 
-contextBridge.exposeInMainWorld('odkVoice', {
+contextBridge.exposeInMainWorld('odkPersonalBot', {
   onMic(listener) {
     const handler = () => listener()
-    ipcRenderer.on('odk-voice-mic', handler)
-    return () => ipcRenderer.removeListener('odk-voice-mic', handler)
+    ipcRenderer.on('odk-personal-bot-mic', handler)
+    return () => ipcRenderer.removeListener('odk-personal-bot-mic', handler)
   },
-  toggle: () => ipcRenderer.invoke('odk-voice-toggle'),
-  getStatus: () => ipcRenderer.invoke('odk-voice-status'),
+  toggle: () => ipcRenderer.invoke('odk-personal-bot-toggle'),
+  getStatus: () => ipcRenderer.invoke('odk-personal-bot-status'),
+  proposalCommand: (command) => ipcRenderer.invoke('odk-personal-bot-proposal', command),
   subscribe(listener) {
     const handler = (_event, update) => listener(update)
-    ipcRenderer.on('odk-voice-status', handler)
-    return () => ipcRenderer.removeListener('odk-voice-status', handler)
+    ipcRenderer.on('odk-personal-bot-status', handler)
+    return () => ipcRenderer.removeListener('odk-personal-bot-status', handler)
   },
 })
 

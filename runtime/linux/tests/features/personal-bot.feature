@@ -1,9 +1,9 @@
-Feature: Independent resident voice agent
+Feature: Independent resident personal bot
   Scenario: Remote microphone asks the renderer before controlling recording
-    Given the CM5 voice service is connected and no interaction has been activated
+    Given the CM5 personal bot service is connected and no interaction has been activated
     When the Remote sends mic
     Then preload delivers one argument-free MIC intent to the renderer
-    And one recording toggle is sent to the resident voice service
+    And one recording toggle is sent to the resident personal bot service
     And no prompt is sent to the Pi Sessions monitor
 
   Scenario Outline: MIC restores hidden feedback before changing recording
@@ -52,24 +52,24 @@ Feature: Independent resident voice agent
     And a subsequent new recording clears the old input and reply and resets scroll
 
   Scenario: Missing service is truthful and never replays a microphone click
-    Given the voice service is unavailable
+    Given the personal bot service is unavailable
     When the Remote sends mic
     Then voice status is unavailable
     And reconnecting does not replay the toggle
 
   Scenario: Voice status is bounded and validated
-    Given the voice service connection is active
+    Given the personal bot service connection is active
     When malformed or oversized status records arrive
     Then they are not displayed as valid agent state
 
-  Scenario: Starting and stopping Voice Agent acknowledge immediately
-    Given the resident voice service is connected and idle
+  Scenario: Starting and stopping Personal Bot acknowledge immediately
+    Given the resident personal bot service is connected and idle
     When MIC starts or stops a voice request
     Then the shell shows starting or sending feedback before the next service status arrives
     And the feedback distinguishes listening, transcription, Pi execution, completion, and failure with persistent text
 
   Scenario: The shell displays recording and execution feedback
-    Given the voice service publishes recording or thinking state
+    Given the personal bot service publishes recording or thinking state
     When the shell receives the status
     Then a fullscreen voice overlay displays a secondary stage label without a process headline
     And recording shows one microphone icon and only one line saying Listening
@@ -87,12 +87,12 @@ Feature: Independent resident voice agent
 
   Scenario: Voice feedback distinguishes outcomes without color alone
     Given a voice interaction has been activated
-    And the voice service publishes unavailable or error state
+    And the personal bot service publishes unavailable or error state
     When the shell receives the status
     Then the instrument uses persistent stage text and a state symbol
     And the recovery copy names the next action when voice is unavailable or fails
 
-  Scenario: Background voice service status does not open feedback
+  Scenario: Background personal bot service status does not open feedback
     Given no voice interaction has been activated
     When idle, unavailable, or error snapshots arrive including previous result text
     Then the voice surface remains hidden

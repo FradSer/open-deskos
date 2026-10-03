@@ -1,60 +1,60 @@
 #!/usr/bin/env bash
 # Sourced by cm5-install.sh after resolving the kiosk user and release paths.
 
-prepare_voice_agent_release() {
+prepare_personal_bot_release() {
   local version major minor
   version="$(run_as_target_user "${NODE_BIN}/node" --version)"
   if [[ ! "$version" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    echo "Voice agent requires Node >=22.19.0; could not verify selected Node" >&2
+    echo "Personal Bot requires Node >=22.19.0; could not verify selected Node" >&2
     return 1
   fi
   major="${BASH_REMATCH[1]}"
   minor="${BASH_REMATCH[2]}"
   if (( major < 22 || (major == 22 && minor < 19) )); then
-    echo "Voice agent requires Node >=22.19.0; selected ${version}. Upgrade Node before staging." >&2
+    echo "Personal Bot requires Node >=22.19.0; selected ${version}. Upgrade Node before staging." >&2
     return 1
   fi
-  local destination="${RELEASE_DIR}/integrations/voice-agent"
+  local destination="${RELEASE_DIR}/integrations/personal-bot"
   run_as_target_user mkdir -p "${destination}"
   # Only deploy runtime inputs, never a developer's auth, state, or node_modules.
   for entry in package.json pnpm-lock.yaml src systemd; do
-    run_as_target_user cp -a "${VOICE_AGENT_SOURCE}/${entry}" "${destination}/"
+    run_as_target_user cp -a "${PERSONAL_BOT_SOURCE}/${entry}" "${destination}/"
   done
   (cd "${destination}" && run_as_target_user pnpm install --prod --frozen-lockfile --ignore-scripts)
 }
 
-# The Voice Agent and Hosted Pi control are required components of the runtime, so their units are
+# The Personal Bot and Hosted Pi control are required components of the runtime, so their units are
 # staged from the candidate release before activation: a staging failure fails the installation while
 # the previous release is still the active one. Starting them is a separate step, because the unit
 # must run the release that activation selects.
-stage_voice_agent_service() {
-  local template="${RELEASE_DIR}/integrations/voice-agent"
-  local install_dir="${RUNTIME_ROOT}/current/integrations/voice-agent"
+stage_personal_bot_service() {
+  local template="${RELEASE_DIR}/integrations/personal-bot"
+  local install_dir="${RUNTIME_ROOT}/current/integrations/personal-bot"
   local unit_dir="${TARGET_HOME}/.config/systemd/user"
-  local unit="${unit_dir}/open-deskos-voice-agent.service"
+  local unit="${unit_dir}/open-deskos-personal-bot.service"
   $SUDO apt-get install -y alsa-utils || return 1
   if getent group audio >/dev/null 2>&1; then
     $SUDO usermod -a -G audio "${TARGET_USER}" || return 1
   fi
   run_as_target_user mkdir -p "${unit_dir}" || return 1
-  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${install_dir}|g" \
+  sed -e "s|__OPEN_DESKOS_PERSONAL_BOT_DIR__|${install_dir}|g" \
     -e "s|__OPEN_DESKOS_NODE_BIN__|${NODE_BIN}|g" \
-    "${template}/systemd/open-deskos-voice-agent.service" > "${unit}" || return 1
+    "${template}/systemd/open-deskos-personal-bot.service" > "${unit}" || return 1
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
   run_as_target_user systemctl --user daemon-reload || return 1
-  run_as_target_user systemctl --user enable open-deskos-voice-agent.service
+  run_as_target_user systemctl --user enable open-deskos-personal-bot.service
 }
 
 # Stages the hosted Pi session service on the stable release symlink, so an operator never
 # substitutes a dated releases/<id> path that the next update replaces and locks.
 stage_task_host_service() {
-  local template="${RELEASE_DIR}/integrations/voice-agent"
-  local install_dir="${RUNTIME_ROOT}/current/integrations/voice-agent"
+  local template="${RELEASE_DIR}/integrations/personal-bot"
+  local install_dir="${RUNTIME_ROOT}/current/integrations/personal-bot"
   local unit_dir="${TARGET_HOME}/.config/systemd/user"
   local unit="${unit_dir}/open-deskos-pi-tasks.service"
   run_as_target_user mkdir -p "${unit_dir}" || return 1
-  sed -e "s|__OPEN_DESKOS_VOICE_AGENT_DIR__|${install_dir}|g" \
+  sed -e "s|__OPEN_DESKOS_PERSONAL_BOT_DIR__|${install_dir}|g" \
     -e "s|__OPEN_DESKOS_NODE_BIN__|${NODE_BIN}|g" \
     "${template}/systemd/open-deskos-pi-tasks.service" > "${unit}" || return 1
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
@@ -84,7 +84,11 @@ stage_desk_link_service() {
 # already restarted them through the transaction skips this without a second interruption.
 start_required_services() {
   local config="${TARGET_HOME}/.config/open-deskos/pi-tasks.json"
-  run_as_target_user systemctl --user start open-deskos-voice-agent.service || return 1
+  if [ -f "${TARGET_HOME}/.config/systemd/user/open-deskos-voice-agent.service" ]; then
+    run_as_target_user systemctl --user disable --now open-deskos-voice-agent.service || return 1
+  fi
+  run_as_target_user "${NODE_BIN}/node" "${RUNTIME_ROOT}/current/integrations/personal-bot/src/migrate-personal-bot.mjs" || return 1
+  run_as_target_user systemctl --user start open-deskos-personal-bot.service || return 1
   # Desk Link is a listener on the LAN, so it starts only when its own secret exists. Staged without
   # one it stays stopped rather than running unauthenticated.
   if [ -f "${TARGET_HOME}/.config/systemd/user/open-deskos-desk-link.service" ]; then

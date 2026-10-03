@@ -1,6 +1,6 @@
 Feature: Microphone intent preserves background voice requests
   Scenario: Remote microphone lets the Shell decide whether to restore feedback
-    Given a resident Voice Agent and Shell are available
+    Given a resident Personal Bot and Shell are available
     When Remote MIC is pressed
     Then the Shell receives a microphone intent
     And no recording toggle or fabricated Preparing state is sent before the Shell decides

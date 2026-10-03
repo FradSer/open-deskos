@@ -22,7 +22,7 @@ test('the reference host keeps the Linux state directory and socket endpoints', 
   assert.equal(host.runtimeDir, '/run/user/1000')
   assert.equal(host.endpoint('user-app-control'), path.join('/run/user/1000', 'open-deskos-apps', 'control.sock'))
   assert.equal(host.endpoint('remote-bridge'), path.join('/run/user/1000', 'open-deskos-remote', 'bridge.sock'))
-  assert.equal(host.endpoint('voice-agent'), path.join('/run/user/1000', 'open-deskos-voice', 'agent.sock'))
+  assert.equal(host.endpoint('personal-bot'), path.join('/run/user/1000', 'open-deskos-personal-bot', 'agent.sock'))
   assert.equal(host.endpoint('desk-link'), path.join('/run/user/1000', 'open-deskos-desk-link', 'service.sock'))
   assert.equal(host.provisionsUserAppControl, true)
 })
@@ -51,7 +51,7 @@ test('a Windows host resolves Windows state and pipe endpoints', () => {
   assert.equal(host.runtimeDir, null)
   assert.equal(host.endpoint('user-app-control'), '\\\\.\\pipe\\open-deskos-user-app-control')
   assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\open-deskos-remote-bridge')
-  assert.equal(host.endpoint('voice-agent'), '\\\\.\\pipe\\open-deskos-voice-agent')
+  assert.equal(host.endpoint('personal-bot'), '\\\\.\\pipe\\open-deskos-personal-bot')
   assert.equal(host.endpoint('desk-link'), '\\\\.\\pipe\\open-deskos-desk-link')
   assert.equal(host.localChannelTokenFile, 'C:\\Users\\desk\\AppData\\Local\\open-deskos\\local-channel.token')
   // The pipe exists for an external agent; it is bound, and the channel token is

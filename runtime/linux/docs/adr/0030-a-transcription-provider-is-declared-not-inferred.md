@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The voice agent transcribes through one shape: a multipart audio upload carrying `model`, `language`, `prompt` and the file, which is the OpenAI transcription contract and what a loopback whisper.cpp bridge imitates. Device-local speech on the reference host already has a service for that, `integrations/local-stt-bridge`, so a CM5 never needs a cloud credential to hear a Spoken Turn.
+The personal bot transcribes through one shape: a multipart audio upload carrying `model`, `language`, `prompt` and the file, which is the OpenAI transcription contract and what a loopback whisper.cpp bridge imitates. Device-local speech on the reference host already has a service for that, `integrations/local-stt-bridge`, so a CM5 never needs a cloud credential to hear a Spoken Turn.
 
 A second shell host changes that. The 64-bit Windows handheld has no local ASR model provisioned, no bridge, and no ALSA capture, and a bridge plus a model per handheld is a large thing to ask of a machine that mostly displays. The owner's requirement is that voice still work there, and that the cloud path be the one they already pay for: Alibaba Cloud's Qwen ASR.
 
@@ -16,9 +16,9 @@ The module already infers one thing from the endpoint: a loopback URL with pathn
 
 ## Decision
 
-- `ODESK_VOICE_STT_PROVIDER` declares the request shape the endpoint expects: `openai` (the multipart upload, the default, unchanged) or `aliyun` (the DashScope JSON request). It is validated with the same validators as language and context, before any file access or network use, and its value never appears in an error.
+- `ODESK_PERSONAL_BOT_STT_PROVIDER` declares the request shape the endpoint expects: `openai` (the multipart upload, the default, unchanged) or `aliyun` (the DashScope JSON request). It is validated with the same validators as language and context, before any file access or network use, and its value never appears in an error.
 - Nothing about the provider is inferred from the URL. A gateway, Alibaba's own endpoint, or a future mirror is the same declared provider pointed at a different address.
-- The aliyun provider reads its bearer from `ALIYUNCS_TOKEN`, the OpenAI provider keeps reading `ODESK_VOICE_STT_KEY_FILE`. Two providers, two declared credentials; neither provider falls back to the other's.
+- The aliyun provider reads its bearer from `ALIYUNCS_TOKEN`, the OpenAI provider keeps reading `ODESK_PERSONAL_BOT_STT_KEY_FILE`. Two providers, two declared credentials; neither provider falls back to the other's.
 - The desk's own inputs keep their meaning in the cloud shape: an explicit language code is the provider's language hint, `auto` turns on the provider's language identification instead of omitting the field, inverse text normalization stays off, the transcription context becomes a `system` message and an empty context omits that message, and the Simplified Chinese normalization, the display bound, the 25,000,000-byte upload limit, the 45-second timeout, the 64 KiB response bound and the safe failure vocabulary are unchanged.
 - A cloud desk needs no local model: `ODK_STT_PORT` and the bridge belong to the device-local shape, and a declared cloud provider wins over them.
 

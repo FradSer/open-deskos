@@ -41,6 +41,7 @@ function readersByFile() {
       reader.lastIndex = 0
       let match
       while ((match = reader.exec(source))) {
+        if (match[1].endsWith('_')) continue // Migration namespace prefixes are not settings.
         if (!found.has(match[1])) found.set(match[1], new Set())
         found.get(match[1]).add(path.relative(REPO_ROOT, file))
       }
@@ -128,7 +129,7 @@ test('every variable a unit or launch agent declares is inventoried', () => {
 // the inventory says so in its own words, and this check keeps the two from drifting apart.
 test('the inventory marks the values a device must not restate', () => {
   const rows = inventory()
-  assert.match(rows.get('ODESK_VOICE_STT_MODEL').note, /无需设置/)
+  assert.match(rows.get('ODESK_PERSONAL_BOT_STT_MODEL').note, /无需设置/)
   assert.match(rows.get('ODK_STT_PORT').note, /唯一声明/)
   assert.equal(rows.get('PI_SESSION_CONTROL_COMMAND'), undefined, 'the removed session-control bridge must not return to the inventory')
 })

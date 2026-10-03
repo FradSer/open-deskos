@@ -9,7 +9,7 @@ Feature: Open DeskOS repository architecture
   Scenario: Repository topology contracts run only in a source checkout
     Given a contributor runs repository architecture checks from a Git checkout
     When git-agent classifies a contribution
-    Then it uses concise scopes for CM5, hardware, link, vision, S31, P4, and Mac work
+    Then it uses concise scopes for Shell, hardware, link, vision, P4, Mac, tooling, and experiments
     And it does not retain scopes for the removed app or firmware roots
     But a deployed runtime slice does not require preserved research source trees or Git metadata
 

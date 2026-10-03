@@ -82,10 +82,10 @@ app.whenReady().then(async () => {
   // Existing App pages retain their DOM position; add another after Counter.
   await update([...apps, { ...interactive, id: 'later', name: 'Later' }])
   await wait(`document.querySelectorAll('#dots .dot').length === 8`)
-  await js(`document.querySelectorAll('#dots .dot')[7].click(); window.savedVoice=odkVoiceStatus; window.odkVoiceStatus={visible:()=>true}; true`)
+  await js(`document.querySelectorAll('#dots .dot')[7].click(); window.savedVoice=odkPersonalBotStatus; window.odkPersonalBotStatus={visible:()=>true}; true`)
   await update([widget('r2', 'home'), interactive, { ...interactive, id: 'later', name: 'Later' }])
   assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Page 7, Later')
-  await js(`window.odkVoiceStatus=window.savedVoice; true`)
+  await js(`window.odkPersonalBotStatus=window.savedVoice; true`)
   failure = true; await update(apps)
   await wait(`document.querySelector('#user-app-desktop-status').dataset.state === 'unavailable'`)
   assert.match(await js(`document.querySelector('#user-app-desktop-status').textContent`), /stale/)

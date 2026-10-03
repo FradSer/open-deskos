@@ -119,8 +119,8 @@ function restartServices(releaseId, kiosk) {
     console.error('Desk Link restart did not complete; restart it to run the active release, and the desk keeps reporting either way.')
   }
 
-  const voiceResult = restartRequiredService(releaseId, kiosk, 'open-deskos-voice-agent.service', 'required voice component')
-  if (voiceResult.ok === false) return voiceResult
+  const botResult = restartRequiredService(releaseId, kiosk, 'open-deskos-personal-bot.service', 'required Personal Bot component')
+  if (botResult.ok === false) return botResult
   const tasksResult = restartRequiredService(releaseId, kiosk, 'open-deskos-pi-tasks.service', 'required Hosted Pi control')
   if (tasksResult.ok === false) return tasksResult
   return { ok: true }

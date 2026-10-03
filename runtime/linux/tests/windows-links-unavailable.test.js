@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { createVoiceAgentClient, resolveVoiceSocketPath } = require('../src/voice-agent-client')
+const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 const { createRemoteBridgeClient, resolveRemoteBridgeSocketPath } = require('../src/remote-bridge-client')
 const { createDeskLinkClient, resolveDeskLinkSocketPath } = require('../src/desk-link-client')
 const { resolveShellHost } = require('../src/platform')
@@ -14,13 +14,13 @@ const WINDOWS_ENV = {}
 const WINDOWS_HOST = process.platform === 'win32'
 
 test('a link that is not ported to this host resolves no endpoint', () => {
-  assert.equal(resolveVoiceSocketPath(WINDOWS_ENV), resolveDeskLinkSocketPath(WINDOWS_ENV))
+  assert.equal(resolvePersonalBotSocketPath(WINDOWS_ENV), resolveDeskLinkSocketPath(WINDOWS_ENV))
   assert.equal(resolveRemoteBridgeSocketPath(WINDOWS_ENV), null)
 
   // A Unix host needs a runtime directory for a ported link; a Windows host has no
   // such directory and binds the named pipe instead, which the channel token
   // authenticates because a pipe carries no owner.
-  for (const [name, pipe] of [['voice-agent', 'open-deskos-voice-agent'], ['desk-link', 'open-deskos-desk-link']]) {
+  for (const [name, pipe] of [['personal-bot', 'open-deskos-personal-bot'], ['desk-link', 'open-deskos-desk-link']]) {
     assert.equal(
       resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\desk' }).endpoint(name),
       `\\\\.\\pipe\\${pipe}`,
@@ -36,7 +36,7 @@ test('a link that is not ported to this host resolves no endpoint', () => {
 })
 
 test('the voice surface reads unavailable without a local endpoint', () => {
-  const client = createVoiceAgentClient({ socketPath: resolveVoiceSocketPath(WINDOWS_ENV) })
+  const client = createPersonalBotClient({ socketPath: resolvePersonalBotSocketPath(WINDOWS_ENV) })
 
   assert.equal(client.snapshot().state, 'unavailable')
   assert.equal(client.toggle(), false, 'a toggle cannot be accepted without a service')

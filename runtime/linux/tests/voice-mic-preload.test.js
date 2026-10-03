@@ -17,9 +17,9 @@ test('preload microphone intent is subscribed and removed without toggling captu
     }),
   })
   let calls = 0
-  const unsubscribe = exposed.odkVoice.onMic(() => { calls++ })
-  listeners.get('odk-voice-mic')({})
+  const unsubscribe = exposed.odkPersonalBot.onMic(() => { calls++ })
+  listeners.get('odk-personal-bot-mic')({})
   assert.equal(calls, 1)
   unsubscribe()
-  assert.equal(listeners.has('odk-voice-mic'), false)
+  assert.equal(listeners.has('odk-personal-bot-mic'), false)
 })

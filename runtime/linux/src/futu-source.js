@@ -19,7 +19,7 @@ function resolveEndpoint(def, runtimeDir) {
   return path.join(runtimeDir, declared)
 }
 
-function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken = '', stateDir = '', onReject = () => {}, now = () => Date.now() } = {}) {
+function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken = '', stateDir = '', onReject = () => {}, onUpdate = (_id) => {}, now = () => Date.now() } = {}) {
   const latest = new Map()
   const servers = new Map()
 
@@ -64,7 +64,7 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
         stateDir,
         services: { [id]: { revision: def.revision } },
         onReject,
-        onSnapshot: (record) => latest.set(record.service, record),
+        onSnapshot: (record) => { latest.set(record.service, record); onUpdate(record.service) },
         onStatus: (status) => {
           if (status.service && status.state === 'disconnected') {
             const current = latest.get(status.service)

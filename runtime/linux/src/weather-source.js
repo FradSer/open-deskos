@@ -116,6 +116,7 @@ function createWeatherSource(options = {}) {
     locationTimeoutMs,
     locationRefreshMs,
     locationUrl,
+    onUpdate = () => {},
   } = options
   // An explicitly passed value wins, including an explicit null: that is how a smoke
   // run asks for no location instead of inheriting the desk's configured one.
@@ -214,6 +215,7 @@ function createWeatherSource(options = {}) {
       if (!reading) throw new Error('provider payload was not a usable reading')
       state = { status: 'live', place: label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily, updatedAt: stamp, hint: null, error: null, locationSource: locationSource() }
       save({ place: label(), current: reading.current, daily: reading.daily, updatedAt: stamp })
+      onUpdate()
     } catch (error) {
       const message = error?.name === 'AbortError' ? `provider timed out after ${timeoutMs} ms` : (error?.message || 'provider unavailable')
       const kept = state.current

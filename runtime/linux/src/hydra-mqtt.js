@@ -14,7 +14,7 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function createHydraStore({ topicPrefix = 'hydra' } = {}) {
+function createHydraStore({ topicPrefix = 'hydra', onUpdate = () => {} } = {}) {
   const root = topicPrefix.split('/')[0]
   const prefix = `${root}/`
   let connected = false
@@ -156,8 +156,9 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
     applyMessage(topic, payload, now = Date.now(), { retained = false } = {}) {
       if (typeof topic !== 'string' || !topic.startsWith(prefix)) return false
       const rest = topic.slice(prefix.length)
-      if (rest.startsWith('main/')) return applyMainMessage(rest.slice(5), payload, now, retained)
-      return applyNodeMessage(rest, payload, now, retained)
+      const accepted = rest.startsWith('main/') ? applyMainMessage(rest.slice(5), payload, now, retained) : applyNodeMessage(rest, payload, now, retained)
+      if (accepted) onUpdate()
+      return accepted
     },
     snapshot(now = Date.now()) {
       const envStale = !envLive || !env || now - env.updatedAt > ENV_STALE_MS
@@ -185,7 +186,7 @@ function createHydraStore({ topicPrefix = 'hydra' } = {}) {
   }
 }
 
-function createHydraSource({ url, topicPrefix } = {}) {
+function createHydraSource({ url, topicPrefix, onUpdate = () => {} } = {}) {
   if (!url) {
     return {
       configured: false,
@@ -194,7 +195,7 @@ function createHydraSource({ url, topicPrefix } = {}) {
     }
   }
 
-  const store = createHydraStore({ topicPrefix })
+  const store = createHydraStore({ topicPrefix, onUpdate })
   let client = null
   let lastAttempt = 0
   const RETRY_MS = 30000

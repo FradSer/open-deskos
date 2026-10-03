@@ -223,6 +223,8 @@ async function run(win, check, setSessions, setEvents = () => {}) {
   // A Mac over SSH source keeps no local session log, so its events can only come
   // from what that machine reported. The detail must ask rather than refuse, and
   // when nothing arrived it says so naming the machine instead of rendering nothing.
+  const priorRemoteEvents = await win.webContents.executeJavaScript(`window.odkPlatform.getPiSessionEvents({ cwd: '/example/workspace', sessionId: 'remote-fixture' })`)
+  setEvents({ ok: false, reason: 'session-log-missing', events: [] })
   setSessions({ source: { kind: 'ssh', label: 'Mac / SSH · test-mac' }, summary: localFixture.summary, sessions: localFixture.sessions })
   await enterPage()
   const remote = await win.webContents.executeJavaScript(`(async () => {
@@ -243,6 +245,7 @@ async function run(win, check, setSessions, setEvents = () => {}) {
   check('Pi refinement: a Mac over SSH source asks the machine that keeps its events', /no session log is available for this session on Mac \/ SSH/i.test(remote.detail), remote)
   check('Pi refinement: a Mac over SSH source still states the session directory', remote.subtitle.includes('/'), remote)
   check('Pi refinement: the Mac source is not named inside the session detail', !remote.identity.includes('Mac / SSH'), remote)
+  setEvents(priorRemoteEvents)
 
   setSessions(localFixture)
   await enterPage()

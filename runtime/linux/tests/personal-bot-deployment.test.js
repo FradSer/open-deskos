@@ -11,18 +11,18 @@ const { spawnSync } = require('node:child_process')
 
 const installer = fs.readFileSync('scripts/cm5-install.sh', 'utf8')
 const stage = fs.readFileSync('scripts/cm5-stage-release.sh', 'utf8')
-const helperPath = path.resolve('scripts/cm5-voice-agent.sh')
+const helperPath = path.resolve('scripts/cm5-personal-bot.sh')
 
 // A development checkout keeps integrations beside runtime/linux; a release flattens runtime/linux
 // and seals integrations at its own root, while the runtime root may hold an unrelated integrations
 // tree. Resolve the one that actually carries the integration under test instead of assuming depth.
 function integrationTree() {
   for (const base of ['integrations', '../../integrations']) {
-    const candidate = path.join(base, 'voice-agent')
+    const candidate = path.join(base, 'personal-bot')
     if (fs.existsSync(path.join(candidate, 'package.json')) &&
       fs.existsSync(path.join(candidate, 'systemd/open-deskos-pi-tasks.service'))) return candidate
   }
-  throw new Error(`voice-agent integration tree not found from ${process.cwd()}`)
+  throw new Error(`personal-bot integration tree not found from ${process.cwd()}`)
 }
 
 test('integration staging excludes host dependencies and private auth/config', () => {
@@ -34,32 +34,32 @@ test('integration staging excludes host dependencies and private auth/config', (
 })
 
 test('required components are staged before activation and started after it', () => {
-  assert.match(installer, /source "\$\{DIR\}\/scripts\/cm5-voice-agent.sh"/)
-  const preparation = installer.indexOf('prepare_voice_agent_release')
+  assert.match(installer, /source "\$\{DIR\}\/scripts\/cm5-personal-bot.sh"/)
+  const preparation = installer.indexOf('prepare_personal_bot_release')
   const activation = installer.indexOf('scripts/update-runtime.js')
   const shellUnit = installer.indexOf('KIOSK_UNIT_DIR=')
   assert.ok(preparation < activation, 'the candidate carries the integration before activation')
-  assert.ok(shellUnit < installer.indexOf('stage_voice_agent_service'), 'the shell unit is written before the required components')
-  assert.ok(installer.indexOf('stage_voice_agent_service') < activation)
+  assert.ok(shellUnit < installer.indexOf('stage_personal_bot_service'), 'the shell unit is written before the required components')
+  assert.ok(installer.indexOf('stage_personal_bot_service') < activation)
   assert.ok(installer.indexOf('stage_task_host_service') < activation)
   assert.ok(installer.indexOf('start_required_services') > activation, 'required services start after activation')
-  assert.doesNotMatch(installer, /(?:Requires|Wants)=open-deskos-voice/)
+  assert.doesNotMatch(installer, /(?:Requires|Wants)=open-deskos-personal-bot/)
 })
 
 test('a required component that cannot be staged fails the installation naming its configuration', () => {
-  assert.match(installer, /stage_voice_agent_service \|\| \{/)
-  assert.match(installer, /Required Voice Agent component could not be installed.*voice-agent\.env/s)
+  assert.match(installer, /stage_personal_bot_service \|\| \{/)
+  assert.match(installer, /Required Personal Bot component could not be installed.*personal-bot\.env/s)
   assert.match(installer, /stage_task_host_service \|\| \{/)
   assert.match(installer, /Required Hosted Pi control component could not be installed.*pi-tasks\.json/s)
   assert.match(installer, /stage_desk_link_service \|\| \{/)
   assert.match(installer, /Desk Link unit could not be staged/)
   assert.match(installer, /start_required_services \|\| \{/)
-  assert.doesNotMatch(installer, /install_voice_agent_service \|\| echo/)
+  assert.doesNotMatch(installer, /install_personal_bot_service \|\| echo/)
   assert.doesNotMatch(installer, /install_task_host_service \|\| echo/)
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-required-stage-'))
   try {
-    fs.mkdirSync(path.join(dir, 'release/integrations/voice-agent/systemd'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'release/integrations/personal-bot/systemd'), { recursive: true })
     const staged = spawnSync('bash', ['-c', `
       set -euo pipefail
       source "$1"
@@ -72,10 +72,10 @@ test('a required component that cannot be staged fails the installation naming i
       systemctl() { :; }
       apt-get() { :; }
       usermod() { :; }
-      stage_voice_agent_service
+      stage_personal_bot_service
     `, 'test', helperPath, dir], { encoding: 'utf8' })
     assert.notEqual(staged.status, 0, 'staging without the candidate service unit must fail')
-    assert.equal(fs.existsSync(path.join(dir, 'home/.config/systemd/user/open-deskos-voice-agent.service')), false,
+    assert.equal(fs.existsSync(path.join(dir, 'home/.config/systemd/user/open-deskos-personal-bot.service')), false,
       'a failed staging leaves no unit behind')
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -88,14 +88,14 @@ test('voice preparation rejects unsupported Node before creating candidate files
     source "$1"
     NODE_BIN=/selected RELEASE_DIR=/unused
     run_as_target_user() { printf 'v22.14.0\\n'; }
-    prepare_voice_agent_release
+    prepare_personal_bot_release
   `, 'test', helperPath], { encoding: 'utf8' })
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /Node >=22\.19\.0/)
 })
 
 test('voice packaging installs frozen production dependencies in release only', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-voice-deploy-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-personal-bot-deploy-'))
   try {
     fs.mkdirSync(path.join(dir, 'source'))
     fs.mkdirSync(path.join(dir, 'release'))
@@ -107,17 +107,17 @@ test('voice packaging installs frozen production dependencies in release only', 
     const packaged = spawnSync('bash', ['-c', `
       set -euo pipefail
       source "$1"
-      VOICE_AGENT_SOURCE="$2/source"
+      PERSONAL_BOT_SOURCE="$2/source"
       RELEASE_DIR="$2/release"
       NODE_BIN="${path.dirname(process.execPath)}"
       LOG="$2/log"
       run_as_target_user() { if [ "$1" = pnpm ]; then printf '%s\\n' "$PWD:$*" >> "$LOG"; else "$@"; fi; }
-      prepare_voice_agent_release
+      prepare_personal_bot_release
     `, 'test', helperPath, dir], { encoding: 'utf8' })
     assert.equal(packaged.status, 0, packaged.stderr)
-    assert.ok(fs.existsSync(path.join(dir, 'release/integrations/voice-agent/package.json')))
-    assert.equal(fs.existsSync(path.join(dir, 'release/integrations/voice-agent/auth.json')), false)
-    assert.equal(fs.readFileSync(path.join(dir, 'log'), 'utf8').trim(), `${dir}/release/integrations/voice-agent:pnpm install --prod --frozen-lockfile --ignore-scripts`)
+    assert.ok(fs.existsSync(path.join(dir, 'release/integrations/personal-bot/package.json')))
+    assert.equal(fs.existsSync(path.join(dir, 'release/integrations/personal-bot/auth.json')), false)
+    assert.equal(fs.readFileSync(path.join(dir, 'log'), 'utf8').trim(), `${dir}/release/integrations/personal-bot:pnpm install --prod --frozen-lockfile --ignore-scripts`)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
@@ -128,9 +128,9 @@ test('required units are staged from the candidate on the stable runtime path', 
   try {
     const home = path.join(dir, 'home')
     const releaseRoot = path.join(dir, 'runtime/releases/20260101T000000Z-1')
-    const candidate = path.join(releaseRoot, 'integrations/voice-agent')
+    const candidate = path.join(releaseRoot, 'integrations/personal-bot')
     fs.mkdirSync(path.join(candidate, 'systemd'), { recursive: true })
-    for (const unit of ['open-deskos-voice-agent.service', 'open-deskos-pi-tasks.service']) {
+    for (const unit of ['open-deskos-personal-bot.service', 'open-deskos-pi-tasks.service']) {
       fs.copyFileSync(path.join(integrationTree(), 'systemd', unit), path.join(candidate, 'systemd', unit))
     }
     // Desk Link is templated at the release root, not inside the voice integration.
@@ -151,25 +151,25 @@ test('required units are staged from the candidate on the stable runtime path', 
       systemctl() { printf '%s\n' "$*" >> "$LOG"; }
       apt-get() { :; }
       usermod() { :; }
-      stage_voice_agent_service
+      stage_personal_bot_service
       stage_task_host_service
       stage_desk_link_service
     `, 'test', helperPath, dir], { encoding: 'utf8' })
     assert.equal(staged.status, 0, staged.stderr)
     const units = path.join(home, '.config/systemd/user')
     const tasks = fs.readFileSync(path.join(units, 'open-deskos-pi-tasks.service'), 'utf8')
-    const voice = fs.readFileSync(path.join(units, 'open-deskos-voice-agent.service'), 'utf8')
+    const voice = fs.readFileSync(path.join(units, 'open-deskos-personal-bot.service'), 'utf8')
     const link = fs.readFileSync(path.join(units, 'open-deskos-desk-link.service'), 'utf8')
     for (const unit of [tasks, voice, link]) {
       assert.ok(unit.includes('__OPEN_DESKOS_') === false, unit)
       assert.doesNotMatch(unit, /releases\//, 'a staged unit must use the stable runtime path')
     }
-    assert.ok(tasks.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/voice-agent/src/task-daemon.mjs`), tasks)
-    assert.ok(tasks.includes(`WorkingDirectory=${dir}/runtime/current/integrations/voice-agent`), tasks)
+    assert.ok(tasks.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/personal-bot/src/task-daemon.mjs`), tasks)
+    assert.ok(tasks.includes(`WorkingDirectory=${dir}/runtime/current/integrations/personal-bot`), tasks)
     assert.ok(link.includes(`ExecStart=/usr/bin/env node ${dir}/runtime/current/scripts/desk-link-service.js`), link)
     const calls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
     assert.match(calls, /--user daemon-reload/)
-    assert.match(calls, /--user enable open-deskos-voice-agent\.service/)
+    assert.match(calls, /--user enable open-deskos-personal-bot\.service/)
     assert.match(calls, /--user enable open-deskos-desk-link\.service/)
     assert.doesNotMatch(calls, /restart|pi-tasks/)
   } finally {
@@ -186,8 +186,10 @@ test('required services start after activation and wait for the task configurati
       source "$1"
       TARGET_HOME="$2/home"
       TARGET_USER="$(id -un)"
+      NODE_BIN="/fixture/node"
+      RUNTIME_ROOT="/fixture/runtime"
       LOG="$2/systemctl.log"
-      run_as_target_user() { "$@"; }
+      run_as_target_user() { if [[ "$1" == "$NODE_BIN/node" ]]; then printf '%s\n' "$*" >> "$LOG"; else "$@"; fi; }
       systemctl() { printf '%s\n' "$*" >> "$LOG"; }
       start_required_services
     `, 'test', helperPath, dir], { encoding: 'utf8' })
@@ -195,7 +197,8 @@ test('required services start after activation and wait for the task configurati
     const unconfigured = run()
     assert.equal(unconfigured.status, 0, unconfigured.stderr)
     const unconfiguredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
-    assert.match(unconfiguredCalls, /--user start open-deskos-voice-agent\.service/)
+    assert.match(unconfiguredCalls, /migrate-personal-bot\.mjs/)
+    assert.match(unconfiguredCalls, /--user start open-deskos-personal-bot\.service/)
     assert.doesNotMatch(unconfiguredCalls, /enable|pi-tasks/)
     assert.match(unconfigured.stderr, /staged but not enabled/)
 
@@ -256,4 +259,16 @@ test('run_as_target_user forwards its command through the kiosk environment', ()
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('Personal Bot upgrade reads existing configuration and retires old services', () => {
+  const unit = fs.readFileSync(path.join(integrationTree(), 'systemd/open-deskos-personal-bot.service'), 'utf8')
+  assert.match(unit, /EnvironmentFile=-%h\/\.config\/open-deskos\/voice-agent\.env/)
+  assert.match(fs.readFileSync('scripts/windows-personal-bot.ps1', 'utf8'), /'voice-agent\.env'.*'personal-bot\.env'/)
+  assert.match(fs.readFileSync('scripts/cm5-personal-bot.sh', 'utf8'), /disable --now open-deskos-voice-agent\.service/)
+  const windows = fs.readFileSync('scripts/provision-personal-bot.ps1', 'utf8')
+  assert.match(windows, /Disable-ScheduledTask -TaskName OdkVoice/)
+  assert.match(windows, /migrate-personal-bot\.mjs/)
+  assert.ok(windows.indexOf('migrate-personal-bot.mjs') < windows.indexOf('if ($Start)'))
+  assert.match(fs.readFileSync('scripts/cm5-personal-bot.sh', 'utf8'), /migrate-personal-bot\.mjs/)
 })

@@ -9,16 +9,16 @@ const MAX_TRANSCRIPT_CHARACTERS = 4096
 
 /**
  * The voice link is a runtime channel, so its endpoint comes from the host's own
- * naming: a socket in the runtime directory on a Unix host, and the `voice-agent`
+ * naming: a socket in the runtime directory on a Unix host, and the `personal-bot`
  * named pipe on a Windows host. A Unix host with no runtime directory still
  * resolves nothing rather than guessing where a service would listen.
  */
-function resolveVoiceSocketPath(env = process.env, host = null) {
+function resolvePersonalBotSocketPath(env = process.env, host = null) {
   const resolved = host || resolveShellHost({ env })
-  return resolved.endpoint('voice-agent')
+  return resolved.endpoint('personal-bot')
 }
 
-function createVoiceAgentClient({ socketPath, env = process.env, platform = process.platform, host = null, token = '', reconnectDelayMs = 1000 } = {}) {
+function createPersonalBotClient({ socketPath, env = process.env, platform = process.platform, host = null, token = '', reconnectDelayMs = 1000 } = {}) {
   const resolvedHost = host || resolveShellHost({ env, platform })
   // A named pipe carries no owner, so the channel token is what authenticates the
   // peer there. A Unix socket is already gated by ownership, and a client written
@@ -29,7 +29,7 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
   let connected = false
   let running = false
   let timer = null
-  let status = { state: 'unavailable', message: 'Voice service unavailable' }
+  let status = { state: 'unavailable', message: 'Personal Bot service unavailable' }
   const listeners = new Set()
 
   // The token is read when the endpoint needs one, not when the client is
@@ -46,9 +46,9 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
     for (const listener of listeners) listener({ ...status })
   }
 
-  function write(type) {
+  function write(type, payload = {}) {
     if (!connected || !socket || socket.destroyed) return false
-    socket.write(`${JSON.stringify({ v: 1, type })}\n`)
+    socket.write(`${JSON.stringify({ v: 1, type, ...payload })}\n`)
     return true
   }
 
@@ -88,6 +88,8 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
           level,
+          ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
+          ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
         })
       }
     })
@@ -96,7 +98,7 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
       if (socket !== active) return
       connected = false
       socket = null
-      publish({ state: 'unavailable', message: 'Voice service unavailable' })
+      publish({ state: 'unavailable', message: 'Personal Bot service unavailable' })
       if (running) timer = setTimeout(connect, reconnectDelayMs)
     })
   }
@@ -116,6 +118,8 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
       active?.destroy()
     },
     toggle: () => write('toggle'),
+    servicePush: (readingIds) => Array.isArray(readingIds) && readingIds.length > 0 && readingIds.length <= 32 && readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) && write('proactive_event', { readingIds }),
+    proposalCommand: ({ type, ...payload }) => ['proposal_respond', 'proposal_list', 'proposal_presented'].includes(type) && write(type, payload),
     snapshot: () => ({ ...status }),
     subscribe(listener) {
       listeners.add(listener)
@@ -125,4 +129,4 @@ function createVoiceAgentClient({ socketPath, env = process.env, platform = proc
   }
 }
 
-module.exports = { createVoiceAgentClient, resolveVoiceSocketPath }
+module.exports = { createPersonalBotClient, resolvePersonalBotSocketPath }

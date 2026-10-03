@@ -2,7 +2,7 @@
 
 ## Decision
 
-Use an Open DeskOS-owned, per-host task daemon embedding the installed Pi SDK. Run one daemon as the development user on CM5 and one on Mac. The voice agent is the coordinator; a short local/SSH stdin-JSON helper submits or queries work, then exits. The daemon, not the SSH connection, owns execution.
+Use an Open DeskOS-owned, per-host task daemon embedding the installed Pi SDK. Run one daemon as the development user on CM5 and one on Mac. The personal bot is the coordinator; a short local/SSH stdin-JSON helper submits or queries work, then exits. The daemon, not the SSH connection, owns execution.
 
 Remove the obsolete `pi-session-control` integration rather than adding a compatibility fallback. Current Pi live-session control is not a task launcher. Keep ordinary live-session delivery out of this first managed-task slice.
 
@@ -14,9 +14,9 @@ This is research, not an implementation or hardware acceptance report. Only this
 
 Paths below are primary sources inspected for this report. `PI` abbreviates `/Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent`; `UTILS` abbreviates `/Users/FradSer/Developer/FradSer/pi-packages/packages/utils`.
 
-- @integrations/voice-agent/README.md and @integrations/voice-agent/package.json.
-- @integrations/voice-agent/src/agent.mjs, @integrations/voice-agent/src/capabilities.mjs, @integrations/voice-agent/src/main.mjs, @integrations/voice-agent/src/service.mjs, @integrations/voice-agent/src/socket.mjs, @integrations/voice-agent/src/transcribe.mjs.
-- @integrations/voice-agent/systemd/open-deskos-voice-agent.service.
+- @integrations/personal-bot/README.md and @integrations/personal-bot/package.json.
+- @integrations/personal-bot/src/agent.mjs, @integrations/personal-bot/src/capabilities.mjs, @integrations/personal-bot/src/main.mjs, @integrations/personal-bot/src/service.mjs, @integrations/personal-bot/src/socket.mjs, @integrations/personal-bot/src/transcribe.mjs.
+- @integrations/personal-bot/systemd/open-deskos-personal-bot.service.
 - @integrations/local-stt-bridge/README.md and @integrations/local-stt-bridge/scripts/provision-stt-bridge.sh.
 - @.agents/skills/open-deskos-widget/SKILL.md.
 - `PI/README.md`, `PI/docs/sdk.md`, `PI/docs/rpc.md`, `PI/docs/session-format.md`, `PI/docs/settings.md`, and `PI/docs/skills.md`, read in full.
@@ -24,7 +24,7 @@ Paths below are primary sources inspected for this report. `PI` abbreviates `/Us
 - `PI/dist/core/agent-session.js`, `PI/dist/core/session-manager.js`, `PI/dist/core/sdk.js`, `PI/dist/core/resource-loader.js`, `PI/dist/core/resource-loader.d.ts`, `PI/dist/core/settings-manager.js`, and `PI/dist/core/tools/bash.js` (relevant implementation sections).
 - `UTILS/README.md`, `UTILS/package.json`, `UTILS/extensions/live-sessions.ts`, and all four files under `UTILS/extensions/live-sessions/` (`protocol.ts`, `transport.ts`, `client.ts`, `server.ts`).
 
-At the time of this report the installed global Pi and the voice integration's resolved Pi dependency both reported **0.85.1**. The voice integration is now pinned to **1.0.0**, and the version-specific observations below describe the 0.85.1 code that was inspected. The codemode and subsequent v1.0 migration is recorded in @runtime/linux/docs/adr/0014-hosted-pi-drops-the-edit-and-test-guardrail.md and covered by the offline SDK fixtures in `integrations/voice-agent/tests/`; observations here that no longer hold are re-verified or superseded there rather than silently kept. The inspected utils package reports **0.4.2**.
+At the time of this report the installed global Pi and the voice integration's resolved Pi dependency both reported **0.85.1**. The voice integration is now pinned to **1.0.0**, and the version-specific observations below describe the 0.85.1 code that was inspected. The codemode and subsequent v1.0 migration is recorded in @runtime/linux/docs/adr/0014-hosted-pi-drops-the-edit-and-test-guardrail.md and covered by the offline SDK fixtures in `integrations/personal-bot/tests/`; observations here that no longer hold are re-verified or superseded there rather than silently kept. The inspected utils package reports **0.4.2**.
 
 A bounded, read-only `ssh cm5` inspection printed only allowlisted workspace/control configuration fields. The alias connects as root, not as the kiosk user. `/home/orangepi/.config/open-deskos/runtime.env` contains `ODESK_WORKSPACE=/home/orangepi/Developer/open-deskos`; that directory exists and resolves to itself. Neither `PI_SESSION_CONTROL_COMMAND` nor `PI_SESSION_CONTROL_SSH_HOST` was present in the inspected kiosk-user voice env file. This does not prove absence of overrides elsewhere. No Mac target service, roots configuration, helper installation, SSH authorization from the kiosk user, or remote Pi auth was verified. Do not use the root SSH identity for the proposed coding service.
 
@@ -35,14 +35,14 @@ A bounded, read-only `ssh cm5` inspection printed only allowlisted workspace/con
 | Coordinator execution | `agent.mjs` uses real coding tools and `SessionManager.continueRecent(cwd, stateDir/sessions)` | Useful conversational coordinator, but not isolated task identity or task supervision. Each managed task needs a fresh session. |
 | Workspace | `validateWorkspace()` requires an absolute writable Git checkout, widget skill, and exclusion of `/opt/open-deskos` before/after realpath | Do not reuse this Open DeskOS-specific validator as a general project-root validator. |
 | Headless resources | `createResourceLoader()` disables extension/skill/template discovery, explicitly adds the widget skill, appends coding instructions | Retain deliberate resource policy; general managed projects need their own AGENTS and relevant skills, not a mandatory Open DeskOS skill. |
-| Blocking voice flow | `VoiceService.submit()` waits for coordinator prompt; busy toggles are ignored | Coordinator should return after accepted start, enabling later spoken status/cancel requests rather than waiting for coding completion. |
+| Blocking voice flow | `PersonalBotService.submit()` waits for coordinator prompt; busy toggles are ignored | Coordinator should return after accepted start, enabling later spoken status/cancel requests rather than waiting for coding completion. |
 | Legacy delivery | `capabilities.mjs` spawns `pi-session-control` by default and generates a fresh request ID per call | This executable is no longer supplied by the current package; old README setup is stale. Replace, do not silently fall back. |
 | Language | Multipart transcription currently includes model/file, not language; coordinator instructions do not require Chinese | Add explicit Chinese configuration and Chinese task/reply instructions. Preserve transcript Unicode unchanged. |
 | Application lifecycle | Core capability tools expose install/rollback/remove; old prompt says install after writing a draft | For the new default edit/test policy, remove automatic installation from instructions. Tool availability does not grant implicit user authorization. |
 | Error recovery | Voice generic failure currently says “try again” | An uncertain remote start must preserve its task ID and request reconciliation, not invite a duplicate submission. |
 | Output | Voice response is capped at 1024 characters | Keep task status separate and bounded; do not dump transcripts into voice status. |
 
-The existing voice service's `/opt/open-deskos` read-only restriction is Linux service configuration, not a universal Pi sandbox. Existing capture/STT bounds, private socket, and audio cleanup remain useful and should not be redesigned for this work.
+The existing personal bot service's `/opt/open-deskos` read-only restriction is Linux service configuration, not a universal Pi sandbox. Existing capture/STT bounds, private socket, and audio cleanup remain useful and should not be redesigned for this work.
 
 ## Why current live sessions cannot launch managed tasks
 
@@ -151,8 +151,8 @@ For an existing built-in Widget/App, inspect its actual plugin and use the widge
 2. **Host service with fake SDK runner.** Implement private protocol, canonical admission, serialized durable receipts, bounded listing, independent execution and cancellation. Prove RED then GREEN for concurrent identical start, conflicting payload, per-project busy, host capacity, disk failure, restart before first assistant message, lost response, malformed frames and slow clients.
 3. **Real SDK adapter.** Fresh `SessionManager.create` per task; deliberately configured resources/auth/model; Chinese policy; awaited prompt with final stop-reason inspection; bounded result; dispose in cleanup. Unit-test retries/compaction boundaries, errors, length truncation, cancel during startup/preflight and shutdown; use actual installed SDK resource loading without contacting providers where possible.
 4. **Short helper and target client.** Test fixed-path SSH quoting, no shell interpolation, UTF-8 chunking, ten-second control deadline, response caps, task-ID preservation on unknown start, and status reconciliation. Remove obsolete live-session tools/config references/tests; do not alias their names to different semantics.
-5. **Coordinator integration.** Expose narrow `coding_targets`, `coding_task_start`, `coding_task_status`, `coding_task_list`, `coding_task_cancel` tools. Keep host/project explicit and no implicit activation. Preserve unrelated existing user-app tools, but correct the old automatic-install instruction. (This is the sequence that slice followed; the surface now also carries history, prompt and end, and [MANAGED_TASKS.md](../../../integrations/voice-agent/docs/MANAGED_TASKS.md) is the current list — treat the names here as the record of that slice, not as the contract.)
-6. **Verification before provisioning.** Run `cd integrations/voice-agent && pnpm test && pnpm typecheck`. Have a fresh reviewer audit lifecycle, durability, cancellation races and target boundaries. Add service/launch configuration only after these gates; the service uses absolute Node/helper paths, not an interactive shell's version-manager PATH.
+5. **Coordinator integration.** Expose narrow `coding_targets`, `coding_task_start`, `coding_task_status`, `coding_task_list`, `coding_task_cancel` tools. Keep host/project explicit and no implicit activation. Preserve unrelated existing user-app tools, but correct the old automatic-install instruction. (This is the sequence that slice followed; the surface now also carries history, prompt and end, and [MANAGED_TASKS.md](../../../integrations/personal-bot/docs/MANAGED_TASKS.md) is the current list — treat the names here as the record of that slice, not as the contract.)
+6. **Verification before provisioning.** Run `cd integrations/personal-bot && pnpm test && pnpm typecheck`. Have a fresh reviewer audit lifecycle, durability, cancellation races and target boundaries. Add service/launch configuration only after these gates; the service uses absolute Node/helper paths, not an interactive shell's version-manager PATH.
 7. **Operator-authorized acceptance later.** Provision as the normal development user on each host, with host-local Pi auth and private configuration. Check benign start/status/cancel; disconnect SSH while running; restart with an active task; then perform an explicitly authorized Chinese edit/test on an existing Widget/App. Record host-specific results and verify no commit, push, installation or deployment occurred. Do not claim CM5 microphone quality or Mac launchd acceptance from host unit tests.
 
 ### Non-goals for this slice

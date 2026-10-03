@@ -24,9 +24,9 @@ Feature: One system-owned application lifecycle
 
   Scenario: Voice and Shell share system workspace configuration
     Given a system runtime environment file defines ODESK_WORKSPACE
-    When the Shell and Voice Agent user services start
+    When the Shell and Personal Bot user services start
     Then both load the same shared environment file
-    And voice-specific configuration remains separate
+    And bot-specific configuration remains separate
 
   Scenario: Installed content never exposes workspace paths
     Given an installed application revision

@@ -6,12 +6,12 @@
 
 ## Evidence
 
-Feature-first failing regressions established missing transcript display and missing transcript transport. A cross-package test then exercised the actual resident VoiceService and Unix socket with the runtime client, proving input arrives before reply and partial text arrives before prompt completion.
+Feature-first failing regressions established missing transcript display and missing transcript transport. A cross-package test then exercised the actual resident PersonalBotService and Unix socket with the runtime client, proving input arrives before reply and partial text arrives before prompt completion.
 
 Passed:
-- `cd integrations/voice-agent && pnpm test && pnpm typecheck`: 102 tests and typecheck after terminal overflow corrections.
-- `cd runtime/linux && node --test tests/voice-agent-client.test.js tests/voice-stream-integration.test.js`: four tests.
-- Focused renderer Node test and `pnpm exec electron tests/voice-input-ui.cjs`, `tests/voice-status.cjs`, `tests/voice-floating-panel.cjs`: worker verified transcript/order, partial/final/error/new-turn states, dismissal, same-snapshot DOM identity and follow/preserve scrolling; three themes and three sizes in the input harness.
+- `cd integrations/personal-bot && pnpm test && pnpm typecheck`: 102 tests and typecheck after terminal overflow corrections.
+- `cd runtime/linux && node --test tests/personal-bot-client.test.js tests/voice-stream-integration.test.js`: four tests.
+- Focused renderer Node test and `pnpm exec electron tests/voice-input-ui.cjs`, `tests/personal-bot-status.cjs`, `tests/personal-bot-floating-panel.cjs`: worker verified transcript/order, partial/final/error/new-turn states, dismissal, same-snapshot DOM identity and follow/preserve scrolling; three themes and three sizes in the input harness.
 - Scoped JavaScript syntax, release composition and diff whitespace checks.
 - Scoped CSS detector returned no findings.
 - Complete `pnpm e2e` ran the updated voice gate successfully, including the final completion-scroll assertion. Overall E2E failed only the `interiors` sub-suite (status1); driver, motion, sweep, sequential, all six density runs and all four theme/voice runs passed. A separate `widget-app-styles.cjs` rerun isolated the failure to the obsolete “vision Widgets retain visible identities” assertion during the concurrent removal of those widgets. Overall E2E is not claimed green.

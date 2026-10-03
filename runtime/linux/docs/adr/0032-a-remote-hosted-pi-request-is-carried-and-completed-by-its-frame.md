@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The Voice Agent drives Hosted Pi sessions on a configured CM5 or Mac by running that host's own control helper: one bounded version-1 JSON line on standard input, one correlated response on standard output. Everything about that exchange was written on a Unix host, and a Windows Shell Host running the same coordinator broke it in two places that only appear once the request actually crosses the network.
+The Personal Bot drives Hosted Pi sessions on a configured CM5 or Mac by running that host's own control helper: one bounded version-1 JSON line on standard input, one correlated response on standard output. Everything about that exchange was written on a Unix host, and a Windows Shell Host running the same coordinator broke it in two places that only appear once the request actually crosses the network.
 
 A Windows OpenSSH client does not relay a piped stdin to a remote command. The helper read nothing, timed out, and the coordinator reported a refused control request — a failure that looked like a wrong credential, a wrong project or an unreachable host, and was none of those. Handing the same bytes over as a file on standard input reaches the helper unchanged.
 

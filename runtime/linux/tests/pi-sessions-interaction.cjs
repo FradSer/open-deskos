@@ -981,7 +981,7 @@ async function main() {
       const source = () => [{ ...pad, buttons: Array.from({ length: 17 }, (_value, index) => ({ pressed: held.has(index), value: held.has(index) ? 1 : 0 })) }];
       try { navigator.getGamepads = source } catch (error) { Object.defineProperty(navigator, 'getGamepads', { value: source, configurable: true }) }
       window.__odkMic = [];
-      const voice = window.odkVoiceStatus;
+      const voice = window.odkPersonalBotStatus;
       const originalMic = voice.mic.bind(voice);
       voice.mic = () => { window.__odkMic.push('mic'); return originalMic() };
       window.__odkRestoreMic = () => { voice.mic = originalMic };

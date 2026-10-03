@@ -12,8 +12,8 @@ fi
 DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null && pwd -P)"
 REPOSITORY_ROOT="$(CDPATH= cd -- "${DIR}/../.." >/dev/null && pwd -P)"
 REMOTE_BRIDGE_SOURCE="${REPOSITORY_ROOT}/integrations/remote-bridge"
-VOICE_AGENT_SOURCE="${REPOSITORY_ROOT}/integrations/voice-agent"
-source "${DIR}/scripts/cm5-voice-agent.sh"
+PERSONAL_BOT_SOURCE="${REPOSITORY_ROOT}/integrations/personal-bot"
+source "${DIR}/scripts/cm5-personal-bot.sh"
 cd "$DIR"
 
 SUDO=""
@@ -89,7 +89,7 @@ run_as_target_user() {
     "$@"
   else
     # Installs and release commands use the pnpm each project declares (COREPACK_ENABLE_PROJECT_SPEC=1):
-    # runtime/linux and integrations/voice-agent pin pnpm 11.22.0, and pnpm refuses to run under a
+    # runtime/linux and integrations/personal-bot pin pnpm 11.22.0, and pnpm refuses to run under a
     # different major than a project's packageManager field. See docs/adr/0017.
     runuser -u "${TARGET_USER}" -- env \
       HOME="${TARGET_HOME}" \
@@ -202,7 +202,7 @@ if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${REL
     run_as_target_user cp -a "${REPOSITORY_ROOT}/DESIGN.md" "${RELEASE_DIR}/DESIGN.md"
   fi
 fi
-prepare_voice_agent_release
+prepare_personal_bot_release
 run_as_target_user node -e "require('node:fs').writeFileSync('${RELEASE_DIR}/release.json', JSON.stringify({ id: '${RELEASE_ID}', schemaVersion: 1, createdAt: new Date().toISOString() }) + '\\n')"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RUNTIME_ROOT}/state/migrations/${TARGET_USER}"
 
@@ -239,9 +239,9 @@ if [ -z "${XAUTHORITY:-}" ] && [ -n "${KIOSK_XAUTHORITY}" ]; then
   export XAUTHORITY="${KIOSK_XAUTHORITY}"
 fi
 
-echo "== staging the required Voice Agent and Hosted Pi control components =="
-stage_voice_agent_service || {
-  echo "Required Voice Agent component could not be installed; check ALSA access and ${TARGET_HOME}/.config/open-deskos/voice-agent.env, then re-run the installer." >&2
+echo "== staging the required Personal Bot and Hosted Pi control components =="
+stage_personal_bot_service || {
+  echo "Required Personal Bot component could not be installed; check ALSA access and ${TARGET_HOME}/.config/open-deskos/personal-bot.env, then re-run the installer." >&2
   exit 1
 }
 stage_task_host_service || {
@@ -297,7 +297,7 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
 fi
 
 start_required_services || {
-  echo "Required Voice Agent or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/open-deskos/voice-agent.env and ${TARGET_HOME}/.config/open-deskos/pi-tasks.json." >&2
+  echo "Required Personal Bot or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/open-deskos/personal-bot.env and ${TARGET_HOME}/.config/open-deskos/pi-tasks.json." >&2
   exit 1
 }
 

@@ -128,7 +128,7 @@ Mac 上的 Pi 会话可以作为 **Console** 远程驱动 desk 托管的 **Hoste
 
 ## 用户应用生命周期
 
-`ODESK_WORKSPACE/apps/<id>` 下的本地应用草稿经系统验证确切候选内容后安装，支持更新、失败保留旧版本、回滚和卸载；安装状态与 Widget 桌面位置独立于 Shell release 持久化。用户生成的 Widget 与内置 Widget 共用桌面网格，可由 Voice Agent 指定页面、位置和跨度，安装后也可移动；不再设置独立的 **User Applications / Your apps** 收纳页。Widget 为只读展示，交互式 App 在独立页面的受限 iframe 中运行。内置 Agent 使用系统安装入口，不以“文件已写入”冒充安装成功。
+`ODESK_WORKSPACE/apps/<id>` 下的本地应用草稿经系统验证确切候选内容后安装，支持更新、失败保留旧版本、回滚和卸载；安装状态与 Widget 桌面位置独立于 Shell release 持久化。用户生成的 Widget 与内置 Widget 共用桌面网格，可由 Personal Bot 指定页面、位置和跨度，安装后也可移动；不再设置独立的 **User Applications / Your apps** 收纳页。Widget 为只读展示，交互式 App 在独立页面的受限 iframe 中运行。内置 Agent 使用系统安装入口，不以“文件已写入”冒充安装成功。
 
 首版仅支持自包含、离线 HTML/CSS/JavaScript，无 Node、网络、后台服务或持久化应用数据 API。完整格式、限制和验收见 [用户应用](docs/USER_APPLICATIONS.md)。
 
@@ -138,7 +138,7 @@ Remote 的 MIC 先由 Shell 区分恢复对话与录音操作，不经过 Pi Ses
 
 语音经显式配置的 OpenAI-compatible 服务转写，再由 Pi harness 在独立可写 checkout 中执行。能力工具可扩展；首批支持 Widget/App 开发和向已接入 session-control 扩展的 Pi session 发送 prompt。仅被监控到的进程不代表可控制，排队成功不代表任务完成。生成代码不会绕过验证直接修改 active release。
 
-配置与边界见 [Voice Agent](../../integrations/voice-agent/README.md) 和 [部署指南](docs/VOICE_AGENT_DEPLOYMENT.md)。音频、转写服务认证及真实模型执行需要独立验收；测试通过不代表设备端链路已配置完成。
+配置与边界见 [Personal Bot](../../integrations/personal-bot/README.md) 和 [部署指南](docs/PERSONAL_BOT_DEPLOYMENT.md)。音频、转写服务认证及真实模型执行需要独立验收；测试通过不代表设备端链路已配置完成。
 
 ## OpenCode Go Linux 配置
 

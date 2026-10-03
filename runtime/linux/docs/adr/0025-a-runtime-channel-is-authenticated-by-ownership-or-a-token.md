@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The Display Shell and the services beside it talk over local channels: the Desk Link runtime channel, the user-application control endpoint, the Remote Bridge, and the voice agent. On the reference host each of these is a Unix socket inside a directory only its owner can enter, with the socket mode set to `0600`. That ownership is the authentication: a peer that could open the socket is a peer that runs as this user, and no credential has to be provisioned or rotated for the channel to be trustworthy.
+The Display Shell and the services beside it talk over local channels: the Desk Link runtime channel, the user-application control endpoint, the Remote Bridge, and the personal bot. On the reference host each of these is a Unix socket inside a directory only its owner can enter, with the socket mode set to `0600`. That ownership is the authentication: a peer that could open the socket is a peer that runs as this user, and no credential has to be provisioned or rotated for the channel to be trustworthy.
 
 A 64-bit Windows host has named pipes instead of Unix sockets. A pipe carries no owner, no mode, and no uid, and there is no private parent directory to lean on. Node cannot express a pipe's own security descriptor either, so a host that moved a channel onto a pipe without a replacement would silently drop the only thing that authenticated it: any local process could connect to `\\.\pipe\open-deskos-desk-link` and ask for the runtime snapshot.
 
