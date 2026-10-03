@@ -69,13 +69,13 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     if (!env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || env.ODESK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
   }
   const directories = await prepareHostDirectories(env, platform)
-  report('Check writable checkout and widget skill, Pi user authentication/model, and trusted capability paths; restart service')
+  report('Check Jev credential (TYPESAFE_API_KEY or ODESK_JEV_KEY_FILE), writable checkout, Pi authentication/model and capability paths; restart service')
   const agent = await createPersonalBot({
     workspace: env.ODESK_WORKSPACE,
     stateDir: directories.state,
     model: env.ODESK_PERSONAL_BOT_MODEL,
     capabilityPaths: personal.profile === 'coding' && env.ODESK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODESK_PERSONAL_BOT_CAPABILITIES) : [],
-    personal, onRideUpdate, getWatch,
+    personal, onRideUpdate, getWatch, env,
   })
   return {
     agent,

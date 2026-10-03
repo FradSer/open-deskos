@@ -1,4 +1,13 @@
 Feature: The voice control channel is a named pipe gated by the shared channel token on a Windows host
+
+  Scenario: A busy Shell does not disconnect during recording level updates
+    Given an authenticated Shell has received recording state with current suggestions
+    And its status channel temporarily has queued output
+    When repeated recording frames change only the audio level
+    Or Desk Data pushes repeat the unchanged current snapshot
+    Then those replaceable updates do not grow the queue or disconnect the Shell
+    And changed suggestions, transcription state and the final answer are still delivered
+    And oversized authoritative frames retain the bounded queue refusal
   Scenario: The voice link resolves to the endpoint the Shell Host already names
     Given a 64-bit Windows Shell Host with an empty local application data directory variable
     When the personal bot service resolves the endpoint of the personal-bot link

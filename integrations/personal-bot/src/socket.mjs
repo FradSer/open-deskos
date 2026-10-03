@@ -27,6 +27,8 @@ export {
 // connection it is not reading. Both are transport limits, not protocol ones.
 const MAX_INPUT_BYTES = 4096
 const MAX_QUEUED_BYTES = 131_072
+const sentStatuses = new WeakMap()
+const sentFrames = new WeakMap()
 
 /**
  * The endpoint this host reaches the personal bot service on: the named pipe the Shell
@@ -230,7 +232,20 @@ export async function listen(path, service, options = {}) {
 
 function send(client, status) {
   if (client.destroyed) return
+  const previous = sentStatuses.get(client)
+  // Audio levels are replaceable. A busy Shell must not accumulate copies of
+  // unchanged suggestions on every meter tick; state/content changes still send.
+  if (client.writableLength > 0 && previous?.state === 'recording' && status.state === 'recording'
+    && Object.keys(previous).length === Object.keys(status).length
+    && Object.entries(status).every(([key, value]) => Object.hasOwn(previous, key) && (key === 'level' || previous[key] === value))) return
   const frame = `${JSON.stringify(status)}\n`
+  // Desk Data pushes can echo the current snapshot while the reader is busy.
+  // Only byte-identical snapshots are redundant; popup/error/content changes send.
+  if (client.writableLength > 0 && sentFrames.get(client) === frame) return
   if (client.writableLength + Buffer.byteLength(frame) > MAX_QUEUED_BYTES) client.destroy()
-  else client.write(frame)
+  else {
+    client.write(frame)
+    sentStatuses.set(client, status)
+    sentFrames.set(client, frame)
+  }
 }

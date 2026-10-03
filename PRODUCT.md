@@ -4,7 +4,7 @@
 
 ## Platform
 
-Open DeskOS is a CM5/RK3588S Linux desk runtime with an Electron kiosk shell. The same Display Shell also runs natively on a 64-bit Windows Shell Host, where surfaces this repository has not ported report unavailable rather than degrading into a local or simulated link; Windows on ARM is not a supported host. The runtime has two required architecture peripherals with independent hardware acceptance gates: an ESP32-S3 touch Remote Control and an ESP32-P4 SC2336 Camera Peripheral. The base CM5 shell remains usable through direct touch and keyboard before either peripheral is accepted. The prior ESP32-P4+C6 DeskOS device OS and its Apple USB companion are preserved research, not active product platforms.
+Open DeskOS uses one Electron Display Shell on Linux, 64-bit Windows, and macOS. The CM5/RK3588S Linux panel is the reference Shell Host. A host does not create a separate product variant; unported capabilities report unavailable, and host/device acceptance is recorded separately. Windows on ARM is not a supported host. The CM5 architecture includes an ESP32-S3 touch Remote Control and an ESP32-P4 SC2336 Camera Peripheral with independent hardware acceptance gates. The prior ESP32-P4+C6 device OS and Apple USB companion are preserved research, distinct from a macOS Shell Host.
 
 ## Users
 
@@ -12,7 +12,7 @@ Personal developers and knowledge workers using a fixed desk display. They glanc
 
 ## Product Purpose
 
-Open DeskOS is a truthful desk companion: a CM5 display runtime that makes the current desk state legible without fabricated personal data, opens focused built-in views without trapping the user, and composes accepted peripherals through explicit protocols. It does not require a Mac or Apple companion.
+Open DeskOS is a truthful desk companion: a shared Display Shell that makes the current desk state legible without fabricated personal data, opens focused built-in views without trapping the user, and composes accepted peripherals through explicit protocols. It does not require a Mac or Apple companion.
 
 ## Active Architecture
 
@@ -28,6 +28,10 @@ CM5 Linux / Electron runtime
   ├─ direct keyboard and pointer
   ├─ Pi Sessions, with the optional native reader for session work directories
   └─ Remote Control, voice, and Desk Link: not ported, reported unavailable
+
+macOS / Electron runtime (the same Display Shell)
+  ├─ direct keyboard and pointer
+  └─ local development and configured services, with separate host acceptance
 ```
 
 The S3 Remote and P4 Camera are intended system components. Their hardware acceptance is independent from the CM5 base-shell acceptance. The P4 Camera performs no face recognition, expression analysis, or identity storage: it is a standard webcam and microphone.
@@ -44,7 +48,7 @@ The CM5 shell inherits the semantic Open DeskOS token palette: black field, char
 
 ## Product Principles
 
-1. **CM5 owns the runtime.** Linux services, display, local data, and application orchestration live on CM5.
+1. **The Shell Host owns its runtime.** Display, local data, services, and application orchestration live on the host; CM5 is the reference Linux host.
 2. **Truth before detail.** Show locally known or provider-sourced state with provenance; never invent personal activity, health, calendar, or usage data.
 3. **Peripheral gates are independent.** S3 Remote and P4 Camera have dedicated hardware acceptance; missing hardware cannot block base-shell operation.
 4. **Experiments do not become prerequisites.** C6/S31 gateways and future packages remain opt-in until a product decision promotes them.

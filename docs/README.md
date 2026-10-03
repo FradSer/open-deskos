@@ -3,9 +3,9 @@
 ## Current Open DeskOS
 
 - [Product definition](../PRODUCT.md)
-- [CM5 runtime architecture context](../runtime/linux/CONTEXT.md)
-- [CM5 runtime runbook](../runtime/linux/README.md)
-- [CM5/P4 research-boundary decision](../runtime/linux/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
+- [Shell architecture context](../runtime/shell/CONTEXT.md)
+- [Shell development and CM5 deployment runbook](../runtime/shell/README.md)
+- [CM5/P4 research-boundary decision](../runtime/shell/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
 
 ## Preserved research
 

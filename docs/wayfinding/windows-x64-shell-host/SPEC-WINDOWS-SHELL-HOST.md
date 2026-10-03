@@ -1,6 +1,6 @@
 # Spec: a 64-bit Windows Shell Host
 
-Status: ready for implementation. Decision record: [ADR-0023](../../../runtime/linux/docs/adr/0023-windows-x64-is-a-supported-shell-host.md). Glossary: [Shell Host](../../../runtime/linux/CONTEXT.md).
+Status: ready for implementation. Decision record: [ADR-0023](../../../runtime/shell/docs/adr/0023-windows-x64-is-a-supported-shell-host.md). Glossary: [Shell Host](../../../runtime/shell/CONTEXT.md).
 
 ## Problem Statement
 
@@ -47,7 +47,7 @@ On a Windows host the Shell starts without bash, reports the local Pi sessions i
 
 ## Scenarios
 
-Executable scenarios live in [`runtime/linux/tests/features/windows-shell-host.feature`](../../../runtime/linux/tests/features/windows-shell-host.feature). The spec is verified against that file.
+Executable scenarios live in [`runtime/shell/tests/features/windows-shell-host.feature`](../../../runtime/shell/tests/features/windows-shell-host.feature). The spec is verified against that file.
 
 ## Implementation Decisions
 

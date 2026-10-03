@@ -12,7 +12,7 @@ restart is included.
 | P2 | Fresh Desk Data evidence and mandatory Jev relevance judgment; owner criteria and exact action guards, [owner example](proactive-owner.example.json) |
 | P3 | Existing voice socket and Personal Bot panel; immediate/routine/silent delivery, quiet hours, deferred voice turns, merged nonmodal presentation |
 | P4 | Exact subsequent voice or separate touch confirmation; existing tool schemas and memory gate; result feedback, durable execution reservation, no unknown retry |
-| P5 | `runtime/linux/docs/USER_APPLICATIONS.md` and `DESK_DATA_SPEC.md` measurement-time publishing convention |
+| P5 | `runtime/shell/docs/USER_APPLICATIONS.md` and `DESK_DATA_SPEC.md` measurement-time publishing convention |
 | P6 | Configured target/project/session tracking through existing task status/history tools; completion and verification reported separately |
 
 ## Verification
@@ -24,9 +24,9 @@ Run from the repository root unless a working directory is specified.
   actual memory tool and restart/error regressions. No provider calls or audio capture.
 - `pnpm --dir integrations/personal-bot --config.verify-deps-before-run=false run typecheck`:
   passed.
-- In `runtime/linux`, `node --test tests/config-inventory.test.js tests/personal-bot-shell.test.js tests/proactive-panel.test.js tests/personal-bot-client.test.js`:
+- In `runtime/shell`, `node --test tests/config-inventory.test.js tests/personal-bot-shell.test.js tests/proactive-panel.test.js tests/personal-bot-client.test.js`:
   25 passed, zero failed.
-- In `runtime/linux`, `node --test --test-concurrency=4 --test-timeout=30000 tests/*.test.js`:
+- In `runtime/shell`, `node --test --test-concurrency=4 --test-timeout=30000 tests/*.test.js`:
   704 tests, 701 passed, 2 skipped, 1 unrelated failure. `repository-layout.test.js`
   expects obsolete `cm5`/`s31` git-agent scopes; the unchanged HEAD configuration uses
   `shell`/`tool`/`exp`. The default-concurrency run stalled in the existing Windows
@@ -138,7 +138,7 @@ reported that the Windows handheld showed an unavailable microphone.
 - Affected Shell checks: 31 tests, 30 passed, 1 Windows-only skip, zero failures
   (`node --test tests/personal-bot-launcher-windows.test.js tests/proactive-panel.test.js
   tests/personal-bot-client.test.js tests/personal-bot-shell.test.js`, from
-  `runtime/linux`). The checked-in PowerShell fixture also passed on Windows 5.1.
+  `runtime/shell`). The checked-in PowerShell fixture also passed on Windows 5.1.
 
 ### Test isolation and restoration
 
@@ -357,7 +357,7 @@ Local receipts: `/tmp/odk-jev-final-voice-tests.log`,
 ## Device E2E: real Jev, private channel and Electron
 
 The owner requested E2E testing after deployment. On 2026-10-02, both native hosts
-ran [the explicit opt-in E2E harness](../../../runtime/linux/tests/proactive-jev-e2e.cjs).
+ran [the explicit opt-in E2E harness](../../../runtime/shell/tests/proactive-jev-e2e.cjs).
 It used deployed source modules, the actual Jev API and actual Electron renderer,
 with independent Hydra observations, voice socket/pipe, random channel token on
 Windows, owner writes, private checkpoint and disposable Chromium profile. The
@@ -386,7 +386,7 @@ directories and no product D-Bus session. Xvfb was downloaded/extracted into the
 fixture, not installed as a system package. Windows ran a temporary interactive
 scheduled task in Session 1. Its first attempt passed business assertions but
 failed profile deletion with EPERM because Chromium still held the profile. The
-external [Windows runner](../../../runtime/linux/tests/proactive-jev-e2e.ps1)
+external [Windows runner](../../../runtime/shell/tests/proactive-jev-e2e.ps1)
 now waits for Electron to exit before deleting the exact fixture profile. The
 final native rerun exited zero and recorded `cleanupComplete=true`.
 
@@ -422,7 +422,7 @@ of this E2E run.
 
 For another explicitly authorized device run, pass `--live-jev-e2e`,
 `--runtime-root`, `--personal-bot-root`, `--jev-key` and `--receipt` to Electron running
-`runtime/linux/tests/proactive-jev-e2e.cjs`. On Windows, invoke its `.ps1` runner
+`runtime/shell/tests/proactive-jev-e2e.cjs`. On Windows, invoke its `.ps1` runner
 with `-RuntimeRoot`, `-PersonalBotRoot`, `-JevKey` and `-Receipt` from an isolated
 interactive scheduled task. It refuses Session 0. On CM5, use an isolated Xvfb
 display and XDG directories as above, not the product desktop display.

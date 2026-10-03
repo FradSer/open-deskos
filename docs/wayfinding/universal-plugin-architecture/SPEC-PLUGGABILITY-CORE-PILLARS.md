@@ -150,7 +150,7 @@ And the underlying page and navigation remain intact and uncorrupted
    - `theme-engine.test.js`: Validates token application, style variable updates, and Pixel Art theme contract.
    - `e2e.js`: End-to-end browser verification of theme switching, auto-assembled widgets, and overlay alerts.
 3. **Prior Art**:
-   - Builds directly on patterns established in `runtime/linux/tests/plugin-contract.test.js` and `runtime/linux/tests/e2e.js`.
+   - Builds directly on patterns established in `runtime/shell/tests/plugin-contract.test.js` and `runtime/shell/tests/e2e.js`.
 
 ---
 

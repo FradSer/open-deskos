@@ -4,7 +4,7 @@
 
 The operator requires all Open DeskOS Pi hosts to use v1.0. The concrete registry release is **1.0.0**. They approved a controlled candidate deployment after coding work is idle, retaining device configuration and the running Shell and restarting only affected agent services. No microphone/STT/model calls were authorized by this upgrade decision. Current task worktree only; do not touch the parent Futu change.
 
-This supersedes the prior 0.99.2 target, not the coordinator/worker authority contract in [ADR-0014](../../../runtime/linux/docs/adr/0014-hosted-pi-drops-the-edit-and-test-guardrail.md). Global CLI, bundled SDK, deployed source and running processes are separate version facts. A CLI version is not resident SDK acceptance. Historic immutable rollback releases retain their historic dependencies and are not edited in place.
+This supersedes the prior 0.99.2 target, not the coordinator/worker authority contract in [ADR-0014](../../../runtime/shell/docs/adr/0014-hosted-pi-drops-the-edit-and-test-guardrail.md). Global CLI, bundled SDK, deployed source and running processes are separate version facts. A CLI version is not resident SDK acceptance. Historic immutable rollback releases retain their historic dependencies and are not edited in place.
 
 ## Primary-source research
 

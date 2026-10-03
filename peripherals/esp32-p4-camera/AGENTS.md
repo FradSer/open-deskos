@@ -19,5 +19,5 @@ Use @README.md for flashing and physical wiring. The CH343P debug connector can 
 
 ## Testing Guidelines
 - An ESP32-P4 build validates compilation, not enumeration, video, or audio quality.
-- For authorized live acceptance on the CM5, run `bash runtime/linux/scripts/p4-camera-acceptance.sh` and `bash runtime/linux/scripts/p4-microphone-acceptance.sh` from repository root. The camera check writes one MJPEG frame to a temporary `/tmp/p4-camera-frame.*.mjpg` file and removes it on exit; the microphone check streams PCM through a pipe. Both access real sensors.
+- For authorized live acceptance on the CM5, run `bash runtime/shell/scripts/p4-camera-acceptance.sh` and `bash runtime/shell/scripts/p4-microphone-acceptance.sh` from repository root. The camera check writes one MJPEG frame to a temporary `/tmp/p4-camera-frame.*.mjpg` file and removes it on exit; the microphone check streams PCM through a pipe. Both access real sensors.
 - Keep raw camera/audio captures and biometric data out of the repository.

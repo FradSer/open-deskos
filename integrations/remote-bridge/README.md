@@ -1,6 +1,6 @@
 # Open DeskOS Remote Bridge
 
-This integration connects the active CM5 runtime (`runtime/linux/`) to the required ESP32-S3 Remote Control Peripheral (`peripherals/esp32-s3-remote/`). It does not belong to the preserved P4+C6 DeskOS research line.
+This integration connects the active CM5 runtime (`runtime/shell/`) to the required ESP32-S3 Remote Control Peripheral (`peripherals/esp32-s3-remote/`). It does not belong to the preserved P4+C6 DeskOS research line.
 
 A standalone Node.js user service for the Display Shell Remote Control link. It uses only Node built-ins.
 

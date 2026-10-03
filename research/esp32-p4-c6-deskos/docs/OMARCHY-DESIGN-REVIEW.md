@@ -1,7 +1,7 @@
 # Omarchy 对 Open DeskOS Linux 外壳的设计借鉴评审
 
 > 评审日期：2026-08-26  
-> 评审对象：`runtime/linux/` 以及 Open DeskOS 的 Widget、App Manager、安装器设计
+> 评审对象：`runtime/shell/` 以及 Open DeskOS 的 Widget、App Manager、安装器设计
 > 外部参考：[omarchy.org](https://omarchy.org/)
 
 ## 1. 结论
@@ -12,7 +12,7 @@ Open DeskOS 应该学习 Omarchy 的三类设计原则：
 2. **应用和系统能力应通过统一、可搜索的入口管理**，不要把所有入口都堆在主屏上。
 3. **插件需要清晰的发现、启用、禁用、更新、移除和校验闭环**。
 
-Open DeskOS 不应直接复制 Omarchy 的 Linux 桌面形态。Hyprland 的平铺窗口、workspace、键盘中心操作和通用 Linux package 管理，服务的是笔记本桌面；Open DeskOS 的 `runtime/linux/` 是 568×1232 的桌面 companion 面板，核心体验仍然是状态速览、横向 pager、peek 和可靠的 Back/Escape 返回。
+Open DeskOS 不应直接复制 Omarchy 的 Linux 桌面形态。Hyprland 的平铺窗口、workspace、键盘中心操作和通用 Linux package 管理，服务的是笔记本桌面；Open DeskOS 的 `runtime/shell/` 是 568×1232 的桌面 companion 面板，核心体验仍然是状态速览、横向 pager、peek 和可靠的 Back/Escape 返回。
 
 建议采用的产品方向是：
 
@@ -87,10 +87,10 @@ Omarchy 把 Shell、bar、panel、overlay、menu 和 service 都纳入插件模�
 
 这与 Open DeskOS 当前的插件化方向高度相似。Open DeskOS 已经有：
 
-- `runtime/linux/src/renderer/core/registry.js`
-- `runtime/linux/src/renderer/core/composer.js`
-- `runtime/linux/src/renderer/config/desktop_layout.js`
-- `runtime/linux/src/renderer/plugins/`
+- `runtime/shell/src/renderer/core/registry.js`
+- `runtime/shell/src/renderer/core/composer.js`
+- `runtime/shell/src/renderer/config/desktop_layout.js`
+- `runtime/shell/src/renderer/plugins/`
 
 因此可以直接借鉴 Omarchy 的管理体验，但继续遵守 Open DeskOS 的安全边界：
 
@@ -114,15 +114,15 @@ Open DeskOS 可以把这一原则转化为：
 - 更新失败可以回到上一个可用版本。
 - 布局配置、App 安装状态和 App 运行状态不要混为一个数据结构。
 
-## 3. 当前 `runtime/linux/` 的实际状态（2026-08-27 更新）
+## 3. 当前 `runtime/shell/` 的实际状态（2026-08-27 更新）
 
 ### 3.1 Linux App Manager 验证端（已落地）
 
 Linux 切片现已升格为 App Manager 验证端：Widget 先陈述真实状态，再通过声明式 `open-app` 意图延续到 App。`core/app-platform.js` 以 Installer → App Manager → App Runtime 的顺序记录并执行入口与动作；`peek-bridge.js` 承担网络、Mac 与当前 App 的持续状态；状态栏只有统一的 App Manager 入口。
 
-`runtime/linux/src/renderer/config/desktop_layout.js` 仍是 Widget 位置唯一事实源；没有对应 App 的 Widget 保持 `display-only`，不会伪装成入口。主屏不使用 dock 或桌面图标堆积，应用发现与生命周期验证集中在 App Manager 页面。
+`runtime/shell/src/renderer/config/desktop_layout.js` 仍是 Widget 位置唯一事实源；没有对应 App 的 Widget 保持 `display-only`，不会伪装成入口。主屏不使用 dock 或桌面图标堆积，应用发现与生命周期验证集中在 App Manager 页面。
 
-`runtime/linux/tests/features/linux-shell.feature` 已固定以下新契约：
+`runtime/shell/tests/features/shell.feature` 已固定以下新契约：
 
 - Widget 先显示网络未连接、Mac 尚未连接、番茄钟未启动等真实状态。
 - `open-app` Widget 保留来源 `app_id` 与 route，并进入统一 App frame。
@@ -288,7 +288,7 @@ Omarchy 的可配置 bar 说明了“用户可以管理自己的工作区”这�
 
 ### Phase A：统一契约（已完成）
 
-Linux 切片已确定为 App Manager 验证端，并同步更新 `runtime/linux/PRODUCT.md`、`README.md`、`tests/features/linux-shell.feature` 与 `research/esp32-p4-c6-deskos/firmware/tests/features/app-transition.feature`。旧的 Widget-only 语义不再是当前契约。
+Linux 切片已确定为 App Manager 验证端，并同步更新 `runtime/shell/PRODUCT.md`、`README.md`、`tests/features/shell.feature` 与 `research/esp32-p4-c6-deskos/firmware/tests/features/app-transition.feature`。旧的 Widget-only 语义不再是当前契约。
 
 ### Phase B：声明式交互 metadata（已完成首个垂直切片）
 
@@ -312,7 +312,7 @@ App Manager 的首版验证端已经提供可搜索列表；真实安装、更�
 
 ## 7. 建议先补充的 BDD 场景
 
-在任何实现之前，建议在 `runtime/linux/tests/features/linux-shell.feature` 增加以下场景：
+在任何实现之前，建议在 `runtime/shell/tests/features/shell.feature` 增加以下场景：
 
 ### 可操作 Widget
 
@@ -356,7 +356,7 @@ App Manager 的首版验证端已经提供可搜索列表；真实安装、更�
 本轮实现对当前 Linux 切片执行了（验证适配器范围）：
 
 ```sh
-cd runtime/linux
+cd runtime/shell
 pnpm run e2e
 bash tests/smoke.sh
 ```
@@ -392,7 +392,7 @@ Open DeskOS 应该坚持自己的：
 - v2 manifest 和 capabilities consent。
 - App Manager、Lua sandbox 和 atomic installer。
 
-**当前裁决已完成：`runtime/linux/` 是 App Manager 验证端。**下一步不是复制 Omarchy 的 UI，而是把验证适配器逐步替换为真实的 Installer、App Manager、App Runtime IPC，同时保持 Widget → App、Peek、触摸与语音 intent 的统一契约。
+**当前裁决已完成：`runtime/shell/` 是 App Manager 验证端。**下一步不是复制 Omarchy 的 UI，而是把验证适配器逐步替换为真实的 Installer、App Manager、App Runtime IPC，同时保持 Widget → App、Peek、触摸与语音 intent 的统一契约。
 
 ## 参考资料
 
@@ -408,12 +408,12 @@ Open DeskOS 应该坚持自己的：
 
 ### Open DeskOS
 
-- `runtime/linux/PRODUCT.md`
-- `runtime/linux/src/renderer/core/composer.js`
-- `runtime/linux/src/renderer/core/registry.js`
-- `runtime/linux/src/renderer/config/desktop_layout.js`
-- `runtime/linux/src/renderer/shell.js`
-- `runtime/linux/tests/features/linux-shell.feature`
+- `runtime/shell/PRODUCT.md`
+- `runtime/shell/src/renderer/core/composer.js`
+- `runtime/shell/src/renderer/core/registry.js`
+- `runtime/shell/src/renderer/config/desktop_layout.js`
+- `runtime/shell/src/renderer/shell.js`
+- `runtime/shell/tests/features/shell.feature`
 - `research/esp32-p4-c6-deskos/docs/OPEN-DESKOS.md`
 - `research/esp32-p4-c6-deskos/docs/PLUGINS_AND_WIDGETS_ARCHITECTURE.md`
 - `research/esp32-p4-c6-deskos/docs/WIDGET_SPEC_AND_AI_GUIDE.md`

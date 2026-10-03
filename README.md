@@ -1,11 +1,11 @@
 # Open DeskOS
 
-Open DeskOS is a CM5/RK3588S Linux desk companion runtime. Its Electron shell runs directly on the desk display and remains usable with touch and keyboard while hardware peripherals complete their own acceptance gates. The same shell also runs natively on a 64-bit Windows host, where the surfaces this repository has not ported report unavailable instead of degrading silently.
+Open DeskOS is a cross-platform desk companion with one Electron Display Shell for Linux, 64-bit Windows, and macOS. The CM5/RK3588S Linux panel is the reference host. Direct input remains usable while hardware peripherals complete their own acceptance gates; host capabilities and device acceptance are verified separately.
 
 ## Active architecture
 
 ```text
-runtime/linux/                         Electron desk runtime: CM5 reference host and 64-bit Windows hosts
+runtime/shell/                         Shared Electron Shell: Linux, Windows, and macOS
 peripherals/esp32-s3-remote/           ESP32-S3 touch Remote Control
 peripherals/esp32-p4-camera/           ESP32-P4 SC2336 Camera Peripheral
 integrations/remote-bridge/            CM5 ↔ Remote transport service
@@ -13,10 +13,10 @@ integrations/remote-bridge/            CM5 ↔ Remote transport service
 
 The ESP32-S3 Remote Control and ESP32-P4 Camera Peripheral are intended parts of the CM5 system architecture. A base CM5 installation and direct shell use do not wait for either board. The P4 Camera is a generic UVC webcam and UAC microphone with no face recognition or identity storage.
 
-## Develop the CM5 runtime
+## Develop the Shell
 
 ```sh
-cd runtime/linux
+cd runtime/shell
 pnpm install
 pnpm styles
 pnpm test
@@ -25,7 +25,7 @@ bash tests/smoke.sh
 ./run.sh
 ```
 
-For CM5 installation and acceptance, see [runtime/linux/README.md](runtime/linux/README.md). For a 64-bit Windows host, see [runtime/linux/docs/WINDOWS_HOST.md](runtime/linux/docs/WINDOWS_HOST.md): `pnpm install`, `pwsh -File run.ps1`, then `node tests/smoke.mjs`.
+For CM5 installation and acceptance, see [runtime/shell/README.md](runtime/shell/README.md). For a 64-bit Windows host, see [runtime/shell/docs/WINDOWS_HOST.md](runtime/shell/docs/WINDOWS_HOST.md): `pnpm install`, `pwsh -File run.ps1`, then `node tests/smoke.mjs`.
 
 ## Build required peripherals
 
@@ -50,6 +50,6 @@ The Remote protocol is documented in [peripherals/esp32-s3-remote/README.md](per
 ## Product authority
 
 - [Current product definition](PRODUCT.md)
-- [CM5 runtime architecture context](runtime/linux/CONTEXT.md)
-- [Architecture decision record](runtime/linux/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
+- [Shell architecture context](runtime/shell/CONTEXT.md)
+- [Architecture decision record](runtime/shell/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
 - [Preserved P4+C6 research documentation](research/esp32-p4-c6-deskos/docs/)

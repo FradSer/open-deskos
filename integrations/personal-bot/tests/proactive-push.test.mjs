@@ -8,10 +8,10 @@ import { ProactiveWatch } from '../src/proactive.mjs'
 import { PersonalBotService } from '../src/service.mjs'
 import { listen } from '../src/socket.mjs'
 const require = createRequire(import.meta.url)
-const { createPersonalBotClient } = require('../../../runtime/linux/src/personal-bot-client.js')
-const { createHydraStore } = require('../../../runtime/linux/src/hydra-mqtt.js')
-const { createShellDeskData } = require('../../../runtime/linux/src/desk-data.js')
-const { createDeskDataRegistry } = require('../../../runtime/linux/src/desk-data-registry.js')
+const { createPersonalBotClient } = require('../../../runtime/shell/src/personal-bot-client.js')
+const { createHydraStore } = require('../../../runtime/shell/src/hydra-mqtt.js')
+const { createShellDeskData } = require('../../../runtime/shell/src/desk-data.js')
+const { createDeskDataRegistry } = require('../../../runtime/shell/src/desk-data-registry.js')
 const stamp = Date.parse('2026-10-02T10:00:00Z')
 const until = async predicate => { const begin = Date.now(); while (!predicate()) { if (Date.now()-begin>5000) throw Error('fixture timed out'); await new Promise(resolve=>setTimeout(resolve,20)) } }
 

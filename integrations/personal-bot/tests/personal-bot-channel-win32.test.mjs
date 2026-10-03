@@ -87,9 +87,13 @@ function openPipe(pipeNet, endpoint = PIPE) {
   client.setEncoding('utf8')
   const records = []
   let received = ''
+  let pending = ''
   client.on('data', chunk => {
     received += chunk
-    for (const line of chunk.split('\n')) {
+    pending += chunk
+    const lines = pending.split('\n')
+    pending = lines.pop()
+    for (const line of lines) {
       if (!line.trim()) continue
       try { records.push(JSON.parse(line)) } catch { records.push(line) }
     }
@@ -124,7 +128,7 @@ test('channelTokenFile is the file every other Windows runtime channel uses', ()
 })
 
 test('the endpoint and the token file are the ones the Shell Host itself resolves', t => {
-  const platformModule = new URL('../../../runtime/linux/src/platform/index.js', import.meta.url)
+  const platformModule = new URL('../../../runtime/shell/src/platform/index.js', import.meta.url)
   if (!existsSync(platformModule)) return t.skip('the Shell Host resolves endpoints outside this package')
   const { resolveShellHost } = require(platformModule.pathname)
   const windows = resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\fradser' })
@@ -517,6 +521,61 @@ test('a command line beyond 4096 bytes is dropped before anything is parsed', as
   await within(once(client, 'close'), 'the oversized line to be dropped')
 
   assert.deepEqual(service.calls, [], 'an unterminated line past the input bound is never parsed')
+})
+
+test('recording level bursts preserve a backpressured authenticated channel and its authoritative states', async t => {
+  const dir = await temp(t)
+  const pipeNet = standInPipeNet(dir)
+  const createServer = pipeNet.createServer.bind(pipeNet)
+  let peer, queuedBytes = 0, writes = 0
+  pipeNet.createServer = handler => createServer(client => {
+    peer = client
+    Object.defineProperty(client, 'writableLength', { get: () => queuedBytes })
+    const write = client.write.bind(client)
+    client.write = (...args) => { writes++; return write(...args) }
+    handler(client)
+  })
+  const service = fakeService()
+  const server = await listen(PIPE, service, { platform: 'win32', token: 'test-token', net: pipeNet })
+  const { client, records } = openPipe(pipeNet)
+  const receivedStatus = async predicate => within((async () => {
+    while (!records.some(predicate)) await once(client, 'data')
+  })(), 'complete status frame')
+  t.after(async () => { client.destroy(); await server.close() })
+  await once(client, 'connect')
+  const ready = once(client, 'data')
+  client.write(`${channelHandshake('test-token')}{"v":1,"type":"status"}\n`)
+  await within(ready, 'authenticated status')
+  const recording = { v: 1, type: 'status', state: 'recording', message: '', transcript: '', level: 0.1, proposals: [{ advice: 'x'.repeat(20000) }] }
+  service.publish(recording)
+  await receivedStatus(record => record.state === 'recording')
+  const baseline = writes
+  // Desk Data pushes also request the current snapshot while the Shell is busy.
+  // Identical snapshots are replaceable in every state, not only meter ticks.
+  queuedBytes = 120156
+  for (let i = 0; i < 1000; i++) service.publish(structuredClone(recording))
+  assert.equal(peer.destroyed, false, 'repeated current snapshots must preserve the channel')
+  assert.equal(writes, baseline, 'identical queued snapshots are not written twice')
+  for (let i = 0; i < 1000; i++) service.publish({ ...recording, level: (i % 100) / 100 })
+  assert.equal(peer.destroyed, false, 'replaceable meter frames must not disconnect the real client')
+  assert.equal(writes, baseline, 'meter updates do not add output while earlier status is queued')
+  queuedBytes = 16000
+  service.publish({ ...recording, proposals: [{ advice: 'Changed suggestion' }] })
+  await receivedStatus(record => record.proposals?.[0]?.advice === 'Changed suggestion')
+  assert.equal(records.at(-1).proposals[0].advice, 'Changed suggestion')
+  service.publish({ ...recording, state: 'transcribing', level: 0 })
+  await receivedStatus(record => record.state === 'transcribing')
+  assert.equal(records.at(-1).state, 'transcribing')
+  const transcribingWrites = writes
+  queuedBytes = 120156
+  for (let i = 0; i < 1000; i++) service.publish({ ...structuredClone(recording), state: 'transcribing', level: 0 })
+  assert.equal(writes, transcribingWrites, 'unchanged transcribing snapshots are also coalesced')
+  assert.equal(peer.destroyed, false)
+  queuedBytes = 0
+  service.publish({ ...recording, state: 'idle', message: 'Current verified reading', transcript: 'How are my plants?', level: 0 })
+  await receivedStatus(record => record.message === 'Current verified reading')
+  assert.equal(records.at(-1).message, 'Current verified reading')
+  assert.equal(peer.destroyed, false)
 })
 
 test('a queued frame beyond 131072 bytes drops a client that is not reading', async t => {

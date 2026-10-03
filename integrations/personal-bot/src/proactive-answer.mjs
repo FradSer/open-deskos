@@ -1,11 +1,3 @@
-/** Narrow read-only requests; task-specific advice and action requests keep their normal route. */
-export function isSuggestionRequest(text) {
-  const query = text.trim().replace(/[？?！!。]+$/u, '').trim()
-  return /^(?:(?:最近|现在|目前|今天|这会儿)[，,\s]*)?(?:有什么建议(?:吗|么)?|有没有(?:什么)?建议(?:吗|么)?|有啥建议(?:吗|么)?|建议呢)$/u.test(query)
-    || /^(?:请)?(?:给我|给)(?:一些|点|个)?建议(?:吧|吗)?$/u.test(query)
-    || /^(?:any suggestions|what do you recommend(?: right now)?|do you have any suggestions)$/i.test(query)
-}
-
 function measuredEvidence(evidence) {
   const value = String(evidence.value)
   let detail

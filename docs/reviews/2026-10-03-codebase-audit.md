@@ -133,7 +133,7 @@ data. Counts below distinguish passed, skipped, and host-only checks.
 
 | Surface | Check | Result |
 | --- | --- | --- |
-| Shell | `pnpm test` in `runtime/linux` | 722 passed, 2 Windows-only skips, 0 failed (724 total) |
+| Shell | `pnpm test` in `runtime/shell` | 722 passed, 2 Windows-only skips, 0 failed (724 total) |
 | Personal Bot | `pnpm test` | 432 passed, 1 Windows ACL skip, 0 failed (433 total) |
 | Personal Bot | `pnpm typecheck` | Passed, including unused local/parameter checks |
 | Bot/channel regressions | Focused transport tests | 31 passed |

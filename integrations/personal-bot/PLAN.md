@@ -54,7 +54,7 @@ Configured roots select trusted workspaces; Pi's bash and file tools are not a f
 
 ## Technical findings and acceptance limits
 
-See `runtime/linux/docs/VOICE_MANAGED_TASKS_RESEARCH.md`. The obsolete standalone session-control executable does not provide startup and has been replaced with managed-task tools. A separate atomic task receipt is required because SDK session persistence can begin only after an assistant message.
+See `runtime/shell/docs/VOICE_MANAGED_TASKS_RESEARCH.md`. The obsolete standalone session-control executable does not provide startup and has been replaced with managed-task tools. A separate atomic task receipt is required because SDK session persistence can begin only after an assistant message.
 
 Host templates and configured transports support Linux and macOS, but repository code alone does not install services. The existing CM5 SSH alias `pi-monitor-mac` returned `No route to host` during this session. Live Mac acceptance is blocked until the configured connection is reachable. No production task runner installation or real authenticated two-host model task has been verified yet.
 
@@ -68,7 +68,7 @@ Host templates and configured transports support Linux and macOS, but repository
 ## Current verification
 
 - Personal Bot integration: bounded Node suite and TypeScript checks use Pi 1.0.0. The test script now sets a per-test timeout. On this machine pnpm 11's automatic dependency check attempted a no-TTY repair after a failed offline update; frozen-lockfile dependencies were restored with cached pnpm 10 (scripts disabled). `pnpm --config.verify-deps-before-run=false test` and `pnpm --config.verify-deps-before-run=false typecheck` run the same scripts without that local auto-repair. No manifest/lockfile dependency change was required for recovery.
-- Shell runtime (`runtime/linux`): the Node contract suite passes except one pre-existing, unrelated failure, `git-agent uses concise scopes aligned with the current topology`, which fails identically with these changes stashed. Run it as `node --test --test-timeout=120000 tests/*.test.js`.
+- Shell runtime (`runtime/shell`): the Node contract suite passes except one pre-existing, unrelated failure, `git-agent uses concise scopes aligned with the current topology`, which fails identically with these changes stashed. Run it as `node --test --test-timeout=120000 tests/*.test.js`.
 - Active-host Pi v1.0 rollout completed on the known Mac, CM5 and Windows hosts: CLI versions were checked separately from selected SDKs. CM5 Personal Bot/Hosted Pi and Windows Voice restarted on hash-gated SDK 1.0.0 source; Shell and unrelated process identities, configuration and persisted-state boundaries were preserved. Actual native SDK/QuickJS checks used offline model streams. No microphone, transcription/model-provider request or foreground Electron window was exercised; full spoken-turn, cross-host model and Windows capture acceptance remain unverified. See @docs/PI_V1_MIGRATION.md for inventory, payload identity and remaining limits.
 - Focused renderer voice tests: 3 pass; changed renderer JavaScript syntax checks pass.
 - Fullscreen Electron interaction checks passed before the foreground-test prohibition, including pointer-capture cancellation and restored Remote focus mode. No foreground E2E was run after that restriction.

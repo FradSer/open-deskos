@@ -1,14 +1,8 @@
 import { test } from 'node:test'
 import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import assert from 'node:assert/strict'
-import { sessionAdapter } from '../src/agent.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
-import { isSuggestionRequest, answerSuggestions } from '../src/proactive-answer.mjs'
-
-test('recent suggestion queries are distinct from capability and engineering questions', () => {
-  for (const text of ['最近有什么建议', '最近有什么建议？', '有什么建议吗？', '现在有没有什么建议', '给我一些建议', '今天有啥建议', 'Any suggestions?', 'What do you recommend right now?']) assert(isSuggestionRequest(text), text)
-  for (const text of ['你能做什么', '你会浇水吗', '这段代码有什么优化建议', '最近有什么建议，帮我浇水', '确认执行 123', '记住 note：最近有什么建议']) assert(!isSuggestionRequest(text), text)
-})
+import { answerSuggestions } from '../src/proactive-answer.mjs'
 
 const proposal = () => ({ id: 'test', status: 'pending', advice: '出门前查看天气再决定穿着。', evidence: [{ readingId: 'odk.tile.weather', field: 'temperatureC', value: 19, state: 'live', measuredAt: '2026-10-02T11:00:00Z' }], action: null })
 
@@ -22,16 +16,6 @@ test('no pending suggestion and unavailable source are different from generic ad
   assert.match(await answerSuggestions({ readProposals: async () => [] }), /没有.*建议/)
   assert.match(await answerSuggestions(undefined), /未启用/)
   assert.match(await answerSuggestions({ readProposals: async () => { throw Error('private error') } }), /无法读取/)
-})
-
-test('host suggestion answers bypass historical model output and preserve adapter turn lifecycle', async () => {
-  const turns = [], snapshots = []
-  let modelCalls = 0
-  const adapter = sessionAdapter({ isStreaming: false, prompt: async () => { modelCalls++ }, subscribe: () => () => {} }, {
-    beginTurn: text => turns.push(text), answer: async text => isSuggestionRequest(text) ? answerSuggestions({ readProposals: async () => [proposal()] }) : undefined,
-  })
-  const answer = await adapter.prompt('最近有什么建议', text => snapshots.push(text))
-  assert.match(answer, /19°C/); assert.equal(modelCalls, 0); assert.deepEqual(turns, ['最近有什么建议', '']); assert.deepEqual(snapshots, [answer])
 })
 
 test('suggestion refresh joins an active poll and waits for new readings', async () => {

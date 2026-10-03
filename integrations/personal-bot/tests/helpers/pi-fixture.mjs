@@ -33,8 +33,8 @@ export async function offlineSession(options, reply, settings = {}) {
     getAuth: async () => ({ auth: { apiKey: 'offline-fixture' }, env: {} }),
     streamSimple: (_model, context) => {
       requests.push(context)
-      const message = reply(context, requests.length)
-      return { async *[Symbol.asyncIterator]() { yield { type: 'done', reason: message.stopReason, message } }, result: async () => message }
+      const result = Promise.resolve(reply(context, requests.length))
+      return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
     },
   }
   const { session } = await createAgentSession({ ...options, modelRuntime: runtime, model: fixtureModel,

@@ -38,8 +38,8 @@ The P4 native USB pair uses GPIO 24/25 through the TS3USB221ARSER mux. Connect t
 On the CM5, run the live hardware acceptance checks as the kiosk user or root:
 
 ```sh
-bash runtime/linux/scripts/p4-camera-acceptance.sh
-bash runtime/linux/scripts/p4-microphone-acceptance.sh
+bash runtime/shell/scripts/p4-camera-acceptance.sh
+bash runtime/shell/scripts/p4-microphone-acceptance.sh
 ```
 
 The camera check requires USB identity `303a:7002`, resolves the V4L2 video device, and captures a bounded MJPEG frame without writing media to disk. The microphone check requires the same USB identity, resolves the ALSA card, streams bounded raw PCM through a pipe, and rejects silence, constant data, clipping, or a truncated capture without writing speech to disk. After acceptance, set `ODESK_PERSONAL_BOT_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0` in the device-local Personal Bot environment rather than hardcoding a numeric card index in a release.

@@ -1,7 +1,7 @@
 # Open DeskOS Universal Plugin Architecture Specification (v1.0)
 
-**Authority Status**: Approved Architectural Target & Implementation Reference  
-**Scope**: Entire active Open DeskOS Codebase (`runtime/linux/`, `integrations/remote-bridge/`, `peripherals/esp32-s3-remote/`, `peripherals/esp32-p4-camera/`)  
+**Authority Status**: Approved Architectural Target & Implementation Reference
+**Scope**: Entire active Open DeskOS Codebase (`runtime/shell/`, `integrations/remote-bridge/`, `peripherals/esp32-s3-remote/`, `peripherals/esp32-p4-camera/`)
 **Derived From**: Wayfinding Map `docs/wayfinding/universal-plugin-architecture/MAP.md`
 
 ---
@@ -96,7 +96,7 @@ All runtimes implement identical transition states and cleanup semantics:
 
 ## 4. Subsystem Architecture Realization
 
-### A. CM5 Linux Runtime (`runtime/linux/`)
+### A. Shared Electron Shell (`runtime/shell/`)
 - **Main Host Kernel (`src/main/kernel.js`)**: Owns single-instance locks, GPU switches, Kiosk window management, strict CSP, and capability-gated IPC dispatch. Monolithic code is modularized into `src/main/plugins/` (`remote-bridge`, `opencode-go`, `app-manager`).
 - **Renderer Host Kernel (`src/renderer/core/kernel.js`)**: Dynamic ES Module loader (`import()`), DAG scheduler, and declarative layout composer (`desktop_layout.js`).
 - **Error Boundaries**: Uncaught plugin errors display truthful AIODI Degradation Cards (`.w-degraded`) without crashing neighboring widgets or window navigation.
@@ -111,7 +111,7 @@ All runtimes implement identical transition states and cleanup semantics:
 - **P4 Camera Modules**: `driver.sc2336`, `processor.jpeg-encode`, `service.uvc-stream`, `transport.tinyusb-uvc-uac`.
 - **100% CTest Isolation**: Pure algorithms and protocol encoders/decoders testable on host without hardware.
 
-### D. P4 Camera Host *(Face Agent withdrawn — see runtime/linux/docs/adr/0004-p4-generic-uvc-camera.md)*
+### D. P4 Camera Host *(Face Agent withdrawn — see runtime/shell/docs/adr/0004-p4-generic-uvc-camera.md)*
 
 The former Face Agent functional pipeline (`transport.py`, `normalizer.py`, `state.py`, `server.py`) was removed with all P4 on-device recognition. The CM5 consumes the P4 as a generic UVC webcam and UAC microphone with no metadata adapter.
 

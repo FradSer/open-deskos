@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This is a standalone Node.js systemd user service connecting `runtime/linux/` to `peripherals/esp32-s3-remote/`. `bin/open-deskos-remote-bridge.js` starts the service; `lib/remote-bridge.js` owns socket and relay lifecycle; `lib/protocol.js` validates v1 JSON Lines; `lib/usb-cdc-adapter.js` handles wired discovery. The service template is `systemd/open-deskos-remote-bridge.service`; tests are in `test/`.
+This is a standalone Node.js systemd user service connecting `runtime/shell/` to `peripherals/esp32-s3-remote/`. `bin/open-deskos-remote-bridge.js` starts the service; `lib/remote-bridge.js` owns socket and relay lifecycle; `lib/protocol.js` validates v1 JSON Lines; `lib/usb-cdc-adapter.js` handles wired discovery. The service template is `systemd/open-deskos-remote-bridge.service`; tests are in `test/`.
 
 ## Build, Test & Development Commands
 No package install is needed:

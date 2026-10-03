@@ -11,4 +11,4 @@ It remains in the repository so the work can be built, studied, and reused delib
 - `docs/` — prior product definition, P4+C6 specifications, architecture, and historical reviews.
 - `reference/` — P4/Guition hardware and LVGL performance notes.
 
-The active product lives at [../../runtime/linux/](../../runtime/linux/).
+The active product lives at [../../runtime/shell/](../../runtime/shell/).

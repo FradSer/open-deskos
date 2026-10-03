@@ -1,3 +1,4 @@
+import { fixtureIntentRouter } from './helpers/intent-judge.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
@@ -29,7 +30,8 @@ for (const profile of ['coding', 'personal']) {
       stateDir: join(dir, 'state'), workspace: repository, capabilityPaths: [],
       personal: { profile, memoryFile: join(dir, 'MEMORY.json'), skillPaths: [] },
     }, {
-      createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }),
+      createIntentRouter: fixtureIntentRouter,
+    createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }),
       createSession: async options => {
         sdk = await offlineSession(options, () => assistant('fixture startup'))
         return { session: sdk.session }
@@ -39,8 +41,10 @@ for (const profile of ['coding', 'personal']) {
     const active = profile === 'personal' ? ['codemode'] : ['codemode', 'find', 'grep', 'ls', 'read']
     assert.deepEqual(sdk.session.getActiveToolNames().sort(), active)
     const callable = sdk.session.getCallableToolNames()
+    const registered = sdk.session.getAllTools().map(tool => tool.name)
     for (const name of profile === 'personal' ? ['memory_read', 'memory_update', 'skill_read'] : ['desk_data', 'coding_targets', 'coding_task_start']) {
-      assert.ok(callable.includes(name), name + ' must remain callable after the loader reloads')
+      assert.ok(registered.includes(name), name + ' must remain registered after the loader reloads')
+      assert.ok(!callable.includes(name), name + ' requires a current Jev judgment before activation')
     }
     for (const name of ['bash', 'powershell', 'edit', 'write']) assert.ok(!callable.includes(name))
     assert.equal(await voice.prompt('fixture startup'), 'fixture startup')
@@ -73,7 +77,7 @@ for (const profile of ['coding', 'personal', 'hosted']) {
       const voice = await createPersonalBot({
         stateDir: join(dir, 'state'), workspace: repository, capabilityPaths: [],
         personal: { profile, memoryFile: join(dir, 'MEMORY.json'), skillPaths: [] },
-      }, { createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }), createSession })
+      }, { createIntentRouter: fixtureIntentRouter, createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }), createSession })
       await voice.close()
     }
     await new Promise(resolve => setImmediate(resolve))

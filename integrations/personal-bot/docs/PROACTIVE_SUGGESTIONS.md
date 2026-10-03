@@ -227,8 +227,8 @@ bound to preserve the existing 131072-byte escaped-frame limit.
 [../features/proactive-suggestions.feature](../features/proactive-suggestions.feature)
 defines the acceptance contract. Node tests exercise injected Jev decisions, both trigger types, freshness,
 owner writes, subsequent confirmation, uncertain outcomes and coding transitions.
-`runtime/linux/tests/proactive-panel.test.js` exercises renderer control behavior through
-a local DOM fixture. `runtime/linux/tests/proactive-panel.cjs` loads the real Shell with
+`runtime/shell/tests/proactive-panel.test.js` exercises renderer control behavior through
+a local DOM fixture. `runtime/shell/tests/proactive-panel.cjs` loads the real Shell with
 only fixture IPC, a temporary profile, blocked HTTP requests, GPU disabled and Electron
 headless or a dedicated temporary Xvfb display (`--fixture-x11 --ozone-platform=x11`). Run it on CM5 over SSH in a disposable checkout; it never loads main.js,
 connects to production sockets, displays on the physical screen, captures audio or installs a service.

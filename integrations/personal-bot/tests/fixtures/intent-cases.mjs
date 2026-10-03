@@ -1,0 +1,40 @@
+const tools = ['coding_targets', 'coding_tasks_list', 'coding_task_status', 'coding_task_history', 'coding_task_start', 'coding_task_prompt', 'coding_task_cancel', 'coding_task_end', 'user_apps_list', 'user_apps_desktop', 'user_app_install', 'user_app_place', 'user_app_remove', 'user_app_rollback', 'personal_bot_proposals', 'personal_bot_proposal_respond', 'desk_data', 'memory_read', 'memory_update', 'memory_forget', 'skill_read', 'didi_search', 'didi_status', 'calendar_events']
+const previous = { text: '查看 Mac 上 open-deskos 的 Pi 会话', answer: '已找到该会话，当前等待后续指令。', intent: 'task_query' }
+const pendingConfirmations = [{ id: 'fixture-proposal', confirmation: '记住 note：我喜欢深色主题' }]
+
+/** Synthetic owner-language examples; never real user data or executable actions. */
+export const intentCases = [
+  ['continue-cn', '继续 Mac 上 open-deskos 的 Pi session，修复刚才的错误', 'session_continue'],
+  ['continue-followup', '继续那个会话，把剩下的测试跑完', 'session_continue', { previous }],
+  ['query-cn', '查一下 Pi 任务现在跑到哪儿了', 'task_query'],
+  ['query-en', 'Show the current tasks and their results', 'task_query', { profile: 'coding' }],
+  ['new-coding', '在 Mac 上 open-deskos 项目新建一个编程任务修复错误', 'coding_work'],
+  ['widget-cn', '帮我做一个番茄钟 widget，放在第二页', 'widget_create'],
+  ['widget-update', '修改现有天气 Widget 的字体大小', 'widget_create'],
+  ['app-cn', '创建一个记账 App', 'app_create'],
+  ['app-move', '把已安装的天气 widget 移到第二页第1列第1行', 'app_manage'],
+  ['app-grid-resize', '把已安装的时钟 Widget 在桌面上改成占两列一行，不改它的代码', 'app_manage'],
+  ['widget-source-resize', '修改时钟 Widget 的源码，把数字字号改大', 'widget_create'],
+  ['app-remove', '删除已经安装的番茄钟 widget', 'app_manage'],
+  ['cancel-session', '取消正在运行的 Pi 任务回合', 'session_control'],
+  ['suggestions', '现在有值得我处理的建议吗', 'suggestions'],
+  ['memory', '记住 note：我喜欢深色主题', 'memory'],
+  ['proposal-memory', '记住 note：我喜欢深色主题', 'proposal_response', { pendingConfirmations }],
+  ['desk-reading', '桌上的植物土壤湿度现在是多少', 'desk_data'],
+  ['desk-flowers', '今天花怎么样', 'desk_data'],
+  ['desk-flowers-transcript', '花今天活得怎么样了？', 'desk_data'],
+  ['desk-weather-casual', '外面现在天气怎么样', 'desk_data'],
+  ['desk-room-casual', '屋里现在的环境怎么样', 'desk_data'],
+  ['desk-holdings-casual', '我的持仓今天表现如何', 'desk_data'],
+  ['desk-quota-casual', '现在 API 额度还剩多少', 'desk_data'],
+  ['apps-query-casual', '桌上现在装了哪些应用', 'app_query'],
+  ['memory-query-casual', '我以前告诉你我喜欢喝什么茶', 'memory'],
+  ['plant-advice', '一般养兰花应该多久浇一次水', 'conversation'],
+  ['flower-identification', '玫瑰和月季有什么区别', 'conversation'],
+  ['plant-widget', '创建一个显示花卉湿度的 Widget', 'widget_create'],
+  ['ride', '帮我查询当前的滴滴订单', 'ride'],
+  ['extension', '用日历工具查询今天的日程', 'extension', { extensionTools: [{ name: 'calendar_events', description: 'Read the owner calendar events for a requested date.' }] }],
+  ['conversation', '你好，你能做什么', 'conversation'],
+  ['ambiguous', '继续', 'clarify'],
+  ['multiple-actions', '创建一个 Widget，同时取消全部 Pi 任务', 'clarify'],
+].map(([id, text, expected, overrides = {}]) => ({ id, expected, input: { text, profile: 'personal', tools, ...overrides } }))

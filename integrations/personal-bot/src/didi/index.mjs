@@ -33,7 +33,7 @@ export function createDidiTools(controller) {
   return specs.map(([name,label,description,method,parameters]) => defineTool({
     name, label, description, parameters, exposure: 'codemode', executionMode: 'sequential',
     namespace: { name: 'didi', description: 'Ordered ride workflow. Host-owned current-turn confirmation is required; unknown results are not retried.' },
-    annotations: { readOnlyHint: ['search', 'driverLocation'].includes(method), destructiveHint: !['search', 'driverLocation'].includes(method),
+    annotations: { readOnlyHint: ['search', 'status', 'driverLocation'].includes(method), destructiveHint: !['search', 'status', 'driverLocation'].includes(method),
       idempotentHint: false, openWorldHint: true },
     outputSchema: Type.Object({ sandbox: Type.Boolean(), result: Type.Optional(Type.Unknown()), error: Type.Optional(Type.String()) }),
     async execute(_id,args) {

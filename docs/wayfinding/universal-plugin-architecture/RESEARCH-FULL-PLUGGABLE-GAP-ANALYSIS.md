@@ -1,9 +1,9 @@
 # Research Report: Refined Pluggability Architecture & Scope Boundary Specification
 
-**File Location**: `docs/wayfinding/universal-plugin-architecture/RESEARCH-FULL-PLUGGABLE-GAP-ANALYSIS.md`  
-**Authoring Context**: Matt Pocock Workflow (`idea-to-ship`, Scope Boundary Refinement)  
-**Scope**: Open DeskOS Core (`runtime/linux/`, `docs/UNIVERSAL-PLUGIN-ARCHITECTURE.md`, `docs/wayfinding/universal-plugin-architecture/`)  
-**Status**: Authoritative Product & Engineering Scope  
+**File Location**: `docs/wayfinding/universal-plugin-architecture/RESEARCH-FULL-PLUGGABLE-GAP-ANALYSIS.md`
+**Authoring Context**: Matt Pocock Workflow (`idea-to-ship`, Scope Boundary Refinement)
+**Scope**: Open DeskOS Core (`runtime/shell/`, `docs/UNIVERSAL-PLUGIN-ARCHITECTURE.md`, `docs/wayfinding/universal-plugin-architecture/`)
+**Status**: Authoritative Product & Engineering Scope
 
 ---
 

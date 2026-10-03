@@ -1,11 +1,11 @@
 # Open DeskOS
 
-Open DeskOS 是以 CM5/RK3588S Linux 为主体的桌面伴侣运行时。Electron 外壳直接运行在桌面显示屏上；在硬件外设分别完成验收前，CM5 基础外壳仍可通过直接触控和键盘使用。
+Open DeskOS 是跨平台桌面伴侣。Linux、64 位 Windows 和 macOS 共用一个 Electron Display Shell，CM5/RK3588S Linux 面板是参考主机。外设分别完成硬件验收前，基础外壳仍可通过直接输入使用；各主机的能力与设备验收单独记录。
 
 ## 当前架构
 
 ```text
-runtime/linux/                         CM5 Electron 桌面运行时
+runtime/shell/                         Linux、Windows、macOS 共用的 Electron Shell
 peripherals/esp32-s3-remote/           ESP32-S3 触控 Remote Control
 peripherals/esp32-p4-camera/           ESP32-P4 SC2336 Camera Peripheral
 integrations/remote-bridge/            CM5 ↔ Remote 传输服务
@@ -13,10 +13,10 @@ integrations/remote-bridge/            CM5 ↔ Remote 传输服务
 
 ESP32-S3 Remote Control 和 ESP32-P4 Camera Peripheral 是目标 CM5 系统架构的组成部分，但各自拥有独立硬件验收门。基础 CM5 安装和直接操作不会等待任一开发板。P4 Camera 是通用 UVC webcam 与 UAC 麦克风，无人脸识别与身份存储。
 
-## 开发 CM5 运行时
+## 开发 Shell
 
 ```sh
-cd runtime/linux
+cd runtime/shell
 pnpm install
 pnpm styles
 pnpm test
@@ -25,7 +25,7 @@ bash tests/smoke.sh
 ./run.sh
 ```
 
-CM5 安装与设备验收请见 [runtime/linux/README.md](runtime/linux/README.md)。
+CM5 安装与设备验收请见 [runtime/shell/README.md](runtime/shell/README.md)。
 
 ## 构建目标外设
 
@@ -50,6 +50,6 @@ Remote 协议见 [peripherals/esp32-s3-remote/README.md](peripherals/esp32-s3-re
 ## 产品权威
 
 - [当前产品定义](PRODUCT.md)
-- [CM5 运行时架构上下文](runtime/linux/CONTEXT.md)
-- [架构决策记录](runtime/linux/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
+- [Shell 架构上下文](runtime/shell/CONTEXT.md)
+- [架构决策记录](runtime/shell/docs/adr/0002-cm5-runtime-and-preserved-p4-research.md)
 - [保留的 P4+C6 研究文档](research/esp32-p4-c6-deskos/docs/)

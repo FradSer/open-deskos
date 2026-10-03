@@ -1,3 +1,4 @@
+import { fixtureIntentRouter } from './helpers/intent-judge.mjs'
 import { test } from 'node:test'
 import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import assert from 'node:assert/strict'
@@ -21,6 +22,7 @@ test('real SDK generator has no tools, skills or durable memory and can return s
   await writeFile(join(dir, 'memory.json'), JSON.stringify({ private: 'MUST_NOT_ENTER_GENERATION' }))
   const suggestions = [1, 2].map(i => ({ topicId: 'packages', key: `item-${i}`, advice: `检查物品 ${i}。`, reason: '状态有变化。', evidenceIds: ['e0'] }))
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
+    createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),
     createSession: async options => {
       optionsSeen.push(options)
@@ -48,6 +50,7 @@ test('real agent suggestion queries refresh private proposals without invoking t
   })
   let modelCalls = 0
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
+    createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),
     createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, () => { modelCalls++; return assistant('我能浇水。旧任务未完成。') })).session }),
   })
@@ -66,6 +69,7 @@ test('real SDK phrasing has no tools or reading export; touch confirmation invok
   const optionsSeen = [], requests = []
   let watch
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
+    createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),
     createSession: async options => {
       optionsSeen.push(options)
@@ -134,12 +138,13 @@ test('private socket carries presentation, exact confirmation and real memory re
   const { createRequire } = await import('node:module')
   const { PersonalBotService } = await import('../src/service.mjs')
   const { listen } = await import('../src/socket.mjs')
-  const { createPersonalBotClient } = createRequire(import.meta.url)('../../../runtime/linux/src/personal-bot-client.js')
+  const { createPersonalBotClient } = createRequire(import.meta.url)('../../../runtime/shell/src/personal-bot-client.js')
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-proactive-link-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   let watch
   const agent = await createPersonalBot({ stateDir: dir, personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') }, getWatch: () => watch }, {
+    createIntentRouter: fixtureIntentRouter,
     createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel }),
     createSession: async options => ({ session: (await offlineSession({ ...options, agentDir: join(dir, 'agent') }, () => assistant('[0,1]'))).session }),
   })

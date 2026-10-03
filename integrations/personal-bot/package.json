@@ -11,6 +11,7 @@
   "private": true,
   "scripts": {
     "test": "node --test --test-timeout=120000 tests/*.test.mjs",
+    "test:intents:live": "node scripts/test-intents-live.mjs",
     "start": "node src/main.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },

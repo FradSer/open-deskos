@@ -1,6 +1,6 @@
 # Personal Bot
 
-The personal profile reuses the resident MIC, STT, Pi SDK and Markdown feedback. It does not enable native shell/filesystem tools, extensions, project instructions or coding capability modules. The default remains the existing coding profile when no config is set. TTS is not included.
+The personal profile reuses the resident MIC, STT, Pi SDK and Markdown feedback. It does not enable native shell/filesystem tools, extensions, project instructions or operator-added coding capability modules. Reviewed desk lifecycle and Hosted Pi coordination tools are available behind the mandatory Jev intent router. The default remains the existing coding profile when no config is set. TTS is not included.
 
 ## Configuration
 
@@ -21,6 +21,8 @@ Set `ODESK_PERSONAL_BOT_CONFIG` in the private `personal-bot.env` to a canonical
 Create the memory parent with mode 0700 and service-user ownership. The key is a separately provisioned 0600 file. Start with sandbox; production is explicitly selected by the operator. Sandbox and production ride state are separate. The built-in DiDi skill is included automatically when DiDi is configured. Add reviewed absolute SKILL.md files to `skillPaths`, then restart the service. The `skill_read` tool reads only startup snapshots of these files. Installing a skill does not grant executable scripts or additional tools.
 
 The personal profile does not need a writable Git workspace. Model authentication and STT configuration remain unchanged; missing configuration gives a safe startup error, not a fake ready state.
+
+Both profiles require a private Jev credential for every user intent, even when proactive suggestions are disabled. See [intent routing](INTENT_ROUTING.md) for handlers, confidence policy and `TYPESAFE_API_KEY` / `ODESK_JEV_KEY_FILE` configuration. Widget/App drafting still needs a configured Hosted Pi target and explicit project.
 
 ## Memory
 
