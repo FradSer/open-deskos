@@ -18,9 +18,9 @@ Classify the requested artifact before editing. The two architecture paths are i
 
 ### Trusted built-in runtime surface
 
-Use for Shell-owned tiles, pages, status indicators, and built-in Apps under `runtime/linux/src/renderer/plugins/`.
+Use for Shell-owned tiles, pages, status indicators, and built-in Apps under `runtime/shell/src/renderer/plugins/`.
 
-- Read `runtime/linux/docs/AI_PLUGIN_GUIDE.md` completely before implementation.
+- Read `runtime/shell/docs/AI_PLUGIN_GUIDE.md` completely before implementation.
 - Register through `odkPlugins`; place pages and tiles through `config/desktop_layout.js`.
 - Keep a Widget (`kind: 'tile'`) display-only and glanceable.
 - Put controls and multi-step interaction in an App/page surface.
@@ -30,7 +30,7 @@ Use for Shell-owned tiles, pages, status indicators, and built-in Apps under `ru
 
 Use when the request is for a locally installable user-created Widget or App under `ODESK_WORKSPACE/apps/<id>/`.
 
-- Read `runtime/linux/docs/USER_APPLICATIONS.md` completely before implementation.
+- Read `runtime/shell/docs/USER_APPLICATIONS.md` completely before implementation.
 - A user Widget is display-only; a user App is interactive.
 - Author the bounded `manifest.json` plus self-contained `index.html` package.
 - Work within the sandbox: no network, Node, filesystem, parent/preload API, external assets, background service, or persistent app data.
@@ -40,7 +40,7 @@ If the request says only “Widget” or “App,” infer the path from its inte
 
 ## 2. Product and architecture contracts
 
-Read `PRODUCT.md`, `DESIGN.md`, and `runtime/linux/CONTEXT.md` before changing the interface. Preserve these invariants:
+Read `PRODUCT.md`, `DESIGN.md`, and `runtime/shell/CONTEXT.md` before changing the interface. Preserve these invariants:
 
 - Open DeskOS is a calm, precise desk instrument, not a generic AI interface or analytics dashboard.
 - State is truthful. Loading, empty, unavailable, unauthorized, stale, malformed, and error states never masquerade as live data.
@@ -106,7 +106,7 @@ For built-in plugins:
 - Use `ctx.onTick` and scoped subscriptions rather than private intervals.
 - Add or extend a narrow main/preload IPC seam for external data; normalize, bound, and cache untrusted sources in the main process.
 - Use `textContent` for untrusted strings. Validate remote images in main and pass only bounded safe assets/data URLs.
-- Author every icon as `svg[data-tabler="<name>"]` with `viewBox="0 0 24 24"` and the Tabler outline path, then add the matching Pixelarticons path to `runtime/linux/src/renderer/icons/pixelarticons.js` (`root.PIXELARTICON_PATHS`) using unmodified upstream artwork. `core/icons.js` performs the Pixel swap; a name without a pixel entry stays stroked in the Pixel theme and fails `tests/pixel-icons.test.js`. When upstream has no counterpart, compose from upstream artwork in the existing `-off`/composite idiom and record the deviation in `src/renderer/icons/PIXELARTICONS-NOTICE.md`, keeping the MIT notice intact.
+- Author every icon as `svg[data-tabler="<name>"]` with `viewBox="0 0 24 24"` and the Tabler outline path, then add the matching Pixelarticons path to `runtime/shell/src/renderer/icons/pixelarticons.js` (`root.PIXELARTICON_PATHS`) using unmodified upstream artwork. `core/icons.js` performs the Pixel swap; a name without a pixel entry stays stroked in the Pixel theme and fails `tests/pixel-icons.test.js`. When upstream has no counterpart, compose from upstream artwork in the existing `-off`/composite idiom and record the deviation in `src/renderer/icons/PIXELARTICONS-NOTICE.md`, keeping the MIT notice intact.
 - Implement cleanup for subscriptions, listeners, frames, or resources not automatically owned by scoped context.
 
 For installable user applications:
@@ -148,7 +148,7 @@ Run the smallest relevant tests first, then the gates affected by the change. Ex
 ### Built-in Widget/App baseline
 
 ```bash
-cd runtime/linux
+cd runtime/shell
 node --test tests/<focused>.test.js
 node --test tests/pixel-icons.test.js
 pnpm styles
@@ -168,7 +168,7 @@ Density defaults:
 ### Installable user Widget/App baseline
 
 ```bash
-cd runtime/linux
+cd runtime/shell
 node --test tests/user-app*.test.js
 pnpm exec electron tests/user-app-lifecycle.cjs
 pnpm test

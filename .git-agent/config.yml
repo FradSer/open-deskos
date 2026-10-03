@@ -1,6 +1,6 @@
 scopes:
     - name: shell
-      description: Desktop environment, renderer, app lifecycle, and plugins in runtime/linux/; does not cover integration-level services
+      description: Desktop environment, renderer, app lifecycle, and plugins in runtime/shell/; does not cover integration-level services
     - name: hw
       description: ESP32 firmware drivers, peripheral control, and hardware navigation logic in peripherals/; does not cover Linux-side host processes
     - name: link
@@ -17,3 +17,5 @@ scopes:
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
     - name: research
       description: Research, firmware simulation, and macOS companion agents in research/; does not cover production drivers
+    - name: rsrch
+      description: Hardware research, firmware simulation, and Apple companion agents in research/; does not cover production drivers
