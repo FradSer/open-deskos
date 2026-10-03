@@ -264,9 +264,17 @@ async function listenChannel({
 
     const onData = (chunk) => {
       buffer = Buffer.concat([buffer, chunk])
-      if (buffer.length > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
       const newline = buffer.indexOf(0x0a)
-      if (newline === -1) return
+      if (newline === -1) {
+        // The cap bounds a peer that never completes a line. It is applied only
+        // while no newline has arrived, because the first frame a peer writes may
+        // legitimately be larger than a handshake: a Service Plugin sends its
+        // hello and its first snapshot back to back, and a real account's
+        // snapshot is kilobytes. Refusing those would report a healthy plugin as
+        // a service that cannot be reached.
+        if (buffer.length > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
+        return
+      }
       const line = buffer.subarray(0, newline).toString('utf8')
       const remainder = buffer.subarray(newline + 1)
       const parsed = parseHandshake(line)
@@ -277,9 +285,9 @@ async function listenChannel({
         return reject('token rejected')
       }
       if (tokenRequired) return reject('token required')
-      // Ownership already established that only this user could connect, so a
-      // client that was written before the token existed still reaches the
-      // protocol with every byte it sent intact.
+      // Ownership already established that only this user could connect, so the
+      // first line was never a handshake: it is the protocol's own first frame
+      // and reaches it intact, newline and all.
       return accept(buffer)
     }
 

@@ -46,7 +46,10 @@ never needs that file for its own Unix socket.
 Each target has its own connection and its own reconnect state. One desk being
 unreachable never breaks the others; a connect attempt is bounded by the
 poller's connect timeout (10 s), so an unreachable host cannot hold the poll
-open forever.
+open forever. A desk that drops mid-record is that same case: the failure is
+recorded against the desk it happened to, every other desk still receives the
+record, and the reason is stated once it has persisted for three consecutive
+polls rather than on every drop, so a routine reconnect stays out of the journal.
 
 ## Deploy on the CM5
 
@@ -138,5 +141,6 @@ python3 -m pytest integrations/futu-poller/tests -q
 ```
 
 They cover the Unix socket, the TCP handshake, the missing/empty token refusal,
-two desks receiving the same records with one refusing connections, and a
-malformed target being refused by name while the others run.
+two desks receiving the same records with one refusing connections, a desk whose
+connection is reset while another stays fed, and a malformed target being refused
+by name while the others run.

@@ -345,6 +345,9 @@ async function main() {
       lastFutuRejection = reason
       console.error(`futu service plugin refused a connection: ${reason}`)
     },
+    // A service that cannot be listened for is that one service being
+    // unavailable. The reason is stated, and the shell keeps running.
+    onRefuse: (id, reason) => console.error(`futu service ${id} is not listening: ${reason}`),
     services: () => ({ ...futuServiceDefs }),
   })
   const refreshFutuServices = async () => {
@@ -355,13 +358,18 @@ async function main() {
         stateDir: require('node:path').join(process.env.XDG_STATE_HOME || require('node:os').homedir() + '/.local/state', 'open-deskos/user-apps'),
       })
       for (const entry of await store.list()) {
-        if (entry?.service && entry?.id && !futuServiceDefs[entry.service.id]) {
-          // A plugin declares where it listens: a socket path, a named pipe, or a
-          // network address. The socket field is the historical name for it.
-          const endpoint = entry.service.endpoint ?? entry.service.socket
-          // The package that owns the service is what a reader calls it, which is
-          // why the declared service id alone is not the whole label.
-          futuServiceDefs[entry.service.id] = { revision: entry.revision, endpoint, label: entry.name }
+        if (!entry?.service || !entry?.id) continue
+        // A plugin declares where it listens: a socket path, a named pipe, or a
+        // network address. The socket field is the historical name for it.
+        const endpoint = entry.service.endpoint ?? entry.service.socket
+        // The package that owns the service is what a reader calls it, which is
+        // why the declared service id alone is not the whole label. An
+        // installed revision can be replaced, so a declaration that changed is
+        // published rather than only the first one ever seen.
+        const declared = { revision: entry.revision, endpoint, label: entry.name }
+        const current = futuServiceDefs[entry.service.id]
+        if (!current || current.revision !== declared.revision || current.endpoint !== declared.endpoint || current.label !== declared.label) {
+          futuServiceDefs[entry.service.id] = declared
         }
       }
     } catch {}

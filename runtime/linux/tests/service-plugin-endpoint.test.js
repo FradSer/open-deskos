@@ -31,7 +31,9 @@ function freePort() {
 }
 
 /** One plugin connection: optional handshake, then the records it would push. */
-function push(endpoint, records, { token } = {}) {
+// `hold` keeps the plugin's connection open, because a connection that closes is
+// a reading that stops being live; the caller destroys the returned socket.
+function push(endpoint, records, { token, hold = false } = {}) {
   const target = endpoint.startsWith('tcp://')
     ? (() => { const [host, port] = endpoint.slice('tcp://'.length).split(':'); return { host, port: Number.parseInt(port, 10) } })()
     : endpoint
@@ -41,7 +43,7 @@ function push(endpoint, records, { token } = {}) {
     socket.on('connect', () => {
       if (token !== undefined) socket.write(`${JSON.stringify({ v: 1, token })}\n`)
       for (const record of records) socket.write(`${JSON.stringify(record)}\n`)
-      setTimeout(() => { socket.end(); resolve() }, 250)
+      setTimeout(() => { if (hold) resolve(socket); else { socket.end(); resolve() } }, 250)
     })
     socket.on('timeout', () => { socket.destroy(); resolve() })
     socket.on('error', reject)
@@ -184,12 +186,13 @@ test('a declared tcp endpoint carries a plugin snapshot all the way to the sourc
   t.after(() => source.stop())
 
   assert.equal(source.snapshot('futu-poller').state, 'syncing')
-  await push(endpoint, [HELLO, DATA], { token })
+  const plugin = await push(endpoint, [HELLO, DATA], { token, hold: true })
   await new Promise((resolve) => setTimeout(resolve, 200))
 
   const snapshot = source.snapshot('futu-poller')
   assert.equal(snapshot.state, 'live')
   assert.equal(snapshot.snapshot.positions[0].code, 'HK.00700')
+  plugin.destroy()
 })
 
 test('a declared endpoint wins over the historical socket field', () => {
