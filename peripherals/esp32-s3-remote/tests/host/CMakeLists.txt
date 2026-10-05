@@ -20,3 +20,14 @@ target_compile_definitions(touchpad_gesture_test PRIVATE
 
 enable_testing()
 add_test(NAME touchpad_gesture_test COMMAND touchpad_gesture_test)
+
+# Share the existing host fixture instead of vendoring a second cJSON copy.
+set(CJSON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../research/esp32-p4-c6-deskos/firmware/tests/host/vendor/cjson")
+add_executable(remote_state_frame_test
+  remote_state_frame_test.c
+  ../../main/remote_state_frame.c
+  "${CJSON_DIR}/cJSON.c"
+)
+target_include_directories(remote_state_frame_test PRIVATE ../../main "${CJSON_DIR}")
+target_compile_options(remote_state_frame_test PRIVATE -Wall -Wextra -Werror)
+add_test(NAME remote_state_frame_test COMMAND remote_state_frame_test)

@@ -110,11 +110,27 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
     Or CDC receives a state line whose page boundaries contradict canPrev or canNext
     Or CDC receives a state line whose link is neither "wired" nor "wireless"
     Or CDC receives an invalid actions payload
+    Or CDC receives a valid state object followed by non-JSON data on the same line
     Then the screen retains the last valid state
     And the screen is not redrawn for the invalid frame
+
+  Scenario: Action metadata exceeding the display buffers is rejected
+    Given the screen currently shows a state received from a valid v1 frame
+    When CDC receives an action whose identifier or label exceeds the display buffer
+    Then the screen retains the last valid state
+    And the oversized action is not sent back to the host
 
   Scenario: Repeated valid state frames do not redraw the screen
     Given the screen currently shows a state received from a valid v1 frame
     When CDC receives the identical valid v1 frame again
     Then the screen retains the last valid state
     And the framebuffer is not transferred again
+
+  Scenario: Plugin descriptor generation preserves manifest values in valid C
+    Given a manifest identifier contains punctuation, spaces, and a leading digit
+    And two other identifiers differ only by punctuation that maps to the same C identifier
+    And its display name contains quotes, slashes, and control characters
+    When the generated descriptor is compiled and read
+    Then it compiles without warnings
+    And the original identifier and display name are preserved
+    And each manifest has a distinct descriptor and port table
