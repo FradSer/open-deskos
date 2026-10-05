@@ -1,22 +1,10 @@
-# Preserved Apple P4 companion
+# Preserved Apple P4 client
 
-This SwiftUI app and macOS CLI belong to the preserved P4+C6 DeskOS research line. They are not part of the active CM5/Linux architecture. Their USB serial subscription/time bridge targets the prior P4 device OS only.
+This SwiftUI app and macOS CLI serve the P4 research device through USB serial. They are not part of the active Electron Shell. The old Rust companion was a design proposal, not this Swift implementation. iOS and iPadOS cannot supply macOS CGEvent injection. Do not assume the mobile client has host injection, EventKit or package-install capabilities.
 
-## Relationship to the historical Rust companion
+## macOS CLI and background checks
 
-The Swift project in this directory is not the companion described by [the historical P4+C6 specification](../docs/OPEN-DESKOS.md) §10. They are different implementations:
-
-| 维度 | companion(§10) | apple/ 本工程 |
-|---|---|---|
-| 语言/栈 | Rust workspace + menu bar tray + launchd | SwiftUI + Xcode project |
-| 形态 | macOS menu bar 常驻 | iOS/iPadOS/macOS 跨端原生 |
-| 能力 | CGEvent 中文注入、hidapi HID 读、EventKit、Shortcuts 桥、包侧载 + 生成工作台 | iOS/iPadOS **无法** CGEvent 注入;为只读/远程/设置形态 |
-
-关键约束:**iOS/iPadOS 不能做 HID/CGEvent 注入**,所以本客户端不是 companion 的 Swift 重写,而是面向移动端的能力子集形态。companion 仍是 macOS 注入/常驻/EventKit 的唯一权威实现;两者各管一端,不要视为同一物的两种实现。
-
-## macOS CLI
-
-除了跨端 `OpenDeskOS` SwiftUI app，Xcode 工程还包含一个仅 macOS 的 `OpenDeskOSCLI` target，产物名为 `OpenDeskOS`。它和 GUI 共享同一套 sidecar 约定，但不依赖 SwiftUI 生命周期，适合被 `launchd` 无界面调用：
+The Xcode project has a cross-platform GUI target named OpenDeskOS and a macOS-only CLI target named OpenDeskOSCLI. The CLI binary is OpenDeskOS. Run these commands from the repository root. The command samples below retain their original bytes and comments.
 
 ```sh
 # 构建 CLI
@@ -40,11 +28,15 @@ FLOW_API_PORT=18787 OpenDeskOS daemon install --interval 900
 OpenDeskOS daemon install --interval 900 --url http://127.0.0.1:18787/health
 ```
 
-定时任务采用 `~/Library/LaunchAgents/dev.fradser.open-deskos.wispr-health.plist`。安装时 CLI 会经 `PATH` 解析自身并将稳定的绝对路径写进 Agent；`launchd` 每次启动短命令，运行 `OpenDeskOS plugin health --daemon --url <endpoint>` 后退出。最后一次结果保存在 `~/Library/Application Support/OpenDeskOS/CLI/last-run.json`，日志写入同目录下的 `logs/daemon.log`。未传 `--url` 时端点来自 `FLOW_API_PORT`（默认 `127.0.0.1:8787`）；端口或 CLI 路径变更后重新安装 daemon。如 sidecar 启用了 `FLOW_API_TOKEN`，请在安装 daemon 前导出它；CLI 会把该变量写入权限为 `0600` 的 LaunchAgent plist，轮换 token 后需重新安装。CLI 不会替 GUI 启动或托管 Bun sidecar，只负责健康检查和定时任务管理。
+The standalone task uses ~/Library/LaunchAgents/dev.fradser.open-deskos.wispr-health.plist. Install the binary at a stable absolute path before you install the task. Each run calls plugin health, records last-run.json under ~/Library/Application Support/OpenDeskOS/CLI, writes logs/daemon.log and exits.
 
-## 订阅桥接 (`OpenDeskOS sub`)
+Without --url, FLOW_API_PORT selects the endpoint; the default is 127.0.0.1:8787. Reinstall after the port or binary path changes. If the sidecar requires FLOW_API_TOKEN, export it before installation. The CLI stores it in a mode-0600 plist. Reinstall after token rotation. The CLI checks health; it does not start or host the Bun sidecar.
 
-把用户的 **OpenCode Go 订阅用量**（CodexBar 菜单栏显示的那份数据）经 USB 推到 Open DeskOS 设备，让固件 launcher 首页 #2 显示真实用量而不是占位符：
+Installing or removing a task changes user services. Live GUI actions can read Keychain data or contact a provider. A subscription push can write to the USB device. These actions require task authorization. See [local verification](AGENTS.md) for fixture checks.
+
+## Subscription bridge
+
+The bridge sends OpenCode Go usage to the P4 launcher through USB serial.
 
 ```sh
 # 从 Keychain 读 opencode.ai 会话 cookie → 抓取用量 → 经 USB 串口推给设备
@@ -52,23 +44,17 @@ OpenDeskOS sub push [--serial /dev/cu.usbmodem*] [--dry-run]
 OpenDeskOS sub pull  # 等价别名（循环模式由设备端刷新驱动）
 ```
 
-- **数据源**：macOS Keychain `com.steipete.codexbar.cache` / 账号 `cookie.opencodego`（CodexBar 缓存的 opencode.ai 会话 cookie），POST `https://opencode.ai/_server`（subscription.get / billing）拿 5 小时滚动窗口百分比、周/月用量与 Zen 余额。
-- **传输**：USB Serial/JTAG 串口 `esp_console` REPL，命令 `cerb sub push plan=opencode-go primaryPct=62 ...`。固件端 `odk_sub`（NVS 字符串快照）+ launcher `sub_get`/`sub_request_fresh` 渲染。
-- **拉取模型**：设备打开首页 #2 时置 `refresh` 标记；launcher 有数据即重绘，桥接器在 launchd 定时模式下轮询 `cerb sub status` 检测 `refresh=yes` 后再抓取推送（“打开屏时拉取”）。
-- cookie 失效时 `sub push` 会报 `no opencode.ai session cookie`；打开 CodexBar 刷新一次即可。
+- The data source is the Keychain service com.steipete.codexbar.cache, account cookie.opencodego. The client calls opencode.ai/_server subscription.get and billing. This provider interface can change.
+- The transport is the esp_console REPL command cerb sub push. The firmware stores an NVS string snapshot through odk_sub. The launcher uses sub_get and sub_request_fresh.
+- The device marks refresh when the usage page opens. The scheduled bridge checks cerb sub status for refresh=yes before it fetches and pushes data.
+- If the client reports no opencode.ai session cookie, refresh the session in CodexBar.
 
-## macOS 管理界面
+## App management
 
-macOS 版 OpenDeskOS 主窗口提供三个管理页：
+Overview shows sidecar, session and background-check status. Wispr Flow selects session.json, controls the sidecar and shows a manual health-check result. Automation uses SMAppService for the bundled CLI and LaunchAgent. It offers 5, 15, 30 or 60-minute checks. When approval is required, approve OpenDeskOS in System Settings, General, Login Items.
 
-- `Overview` 汇总 Wispr Flow、会话和后台检查的状态，并给出下一步操作。
-- `Wispr Flow` 可选择或更换 `session.json`、启动/停止/重启 sidecar，以及查看一次手动健康检查的 HTTP 状态、耗时和时间。
-- `Automation` 用 macOS `SMAppService` 管理随 App 打包的 `OpenDeskOS` CLI 和 LaunchAgent，可选每 5、15、30 或 60 分钟执行一次健康检查。首次启用如显示“Approval required”，请在“系统设置 → 通用 → 登录项”中批准 OpenDeskOS。
+The App-managed task has no FLOW_API_TOKEN. It calls the local 127.0.0.1:8787 health endpoint and does not start Bun. The transcription API retains bearer-token protection. A non-default FLOW_API_PORT disables the App-managed task and gives a CLI command. Use either the App-managed task or the standalone daemon, not both.
 
-App 管理的 LaunchAgent 不携带 `FLOW_API_TOKEN`，也不会启动 Bun；它只访问绑定到 `127.0.0.1:8787` 的无敏感数据 `/health` 端点。转写 API 仍保持 bearer token 保护。若使用非默认 `FLOW_API_PORT`，Automation 会禁用 App 管理的任务并给出含该端点的 CLI 命令。不要同时启用 App 管理的后台检查和 `OpenDeskOS daemon install`，以免重复执行；后者继续适用于无界面、自定义端口或自定义间隔的场景。
+## Build layout
 
-## 工程命名
-
-- 目录按平台命名(`apple/`),内部 `.xcodeproj` + 源码组同名是 Xcode 默认布局,保留。
-- 当前 GUI target/工程名 `OpenDeskOS` 为**占位**;正式产品名拍板后,改 GUI target 名 + `PRODUCT_BUNDLE_IDENTIFIER` 一处即可,CLI target 保持 `OpenDeskOSCLI` 便于脚本调用,目录结构不动。
-- 固件侧品牌为 `odk_*`(213 处 `odk_err_t` / `.cerb-pack` / `open-deskos_sim`)。占位名正式化时统一对齐,避免大写 `OpenDeskOS` 与 `odk_*` 交错。
+Keep platform files in apple/. Keep the CLI target name OpenDeskOSCLI for scripts. See AGENTS.md for build and packaging checks. App-managed agents use BundleProgram; standalone agents use a resolved absolute binary path. A simulator or unsigned packaging check does not verify live USB or user-service behavior.

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from lua_sync_common import ComponentSource, FileSyncPlan, LuaSyncConsole, LuaSyncError
 from lua_sync_common import collect_build_component_sources, write_depfile, write_stamp
+from lua_sync_common import resolve_lua_doc
 
 
 console = LuaSyncConsole()
@@ -27,11 +28,10 @@ def add_lib_script(plan: FileSyncPlan, category_dir: Path, script_path: Path, ow
     output_name = str(Path('lib') / relative_path)
     plan.add(output_name, script_path, owner)
 
-    doc_path = script_path.with_suffix('.md')
-    if not doc_path.is_file():
-        raise LuaSyncError(f"Lua library '{script_path}' must have same-name markdown doc '{doc_path.name}'")
+    doc_path, section = resolve_lua_doc(ComponentSource(owner, category_dir.parent),
+                                        Path('lib') / relative_path.with_suffix('.md'))
     doc_output_name = str(Path('lib') / relative_path.with_suffix('.md'))
-    plan.add(doc_output_name, doc_path, owner)
+    plan.add(doc_output_name, doc_path, owner, doc_section=section)
 
 
 def add_test_script(plan: FileSyncPlan, category_dir: Path, script_path: Path, owner: str) -> None:

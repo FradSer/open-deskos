@@ -31,6 +31,44 @@ class ComponentSource:
     root: Path
 
 
+# Source documents share domain owners. Image names remain module/lib-specific.
+LUA_DOC_GROUPS = {
+    'lua_module_lvgl': ('lua_module_lvgl', 'lua_module_display', 'lua_module_lcd', 'lua_module_lcd_touch'),
+    'lua_module_ble': ('lua_module_ble', 'lua_module_ble_hid', 'lua_module_call_capability',
+                       'lua_module_event_publisher', 'lua_module_http_server'),
+    'lua_module_system': ('lua_driver_adc', 'lua_driver_gpio', 'lua_driver_i2c', 'lua_driver_mcpwm',
+                          'lua_driver_pcnt', 'lua_driver_rmt', 'lua_driver_touch', 'lua_driver_uart',
+                          'lua_module_audio', 'lua_module_board_manager', 'lua_module_button',
+                          'lua_module_camera', 'lua_module_delay', 'lua_module_environmental_sensor',
+                          'lua_module_fuel_gauge', 'lua_module_image', 'lua_module_imu', 'lua_module_ir',
+                          'lua_module_json', 'lua_module_knob', 'lua_module_led_strip',
+                          'lua_module_magnetometer', 'lua_module_sci', 'lua_module_storage',
+                          'lua_module_system', 'lua_module_thread', 'lua_module_vision'),
+}
+
+
+def resolve_lua_doc(source: ComponentSource, relative_path: Path) -> tuple[Path, str | None]:
+    for domain, modules in LUA_DOC_GROUPS.items():
+        if source.name in modules:
+            owner = source.root.parent / domain / 'README.md'
+            if not owner.is_file():
+                fail(f"Missing Lua documentation owner: {owner}")
+            return owner, f'{source.name}/{relative_path.as_posix()}'
+    doc_path = source.root / relative_path
+    if not doc_path.is_file():
+        fail(f"Missing Lua documentation: {doc_path}")
+    return doc_path, None
+
+
+def read_lua_doc_section(path: Path, section: str) -> str:
+    marker = f'<!-- doc: {section} -->\n'
+    text = path.read_text(encoding='utf-8')
+    if text.count(marker) != 1:
+        fail(f"Expected one documentation section '{section}' in {path}")
+    body = text.split(marker, 1)[1].split('\n<!-- doc: ', 1)[0]
+    return body.rstrip() + '\n'
+
+
 class LuaSyncConsole:
     def _colorize(self, text: str, color: str, stream: TextIO) -> str:
         if os.environ.get('NO_COLOR'):
@@ -138,16 +176,23 @@ class FileSyncPlan:
         self.manifest_path = manifest_path
         self._copy_map: dict[str, Path] = {}
         self._source_map: dict[str, str] = {}
+        self._doc_sections: dict[str, str] = {}
 
-    def add(self, output_name: str, source_path: Path, owner: str) -> None:
+    def add(self, output_name: str, source_path: Path, owner: str, *, doc_section: str | None = None) -> None:
         previous_source = self._source_map.get(output_name)
         if previous_source:
             fail(f"Duplicate synced file '{output_name}' between {previous_source} and {owner} ({source_path})")
 
         self._copy_map[output_name] = source_path.resolve()
         self._source_map[output_name] = owner
+        if doc_section is not None:
+            self._doc_sections[output_name] = doc_section
 
     def apply(self) -> None:
+        section_text = {
+            filename: read_lua_doc_section(self._copy_map[filename], section)
+            for filename, section in self._doc_sections.items()
+        }
         self.output_dir.mkdir(parents=True, exist_ok=True)
         previous_files = load_synced_files_manifest(self.manifest_path)
 
@@ -161,7 +206,10 @@ class FileSyncPlan:
         for filename, source_path in self._copy_map.items():
             target_path = self.output_dir / filename
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_path, target_path)
+            if filename in self._doc_sections:
+                target_path.write_text(section_text[filename], encoding='utf-8')
+            else:
+                shutil.copy2(source_path, target_path)
 
         write_synced_files_manifest(self.manifest_path, list(self._copy_map.keys()))
 

@@ -13,7 +13,7 @@
 
 # Skill Creator
 
-Use this skill when the user wants to add a new reusable feature that the model should be able to invoke later as a skill, including tool-like workflows, project-specific capabilities, Lua-backed automations, or feature requests phrased as "add a function", "support doing X", "make the model able to X", "create a tool for X", or "新增一个功能".
+Use this skill when the user wants to add a new reusable feature that the model should be able to invoke later as a skill, including tool-like workflows, project-specific capabilities, Lua-backed automations, or feature requests phrased as "add a function", "support doing X", "make the model able to X", "create a tool for X", or `"新增一个功能"`.
 
 Also use this skill when the user asks to create, register, update, or remove a skill, or asks how to create a skill that includes Lua files.
 

@@ -4,7 +4,7 @@ set(AIODI "${ODK_ROOT}/components/lua_modules/lua_module_lvgl/lib/aiodi.lua")
 set(WIDGET_ENGINE "${ODK_ROOT}/components/lua_modules/lua_module_lvgl/lib/core/widget_engine.lua")
 set(VOICE_UI "${ODK_ROOT}/application/open_deskos/main/odk_voice_ui.c")
 
-foreach(path IN ITEMS "${BOARD_DIR}/board_info.yaml" "${BOARD_DIR}/board_devices.yaml" "${BOARD_DIR}/board_peripherals.yaml" "${BOARD_DIR}/sdkconfig.defaults.board" "${BOARD_DIR}/README.md" "${AIODI}" "${WIDGET_ENGINE}" "${VOICE_UI}")
+foreach(path IN ITEMS "${BOARD_DIR}/board_info.yaml" "${BOARD_DIR}/board_devices.yaml" "${BOARD_DIR}/board_peripherals.yaml" "${BOARD_DIR}/sdkconfig.defaults.board" "${ODK_ROOT}/README.md" "${AIODI}" "${WIDGET_ENGINE}" "${VOICE_UI}")
     if(NOT EXISTS "${path}")
         message(FATAL_ERROR "missing S3 board support input: ${path}")
     endif()

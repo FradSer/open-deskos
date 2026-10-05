@@ -10,7 +10,7 @@ foreach(path IN ITEMS
         "${BOARD_DIR}/board_devices.yaml"
         "${BOARD_DIR}/board_peripherals.yaml"
         "${BOARD_DIR}/sdkconfig.defaults.board"
-        "${BOARD_DIR}/README.md"
+        "${ODK_ROOT}/README.md"
         "${VOICE_UI}"
         "${MAIN_C}"
         "${DISPLAY_BRINGUP}"

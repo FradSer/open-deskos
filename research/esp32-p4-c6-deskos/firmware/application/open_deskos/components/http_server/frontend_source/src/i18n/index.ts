@@ -67,5 +67,3 @@ export function tf(key: keyof Dict, vars: Record<string, string | number>) {
   }
   return out;
 }
-
-export type TKey = keyof Dict;

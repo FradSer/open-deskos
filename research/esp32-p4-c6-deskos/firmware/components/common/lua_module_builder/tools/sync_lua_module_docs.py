@@ -9,8 +9,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from lua_sync_common import ComponentSource, FileSyncPlan, LuaSyncConsole, LuaSyncError, fail
+from lua_sync_common import ComponentSource, FileSyncPlan, LuaSyncConsole, LuaSyncError
 from lua_sync_common import collect_build_component_sources, write_depfile, write_stamp
+from lua_sync_common import resolve_lua_doc
 
 
 console = LuaSyncConsole()
@@ -27,9 +28,7 @@ def is_self_component(source: ComponentSource) -> bool:
 
 
 def iter_module_doc_mappings(source: ComponentSource) -> list[tuple[str, Path]]:
-    doc_path = source.root / 'README.md'
-    if not doc_path.is_file():
-        fail(f"Component '{source.name}' must provide README.md at {doc_path}")
+    doc_path, _ = resolve_lua_doc(source, Path('README.md'))
     return [(f'{source.name}.md', doc_path)]
 
 
@@ -49,7 +48,8 @@ def collect_lua_module_docs(sources: list[ComponentSource], output_dir: Path, ma
         if is_self_component(source):
             continue
         for output_name, doc_path in iter_module_doc_mappings(source):
-            plan.add(output_name, doc_path, source.name)
+            _, section = resolve_lua_doc(source, Path('README.md'))
+            plan.add(output_name, doc_path, source.name, doc_section=section)
 
     return plan
 

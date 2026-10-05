@@ -30,3 +30,14 @@ Feature: manifest 域校验(解析、路径、semver、capability 交集)
     Then the screen shows "this device lacks the microphone required by this package"
     And the decision is made by deterministic C code comparing the manifest to board_peripherals.yaml
     And no LLM call is made for the compatibility decision
+
+  Scenario: Pre-1.0 caret dependencies preserve the first non-zero component
+    Given a package requires ^0.2.5 or ^0.0.4
+    When an installed dependency is checked
+    Then ^0.2.5 accepts 0.2.6 but rejects 0.3.0
+    And ^0.0.4 accepts only 0.0.4 among complete versions
+
+  Scenario: Strict version constraints reject noncanonical or incomplete tokens
+    Given a manifest version contains a leading zero or a constraint ends in a comma
+    When the domain parses it
+    Then parsing fails instead of accepting a different canonical version or missing constraint

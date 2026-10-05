@@ -9,7 +9,7 @@
 
 static odk_err_t parse_component(const char *s, size_t len, int *out)
 {
-    if (len == 0 || len > MAX_COMPONENT_DIGITS) {
+    if (len == 0 || len > MAX_COMPONENT_DIGITS || (len > 1 && s[0] == '0')) {
         return ODK_ERR_BAD_SEMVER;
     }
 
@@ -173,6 +173,9 @@ odk_err_t odk_semver_constraints_parse(const char *s, odk_semver_constraint_t *o
             break;
         }
         cursor = token_end + 1;
+        if (*skip_spaces(cursor) == '\0') {
+            return ODK_ERR_BAD_SEMVER;
+        }
     }
 
     if (*n == 0) {
@@ -207,7 +210,16 @@ static bool satisfies_one(const odk_semver_t *v, const odk_semver_constraint_t *
         if (cmp < 0) {
             return false;
         }
-        return v->major == c->v.major;
+        if (v->major != c->v.major) {
+            return false;
+        }
+        if (c->v.major > 0) {
+            return true;
+        }
+        if (v->minor != c->v.minor) {
+            return false;
+        }
+        return c->v.minor > 0 || v->patch == c->v.patch;
     }
 
     return false;

@@ -94,9 +94,61 @@ static void test_capability_compatibility_is_checked_in_c(void)
     TEST_ASSERT_EQUAL_INT(ODK_OK, odk_caps_check_board(&m, with_mic, 2));
 }
 
+static void test_caret_ranges_hold_the_first_nonzero_component(void)
+{
+    const struct {
+        const char *constraint;
+        const char *version;
+        bool satisfies;
+    } cases[] = {
+        { "^1.2.3", "1.2.2", false },
+        { "^1.2.3", "1.2.3", true },
+        { "^1.2.3", "1.9.9", true },
+        { "^1.2.3", "2.0.0", false },
+        { "^0.2.5", "0.2.4", false },
+        { "^0.2.5", "0.2.5", true },
+        { "^0.2.5", "0.2.6", true },
+        { "^0.2.5", "0.3.0", false },
+        { "^0.0.4", "0.0.3", false },
+        { "^0.0.4", "0.0.4", true },
+        { "^0.0.4", "0.0.5", false },
+        { "^0.0.0", "0.0.0", true },
+        { "^0.0.0", "0.0.1", false },
+        { "^2147483647.0.0", "2147483647.1.0", true },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        odk_semver_constraint_t constraint;
+        odk_semver_t version;
+        size_t count = 0;
+        TEST_ASSERT_EQUAL_INT(ODK_OK, odk_semver_constraints_parse(cases[i].constraint, &constraint, 1, &count));
+        TEST_ASSERT_EQUAL_INT(ODK_OK, odk_semver_parse(cases[i].version, &version));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(cases[i].satisfies, odk_semver_satisfies(&version, &constraint, count), cases[i].version);
+    }
+}
+
+static void test_strict_versions_and_constraints_reject_incomplete_tokens(void)
+{
+    const char *invalid_versions[] = { "01.2.3", "1.02.3", "1.2.03" };
+    odk_semver_t version;
+    for (size_t i = 0; i < sizeof(invalid_versions) / sizeof(invalid_versions[0]); i++) {
+        TEST_ASSERT_EQUAL_INT(ODK_ERR_BAD_SEMVER, odk_semver_parse(invalid_versions[i], &version));
+    }
+    TEST_ASSERT_EQUAL_INT(ODK_OK, odk_semver_parse("0.0.0", &version));
+    const char *invalid_constraints[] = { ">=1.2.3,", ">=1.2.3,  ", ">=1.2.3,, <2.0.0" };
+    odk_semver_constraint_t constraints[2];
+    size_t count;
+    for (size_t i = 0; i < sizeof(invalid_constraints) / sizeof(invalid_constraints[0]); i++) {
+        TEST_ASSERT_EQUAL_INT(ODK_ERR_BAD_SEMVER, odk_semver_constraints_parse(invalid_constraints[i], constraints, 2, &count));
+    }
+    TEST_ASSERT_EQUAL_INT(ODK_OK, odk_semver_constraints_parse(">=1.2.3, <2.0.0", constraints, 2, &count));
+    TEST_ASSERT_EQUAL_size_t(2, count);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_caret_ranges_hold_the_first_nonzero_component);
+    RUN_TEST(test_strict_versions_and_constraints_reject_incomplete_tokens);
     RUN_TEST(test_schema_v2_manifest_is_fully_parsed);
     RUN_TEST(test_schema_v1_and_legacy_keys_are_rejected);
     RUN_TEST(test_entry_must_be_the_canonical_app_entry);
