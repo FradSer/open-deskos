@@ -90,7 +90,7 @@ run_as_target_user() {
   else
     # Installs and release commands use the pnpm each project declares (COREPACK_ENABLE_PROJECT_SPEC=1):
     # runtime/shell and integrations/personal-bot pin pnpm 11.22.0, and pnpm refuses to run under a
-    # different major than a project's packageManager field. See docs/adr/0017.
+    # different major than a project's packageManager field. See docs/ARCHITECTURE.md#adr-0017.
     runuser -u "${TARGET_USER}" -- env \
       HOME="${TARGET_HOME}" \
       USER="${TARGET_USER}" \

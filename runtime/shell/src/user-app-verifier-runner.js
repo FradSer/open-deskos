@@ -10,11 +10,19 @@ const TIMEOUT_MS = 8000
 const MAX_INPUT_BYTES = 1024 * 1024
 const MAX_HTML_BYTES = 256 * 1024
 const MAX_OUTPUT_BYTES = 64 * 1024
+const RUNNER_ARG_INDEX = process.argv.findIndex(value => value.endsWith('/user-app-verifier-runner.js') || value.endsWith('\\user-app-verifier-runner.js'))
+const runnerArg = offset => RUNNER_ARG_INDEX >= 0 ? process.argv[RUNNER_ARG_INDEX + offset] : undefined
+const PROFILE_PATH = typeof runnerArg(3) === 'string' ? runnerArg(3) : ''
+if (PROFILE_PATH) app.setPath('userData', PROFILE_PATH)
+// Verification checks DOM and policy gates, so a GPU process only adds shared
+// host pressure when several independent runners start together.
+app.disableHardwareAcceleration()
 protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
-// `electron runner.js <bundle-path> <result-path>` — both optional, and both used
-// by a parent that cannot rely on this child's standard streams.
-const BUNDLE_PATH = typeof process.argv[2] === 'string' ? process.argv[2] : ''
-const RESULT_PATH = typeof process.argv[3] === 'string' ? process.argv[3] : ''
+// `electron --user-data-dir=<profile> runner.js <bundle-path> <result-path> <profile>`
+// — all paths are optional, and the parent uses files because it cannot rely on
+// this child's standard streams.
+const BUNDLE_PATH = typeof runnerArg(1) === 'string' ? runnerArg(1) : ''
+const RESULT_PATH = typeof runnerArg(2) === 'string' ? runnerArg(2) : ''
 const send = (value) => {
   const output = JSON.stringify(value)
   if (Buffer.byteLength(output, 'utf8') > MAX_OUTPUT_BYTES) { app.exit(1); return }

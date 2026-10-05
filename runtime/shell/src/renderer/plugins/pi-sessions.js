@@ -1041,7 +1041,6 @@
       const currentSet = () => sessionSet(scan, filter)
       const selected = () => currentSet().find((session) => sessionKey(session) === selectedKey) || null
       const sourceLabel = () => scan?.source?.label || ''
-      const remoteSource = () => scan?.source?.kind === 'ssh'
 
       function pageCopy() {
         return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })

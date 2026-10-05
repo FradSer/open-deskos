@@ -11,6 +11,8 @@ const { setTimeout: delay } = require('node:timers/promises')
 const {
   CHANNEL_VERSION,
   TOKEN_FILENAME,
+  MAX_HANDSHAKE_BYTES,
+  HANDSHAKE_TIMEOUT_MS,
   isNamedPipe,
   listenChannel,
   readOrCreateToken,
@@ -28,7 +30,7 @@ async function temporaryDir(t) {
 }
 
 /** One connection: optional handshake, then one line, then whatever comes back. */
-function exchange(endpoint, { token, line, timeoutMs = 500 } = {}) {
+function exchange(endpoint, { token, handshake, line, timeoutMs = 500 } = {}) {
   return new Promise((resolve) => {
     const target = endpoint.startsWith('tcp://')
       ? (() => { const [host, port] = endpoint.slice('tcp://'.length).split(':'); return { host, port: Number.parseInt(port, 10) } })()
@@ -44,7 +46,8 @@ function exchange(endpoint, { token, line, timeoutMs = 500 } = {}) {
     }
     socket.setTimeout(timeoutMs)
     socket.on('connect', () => {
-      if (token !== undefined) socket.write(`${JSON.stringify({ v: CHANNEL_VERSION, token })}\n`)
+      if (handshake !== undefined) socket.write(handshake)
+      else if (token !== undefined) socket.write(`${JSON.stringify({ v: CHANNEL_VERSION, token })}\n`)
       if (line !== undefined) socket.write(line)
     })
     socket.on('data', (chunk) => { received += chunk.toString('utf8') })
@@ -83,6 +86,20 @@ function freePort() {
   })
 }
 
+function waitForClose(socket, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.destroy()
+      reject(new Error(`socket did not close within ${timeoutMs}ms`))
+    }, timeoutMs)
+    socket.once('close', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+    socket.once('error', () => {})
+  })
+}
+
 test('a Unix channel is authenticated by ownership, so a client without a token is accepted', { skip: posixOnlyReason('unix-socket') }, async (t) => {
   const dir = await temporaryDir(t)
   const endpoint = path.join(dir, 'channel', 'service.sock')
@@ -115,6 +132,73 @@ test('the handshake is consumed rather than handed to the protocol', async (t) =
   assert.equal(sink.connections.length, 1)
   assert.equal(sink.connections[0].text, '{"v":1,"type":"snapshot"}\n')
   assert.equal(result.received, '')
+})
+
+test('a token-required handshake larger than the cap is rejected before the protocol sees it', async (t) => {
+  const dir = await temporaryDir(t)
+  const endpoint = `tcp://127.0.0.1:${await freePort()}`
+  const token = await readOrCreateToken({ stateDir: dir })
+  const sink = collect()
+  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
+  t.after(() => channel.close())
+
+  const handshake = `${JSON.stringify({ v: CHANNEL_VERSION, token, padding: 'x'.repeat(4096) })}\n`
+  assert.ok(Buffer.byteLength(handshake) > MAX_HANDSHAKE_BYTES, 'the handshake has to exceed the cap for this to mean anything')
+  const result = await exchange(endpoint, { handshake, line: '{"v":1,"type":"snapshot"}\n' })
+
+  assert.deepEqual(sink.rejections, ['handshake-too-large'])
+  assert.equal(sink.connections.length, 0)
+  assert.equal(result.closed, true)
+})
+
+test('a small token handshake leaves a large protocol remainder intact', async (t) => {
+  const dir = await temporaryDir(t)
+  const endpoint = `tcp://127.0.0.1:${await freePort()}`
+  const token = await readOrCreateToken({ stateDir: dir })
+  const sink = collect()
+  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
+  t.after(() => channel.close())
+
+  const remainder = `${JSON.stringify({ v: 1, type: 'snapshot', payload: 'x'.repeat(4096) })}\n`
+  const handshake = `${JSON.stringify({ v: CHANNEL_VERSION, token })}\n${remainder}`
+  assert.ok(Buffer.byteLength(handshake.slice(0, handshake.indexOf('\n'))) <= MAX_HANDSHAKE_BYTES)
+  assert.ok(Buffer.byteLength(remainder) > MAX_HANDSHAKE_BYTES)
+  await exchange(endpoint, { handshake })
+
+  assert.deepEqual(sink.rejections, [])
+  assert.equal(sink.connections.length, 1)
+  assert.equal(sink.connections[0].text, remainder)
+})
+
+test('an idle pre-authentication connection is closed while an authenticated idle service connection stays open', async (t) => {
+  const dir = await temporaryDir(t)
+  const endpoint = `tcp://127.0.0.1:${await freePort()}`
+  const token = await readOrCreateToken({ stateDir: dir })
+  const sink = collect()
+  const channel = await listenChannel({ endpoint, stateDir: dir, token, onConnection: sink.onConnection, onReject: sink.onReject })
+  t.after(() => channel.close())
+
+  const port = Number(endpoint.split(':').at(-1))
+  const idle = net.createConnection({ host: '127.0.0.1', port })
+  t.after(() => idle.destroy())
+  await new Promise((resolve, reject) => {
+    idle.once('connect', resolve)
+    idle.once('error', reject)
+  })
+  await waitForClose(idle, HANDSHAKE_TIMEOUT_MS + 500)
+  assert.deepEqual(sink.rejections, ['handshake-timeout'])
+  assert.equal(sink.connections.length, 0)
+
+  const authenticated = net.createConnection({ host: '127.0.0.1', port })
+  t.after(() => authenticated.destroy())
+  await new Promise((resolve, reject) => {
+    authenticated.once('connect', resolve)
+    authenticated.once('error', reject)
+  })
+  authenticated.write(`${JSON.stringify({ v: CHANNEL_VERSION, token })}\n`)
+  await delay(HANDSHAKE_TIMEOUT_MS + 200)
+  assert.equal(authenticated.destroyed, false)
+  assert.equal(sink.connections.length, 1)
 })
 
 test('a client that presents the wrong token never reaches the protocol', async (t) => {

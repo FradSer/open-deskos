@@ -13,6 +13,7 @@ const TOKEN_BYTES = 32
 // A handshake is one short line. The cap is what stops a peer that never sends
 // a newline from holding a connection open forever.
 const MAX_HANDSHAKE_BYTES = 512
+const HANDSHAKE_TIMEOUT_MS = 1000
 const PROBE_TIMEOUT_MS = 1000
 
 /**
@@ -229,7 +230,15 @@ async function listenChannel({
 
   function gate(socket) {
     sockets.add(socket)
-    socket.once('close', () => sockets.delete(socket))
+    let handshakeTimer = null
+    const clearHandshakeTimer = () => {
+      if (handshakeTimer) clearTimeout(handshakeTimer)
+      handshakeTimer = null
+    }
+    socket.once('close', () => {
+      clearHandshakeTimer()
+      sockets.delete(socket)
+    })
     socket.on('error', () => {})
 
     let buffer = Buffer.alloc(0)
@@ -238,6 +247,7 @@ async function listenChannel({
     const reject = (reason) => {
       if (settled) return
       settled = true
+      clearHandshakeTimer()
       socket.removeListener('data', onData)
       onReject(reason)
       socket.destroy()
@@ -248,6 +258,7 @@ async function listenChannel({
     const accept = (remainder) => {
       if (settled) return
       settled = true
+      clearHandshakeTimer()
       socket.removeListener('data', onData)
       socket.pause()
       try {
@@ -266,15 +277,15 @@ async function listenChannel({
       buffer = Buffer.concat([buffer, chunk])
       const newline = buffer.indexOf(0x0a)
       if (newline === -1) {
-        // The cap bounds a peer that never completes a line. It is applied only
-        // while no newline has arrived, because the first frame a peer writes may
-        // legitimately be larger than a handshake: a Service Plugin sends its
-        // hello and its first snapshot back to back, and a real account's
-        // snapshot is kilobytes. Refusing those would report a healthy plugin as
-        // a service that cannot be reached.
+        // The cap bounds a peer that never completes a line. A Unix channel may
+        // still receive a multi-kilobyte protocol frame because ownership already
+        // authenticates it; token-required channels cap a complete auth line below.
         if (buffer.length > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
         return
       }
+      // The remainder belongs to the protocol, so only the authentication line
+      // is capped. This keeps a small handshake plus a large first frame intact.
+      if (tokenRequired && newline > MAX_HANDSHAKE_BYTES) return reject('handshake-too-large')
       const line = buffer.subarray(0, newline).toString('utf8')
       const remainder = buffer.subarray(newline + 1)
       const parsed = parseHandshake(line)
@@ -291,6 +302,10 @@ async function listenChannel({
       return accept(buffer)
     }
 
+    if (tokenRequired) {
+      handshakeTimer = setTimeout(() => reject('handshake-timeout'), HANDSHAKE_TIMEOUT_MS)
+      handshakeTimer.unref?.()
+    }
     socket.on('data', onData)
   }
 
@@ -350,6 +365,7 @@ module.exports = {
   CHANNEL_VERSION,
   TOKEN_FILENAME,
   MAX_HANDSHAKE_BYTES,
+  HANDSHAKE_TIMEOUT_MS,
   describeEndpoint,
   handshakeFrame,
   isNamedPipe,

@@ -57,8 +57,8 @@ if (!exists('.git')) {
   test('git-agent uses concise scopes aligned with the current topology', () => {
     const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
     const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
-    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, P4, Mac, tooling, and experiments/)
-    assert.deepEqual(names, ['shell', 'hw', 'link', 'vision', 'p4', 'mac', 'tool', 'exp', 'research'])
+    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, research, tooling, and experiments/)
+    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'rsrch', 'tool', 'exp'].sort())
     assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
   })
 
@@ -66,7 +66,6 @@ if (!exists('.git')) {
     assert.match(fs.readFileSync(FEATURE, 'utf8'), /does not direct the contributor to firmware\/linux/)
     const files = [
       path.join(REPOSITORY_ROOT, 'README.md'),
-      path.join(REPOSITORY_ROOT, 'README.zh-CN.md'),
       path.join(REPOSITORY_ROOT, 'PRODUCT.md'),
       path.join(REPOSITORY_ROOT, 'DESIGN.md'),
       path.join(REPOSITORY_ROOT, 'AGENTS.md'),

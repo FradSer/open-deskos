@@ -208,3 +208,35 @@ Feature: Hosted Pi control over a separate Desk Link v2 connection
     When the desk reads it
     Then the record is refused
     And the next bounded request on that connection still works
+
+  Scenario: A host that starts after the Desk Link becomes available
+    Given the Desk Link started before the Hosted Pi endpoint descriptor existed
+    When the host publishes or replaces its endpoint descriptor
+    Then the next control request resolves the current host endpoint
+    And no Desk Link restart is required
+
+  Scenario: An expired Attach never retains host authority
+    Given a host Attach takes longer than the Desk Link request timeout
+    When the Console receives the timeout and the host subsequently completes Attach
+    Then the late host connection is closed
+    And no Control Attribution remains
+
+  Scenario: Reporting metadata cannot overflow a maximum-size inventory snapshot
+    Given an authenticated reporter supplies 64 sessions with escaped or multibyte descriptions
+    When the desk accepts the inventory
+    Then session identities are preserved and unknown metadata is discarded
+    And bounded descriptions keep the runtime snapshot readable
+    And an oversized machine or session identity is refused rather than shortened
+
+  Scenario: Metadata reduction preserves distinct workspace identities
+    Given two reported sessions have long directories with the same prefix
+    When their descriptions exceed the per-session metadata budget
+    Then only descriptive text is shortened
+    And their exact directories and workspace names remain distinct
+
+  Scenario: An aggregate runtime snapshot exceeds its fixed response budget
+    Given several machines each report a bounded inventory
+    When their aggregate snapshot exceeds 2 MiB
+    Then the runtime receives an explicit correlated failure reason
+    And the connection is not silently destroyed
+    And the Shell client preserves that specific failure reason

@@ -36,65 +36,47 @@ spacing:
   lg: "24px"
 ---
 
-# Open DeskOS CM5 Desk Instrument
+# Open DeskOS design
 
-## Scope
+## Scope and intent
 
-This is the semantic design system for the shared Linux, Windows, and macOS Shell. It governs the Electron desk display, direct input, and accepted Remote Control interaction. It does not prescribe the preserved P4+C6 LVGL/Lua/AIODI shell; that historical design system is retained at [research/esp32-p4-c6-deskos/docs/AIODI-DESIGN.md](research/esp32-p4-c6-deskos/docs/AIODI-DESIGN.md).
+This governs the shared Linux, Windows, and macOS Shell. Historical LVGL/Lua/AIODI rules remain in [P4+C6 research](research/esp32-p4-c6-deskos/docs/AIODI-DESIGN.md).
 
-## Visual intent
+Use a quiet black field, charcoal surfaces, outlined instruments, and heavy tabular numerals. Show only local or sourced facts. Today does not repeat time, network, focus, or provider configuration already owned by the State Bar or dedicated surfaces. Controls have visible rest, focus, and active states; motion explains a change rather than decorating idle content.
 
-A CM5 display is a quiet, truthful instrument at a desk. It opens on the states the system can substantiate: the local date, plus whatever a plugin has backed with a real source. Local time, network reachability, and peripheral connection state live in the State Bar and their dedicated surfaces instead of being restated on the first page. The interface should make a status legible at a glance and one next action obvious, without fabricating personal calendar, health, activity, or account data.
+## Tokens and geometry
 
-The visual vocabulary is a black field, charcoal surfaces, outlined widgets, heavy tabular numerals, and state accents used with deliberate intensity. Live states can carry a stronger red, green, or blue field inside a clearly bounded instrument; inactive surfaces remain quiet. Every control owns a visible rest, focus, and active state, and transitions describe a specific state change instead of adding ambient motion. It must not look like an analytics dashboard, a generic AI interface, or a neon/glassmorphism experiment.
+- White carries primary reading. Red, green, and blue mark a specific state or focal action; inactive surfaces stay neutral.
+- `stroke` separates Widgets; `stroke-focus` marks keyboard focus. Depth uses tone and outlines, without drop shadows or glow.
+- Montserrat Bold carries numerals/compact labels; Noto Sans SC Regular carries body text. Supporting text on charcoal uses `secondary-strong`; `secondary` is for subdued non-text indicators.
+- Widget supporting text is at least 12px. Compact layouts retain readable square cells and scroll vertically.
+- Widget visual content targets 62% of the inner frame (54–70% accepted). Measure text line boxes, SVG visual frames, and meters, excluding empty wrappers. Rectangle union must exceed 20%; no full-width empty vertical band may exceed 28%. Wide dates and 100% values remain contained.
+- App interiors share heading/body/label roles, controls at least 44px, visible search labels, and wrapping metadata. Desktop footprints align with the Home grid; compact Apps fit within page margins.
 
-## Token rules
+## Quoted Pi content
 
-- Black and charcoal establish the inactive field. White is reserved for primary reading and active navigation.
-- `accent-red`, `accent-green`, and `accent-blue` express a distinct state or focal action. Never distribute accents decoratively across a page.
-- `stroke` separates persistent widgets; `stroke-focus` is the keyboard focus treatment.
-- Montserrat Bold serves large numerals and compact labels. Noto Sans SC Regular serves body copy and remains available for future localization.
-- Depth is tonal and stroked. Do not add drop shadows or glow effects.
-- `secondary-strong` is the readable supporting-text color on charcoal surfaces; `secondary` is reserved for non-text subdued indicators.
+The transcript keeps Pi's dark-theme roles. A user prompt uses a full-width band.
+Each tool box shows the recorded outcome and its result. Markdown, code, and diffs keep Pi's colors.
+Assistant text and thoughts use the base surface. The desk's session list, filters, framing, and controls retain `--odk-*` tokens.
 
-### Quoted Pi content
+Declare `--pi-*` once, scoped to `.pi-app-wrapper` in `runtime/shell/src/renderer/shell.css`; never use them outside transcript surfaces.
+[ADR-0015](runtime/shell/docs/ARCHITECTURE.md#adr-0015) and [ADR-0021](runtime/shell/docs/ARCHITECTURE.md#adr-0021) own the reading decisions.
 
-The Pi Sessions Session Detail reproduces Pi's own reading. A prompt is a full-width band on Pi's user surface, every tool call is one box on Pi's surface for the outcome Pi recorded for it with the result Pi wrote for that call joined to it, and a reply carries Pi's own colours: Markdown headings, links, inline code and quotes, syntax-highlighted code fences, and diff additions and removals. Assistant text and a thought stay on the base surface, as they do in Pi. That content is quoted, not composed by the desk, so it keeps Pi's roles rather than being recoloured to hide them; an operator reading a session on the desk must see what the same session looks like in Pi.
+## Themes
 
-The palette is declared once as `--pi-*` variables scoped to `.pi-app-wrapper` in `runtime/shell/src/renderer/shell.css`, using the values of Pi's `dark` theme, and is bounded to the transcript's own surfaces and Session Event bodies. It is not a second design system: the page's own surfaces, controls, and states — the session list, the title row, the Session Filter, and the detail's framing — stay on the `--odk-*` tokens above, and no `--pi-*` value may be used outside the transcript. See `runtime/shell/docs/adr/0015-pi-sessions-live-only-and-pi-reading.md` and `runtime/shell/docs/adr/0021-a-tool-box-carries-the-outcome-pi-recorded.md`.
-- Widget interiors use at least 12px supporting text and tabular primary values. Compact windows retain readable square cells and scroll vertically instead of shrinking all ten instruments into view.
-- Widget visual content targets 62% of the inner card frame (54–70% accepted). The density harness measures rendered text line boxes, SVG visual frames, and meters, never empty layout wrappers. Occupied rectangle union must exceed 20%, and no full-width vertical empty band may exceed 28%; merely spreading tiny labels apart does not meet the target. Wider dates and 100% values scale to remain contained.
-- App interiors use shared heading, body, and label roles, 44px minimum controls, visible search labels, and wrapping metadata. Desktop App footprints remain aligned with the Home grid; compact Apps use the available width inside the page margins.
+Pixel uses the unchanged local Zpix v3.2.0 WOFF2. It supplies Latin, Chinese, digits, input text, placeholders, and code. Use Regular without synthetic weight/style; establish hierarchy with size and spacing. Numeral sizing accounts for narrower Latin advances while retaining Widget density. Instrument and Border Beam retain Noto Sans SC/Montserrat. Zpix needs separate commercial license; see [its notice](runtime/shell/src/renderer/fonts/ZPIX-NOTICE.md) for source, checksum, and terms. Do not convert or subset it.
 
-## Pixel typography
+The optional `border-beam` theme uses [Libraries.dev](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam)'s rotating conic-gradient edge. It uses existing neutral tokens. Home Widgets, Usage, and the Pi outer surface receive thin edges without changing geometry/content or adding React. This theme permits a six-second edge cycle. It does not add outward bloom or intercept input.
+Use static edges for reduced motion. Pause animation when the document is hidden.
 
-Pixel uses the unchanged local Zpix v3.2.0 WOFF2 for English, simplified/traditional Chinese, digits, input text, placeholders, and code. Its Regular face is used without synthetic weight/style; hierarchy comes from size and spacing. Pixel-specific numeral sizing accounts for Zpix's narrower Latin advances while retaining the shared Widget density band. Instrument and Border Beam retain Noto Sans SC and Montserrat.
+New installations use Pixel; explicit local selection survives restart. There is no State Bar theme selector.
 
-Zpix is free for personal/education projects but requires separate commercial licensing. The source, asset checksum, and upstream terms are recorded in `runtime/shell/src/renderer/fonts/ZPIX-NOTICE.md`; do not convert or subset the font.
+## Interaction
 
-## Optional Border Beam theme
-
-The Instrument appearance remains unchanged. The optional `border-beam`
-theme references [Libraries.dev border-beam](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam),
-specifically its mono rotating conic-gradient perimeter masked to a thin edge.
-The framework-free adaptation uses existing `--odk-*` neutrals, not additional
-state colors or a React dependency. Today, Home widgets, Usage and the Pi outer
-surface receive the edge treatment; content and geometry remain unchanged.
-
-This opt-in theme is an explicit exception to the default ban on decorative
-motion: a six-second perimeter cycle, no outward bloom, no input interception,
-and static edges under reduced motion. Hidden documents pause the animation.
-No status-bar theme selector is exposed. The renderer theme API stores the
-selection locally. New installations currently use Pixel; an explicit selection is restored on restart.
-
-## Interaction rules
-
-- **Today first.** The initial page reports only statements a plugin has substantiated from local or provider-backed facts; it never fabricates a synthetic briefing and it never restates network, focus, or provider configuration that already lives in the State Bar or its dedicated surface.
-- **Glance first, dive second.** A Widget can open a focused built-in view; Back and Escape restore the source page.
-- **Direct input always works.** Touch and keyboard never depend on Remote Link or camera state.
-- **Driven sessions are attributed.** While another machine drives a Hosted Pi, the Pi Sessions overview header names it, and that session is never presented as report-only. Local input keeps its authority: a Console never takes the desk's driving authority away.
-- **Peripheral state is explicit.** Remote and Camera hardware may be architecturally required, but each has a separate acceptance gate and must expose unavailable or synchronizing states honestly.
-- **Reduced motion is respected.** Pointer paging uses a short spatial transition; keyboard and Remote page changes are immediate. Page markers crossfade point/bar opacity without scaling targets or animating layout width. No ambient movement is added to idle Widgets.
-- **State Bar capsules align.** Pi status and page navigation share `--odk-status-control-h: 44px` for their visible surfaces and hit heights. Pagination is graphical at every size: points for other pages, a short bar for the current page, with page names exposed only to assistive technology. Instrument/Border Beam use rounded marks; Pixel uses square marks and its semantic active color. Theme changes never resize the targets or replace controls.
-- **Information precedes metadata.** Pi Sessions shows status and goals first, with native disclosures for process identifiers and commands. Refresh preserves expanded details, focus, and scroll. Usage keeps refresh actions beside provider state, ahead of optional metric details.
-- **Inactive is quiet.** A not-started focus dial uses a neutral outline, not a red progress indication. Today has no decorative active-state dot.
+- Widgets open focused views. Back/Escape restore the source page. Touch/keyboard remain independent of Remote Link and camera state.
+- Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
+- Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
+- Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.
+- Pi status and pagination share `--odk-status-control-h: 44px` for surface and hit height. Other pages are points, the current page is a short bar, and page names are assistive text. Instrument/Border Beam round the marks; Pixel uses square marks and its semantic active color. Theme changes never resize or replace controls.
+- Put session status/goals before PID/command disclosures. Refresh preserves expansion, focus, and scroll. Usage refresh actions stay beside provider state before optional metric details.
+- A not-started focus dial is neutral; Today has no decorative active dot.

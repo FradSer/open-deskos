@@ -88,6 +88,47 @@ test('retains two revisions and removal works without the draft checkout', async
   assert.equal((await fs.readdir(path.join(f.stateDir, 'apps/notes/revisions'))).length, 0)
 })
 
+test('catalog service and data declarations must match the verified snapshot', async () => {
+  const f = await fixture()
+  await draft(f.workspace, 'declared', '1')
+  const manifestPath = path.join(f.workspace, 'apps/declared/manifest.json')
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  manifest.service = { id: 'reader', exec: 'reader.js', version: '1', secrets: [], egress: [{ host: 'example.invalid', port: 443 }], socket: 'reader.sock' }
+  manifest.data = { fields: { remaining_seconds: { type: 'number' }, available: { type: 'boolean' } } }
+  await fs.writeFile(manifestPath, JSON.stringify(manifest))
+  await draft(f.workspace, 'plain', '1')
+  const store = createUserAppStore({ ...f, verify: () => true })
+  assert.equal((await store.install('declared')).ok, true)
+  assert.equal((await store.install('plain')).ok, true)
+  const catalogPath = path.join(f.stateDir, 'user-apps.json')
+  const original = JSON.parse(await fs.readFile(catalogPath, 'utf8'))
+  const alterations = [
+    ['added endpoint', entries => { entries[0].service.endpoint = { transport: 'tcp', host: '127.0.0.1', port: 9000 } }],
+    ['changed egress', entries => { entries[0].service.egress[0].host = 'changed.invalid' }],
+    ['removed service', entries => { delete entries[0].service }],
+    ['changed field type', entries => { entries[0].data.fields.remaining_seconds.type = 'string' }],
+    ['added field', entries => { entries[0].data.fields.additional = { type: 'number' } }],
+    ['removed data', entries => { delete entries[0].data }],
+    ['added service', entries => { entries[1].service = entries[0].service }],
+    ['added data', entries => { entries[1].data = entries[0].data }],
+  ]
+  for (const [label, alter] of alterations) {
+    const entries = structuredClone(original)
+    alter(entries)
+    await fs.writeFile(catalogPath, JSON.stringify(entries))
+    const restarted = createUserAppStore({ ...f, verify: () => true })
+    await assert.rejects(() => restarted.list(), /catalog-corrupt/, label)
+    assert.deepEqual(await restarted.update('declared'), { ok: false, error: 'catalog-corrupt' }, label)
+  }
+  const reordered = structuredClone(original)
+  reordered[0].service = Object.fromEntries(Object.entries(reordered[0].service).reverse())
+  reordered[0].data.fields = Object.fromEntries(Object.entries(reordered[0].data.fields).reverse())
+  await fs.writeFile(catalogPath, JSON.stringify(reordered))
+  const listed = await store.list()
+  assert.deepEqual(listed[0].service, original[0].service)
+  assert.deepEqual(listed[0].data, original[0].data)
+})
+
 test('storage symlink cannot redirect snapshot writes', { skip: posixOnlyReason('symlinks') }, async () => {
   const f = await fixture()
   await draft(f.workspace, 'notes', '1')

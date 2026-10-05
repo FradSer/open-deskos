@@ -39,3 +39,30 @@ Feature: A Service Plugin's data keeps arriving for as long as the service does
     When the poller publishes a snapshot
     Then the desk that is still reachable receives it
     And the reset desk is reported as the failure it is
+
+  Scenario: A removed catalog declaration is withdrawn from the Shell
+    Given the Shell has refreshed an installed service declaration
+    When that declaration is absent from a later readable catalog
+    Then the Shell stops listening for that service
+    And Desk Data no longer lists the removed service
+
+  Scenario: Shell services stop when the application quits
+    Given the Shell has started its Remote, Hydra, and service sources
+    When Electron emits before-quit
+    Then each source stops exactly once
+
+  Scenario: A pending service listen cannot resurrect after quit
+    Given the Shell is starting a declared service listener
+    When the application stops before that listener finishes
+    Then the listener closes as soon as it finishes
+    And the stopped Shell has no service listener
+
+  Scenario: An explicit service start restarts after stop
+    Given the Shell has stopped its service listener
+    When the Shell explicitly starts the service again
+    Then the service listener is available again
+
+  Scenario: An unreadable catalog cannot prove a service was removed
+    Given the Shell has refreshed an installed service declaration
+    When a later catalog read fails
+    Then the last successfully read service declaration remains available

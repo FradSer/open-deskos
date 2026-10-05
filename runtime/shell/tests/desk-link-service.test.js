@@ -71,6 +71,105 @@ async function withService(run, options = {}) {
 
 const jsonl = (record) => `${JSON.stringify(record)}\n`
 
+test('report metadata is projected and bounded so 64 escaped inventories remain readable', async () => {
+  await withService(async (service, socketPath) => {
+    const link = await openReporter(service.port)
+    const sessions = Array.from({ length: 64 }, (_, index) => ({
+      sessionId: `bounded-${index}`, status: 'running', cwd: `/workspace/${index}/${'中'.repeat(2000)}`,
+      workspaceName: '\u0001'.repeat(500), latestGoal: '\u0001'.repeat(500), activity: '\u0001'.repeat(500),
+      privateUnknownPayload: 'discard me',
+    }))
+    assert.ok(Buffer.byteLength(jsonl({ v: 1, type: 'sessions', sessions })) < 1024 * 1024)
+    await link.identify([{ v: 1, type: 'sessions', sessions }])
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const snapshot = await createDeskLinkClient({ socketPath }).snapshot()
+    assert.equal(snapshot.ok, true)
+    assert.equal(snapshot.sessions.length, 64)
+    assert.equal(snapshot.sessions[0].sessionId.startsWith('bounded-'), true)
+    assert.equal(snapshot.sessions[0].privateUnknownPayload, undefined)
+    assert.ok(Buffer.byteLength(JSON.stringify(snapshot)) < 2 * 1024 * 1024)
+    link.close()
+  })
+})
+
+test('oversized reporter and session identities are refused without shortening', async () => {
+  await withService(async service => {
+    await refusedReporter(service.port, [{ v: 1, type: 'hello', token: 'tok', machine: 'm'.repeat(257) }])
+    assert.deepEqual(service.machines(), [])
+    const link = await openReporter(service.port)
+    await link.identify([{ v: 1, type: 'sessions', sessions: [{ sessionId: 's'.repeat(257), status: 'running' }] }])
+    assert.equal(service.snapshot().sessions.length, 0)
+    link.close()
+  })
+})
+
+test('metadata reduction preserves same-prefix directories and exact workspace names', async () => {
+  await withService(async service => {
+    const link = await openReporter(service.port)
+    const prefix = `/workspace/${'x'.repeat(3000)}`
+    const sessions = ['a', 'b'].map(id => ({ sessionId: id, cwd: `${prefix}/${id}`, workspaceName: `workspace-${id}`, latestGoal: 'g'.repeat(8000), activity: 'a'.repeat(4000) }))
+    await link.identify([{ v: 1, type: 'sessions', sessions }])
+    const snapshot = service.snapshot()
+    assert.equal(snapshot.workspaces.length, 2)
+    assert.deepEqual(snapshot.sessions.map(session => session.cwd).sort(), sessions.map(session => session.cwd).sort())
+    assert.deepEqual(snapshot.sessions.map(session => session.workspaceName).sort(), ['workspace-a', 'workspace-b'])
+    link.close()
+  })
+})
+
+test('unrepresentable report identities produce an explicit omission diagnostic', async () => {
+  await withService(async service => {
+    const link = await openReporter(service.port)
+    await link.identify([{ v: 1, type: 'sessions', sessions: [{ sessionId: 'huge', cwd: `/${'x'.repeat(20000)}`, workspaceName: 'exact' }] }])
+    assert.equal(service.snapshot().sessions.length, 0)
+    const diagnostic = link.replies.find(record => record.type === 'error')
+    assert.equal(diagnostic?.reason, 'reporting session identity exceeds metadata budget')
+    assert.equal(diagnostic?.omittedSessions, 1)
+    link.close()
+  })
+})
+
+test('a multi-machine snapshot overflow returns a correlated runtime error', async () => {
+  await withService(async (service, socketPath) => {
+    const links = []
+    try {
+      for (const machine of ['first', 'second']) {
+        const link = await openReporter(service.port, { machine })
+        links.push(link)
+        await link.identify([{ v: 1, type: 'sessions', sessions: Array.from({ length: 64 }, (_, index) => ({ sessionId: `${machine}-${index}`, cwd: `/workspace/${index}/${'x'.repeat(6000)}`, latestGoal: 'g'.repeat(2500), activity: 'a'.repeat(500) })) }])
+      }
+      assert.ok(Buffer.byteLength(jsonl(service.snapshot())) > 2 * 1024 * 1024)
+      const reply = await new Promise((resolve, reject) => {
+        const socket = net.connect(socketPath)
+        let pending = ''
+        socket.setTimeout(2000, () => { socket.destroy(); reject(new Error('runtime response timeout')) })
+        socket.on('error', reject)
+        socket.on('connect', () => socket.write(jsonl({ v: 1, type: 'snapshot', requestId: 'over-budget' })))
+        socket.on('data', chunk => {
+          pending += chunk
+          if (pending.includes('\n')) { resolve(JSON.parse(pending.split('\n')[0])); socket.destroy() }
+        })
+        socket.on('close', () => { if (!pending.includes('\n')) reject(new Error('runtime silently closed')) })
+      })
+      assert.equal(reply.ok, false)
+      assert.equal(reply.reason, 'desk-link-response-too-large')
+      assert.equal(reply.requestId, 'over-budget')
+      assert.equal((await createDeskLinkClient({ socketPath }).snapshot()).reason, 'desk-link-response-too-large')
+    } finally { for (const link of links) link.close() }
+  })
+})
+
+test('the runtime client preserves explicit failure reasons across read-only responses', async () => {
+  const client = createDeskLinkClient({
+    socketPath: path.join(os.tmpdir(), 'odk-reason-fixture.sock'),
+    send: async () => ({ v: 1, type: 'error', ok: false, reason: 'desk-link-response-too-large' }),
+  })
+  for (const reply of [await client.snapshot(), await client.hostedSessions(), await client.sessionEvents('known-session')]) {
+    assert.equal(reply.ok, false)
+    assert.equal(reply.reason, 'desk-link-response-too-large')
+  }
+})
+
 /**
  * A reporting machine keeps one long-lived link, so the helper does too: closing
  * it is a dropped link, which is a different behaviour under test.

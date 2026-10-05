@@ -20,6 +20,9 @@ const MAX_EVENT_PAGES = 4
  *  are byte-bounded, so large bodies cannot leave it showing an earlier slice. */
 const MAX_EVENT_ATTEMPTS = 3
 const MAX_SESSIONS_PER_MACHINE = 64
+// Bound serialized descriptions, including JSON escaping. Workspace identity
+// remains exact; an aggregate snapshot has its own explicit refusal below.
+const MAX_REPORTED_SESSION_BYTES = 11 * 1024
 /** A peer that has not authenticated within this window is dropped. */
 const AUTH_TIMEOUT_MS = 10000
 /** Unauthenticated peers may not accumulate. */
@@ -261,6 +264,41 @@ function reportTime(session) {
   return Number.isFinite(session.startedAt) ? session.startedAt : 0
 }
 
+function boundedJsonText(value, maxBytes) {
+  const text = boundedUtf8(value, maxBytes)
+  if (Buffer.byteLength(JSON.stringify(text)) <= maxBytes + 2) return text
+  let low = 0
+  let high = Buffer.byteLength(text)
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2)
+    if (Buffer.byteLength(JSON.stringify(boundedUtf8(text, middle))) <= maxBytes + 2) low = middle
+    else high = middle - 1
+  }
+  return boundedUtf8(text, low)
+}
+
+function normalizedReport(session, id, machine) {
+  const report = {
+    sessionId: id,
+    status: SESSION_STATUSES.has(session.status) ? session.status : 'running',
+    cwd: typeof session.cwd === 'string' ? session.cwd : '',
+    workspaceName: typeof session.workspaceName === 'string' ? session.workspaceName : '',
+    startedAt: Number.isFinite(session.startedAt) ? session.startedAt : 0,
+    ...(Number.isFinite(session.updatedAt) ? { updatedAt: session.updatedAt } : {}),
+    latestGoal: boundedJsonText(session.latestGoal, 8 * 1024),
+    activity: boundedJsonText(session.activity, 4 * 1024),
+    ...(session.discovered === true ? { discovered: true } : {}),
+    ...(typeof session.name === 'string' ? { name: boundedJsonText(session.name, 512) } : {}),
+  }
+  for (const limit of [4096, 2048, 1024, 512, 256, 0]) {
+    if (Buffer.byteLength(JSON.stringify(reportedSession(report, machine))) <= MAX_REPORTED_SESSION_BYTES) break
+    for (const field of ['name', 'latestGoal', 'activity']) {
+      if (typeof report[field] === 'string') report[field] = boundedJsonText(report[field], limit)
+    }
+  }
+  return Buffer.byteLength(JSON.stringify(reportedSession(report, machine))) <= MAX_REPORTED_SESSION_BYTES ? report : null
+}
+
 function latestReport(reports) {
   // In-process state wins over inventory copies while its owner is alive.
   // An exited direct report may yield to a newer discovered/resumed session.
@@ -351,13 +389,15 @@ function createDeskLinkService({
   function applySessions(state, socket, sessions) {
     if (!Array.isArray(sessions)) return
     const seen = new Set()
+    let omittedSessions = 0
     for (const session of sessions) {
       if (!session || typeof session !== 'object') continue
       const id = typeof session.sessionId === 'string' || typeof session.sessionId === 'number' ? String(session.sessionId) : ''
-      if (id.length === 0) continue
+      if (!boundedIdentity(id)) { omittedSessions += 1; continue }
+      const report = normalizedReport(session, id, state.machine)
+      if (!report) { omittedSessions += 1; continue }
       seen.add(id)
       const existing = state.sessions.get(id)
-      const report = { ...session, sessionId: id }
       const entry = existing ?? { session: report, events: [], reports: new Map() }
       entry.reports.delete(socket)
       entry.reports.set(socket, report)
@@ -371,6 +411,7 @@ function createDeskLinkService({
     }
     state.links.set(socket, seen)
     boundSessions(state)
+    if (omittedSessions > 0) safeWrite(socket, { v: DESK_LINK_PROTOCOL, type: 'error', reason: 'reporting session identity exceeds metadata budget', omittedSessions })
   }
 
   function applyEvents(state, socket, sessionId, events) {
@@ -402,7 +443,18 @@ function createDeskLinkService({
 
   async function hostAttach(record, handlers) {
     if (!hostAdapter || typeof hostAdapter.attach !== 'function') throw new Error('pi host unavailable')
-    return withTimeout(() => hostAdapter.attach(record, handlers), hostRequestTimeoutMs)
+    let completed = false
+    const attempt = Promise.resolve().then(() => hostAdapter.attach(record, handlers)).then((attached) => {
+      // A timeout cannot cancel an adapter Promise. Release a connection that
+      // materializes afterwards so the abandoned Console never owns the host.
+      if (completed) attached?.connection?.close?.()
+      return attached
+    })
+    try {
+      return await withTimeout(() => attempt, hostRequestTimeoutMs)
+    } finally {
+      completed = true
+    }
   }
 
   function validateControlRequest(record, attachment) {
@@ -635,7 +687,7 @@ function createDeskLinkService({
       for (const record of records) {
         if (!record || typeof record !== 'object' || record.v !== DESK_LINK_PROTOCOL) continue
         if (!authenticated) {
-          if (record.type !== 'hello' || typeof record.machine !== 'string' || record.machine.length === 0) {
+          if (record.type !== 'hello' || !boundedIdentity(record.machine)) {
             socket.write(encodeJsonLine({ v: DESK_LINK_PROTOCOL, type: 'error', reason: 'hello required' }))
             socket.destroy()
             return
@@ -849,23 +901,31 @@ function createDeskLinkService({
 
   function handleRuntimeRequest(socket) {
     const readRecords = recordReader()
-    const writeRuntime = (record) => safeWrite(socket, record, MAX_RUNTIME_RESPONSE_BYTES)
+    const writeRuntime = (record, requestId) => {
+      if (Buffer.byteLength(encodeJsonLine(record)) > MAX_RUNTIME_RESPONSE_BYTES) {
+        return safeWrite(socket, {
+          v: DESK_LINK_PROTOCOL, type: 'error', ok: false, reason: 'desk-link-response-too-large',
+          ...(boundedIdentity(requestId) ? { requestId } : {}),
+        }, MAX_RUNTIME_RESPONSE_BYTES)
+      }
+      return safeWrite(socket, record, MAX_RUNTIME_RESPONSE_BYTES)
+    }
     socket.on('data', (chunk) => {
       for (const record of readRecords(chunk)) {
         if (!record || typeof record !== 'object' || record.v !== DESK_LINK_PROTOCOL) continue
-        if (record.type === 'snapshot') writeRuntime(snapshot())
+        if (record.type === 'snapshot') writeRuntime(snapshot(), record.requestId)
         else if (record.type === 'events') {
           const sessionId = String(record.sessionId ?? '')
-          if (record.hostedPi === true) hostedEventsForSession(sessionId).then(writeRuntime)
+          if (record.hostedPi === true) hostedEventsForSession(sessionId).then(reply => writeRuntime(reply, record.requestId))
           else {
             const reported = eventsForSession(sessionId)
-            if (reported.reason !== SESSION_LOG_MISSING) writeRuntime(reported)
-            else hostedEventsForSession(sessionId).then(writeRuntime)
+            if (reported.reason !== SESSION_LOG_MISSING) writeRuntime(reported, record.requestId)
+            else hostedEventsForSession(sessionId).then(reply => writeRuntime(reply, record.requestId))
           }
         } else if (record.type === 'machines') {
-          writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'machines', machines: [...machines.keys()] })
+          writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'machines', machines: [...machines.keys()] }, record.requestId)
         } else if (record.type === 'hosted-sessions') {
-          hostedSnapshot().then((reply) => writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'hosted-sessions', ...reply }))
+          hostedSnapshot().then((reply) => writeRuntime({ v: DESK_LINK_PROTOCOL, type: 'hosted-sessions', ...reply }, record.requestId))
         }
       }
     })

@@ -6,12 +6,34 @@ const path = require('node:path')
 
 const {
   resolveHostedPiSocketPath,
+  createHostedPiSocketAdapter,
   taskRequest,
   normalizeTask,
   normalizeHistory,
   normalizeEvent,
   sessionEventsFromEntry,
 } = require('../src/desk-link-host-adapter')
+
+test('the adapter discovers a late host and refreshes a replaced descriptor on each request', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-late-host-'))
+  const descriptor = path.join(dir, 'open-deskos/hosted-pi/endpoint.json')
+  const attempted = []
+  const adapter = createHostedPiSocketAdapter({
+    env: { XDG_RUNTIME_DIR: dir },
+    connect(endpoint) { attempted.push(endpoint); throw new Error('fixture reached host') },
+  })
+  try {
+    await assert.rejects(adapter.request({ type: 'list', requestId: 'before' }), /unconfigured/)
+    fs.mkdirSync(path.dirname(descriptor), { recursive: true, mode: 0o700 })
+    const first = path.join(dir, 'first.sock')
+    const second = path.join(dir, 'second.sock')
+    fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath: first }))
+    await assert.rejects(adapter.request({ type: 'list', requestId: 'late' }), /fixture reached host/)
+    fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath: second }))
+    await assert.rejects(adapter.request({ type: 'list', requestId: 'replacement' }), /fixture reached host/)
+    assert.deepEqual(attempted, [first, second])
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+})
 
 // The host publishes its socket where the desk's Console path can find it without reading the host's
 // private configuration, so the adapter resolves that descriptor and nothing else. Reading

@@ -22,6 +22,17 @@ function resolveEndpoint(def, runtimeDir) {
 function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken = '', stateDir = '', onReject = () => {}, onRefuse = () => {}, onUpdate = (_id) => {}, now = () => Date.now() } = {}) {
   const latest = new Map()
   const servers = new Map()
+  // A refresh can be waiting for an asynchronous bind when shutdown starts.
+  // Serialize every lifecycle operation so stop observes the completed start,
+  // while a later explicit start can still restart the source.
+  let lifecycleActive = true
+  let lifecycleQueue = Promise.resolve()
+
+  function enqueueLifecycle(task) {
+    const operation = lifecycleQueue.then(task, task)
+    lifecycleQueue = operation.catch(() => {})
+    return operation
+  }
 
   function declared() {
     try { return services() || {} } catch { return {} }
@@ -56,7 +67,10 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
   }
 
   async function start() {
-    await refreshServices()
+    return enqueueLifecycle(async () => {
+      lifecycleActive = true
+      await refreshServicesNow()
+    })
   }
 
   async function stopServer(id) {
@@ -66,7 +80,7 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
     await running.server.stop()
   }
 
-  async function refreshServices() {
+  async function refreshServicesNow() {
     const declaredServices = declared()
     for (const [id, def] of Object.entries(declaredServices)) {
       if (!def) continue
@@ -123,8 +137,18 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
     }
   }
 
+  async function refreshServices() {
+    return enqueueLifecycle(async () => {
+      if (!lifecycleActive) return
+      await refreshServicesNow()
+    })
+  }
+
   async function stop() {
-    for (const id of [...servers.keys()]) await stopServer(id)
+    return enqueueLifecycle(async () => {
+      lifecycleActive = false
+      for (const id of [...servers.keys()]) await stopServer(id)
+    })
   }
 
   return { start, stop, snapshot, refreshServices }

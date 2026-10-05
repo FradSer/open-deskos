@@ -19,7 +19,7 @@ Feature: Verified widgets share desktop grids
     And removal remains available to recover capacity
 
   Scenario: Persisted placement corruption fails closed
-    Given a catalog placement is missing a coordinate or is not a grid line
+    Given a catalog placement is missing a coordinate, valid page identifier, or grid line
     When the installed catalog is read
     Then corrupt catalog metadata is rejected before presentation
 
@@ -30,6 +30,22 @@ Feature: Verified widgets share desktop grids
     And its revision, bytes, and removal stay available
     And no other installed package is hidden by it
     And the error clears once a layout leaves the cell free again
+
+  Scenario: A conflicted widget keeps its placement through revision changes
+    Given an installed widget has a stored placement that a new built-in tile occupies
+    When the widget is updated or rolled back
+    Then its revision bytes change or restore while its stored placement stays unchanged
+    And the occupied placement remains an explicit rendering error
+
+  Scenario: An App update to a Widget receives a grid cell
+    Given an installed App has no desktop placement
+    When its draft changes kind to Widget and is updated
+    Then the Widget receives the first free grid cell
+
+  Scenario: Stored geometry survives a layout release
+    Given a Widget's stored page or grid span is unavailable in the current layout
+    When the Widget is updated or rolled back
+    Then its stored geometry remains unchanged and the placement error stays per-widget
 
   Scenario: Concurrent placements cannot overlap
     Given two widget drafts target one free cell

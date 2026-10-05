@@ -7,15 +7,9 @@ scopes:
       description: Connectivity bridges, transport protocols, and agent-service communications in integrations/; does not cover desktop shell UI
     - name: vision
       description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI
-    - name: p4
-      description: Hardware research, firmware simulation, and architectural specs in research/esp32-p4-c6-deskos/firmware/; does not cover production drivers
-    - name: mac
-      description: Apple companion agent, macOS management console, and CLI tools in research/esp32-p4-c6-deskos/apple/
-    - name: tool
-      description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
-    - name: exp
-      description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
-    - name: research
-      description: Research, firmware simulation, and macOS companion agents in research/; does not cover production drivers
     - name: rsrch
       description: Hardware research, firmware simulation, and Apple companion agents in research/; does not cover production drivers
+    - name: exp
+      description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
+    - name: tool
+      description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic

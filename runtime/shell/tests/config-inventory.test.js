@@ -107,7 +107,7 @@ test('the inventory names a real consumer that reads each variable', () => {
   const rows = inventory()
   const failures = []
   for (const [name, row] of rows) {
-    if (row.consumer.startsWith('外部消费者')) continue
+    if (row.consumer.startsWith('External consumer')) continue
     const references = row.consumer.split(',').map(value => value.trim()).filter(Boolean)
     assert.notEqual(references.length, 0, `${name} names no consumer`)
     for (const reference of references) {
@@ -129,7 +129,7 @@ test('every variable a unit or launch agent declares is inventoried', () => {
 // the inventory says so in its own words, and this check keeps the two from drifting apart.
 test('the inventory marks the values a device must not restate', () => {
   const rows = inventory()
-  assert.match(rows.get('ODESK_PERSONAL_BOT_STT_MODEL').note, /无需设置/)
-  assert.match(rows.get('ODK_STT_PORT').note, /唯一声明/)
+  assert.match(rows.get('ODESK_PERSONAL_BOT_STT_MODEL').note, /No setting is required/)
+  assert.match(rows.get('ODK_STT_PORT').note, /Single declaration/)
   assert.equal(rows.get('PI_SESSION_CONTROL_COMMAND'), undefined, 'the removed session-control bridge must not return to the inventory')
 })

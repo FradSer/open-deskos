@@ -11,18 +11,8 @@ const SKILL_ROOT = path.join(REPOSITORY_ROOT, '.agents', 'skills', 'open-deskos-
 const SKILL = path.join(SKILL_ROOT, 'SKILL.md')
 const FEATURE = path.join(__dirname, 'features', 'open-deskos-widget-skill.feature')
 const REFERENCES = path.join(SKILL_ROOT, 'references')
-const IMPLEMENTATION_REFERENCES = [
-  'better-accessibility',
-  'better-colors',
-  'better-layout',
-  'better-typography',
-  'better-ui',
-  'better-writing',
-  'break',
-  'explain-interface',
-  'variant',
-]
-const REVIEW_REFERENCES = ['better-interface', 'interface-review']
+const IMPLEMENTATION_REFERENCES = ['design', 'verification']
+const REVIEW_REFERENCES = ['review']
 
 function section(content, heading) {
   const start = content.indexOf(heading)
@@ -80,14 +70,13 @@ test('Widget and App workflow references every inherited interface discipline', 
   const implementation = section(skill, '## 4. Design-development workflow')
   const review = section(skill, '## 6. Post-creation interface review')
 
-  assert.match(feature, /inherited as flat reference documents/)
+  assert.match(feature, /covered by consolidated domain guides/)
   assert.match(feature, /without an upstream skill directory/)
   assert.match(feature, /every linked local reference resolves within the skill reference tree/)
   assert.match(feature, /ends at deterministic runtime verification/)
   assert.match(implementation, /Read every linked reference in its assigned phase/)
   assert.match(implementation, /Read linked supporting documents when the selected surface exercises that concern/)
-  assert.doesNotMatch(implementation, /references\/interface-review\.md/)
-  assert.doesNotMatch(implementation, /references\/better-interface\.md/)
+  assert.doesNotMatch(implementation, /references\/review\.md/)
   assert.match(review, /after implementation and required verification are complete/)
   assert.match(review, /Classify introduced regressions separately from pre-existing findings/)
   assert.match(review, /does not commit or deploy/)
@@ -98,6 +87,22 @@ test('Widget and App workflow references every inherited interface discipline', 
     assert.equal(fs.existsSync(path.join(REFERENCES, `${reference}.md`)), true, `missing ${reference}`)
     assert.match(skill, new RegExp(`references/${reference}\\.md`))
   }
+
+  const design = fs.readFileSync(path.join(REFERENCES, 'design.md'), 'utf8')
+  const evidence = fs.readFileSync(path.join(REFERENCES, 'verification.md'), 'utf8')
+  const reviewGuide = fs.readFileSync(path.join(REFERENCES, 'review.md'), 'utf8')
+  for (const domain of ['Information and layout', 'Typography, color, and copy', 'Controls and motion', 'Icons', 'Implementation patterns']) {
+    assert.match(design, new RegExp(domain))
+  }
+  assert.match(design, /accessible names/)
+  assert.match(design, /prefers-reduced-motion/)
+  assert.match(design, /Pixelarticons/)
+  assert.match(design, /Copyright \(c\) 2019 Gerrit Halfmann/)
+  assert.match(evidence, /Do not widen tolerance or lower a floor/)
+  assert.match(evidence, /Do not show foreground windows, steal focus, use production credentials/)
+  assert.match(evidence, /fixture pass does not prove live-source recovery or physical input/)
+  assert.match(reviewGuide, /read-only by default/)
+  assert.match(reviewGuide, /Introduced.*Regression.*Pre-existing/)
 
   for (const file of markdownFiles(SKILL_ROOT)) assertLocalLinksResolve(file)
 })

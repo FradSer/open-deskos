@@ -4,7 +4,7 @@
 // can be read, and tested, without a display: the panel covers the display
 // rather than the work area, the desk asks for that geometry again while the
 // window is short of it, and the panel window is not one the user can move.
-// The decision is recorded in docs/adr/0034-a-panel-covers-the-display-and-the-user-does-not-move-it.md.
+// The decision is recorded in docs/ARCHITECTURE.md#adr-0034.
 
 const electron = require('electron')
 

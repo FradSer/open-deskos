@@ -16,8 +16,8 @@ Feature: Open DeskOS Widget and App design-development skill
   Scenario: Widget and App implementation incorporates interface disciplines
     Given the Open DeskOS Widget and App design-development skill
     When an agent designs, implements, or stress-tests a Widget or App change
-    Then the original upstream skill texts for accessibility, colors, layout, typography, UI, writing, break testing, interface explanation, and variants are inherited as flat reference documents
-    And each implementation workflow phase references the relevant inherited entry text without an upstream skill directory
+    Then accessibility, colors, layout, typography, UI, writing, stress testing, interface explanation, and variants are covered by consolidated domain guides
+    And each implementation workflow phase references the relevant domain guide without an upstream skill directory
     And every linked local reference resolves within the skill reference tree
     And the implementation workflow ends at deterministic runtime verification
     And it does not use change review or interface review as an implementation gate
@@ -25,7 +25,7 @@ Feature: Open DeskOS Widget and App design-development skill
   Scenario: A completed Widget or App change receives a separate interface review
     Given a Widget or App implementation and its required verification are complete
     When an agent runs the post-creation interface review
-    Then it reads the change-scoped interface-review reference
-    And it consolidates the findings through the better-interface reference
+    Then it reads the consolidated review reference for change scope
+    And it consolidates the findings through the same review reference for severity and reporting
     And it classifies introduced regressions separately from pre-existing findings
     And it reports quality without performing Git or deployment operations

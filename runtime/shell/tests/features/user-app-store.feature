@@ -37,6 +37,12 @@ Feature: Verified local user applications
     When a candidate is installed
     Then installation fails without writing outside the state directory
 
+  Scenario: Validate service and data declarations against verified snapshots
+    Given installed applications with and without service and data declarations
+    When persisted catalog declarations are added, removed or changed
+    Then catalog reads and mutations reject the altered metadata
+    And a change to JSON property order alone preserves the declarations
+
   Scenario: Serialize concurrent mutations and isolate verifier mutation
     Given concurrent installation requests and a verifier that modifies its input
     When the requests complete

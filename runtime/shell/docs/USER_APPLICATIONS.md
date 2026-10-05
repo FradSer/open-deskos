@@ -1,6 +1,6 @@
-# User applications
+# Installed Widgets and Apps
 
-User applications are installed local packages, separate from trusted built-in Shell plugins. Creating a file does not install it. The Shell owns the installed catalog and verification; the resident Agent invokes the Shell-owned lifecycle service. Widgets share ordinary desktop grid pages with built-in instruments; interactive Apps have individual pages. There is no separate Your apps collection page.
+Widgets and Apps are installed local packages. They are separate from trusted built-in plugins. The Shell owns verification and catalog state; the Agent calls its lifecycle service. Writing a draft does not install it. Widgets share grid pages; Apps own pages. There is no separate Your apps collection page.
 
 ## Author a draft
 
@@ -52,7 +52,7 @@ measurement time with its signal fields, never the display tick or read time.
 Publishing still makes the registry reading live; it does not create built-in
 staleness semantics. The voice watch independently rejects missing, future or
 older-than-owner-limit measurements. Values are untrusted data and cannot create
-rules or authorize actions. See @../../../integrations/personal-bot/docs/PROACTIVE_SUGGESTIONS.md
+rules or authorize actions. See @../../../integrations/personal-bot/docs/CONTRACT.md#proposals
 when configuring owner-triggered suggestions.
 
 ## Install and manage
@@ -94,7 +94,7 @@ A minimal package that inherits everything:
 <body><p style="border-radius:var(--odk-radius-tile);background:var(--odk-surface);padding:var(--odk-space-3)">Remember to take a break.</p></body></html>
 ```
 
-Icon path data is not served: the Pixel icon set is MIT-licensed data a package may embed, and a package switches between its own stroke and pixel variants on `data-theme`. Nothing else changed — the sandbox still grants no network, no Shell DOM, and no preload API, and the appearance context cannot read files outside the running release.
+Icon path data is not served: the Pixel icon set is MIT-licensed data a package may embed, and a package switches between its own stroke and pixel variants on `data-theme`. Appearance adds no network, Shell DOM or preload authority. It cannot read files outside the running release.
 
 ## Runtime safety and limits
 
@@ -112,6 +112,6 @@ pnpm test
 bash tests/smoke.sh
 ```
 
-The lifecycle integration test actually installs, renders an opaque-origin frame, updates, rejects a broken revision, restores state after restart, rolls back and removes a temporary package. Tests use temporary directories, never the user's installed application state. Host checks do not establish CM5 hardware acceptance.
+The lifecycle integration test actually installs, renders an opaque-origin frame, updates, rejects a broken revision, restores state after restart, rolls back and removes a temporary package. Tests use temporary directories, never the user's installed application state.
 
 Placement tests cover exact spans, occupied/out-of-bounds rejection, concurrent installation, persistence through revision changes, existing unplaced Widgets, desktop capacity recovery, and corrupt catalog metadata. Voice tests exercise the actual private socket request contract. Host checks do not establish CM5 hardware acceptance.

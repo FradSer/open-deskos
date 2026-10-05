@@ -198,6 +198,11 @@ function runSmokeCheck(win, expected) {
 }
 
 async function main() {
+  // Quit can begin while startup waits on the catalog or a local listener.
+  // Every asynchronous continuation checks this guard before attaching resources.
+  let stopping = false
+  app.once('before-quit', () => { stopping = true })
+  const isStopping = () => stopping
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
   const smokeMode = process.argv.includes('--smoke')
@@ -285,6 +290,7 @@ async function main() {
       win.webContents.send('odk-remote-input', { input })
     }
   })
+  app.once('before-quit', () => remoteBridge.stop())
   if (!smokeMode) remoteBridge.start()
   ipcMain.handle('odk-remote-link-state', () => ({
     state: remoteBridge.getLinkState(),
@@ -312,6 +318,7 @@ async function main() {
       topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
       onUpdate: () => personalBot.servicePush(['odk.tile.hydra']),
     })
+  app.once('before-quit', () => hydraSource.stop())
   ipcMain.handle('odk-hydra-status', () => hydraSource.snapshot())
   const wereadSource = createWeReadSource({
     cacheFile: require('node:path').join(app.getPath('userData'), 'weread-highlights.json'),
@@ -328,6 +335,13 @@ async function main() {
   // first light before the installer (T3) drives the registry; it is not a
   // second lifecycle.
   const futuServiceDefs = {}
+  const { createUserAppStore } = require('./user-app-store')
+  const installedStore = createUserAppStore({
+    workspace: process.env.ODESK_WORKSPACE,
+    // XDG_STATE_HOME is resolved by the shared host-path module, together with
+    // LOCALAPPDATA on Windows; the refresh path must use this same store.
+    stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
+  })
   let lastFutuRejection = null
   const futuRuntimeDir = (() => {
     const base = process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir()
@@ -350,14 +364,16 @@ async function main() {
     onRefuse: (id, reason) => console.error(`futu service ${id} is not listening: ${reason}`),
     services: () => ({ ...futuServiceDefs }),
   })
+  app.once('before-quit', () => {
+    void futuSource.stop().catch(error => console.error(`futu services stop failed: ${error.message}`))
+  })
   const refreshFutuServices = async () => {
+    if (stopping) return
+    let nextFutuServiceDefs = null
     try {
-      const { createUserAppStore } = require('./user-app-store')
-      const store = createUserAppStore({
-        workspace: process.env.ODESK_WORKSPACE,
-        stateDir: require('node:path').join(process.env.XDG_STATE_HOME || require('node:os').homedir() + '/.local/state', 'open-deskos/user-apps'),
-      })
-      for (const entry of await store.list()) {
+      const installed = await installedStore.list()
+      nextFutuServiceDefs = {}
+      for (const entry of installed) {
         if (!entry?.service || !entry?.id) continue
         // A plugin declares where it listens: a socket path, a named pipe, or a
         // network address. The socket field is the historical name for it.
@@ -367,18 +383,25 @@ async function main() {
         // installed revision can be replaced, so a declaration that changed is
         // published rather than only the first one ever seen.
         const declared = { revision: entry.revision, endpoint, label: entry.name }
-        const current = futuServiceDefs[entry.service.id]
-        if (!current || current.revision !== declared.revision || current.endpoint !== declared.endpoint || current.label !== declared.label) {
-          futuServiceDefs[entry.service.id] = declared
-        }
+        nextFutuServiceDefs[entry.service.id] = declared
       }
     } catch {}
+    if (stopping) return
     const declaredEndpoint = process.env.ODK_FUTU_ENDPOINT || process.env.ODESK_FUTU_SOCKET
-    if (declaredEndpoint && !futuServiceDefs['futu-poller']) {
+    if (nextFutuServiceDefs && declaredEndpoint && !nextFutuServiceDefs['futu-poller']) {
       // The revision is declared once, in the shared file the poller also reads, so a packaged
       // revision cannot make the handshake reject the poller that is actually running.
+      nextFutuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint: declaredEndpoint }
+    }
+    if (nextFutuServiceDefs) {
+      for (const id of Object.keys(futuServiceDefs)) {
+        if (!(id in nextFutuServiceDefs)) delete futuServiceDefs[id]
+      }
+      Object.assign(futuServiceDefs, nextFutuServiceDefs)
+    } else if (declaredEndpoint && !futuServiceDefs['futu-poller']) {
       futuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint: declaredEndpoint }
     }
+    if (stopping) return
     try { await futuSource.refreshServices() } catch (error) {
       console.error(`futu services unavailable: ${error.message}`)
     }
@@ -405,11 +428,6 @@ async function main() {
   // resolves the source the tile above already draws from, so a spoken answer and
   // the screen cannot disagree, and the Personal Bot reaches it over the Desk Data
   // Link rather than a second integration of any provider.
-  const { createUserAppStore } = require('./user-app-store')
-  const installedStore = createUserAppStore({
-    workspace: process.env.ODESK_WORKSPACE,
-    stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
-  })
   const deskData = createShellDeskData({
     onUpdate: id => personalBot.servicePush([id]),
     hydra: hydraSource,
@@ -427,18 +445,37 @@ async function main() {
     // The catalog settles before the window exists, so nothing that reads a
     // reading after boot can race the first synchronization.
     await deskData.syncPackages()
-    void refreshFutuServices().then(() => deskData.syncServices())
-    setInterval(() => { void refreshFutuServices().then(() => deskData.syncServices()) }, 60 * 1000).unref?.()
+    if (stopping) return
+    void refreshFutuServices().then(() => { if (!stopping) deskData.syncServices() }).catch(error => console.error(`futu services refresh failed: ${error.message}`))
+    const futuRefreshTimer = setInterval(() => {
+      if (stopping) return
+      void refreshFutuServices().then(() => { if (!stopping) deskData.syncServices() }).catch(error => console.error(`futu services refresh failed: ${error.message}`))
+    }, 60 * 1000)
+    futuRefreshTimer.unref?.()
+    app.once('before-quit', () => clearInterval(futuRefreshTimer))
   }
-  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, deskData })
+  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, deskData, isStopping })
+  if (stopping) return
   // A smoke run reads nothing the device owns, so it also decides nothing about
   // which installed packages may answer.
   if (!smokeMode) void deskData.syncPackages()
   if (!smokeMode && shellHost.provisionsDeskData) {
-    listenDeskData({ endpoint: shellHost.deskDataEndpoint, control: deskData.control, stateDir: shellHost.stateDir, platform: shellHost.platform })
-      .then(server => app.once('before-quit', () => { void server.close().catch(() => {}) }))
-      .catch(error => console.error(`desk data link unavailable: ${error.message}`))
+    void (async () => {
+      if (stopping) return
+      try {
+        const server = await listenDeskData({ endpoint: shellHost.deskDataEndpoint, control: deskData.control, stateDir: shellHost.stateDir, platform: shellHost.platform })
+        if (stopping) {
+          await server.close().catch(() => {})
+          return
+        }
+        app.once('before-quit', () => { void server.close().catch(() => {}) })
+      } catch (error) {
+        console.error(`desk data link unavailable: ${error.message}`)
+      }
+    })()
   }
+
+  if (stopping) return
 
   const options = resolveLaunchOptions(process.argv, process.env)
   const win = createWindow(options)
@@ -477,7 +514,10 @@ if (app && typeof app.on === 'function') {
       if (win.isMinimized()) win.restore()
       win.focus()
     })
-    app.whenReady().then(main)
+    app.whenReady().then(main).catch(error => {
+      console.error(`Shell startup failed: ${error.message}`)
+      app.exit(1)
+    })
   }
 
   app.on('window-all-closed', () => {

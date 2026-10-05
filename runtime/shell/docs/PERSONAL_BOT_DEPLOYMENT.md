@@ -74,7 +74,7 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
   authentication separately on the CM5 under the kiosk user's Pi auth storage
   (`~/.pi/agent/auth.json`); the STT key does not authenticate the coding model.
 - `ODESK_TASK_TARGETS_FILE`: the Personal Bot coordinator's own Hosted Pi target list
-  (see @../../integrations/personal-bot/docs/MANAGED_TASKS.md). Declare it in the
+  (see @../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi). Declare it in the
   personal bot service's environment — `personal-bot.env`, or a
   `open-deskos-personal-bot.service.d/*.conf` drop-in when the operator prefers
   to keep it beside the host's `pi-tasks.json`. systemd applies both, and a
@@ -91,40 +91,7 @@ Do not put secrets in source directories or systemd units.
 
 ## On a Windows Shell Host
 
-The Personal Bot is a system component on every supported host, so a 64-bit
-Windows host runs the same service with two host-specific pieces: capture through
-ffmpeg's DirectShow input instead of ALSA, and the voice link bound as the
-`\\.\pipe\open-deskos-personal-bot` named pipe the host's own naming already
-declares. A pipe carries no owner, so the channel token in
-`%LOCALAPPDATA%\open-deskos\local-channel.token` is what authenticates the
-connection, and it is consumed before the voice protocol reads a byte (see
-@../../runtime/shell/docs/adr/0025-a-runtime-channel-is-authenticated-by-ownership-or-a-token.md).
-The device-local configuration uses the same two environment files as the CM5,
-`%LOCALAPPDATA%\open-deskos\runtime.env` and `personal-bot.env`.
-
-```powershell
-# What the host is missing, without installing or registering anything
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -Report
-# Stage the interactive task; -InstallFfmpeg is explicit, never automatic
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg -Start
-```
-
-The service runs in the logged-on session because a microphone opened in session
-0 has no audio endpoint, so it is an interactive scheduled task with a restart
-loop — the counterpart of `Restart=on-failure` in the unit above. Acceptance on a
-device speaks the published protocol over the host's own endpoint and reports the
-states, the transcript and the answer:
-
-```powershell
-node scripts\personal-bot-acceptance.mjs
-```
-
-The device needs its own Pi authentication for the agent run, which the Shell
-does not have and does not need: the Shell only reads remote Pi sessions. A host
-that points Pi at an OpenAI-compatible model service declares that provider in
-its own `~\.pi\agent\models.json`. The full host runbook, including the ffmpeg
-prerequisite and the device-scoped model credential, is
-@../../runtime/shell/docs/WINDOWS_HOST.md.
+Use [WINDOWS_HOST.md](WINDOWS_HOST.md#personal-bot) for provisioning, DirectShow device names, interactive scheduled tasks, channel authentication and acceptance commands. It owns the Windows procedure; the configuration and independent model/STT credentials described above still apply. Session 0 has no microphone endpoint. Installing ffmpeg or registering/starting the task requires operator authorization.
 
 ## Operator checks after an approved deployment
 
@@ -163,8 +130,8 @@ hardware deployment is performed by those tests.
 
 The OSPTEK ESP32-P4C6 baseboard microphone is accepted as the CM5 Personal Bot
 input. The P4 enumerates over its native USB2.0 data Type-C port as composite
-USB device `303a:7002`, with CDC camera metadata and a standard UAC2 microphone.
-Linux binds `cdc_acm` and `snd-usb-audio`; the stable capture configuration is:
+USB device `303a:7002`, with standard UVC MJPEG video and a UAC microphone. Camera CDC metadata was removed by [ADR-0004](ARCHITECTURE.md#adr-0004).
+Linux binds the standard video/audio drivers; the stable capture configuration is:
 
 ```sh
 ODESK_PERSONAL_BOT_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0
@@ -185,3 +152,9 @@ port. Both may remain connected: the native port carries UVC+UAC, while CH343P
 carries firmware logs and flashing. Model/STT authentication and
 Hosted Pi control remain separately provisioned device-local concerns. Hosted Pi
 control is required for source implementation requests, not for desk readings.
+
+## Hosted Pi trust boundary
+
+Use [Hosted Pi contract](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi) for current daemon operations and admission. A configured root scopes task admission, not every file/tool operation. Hosted Pi tools retain the service user's permissions. Use fixed configured targets and executables, strict SSH host-key checks and correlated bounded JSON. Prompts and projects travel on stdin, never command arguments.
+
+Keep durable identity after an ambiguous start. Reconcile status rather than create a new ID and repeat a mutation. Accepted is not completed. A daemon restart can interrupt work without undoing existing edits. Never discard unrelated changes. Live SDK/provider, service provisioning and physical voice checks need separate approval and evidence. Historical Pi 0.85.1 research is not the current SDK contract.

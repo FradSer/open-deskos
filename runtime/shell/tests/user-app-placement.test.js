@@ -109,6 +109,10 @@ test('corrupt persisted placements fail closed', async t => {
   const catalogPath = path.join(options.stateDir, 'user-apps.json')
   const entries = JSON.parse(await fs.readFile(catalogPath))
   for (const placement of [
+    { col: '1', row: '1' },
+    { pageId: null, col: '1', row: '1' },
+    { pageId: 1, col: '1', row: '1' },
+    { pageId: '', col: '1', row: '1' },
     { pageId: 'home', col: 6, row: '1' },
     { pageId: 'home', col: '1', row: 'one' },
     { pageId: 'home', col: '1 / ', row: '1' },
@@ -139,4 +143,109 @@ test('unavailable geometry is reported per widget and never hidden as corruption
   assert.equal(apps.find(app => app.id === 'note').placementError, 'occupied-placement')
   assert.equal(apps.find(app => app.id === 'second').placementError, undefined)
   assert.equal((await store.remove('note')).ok, true)
+})
+
+test('updates and rollbacks retain a conflicted widget placement', async t => {
+  const { store, options, draft } = await setup(t)
+  await draft('note', '1')
+  const placement = { pageId: 'home', col: '4', row: '3' }
+  assert.equal((await store.install('note', placement)).ok, true)
+  await draft('note', '2')
+  assert.equal((await store.update('note')).ok, true)
+
+  const conflicted = createUserAppStore({ ...options, layout: { pages: [
+    { id: 'home', name: 'Home', kind: 'grid', surface: 'display', widgets: [{ id: 'odk.tile.weather', col: '4', row: '3' }] },
+  ] } })
+  const listed = (await conflicted.list())[0]
+  assert.deepEqual(listed.placement, placement)
+  assert.equal(listed.placementError, 'occupied-placement')
+
+  await draft('note', '3')
+  const updated = await conflicted.update('note')
+  assert.equal(updated.ok, true)
+  assert.deepEqual(updated.app.placement, placement)
+  assert.equal((await conflicted.getContent('note')).html, '<p>3</p>')
+
+  const rolledBack = await conflicted.rollback('note')
+  assert.equal(rolledBack.ok, true)
+  assert.deepEqual(rolledBack.app.placement, placement)
+  assert.equal(rolledBack.app.placementError, undefined)
+  assert.equal((await conflicted.getContent('note')).html, '<p>2</p>')
+})
+
+test('an App updated to a Widget receives a placement', async t => {
+  const { store, draft } = await setup(t)
+  await draft('note', '1', 'app')
+  assert.equal((await store.install('note')).ok, true)
+
+  await draft('note', '2', 'widget')
+  const updated = await store.update('note')
+
+  assert.equal(updated.ok, true)
+  assert.equal(updated.app.kind, 'widget')
+  assert.deepEqual(updated.app.placement, { pageId: 'home', col: '3', row: '1' })
+
+  await draft('note', '3', 'app')
+  assert.equal((await store.update('note')).ok, true)
+  const rolledBack = await store.rollback('note')
+  assert.equal(rolledBack.ok, true)
+  assert.equal(rolledBack.app.kind, 'widget')
+  assert.deepEqual(rolledBack.app.placement, { pageId: 'home', col: '3', row: '1' })
+})
+
+test('updates and rollbacks retain geometry unavailable after a layout release', async t => {
+  const { store, options, draft } = await setup(t)
+  await draft('note', '1')
+  const placement = { pageId: 'home', col: '4', row: '3' }
+  assert.equal((await store.install('note', placement)).ok, true)
+  await draft('note', '2')
+  assert.equal((await store.update('note')).ok, true)
+
+  const released = createUserAppStore({ ...options, layout: { pages: [
+    { id: 'today', kind: 'page', name: 'Today' },
+  ] } })
+  const listed = (await released.list())[0]
+  assert.deepEqual(listed.placement, placement)
+  assert.equal(listed.placementError, 'unavailable-page')
+
+  await draft('note', '3')
+  const updated = await released.update('note')
+  assert.equal(updated.ok, true)
+  assert.deepEqual(updated.app.placement, placement)
+  assert.equal((await released.getContent('note')).html, '<p>3</p>')
+
+  const rolledBack = await released.rollback('note')
+  assert.equal(rolledBack.ok, true)
+  assert.deepEqual(rolledBack.app.placement, placement)
+  assert.equal((await released.getContent('note')).html, '<p>2</p>')
+  assert.equal((await released.list())[0].placementError, 'unavailable-page')
+})
+
+test('updates and rollbacks retain a stored span outside a released grid', async t => {
+  const { store, options, draft } = await setup(t)
+  await draft('note', '1')
+  const placement = { pageId: 'home', col: '4', row: '3' }
+  assert.equal((await store.install('note', placement)).ok, true)
+  await draft('note', '2')
+  assert.equal((await store.update('note')).ok, true)
+
+  const catalogPath = path.join(options.stateDir, 'user-apps.json')
+  const entries = JSON.parse(await fs.readFile(catalogPath))
+  entries[0].placement = { pageId: 'home', col: '5 / 7', row: '1' }
+  await fs.writeFile(catalogPath, JSON.stringify(entries))
+
+  const released = createUserAppStore(options)
+  const listed = (await released.list())[0]
+  assert.deepEqual(listed.placement, entries[0].placement)
+  assert.equal(listed.placementError, 'invalid-placement')
+
+  await draft('note', '3')
+  const updated = await released.update('note')
+  assert.equal(updated.ok, true)
+  assert.deepEqual(updated.app.placement, entries[0].placement)
+
+  const rolledBack = await released.rollback('note')
+  assert.equal(rolledBack.ok, true)
+  assert.deepEqual(rolledBack.app.placement, entries[0].placement)
+  assert.equal((await released.list())[0].placementError, 'invalid-placement')
 })

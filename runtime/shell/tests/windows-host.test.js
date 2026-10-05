@@ -17,6 +17,15 @@ const repositoryOnly = inReleaseLayout
 
 const read = (...parts) => fs.readFileSync(path.join(...parts), 'utf8')
 
+const readDecision = (id) => {
+  const architecture = read(RUNTIME, 'docs/ARCHITECTURE.md')
+  const marker = `<a id="adr-${id}"></a>`
+  const start = architecture.indexOf(marker)
+  assert.notEqual(start, -1, `architecture must retain ADR-${id}`)
+  const next = architecture.indexOf('<a id="adr-', start + marker.length)
+  return architecture.slice(start, next === -1 ? undefined : next)
+}
+
 test('the Windows Shell Host has executable scenarios', () => {
   const feature = read(RUNTIME, 'tests/features/windows-shell-host.feature')
 
@@ -41,12 +50,12 @@ test('the Windows Shell Host has executable scenarios', () => {
 test('the Windows runbook states which surfaces are ported and which are not', () => {
   const runbook = read(RUNTIME, 'docs/WINDOWS_HOST.md')
 
-  for (const surface of ['Remote Bridge', '语音 Agent']) {
+  for (const surface of ['Remote Bridge', 'Voice Agent']) {
     assert.ok(runbook.includes(surface), `WINDOWS_HOST.md must name ${surface}`)
   }
   // Each surface is named as ported or unported, not merely as degraded: a reader
   // must be able to tell a missing capability from a broken one.
-  assert.match(runbook, /未移植/)
+  assert.match(runbook, /Not ported/)
   // The voice link is ported, and the runbook says what carries it and what
   // authenticates it, so a missing personal bot service cannot read as a missing voice
   // capability.
@@ -59,21 +68,21 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   assert.match(runbook, /open-deskos-desk-link/)
   assert.match(runbook, /open-deskos-user-app-control/)
   assert.match(runbook, /local-channel\.token/)
-  assert.match(runbook, /0025-a-runtime-channel-is-authenticated-by-ownership-or-a-token/)
+  assert.match(runbook, /ADR-0025/)
 
-  assert.match(runbook, /工作目录可能未知/)
+  assert.match(runbook, /working directory can be unknown/)
   assert.match(runbook, /pnpm run build:native/)
 
   // The panel covers the display rather than the work area, and it is not a
   // window the user can drag; both are stated with the measurement that
   // established them, so a reader can tell a rule from a guess.
-  assert.match(runbook, /面板铺满的是屏幕，不是工作区/)
+  assert.match(runbook, /panel covers the display, not the work area/)
   assert.match(runbook, /WS_THICKFRAME/)
-  assert.match(runbook, /不置顶/)
+  assert.match(runbook, /not topmost/)
 })
 
 test('the panel decision is recorded where a reader looks for it', () => {
-  const adr = read(RUNTIME, 'docs/adr/0034-a-panel-covers-the-display-and-the-user-does-not-move-it.md')
+  const adr = readDecision('0034')
   assert.match(adr, /fullscreen is geometry/)
   assert.match(adr, /not topmost/)
   assert.match(adr, /WS_THICKFRAME/)
@@ -96,7 +105,7 @@ test('the Windows entry points do not require bash', () => {
 })
 
 test('the supported-host decision is recorded where a reader looks for it', repositoryOnly, () => {
-  const adr = read(RUNTIME, 'docs/adr/0023-windows-x64-is-a-supported-shell-host.md')
+  const adr = readDecision('0023')
   assert.match(adr, /64-bit Windows is a supported host/)
   assert.match(adr, /Windows on ARM is not/)
 
@@ -104,6 +113,6 @@ test('the supported-host decision is recorded where a reader looks for it', repo
   assert.match(context, /\*\*Shell Host\*\*/)
   assert.match(context, /\*\*Session Work Directory\*\*/)
 
-  const spec = read(REPO, 'docs/wayfinding/windows-x64-shell-host/SPEC-WINDOWS-SHELL-HOST.md')
+  const spec = read(RUNTIME, 'docs/WINDOWS_HOST.md')
   assert.match(spec, /ADR-0023/)
 })

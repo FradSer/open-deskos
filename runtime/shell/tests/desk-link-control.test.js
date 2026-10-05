@@ -688,3 +688,23 @@ test('a host timeout is an explicit correlated error and does not hang the contr
     link.socket.destroy()
   }, { hostAdapter, hostRequestTimeoutMs: 30 })
 })
+
+test('an Attach that resolves after its timeout closes the late host connection', async () => {
+  let finishAttach
+  let closed = false
+  const hostAdapter = {
+    attach: () => new Promise((resolve) => { finishAttach = resolve }),
+    request: async () => ({ sessions: [{ sessionId: 'hosted-1', status: 'settled' }] }),
+  }
+  await withService(async (service) => {
+    const link = await authenticateConsole(service.port)
+    link.send({ v: 2, type: 'attach', requestId: 'slow-attach', sessionId: 'hosted-1', attachmentId: 'late-attachment' })
+    const error = await link.waitFor((record) => record.requestId === 'slow-attach')
+    assert.equal(error.reason, 'pi host timeout')
+    finishAttach({ boundary: 0, connection: { close() { closed = true } } })
+    await pause()
+    assert.equal(closed, true, 'an abandoned Attach must release the host connection')
+    assert.equal((await service.hostedSnapshot()).sessions[0].controlAttribution, undefined)
+    link.socket.destroy()
+  }, { hostAdapter, hostRequestTimeoutMs: 20 })
+})

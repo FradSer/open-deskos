@@ -471,34 +471,6 @@ async function scrollingIsolationChecks(win) {
   await page(win, PAGES.dot('pi-sessions'))
 }
 
-async function selectionIdentityContinuity(win) {
-  const original = sessions
-  const pager = `${PAGES.surface('pi-sessions')}`
-  const surface = `${pager} .pi-app-wrapper`
-  const position = () => win.webContents.executeJavaScript(`document.querySelector('${surface} #pi-view-subtitle').textContent`)
-  const selectSecond = () => win.webContents.executeJavaScript(`(() => {
-    const page = document.querySelector('${pager}')
-    const surface = page.querySelector('.pi-app-wrapper')
-    if (surface.querySelector('#pi-overview').hidden) page.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))
-    surface.querySelectorAll('.pi-overview-cell')[1]?.click()
-  })()`)
-  try {
-    sessions = structuredClone(original)
-    sessions.sessions[0].uuid = 'identity-only-session'
-    sessions.sessions[1].uuid = 'second-identity-only-session'
-    await page(win, PAGES.dot('pi-sessions'))
-    // Choose the second live session, so the assertion is not just the default row.
-    await selectSecond()
-    await delay(120)
-    const before = await position()
-    await page(win, PAGES.dot('pi-sessions'))
-    check('the selected session survives a scan by session identity', (await position()) === before, { before, after: await position() })
-  } finally {
-    sessions = original
-    await page(win, PAGES.dot('pi-sessions'))
-  }
-}
-
 async function remoteStripControls(win) {
   const original = sessions
   const startedAt = Date.now() - 60000

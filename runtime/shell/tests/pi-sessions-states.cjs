@@ -28,6 +28,9 @@ const OUT_DIR = process.env.ODK_CAPTURE_DIR || path.join(os.tmpdir(), 'odk-pi-se
 const WIDTH = Number(process.env.ODK_CAPTURE_WIDTH) || 1920
 const HEIGHT = Number(process.env.ODK_CAPTURE_HEIGHT) || 1280
 const OVERALL_TIMEOUT_MS = 300000
+const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-sessions-states-profile-'))
+app.setPath('userData', PROFILE)
+app.on('will-quit', () => { try { fs.rmSync(PROFILE, { recursive: true, force: true }) } catch {} })
 
 // The kiosk reaches the Mali-G610 only through this switch set (src/main.js,
 // resolveGpuBackend -> 'mali'); without it Chromium loses its GPU process on

@@ -48,10 +48,6 @@
     return `${Math.round(entry.soilPercent)}%`
   }
 
-  function escapeHtml(value) {
-    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  }
-
   function envCell(refs, key, value, unit) {
     refs[key].value.textContent = value
     refs[key].unit.textContent = unit

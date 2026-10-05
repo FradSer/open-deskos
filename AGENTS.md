@@ -1,19 +1,36 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- `runtime/shell/` is the active Electron Shell runtime. Its reference Shell Host is the CM5 (RK3588S, Linux arm64); Windows and macOS also run the same Shell; 64-bit Windows has its own runbook at `runtime/shell/docs/WINDOWS_HOST.md`. `peripherals/esp32-s3-remote/` and `peripherals/esp32-p4-camera/` have independent hardware acceptance gates; neither may block base-shell touch or keyboard use. `integrations/remote-bridge/` connects the Remote.
-- `research/esp32-p4-c6-deskos/` preserves the prior P4+C6 device OS, simulator, docs, and Apple USB companion; it is not active product authority.
-- For product scope, consult @PRODUCT.md; for runtime terminology or architecture, consult @runtime/shell/CONTEXT.md and the relevant record in `runtime/shell/docs/adr/`.
-- Root only supplies UnoCSS, not a package workspace. Install runtime dependencies with pnpm in `runtime/shell/`.
+## Project structure
 
-## Verification & Operational Boundaries
-- Start behavior work with Given/When/Then scenarios in the affected scope's `.feature` files, then a failing regression test before the implementation.
-- Completion requires affected checks to pass after fixing change-caused failures; report blocked checks, unrelated failures, and hardware not exercised. Documentation-only changes need path and content checks, not firmware or Electron runs.
-- Deployment, release activation/rollback, service installation, firmware flashing, and live camera/microphone capture are operational actions, not ordinary local tests. Obtain authorization for those actions; a host-test pass is not device acceptance.
-- Keep credentials, tokens, diagnostic dumps, and temporary build outputs out of commits.
+- `runtime/shell/` is the active Electron Shell. CM5 (RK3588S, Linux arm64) is the reference host. Windows and macOS use the same Shell.
+- Read @runtime/shell/docs/WINDOWS_HOST.md for 64-bit Windows operations.
+- `peripherals/esp32-s3-remote/` and `peripherals/esp32-p4-camera/` have separate hardware acceptance gates. Neither may block touch or keyboard input.
+- `integrations/remote-bridge/` connects the Remote. `research/esp32-p4-c6-deskos/` preserves the previous device OS; it does not define active product requirements.
+- Read @PRODUCT.md for scope. Read @runtime/shell/CONTEXT.md for terms. Read @runtime/shell/docs/ARCHITECTURE.md for an applicable architecture decision.
+- The root provides UnoCSS; it is not a package workspace. Install runtime dependencies with pnpm in `runtime/shell/`.
 
-## Commit & Pull Request Guidelines
-- Commits go through the project's commit workflow, never a raw `git add` or `git commit`: a commit that bypasses it is not atomic with the changes it claims, and the scope taxonomy in `.git-agent/config.yml` is the project's.
-- Do not hand-stage paths or manipulate the index to work around a tree that carries another task's or another author's uncommitted work. The fix is isolation: give a concurrent task its own worktree with a non-overlapping scope. If a tree cannot be isolated, stop and settle ownership before committing.
-- A commit is not finished when it exists: before committing, check what the tree actually carries and leave another author's in-flight work exactly as it was found.
-- Use focused Conventional Commits (`fix(shell):`, `feat(hw):`, `refactor(link):`, `feat(vision):`, `fix(p4):`, `refactor(mac):`). The `shell` scope covers the Shell runtime and is named for the Shell, not for a host device, so it applies on every Shell Host. State validation commands and scope in commit messages.
+## Verification and operations
+
+- Define Given/When/Then scenarios in the applicable `.feature` file before behavior changes. Reproduce a bug with a failing regression test before implementation.
+- Run affected checks. Repair change-caused failures. Report unrelated failures, blocked checks, and hardware not tested.
+- Documentation changes require content and reference checks; they do not require firmware or Electron runs.
+- Obtain authorization for deployment, activation, rollback, service installation, firmware flashing, and live camera or microphone capture.
+- A host-test pass does not prove device acceptance. Exclude credentials, tokens, diagnostic dumps, and temporary builds from commits.
+
+## Commits
+
+- Use the project commit workflow. Do not use raw `git add` or `git commit`. Use the scopes in `.git-agent/config.yml`.
+- Do not stage another task's work. Do not change the index to bypass shared-tree ownership.
+- Give concurrent tasks separate worktrees with non-overlapping scopes. If isolation is unavailable, resolve ownership before a commit.
+- Before a commit, inspect the actual tree. Preserve another author's in-flight work.
+- Use focused Conventional Commits: `fix(shell):`, `feat(hw):`, `refactor(link):`, `feat(vision):`, `fix(p4):`, and `refactor(mac):`.
+- The `shell` scope applies to every Shell Host. Include validation commands and scope in the commit message.
+
+## Documentation
+
+- Write project Markdown in English. Apply ASD-STE100 Issue 9; read the [standard](https://www.asd-ste100.org/) when you edit prose.
+- Use approved dictionary meanings and project technical terms from @runtime/shell/CONTEXT.md. Use the same term for the same concept.
+- Use active voice in procedures. Put one instruction in each sentence. Limit procedural sentences to 20 words and descriptive sentences to 25 words.
+- Keep exact identifiers, commands, UI strings, licenses, and upstream source text. Do not translate an execution or confirmation token.
+- Keep one owner for each fact. Move current facts before you remove completed plans or old reviews. Use Git history for past versions.
+- Validate links, language, and document consumers. Full STE conformance also requires dictionary, word-meaning, and technical-term review; a length check alone is insufficient.

@@ -4,10 +4,14 @@
 // Run on CM5 via SSH with an isolated HOME and --ozone-platform=headless.
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
 const { resolvePages } = require('./helpers/pages')
 const root = path.resolve(__dirname, '..')
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-sessions-interaction-'))
+app.setPath('userData', profile)
+app.on('will-quit', () => { try { fs.rmSync(profile, { recursive: true, force: true }) } catch {} })
 const startedAt = Date.now() - 60000
 const session = (id, goal, status = 'running', extra = {}) => ({
   uuid: id, sessionId: id, pid: id, startedAt, status,
@@ -28,6 +32,7 @@ let snapshot
 let pendingEvent = null
 let eventRequests = 0
 let holdEvents = false
+let personalBotToggleRequests = 0
 // The first scan stays unanswered until the first scenario releases it, so the
 // page's own loading state can be observed rather than assumed.
 let holdScan = true
@@ -67,6 +72,15 @@ ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, nodes: [], env: null }))
 ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable' }))
 ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
+ipcMain.handle('odk-weather-status', () => ({
+  status: 'unconfigured', place: null, unit: '°C', current: null, daily: null,
+  updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null, locationSource: null,
+}))
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unconfigured', service: 'futu-poller' }))
+ipcMain.handle('odk-personal-bot-toggle', () => {
+  personalBotToggleRequests += 1
+  return { accepted: false }
+})
 ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
 ipcMain.handle('odk-remote-publish-page-state', (_event, state) => { remoteState = state; return true })
 
@@ -1031,6 +1045,7 @@ async function main() {
     await rp("window.__odkHold([3]); return true")
     await pause(200)
     assert.deepEqual(await rp('return window.__odkMic'), ['mic'], 'Y reaches the microphone entry point')
+    assert.equal(personalBotToggleRequests, 1, 'Y reaches the main fixture microphone handler')
     await rp("window.__odkHold([]); return true")
     await pause(150)
 

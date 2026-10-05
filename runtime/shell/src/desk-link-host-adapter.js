@@ -185,9 +185,11 @@ function createHostedPiSocketAdapter({
   socketPath, env = process.env, connect = net.createConnection, readFile,
   connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS, requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 } = {}) {
-  const resolved = socketPath ?? resolveHostedPiSocketPath(env, readFile)
+  const currentEndpoint = () => socketPath ?? resolveHostedPiSocketPath(env, readFile)
 
-  function open() {
+  function open(resolved = currentEndpoint()) {
+    // The host may start after this service, or publish a replacement endpoint.
+    // Resolve per connection instead of freezing an unavailable host until restart.
     if (!resolved) return Promise.reject(new Error('pi host unconfigured'))
     return new Promise((resolve, reject) => {
       const socket = connect(resolved)
@@ -230,7 +232,7 @@ function createHostedPiSocketAdapter({
   }
 
   return {
-    socketPath: resolved,
+    get socketPath() { return currentEndpoint() },
     async request(record) {
       const socket = await open()
       const request = taskRequest(record, record.console ? { machineName: record.console.machine, sessionId: record.console.sessionId } : null)
@@ -256,7 +258,10 @@ function createHostedPiSocketAdapter({
       })
     },
     async attach(record, handlers = {}) {
-      const socket = await open()
+      // Attached mutations follow the same host as this subscription, even if
+      // a newer descriptor is published while it remains connected.
+      const attachedEndpoint = currentEndpoint()
+      const socket = await open(attachedEndpoint)
       const consoleIdentity = { machineName: record.console.machine, sessionId: record.console.sessionId }
       const request = taskRequest(record, consoleIdentity)
       return new Promise((resolve, reject) => {
@@ -292,7 +297,7 @@ function createHostedPiSocketAdapter({
             if (socket.destroyed) return
             // The host owns one correlated request per connection. Attach keeps
             // its event stream, while mutations use their own bounded socket.
-            createHostedPiSocketAdapter({ socketPath: resolved, connect, connectTimeoutMs, requestTimeoutMs }).request({ ...command, console: record.console })
+            createHostedPiSocketAdapter({ socketPath: attachedEndpoint, connect, connectTimeoutMs, requestTimeoutMs }).request({ ...command, console: record.console })
               .then((reply) => handlers.onRecord?.({ type: 'ack', requestId: command.requestId, sessionId: record.sessionId, result: reply }))
               .catch((error) => handlers.onRecord?.({ type: 'error', requestId: command.requestId, sessionId: record.sessionId, reason: error.message }))
           },

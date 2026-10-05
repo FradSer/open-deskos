@@ -23,6 +23,18 @@ Feature: The runtime channel keeps an authentication of its own on every host
     When a client sends the handshake and its request in a single write
     Then the service's protocol reads the request and never sees the handshake
 
+  Scenario: An oversized token handshake is rejected at the authentication boundary
+    Given a channel that requires a token
+    When a client sends a valid token handshake larger than the authentication cap
+    Then the service closes the connection before its protocol sees anything
+
+  Scenario: An idle pre-authentication connection is released
+    Given a channel that requires a token
+    When a client connects and sends no handshake bytes
+    Then the service closes the connection after the authentication deadline
+    And the protocol never receives the connection
+    And a later authenticated idle connection remains open for the service
+
   Scenario: The token is a file only its owner can read
     Given no token exists yet for this host
     When two processes ask for the token at the same time

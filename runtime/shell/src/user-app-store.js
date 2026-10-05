@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const { isDeepStrictEqual } = require('node:util')
 const { readBoundedFile, ensureDirectory, writeExclusive } = require('./user-app-files')
 const { parseDeclaration } = require('./desk-data-registry')
 
@@ -12,6 +13,7 @@ const CATALOG = 'user-apps.json'
 const validId = id => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id)
 const validRevision = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value)
 const PLACEMENT_SHAPE = /^\d+(?:\s*\/\s*\d+)?$/
+const STORED_PLACEMENT_ERRORS = new Set(['occupied-placement', 'unavailable-page', 'invalid-placement'])
 const failure = error => ({ ok: false, error })
 const metadata = ({ id, name, version, kind, revision, placement, placementError, service, data }) => ({ id, name, version, kind, revision, ...(placement ? { placement: { ...placement } } : {}), ...(placementError ? { placementError } : {}), ...(service ? { service: { ...service, secrets: [...service.secrets], egress: service.egress.map(rule => ({ ...rule })) } } : {}), ...(data ? { data: { fields: { ...data.fields } } } : {}) })
 const digestOf = (manifest, html) => crypto.createHash('sha256').update(manifest).update(html).digest('hex')
@@ -115,9 +117,12 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
         if (!entry || ids.has(entry.id) || !Array.isArray(entry.history) || entry.history.length > 1
           || !entry.history.every(validRevision)) throw Error('invalid-catalog')
         const bundle = await snapshot(entry.id, entry.revision)
-        if (bundle.digest !== entry.digest || ['name', 'version', 'kind'].some(key => entry[key] !== bundle.manifest[key])) throw Error('invalid-catalog')
+        if (bundle.digest !== entry.digest || ['name', 'version', 'kind'].some(key => entry[key] !== bundle.manifest[key])
+          || ['service', 'data'].some(key => !isDeepStrictEqual(entry[key], bundle.manifest[key]))) throw Error('invalid-catalog')
         if (entry.placement !== undefined) {
-          if (entry.kind !== 'widget' || !entry.placement || typeof entry.placement.col !== 'string' || typeof entry.placement.row !== 'string') throw Error('invalid-catalog')
+          if (entry.kind !== 'widget' || !entry.placement
+            || typeof entry.placement.pageId !== 'string' || entry.placement.pageId.length === 0
+            || typeof entry.placement.col !== 'string' || typeof entry.placement.row !== 'string') throw Error('invalid-catalog')
           // Shape is corruption; availability is not. A release can legitimately declare a
           // built-in tile in a cell an installed package already holds, and that must
           // degrade to a per-widget placement error instead of hiding the whole catalog.
@@ -155,6 +160,21 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
       }
     }
     throw Error('desktop-full')
+  }
+
+  function chooseStoredPlacement(entries, id, target) {
+    if (target === undefined) return undefined
+    try {
+      return choosePlacement(entries, id, target)
+    } catch (error) {
+      // A layout release can make stored geometry unavailable without making the
+      // catalog corrupt. Keep the stored value and let placedCatalog report the
+      // per-widget render error. New or colliding placements still fail closed.
+      if (STORED_PLACEMENT_ERRORS.has(placementIssue({ placement: target }))) {
+        return { ...target }
+      }
+      throw error
+    }
   }
 
   /*
@@ -301,7 +321,11 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
       const previous = entries.find(entry => entry.id === id)
       if (!previous && entries.length >= MAX_APPS) return failure('catalog-limit')
       if (bundle.manifest.kind !== 'widget' && placement !== undefined) return failure('placement-requires-widget')
-      const target = bundle.manifest.kind === 'widget' ? choosePlacement(entries, id, placement === undefined ? previous?.placement : placement) : undefined
+      const target = bundle.manifest.kind === 'widget'
+        ? (previous && previous.kind === bundle.manifest.kind && placement === undefined
+          ? chooseStoredPlacement(entries, id, previous.placement)
+          : choosePlacement(entries, id, placement))
+        : undefined
       if (!await verifyBundle(bundle)) return failure('verification-failed')
       const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
       return publish(entries, id, bundle, rollback, target)
@@ -316,7 +340,11 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
       let bundle
       try { bundle = await snapshot(id, current.history[0]) } catch { return failure('invalid-snapshot') }
       if (!await verifyBundle(bundle)) return failure('verification-failed')
-      const placement = bundle.manifest.kind === 'widget' ? choosePlacement(entries, id, current.placement) : undefined
+      const placement = bundle.manifest.kind === 'widget'
+        ? (current.kind === bundle.manifest.kind
+          ? chooseStoredPlacement(entries, id, current.placement)
+          : choosePlacement(entries, id, undefined))
+        : undefined
       return publish(entries, id, bundle, current.revision, placement)
     })
   }

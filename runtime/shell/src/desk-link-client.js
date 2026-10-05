@@ -93,7 +93,9 @@ function createDeskLinkClient({ socketPath, env = process.env, send = request, t
     async snapshot() {
       if (!resolved) return unavailable('desk-link-unconfigured')
       const record = await ask({ v: DESK_LINK_PROTOCOL, type: 'snapshot' })
-      if (!record || record.ok !== true || !Array.isArray(record.sessions)) return unavailable('desk-link-unavailable')
+      if (!record || record.ok !== true || !Array.isArray(record.sessions)) {
+        return unavailable(typeof record?.reason === 'string' && record.reason ? record.reason : 'desk-link-unavailable')
+      }
       return record
     },
     async hostedSessions() {

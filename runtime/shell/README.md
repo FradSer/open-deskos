@@ -1,63 +1,12 @@
-# Open DeskOS Shell (Linux / Windows / macOS)
+# Open DeskOS Shell
 
-Linux、64 位 Windows 和 macOS 共用的 Electron Display Shell，源码位于 `runtime/shell/`。Orange Pi CM5（RK3588S、Linux arm64）是参考面板主机，默认 HDMI 显示为 **1920×1280**；布局与主机平台是独立契约。
+Linux, Windows x64 and macOS run the same Electron Display Shell in `runtime/shell/`. Orange Pi CM5 (RK3588S, Linux arm64) is the reference host. Its default HDMI content size is 1920×1280. The platform layer owns host differences.
 
-Shell 主进程通过平台层读取本地状态、运行已配置服务，并保持 Remote、相机和麦克风的独立能力与验收边界。P4 外设在 CM5 上以标准 UVC webcam 和 UAC 麦克风接入；C6 网关等实验集成不阻塞基础操作。macOS Shell 与保留的 Apple P4 USB companion 是不同组件。
+Use [root PRODUCT](../../PRODUCT.md) for product scope, [CONTEXT](CONTEXT.md) for terms, and [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions. [WINDOWS_HOST](docs/WINDOWS_HOST.md) owns Windows operations. The systemd, GPU and release commands below are CM5/Linux operations.
 
-Linux 和 macOS 在此目录使用 `pnpm install`、`pnpm styles`、`pnpm test`，再通过 `./run.sh` 启动；跨主机检查使用 `node tests/smoke.mjs`。Windows 启动与运维见 [Windows Shell Host](docs/WINDOWS_HOST.md)。以下 systemd、CM5 安装和 GPU 运维步骤仅适用于 Linux 参考主机。
+The internal package ID `@fradser/open-deskos-linux-shell` preserves Electron user-data locations. It does not restrict supported hosts. The Apple P4 USB companion remains separate research. S3 Remote, P4 camera/microphone and C6 hardware gates never block base installation or direct input.
 
-目录从 `runtime/linux/` 迁移后，内部包名 `@fradser/open-deskos-linux-shell` 保留为既有 Electron 用户配置标识，避免配置与缓存换位置；它不表示运行时仅支持 Linux。发布目录和设备状态目录的约定保持原样。
-
-## 功能范围
-
-- 1920×1280 默认 kiosk 窗口，分辨率可经环境变量覆盖；布局会响应其它窗口尺寸
-- Open DeskOS 布局：顶部 State Bar（网络指示、Pi Sessions 和时钟），下方五列三行 Widget 网格；窄窗口保留可读的方形 Widget 并纵向滚动，不再缩小整页内容
-- 基础桌面五页横向触摸滑动：Today、Home、Reading、Pi Sessions、Usage；Home 和 Reading 展示不可交互 Widget，用户生成的 Widget 可安装到指定网格位置；Pi Sessions 同时读取本地 `ps` 进程表和 Pi 会话元数据，无元数据的进程也会如实显示其 PID、工作目录、状态和运行时长
-- OpenCode Go 用量页显示滚动窗口、周/月用量、重置时间和 Zen 余额
-- 用量状态由设备本地配置决定：未配置、同步成功、凭据无效或暂不可用均如实显示，不伪造数据
-- P4 摄像头以标准 UVC webcam 与 UAC 麦克风形态接入 CM5，无人脸识别、无表情分析、无身份存储；Home 页 1x1 摄像头 tile 定时展示最新一帧
-- Widget 先陈述真实状态；已声明 `open-app` 的 Widget 是对应 App 的状态延续与内容入口
-- UI 只发出 intent；当前的 main-process endpoint 与 renderer runtime 验证内置视图启动、动作和停止的 seam，不宣称已提供可安装应用平台
-- Remote Bridge 通过 Unix socket 发布权威分页状态；OpenCode Go 和 Remote Link 状态在各自的专用页面中如实显示
-
-## 目录结构
-
-```
-../../peripherals/esp32-p4-camera/  ESP32-P4 SC2336 MIPI CSI camera peripheral
-../../peripherals/esp32-s3-remote/  ESP32-S3 Remote Control peripheral
-../../integrations/remote-bridge/   Node.js systemd user service for the Remote link
-src/main.js                         Electron main process, kiosk, and IPC
-src/platform/                       平台层：状态目录、逻辑端点命名、可执行名规则、进程来源
-src/opencode-go.js                  OpenCode Go request/auth/response parsing
-native/odk-process/                 可选原生进程读取模块（Windows）：命令行与工作目录
-run.ps1                             Windows Shell Host 启动入口，不需要 bash
-src/renderer/                       Sandboxed DOM shell, plugins, and declarative layout
-docs/AI_PLUGIN_GUIDE.md 插件契约和扩展步骤
-docs/CONFIGURATION.md    环境变量清单：分层、声明者、消费者与默认值
-tests/features/         中文 Gherkin 场景
-tests/smoke.mjs         跨平台验收检查（分辨率、token、骨架和核心架构）；tests/smoke.sh 是它的 CM5 包装
-scripts/start-kiosk.sh  kiosk 启动包装器
-scripts/cm5-install.sh CM5 设备端安装器
-scripts/update-runtime.js CM5 原子 release 激活与回退事务
-scripts/migrate-runtime.js CM5 用户级、幂等 runtime migration
-scripts/cm5-stage-release.sh 从开发机 stage 并在 CM5 上激活 release
-```
-
-## 另一个 Shell Host：64 位 Windows
-
-64 位 Windows 是同一个 Display Shell 的受支持宿主，完整手册见 [Windows Shell Host 运行手册](docs/WINDOWS_HOST.md)。差异只落在 `src/platform/`：状态目录（`%LOCALAPPDATA%\open-deskos`）、逻辑端点命名（Windows 上是命名管道）、可执行名规则（`pi.exe` / `pi.cmd` / `pi.ps1`）、以及进程来源。
-
-```powershell
-cd runtime\shell
-pnpm install
-pwsh -File run.ps1           # 读取 .env.local；-Kiosk 进全屏
-node tests\smoke.mjs         # 验收，不需要 bash
-pnpm run build:native        # 可选：编译原生进程读取模块（按 Electron ABI）
-```
-
-该宿主上如实不可用：Remote Control / Remote Bridge、语音 Agent、Desk Link / Hosted Pi 控制、外部应用控制端点、P4 摄像头 tile（无 `v4l2-ctl`）。Shell 内的 Widget/App 安装、更新、回退、卸载不受影响。CM5 仍是参考宿主，其全部入口与发布链路不变。
-
-## 本机开发
+## Development
 
 ```sh
 cd runtime/shell
@@ -67,16 +16,18 @@ pnpm styles
 ODESK_SHELL_KIOSK=1 ./run.sh --kiosk
 bash tests/smoke.sh
 pnpm test
-pnpm run e2e              # 含 Widget / App 内部样式与交互回归
-pnpm exec electron tests/widget-app-styles.cjs  # 单独运行样式回归
-pnpm exec electron tests/widget-density.cjs     # 逐 Widget 的 62% 填充率门禁
-pnpm exec electron tests/page-indicator.cjs      # 纯图形分页、三主题及等高胶囊
-pnpm exec electron tests/pixel-font.cjs          # 中英文实际 Zpix 字形与布局
-pnpm exec electron tests/pi-sessions-states.cjs  # Pi Sessions 各状态截图 + manifest
-pnpm exec electron tests/capture-sheet.cjs       # 把一组截图拼成一张对照图
+pnpm run e2e
+pnpm exec electron tests/widget-app-styles.cjs
+pnpm exec electron tests/widget-density.cjs
+pnpm exec electron tests/page-indicator.cjs
+pnpm exec electron tests/pixel-font.cjs
+pnpm exec electron tests/pi-sessions-states.cjs
+pnpm exec electron tests/capture-sheet.cjs
 ```
 
-`tests/pi-sessions-states.cjs` 用 fixture IPC 驱动 Pi Sessions 页面与 Home 卡片的每个状态，逐张断言状态成立后才截图，并写出 `manifest.json`；截图只供人看，判定依据是 DOM 状态。默认对当前 checkout 取图，也可指向设备上的已安装 release：
+Linux/macOS use `./run.sh`; Windows uses `run.ps1`. Use `node tests/smoke.mjs` for the shared smoke checks. `tests/smoke.sh` is the CM5 wrapper. Live startup reads configured services and user state; it is not an isolated fixture test.
+
+The Pi state capture harness asserts fixture DOM states before writing screenshots and `manifest.json`. Screenshots support review; DOM assertions decide the result. It defaults to this checkout. To inspect an installed release:
 
 ```sh
 ODK_SHELL_ROOT=/opt/open-deskos/current ODK_CAPTURE_DIR=/tmp/states \
@@ -85,28 +36,15 @@ ODK_SHEET_DIR=/tmp/states ODK_SHEET_OUT=/tmp/states/sheet.png \
   electron tests/capture-sheet.cjs
 ```
 
-### Pixel 像素字体
+## Themes and geometry
 
-Pixel 主题统一使用本地 [Zpix v3.2.0](https://github.com/SolidZORO/zpix-pixel-font/releases/tag/v3.2.0) 字体：英文、简繁中文、数字、输入框和代码内容均由 Zpix Regular 渲染，不依赖在线字体，不合成粗体。官方 WOFF2 原文件约 944 KiB，未转换或裁剪；原字体文件已移除。
+Pixel uses the unchanged local Zpix v3.2.0 WOFF2 for Latin/CJK text without synthetic bold. Personal/education terms differ from commercial terms. Keep the original [Zpix notice](src/renderer/fonts/ZPIX-NOTICE.md) and obtain the author's commercial license when required.
 
-**许可注意：个人/教育项目免费，商业产品需向作者另购授权。** 来源、SHA-256 与原文条款见 `src/renderer/fonts/ZPIX-NOTICE.md`。
+Border Beam uses local CSS inspired by [Libraries.dev](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam). No React dependency is added. New installs default to Pixel. Development can select `odkTheme.set('border-beam')` or `odkTheme.set('instrument')`; the selection persists. Reduced motion stops border movement; hidden windows pause it. Run `pnpm exec electron tests/border-beam-theme.cjs`. CM5 drawing performance requires device evidence.
 
-状态栏分页在所有主题中都不显示文字，只使用点/短条；Pi 状态与分页胶囊统一为 44px 高度。切换主题不改变当前页、焦点或点击区域。`pnpm e2e` 包含实际中英文字形、三主题切换与状态栏检查。
+All themes retain page, focus and hit areas. State Bar paging uses dots/bars. Pi and page capsules are 44px high. Run `pnpm geometry` after Widget composition, placement or type changes. Widgets adapt to Cells and preserve type floors. Apps can scroll; glanceable Widgets cannot.
 
-### Border Beam 可选主题
-
-参考 [Libraries.dev / border-beam](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/border-beam)
-的 Mono 行进边框，使用本地 CSS 实现，不引入 React。新安装默认 Pixel；暂不提供状态栏切换入口。
-开发时可在 renderer 控制台调用 `odkTheme.set('border-beam')`，恢复默认用
-`odkTheme.set('instrument')`。选择保存在本地，重启后恢复。
-减少动态效果时边框静止，窗口隐藏时暂停动画。
-
-验证：`pnpm exec electron tests/border-beam-theme.cjs`。
-CM5 实机绘制性能尚未验证。
-
-### Widget 密度校验
-
-`pnpm e2e` 同时运行密度门禁：5 种尺寸、在线/不可用状态，以及年初/年末数值。单独运行可选：
+Density checks run in E2E. To collect focused measurements:
 
 ```sh
 pnpm exec electron tests/widget-density.cjs --state=live --sizes=1920x1280,480x854
@@ -114,63 +52,47 @@ pnpm exec electron tests/widget-density.cjs --date=2026-12-31T23:59:00
 pnpm exec electron tests/widget-density.cjs --report-only --output=/tmp/widget-density.json --capture-dir=/tmp/widget-density
 ```
 
-- **视觉填充率**：真实文本行框、SVG 图标/仪表与进度条的紧致包围盒面积 ÷ 卡片边框内面积；目标 **62%，容差 ±8 个百分点**。
-- **稀疏防护**：元素矩形联合占用面积至少 20%，最大横贯卡片的纵向空白带不超过 28%。不把空 flex 容器或卡片背景算成内容，也不重复计入重叠元素。
-- 这不是字形着墨率：图标和环形仪表按其视觉框测量，不能解释为非背景像素比例。JSON 保留逐元素矩形，便于复核。
-- 默认固定时钟以保证结果可复现，`--date` 可检验不同日期/时间。`--capture-dir` 保存每种尺寸的 Home 截图及逐 Widget 截图；捕获时会滚动到对应 Widget。
-- 默认违规返回非零退出码。`--report-only` 仅允许采集不通过的报告，仍如实输出 `ok: false`，不能作为验收通过依据。
+The content-box target is 62%, with an eight-percentage-point tolerance. Union occupancy must reach 20%; the largest full-width vertical gap is at most 28%. Measure tight text/SVG/meter boxes, not empty containers or backgrounds. Do not count overlaps twice. These are visual boxes, not glyph-pixel coverage.
 
-Wayland 会话在 `run.sh` 中自动追加 `--ozone-platform-hint=auto`；root 会话会自动追加 `--no-sandbox`。
+A fixed clock makes runs repeatable. `--date` changes it; `--capture-dir` saves Home and individual Widget images. A violation returns nonzero. `--report-only` collects the failure and still reports `ok:false`; it never establishes acceptance.
 
-## Pi Sessions Mac 监控（可选）
+Wayland startup adds `--ozone-platform-hint=auto`; root startup adds `--no-sandbox`.
 
-默认仍监控本机；可通过认证 SSH 切换为 Mac 数据源。部署采集器、配置 SSH 密钥和持久化 kiosk 服务环境变量的步骤见 [Mac Pi monitoring](docs/PI_SESSIONS_REMOTE.md)。远端不可用时不会回退本机或显示为空闲。
+## Data, control and voice
 
-## Hosted Pi 控制（可选）
+[Desk Link](docs/DESK_LINK.md) owns reporting and separately authenticated Hosted Pi control. A Console disconnect does not end its Hosted Pi. Monitoring does not grant control; accepted delivery does not prove completion. The [optional SSH source](docs/DESK_LINK.md#optional-mac-ssh-source) uses a pull scan. A failed selected source does not become local data or idle state.
 
-Mac 上的 Pi 会话可以作为 **Console** 远程驱动 desk 托管的 **Hosted Pi**：用 `/open-deskos` 打开控制台列出、启动、进入、追加指令、取消和结束这些会话，事件与历史共用会话日志位置这一个坐标，attach 时从上次位置续接。控制走与上报链路分开的连接（同一监听面，不新增端口），使用独立凭据且**凭据不上线**；未配置控制凭据时行为与现在完全一致。desk 会在 Pi Sessions 总览标题上标明当前驱动方，本地触控与键盘始终不受影响。协议与边界见 [Desk Link](docs/DESK_LINK.md)，决策与取舍见 [ADR-0013](docs/adr/0013-desk-link-carried-hosted-pi-control.md)，规格见 package 的 `docs/spec-desk-link-hosted-pi-console.md`。
+[Installed packages](docs/USER_APPLICATIONS.md) own draft format, verification, placement and revision lifecycle. Drafts use writable `ODESK_WORKSPACE`; the active release stays immutable. Writing a file does not install it.
 
-## 用户应用生命周期
+[Personal Bot](../../integrations/personal-bot/README.md) owns coordination. [Deployment](docs/PERSONAL_BOT_DEPLOYMENT.md) owns host setup. [Voice feedback](docs/VOICE_FEEDBACK.md) owns recording, restore and streaming behavior. Live microphone, provider and model checks need separate authorization and evidence.
 
-`ODESK_WORKSPACE/apps/<id>` 下的本地应用草稿经系统验证确切候选内容后安装，支持更新、失败保留旧版本、回滚和卸载；安装状态与 Widget 桌面位置独立于 Shell release 持久化。用户生成的 Widget 与内置 Widget 共用桌面网格，可由 Personal Bot 指定页面、位置和跨度，安装后也可移动；不再设置独立的 **User Applications / Your apps** 收纳页。Widget 为只读展示，交互式 App 在独立页面的受限 iframe 中运行。内置 Agent 使用系统安装入口，不以“文件已写入”冒充安装成功。
+## CLIProxyAPI on Linux
 
-首版仅支持自包含、离线 HTML/CSS/JavaScript，无 Node、网络、后台服务或持久化应用数据 API。完整格式、限制和验收见 [用户应用](docs/USER_APPLICATIONS.md)。
-
-## Remote 语音 Agent
-
-Remote 的 MIC 先由 Shell 区分恢复对话与录音操作，不经过 Pi Sessions 监控 app/widget。Back 隐藏反馈后，再按 MIC 只恢复当前对话（包括后台完成的结果），不启动新任务。面板可见且 Agent 正在运行时 MIC 不重复提交；完成后再按 MIC 开始下一次录音。录音面板可见时再次点击停止录音并提交，也可在说话后由 CM5 本地 VAD 检测到约 1.2 秒静音时自动提交；没有 30 秒录音截止时间，尚未说话则继续等待。使用 CM5 Linux 默认录音设备，不读取 Remote 音频。Listening 保持麦克风图标与单行状态，下方线条显示实测输入音量；转写完成后先显示识别出的输入原文，再显示 Working；Agent 的对外回复随实际生成流式显示，支持安全 Markdown 排版。完成后移除 Working 并保留输入与回复；向上阅读时新输出不会强制滚回底部。链接仅显示文字和地址，不打开外部页面。桌面独立反馈录音、转写、执行和错误状态。
-
-语音经显式配置的 OpenAI-compatible 服务转写，再由 Pi harness 在独立可写 checkout 中执行。能力工具可扩展；首批支持 Widget/App 开发和向已接入 session-control 扩展的 Pi session 发送 prompt。仅被监控到的进程不代表可控制，排队成功不代表任务完成。生成代码不会绕过验证直接修改 active release。
-
-配置与边界见 [Personal Bot](../../integrations/personal-bot/README.md) 和 [部署指南](docs/PERSONAL_BOT_DEPLOYMENT.md)。音频、转写服务认证及真实模型执行需要独立验收；测试通过不代表设备端链路已配置完成。
-
-## OpenCode Go Linux 配置
-
-Linux 外壳通过 CLIProxyAPI 已保存的认证文件读取 Codex、Antigravity 和 xAI 配额，不复制 OAuth token，也不读取 macOS Keychain。首次使用前，在 CM5 的用户会话中配置：
+Configure the CM5 user session:
 
 ```sh
 export ODK_CLIPROXY_URL=https://cliproxy.internal.example
 export ODK_CLIPROXY_MANAGEMENT_KEY_FILE=/etc/open-deskos/cliproxy-management.key
 ```
 
-也可以使用 `ODK_CLIPROXY_MANAGEMENT_KEY` 临时传入管理密钥。推荐使用权限为 `0600` 的密钥文件，并通过 systemd/user 环境或 kiosk 启动会话注入，不要把管理密钥或 CLIProxyAPI 认证文件写入仓库或日志。
+The Shell reads quotas from CLIProxyAPI's existing authentication files. It does not copy OAuth tokens or read macOS Keychain. Prefer a management key file with mode `0600`. `ODK_CLIPROXY_MANAGEMENT_KEY` remains a temporary environment form. Keep keys and authentication files out of Git and logs.
 
-CLIProxyAPI 的 Management API 必须允许 CM5 访问。远程地址必须使用 HTTPS；只有同机 `127.0.0.1`、`::1` 或 `localhost` 可以使用明文 HTTP。请求和 provider token 替换全部在 Electron 主进程与 CLIProxyAPI 中完成；renderer 只收到账号名、认证文件名、套餐、额度百分比和重置时间等脱敏快照。renderer CSP 不允许远程连接，管理密钥和 OAuth token 均不会通过 preload 暴露。单个 provider 获取失败时，其卡片显示不可用，其它账号仍继续展示。
+Remote management requires HTTPS. Plain HTTP is allowed only for `127.0.0.1`, `::1` or `localhost`. Requests and provider token replacement stay in main/CLIProxyAPI. The renderer receives only sanitized account, plan, quota and reset fields; CSP denies remote connections and preload never exposes tokens. A failed provider leaves its card unavailable without stopping other accounts.
 
-## ESP32-P4 SC2336 Camera Sub-device (generic UVC webcam)
+## Peripherals
 
-`../../peripherals/esp32-p4-camera/` is the ESP32-P4 SC2336 Camera Peripheral. It exposes a standard UVC MJPEG camera and a standard UAC microphone over one native USB connection, with no face recognition, expression analysis, or biometric storage. It is part of the intended CM5 architecture and has its own hardware acceptance gate; the base CM5 shell remains usable through direct touch and keyboard until that gate passes.
+The [P4 runbook](../../peripherals/esp32-p4-camera/README.md) owns wiring, build and firmware gates. P4 exposes standard UVC MJPEG and UAC audio. It performs no face recognition, expression analysis or biometric storage. Camera/microphone acceptance stays separate from base Shell installation.
 
-- **硬件连接**：SC2336 模组经 2-lane MIPI CSI-2 连入 ESP32-P4；SCCB 控制走 I2C0（SDA: GPIO 7, SCL: GPIO 8, RST: GPIO 26）。
-- **通信**：ESP32-P4 经原生 USB 以标准 UVC MJPEG（1280x720）摄像头与标准 UAC 麦克风形态接入 CM5；无厂商私有协议、无图像帧之外的元数据。
-- **构建与烧录**：
-  ```sh
-  cd peripherals/esp32-p4-camera
-  eim run 'idf.py set-target esp32p4' v6.0.1
-  eim run 'idf.py build' v6.0.1
-  ```
+For a native MIPI DSI extension, verify the exact carrier, panel and kernel together. HDMI plus third-party MIPI is not yet accepted as two independent displays.
 
-## 部署到 CM5
+- Confirm controller, lane mapping, FPC contact direction, power rails/sequences, reset and touch support. Never guess negative-voltage requirements.
+- Require a Linux DRM panel driver and a matching device-tree configuration. A similar controller name is not a compatible driver.
+- Verify independent HDMI/MIPI outputs with `modetest -c` or `xrandr` on the target kernel, DTB and desktop. Host tests cannot accept the wiring or panel.
+- The recorded [BOE Linux driver source](https://codebrowser.dev/linux/linux/drivers/gpu/drm/panel/panel-boe-bf060y8m-aj0.c.html) is a driver reference, not a purchase recommendation or CM5 integration proof. Use the exact CM5 carrier manual for connector/pin-mux authority.
+
+## Approved CM5 deployment
+
+Run from the repository root after deployment authorization:
 
 ```sh
 # From the development checkout: stage, preflight, activate, then verify on CM5.
@@ -182,13 +104,15 @@ bash runtime/shell/scripts/cm5-stage-release.sh
 ssh cm5 'cd /opt/open-deskos/current && bash scripts/cm5-acceptance.sh'
 ```
 
-release 门禁 `validateRuntimeComposition` 认可任何**声明了** `schemaVersion: 1` 的 plugin manifest：内置 tile 除 schema 版本外还声明 `minCell`（它能读的最小 cell），只认「唯一键就是 schema 版本」的形式会把这个分支上的任何 release 都判为不合格。缺 schema 版本仍然被拒，两个方向都有测试（`tests/runtime-release.test.js`）。
+The graphical autostart imports display variables and starts `open-deskos-shell.service`. The service resolves the active release and restarts after exit. Its log is `~/.local/state/open-deskos-shell/launcher.log`.
 
-在 kiosk 用户会话中配置 OpenCode Go 环境变量后，由图形会话自启项导入显示环境并启动 `open-deskos-shell.service`。该服务解析 active release，外壳退出后自动重启；日志位于 `~/.local/state/open-deskos-shell/launcher.log`。
+Composition validation requires `schemaVersion:1`. Extra declared fields such as tile `minCell` are valid; a missing schema version fails. `tests/runtime-release.test.js` covers both cases.
 
-## 受控 Runtime 更新
+## Controlled runtime update
 
-安装器会从同步后的 staging tree 建立首个 versioned release，并创建 `/opt/open-deskos/current` 原子指针和 `open-deskos-shell.service`。候选 release 必须先包含有效的 `release.json`（`schemaVersion: 1`、与目录一致的 `id`）并通过 `pnpm preflight`，才会切换 active release。post-activation kiosk 或 smoke 检查失败会恢复前一个 release；系统包、内核、用户桌面和实验服务不属于此回退范围。
+The installer builds a versioned release and creates `/opt/open-deskos/current`. A candidate needs valid `release.json`: schema version 1 and an ID matching its directory. It must pass `pnpm preflight` before activation. Failed post-activation kiosk/smoke restores the previous release.
+
+Run the standalone updater from the runtime directory only for an approved activation:
 
 ```sh
 sudo ODK_RUNTIME_ROOT=/opt/open-deskos \
@@ -199,11 +123,13 @@ ODK_KIOSK_HOME=/home/<kiosk-user> \
 node scripts/update-runtime.js
 ```
 
-更新状态、回退候选和用户级 migration marker 位于 `/opt/open-deskos/state/`。同一时间只允许一个更新事务。`scripts/cm5-acceptance.sh` 的 JSON 会分别报告 active/rollback release、migration、base shell、外围服务和硬件证据；host 运行产生的是诊断报告，不是 CM5 硬件验收。
+Only one transaction can update pointers. State, rollback selection and per-user migration markers live under `/opt/open-deskos/state/`. Runtime rollback excludes system packages, kernel, host desktop and experiment services.
 
-Remote Bridge 使用 `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`。生产环境不支持 socket 路径覆盖；自动化测试可同时设置 `ODESK_SHELL_TEST_MODE=1` 和绝对路径 `ODESK_REMOTE_BRIDGE_SOCKET`。
+`cm5-acceptance.sh` reports active/rollback releases, migrations, base Shell, peripheral services and hardware separately. A host/no-display report is diagnostic evidence, not physical CM5 acceptance.
 
-## 无屏设备测试
+Remote Bridge uses `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`. Production does not support a socket override. Tests can use `ODESK_SHELL_TEST_MODE=1` with an absolute `ODESK_REMOTE_BRIDGE_SOCKET`.
+
+## Tests without a display
 
 ```sh
 xvfb-run -a --server-args="-screen 0 1920x1280x24" bash tests/smoke.sh
@@ -211,8 +137,6 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 1920x1280x24" \
   ./node_modules/.bin/electron tests/e2e.js
 ```
 
-## 验证状态
+Host fixture checks do not establish physical touch, S3 Remote input, screen-reader announcements, GPU performance, live microphone or provider accuracy. Aggregate E2E acceptance requires every required subprocess to pass; scoped success never replaces a failed aggregate.
 
-已验证：OpenCode Go 配置/解析单元测试、Linux 主进程 IPC 设计、renderer 沙盒约束、Remote Bridge 单元测试、host smoke 的 token 和布局检查；并已在真实 CM5 的 X11 `:0` HDMI 会话验证 active release、1920×1280 smoke、kiosk user service、Remote Bridge、原子 release 指针与 rollback candidate。CM5 运行时实际截图确认 State Bar 的网络可达指示器与 Today 首页的插件陈述可见。
-
-CM5 通过 `scripts/cm5-gpu-userspace.sh` 安装 ARM libmali 用户态 blob（Rockchip 6.1 SDK，DDK g24p0）与 CSF 固件 `mali_csffw.bin`：内核自带的 kbase 驱动已把 Mali-G610 探针为 `/dev/mali0`，Xorg 的 glamor 随后在该 blob 上初始化。Chromium 只接受 ANGLE 实现，因此外壳把 ANGLE 固定到 gles-egl 后端，并让显示合成器留在软件路径——GPU rasterization 与 WebGL 仍在 Mali 上执行。`ODESK_GPU_BACKEND=default|mali` 可显式选择后端，`ODESK_DISABLE_GPU=1` 或 `LIBGL_ALWAYS_SOFTWARE=1` 仍强制软件渲染。`scripts/cm5-acceptance.sh` 分别报告 Mesa GLX 的 `gpu-renderer`、真正的 EGL renderer（ARM Mali-G610）、Xorg glamor 状态与已安装的 Mali 用户态。安装或移除后必须重启图形会话。
+[ADR-0016](docs/ARCHITECTURE.md#adr-0016) records the Mali blob/firmware pair and software presentation trade-off. Restart the graphical session after `scripts/cm5-gpu-userspace.sh` installs/removes userspace. Check EGL, Xorg glamor and Mesa GLX separately; GLX alone does not prove GPU acceptance.

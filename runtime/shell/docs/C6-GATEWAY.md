@@ -26,7 +26,7 @@ The shared payload is versioned independently of the transport:
 
 ```json
 {"v":1,"type":"navigate","direction":"next","id":"request-id"}
-{"v":1,"type":"state","page":1,"pages":3,"name":"概览","canPrev":false,"canNext":true,"link":"wireless"}
+{"v":1,"type":"state","page":1,"pages":3,"name":"Overview","canPrev":false,"canNext":true,"link":"wireless"}
 ```
 
 S3 sends `navigate` through ESP-NOW only in wireless operation. The bridge forwards it to the Display Shell. The Shell then publishes the complete authoritative `state` back through the bridge, C6, and S3. The gateway must not derive a new page state from a navigation request.

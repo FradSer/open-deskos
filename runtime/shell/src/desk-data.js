@@ -4,7 +4,6 @@ const { createDeskDataRegistry } = require('./desk-data-registry')
 const { createDeskDataControl } = require('./desk-data-control')
 
 const CATALOG_ID = 'odk.plugins.installed'
-const CATALOG_LIMIT = 20
 
 // The Shell's own vocabulary for a reading. A source's own states map here once,
 // so a reading reaches a reader as itself and never as a plausible value. What a

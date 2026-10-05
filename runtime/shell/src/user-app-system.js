@@ -31,7 +31,8 @@ function registerUserAppScheme(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'odk-user-app', privileges: USER_APP_SCHEME_PRIVILEGES }])
 }
 
-async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, deskData = null }) {
+async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, deskData = null, isStopping = () => app.isQuitting === true }) {
+  const stopping = () => isStopping() || app.isQuitting === true
   const surface = resolveUserAppSurface({ env })
   const verifier = createUserAppVerifier({ electronPath: process.execPath })
   const store = smokeMode
@@ -41,7 +42,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
     // An installed revision drives which packages may answer, so a new, replaced
     // or removed revision re-registers what those packages may publish.
-    void deskData?.syncPackages()
+    if (!stopping()) void deskData?.syncPackages()
   })
   ipcMain.handle('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   ipcMain.handle('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))
@@ -49,11 +50,17 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   protocol.handle('odk-user-app', request => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP))
   if (smokeMode || !surface.controlEndpoint) return
   try {
+    if (stopping()) return
     const host = resolveShellHost({ env })
     // The endpoint's authentication is the channel's own, so the token is read
     // where this host needs one and left alone where ownership already proves it.
     const channelToken = await readOrCreateToken({ stateDir: host.stateDir })
+    if (stopping()) return
     const server = await listenUserAppControl({ socketPath: surface.controlEndpoint, control, channelToken, platform: host.platform })
+    if (stopping()) {
+      await server.close().catch(() => {})
+      return
+    }
     app.once('before-quit', () => { void server.close().catch(() => {}) })
   } catch {
     console.error('User application control socket unavailable; desktop controls remain available')

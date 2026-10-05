@@ -1,54 +1,50 @@
-# Repository Guidelines
+# Shell agent rules
 
-## Project Structure & Module Organization
-- `src/main.js` owns Electron windowing, kiosk/smoke modes, IPC, OpenCode Go, Remote Bridge, and the UVC camera frame endpoint. It denies navigation, popups, permissions, and kiosk DevTools.
-- `src/platform/` is the only place a host difference lives: state locations, logical endpoint naming, the Pi executable-name rule, and the process source. The Shell is otherwise host-neutral; CM5 is the reference host; 64-bit Windows and macOS also run the same Shell (@docs/WINDOWS_HOST.md).
-- `native/odk-process/` is the optional Windows process reader (command line and working directory). It is built with `pnpm run build:native`, is optional at load time, and never blocks Shell start.
-- `src/renderer/` is a framework-free DOM shell. `core/` owns composition, plugin lifecycle, grid-span placement (`core/grid-placement.js` decides a declared span from the cell the layout model produced, never from window width), and the built-in-view intent seam; `plugins/` own visible surfaces; `config/desktop_layout.js` is the placement authority. For built-in plugin contracts, use @docs/AI_PLUGIN_GUIDE.md; for installable package verification/lifecycle, use @docs/USER_APPLICATIONS.md.
-- `tests/` contains Gherkin features (`tests/features/`), Node test contracts (`tests/*.test.js`), the cross-host acceptance script (`tests/smoke.mjs`, with `tests/smoke.sh` as its CM5 wrapper), and Electron E2E (`tests/e2e.js`).
-- `tests/not-ported.js` owns the one way a suite states that a Windows Shell Host does not port what it exercises: `notPortedOnWindows(test, kind)` skips a whole file and `posixOnlyReason(kind)` skips one assertion. Both are keyed on the host, so the reference host runs everything; a new skip needs a reason there, never a silent conditional in the suite itself.
-- `scripts/start-kiosk.sh`, `scripts/cm5-install.sh`, and `scripts/cm5-acceptance.sh` own launch, CM5 deployment, and on-device acceptance.
-- For Widget/App implementation or renderer interaction changes, use @../../.agents/skills/open-deskos-widget/SKILL.md and only the references relevant to that task. It owns the state matrix, the type floors, and the tile-composition rules; this file does not restate them.
-- For release work, use @README.md (controlled runtime updates) and `scripts/verify-release.sh`. A writable `ODESK_WORKSPACE` is distinct from the immutable active release; generated packages must pass system verification before installation.
-- For driving a 64-bit Windows Shell Host from another machine — syncing a change, gating the deploy, and reading results back — use @docs/WINDOWS_HOST.md, which owns that procedure.
+## Structure
 
-## Build, Test & Development Commands
+- `src/main.js` owns windows, kiosk/smoke, IPC and data endpoints. It denies navigation, popups, permissions and kiosk DevTools.
+- `src/platform/` owns host state paths, endpoint names, Pi executable rules and process sources. Keep all other behavior shared. CM5 is the reference host; Windows x64 and macOS run the same Shell.
+- `native/odk-process/` is the optional Windows process reader. Build it with `pnpm run build:native`. Build/load failure must never block startup.
+- `src/renderer/` is a framework-free DOM Shell. `core/` owns composition, lifecycle and intent routing. Plugins own visible surfaces. `config/desktop_layout.js` owns placement.
+- `core/grid-placement.js` uses the Cell from the layout model. It must not infer spans from window width.
+- `tests/features/` holds scenarios. `tests/*.test.js` holds Node contracts. `tests/smoke.mjs` is the shared smoke entry; `tests/smoke.sh` wraps it for CM5. `tests/e2e.js` owns aggregate interaction checks.
+- Declare Windows skips in `tests/not-ported.js`. Use `notPortedOnWindows(test, kind)` for a suite or `posixOnlyReason(kind)` for an assertion. Add a reason there; do not add silent host conditionals.
+- `scripts/start-kiosk.sh`, `scripts/cm5-install.sh` and `scripts/cm5-acceptance.sh` own CM5 launch, deployment and device acceptance.
+
+Read @docs/AI_PLUGIN_GUIDE.md for built-in contracts. Read @docs/USER_APPLICATIONS.md for installed package verification/lifecycle. For Widget/App or renderer changes, use @../../.agents/skills/open-deskos-widget/SKILL.md and only the relevant references.
+
+Read @README.md for controlled releases and `scripts/verify-release.sh`. `ODESK_WORKSPACE` is writable; the active release is immutable. Generated packages must pass system verification before installation. Read @docs/WINDOWS_HOST.md before Windows connection, transfer, deployment or result collection.
+
+## Verification
+
 ```sh
-node --test tests/<affected>.test.js  # selected Node contracts
-pnpm test                           # full Node contract suite
-pnpm styles                         # regenerates tracked src/renderer/uno.css
-pnpm smoke                          # single-size Electron boot check
-node tests/smoke.mjs                # multi-size smoke, tokens, layout checks (no bash)
-bash tests/smoke.sh                  # the same checks from the CM5 entry point
-pnpm run build:native               # optional Windows process reader
-pnpm e2e                            # renderer interaction/style regressions
-pnpm geometry                       # the geometry gates, as one command
+node --test tests/<affected>.test.js
+pnpm test
+pnpm styles
+pnpm smoke
+node tests/smoke.mjs
+bash tests/smoke.sh
+pnpm run build:native
+pnpm e2e
+pnpm geometry
 ```
-Choose Node contracts for the changed subsystem; use the multi-size smoke script for layout/composition changes and E2E for renderer interactions. `pnpm geometry` is the entry point for anything that changes a Widget's composition, a page's placement, or a type ramp: it runs the responsive matrix (every reading drawable at both promised panel sizes), the density gate, and the per-Widget composition harnesses. A new geometry gate that is not wired into that runner is a report nobody runs.
 
-Electron checks require a graphical session (headless setup is in @README.md) and regenerate CSS. Host tests do not verify CM5 GPU compositing, evdev touch, or graphical-session autostart.
+Use affected Node contracts for subsystem changes. Use multi-size smoke for composition and E2E for interaction. Run `pnpm geometry` for Widget composition, page placement or type changes. It runs the responsive matrix, density and per-Widget harnesses. Wire new geometry gates into that runner.
 
-### Writing an Electron harness
-- A window that is not painting never runs `requestAnimationFrame`. Anything layout-critical must not wait for a frame — use a timer — and a screen capture needs the window shown (`showInactive()`) plus a settle before the shot.
-- `app.exit(0)` does not stop the function: an `app.exit(1)` on the next line always wins. Write the failure exit as the other branch, or the gate reports a pass and exits as a failure.
-- A harness that must also run on a Windows Shell Host takes its temporary directory from `os.tmpdir()` and never throws while cleaning up at exit — Windows still holds the profile lock, and an exception there surfaces as a dialog on the owner's desk.
-- A test double must answer whatever the code under test measures: a Widget that reads the cell it was given needs `getBoundingClientRect` on the element the harness hands it.
+Electron checks need a graphical test session and regenerate CSS. Headless setup is in @README.md. Host tests do not prove CM5 GPU presentation, evdev touch or graphical autostart. A macOS/Linux fixture cannot execute Windows branches or build the native reader; report Windows acceptance separately.
 
-## Coding Style & Naming Conventions
-- 2-space JavaScript (CommonJS for main/preload/tests, ES modules for renderer).
-- Never edit generated `src/renderer/uno.css`; regenerate it with `pnpm styles`.
-- A Widget adapts to the cell it is drawn in, never to the window (@CONTEXT.md, @docs/adr/0028-a-widget-adapts-to-the-cell-it-is-drawn-in.md). A container-query type ramp needs an explicit floor, so a small cell yields larger type instead of sub-floor type; and a glanceable Widget re-composes rather than scrolling, stating the count of anything it drops.
-- For visual changes, use @../../DESIGN.md and `--odk-*` semantic tokens. Its scoped `--pi-*` exception applies only to quoted Pi transcript content, not Shell controls or surfaces.
-- Enforce renderer sandboxing (`contextIsolation: true`, `nodeIntegration: false`, local assets only).
-- State representations must be truthful; never fabricate personal data.
+A candidate release needs `release.json` and `pnpm preflight`. Preflight is not required for an unrelated local edit. Deployment and acceptance use `scripts/cm5-stage-release.sh` and `scripts/cm5-acceptance.sh`. Live `./run.sh` reads configured services/user state; it is not an isolated fixture.
 
-## Verification Boundaries
-- Live `./run.sh` uses configured services and user state; do not equate launching the Shell with an isolated fixture test.
-- Host-run checks cannot execute a `win32` branch or build the Windows native reader. Platform behavior is pinned through injected host facts and captured process payloads; Windows acceptance is executed on a Windows host and reported separately.
-- Release validation uses `pnpm preflight` on a candidate containing `release.json`; it is not a prerequisite for an unrelated local edit. Deployment and device acceptance follow `scripts/cm5-stage-release.sh` and `scripts/cm5-acceptance.sh`, not just host smoke output.
+## Harness and code rules
 
-## Driving a Windows Shell Host
-Connection, syncing, deploying, and reading results back from the 64-bit Windows host are one procedure, owned by @docs/WINDOWS_HOST.md. Three facts from it change how you work and are worth knowing before you start:
-- An SSH session is Session 0, so it has no interactive desktop: anything that needs a window (Electron harnesses, screen captures, the kiosk) runs from an interactive scheduled task that you register from SSH, never from inside another task.
-- A remote `.ps1` must be pure ASCII — PowerShell 5.1 parses a BOM-less UTF-8 file in the system code page, and a non-ASCII character turns into a syntax error. Do not build a PowerShell command line through ssh either: cmd eats the quotes and the pipes. Write the file, upload it, run it.
-- A change is synced as a hash-gated deploy, not a copy: archive repo-root-relative paths, hand over an expected MD5 per file, and only trust `DEPLOY_OK`. Syncs never carry `.env.local` or any device state.
+- Use 2-space JavaScript. Main/preload/tests use CommonJS; renderer uses ES modules.
+- Regenerate `src/renderer/uno.css` with `pnpm styles`. Do not edit it manually.
+- A Widget adapts to its Cell. Keep explicit type floors. Re-compose before dropping complete items, state omitted counts and never scroll a glanceable Widget. See @docs/ARCHITECTURE.md#adr-0028.
+- Use @../../DESIGN.md semantic `--odk-*` tokens. The scoped `--pi-*` exception applies only to quoted Pi content.
+- Keep `contextIsolation:true`, `nodeIntegration:false` and local assets. Never fabricate personal data or availability.
+- A nonpainting window does not run animation frames. Use timers for layout-critical work. Show a capture window with `showInactive()` and allow it to settle.
+- `app.exit(0)` does not stop JavaScript execution. Put a failure exit in an exclusive branch.
+- Use `os.tmpdir()` in host-neutral harnesses. Cleanup must not throw when Windows holds a profile lock.
+- Test doubles must supply measured APIs. A Cell measurement requires `getBoundingClientRect`.
+
+For Windows SSH, transfer, GUI tasks or capture, follow @docs/WINDOWS_HOST.md. Its Session 0, hash-check and private-state rules are mandatory.

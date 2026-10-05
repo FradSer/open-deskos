@@ -121,6 +121,8 @@ test('BDD feature states the refresh contract of a Service Plugin', () => {
   assert.match(FEATURE, /A declaration that moved is followed/)
   assert.match(FEATURE, /A plugin that went away stops claiming to be live/)
   assert.match(FEATURE, /One desk that dropped does not stop the others/)
+  assert.match(FEATURE, /A pending service listen cannot resurrect after quit/)
+  assert.match(FEATURE, /An explicit service start restarts after stop/)
 })
 
 // A bind that failed is not a running listener, so the periodic refresh has to
@@ -148,6 +150,41 @@ test('a service that could not bind is retried by the next refresh', async () =>
     // main.js calls this on its 60s timer, so this is the only recovery there is.
     await source.refreshServices()
     assert.equal(await accepts(endpoint), true, 'the retry must leave the Shell listening')
+  } finally {
+    await source.stop()
+  }
+})
+
+test('a listener that is starting when stop runs cannot resurrect after stop', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-race-'))
+  const endpoint = path.join(dir, 'futu-poller.sock')
+  const source = createFutuSource({
+    runtimeDir: dir,
+    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
+  })
+  try {
+    const refresh = source.refreshServices()
+    const stop = source.stop()
+    await Promise.all([refresh, stop])
+    assert.equal(await accepts(endpoint), false, 'stop must close a listener whose async start completed later')
+  } finally {
+    await source.stop()
+  }
+})
+
+test('an explicit start after stop restarts the service listener', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-restart-'))
+  const endpoint = path.join(dir, 'futu-poller.sock')
+  const source = createFutuSource({
+    runtimeDir: dir,
+    services: () => ({ 'futu-poller': { revision: 'r1', endpoint } }),
+  })
+  try {
+    await source.start()
+    await source.stop()
+    assert.equal(await accepts(endpoint), false)
+    await source.start()
+    assert.equal(await accepts(endpoint), true)
   } finally {
     await source.stop()
   }
