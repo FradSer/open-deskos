@@ -146,7 +146,7 @@ export async function createPersonalBot(config, { createSession = createAgentSes
     return { ...adapter,
       generationModel: session.model ? `${session.model.provider}/${session.model.id}` : config.model ?? 'default',
       generateProposals: async ({ signal, ...input }) => generateWithinDeadline({
-        signal, timeoutMs: process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS,
+        signal, timeoutMs: (config.env ?? process.env).ODESK_PROACTIVE_GENERATION_TIMEOUT_MS,
         validate: raw => { validateGeneratedBatch(raw, input.topics, input.maxCandidates) },
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,

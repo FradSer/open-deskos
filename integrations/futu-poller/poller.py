@@ -3,7 +3,7 @@
 
 Reads real positions from the pre-existing FutuOpenD gateway over the LAN and
 publishes bounded snapshots to one or more DeskOS shells over a runtime channel
-(protocol v1, see runtime/shell/docs/adr/0009-service-plugin-contract.md).
+(protocol v1, see runtime/shell/docs/ARCHITECTURE.md#adr-0009).
 
 The transport is an endpoint, not a Unix socket path, so the same poller can
 feed the reference desk and a second handheld without any platform-specific
@@ -314,7 +314,9 @@ class ShellLink:
                     self.close()
                     return False
                 if not chunk:
-                    return True
+                    self._note_failure("desk closed the connection")
+                    self.close()
+                    return False
                 self._replies += chunk
                 if len(self._replies) > MAX_REPLY_BYTES:
                     # A peer that never sends a newline must not grow this buffer.

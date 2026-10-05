@@ -1,28 +1,27 @@
 # futu-poller — Futu holdings Service Plugin
 
-CM5-resident poller. Reads real positions from the pre-existing NAS FutuOpenD
-gateway over the LAN and publishes bounded snapshots to one or more DeskOS
-shells over a runtime channel (protocol v1, ADR 0009).
+CM5-resident poller.
+It reads real positions from the existing NAS FutuOpenD gateway over the LAN.
+It publishes bounded protocol-v1 snapshots through a Runtime Channel to one or more Shell Hosts.
+See [ADR-0009](../../runtime/shell/docs/ARCHITECTURE.md#adr-0009).
 
-The transport is an endpoint, not a Unix socket path, so one poller feeds both
-the reference desk and a second desk on a 64-bit Windows handheld without any
-platform-specific code. The gateway RSA key and trade password stay on the
-reference host: the desks only receive positions.
+One poller feeds Linux and Windows endpoint targets.
+Gateway RSA/trade credentials stay on the reference host; desks receive positions only.
 
 ## Version pin (hard requirement)
 
-The gateway runs Futu OpenD **10.2.6208**. The API client must match that
-family or the handshake is rejected (`InitConnect check sha error`):
+The gateway runs Futu OpenD **10.2.6208**.
+The API client must match that family or the handshake is rejected (`InitConnect check sha error`):
 
-```
-pip install "futu-api==10.2.6208"
+```sh
+uv pip install "futu-api==10.2.6208"
 ```
 
 ## Endpoints
 
-A target's `endpoint` is one of three forms. The token rule follows the desk's
-own `local-channel` handshake: a Unix socket is authenticated by filesystem
-ownership, so the poller sends no handshake there and the desk still accepts it.
+A target's `endpoint` is one of three forms.
+The token rule uses the `local-channel` handshake.
+Filesystem ownership authenticates Unix sockets; they need no token handshake.
 
 | Endpoint | Example | Token |
 | --- | --- | --- |
@@ -30,32 +29,32 @@ ownership, so the poller sends no handshake there and the desk still accepts it.
 | Windows named pipe | `\\.\pipe\open-deskos-futu-poller` | yes |
 | TCP address | `tcp://100.82.50.70:8790` | yes |
 
-For a pipe or `tcp://` endpoint the poller sends the shared channel handshake
-as the connection's first line, byte for byte as the desk writes it:
+For a pipe or `tcp://` endpoint, send the exact shared handshake as the first line:
 
 ```json
 {"v":1,"token":"<token>"}
 ```
 
-then the protocol v1 records (`hello`, `data`, `error`, `auth-required`) as
-before. The token comes from the target's `tokenFile`, falling back to
-`ODK_CHANNEL_TOKEN_FILE`; it is trimmed, and a missing or empty file is refused
-with a reason on stderr rather than sent as a bad handshake. The reference host
-never needs that file for its own Unix socket.
+then the protocol v1 records (`hello`, `data`, `error`, `auth-required`) as before.
+Read the trimmed token from `tokenFile`, or fall back to `ODK_CHANNEL_TOKEN_FILE`.
+A missing/empty token is refused with a reason on stderr.
+The reference host never needs that file for its own Unix socket.
 
-Each target has its own connection and its own reconnect state. One desk being
-unreachable never breaks the others; a connect attempt is bounded by the
-poller's connect timeout (10 s), so an unreachable host cannot hold the poll
-open forever. A desk that drops mid-record is that same case: the failure is
-recorded against the desk it happened to, every other desk still receives the
-record, and the reason is stated once it has persisted for three consecutive
-polls rather than on every drop, so a routine reconnect stays out of the journal.
+Each target has its own connection and its own reconnect state.
+An unreachable desk does not block other desks.
+Each connection attempt has a 10-second timeout.
+A mid-record disconnect records failure only for that desk.
+Other desks still receive the record.
+Log the reason after three consecutive failed polls; routine reconnects remain quiet.
 
 ## Deploy on the CM5
 
+These commands change device configuration/services and require operational authorization; transport tests below are isolated.
+
 ```sh
 # 1. environment
-python3 -m venv ~/.venv/futu && ~/.venv/futu/bin/pip install -r requirements.txt
+uv venv ~/.venv/futu
+uv pip install --python ~/.venv/futu/bin/python -r requirements.txt
 
 # 2. gateway RSA key (client copy; treat as a secret, mode 0600).
 #    Source: frad-nas:/mnt/user/appdata/futuopend/config/rsa_private.pem
@@ -83,29 +82,25 @@ EOF
 chmod 600 ~/.config/open-deskos/futu-targets.json
 ```
 
-`ODESK_FUTU_TARGETS_FILE` overrides the targets file location (default
-`~/.config/open-deskos/futu-targets.json`). When there is no targets file, the
-single-target environment form keeps working unchanged: `ODESK_FUTU_SOCKET` is
-a socket path and the poller sends no handshake for it.
+`ODESK_FUTU_TARGETS_FILE` overrides the targets file location (default `~/.config/open-deskos/futu-targets.json`).
+Without a targets file, `ODESK_FUTU_SOCKET` selects the single Unix socket.
+It needs no token handshake.
 
-The socket path the local desk binds is declared once, in the shared file the
-shell also reads, so the poller and the shell cannot disagree about it:
+Declare the shared socket once in `runtime.env`:
 
 ```sh
 printf 'ODESK_FUTU_SOCKET=%s/open-deskos/futu-poller.sock\n' "$XDG_RUNTIME_DIR" >> ~/.config/open-deskos/runtime.env
 chmod 600 ~/.config/open-deskos/runtime.env
 ```
 
-Without `FUTU_TRADE_PWD` the poller reports `auth-required` to every desk and
-the tile honestly shows "trade unlock needed".
+Without `FUTU_TRADE_PWD` the poller reports `auth-required` to every desk and the tile honestly shows "trade unlock needed".
 
 ## systemd user unit
 
-`open-deskos-futu-poller.service` is the resident unit. It runs the venv python
-against `poller.py`, loads `futu-poller.env` and `runtime.env`, and restarts
-always with `RestartSec=5`. The unit is a template: the installer substitutes
-`__OPEN_DESKOS_FUTU_POLLER_DIR__` with the installed integration path, the same
-pattern the other integration units use. A manual install is:
+`open-deskos-futu-poller.service` is the resident unit.
+It runs the venv python against `poller.py`, loads `futu-poller.env` and `runtime.env`, and restarts always with `RestartSec=5`.
+The unit is a template: the installer substitutes `__OPEN_DESKOS_FUTU_POLLER_DIR__` with the installed integration path, the same pattern the other integration units use.
+A manual install is:
 
 ```sh
 mkdir -p ~/.config/systemd/user
@@ -119,28 +114,19 @@ journalctl --user -u open-deskos-futu-poller.service -f
 
 ## Shell side (tracer bootstrap)
 
-The shell connects to the path `ODESK_FUTU_SOCKET` declares (absolute, under
-`$XDG_RUNTIME_DIR/open-deskos/`), so one declaration in `runtime.env` serves
-both sides and neither can drift from the other. Until the installer (T3) drives
-the registry from the installed catalog, that variable is what registers the
-`futu-poller` service. The Holdings page (`odk.tile.futu`) then renders live
-data; any failure renders the honest `unavailable` state, never invented
-numbers.
+`ODESK_FUTU_SOCKET` is absolute under `$XDG_RUNTIME_DIR/open-deskos/` and currently registers the service.
+Holdings (`odk.tile.futu`) renders live positions or truthful unavailable state.
 
-A packaged revision is declared once too: set `ODESK_FUTU_SERVICE_REVISION` in
-`runtime.env`, and both the poller's handshake and the shell's expectation use
-that value instead of two copies of `dev`.
+Set `ODESK_FUTU_SERVICE_REVISION` once in `runtime.env`.
+The poller handshake and Shell expectation share that revision instead of separate `dev` values.
 
 ## Tests
 
-The transport tests drive the real client against a socket server started in the
-test; no gateway and no futu SDK are needed:
+The transport tests drive the real client against a socket server started in the test; no gateway and no futu SDK are needed:
 
 ```sh
-python3 -m pytest integrations/futu-poller/tests -q
+uv run --with pytest pytest integrations/futu-poller/tests -q
 ```
 
-They cover the Unix socket, the TCP handshake, the missing/empty token refusal,
-two desks receiving the same records with one refusing connections, a desk whose
-connection is reset while another stays fed, and a malformed target being refused
-by name while the others run.
+They cover Unix sockets, TCP handshakes, and missing/empty tokens.
+Multi-desk fixtures cover connection refusal, mid-record resets, and named malformed-target failures while other desks remain fed.

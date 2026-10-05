@@ -12,6 +12,11 @@ Feature: Device-local speech-to-text bridge
     Then it derives its loopback endpoint from that same value
     And an invalid ODK_STT_PORT fails startup instead of reaching a remote endpoint
 
+  Scenario: Provisioning rejects invalid ports before any installation
+    Given ODK_STT_PORT is below 1 or above 65535
+    When provisioning validates the declaration
+    Then it fails before any root or installation operation
+
   Scenario: Loopback-only exposure
     Given the bridge is provisioned as a user service
     When its listening socket is inspected

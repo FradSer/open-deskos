@@ -211,6 +211,13 @@ class SilentConn:
         raise socket.timeout()
 
 
+class ClosedConn(SilentConn):
+    """A desk that closed its channel after accepting the previous write."""
+
+    def recv(self, _n):
+        return b""
+
+
 def stub_link(name, conn):
     target = poller.Target(endpoint="/tmp/%s.sock" % name, parsed=poller.parse_endpoint("/tmp/%s.sock" % name), label=name)
     link = poller.ShellLink(target, "futu-poller", "dev")
@@ -268,3 +275,12 @@ def test_reading_a_reset_desk_is_reported_not_raised(capsys):
         raise AssertionError("a dropped desk raised %s: %s" % (type(exc).__name__, exc)) from exc
     assert link.conn is None, "the dead connection is released so the next attempt reconnects"
     assert link._failures == 1, "the failure is recorded on the desk it happened to"
+
+
+def test_reading_eof_marks_a_desk_unavailable_and_releases_the_connection():
+    """EOF is a dropped channel, so the record must not count as delivered."""
+    link = stub_link("closed", ClosedConn())
+
+    assert link.send(record()) is False
+    assert link.conn is None, "the next poll must establish a fresh connection"
+    assert link._failures == 1, "EOF must count as a failed delivery"

@@ -200,3 +200,13 @@ process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request)
   assert.equal(response.received.includes('/work/中文'), true, 'the request must arrive whole')
   assert.equal(response.received.trimEnd().split('\n').length, 1, 'and as the one bounded frame it is')
 })
+
+test('remote target configuration rejects POSIX production roots on every desk host', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'task-remote-roots-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const path = join(dir, 'targets.json')
+  for (const root of ['/opt/open-deskos', '/opt/open-deskos/current', '/opt/open-deskos/../open-deskos/current', '//opt/open-deskos/current']) {
+    await writeFile(path, JSON.stringify({ targets: [{ ...target, host: 'user@mac.local', roots: [root] }] }))
+    await assert.rejects(loadTargets(path), /Invalid task target configuration/)
+  }
+})

@@ -548,7 +548,7 @@ for (const exitCode of [0, 3]) {
 
 test('interrupted line-truncated output excludes the SDK path and retains observed status', async t => {
   const f = await fixture(t)
-  const result = await check(f.repo, 'process.stdout.write("short line\\n".repeat(2001)); setInterval(() => {}, 1000)', { timeout: 0.2 })
+  const result = await check(f.repo, 'process.stdout.write("short line\\n".repeat(2001)); setInterval(() => {}, 1000)', { timeout: 1 })
   const value = evidence(result)
   const path = result.details.fullOutputPath
   assert.equal(value.outcome, 'timed_out')

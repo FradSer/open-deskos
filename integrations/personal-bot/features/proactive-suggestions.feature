@@ -187,6 +187,12 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then generation can complete without the old 30 second cancellation
     And timeout or owner cancellation still aborts and disposes the isolated session
 
+  Scenario: Service environment owns proactive generation configuration
+    Given the Personal Bot receives an isolated service environment
+    When the process environment has a different or invalid generation timeout
+    Then the service value is used when configured
+    And an omitted service value uses the bounded default without reading the process value
+
   Scenario: Actual weather and service observations are configured
     Given the owner enables current weather condition and current holdings fields
     When a heartbeat or those services push an update

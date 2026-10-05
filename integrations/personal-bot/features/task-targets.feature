@@ -1,4 +1,27 @@
 Feature: Managed independent coding tasks
+  Scenario: An incomplete native inventory does not prove a missing session
+    Given a root inventory with one endpoint that did not answer
+    When the helper returns incomplete true and unavailable one
+    Then the coordinator preserves both fields
+    And it reports incomplete inventory rather than a missing session
+    And it does not launch a replacement for the unresolved session
+
+  Scenario: Continue an ordinary remote Pi through its published endpoint
+    Given a configured helper and two Pi sessions below a development root
+    When the Personal Bot lists the root and resolves the selected session
+    Then its next prompt uses that session's exact project and task ID
+    And Chinese prompt text reaches that same session without a replacement launch
+    And an unspecified native delivery follows normal Pi Enter behavior
+    And explicit steering and follow-up remain available
+    And native admission stays unknown even when the session observes matching message text
+    And observed session execution facts do not certify a particular mutation
+
+  Scenario: Preserve a native session's fixed refusal
+    Given a native Pi endpoint that cannot serve history or accept a prompt
+    When its correlated reply supplies a known refusal
+    Then the Personal Bot receives that exact refusal
+    And arbitrary endpoint error text remains hidden
+
   Scenario: Discover configured development targets without probing hosts
     Given a target configuration with CM5 and Mac development roots
     When the coordinator lists coding targets
@@ -15,6 +38,13 @@ Feature: Managed independent coding tasks
     When the coordinator reports the failure
     Then the target and original task ID remain available for status reconciliation
     And the mutation is not retried
+
+  Scenario: Preserve the mutation identity after a lost prompt reply
+    Given a helper that receives a prompt but loses its response
+    When the Personal Bot reports the unknown outcome
+    Then its failure includes the exact mutation ID sent to the helper
+    And it includes no prompt text or credentials
+    And a matching session message does not certify that mutation's admission
 
   Scenario: Reject invalid configuration and unshippable requests
     Given duplicate IDs, unexpected configuration keys, an unnormalized project or invalid task text

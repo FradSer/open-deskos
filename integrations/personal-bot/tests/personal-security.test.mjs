@@ -79,7 +79,11 @@ test('Given bundled DiDi skill When read Then actual controlled tool flow and co
   const text = await readFile(new URL('../src/skills/didi/SKILL.md', import.meta.url), 'utf8');
   assert.match(text, /^---\nname: didi\ndescription: .+\n---/);
   for (const name of ['didi_search', 'didi_estimate', 'didi_propose', 'didi_submit', 'didi_status', 'didi_propose_cancel', 'didi_cancel', 'didi_driver_location']) assert.ok(text.includes(name));
-  for (const phrase of ['确认叫车', '确认取消订单', '后续独立一轮', '不从历史订单', '原始 MCP', 'identityVerified: false', '沙箱测试']) assert.ok(text.includes(phrase));
+  for (const phrase of ['确认叫车 <车型名称> <六位代码>', '确认取消订单 <六位代码>', 'later, separate user turn', 'Do not infer the current pickup point from past orders', 'raw MCP methods', 'reconciliation.identityVerified: false', '沙箱测试，不代表真实车辆或真实行程']) assert.ok(text.includes(phrase), `Missing safety contract: ${phrase}`);
+  assert.match(text, /Do not submit in the turn that shows the phrase/);
+  assert.match(text, /Never retry an order automatically after a timeout, disconnect, or unknown result/);
+  assert.match(text, /Never retry cancellation or create another order when cancellation is unknown/);
+  assert.match(text, /Do not request, read, repeat, or store credentials/);
 });
 
 test('Given reviewed skill snapshot When the source changes Then tools retain reviewed bytes', async (t) => {

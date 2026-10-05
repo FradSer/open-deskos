@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:net'
 import { loadCapabilities } from '../src/capabilities.mjs'
-import { agentOptions, validateWorkspace, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
+import { agentOptions, validateWorkspace, createPersonalBot, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
 
 test('real SDK resource loader loads the widget skill without undefined agentDir', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
@@ -24,6 +24,58 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.doesNotMatch(instructions, /live sessions/)
   assert.doesNotMatch(instructions, /without markdown/)
   assert.match(instructions, /Markdown/)
+})
+
+async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {})) {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-generation-env-'))
+  await mkdir(join(dir, 'private'), { mode: 0o700 })
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  let sessionNumber = 0
+  let listener
+  const session = (generator = false) => ({
+    model: { provider: 'fixture', id: 'model' }, isStreaming: false, messages: [],
+    bindExtensions: async () => {}, setActiveToolsByName: () => {}, subscribe: callback => {
+      listener = callback
+      return () => { listener = undefined }
+    },
+    prompt: generator ? async () => generatorPrompt(listener) : async () => {},
+    abort: async () => {}, dispose: () => {},
+  })
+  const bot = await createPersonalBot({
+    stateDir: join(dir, 'state'),
+    personal: { profile: 'personal', memoryFile: join(dir, 'private', 'memory.json'), skillPaths: [] },
+    env,
+  }, {
+    createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined }),
+    createIntentRouter: () => async () => ({ intent: 'conversation' }),
+    createSession: async () => ({ session: session(++sessionNumber === 2) }),
+  })
+  t.after(() => bot.close())
+  return bot
+}
+
+test('Given different service and process environments When generating suggestions Then the service timeout controls the injected SDK session', { timeout: 5000 }, async t => {
+  const previous = process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
+  process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
+  t.after(() => {
+    if (previous === undefined) delete process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
+    else process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
+  })
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only', ODESK_PROACTIVE_GENERATION_TIMEOUT_MS: '1000' })
+  await assert.rejects(bot.generateProposals({ topics: [], maxCandidates: 1 }), /timed out/)
+})
+
+test('Given an isolated service environment When the process environment is invalid Then suggestion generation ignores the global value', async t => {
+  const previous = process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
+  process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
+  t.after(() => {
+    if (previous === undefined) delete process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
+    else process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
+  })
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
+    emit?.({ type: 'message_end', message: assistant('{"suggestions":[]}') })
+  })
+  assert.deepEqual(await bot.generateProposals({ topics: [], maxCandidates: 1 }), { suggestions: [] })
 })
 
 test('Pi adapter preserves full Markdown for the service to bound once', async () => {

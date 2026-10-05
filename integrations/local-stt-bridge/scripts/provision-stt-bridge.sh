@@ -11,8 +11,9 @@ SAMPLE_WAV="${STT_SAMPLE_WAV:-/opt/qwen3-asr-1.7b/tests/test_zh.wav}"
 # The same single declaration the unit and the personal bot read: this script only mirrors the
 # default so that provisioning, the service and the agent cannot disagree about one port.
 STT_PORT="${ODK_STT_PORT:-17840}"
-if ! [[ "${STT_PORT}" =~ ^[0-9]{1,5}$ ]]; then
-  echo "ODK_STT_PORT must be a port number; got '${STT_PORT}'." >&2
+if ! [[ "${STT_PORT}" =~ ^[0-9]{1,5}$ ]] || \
+  ! (( 10#${STT_PORT} >= 1 && 10#${STT_PORT} <= 65535 )); then
+  echo "ODK_STT_PORT must be between 1 and 65535; got '${STT_PORT}'." >&2
   exit 1
 fi
 

@@ -3,11 +3,17 @@ import { randomUUID } from 'node:crypto'
 import { closeSync, mkdtempSync, openSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, normalize } from 'node:path'
+import { isAbsolute, join, normalize, posix } from 'node:path'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cleanPath = value => typeof value === 'string' && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value)
-const developmentPath = value => cleanPath(value) && normalize(value) !== '/opt/open-deskos' && !normalize(value).startsWith('/opt/open-deskos/')
+const developmentPath = value => {
+  if (!cleanPath(value)) return false
+  // Compare the reserved POSIX namespace with the same separators on every desk.
+  // Keep the original target path; only the host can resolve its actual roots.
+  const path = posix.normalize(normalize(value).replaceAll('\\', '/'))
+  return path !== '/opt/open-deskos' && !path.startsWith('/opt/open-deskos/')
+}
 const keysOnly = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key))
 
 export function taskCommand(executable, host) {
@@ -84,7 +90,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
   }
   const mutation = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command)
   const failure = message => Error(mutation
-    ? `Task ${request.command} outcome unknown; do not retry automatically. target=${target.id} taskId=${payload.taskId} project=${request.project}; use coding_task_status to reconcile`
+    ? `Task ${request.command} outcome unknown; do not retry automatically. target=${target.id} taskId=${payload.taskId} project=${request.project} mutationId=${mutationId}; use coding_task_status to reconcile`
     : message)
   const input = `${JSON.stringify(payload)}\n`
   if (Buffer.byteLength(input) > 65_536) throw Error('Task request too large')
@@ -94,7 +100,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     // Only the daemon's own fixed refusals are reflected. A reason an operator can act on is
     // worthless if it arrives as "rejected": a session that has already ended and a working turn
     // that needs a stated delivery behavior are exactly the two a spoken request hits.
-    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior']
+    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', '此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
     throw Error(safeReasons.includes(response.error) ? response.error : 'Managed task request rejected')
   }
   return response
