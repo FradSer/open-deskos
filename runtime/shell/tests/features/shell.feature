@@ -51,26 +51,24 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the network changes offline then online
     Then the indicator glyph, its accessible name, and the assistive status announcement update accordingly
 
-  Scenario: Today briefs the desk only from plugin contributions
+  Scenario: Today briefs the desk through Personal Agent
     Given the shell starts at 1920 by 1280
     Then the first page is Today and shows the current weekday, date, and year
-    And Today renders one statement per contributed briefing
-    And every statement signal is emphasized inside the statement while connectives stay quiet
-    And Today never states network, focus, or quota-service status
-    And Today does not claim meetings, tasks, habits, steps, sleep, or other personal data without a configured provider
-    And Today states that no desk briefing is available when no plugin contributes one
-    And Today remains usable when optional experimental integrations are unavailable
+    And Today renders Personal Agent statements with source states and measurement times
+    And Today states briefing availability without fixed session-count fallback sentences
+    And Today does not claim personal data without source evidence
+    And Today remains usable when optional integrations are unavailable
 
   Scenario: Briefing contributions stay ordered, honest, and withdrawable
     Given the shell is running
     When a plugin contributes briefing parts
-    Then Today renders them in ascending contribution order
+    Then the plugin statement store lists them in ascending contribution order
     When a contribution repeats unchanged
-    Then Today does not re-render that statement
+    Then the plugin statement store does not notify subscribers
     When a contribution carries empty or malformed parts
     Then the shell drops those parts instead of rendering fabricated text
     When a plugin withdraws its contribution
-    Then Today no longer renders that statement
+    Then the plugin statement store no longer lists that statement
 
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280

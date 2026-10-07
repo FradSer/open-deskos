@@ -96,7 +96,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   viewport.addEventListener('pointerdown', (event) => {
-    if (window.odkPersonalBotStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
+    if (event.target?.closest?.('summary') || window.odkPersonalBotStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
     activePointerId = event.pointerId
     startX = event.clientX
     dx = 0
@@ -379,6 +379,7 @@ function main() {
     camera: odkServices.camera,
     remoteLink: odkServices.remoteLink,
     briefing: odkServices.briefing,
+    homeBriefing: odkServices.homeBriefing,
     services: odkServices,
     onTick: odkServices.onTick,
     openDialog: openInfoView,

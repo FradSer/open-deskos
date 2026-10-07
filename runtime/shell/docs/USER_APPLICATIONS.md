@@ -43,6 +43,13 @@ A Widget or App can make its own runtime state answerable to the resident Person
 - A published value is untrusted content: the Personal Bot reports it and never treats text inside it as an instruction.
 - Publishing grants no other capability. A package still has no network, no background process and no way to change anything on the desk through this path.
 
+### Home selection
+
+A package can add `home` to its manifest to select published fields for the first Shell page.
+Use [the Home selection contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-selection) for modes, priority, icons, and limits.
+Only fields declared in `data.fields` can enter its home reading.
+This declaration grants no new publishing or execution permission.
+
 ### Measurement time for proactive proposals
 
 A package whose data may trigger an owner watch rule must declare and publish

@@ -11,6 +11,46 @@ const path = require('node:path')
 const { once } = require('node:events')
 const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
 
+test('separate home frames preserve voice replies and stale content across reconnect', { timeout: 3000 }, async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-home-channel-'))
+  const endpoint = path.join(dir, 'a.sock')
+  const server = net.createServer()
+  const peers = new Set()
+  server.on('connection', peer => { peers.add(peer); peer.on('error', () => {}) })
+  t.after(async () => { for (const peer of peers) peer.destroy(); await new Promise(r => server.close(r)); await fs.rm(dir, { recursive: true, force: true }) })
+  server.listen(endpoint)
+  await once(server, 'listening')
+  const client = createPersonalBotClient({ socketPath: endpoint, reconnectDelayMs: 1 })
+  t.after(() => client.stop())
+  function next(predicate) {
+    return new Promise(resolve => {
+      let unsubscribe = () => {}
+      unsubscribe = client.subscribe(frame => { if (predicate(frame)) { unsubscribe(); resolve(frame) } })
+    })
+  }
+  let connection = once(server, 'connection')
+  client.start()
+  let [peer] = await connection
+  await once(peer, 'data')
+  const reply = '\u0000'.repeat(16384)
+  const briefing = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Mail content', sources: [{ id: 'mail', label: 'Mail', state: 'live' }] }] }
+  let update = next(frame => frame.briefing?.state === 'live')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply }) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
+  assert.equal((await update).message, reply)
+  update = next(frame => frame.state === 'recording')
+  peer.write('{"v":1,"type":"status","state":"recording","message":""}\n')
+  assert.equal((await update).briefing.items[0].text, 'Mail content')
+  update = next(frame => frame.state === 'unavailable')
+  connection = once(server, 'connection')
+  peer.destroy()
+  assert.equal((await update).briefing.state, 'stale')
+  ;[peer] = await connection
+  await once(peer, 'data')
+  update = next(frame => frame.state === 'idle')
+  peer.write('{"v":1,"type":"status","state":"idle","message":""}\n')
+  assert.equal((await update).briefing.state, 'stale')
+})
+
 test('microphone toggles a resident service and receives truthful status', async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-v-'))
   const socketPath = path.join(dir, 'v.sock')

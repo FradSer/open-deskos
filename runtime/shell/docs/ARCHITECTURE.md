@@ -252,6 +252,19 @@ Use `runtime/shell/`, `tests/features/shell.feature` and `src/platform/` for sha
 
 Update discovery, imports, staging, skills and repository references together. Keep sealed release layouts, service names, channels and persisted paths unchanged. Retain `@fradser/open-deskos-linux-shell`: Electron derives the existing profile from that internal identity. Renaming it requires a separate state migration. Discovery/topology/import/asset fixtures verify the source move; macOS evidence is separate from Windows, CM5, microphones/cameras and physical input.
 
+### ADR-0036: Personal Agent owns the home briefing
+
+The first page uses generated Personal Agent content from the read-only Desk Data registry.
+Fixed plugin contributions no longer define that page.
+The Agent uses a separate temporary session without tools, extensions, Skills, or memory.
+Source updates invalidate pending output.
+Unavailable generation retains explicitly stale content.
+The Shell renders literal text and source provenance through the authenticated status channel.
+Touch and keyboard navigation remain independent of Agent availability.
+[The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns the protocol and generation limits.
+A future mail App uses the same declared data boundary.
+A home statement grants no execution authority.
+
 ## Proposed target
 
 This is an approved design target, not a shipped API or device certificate. It does not expand HTML package authority or include preserved P4+C6 research. The Host Kernel would own startup, validation, dependencies, lifecycle, grants, configuration and faults. Features, drivers, services and transports would use separate plugins. The host keeps windows, State Bar pager, App frames, Back and overlays.

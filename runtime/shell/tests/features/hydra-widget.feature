@@ -122,3 +122,10 @@ Feature: Hydra plant and environment widget on the Home grid
     Then the environment readings are left out as whole readings rather than truncated
     And the widget states in its own text how many readings it is not showing
     And no reading is drawn below the readable floor
+
+  Scenario: Soil updates animate without changing meter layout
+    Given a plant reports soil moisture at 62 percent
+    When its reading changes or the plant goes offline
+    Then the meter scales from its left edge to match the displayed reading
+    And its layout width stays equal to the track width
+    And reduced motion disables the meter transition

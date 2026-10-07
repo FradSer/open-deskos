@@ -134,6 +134,7 @@ const projectPosition = position => pick(position, {
 })
 
 const projectHoldings = snapshot => ({
+  todayChangePercent: percent(snapshot?.snapshot?.totals?.plRatio) ?? null,
   asOf: isoTime(snapshot?.updatedAt) ?? undefined,
   positions: (Array.isArray(snapshot?.snapshot?.positions) ? snapshot.snapshot.positions : []).slice(0, READING_LIMIT).map(projectPosition),
   totals: snapshot?.snapshot?.totals ? pick(snapshot.snapshot.totals, {
@@ -171,6 +172,7 @@ const projectSessions = snapshot => {
   return {
     asOf: isoTime(snapshot?.updatedAt) ?? undefined,
     total: sessions.length,
+    counts: Object.fromEntries([...new Set(sessions.map(session => session.status || 'unknown'))].sort().map(state => [state, sessions.filter(session => (session.status || 'unknown') === state).length])),
     sessions: sessions.slice(0, READING_LIMIT).map(session => pick(session, {
       id: session => session.sessionId ?? session.id,
       project: session => session.workspaceName,
@@ -245,7 +247,8 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
       registry.unregister(entry.id)
     }
     for (const [id, label] of declared) {
-      registry.register({ id, label: serviceLabel(label, id), kind: 'service', read: serviceReading(id) })
+      registry.register({ id, label: serviceLabel(typeof label === 'object' ? label?.label : label, 'Futu holdings'), kind: 'service',
+        home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] }, read: serviceReading(id) })
     }
   }
   syncServiceReadings()
@@ -253,6 +256,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (hydra?.snapshot) {
     registry.register({
       id: 'odk.tile.hydra',
+      home: { mode: 'optional', priority: 50, icon: 'plants', fields: ['greenhouse', 'plants'] },
       label: 'Hydra plants',
       kind: 'tile',
       read: async () => {
@@ -265,6 +269,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (weather?.refresh) {
     registry.register({
       id: 'odk.tile.weather',
+      home: { mode: 'optional', priority: 80, icon: 'weather', fields: ['place', 'temperatureC', 'condition'] },
       label: 'Weather',
       kind: 'tile',
       read: async () => {
@@ -277,6 +282,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (weread?.refresh) {
     registry.register({
       id: 'odk.tile.weread',
+      home: { mode: 'optional', priority: 20, icon: 'reading', fields: ['book', 'highlight'] },
       label: 'WeRead highlight',
       kind: 'tile',
       read: async () => {
@@ -289,6 +295,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (piSessions?.scan) {
     registry.register({
       id: 'odk.app.pi-sessions',
+      home: { mode: 'optional', priority: 70, icon: 'sessions', fields: ['total', 'counts', 'truncated'] },
       label: 'Pi sessions',
       kind: 'app',
       read: async () => {
@@ -301,6 +308,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (quota?.read) {
     registry.register({
       id: 'odk.page.quota',
+      home: { mode: 'optional', priority: 40, icon: 'quota', fields: ['accounts'] },
       label: 'API quota',
       kind: 'page',
       read: async () => {
@@ -313,6 +321,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
   if (store?.list) {
     registry.register({
       id: CATALOG_ID,
+      home: { mode: 'hidden', priority: 0, icon: 'apps', fields: [] },
       label: 'Installed Widgets and Apps',
       kind: 'catalog',
       read: async () => {
@@ -363,7 +372,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
         registry.unregister(entry.id)
       }
       for (const [id, app] of declared) {
-        registry.register({ id, label: app.name || id, kind: 'package', declaration: app.data })
+        registry.register({ id, label: app.name || id, kind: 'package', home: app.home, declaration: app.data })
       }
     },
   }

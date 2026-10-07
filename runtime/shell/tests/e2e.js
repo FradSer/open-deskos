@@ -4,6 +4,11 @@ const os = require('node:os')
 const path = require('node:path')
 const { scanPiSessions } = require('../src/pi-sessions')
 
+if (process.platform === 'darwin') app.dock.hide()
+const homeTestProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-e2e-'))
+app.setPath('userData', homeTestProfile)
+app.once('will-quit', () => fs.rmSync(homeTestProfile, { recursive: true, force: true }))
+
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const OVERALL_TIMEOUT_MS = 60000
@@ -91,24 +96,18 @@ const DRIVER_SCRIPT = `
   out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test(text('#dash-md'))
   out.dashYearCurrent = text('#dash-y') === String(new Date().getFullYear())
   const narrative = $('#dash-narrative')
-  const briefingDeadline = Date.now() + 3000
-  while (Date.now() < briefingDeadline && !narrative.querySelector('[data-briefing]')) {
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-  out.narrativeStatements = [...narrative.querySelectorAll('.dash-clause')].map((clause) => clause.textContent)
   out.narrativeText = text('.dash-narrative')
-  out.todayBriefsFromPlugins =
-    out.narrativeStatements.length === 1 &&
-    narrative.querySelector('[data-briefing="odk.briefing.pi-sessions"]') !== null &&
-    /Pi session/.test(out.narrativeText) &&
-    narrative.querySelectorAll('b').length === 2 &&
-    narrative.querySelectorAll('b svg[data-tabler]').length === 2
+  out.todayBriefsFromAgent =
+    narrative.querySelector('[data-briefing="agent-0"]') !== null &&
+    /Review the current desk readings/.test(out.narrativeText) &&
+    /Weather/.test($('#dash-source-list .dash-sources').textContent) &&
+    /Personal Agent/.test(text('#dash-agent-status'))
   out.todayOmitsDeskStatus =
     !/Network (connected|disconnected)/.test(out.narrativeText) &&
     !/Focus is not started/.test(out.narrativeText) &&
     !/Quota|OpenCode/.test(out.narrativeText)
   out.todayClaimsNoPersonalData = !/\b(?:\d+ meetings|\d+ tasks|\d+ habits|steps|sleep|hours)\b/.test(out.narrativeText)
-  const requiredIcons = ['wifi', 'wifi-off', 'chevron-left', 'folder']
+  const requiredIcons = ['wifi', 'wifi-off', 'chevron-left']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
@@ -504,7 +503,7 @@ function check(results) {
     ['dashboard weekday header', results.dashWeekday],
     ['dashboard month-day format', results.dashDateFormatted],
     ['dashboard year is current', results.dashYearCurrent],
-    ['Today briefs only from plugin contributions', results.todayBriefsFromPlugins],
+    ['Today briefs from Personal Agent with source provenance', results.todayBriefsFromAgent],
     ['Today omits network, focus, and quota-service status', results.todayOmitsDeskStatus],
     ['Today claims no personal data without a provider', results.todayClaimsNoPersonalData],
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
@@ -779,6 +778,11 @@ async function main() {
   ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
   ipcMain.handle('odk-futu-holdings', () => ({ state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [ { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 }, { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 }, { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] }, updatedAt: Date.now() }))
   ipcMain.handle('odk-weather-status', () => ({ status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }))
+  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'idle', message: '', briefing: {
+    state: 'live', generatedAt: Date.now(), omittedSources: 0,
+    items: [{ text: 'Review the current desk readings before planning your next step.',
+      sources: [{ id: 'odk.tile.weather', label: 'Weather', state: 'live', updatedAt: Date.now() }] }],
+  } }))
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'fixture does not install applications' }))
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
@@ -820,8 +824,6 @@ async function main() {
     if (level >= 2) console.error(`renderer[${sourceId}:${line}] ${message}`)
   })
 
-  win.focus()
-  win.webContents.focus()
   await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
   // Hidden headless windows may be born at 1x1 before their first layout.
   // Set the intended content size after loading, as the geometry sweep does.
@@ -915,7 +917,7 @@ async function main() {
     stdio: 'inherit',
     timeout: 120000,
   }))
-  const themeUiRuns = ['page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
+  const themeUiRuns = ['system-overlay-alerts-style.cjs', 'agent-home.cjs', 'page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
     require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, file)], {
       stdio: 'inherit',
       timeout: process.arch === 'arm64' ? 300000 : 120000,

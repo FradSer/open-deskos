@@ -126,12 +126,13 @@ test('Hydra clears live plant visuals after offline and missing snapshots', asyn
   plugin.mount({ querySelector: node, getBoundingClientRect: () => ({ width: 186, height: 400 }) }, { onTick(callback) { tick = callback } })
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(node('.hydra-body').dataset.shape, 'tall')
-  assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.width, '62%')
+  assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.transform, 'scaleX(0.62)')
   snapshot.nodes[0].online = false
   tick()
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.width, '0%')
+  assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.transform, 'scaleX(0)')
   assert.equal(node('#hydra-plant-1 .hydra-plant-soil').textContent, '--')
+  assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.width, undefined)
   snapshot.nodes = []
   for (let i = 0; i < 5; i += 1) tick()
   await new Promise(resolve => setImmediate(resolve))

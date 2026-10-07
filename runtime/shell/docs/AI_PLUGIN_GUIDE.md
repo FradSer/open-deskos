@@ -56,7 +56,8 @@ Widgets display readings. Put interactive controls on an App page or built-in vi
 | `ctx.onTick(cb)` | Shared one-second tick; immediate initial call; returns cleanup |
 | `ctx.connection.subscribe(cb)` | Network boolean; immediate initial call; returns cleanup |
 | `ctx.connection.labelFor(online)` | Shared network wording |
-| `ctx.briefing.subscribe(cb)` / `.list()` | Ordered Today statements |
+| `ctx.homeBriefing.subscribe(cb)` / `.snapshot()` | Personal Agent home statements and source states |
+| `ctx.briefing.subscribe(cb)` / `.list()` | Ordered plugin statements; retained for existing consumers |
 | `ctx.briefing.contribute({ id, order, parts })` / `.withdraw(id)` | Publish/remove this plugin's statement |
 | `ctx.subscription.subscribe(cb)` / `.refresh()` | Usage snapshot and main-process refresh |
 | `ctx.SUBSCRIPTION_LABELS` / `ctx.NETWORK_LABELS` / `ctx.REMOTE_LINK_LABELS` | Shared state vocabulary |
@@ -71,9 +72,31 @@ Widgets display readings. Put interactive controls on an App page or built-in vi
 
 Plugins read configuration from `ctx`. They must not read environment variables or URL parameters themselves.
 
-## Today statements
+## Home statements
 
-Today renders plugin statements in `order` (default 100). It supplies typography; plugins supply words and optional inline icons.
+Personal Agent supplies Today content through `ctx.homeBriefing`.
+[The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns generation, source limits, and update rules.
+Today shows source states and measurement times.
+Today reports loading, empty, unavailable, error, and stale states.
+It does not replace unavailable Agent output with fixed plugin sentences.
+
+New home items contain ordered literal segments.
+Context segments contain text; fact segments contain text and an approved icon name.
+The client validates the joined text and the 240-character paragraph limit.
+The page displays source states and measurement times through the Sources disclosure.
+
+## Home selection declarations
+
+Declare `home` on a Desk Data registration or an installed package manifest.
+Use [the Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-selection) for its schema and generation rules.
+A renderer statement does not control home selection.
+Futu holdings sources declare required coverage in `src/desk-data.js`.
+
+## Plugin statement store
+
+Existing plugins can contribute ordered statements through `ctx.briefing`.
+The store remains available to existing consumers.
+Today uses the separate Personal Agent output.
 
 ```js
 ctx.briefing.contribute({
@@ -91,7 +114,7 @@ The same ID replaces its previous statement. Unchanged contributions do not redr
 
 An icon is a complete inline SVG with `data-tabler`, `viewBox` and the original stroke paths. Reject scripts and `on*` handlers. Original paths let the icon adapter switch between standard and Pixel artwork. `emphasis:true` renders `<b>`; plain connectives remain quiet.
 
-Use only measured local or configured-provider facts. Never invent personal activity. With no contribution, Today reports `No desk briefing is available.`
+Use only measured local or configured-provider facts. Never invent personal activity. With no contribution, the plugin statement store returns an empty list.
 
 ## Page input and Remote state
 

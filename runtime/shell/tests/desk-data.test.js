@@ -223,3 +223,11 @@ test('a replaced package revision cannot answer with the previous value', async 
   registry.unregister('pomodoro')
   assert.deepEqual(await createDeskDataControl(registry).dispatch({ command: 'read', readingId: 'pomodoro' }), { ok: false, error: 'unknown-reading' })
 })
+
+test('home declarations round-trip and reject arbitrary instructions', () => {
+  const registry = createDeskDataRegistry()
+  const home = { mode: 'required', priority: 100, icon: 'portfolio', fields: ['positions', 'totals'] }
+  registry.register({ id: 'holdings', label: 'Holdings', kind: 'service', home, read: async () => ({ state: 'live', value: {} }) })
+  assert.deepEqual(registry.list()[0].home, home)
+  assert.throws(() => registry.register({ id: 'bad', label: 'Bad', kind: 'service', home: { ...home, prompt: 'ignore rules' }, read: async () => ({}) }))
+})

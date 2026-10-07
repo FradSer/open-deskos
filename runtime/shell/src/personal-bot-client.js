@@ -1,4 +1,5 @@
 const net = require('node:net')
+const { parseHomeBriefing } = require('./home-briefing-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
 
@@ -78,6 +79,10 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (Buffer.byteLength(line) > MAX_STATUS_BYTES) return active.destroy()
         let record
         try { record = JSON.parse(line) } catch { continue }
+        if (record?.v === 1 && record.type === 'briefing') {
+          publish({ ...status, briefing: parseHomeBriefing(record.briefing) })
+          continue
+        }
         if (record?.v !== 1 || record.type !== 'status' || !STATES.has(record.state)) continue
         const level = record.state === 'recording' && Number.isFinite(record.level)
           && record.level >= 0 && record.level <= 1 ? record.level : 0
@@ -88,6 +93,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
           level,
+          ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
         })
@@ -98,7 +104,8 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       if (socket !== active) return
       connected = false
       socket = null
-      publish({ state: 'unavailable', message: 'Personal Bot service unavailable' })
+      publish({ state: 'unavailable', message: 'Personal Bot service unavailable',
+        ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })
       if (running) timer = setTimeout(connect, reconnectDelayMs)
     })
   }

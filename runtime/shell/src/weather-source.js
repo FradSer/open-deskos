@@ -12,7 +12,7 @@
 const { createDeviceLocation } = require('./device-location')
 
 const PROVIDER_URL = 'https://api.open-meteo.com/v1/forecast'
-const CACHE_VERSION = 1
+const CACHE_VERSION = 2
 const REFRESH_MS = 10 * 60 * 1000
 const TIMEOUT_MS = 8000
 const TEMPERATURE_LIMIT = 100
@@ -158,6 +158,7 @@ function createWeatherSource(options = {}) {
       const cached = JSON.parse(fsImpl.readFileSync(cacheFile, 'utf8'))
       const reading = cached?.reading
       if (cached?.version !== CACHE_VERSION || !reading || !reading.current) return
+      if (cached.location?.latitude !== lat || cached.location?.longitude !== lon) return
       if (temperature(reading.current.temperature) === null) return
       state = { status: 'stale', place: boundPlace(reading.place) || label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily || null,
         updatedAt: Number(reading.updatedAt) || null, hint: null, error: null, locationSource: 'configured' }
@@ -170,7 +171,7 @@ function createWeatherSource(options = {}) {
     if (!cacheFile) return
     try {
       fsImpl.mkdirSync(pathImpl.dirname(cacheFile), { recursive: true })
-      fsImpl.writeFileSync(cacheFile, JSON.stringify({ version: CACHE_VERSION, reading }), { mode: 0o600 })
+      fsImpl.writeFileSync(cacheFile, JSON.stringify({ version: CACHE_VERSION, location: { latitude: location.latitude, longitude: location.longitude }, reading }), { mode: 0o600 })
     } catch {
       // A cache failure must not stop a live reading from displaying.
     }

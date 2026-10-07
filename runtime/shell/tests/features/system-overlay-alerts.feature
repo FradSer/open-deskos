@@ -12,3 +12,10 @@ Feature: Managed System Overlay Alert Channel
     When the alert auto-dismisses or is closed
     Then the active page and focus are restored
     And keyboard and touch navigation continue operating without degradation
+
+  Scenario: Alert severity uses a uniform thin outline
+    Given an info, warning, or critical system alert
+    When the alert appears
+    Then all four border widths are one pixel
+    And warning and critical alerts retain the severity color
+    And the alert retains its accessible status or alert role

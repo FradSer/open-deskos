@@ -64,3 +64,17 @@ No upstream path is otherwise modified.
 upstream `ai-scan` artwork. `wifi-off` composes the upstream `wifi` artwork with
 a 2x2 block diagonal in the same `-off` idiom pixelarticons uses for `mic-off`
 and `eye-off`; no other pixel path in this file is modified.
+
+Home briefing mappings use unmodified upstream SVG paths.
+
+| Shell icon | Pixelarticons icon |
+| --- | --- |
+| `calendar` | `calendar` |
+| `mail` | `mail` |
+| `checkbox` | `checkbox-on` |
+| `chart-line` | `chart-line` |
+| `gauge` | `speed-medium` |
+| `apps` | `layout` |
+| `info-circle` | `circle-info` |
+
+Source: [Pixelarticons commit](https://github.com/halfmage/pixelarticons/tree/c9ecc2da61afde85dbe539025e3d931c6152ad75/svg).

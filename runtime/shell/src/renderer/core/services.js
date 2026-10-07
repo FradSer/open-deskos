@@ -49,6 +49,32 @@
     }
   }
 
+  const homeSubs = new Set()
+  let homeFrame = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
+  let homeRevision = 0
+  function receiveHome(status) {
+    homeRevision++
+    if (status?.briefing) homeFrame = status.briefing
+    else if (status?.state === 'unavailable') homeFrame = { ...homeFrame, state: homeFrame.items.length ? 'stale' : 'unavailable' }
+    else return
+    notify(homeSubs, homeFrame)
+  }
+  const homeBriefing = {
+    snapshot: () => homeFrame,
+    subscribe(callback) {
+      homeSubs.add(callback)
+      callback(homeFrame)
+      return () => homeSubs.delete(callback)
+    },
+  }
+  root.odkPersonalBot?.subscribe(receiveHome)
+  const initialHomeRevision = homeRevision
+  root.odkPersonalBot?.getStatus().then(status => {
+    if (homeRevision === initialHomeRevision) receiveHome(status)
+  }).catch(() => {
+    if (homeRevision === initialHomeRevision) receiveHome({ state: 'unavailable' })
+  })
+
   function formatCheckTime() {
     return lastCheckAt
       ? `Last checked ${lastCheckAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
@@ -236,6 +262,7 @@
   registerService('odk.service.camera', camera)
   registerService('odk.service.remoteLink', remoteLink)
   registerService('odk.service.briefing', briefing)
+  registerService('odk.service.homeBriefing', homeBriefing)
 
   root.odkServices = {
     NETWORK_LABELS,
@@ -247,6 +274,7 @@
     camera,
     remoteLink,
     briefing,
+    homeBriefing,
     registerService,
     unregisterService,
     get: getService,

@@ -38,7 +38,7 @@ test('the Shell registers what the desk holds and each reading keeps its own sta
     'odk.tile.hydra', 'odk.tile.weather', 'odk.tile.weread', 'pomodoro',
   ])
   const listed = (await control.dispatch({ command: 'list' })).readings
-  assert.deepEqual(listed.find(reading => reading.id === 'futu-poller'), { id: 'futu-poller', label: 'Futu holdings', kind: 'service' })
+  assert.deepEqual(listed.find(reading => reading.id === 'futu-poller'), { id: 'futu-poller', label: 'Futu holdings', kind: 'service', home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] } })
 
   const hydra = (await control.dispatch({ command: 'read', readingId: 'odk.tile.hydra' })).reading
   assert.equal(hydra.state, 'live')
@@ -341,4 +341,13 @@ test('a ratio the tile would draw is a ratio the reading publishes, string or nu
   assert.equal('dayChangePercent' in value.positions[2], false, 'a value no ratio can be read from carries none')
   assert.equal('dayChangePercent' in value.positions[3], false, 'an absent ratio carries none')
   assert.equal(value.totals.todayChangePercent, 0.75)
+  assert.equal(value.todayChangePercent, 0.75)
+})
+
+test('Pi home declares stable counts instead of volatile activity text', async () => {
+  const desk = shellDeskData({ piSessions: { scan: async () => ({ ok: true, sessions: [{ status: 'running', activity: 'streaming' }, { status: 'running' }, { status: 'settled' }] }) } })
+  const policy = desk.registry.list().find(r => r.id === 'odk.app.pi-sessions').home
+  assert.deepEqual(policy.fields, ['total', 'counts', 'truncated'])
+  const { reading } = await desk.registry.read('odk.app.pi-sessions')
+  assert.deepEqual(reading.value.counts, { running: 2, settled: 1 })
 })

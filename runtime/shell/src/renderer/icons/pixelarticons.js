@@ -8,6 +8,13 @@
    * icon swap (core/icons.js). Pure data. See PIXELARTICONS-NOTICE.md.
    */
   root.PIXELARTICON_PATHS = {
+    "calendar": "<path d=\"M5 4h14v2H5zm0 16h14v2H5zM3 10h2v10H3zm0-4h2v2H3zm16 0h2v2h-2zm0 4h2v10h-2zM3 8h18v2H3zm12-6h2v2h-2zM7 2h2v2H7z\"/>",
+    "mail": "<path d=\"M6 8h2v2H6zm2 2h2v2H8zm10-2h-2v2h2zm-2 2h-2v2h2zm-6 2h4v2h-4zM2 6h2v12H2zm18 0h2v12h-2zM4 4h16v2H4zm0 14h16v2H4z\"/>",
+    "checkbox": "<path d=\"M4 2h16v2H4zm0 18h16v2H4zM2 4h2v16H2zm18 0h2v16h-2zM7 12h2v2H7zm2 2h2v2H9zm2-2h2v2h-2zm2-2h2v2h-2zm2-2h2v2h-2z\"/>",
+    "chart-line": "<path d=\"M22 22H4v-2h18v2ZM4 20H2V2h2v18Zm4-6H6v-2h2v2Zm8 0h-2v-2h2v2Zm-6-2H8v-2h2v2Zm4 0h-2v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2h-2V8h2v2Zm8 0h-2V8h2v2Zm2-2h-2V6h2v2Z\"/>",
+    "gauge": "<path d=\"M5 19H3v-2h2v2Zm16 0h-2v-2h2v2ZM3 17H1v-6h2v6Zm11 0h-4v-4h1V5h2v8h1v4Zm9 0h-2v-6h2v6ZM5 11H3V9h2v2Zm16 0h-2V9h2v2ZM9 9H5V7h4v2Zm10 0h-4V7h4v2Z\"/>",
+    "apps": "<path d=\"M20 20H4v-2h4v-8H4v8H2V6h2v2h16V6h2v12h-2v-8H10v8h10v2Zm0-14H4V4h16v2Z\"/>",
+    "info-circle": "<path d=\"M18 22H6V20H18V22ZM6 20H4V18H6V20ZM20 20H18V18H20V20ZM4 18H2V6H4V18ZM22 18H20V6H22V18ZM13 17H11V11H13V17ZM13 9H11V7H13V9ZM6 6H4V4H6V6ZM20 6H18V4H20V6ZM18 4H6V2H18V4Z\"/>",
     'book-open': '<path d="M11 5h2v14h-2zM3 4h5a4 4 0 0 1 4 4v11a4 4 0 0 0-4-4H3zm18 0h-5a4 4 0 0 0-4 4v11a4 4 0 0 1 4-4h5z"/>',
     'brand-google': '<path d="M8 4h8v2H8zm-4 4h2V6h2v2H6v8h2v2H6v-2H4zm4 10h8v2H8zm8-12h2v2h-2zm0 10h2v2h-2zm-4-6h10v2h-2v4h-2v-4h-6z"/>',
     // Four planar corner brackets on the 24 grid: the same viewfinder the

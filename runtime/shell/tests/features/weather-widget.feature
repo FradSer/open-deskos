@@ -198,3 +198,16 @@ Feature: Weather instrument on the Home grid
     Given the weather source publishes any snapshot
     Then the snapshot names configured or device as the location origin
     And an unconfigured host reports no location origin
+
+  Scenario: An explicit desk location overrides an IP exit city
+    Given the desk location is configured as Wuhan
+    And the IP location provider would return Taipei
+    When the weather source refreshes
+    Then the weather request uses the Wuhan coordinates
+    And the device-location provider is never called
+
+  Scenario: Weather cache belongs to its coordinates
+    Given a cached weather reading for Taipei
+    When the desk location changes to Wuhan
+    Then the Taipei reading is not shown as Wuhan weather
+    And a provider failure leaves Wuhan unavailable

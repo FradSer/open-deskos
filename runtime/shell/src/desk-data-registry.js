@@ -42,6 +42,18 @@ function parseDeclaration(declaration) {
   return { fields: parsed }
 }
 
+function parseHome(home) {
+  if (home === undefined) return undefined
+  if (!home || typeof home !== 'object' || Array.isArray(home)
+    || Object.keys(home).some(key => !['mode', 'priority', 'icon', 'fields'].includes(key))
+    || !['required', 'optional', 'hidden'].includes(home.mode)
+    || !Number.isInteger(home.priority) || home.priority < 0 || home.priority > 100
+    || !['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'].includes(home.icon)
+    || !Array.isArray(home.fields) || home.fields.length > 16 || new Set(home.fields).size !== home.fields.length
+    || home.fields.some(field => typeof field !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(field))) throw Error('invalid-home-declaration')
+  return { mode: home.mode, priority: home.priority, icon: home.icon, fields: [...home.fields] }
+}
+
 function matchesDeclaration(spec, value) {
   if (spec.type === 'number') return typeof value === 'number' && Number.isFinite(value)
   if (spec.type === 'boolean') return typeof value === 'boolean'
@@ -87,7 +99,8 @@ function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
         if (entry.read !== undefined) throw Error('invalid-reading-reader')
       } else if (typeof entry.read !== 'function') throw Error('invalid-reading-reader')
       const declaration = kind === 'package' ? parseDeclaration(entry.declaration) : null
-      entries.set(id, { id, label, kind, read: entry.read, declaration })
+      const home = parseHome(entry.home)
+      entries.set(id, { id, label, kind, read: entry.read, declaration, home })
       // A declaration is a contract of this revision: re-registering a package
       // drops what the previous one published rather than answering for it.
       published.delete(id)
@@ -104,7 +117,7 @@ function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
 
     /** What the desk holds, named without reading any of it. */
     list() {
-      return [...entries.values()].map(({ id, label, kind }) => ({ id, label, kind }))
+      return [...entries.values()].map(({ id, label, kind, home }) => ({ id, label, kind, ...(home ? { home: parseHome(home) } : {}) }))
     },
 
     /**
@@ -183,4 +196,4 @@ function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
   }
 }
 
-module.exports = { createDeskDataRegistry, parseDeclaration, MAX_READING_BYTES, READING_ID }
+module.exports = { createDeskDataRegistry, parseDeclaration, parseHome, MAX_READING_BYTES, READING_ID }

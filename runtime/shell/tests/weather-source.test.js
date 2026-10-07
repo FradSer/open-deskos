@@ -376,7 +376,7 @@ test('the place label is bounded, collapsed, and never carries control character
 
 test('a cached place is bounded when it is loaded again', async (t) => {
   const cacheFile = temporaryCache(t)
-  fs.writeFileSync(cacheFile, JSON.stringify({ version: 1, reading: {
+  fs.writeFileSync(cacheFile, JSON.stringify({ version: 2, location: { latitude: 22.5431, longitude: 114.0579 }, reading: {
     place: 'x'.repeat(200),
     current: { temperature: 20, unit: '°C', code: 2, condition: 'Partly cloudy', sky: 'sun-cloud' },
     daily: { high: 24, low: 18 },
@@ -405,4 +405,21 @@ test('a missing reading still names the instrument unit', async (t) => {
 
 test('every state the source can publish is one the tile can render', () => {
   assert.deepEqual([...WEATHER_STATES].sort(), ['live', 'stale', 'unavailable', 'unconfigured'])
+})
+
+test('changing configured city rejects the previous city cache and bypasses the IP location', async (t) => {
+  const cacheFile = temporaryCache(t)
+  await createWeatherSource({ latitude: 25.03, longitude: 121.56, place: 'Taipei', cacheFile, fetchImpl: async () => response(payload()) }).refresh()
+  let locationCalls = 0, requestUrl
+  const wuhan = createWeatherSource({ latitude: 30.58333, longitude: 114.26667, place: 'Wuhan', cacheFile,
+    locationProvider: { resolve: async () => { locationCalls++; return { status: 'located', latitude: 25.03, longitude: 121.56, place: 'Taipei' } } },
+    fetchImpl: async url => { requestUrl = new URL(url); throw new Error('offline') } })
+  assert.equal(wuhan.snapshot().current, null)
+  const result = await wuhan.refresh()
+  assert.equal(locationCalls, 0)
+  assert.equal(requestUrl.searchParams.get('latitude'), '30.58333')
+  assert.equal(requestUrl.searchParams.get('longitude'), '114.26667')
+  assert.equal(result.place, 'Wuhan')
+  assert.equal(result.status, 'unavailable')
+  assert.equal(result.current, null)
 })
