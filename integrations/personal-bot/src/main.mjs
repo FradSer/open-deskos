@@ -14,6 +14,7 @@ import { createJevJudge } from './proactive-jev.mjs'
 import { deskDataRequest } from './desk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { rideNotification } from './ride-notification.mjs'
+import { HomeBriefing } from './home-briefing.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined) {
   report('Check ODESK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
@@ -103,6 +104,7 @@ async function main() {
   const directory = (await prepareHostDirectories(env, platform)).captures
   let runtime
   let watch
+  let home
   const service = new PersonalBotService({
     failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
     record: async onLevel => {
@@ -123,6 +125,7 @@ async function main() {
   const close = async () => {
     if (closing) return
     closing = true
+    home?.close()
     await watch?.close()
     await server.close()
     await runtime?.agent.abort()
@@ -138,6 +141,15 @@ async function main() {
     if (closing) await runtime.agent.close()
     else {
       service.setState('idle')
+      home = new HomeBriefing({
+        requireBindings: true,
+        list: async signal => (await deskDataRequest('list', { signal, env, platform })).readings,
+        read: async (id, signal) => (await deskDataRequest('read', { id, signal, env, platform })).reading,
+        generate: runtime.agent.generateBriefing,
+        publish: frame => service.publishBriefing(frame),
+      })
+      service.attachHome(home)
+      home.start()
       if (env.ODESK_PROACTIVE_CONFIG) {
         try {
           const config = loadProactiveConfig(env.ODESK_PROACTIVE_CONFIG)

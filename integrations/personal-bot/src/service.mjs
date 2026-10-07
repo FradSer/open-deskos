@@ -25,6 +25,8 @@ export class PersonalBotService {
     this.cancelStreaming = () => {}
     this.proposalFrame = { proposals: [], proposalPopup: false }
     this.watch = undefined
+    this.home = undefined
+    this.briefing = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.notification = ''
   }
 
@@ -35,7 +37,17 @@ export class PersonalBotService {
 
   attachWatch(watch) { this.watch = watch }
 
+  attachHome(home) { this.home = home }
+
+  publishBriefing(briefing) {
+    if (this.closed) return
+    this.briefing = briefing
+    this.status = { ...this.status, briefing }
+    for (const listener of this.listeners) listener(this.status)
+  }
+
   servicePush(readingIds) {
+    this.home?.invalidate()
     if (this.closed || !this.watch) return false
     return this.watch.push(readingIds)
   }
@@ -67,7 +79,7 @@ export class PersonalBotService {
       this.notification = ''
     }
     this.status = {
-      ...this.proposalFrame, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), v: 1, type: 'status', state, level: 0,
       message: boundedText(message, this.proposalFrame.proposals.length ? 8192 : 16384, 'Response'),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }

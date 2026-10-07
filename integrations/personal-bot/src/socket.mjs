@@ -26,9 +26,19 @@ export {
 // The bound on one command's bytes and the budget a peer may leave queued on a
 // connection it is not reading. Both are transport limits, not protocol ones.
 const MAX_INPUT_BYTES = 4096
-const MAX_QUEUED_BYTES = 131_072
+const MAX_FRAME_BYTES = 131_072
+const MAX_QUEUED_BYTES = 2 * MAX_FRAME_BYTES
 const sentStatuses = new WeakMap()
 const sentFrames = new WeakMap()
+const sentBriefings = new WeakMap()
+
+export function statusFrames(status) {
+  const { briefing, ...voice } = status
+  const frames = [`${JSON.stringify(voice)}\n`]
+  if (briefing) frames.push(`${JSON.stringify({ v: 1, type: 'briefing', briefing })}\n`)
+  if (frames.some(frame => Buffer.byteLength(frame) > MAX_FRAME_BYTES)) throw Error('Status frame too large')
+  return frames
+}
 
 /**
  * The endpoint this host reaches the personal bot service on: the named pipe the Shell
@@ -238,7 +248,11 @@ function send(client, status) {
   if (client.writableLength > 0 && previous?.state === 'recording' && status.state === 'recording'
     && Object.keys(previous).length === Object.keys(status).length
     && Object.entries(status).every(([key, value]) => Object.hasOwn(previous, key) && (key === 'level' || previous[key] === value))) return
-  const frame = `${JSON.stringify(status)}\n`
+  let frames
+  try { frames = statusFrames(status) } catch { client.destroy(); return }
+  const home = frames[1]
+  if (home && sentBriefings.get(client) === home) frames.pop()
+  const frame = frames.join('')
   // Desk Data pushes can echo the current snapshot while the reader is busy.
   // Only byte-identical snapshots are redundant; popup/error/content changes send.
   if (client.writableLength > 0 && sentFrames.get(client) === frame) return
@@ -247,5 +261,6 @@ function send(client, status) {
     client.write(frame)
     sentStatuses.set(client, status)
     sentFrames.set(client, frame)
+    if (home) sentBriefings.set(client, home)
   }
 }

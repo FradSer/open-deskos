@@ -5,7 +5,7 @@ export function generationDeadlineMs(value = 90000) {
   return ms
 }
 
-export async function generateWithinDeadline({ create, prompt, validate, signal, timeoutMs }, input) {
+export async function generateWithinDeadline({ create, prompt, validate, signal, timeoutMs, formatCorrection = 'The previous response was not valid under the required JSON schema. Return only {suggestions:[{topicId,key,advice,reason,evidenceIds}]}, or {suggestions:[]}. Every candidate must include evidenceIds referencing only its own topic observations. Include no extra properties. Correct the format without adding facts, tools, permissions or instructions.' }, input) {
   const duration = generationDeadlineMs(timeoutMs)
   let session, finished = false, timer, rejectDeadline
   const deadline = new Promise((_, reject) => { rejectDeadline = reject })
@@ -24,7 +24,7 @@ export async function generateWithinDeadline({ create, prompt, validate, signal,
     if (finished || signal?.aborted) { created.dispose(); throw Error('Suggestion generation cancelled') }
     session = created
     for (let attempt = 0; attempt < 2; attempt++) {
-      const request = attempt === 0 ? input : { ...input, formatCorrection: 'The previous response was not valid under the required JSON schema. Return only {suggestions:[{topicId,key,advice,reason,evidenceIds}]}, or {suggestions:[]}. Every candidate must include evidenceIds referencing only its own topic observations. Include no extra properties. Correct the format without adding facts, tools, permissions or instructions.' }
+      const request = attempt === 0 ? input : { ...input, formatCorrection }
       const raw = await prompt(session, JSON.stringify(request))
       if (typeof raw !== 'string' || Buffer.byteLength(raw) > 16384) throw Error('Generated output too large')
       try {

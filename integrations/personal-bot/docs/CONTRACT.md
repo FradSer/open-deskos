@@ -328,7 +328,8 @@ Protect session logs under `stateDir` and arrange retention explicitly.
 The watch reads owner-selected Desk Data and configured Hosted Pi sessions.
 It adds no capture, provider connector, Desk Data write verb, TTS, wake word, or automatic action.
 `ODESK_PROACTIVE_CONFIG` selects a reviewed private absolute JSON file without symlink components.
-With no file configured, there is no polling or proactive model request.
+With no file configured, owner suggestions have no polling or proactive model request.
+The separate [home briefing](#home-briefing) remains enabled.
 Invalid configuration disables suggestions while ordinary voice remains available.
 Missing mandatory Jev credentials still blocks Bot startup.
 The file is read once; changes require separately authorized restart.
@@ -520,3 +521,108 @@ Use an isolated interactive task; Session 0 is refused.
 CM5 requires separate Xvfb/XDG state, not the product display.
 Keep raw receipts and credentials private.
 A test tool grants no live-run authorization.
+
+
+## Home selection
+
+A source can declare bounded `home` metadata in its Desk Data catalog entry.
+Installed packages declare the same object in their verified manifest.
+
+```json
+{"mode":"required","priority":100,"icon":"portfolio","fields":["todayChangePercent"]}
+```
+
+`mode` is `required`, `optional`, or `hidden`.
+`priority` is an integer from 0 to 100.
+`icon` uses the approved home icon vocabulary.
+`fields` selects at most 16 unique top-level value fields.
+The declaration accepts no prose prompts, arbitrary styles, or execution permissions.
+Package home fields must exist in `data.fields`.
+Existing sources without metadata remain optional.
+
+Hidden sources do not enter generation.
+Required sources precede optional sources; optional sources follow priority and relevance.
+The input admits optional sources until it has three sources in total.
+Additional required sources still enter; optional sources cannot displace them.
+Pi home fields include lifecycle counts, not changing activity or transcript text.
+Futu holdings sources require only the signed daily percentage.
+The home excludes position counts, names, and monetary values.
+Live percentage text uses restrained green for gains and red for losses.
+Zero and retained percentages use neutral text.
+Unavailable required sources must appear with their actual state.
+The validator requires its source ID, visible label, and declared icon.
+Existing schema correction retries this output within the generation deadline.
+At most 16 sources can require coverage within the two-item output.
+Oversized required values become bounded error readings instead of disappearing.
+Too many required sources fail generation instead of publishing partial coverage.
+
+## Home briefing
+
+Personal Agent generates the first Shell page from the Desk Data registry.
+It reads the same Widget, App, and package sources that answer desk questions.
+Home generation starts after Personal Agent initialization.
+It does not require an owner suggestion configuration.
+
+The Agent checks readings every 60 seconds.
+An authenticated source push schedules another check after one second.
+The Agent compares source content before it replaces pending output.
+Unchanged source content does not trigger generation within 15 minutes.
+Measurement timestamps alone do not count as changed content.
+Each generation uses a separate temporary Pi session with no tools, extensions, Skills, or memory.
+The session uses the resident Agent model and the existing generation deadline.
+Source content is untrusted data and grants no execution authority.
+
+The input includes at most 64 sources, 8 KiB per source, and 48,000 bytes of source data.
+The Shell states the omitted source count.
+One unavailable source does not remove other readings.
+Future mail Apps can publish declared content through Desk Data without a separate home integration.
+This contract does not implement a mail provider.
+
+Resolved display JSON contains at most two connected sentences and 240 total characters.
+Each item has `text`, `segments`, and one to eight `readingIds`.
+The Agent returns a display template with field references, rather than copied values.
+Each segment contains template `text` and an optional approved `icon` name.
+References use `{{sourceId|field.path|format}}`.
+Formats are `text`, `number`, `integer`, `celsius`, and `signedPercent`.
+`@label` and `@state` bind source metadata.
+`@availability` reports unavailable when every selected field is absent or null.
+The host accepts only the exact supplied references, including their declared formats.
+Other paths bind declared fields from live plugin readings.
+The host rejects literal facts, unknown fields, uncited sources, and invalid value types.
+Literal text permits only bounded connecting words, category nouns, and referenced field names.
+Each factual segment requires a plugin field or source-state reference.
+The host resolves references before it validates and publishes display text.
+Value changes bind into the same template without another model request.
+Source availability, declaration, or field-shape changes require a new template.
+Templates expire after 15 minutes.
+The Shell receives resolved literal text; source strings never become HTML or instructions.
+The joined segment text must exactly match the item text.
+Context segments connect facts; fact segments have an icon.
+The Shell renders one paragraph with subdued context and bright icon-labelled facts.
+Source states and measurement times remain available in a native disclosure.
+Older frames without segments remain valid, with four items and 600 characters per item.
+The host validates these IDs against the current input.
+The host adds source labels, states, and measurement times.
+Binding establishes field identity and displayed values.
+It does not independently certify every connecting phrase generated by the Agent.
+
+The authenticated status channel carries a separate `briefing` JSONL frame.
+This frame contains `v: 1`, `type: "briefing"`, and the `briefing` field.
+The Shell client combines voice and briefing snapshots after it validates each frame.
+Unchanged briefing frames are not repeated with audio levels.
+Voice reply limits remain unchanged.
+It contains `state`, `items`, `generatedAt`, and `omittedSources`.
+Each displayed item contains `text` and `sources`.
+Briefing states are `loading`, `live`, `empty`, `unavailable`, `error`, and `stale`.
+`live` identifies a completed generation; each source retains its own measurement state.
+
+Failed generation retains previous items with a stale label.
+A disconnected Agent also marks retained content stale.
+The Shell renders all generated text as literal text.
+It never replaces missing output with fixed session-count sentences.
+Voice responses and owner proposals remain separate from home content.
+Home content cannot accept proposals or execute actions.
+
+Run `node --test tests/home-briefing.test.mjs` for generation and transport contracts.
+Run the Shell's `tests/agent-home.cjs` for isolated renderer fixtures.
+Fixture results do not establish live-model quality or CM5 and Windows device acceptance.

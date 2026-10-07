@@ -26,7 +26,7 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.match(instructions, /Markdown/)
 })
 
-async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {})) {
+async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-generation-env-'))
   await mkdir(join(dir, 'private'), { mode: 0o700 })
   t.after(() => rm(dir, { recursive: true, force: true }))
@@ -38,7 +38,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
       listener = callback
       return () => { listener = undefined }
     },
-    prompt: generator ? async () => generatorPrompt(listener) : async () => {},
+    prompt: generator ? async text => generatorPrompt(listener, text) : async () => {},
     abort: async () => {}, dispose: () => {},
   })
   const bot = await createPersonalBot({
@@ -48,11 +48,48 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
   }, {
     createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined }),
     createIntentRouter: () => async () => ({ intent: 'conversation' }),
-    createSession: async () => ({ session: session(++sessionNumber === 2) }),
+    createSession: async options => {
+      const generator = ++sessionNumber === 2
+      if (generator) inspect(options)
+      return { session: session(generator) }
+    },
   })
   t.after(() => bot.close())
   return bot
 }
+
+test('home generation uses an isolated zero-tool SDK session and its own schema', async t => {
+  let inspected = false
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
+    emit?.({ type: 'message_end', message: assistant('{"items":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","segments":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","icon":"mail"}],"readingIds":["mail"]}]}') })
+  }, options => {
+    inspected = true
+    assert.deepEqual(options.tools, [])
+    assert.deepEqual(options.customTools, [])
+    assert.equal(options.resourceLoader.getExtensions().extensions.length, 0)
+    assert.equal(options.resourceLoader.getSkills().skills.length, 0)
+    assert.match(options.resourceLoader.getSystemPrompt(), /No tools, actions, memory/)
+  })
+  const result = await bot.generateBriefing({ readings: [{ id: 'mail', label: 'Mail', kind: 'package', state: 'live', value: { subject: 'Untrusted content' } }] })
+  assert.equal(inspected, true)
+  assert.equal(result.items[0].readingIds[0], 'mail')
+})
+
+test('required home correction names the exact visible coverage contract', async t => {
+  let attempts = 0
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async (emit, text) => {
+    const request = JSON.parse(text.slice(text.indexOf('{')))
+    if (++attempts === 2) {
+      assert.match(request.formatCorrection, /copy its visible label exactly/)
+      assert.match(request.formatCorrection, /Futu holdings/)
+      assert.match(request.formatCorrection, /portfolio/)
+    }
+    const content = attempts === 1 ? '{"items":[]}' : JSON.stringify({ items: [{ text: '{{futu|@label|text}} count {{futu|count|integer}}.', segments: [{ text: '{{futu|@label|text}} count {{futu|count|integer}}.', icon: 'portfolio' }], readingIds: ['futu'] }] })
+    emit?.({ type: 'message_end', message: assistant(content) })
+  })
+  await bot.generateBriefing({ readings: [{ id: 'futu', label: 'Futu holdings', state: 'live', value: { count: 11 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['count'] } }] })
+  assert.equal(attempts, 2)
+})
 
 test('Given different service and process environments When generating suggestions Then the service timeout controls the injected SDK session', { timeout: 5000 }, async t => {
   const previous = process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
