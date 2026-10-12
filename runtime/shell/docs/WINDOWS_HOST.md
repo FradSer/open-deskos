@@ -158,7 +158,7 @@ node scripts\personal-bot-acceptance.mjs --status
 
 The first command performs live capture/provider work. `--status` only reads state. The bot needs its own host-local Pi model authentication. STT credentials do not authenticate the model. Configure an OpenAI-compatible provider in `~\.pi\agent\models.json`; the Shell does not log in on the bot's behalf.
 
-Both `desk-data` and `user-app-control` resolve through the host platform and present its token. Production needs no `ODESK_*_SOCKET` override. Those overrides are for tests. `didi` in the personal profile remains unported; the default coding profile does not need it.
+Both `desk-data` and `user-app-control` resolve through the host platform and present its token. Production needs no `ODESK_*_SOCKET` override. Those overrides are for tests. The personal profile supports DiDi on Windows. Use a private credential file for DiDi.
 
 ## State and private configuration
 
