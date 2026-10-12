@@ -1,5 +1,5 @@
 /*
- * lv_conf.h — LVGL configuration for the native open-deskos simulator.
+ * lv_conf.h — LVGL configuration for the native odk simulator.
  *
  * The display color format is forced to RGB565 at runtime by lua_lvgl_runtime
  * (lua_lvgl_runtime.c:831), so LV_COLOR_DEPTH is set to 16 to match the

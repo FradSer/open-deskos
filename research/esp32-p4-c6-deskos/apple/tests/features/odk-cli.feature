@@ -10,7 +10,7 @@ Feature: OpenDeskOS macOS CLI background management
     And the help lists "daemon status"
 
   Scenario: The subscription pull keeps the device wall clock synced
-    Given a OPEN_DESKOS device is connected over USB serial
+    Given a ODK device is connected over USB serial
     When the user runs "OpenDeskOS sub pull"
     Then the bridge first pushes "cerb settime <epoch>" to the device
     And the bridge then polls "cerb sub status"

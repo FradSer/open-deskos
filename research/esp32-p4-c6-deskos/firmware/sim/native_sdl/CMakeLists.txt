@@ -1,19 +1,19 @@
-# open-deskos native SDL2 simulator: builds the SAME firmware lua_module_lvgl
+# odk native SDL2 simulator: builds the SAME firmware lua_module_lvgl
 # sources against SDL2 + host shims (sim_esp_compat.c), independent of
 # ESP-IDF, PlatformIO, and Emscripten. Mirrors pulse-esp/sim/CMakeLists.txt
 # and the web sim's source list.
 #
 # Build & run (no IDF/emsdk on this Mac — memory [[idf-toolchain-activate]]):
 #   brew install sdl2 cmake
-#   cmake -S firmware/open-deskos/sim/native_sdl -B firmware/open-deskos/sim/native_sdl/build
-#   cmake --build firmware/open-deskos/sim/native_sdl/build -j
-#   cd firmware/open-deskos/sim/native_sdl && ./build/open-deskos_sim
+#   cmake -S firmware/odk/sim/native_sdl -B firmware/odk/sim/native_sdl/build
+#   cmake --build firmware/odk/sim/native_sdl/build -j
+#   cd firmware/odk/sim/native_sdl && ./build/odk_sim
 #
-# Host-vs-target honesty (memory [[open-deskos-firmware-host-vs-idf-build]]):
+# Host-vs-target honesty (memory [[odk-firmware-host-vs-idf-build]]):
 # this passing != `idf.py build` passing; the sim shares lua_module_lvgl source
 # but exercises the IO/PARTIAL render path, not the device's MIPI_DSI path.
 cmake_minimum_required(VERSION 3.16)
-project(open-deskos_native_sim C CXX)
+project(odk_native_sim C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -87,7 +87,7 @@ set(LUA_SOURCES
     ${LUA_SRC_DIR}/linit.c
 )
 
-set(ODK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")   # firmware/open-deskos
+set(ODK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")   # firmware/odk
 set(LVGL_MOD  "${ODK_ROOT}/components/lua_modules/lua_module_lvgl/src")
 set(SVC_LLM   "${ODK_ROOT}/components/odk_svc_llm")
 set(VENDOR    "${ODK_ROOT}/tests/host/vendor")
@@ -98,7 +98,7 @@ target_include_directories(sim_cjson PUBLIC "${VENDOR}/cjson")
 
 find_package(CURL REQUIRED)
 
-add_executable(open-deskos_sim
+add_executable(odk_sim
     sim_main.c
     sdl_driver.c
     sim_esp_compat.c
@@ -125,7 +125,7 @@ add_executable(open-deskos_sim
     ${LUA_SOURCES}
 )
 
-target_include_directories(open-deskos_sim PRIVATE
+target_include_directories(odk_sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/compat
     ${SVC_LLM}/include
@@ -142,7 +142,7 @@ target_include_directories(open-deskos_sim PRIVATE
 # xTaskCreatePinnedToCore path, and defaults the LVGL FS data_root to "/" — the
 # exact contract the Emscripten web sim relies on, with zero Emscripten deps
 # (lua_module_lvgl has no EM_ASM calls, only #ifdef __EMSCRIPTEN__ guards).
-target_compile_definitions(open-deskos_sim PRIVATE
+target_compile_definitions(odk_sim PRIVATE
     LV_TINY_TTF_CACHE_GLYPH_CNT=4096
     __EMSCRIPTEN__
     LUA_USE_C89
@@ -153,7 +153,7 @@ target_compile_definitions(open-deskos_sim PRIVATE
     ODK_LLM_CHAT_MODEL="qwen3.7-plus"
 )
 
-target_link_libraries(open-deskos_sim PRIVATE
+target_link_libraries(odk_sim PRIVATE
     lvgl
     sim_cjson
     ${CURL_LIBRARIES}

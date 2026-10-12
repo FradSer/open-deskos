@@ -6,7 +6,7 @@ final class CompanionStatusServer {
     static let defaultPort: UInt16 = 8_788
 
     private let listener: NWListener
-    private let queue = DispatchQueue(label: "dev.fradser.open-deskos.companion-status")
+    private let queue = DispatchQueue(label: "dev.fradser.odk.companion-status")
     private let lock = NSLock()
     private var status: OpenDeskOSCompanionStatus
     private var isListening = false

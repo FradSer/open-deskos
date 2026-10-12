@@ -134,7 +134,7 @@ The proposed gates were touch-to-scroll p95 ≤16ms, scroll-to-presentation p95 
 The sources and measurements were not checked again during this document edit.
 
 
-<a id="application-open-deskos-boards-m5stack-m5papercolor-readme"></a>
+<a id="application-odk-boards-m5stack-m5papercolor-readme"></a>
 
 # M5Stack PaperColor (ESP32-S3)
 
@@ -173,7 +173,7 @@ Board definition for the **M5Stack PaperColor** e-paper terminal.
 - Vendor Demo: [M5PaperColor-UserDemo](https://github.com/m5stack/M5PaperColor-UserDemo)
 
 
-<a id="application-open-deskos-boards-waveshare-esp32-s3-touch-lcd-2-8-readme"></a>
+<a id="application-odk-boards-waveshare-esp32-s3-touch-lcd-2-8-readme"></a>
 
 # Waveshare ESP32-S3 Touch LCD 2.8
 

@@ -7,7 +7,7 @@ readonly ODK_ROOT="$(CDPATH= cd -- "${SIM_DIR}/../.." && pwd -P)"
 # An external build directory keeps a relocated research tree free of stale CMake
 # cache paths while preserving the historical in-tree default for direct use.
 readonly BUILD_DIR="${ODK_SIM_BUILD_DIR:-${SIM_DIR}/build}"
-readonly FONT_DIR="${ODK_ROOT}/application/open_deskos/fatfs_image/storage/fonts"
+readonly FONT_DIR="${ODK_ROOT}/application/odk/fatfs_image/storage/fonts"
 readonly LUA_SOURCE="${ODK_ROOT}/components/lua_modules/lua_module_lvgl/lib"
 
 if ! command -v cmake >/dev/null 2>&1; then
@@ -78,4 +78,4 @@ else
     fi
 fi
 
-exec "${BUILD_DIR}/open-deskos_sim" "$@"
+exec "${BUILD_DIR}/odk_sim" "$@"

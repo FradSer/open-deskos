@@ -56,7 +56,7 @@ struct OpenDeskOSCLI {
                         the OpenCode Go subscription refresher.
       daemon uninstall  Stop and remove both agents.
       daemon status     Show agent state and the last health-check result.
-      sub push          Fetch live OpenCode Go usage and push it to the OPEN_DESKOS
+      sub push          Fetch live OpenCode Go usage and push it to the ODK
                         device over USB serial ("cerb sub push k=v ...").
       sub pull          Same as push (alias; loop mode is device-refresh-driven).
       time set          Push the Mac wall clock to the device ("cerb settime").

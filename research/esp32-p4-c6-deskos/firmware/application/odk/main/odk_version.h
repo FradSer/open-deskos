@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /** Return the stable Open DeskOS firmware semantic version from CMake project(VERSION), such as "0.1.0". */
-const char *open_deskos_get_version(void);
+const char *odk_get_version(void);
 
 #ifdef __cplusplus
 }

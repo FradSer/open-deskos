@@ -1,5 +1,5 @@
 /*
- * host_lua_modules.c — minimal host Lua module stubs for the open-deskos sim.
+ * host_lua_modules.c — minimal host Lua module stubs for the odk sim.
  *
  * The AIODI launcher (launcher.lua + aiodi.lua) only requires `lvgl` (the C
  * module, registered separately) and reads the injected globals PANEL /

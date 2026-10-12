@@ -9,9 +9,9 @@ supported board-manager targets:
   CST328 touch.
 - **M5Stack PaperColor** — ESP32-S3, ED2208 SPI 400×600 e-paper display, M5PM1 PMIC.
 
-The research firmware application is [`application/open_deskos/`](application/open_deskos/).
+The research firmware application is [`application/odk/`](application/odk/).
 Board definitions live under
-[`application/open_deskos/boards/`](application/open_deskos/boards/); the
+[`application/odk/boards/`](application/odk/boards/); the
 supported IDs are `jc4880p443c`, `esp32_s3_touch_lcd_2_8`, and `m5papercolor`. Standalone
 upstream sample applications are not part of this firmware tree.
 
@@ -21,7 +21,7 @@ Use ESP-IDF 6.0.1 or newer. The P4 MIPI-DSI display path is not supported by
 older IDF versions used by the upstream project.
 
 ```bash
-cd research/esp32-p4-c6-deskos/firmware/application/open_deskos
+cd research/esp32-p4-c6-deskos/firmware/application/odk
 # Guition JC4880P443C (P4 + C6)
 eim run "idf.py bmgr -c ./boards -b jc4880p443c" v6.0.1
 eim run "idf.py build" v6.0.1
@@ -67,9 +67,9 @@ Host tests do not require ESP-IDF:
 
 ```bash
 cd research/esp32-p4-c6-deskos/firmware
-cmake -S tests/host -B /tmp/open-deskos-host-build
-cmake --build /tmp/open-deskos-host-build -j
-ctest --test-dir /tmp/open-deskos-host-build --output-on-failure
+cmake -S tests/host -B /tmp/odk-host-build
+cmake --build /tmp/odk-host-build -j
+ctest --test-dir /tmp/odk-host-build --output-on-failure
 ```
 
 The native simulator uses an SDL2 IO/PARTIAL render path. A passing simulator
@@ -148,7 +148,7 @@ Verify these controls on the exact firmware, provisioning state, and board befor
 
 ## Image layout and configuration
 
-Edit application/open_deskos/fatfs_image/storage for writable DATA seeds and fatfs_image/system for read-only SYSTEM seeds. The build stages them into build/fatfs_image and build/system_fs_image. A selected board can overlay its fatfs_image directory onto SYSTEM only. Matching relative paths replace base files. Hidden board directories are excluded.
+Edit application/odk/fatfs_image/storage for writable DATA seeds and fatfs_image/system for read-only SYSTEM seeds. The build stages them into build/fatfs_image and build/system_fs_image. A selected board can overlay its fatfs_image directory onto SYSTEM only. Matching relative paths replace base files. Hidden board directories are excluded.
 
 Component skills and builtin Lua scripts/documents are copied into SYSTEM. DATA can be reformatted and seeded again without losing the system copies. Configure Wi-Fi, LLM, IM, search keys and timezone through menuconfig in the selected toolchain. Keep credentials out of examples and logs.
 

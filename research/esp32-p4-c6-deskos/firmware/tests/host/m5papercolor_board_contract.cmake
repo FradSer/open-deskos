@@ -1,9 +1,9 @@
 set(ODK_ROOT "${ODK_ROOT}")
-set(BOARD_DIR "${ODK_ROOT}/application/open_deskos/boards/m5stack/m5papercolor")
-set(VOICE_UI "${ODK_ROOT}/application/open_deskos/main/odk_voice_ui.c")
-set(MAIN_C "${ODK_ROOT}/application/open_deskos/main/main.c")
-set(DISPLAY_BRINGUP "${ODK_ROOT}/application/open_deskos/main/odk_m5paper_display_bringup.c")
-set(EPD_DRIVER "${ODK_ROOT}/application/open_deskos/components/esp_lcd_m5paper_epd/src/esp_lcd_m5paper_epd.c")
+set(BOARD_DIR "${ODK_ROOT}/application/odk/boards/m5stack/m5papercolor")
+set(VOICE_UI "${ODK_ROOT}/application/odk/main/odk_voice_ui.c")
+set(MAIN_C "${ODK_ROOT}/application/odk/main/main.c")
+set(DISPLAY_BRINGUP "${ODK_ROOT}/application/odk/main/odk_m5paper_display_bringup.c")
+set(EPD_DRIVER "${ODK_ROOT}/application/odk/components/esp_lcd_m5paper_epd/src/esp_lcd_m5paper_epd.c")
 
 foreach(path IN ITEMS
         "${BOARD_DIR}/board_info.yaml"

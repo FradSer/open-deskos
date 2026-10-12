@@ -1,5 +1,5 @@
 /*
- * sim_main.c — native SDL2 composition root for the open-deskos simulator.
+ * sim_main.c — native SDL2 composition root for the odk simulator.
  *
  * Mirrors pulse-esp/sim/sim_main.cpp (SDL2 + real LVGL tick loop) and the
  * Emscripten web sim's esp_claw_sim.c (register the real C luaopen_lvgl,

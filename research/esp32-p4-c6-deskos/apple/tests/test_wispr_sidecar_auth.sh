@@ -5,7 +5,7 @@ project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." >/dev/null && pwd -P)
 bundled_bun="$project_dir/OpenDeskOS/Resources/plugins/wispr/bun"
 bun_command="${BUN:-bun}"
 bundle="$project_dir/OpenDeskOS/Resources/plugins/wispr/server.bundle.js"
-temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/open-deskos-wispr-auth.XXXXXX")
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/odk-wispr-auth.XXXXXX")
 port=$((20_000 + ($$ % 10_000)))
 server_pid=''
 

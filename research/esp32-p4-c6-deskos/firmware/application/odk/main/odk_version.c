@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "open_deskos_version.h"
+#include "odk_version.h"
 
 #include "esp_app_desc.h"
 
-const char *open_deskos_get_version(void)
+const char *odk_get_version(void)
 {
     return esp_app_get_description()->version;
 }

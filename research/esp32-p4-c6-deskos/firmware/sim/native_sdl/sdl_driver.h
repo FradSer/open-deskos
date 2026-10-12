@@ -1,5 +1,5 @@
 /*
- * sdl_driver.h — native SDL2 display + touch surface for the open-deskos simulator.
+ * sdl_driver.h — native SDL2 display + touch surface for the odk simulator.
  *
  * Mirrors pulse-esp/sim/sdl_driver.cpp but routes through the firmware's own
  * flush path: the real lua_lvgl_flush_cb calls esp_lcd_panel_draw_bitmap (host
