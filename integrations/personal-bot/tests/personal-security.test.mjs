@@ -1,3 +1,6 @@
+import { protectProactivePath } from '../src/proactive-private.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, realpath, writeFile, readFile, rm, symlink, chmod, link, readdir } from 'node:fs/promises';
@@ -10,6 +13,7 @@ import { createPersonalTools } from '../src/personal-tools.mjs';
 async function fixture(t) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-security-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
+  if (process.platform === 'win32') protectProactivePath(dir);
   return dir;
 }
 
@@ -51,9 +55,11 @@ test('Given memory filesystem links or shared parent When accessing Then fail wi
   await link(file, alias);
   await assert.rejects(createMemoryStore(file).read(), (error) => !error.message.includes('private marker'));
   await rm(alias);
-  await chmod(dir, 0o755);
+  if (process.platform === 'win32') await promisify(execFile)(join(process.env.SystemRoot, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)(R)']);
+  else await chmod(dir, 0o755);
   await assert.rejects(createMemoryStore(file).read(), /unsafe/);
-  await chmod(dir, 0o700);
+  if (process.platform === 'win32') protectProactivePath(dir);
+  else await chmod(dir, 0o700);
   const linkedDir = join(dir, 'linked');
   await symlink(dir, linkedDir);
   await assert.rejects(createMemoryStore(join(linkedDir, 'MEMORY.json')).read(), /unsafe/);

@@ -1,3 +1,4 @@
+import { endpoint, tokenEnvironment, requests as readRequests } from './helpers/private-channel.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
@@ -13,23 +14,16 @@ const HYDRA = 'odk.tile.hydra'
 /** A Shell-side Desk Data Link that answers what the test needs it to answer. */
 async function listenDeskData(t, answer) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-desk-data-'))
-  const socketPath = path.join(root, 'service.sock')
+  await tokenEnvironment(t, root)
+  const socketPath = endpoint(root, 'service.sock')
   const requests = []
   const server = net.createServer(client => {
+    client.on('error', error => { if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') throw error })
     // A reader that refuses an oversized response closes the connection while this
     // side is still writing, which is the refusal working, not a failure.
-    client.on('error', () => {})
-    let buffer = ''
-    client.on('data', chunk => {
-      buffer += chunk
-      let newline
-      while ((newline = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, newline)
-        buffer = buffer.slice(newline + 1)
-        const request = JSON.parse(line)
+    readRequests(client, request => {
         requests.push(request)
         client.write(JSON.stringify({ v: 1, id: request.id, ...answer(request) }) + '\n')
-      }
     })
   })
   await new Promise(resolve => server.listen(socketPath, resolve))
@@ -55,7 +49,7 @@ const read = async (tool, params = {}) => JSON.parse((await tool.execute('call',
 test('the desk data endpoint is the one the Shell Host names for the desk-data link', () => {
   assert.equal(deskDataEndpoint({}, 'linux'), null, 'a Unix host without a runtime directory resolves no endpoint to guess')
   assert.equal(deskDataEndpoint({ XDG_RUNTIME_DIR: 'run/user/1000' }, 'linux'), null)
-  assert.equal(deskDataEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), '/run/user/1000/open-deskos-desk-data/service.sock')
+  assert.equal(deskDataEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), path.join('/run/user/1000', 'open-deskos-desk-data', 'service.sock'))
   assert.equal(deskDataEndpoint({}, 'win32'), '\\\\.\\pipe\\open-deskos-desk-data')
   assert.equal(deskDataEndpoint({ ODESK_DESK_DATA_SOCKET: '/tmp/desk.sock' }, 'linux'), '/tmp/desk.sock')
 })
@@ -143,13 +137,11 @@ test('a reading whose own fields name a token is still a reading', async t => {
   // skip a perfectly valid reading whose value happens to contain that word.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-dd-'))
   t.after(async () => fs.rm(root, { recursive: true, force: true }))
-  const socketPath = path.join(root, 'service.sock')
+  await tokenEnvironment(t, root)
+  const socketPath = endpoint(root, 'service.sock')
   const server = net.createServer(client => {
-    let buffer = ''
-    client.on('data', chunk => {
-      buffer += chunk
-      if (!buffer.includes('\n')) return
-      const request = JSON.parse(buffer.split('\n').filter(Boolean).at(-1))
+    client.on('error', error => { if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') throw error })
+    readRequests(client, request => {
       client.write(JSON.stringify({
         v: 1, id: request.id, ok: true,
         reading: { id: 'desk-note', kind: 'package', state: 'live', untrusted: true, value: { token: 'abc', remaining_seconds: 42 } },
@@ -176,14 +168,13 @@ test('a frame that is not this protocol fails fast with a named reason', async t
     ['a JSON frame from another protocol', '{"note":"not this protocol"}\n', /not a Desk data response/],
   ]
   for (const [label, firstLine, expected] of cases) {
-    const socketPath = path.join(root, `${label.replace(/\W+/g, '-')}.sock`)
+    await tokenEnvironment(t, root)
+  const socketPath = endpoint(root, label.replace(/\W+/g, '-'))
     const server = net.createServer(client => {
-      let buffer = ''
-      client.on('data', chunk => {
-        buffer += chunk
-        if (!buffer.includes('\n')) return
+    client.on('error', error => { if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') throw error })
+      readRequests(client, request => {
         client.write(firstLine)
-        client.write(JSON.stringify({ v: 1, id: JSON.parse(buffer.split('\n').filter(Boolean).at(-1)).id, ok: true }) + '\n')
+        client.write(JSON.stringify({ v: 1, id: request.id, ok: true }) + '\n')
       })
     })
     t.after(() => new Promise(resolve => server.close(resolve)))

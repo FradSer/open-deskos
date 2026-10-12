@@ -25,8 +25,11 @@ export async function atomicRecord(file, value) {
   } finally { await handle.close(); }
   try { await rename(temporary, file); }
   finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
-  const directory = await open(join(file, '..'), 'r')
-  try { await directory.sync(); } finally { await directory.close(); }
+  // Windows cannot flush a directory handle. The file was flushed before rename.
+  if (process.platform !== 'win32') {
+    const directory = await open(join(file, '..'), 'r')
+    try { await directory.sync(); } finally { await directory.close(); }
+  }
 }
 /** @param {string} root @param {string} path */
 export function within(root, path) {

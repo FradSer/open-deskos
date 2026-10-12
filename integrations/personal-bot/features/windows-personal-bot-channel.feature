@@ -81,11 +81,16 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     And it sends no handshake where ownership already authenticates the peer, which is every Unix socket endpoint
     And the voice protocol on top of it is unchanged: a status query and a toggle, each one line
 
-  Scenario: What these tests do not prove
-    Given a named pipe only exists on a Windows host
-    And the automated tests for this channel run the handshake gate over a stand-in endpoint on a Unix host
-    Then no test creates a real Windows named pipe, and none runs on a Windows host here
-    And a test proves the pipe name is handed to the transport unchanged, not that Windows accepts it
-    And the token file's Windows location is asserted through the calls the listener makes, not by a Windows profile ACL
-    And a peer that is refused is observed to be destroyed; the wording a Windows client surfaces is not asserted
-    And no test captures audio, starts a transcription provider, or reaches the network
+  Scenario: Unix channel fixtures have limited platform evidence
+    Given the channel tests run on a Unix host
+    When they exercise Windows behavior through a stand-in endpoint
+    Then they prove the protocol contract without proving native Windows transport behavior
+    And native Windows acceptance must exercise real named pipes and profile permissions
+    And offline channel tests do not prove live audio capture or provider connectivity
+
+  Scenario: Native Windows acceptance preserves shared agent behavior
+    Given an isolated Windows profile and private authenticated channels
+    When the agent reads Desk Data and controls installed applications
+    Then its public tool results match the Unix host behavior
+    And invalid frames remain rejected
+    And proactive confirmation completes without microphone capture

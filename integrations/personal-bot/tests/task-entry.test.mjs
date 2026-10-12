@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
@@ -53,7 +53,7 @@ async function waitForPublished(descriptor) {
   throw new Error(`the running host published no endpoint descriptor at ${descriptor}`)
 }
 
-test('the task daemon serves its socket when started through a release symlink', async t => {
+test('the task daemon serves its socket when started through a release symlink', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
   const child = start(paths.entry, paths)
   t.after(() => child.kill())
@@ -79,7 +79,7 @@ test('the task daemon serves its socket when started through a release symlink',
 // The desk's Console path discovers this host through the published descriptor, and a descriptor left
 // behind by a stopped host claims a socket that is not there — the same lie either way for an
 // operator looking at a Console that reports no host.
-test('the running daemon publishes its endpoint and withdraws it on shutdown', async t => {
+test('the running daemon publishes its endpoint and withdraws it on shutdown', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
   const descriptor = join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')
   const child = start(paths.entry, paths)
@@ -107,7 +107,7 @@ test('the running daemon publishes its endpoint and withdraws it on shutdown', a
 test('importing the task daemon without running it starts no daemon', async t => {
   const paths = await host(t)
   const wrapper = join(paths.dir, 'wrapper.mjs')
-  await writeFile(wrapper, `await import(${JSON.stringify(paths.entry)})\n`)
+  await writeFile(wrapper, `await import(${JSON.stringify(pathToFileURL(paths.entry).href)})\n`)
   const child = start(wrapper, paths)
   t.after(() => child.kill())
   const exit = await Promise.race([
@@ -119,7 +119,7 @@ test('importing the task daemon without running it starts no daemon', async t =>
   assert.ok(!existsSync(paths.socket), 'importing the module created a control socket')
 })
 
-test('CLI shutdown during service initialization cleans the late service without publishing', async t => {
+test('CLI shutdown during service initialization cleans the late service without publishing', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
   const serviceUrl = new URL('../src/task-service.mjs', import.meta.url).href
   const mockSource = `export async function createTaskService() {

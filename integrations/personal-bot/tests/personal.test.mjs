@@ -1,3 +1,4 @@
+import { checkProactivePath } from '../src/proactive-private.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, writeFile, readFile, stat, chmod, symlink, realpath } from 'node:fs/promises';
@@ -44,8 +45,11 @@ test('Given memory When explicit remember/forget Then exact single-use current-t
   await memory.update({ category: 'note', value: '我喜欢茶' });
   assert.deepEqual(JSON.parse(await memory.read()), { note: '我喜欢茶' });
   await assert.rejects(memory.update({ category: 'note', value: '我喜欢茶' }), /current user turn/);
-  assert.equal((await stat(file)).mode & 0o777, 0o600);
-  assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700);
+  if (process.platform === 'win32') {checkProactivePath(file);checkProactivePath(join(dir, 'private'));}
+  else {
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
+    assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700);
+  }
   memory.beginTurn('remember beverage: tea');
   await memory.update({ category: 'beverage', value: 'tea' });
   memory.beginTurn('hello');

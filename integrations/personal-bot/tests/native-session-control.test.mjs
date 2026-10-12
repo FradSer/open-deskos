@@ -1,3 +1,5 @@
+import { nodeExecutable } from './helpers/node-executable.mjs'
+import { tmpdir } from 'node:os'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -10,6 +12,7 @@ import { createIntentTurn, guardIntentTools } from '../src/intent-routing.mjs'
 const IDS = ['10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003']
 const REFUSALS = ['此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
 async function configuredTools(t, root, executable) {
+  executable = await nodeExecutable(t, executable)
   const config = join(root, 'targets.json')
   await writeFile(config, JSON.stringify({ targets: [{ id: 'mac', name: 'Mac', roots: [root], executable }] }))
   const previous = process.env.ODESK_TASK_TARGETS_FILE
@@ -19,8 +22,8 @@ async function configuredTools(t, root, executable) {
   return { tools, call: async (name, params) => (await tools.find(tool => tool.name === name).execute('fixture', params)).structuredContent }
 }
 async function temporaryRoot(t) {
-  const root = await mkdtemp('/tmp/odk-native-')
-  t.after(() => rm(root, { recursive: true, force: true }))
+  const root = await mkdtemp(join(process.platform === 'win32' ? tmpdir() : '/tmp', 'odk-native-'))
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   return root
 }
 test('native endpoint fixed refusals retain meaning while arbitrary errors remain hidden', async t => {
@@ -69,7 +72,7 @@ test('an incomplete native inventory retains unavailable endpoints and cannot pr
   }
 })
 // Real published helper and SessionHost sockets; only the Pi message receiver is mocked.
-test('coordinator discovers native sessions by root and continues the exact Chinese task identity', async t => {
+test('coordinator discovers native sessions by root and continues the exact Chinese task identity', { skip: process.platform === 'win32' ? 'Unix external Pi SessionHost fixture; Windows native client contracts run separately' : false }, async t => {
   const packageRoot = process.env.ODESK_PI_PACKAGE_DIR ?? fileURLToPath(new URL('../../../../pi-packages/packages/open-deskos/', import.meta.url))
   try { await access(join(packageRoot, 'src/session-host.ts')) } catch (error) {
     if (process.env.ODESK_PI_PACKAGE_DIR || error.code !== 'ENOENT') throw error

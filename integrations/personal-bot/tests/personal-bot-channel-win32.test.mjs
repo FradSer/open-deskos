@@ -1,3 +1,5 @@
+import { endpoint as privateEndpoint, fixtureToken } from './helpers/private-channel.mjs'
+import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
@@ -49,7 +51,7 @@ function within(promise, message, ms = 3000) {
  * transport, not the contract.
  */
 function standInPipeNet(dir) {
-  const stand = endpoint => join(dir, `stand-in-${String(endpoint).replace(/^\\\\\.\\pipe\\/i, '')}`)
+  const stand = endpoint => process.platform === 'win32' ? privateEndpoint(dir, 'stand-in') : join(dir, `stand-in-${String(endpoint).replace(/^\\\\\.\\pipe\\/i, '')}`)
   return {
     path: stand,
     bound: [],
@@ -116,21 +118,21 @@ function attempt(pipeNet, first, endpoint = PIPE) {
 test('personalBotEndpoint names the endpoint the Shell Host names for the voice link', () => {
   assert.equal(personalBotEndpoint(WINDOWS_ENV, 'win32'), PIPE)
   assert.equal(personalBotEndpoint({}, 'win32'), PIPE, 'the pipe name does not depend on a directory the host may not have')
-  assert.equal(personalBotEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), '/run/user/1000/open-deskos-personal-bot/agent.sock')
+  assert.equal(personalBotEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), join('/run/user/1000', 'open-deskos-personal-bot', 'agent.sock'))
   assert.equal(personalBotEndpoint({ XDG_RUNTIME_DIR: 'run/user/1000' }, 'linux'), null, 'a relative runtime directory is not a channel location')
   assert.equal(personalBotEndpoint({}, 'linux'), null, 'a Unix host without a runtime directory is left to refuse to start')
 })
 
 test('channelTokenFile is the file every other Windows runtime channel uses', () => {
   assert.equal(channelTokenFile(WINDOWS_ENV, 'win32'), 'C:\\Users\\fradser\\AppData\\Local\\open-deskos\\local-channel.token')
-  assert.equal(channelTokenFile({ XDG_STATE_HOME: '/home/desk/.local/state' }, 'linux'), '/home/desk/.local/state/open-deskos/local-channel.token')
+  assert.equal(channelTokenFile({ XDG_STATE_HOME: '/home/desk/.local/state' }, 'linux'), join('/home/desk/.local/state', 'open-deskos', 'local-channel.token'))
   assert.equal(TOKEN_FILENAME, 'local-channel.token')
 })
 
 test('the endpoint and the token file are the ones the Shell Host itself resolves', t => {
   const platformModule = new URL('../../../runtime/shell/src/platform/index.js', import.meta.url)
   if (!existsSync(platformModule)) return t.skip('the Shell Host resolves endpoints outside this package')
-  const { resolveShellHost } = require(platformModule.pathname)
+  const { resolveShellHost } = require(fileURLToPath(platformModule))
   const windows = resolveShellHost({ platform: 'win32', arch: 'x64', env: WINDOWS_ENV, homedir: 'C:\\Users\\fradser' })
   const unixEnv = { XDG_RUNTIME_DIR: '/run/user/1000', XDG_STATE_HOME: '/home/desk/.local/state' }
   const unix = resolveShellHost({ platform: 'linux', arch: 'arm64', env: unixEnv, homedir: '/home/desk' })
@@ -180,7 +182,7 @@ test('a Windows handshake admits a coalesced proposal command larger than its ow
 })
 
 test('shutdown closes peers that have not sent a handshake or command', async t => {
-  for (const platform of ['linux', 'win32']) {
+  for (const platform of process.platform === 'win32' ? ['win32'] : ['linux', 'win32']) {
     await t.test(platform, async t => {
       const dir = await temp(t)
       const pipeNet = standInPipeNet(dir)
@@ -383,7 +385,7 @@ test('two services reading one cold host file together end up with the same toke
 
   assert.equal(first, second)
   assert.equal((await fs.readFile(file, 'utf8')).trim(), first)
-  assert.equal((await stat(file)).mode & 0o777, 0o600)
+  if (process.platform !== 'win32') assert.equal((await stat(file)).mode & 0o777, 0o600)
 })
 
 test('a delayed token writer cannot split the Shell and Bot credentials', async t => {
@@ -419,14 +421,14 @@ test('the token file is created on first use and then left alone', async t => {
   assert.equal(Buffer.from(first, 'base64url').length, TOKEN_BYTES)
   assert.equal(first, second, 'the file is what makes two processes agree')
   assert.equal(await fs.readFile(file, 'utf8'), `${first}\n`)
-  assert.equal((await stat(file)).mode & 0o777, 0o600)
-  assert.equal((await stat(join(dir, 'state', 'open-deskos'))).mode & 0o777, 0o700)
+  if (process.platform !== 'win32') assert.equal((await stat(file)).mode & 0o777, 0o600)
+  if (process.platform !== 'win32') assert.equal((await stat(join(dir, 'state', 'open-deskos'))).mode & 0o777, 0o700)
 
   const other = await readOrCreateChannelToken({ file: join(await temp(t), 'other', TOKEN_FILENAME) })
   assert.notEqual(other, first, 'each host secret is its own random value')
 })
 
-test('a Unix host authenticates by ownership, so no handshake is required', async t => {
+test('a Unix host authenticates by ownership, so no handshake is required', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const service = fakeService()
   const server = await listen(join(dir, 'open-deskos-personal-bot', 'agent.sock'), service, { platform: 'linux' })
@@ -445,7 +447,7 @@ test('a Unix host authenticates by ownership, so no handshake is required', asyn
   assert.equal(records[0].state, 'recording')
 })
 
-test('a Unix host verifies a handshake it is given and refuses a wrong one', async t => {
+test('a Unix host verifies a handshake it is given and refuses a wrong one', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const endpoint = join(dir, 'open-deskos-personal-bot', 'agent.sock')
   const service = fakeService()
@@ -470,7 +472,7 @@ test('a Unix host verifies a handshake it is given and refuses a wrong one', asy
   assert.deepEqual(service.calls, [], 'a presented handshake that does not verify is a refusal, not a fallback to ownership')
 })
 
-test('a socket left behind by a stopped personal bot service is taken over', async t => {
+test('a socket left behind by a stopped personal bot service is taken over', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const endpoint = join(dir, 'open-deskos-personal-bot', 'agent.sock')
   const first = await listen(endpoint, fakeService(), { platform: 'linux' })
@@ -489,7 +491,7 @@ test('a socket left behind by a stopped personal bot service is taken over', asy
   assert.equal(records[0].state, 'idle')
 })
 
-test('a live personal bot service is refused rather than having its socket stolen', async t => {
+test('a live personal bot service is refused rather than having its socket stolen', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const endpoint = join(dir, 'open-deskos-personal-bot', 'agent.sock')
   const live = await listen(endpoint, fakeService(), { platform: 'linux' })
@@ -508,7 +510,7 @@ test('a live personal bot service is refused rather than having its socket stole
   assert.equal(records[0].state, 'idle')
 })
 
-test('a Unix control socket is 0600 inside a 0700 directory', async t => {
+test('a Unix control socket is 0600 inside a 0700 directory', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const endpoint = join(dir, 'open-deskos-personal-bot', 'agent.sock')
   const server = await listen(endpoint, fakeService(), { platform: 'linux' })
@@ -518,7 +520,7 @@ test('a Unix control socket is 0600 inside a 0700 directory', async t => {
   assert.equal((await stat(join(dir, 'open-deskos-personal-bot'))).mode & 0o777, 0o700)
 })
 
-test('a control directory this user does not own is refused', async t => {
+test('a control directory this user does not own is refused', { skip: process.platform === 'win32' ? 'Unix socket ownership and stale-path fixture; Windows authenticated pipes run separately' : false }, async t => {
   const dir = await temp(t)
   const endpoint = join(dir, 'open-deskos-personal-bot', 'agent.sock')
   const foreign = join(dir, 'open-deskos-personal-bot')
@@ -540,13 +542,14 @@ test('a control directory this user does not own is refused', async t => {
 test('a command line beyond 4096 bytes is dropped before anything is parsed', async t => {
   const dir = await temp(t)
   const service = fakeService()
-  const server = await listen(join(dir, 'open-deskos-personal-bot', 'agent.sock'), service, { platform: 'linux' })
+  const endpoint = privateEndpoint(dir, 'budget')
+  const server = await listen(endpoint, service, { token: fixtureToken })
   t.after(() => server.close())
 
-  const client = net.connect(join(dir, 'open-deskos-personal-bot', 'agent.sock'))
+  const client = net.connect(endpoint)
   t.after(() => client.destroy())
   client.on('error', () => {})
-  client.once('connect', () => client.write(`{"v":1,"type":"${'x'.repeat(5000)}`))
+  client.once('connect', () => client.write(channelHandshake(fixtureToken) + `{"v":1,"type":"${'x'.repeat(5000)}`))
   await within(once(client, 'close'), 'the oversized line to be dropped')
 
   assert.deepEqual(service.calls, [], 'an unterminated line past the input bound is never parsed')
@@ -610,15 +613,16 @@ test('recording level bursts preserve a backpressured authenticated channel and 
 test('a queued frame beyond 131072 bytes drops a client that is not reading', async t => {
   const dir = await temp(t)
   const service = fakeService()
-  const server = await listen(join(dir, 'open-deskos-personal-bot', 'agent.sock'), service, { platform: 'linux' })
+  const endpoint = privateEndpoint(dir, 'budget')
+  const server = await listen(endpoint, service, { token: fixtureToken })
   t.after(() => server.close())
 
-  const client = net.connect(join(dir, 'open-deskos-personal-bot', 'agent.sock'))
+  const client = net.connect(endpoint)
   t.after(() => client.destroy())
   client.setEncoding('utf8')
   const records = []
   client.on('data', chunk => records.push(...chunk.trim().split('\n').map(JSON.parse)))
-  client.write('{"v":1,"type":"status"}\n')
+  client.write(channelHandshake(fixtureToken) + '{"v":1,"type":"status"}\n')
   await within(once(client, 'data'), 'a status inside the queued frame budget')
   assert.equal(records[0].state, 'idle', 'a frame inside the budget is delivered')
 

@@ -1,3 +1,6 @@
+import { endpoint as privateEndpoint } from './helpers/private-channel.mjs'
+import { pathToFileURL } from 'node:url'
+import { once } from 'node:events'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -35,12 +38,36 @@ async function startupStatus(t, env = {}) {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   assert.ok(source.includes(STARTUP_PLACEHOLDER), 'main.mjs no longer publishes the pre-initialization status this harness waits out')
   const dir = await mkdtemp(join(tmpdir(), 'voice-start-'))
-  const child = spawn(process.execPath, ['src/main.mjs'], { cwd: new URL('..', import.meta.url), env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ...env }, stdio: 'ignore' })
-  t.after(async () => { child.kill(); await rm(dir, { recursive: true, force: true }) })
+  const endpoint = privateEndpoint(dir, 'startup')
+  const childEnv = { PATH: process.env.PATH, HOME: dir, USERPROFILE: dir, XDG_RUNTIME_DIR: dir,
+    LOCALAPPDATA: join(dir, 'local'), APPDATA: join(dir, 'appdata'),
+    SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+    ...(process.platform === 'win32' ? { ODESK_PERSONAL_BOT_AUDIO_DEVICE: 'Offline fixture microphone' } : {}), ...env }
+  const args = []
+  if (process.platform === 'win32') {
+    // Redirect only the resident's endpoint names so the real entry cannot bind a running service's pipe.
+    const socketUrl = new URL('../src/socket.mjs', import.meta.url).href
+    const mainUrl = new URL('../src/main.mjs', import.meta.url).href
+    const wrapper = join(dir, 'private-socket.mjs')
+    await writeFile(wrapper, `export * from ${JSON.stringify(socketUrl)};
+export const personalBotEndpoint = () => ${JSON.stringify(endpoint)};
+export const personalBotControlEndpoint = () => ${JSON.stringify(endpoint + '-control')};
+`)
+    const preload = join(dir, 'private-endpoints.mjs')
+    await writeFile(preload, `import { registerHooks } from 'node:module';
+registerHooks({ resolve(specifier, context, next) { if (context.parentURL === ${JSON.stringify(mainUrl)} && specifier === './socket.mjs') return { url: ${JSON.stringify(pathToFileURL(wrapper).href)}, shortCircuit: true }; return next(specifier, context); } });
+`)
+    args.push('--import', pathToFileURL(preload).href)
+  }
+  const child = spawn(process.execPath, [...args, 'src/main.mjs'], { cwd: new URL('..', import.meta.url), env: childEnv, stdio: 'ignore' })
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) { const closed = once(child, 'close'); child.kill('SIGKILL'); await closed }
+    await rm(dir, { recursive: true, force: true })
+  })
   let client
   for (let n = 0; n < 400; n++) {
     client = await new Promise(resolve => {
-      const socket = connect(join(dir, 'open-deskos-personal-bot/agent.sock'))
+      const socket = connect(process.platform === 'win32' ? endpoint : join(dir, 'open-deskos-personal-bot/agent.sock'))
       socket.once('error', () => resolve(undefined))
       socket.once('connect', () => resolve(socket))
     })
@@ -49,6 +76,10 @@ async function startupStatus(t, env = {}) {
   }
   assert.ok(client, 'resident socket available without configuration')
   t.after(() => client.destroy())
+  if (process.platform === 'win32') {
+    const token = (await readFile(join(childEnv.LOCALAPPDATA, 'open-deskos', 'local-channel.token'), 'utf8')).trim()
+    client.write(JSON.stringify({v:1,token}) + '\n')
+  }
   let status = await readStatus(client)
   assert.ok(status, 'resident reported a status table')
   let stable = 0
@@ -156,7 +187,9 @@ test('oversize transcription prompts fail startup with safe guidance', async t =
   assert.doesNotMatch(status.message, /private-context/)
 })
 
-test('main wires validated transcription context including empty opt-out', async () => {
+test('main wires validated transcription context including empty opt-out', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-context-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?\) \{[\s\S]*?\n\}/)[0]
   const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
@@ -167,7 +200,8 @@ test('main wires validated transcription context including empty opt-out', async
   for (const prompt of [undefined, '', ' My TypeScript project。 ']) {
     const runtime = await initialize({
       ODESK_WORKSPACE: '/test-checkout', ODESK_PERSONAL_BOT_STT_KEY_FILE: '/test-key', ODESK_PERSONAL_BOT_STT_PROMPT: prompt,
-      XDG_RUNTIME_DIR: '/tmp/test-runtime', XDG_STATE_HOME: '/tmp/test-state',
+      XDG_RUNTIME_DIR: dir, XDG_STATE_HOME: join(dir, 'state'), LOCALAPPDATA: join(dir, 'local'),
+      ODESK_PERSONAL_BOT_AUDIO_DEVICE: 'Offline fixture microphone',
     }, () => {})
     assert.equal(runtime.stt.prompt, transcriptionPrompt(prompt))
   }
@@ -176,6 +210,8 @@ test('main wires validated transcription context including empty opt-out', async
 // The transcription provider is a declared request shape, so a cloud desk says so
 // in its own configuration instead of having a URL pattern decide for it.
 async function initializeFor(t, env, platform) {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-provider-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?\) \{[\s\S]*?\n\}/)[0]
   const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
@@ -184,7 +220,8 @@ async function initializeFor(t, env, platform) {
     async () => {}, async () => ({}), join, () => '/test-home', prepareHostDirectories, transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt, async () => ({ profile: 'coding' }),
   )
   const reports = []
-  return { reports, runtime: await initialize({ XDG_RUNTIME_DIR: '/tmp/test-runtime', XDG_STATE_HOME: '/tmp/test-state', ...env }, message => reports.push(message), () => {}, platform) }
+  return { reports, runtime: await initialize({ XDG_RUNTIME_DIR: dir, XDG_STATE_HOME: join(dir, 'state'), LOCALAPPDATA: join(dir, 'local'),
+      ODESK_PERSONAL_BOT_AUDIO_DEVICE: 'Offline fixture microphone', ...env }, message => reports.push(message), () => {}, platform) }
 }
 
 test('the cloud provider declares its own endpoint, model and credential', async t => {

@@ -1,3 +1,4 @@
+import { nodeExecutable } from './helpers/node-executable.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { loadCapabilities } from '../src/capabilities.mjs'
 
 const TASK_ID = '12345678-1234-1234-1234-123456789abc'
-const PROJECT = '/work'
+const PROJECT = process.platform === 'win32' ? '\\work' : '/work'
 const integration = fileURLToPath(new URL('..', import.meta.url))
 
 // The helper is the target's own control entry point: it echoes the correlated
@@ -17,8 +18,8 @@ const integration = fileURLToPath(new URL('..', import.meta.url))
 // coordinator rather than about the coordinator's own bookkeeping.
 async function coordinator(t) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-session-control-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const executable = join(dir, 'helper')
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
+  let executable = join(dir, 'helper')
   await writeFile(executable, `#!/usr/bin/env node
 let input = ''
 process.stdin.on('data', chunk => { input += chunk })
@@ -30,6 +31,7 @@ process.stdin.on('end', () => {
   } }))
 })
 `, { mode: 0o700 })
+  executable = await nodeExecutable(t, executable)
   const targets = join(dir, 'targets.json')
   await writeFile(targets, `${JSON.stringify({ targets: [{ id: 'cm5', name: 'CM5', executable, roots: [PROJECT] }] })}\n`)
   const previous = process.env.ODESK_TASK_TARGETS_FILE
@@ -86,12 +88,12 @@ test('the coordinator refuses a bad delivery behavior, an unconfigured target an
   await assert.rejects(execute({ target: 'cm5', project: '/work/../else', taskId: TASK_ID, prompt: '继续' }), /Invalid project/)
   // A project outside the advertised roots is the host's answer to give, not the coordinator's: the
   // request leaves carrying the project the operator named.
-  assert.equal((await call('coding_task_prompt', { target: 'cm5', project: '/elsewhere', taskId: TASK_ID, prompt: '继续' })).task.project, '/elsewhere')
+  assert.equal((await call('coding_task_prompt', { target: 'cm5', project: process.platform === 'win32' ? '\\elsewhere' : '/elsewhere', taskId: TASK_ID, prompt: '继续' })).task.project, process.platform === 'win32' ? '\\elsewhere' : '/elsewhere')
 })
 
 test('an empty target list is reported instead of a guessed host', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-session-control-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const targets = join(dir, 'targets.json')
   await writeFile(targets, '{"targets":[]}\n')
   const previous = process.env.ODESK_TASK_TARGETS_FILE
@@ -111,7 +113,7 @@ test('an empty target list is reported instead of a guessed host', async t => {
 // credentials, so these tests drive the commands that do not begin one.
 async function hostCoordinator(t, seed) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-host-control-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   // The daemon compares real paths, so the root is created from its own real path rather than
   // through the symlinked temporary directory macOS hands out.
   const root = join(await realpath(dir), 'development')
@@ -151,7 +153,7 @@ async function hostCoordinator(t, seed) {
   return { root, tools: await loadCapabilities() }
 }
 
-test('the coordinator reaches a real host daemon through the documented control helper', async t => {
+test('the coordinator reaches a real host daemon through the documented control helper', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const { root, tools } = await hostCoordinator(t)
   const call = async (name, params) => JSON.parse((await tools.find(tool => tool.name === name).execute('call', params)).content[0].text)
   const listed = await call('coding_tasks_list', { target: 'cm5', project: root })
@@ -162,7 +164,7 @@ test('the coordinator reaches a real host daemon through the documented control 
   }
 })
 
-test('the coordinator reads and refuses a real recorded session through the same helper', async t => {
+test('the coordinator reads and refuses a real recorded session through the same helper', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   // A session that has already ended: a valid durable receipt with no live SDK session, which is
   // what a spoken "continue that session" hits after the desk has ended it.
   const { root, tools } = await hostCoordinator(t, async (hostRoot, stateDir) => {

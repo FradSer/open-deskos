@@ -1,3 +1,4 @@
+import { endpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { fixtureIntentRouter } from './helpers/intent-judge.mjs'
 import { test } from 'node:test'
 import { fixtureJudge } from './helpers/proactive-judge.mjs'
@@ -384,6 +385,8 @@ test('private owner mute is atomic, reloadable, and refuses replaced owner conte
   t.after(() => rm(dir, { recursive: true, force: true }))
   const file = join(dir, 'owner.json'), initial = config()
   await writeFile(file, JSON.stringify(initial), { mode: 0o600 })
+  protectProactivePath(dir)
+  protectProactivePath(file)
   const save = ownerConfigWriter(file, loadProactiveConfig(file))
   const muted = { ...initial, suppressed: ['dry'] }; await save(muted)
   assert.deepEqual(loadProactiveConfig(file).suppressed, ['dry'])
@@ -408,7 +411,7 @@ test('disk action reservation restores unknown and corrupt state cannot silently
   assert.throws(() => new ProactiveWatch({ judge: fixtureJudge, ...deps, execute: async () => {} }))
 })
 
-test('private socket carries presentation, exact confirmation and real memory result', { timeout: 5000 }, async t => {
+test('private socket carries presentation, exact confirmation and real memory result', { timeout: process.platform === 'win32' ? 30000 : 5000 }, async t => {
   const { createRequire } = await import('node:module')
   const { PersonalBotService } = await import('../src/service.mjs')
   const { listen } = await import('../src/socket.mjs')
@@ -426,9 +429,9 @@ test('private socket carries presentation, exact confirmation and real memory re
   const service = new PersonalBotService({ record: async () => assert.fail('no microphone'), transcribe: async () => assert.fail('no capture'), prompt: async () => '' })
   watch = new ProactiveWatch({ judge: fixtureJudge, config: config(), now: () => Date.parse(stamp), read: async () => ({ id: 'plant', state: 'live', value: { soil: 2, measured_at: stamp } }), publish: frame => service.propose(frame), save: async () => {}, phrase: agent.phraseProposal, execute: agent.executeProposal })
   service.attachWatch(watch)
-  const socketPath = join(dir, 'channel', 'agent.sock'), server = await listen(socketPath, service)
+  const socketPath = endpoint(dir, 'agent.sock'), server = await listen(socketPath, service, { token: fixtureToken })
   t.after(() => server.close())
-  const client = createPersonalBotClient({ socketPath, reconnectDelayMs: 60000 })
+  const client = createPersonalBotClient({ socketPath, token: fixtureToken, reconnectDelayMs: 60000 })
   t.after(() => client.stop())
   const until = predicate => new Promise(resolve => {
     const off = client.subscribe(frame => { if (predicate(frame)) { off(); resolve(frame) } })

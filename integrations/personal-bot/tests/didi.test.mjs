@@ -1,3 +1,4 @@
+import { checkProactivePath, protectProactivePath } from '../src/proactive-private.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, stat, rm } from 'node:fs/promises';
@@ -9,6 +10,7 @@ import { createRideEngine } from '../src/didi/engine.mjs';
 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'didi-test-'));
+  if (process.platform === 'win32') protectProactivePath(dir);
   const calls = []; let failCreate = false; let now = 100; let statusCode = 0; const timers = [];
   const call = async (name,args) => {
     calls.push({name,args});
@@ -25,7 +27,7 @@ async function fixture(t) {
   return {engine,quote,calls,options,timers,dir,fail:()=>{failCreate=true;},expire:()=>{now+=300001;},status:(s)=>{statusCode=s;}};
 }
 test('only subsequent host confirmation permits one create; state is private',async t=>{
- const f=await fixture(t);const p=await f.quote();await assert.rejects(f.engine.submit());f.engine.beginTurn(p.confirmationPhrase);await f.engine.submit();await assert.rejects(f.engine.submit());assert.equal(f.calls.filter(x=>x.name==='taxi_create_order').length,1);assert.equal((await stat(join(f.dir,'state.json'))).mode&0o777,0o600);
+ const f=await fixture(t);const p=await f.quote();await assert.rejects(f.engine.submit());f.engine.beginTurn(p.confirmationPhrase);await f.engine.submit();await assert.rejects(f.engine.submit());assert.equal(f.calls.filter(x=>x.name==='taxi_create_order').length,1);if(process.platform==='win32') checkProactivePath(join(f.dir,'state.json'));else assert.equal((await stat(join(f.dir,'state.json'))).mode&0o777,0o600);
 });
 test('expired and changed quotes revoke confirmation',async t=>{
  const f=await fixture(t);let p=await f.quote();f.engine.beginTurn(p.confirmationPhrase);f.expire();await assert.rejects(f.engine.submit());p=await f.quote();f.engine.beginTurn(p.confirmationPhrase);await f.quote();await assert.rejects(f.engine.submit());
@@ -97,4 +99,19 @@ test('Given ambiguous create, Then text-only account query never supplies order 
  const f=await fixture(t);const p=await f.quote();f.engine.beginTurn(p.confirmationPhrase);f.fail();await f.engine.submit();await f.engine.close();
  const engine=await createRideEngine({...f.options,call:async()=>({statusUnavailable:true,statusText:'订单已完成'})});t.after(()=>engine.close());
  const state=await engine.status();assert.equal(state.order,null);assert.equal(state.phase,'unknown');assert.equal(state.reconciliation.identityVerified,false);assert.equal(state.reconciliation.currentOrder.statusUnavailable,true);assert.equal(f.timers.at(-1).ms,30000);await assert.rejects(engine.estimate({}));await engine.close();
+});
+
+test('new order directory persists private state before restart on the current host',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'didi-private-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const options={stateFile:join(dir,'private','state.json'),call:async()=>({orderId:'observed',statusCode:0}),setTimer:()=>({unref(){}}),clearTimer:()=>{}};
+ const engine=await createRideEngine(options);await engine.status();await engine.close();
+ if(process.platform==='win32') {checkProactivePath(join(dir,'private'));checkProactivePath(options.stateFile);}
+ const restarted=await createRideEngine(options);assert.equal(restarted.snapshot().phase,'unknown');await assert.rejects(restarted.estimate({}));await restarted.close();
+});
+
+test('Windows rejects shared order directories before calling the provider', {skip: process.platform !== 'win32'}, async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'didi-shared-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ protectProactivePath(dir);
+ await promisify(execFile)(join(process.env.SystemRoot,'System32','icacls.exe'),[dir,'/grant','*S-1-1-0:(OI)(CI)(R)']);
+ await assert.rejects(createRideEngine({stateFile:join(dir,'state.json'),call:async()=>assert.fail('shared state cannot reach provider')}));
 });

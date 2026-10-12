@@ -31,7 +31,7 @@ test('the endpoint path is derived from the session and is absent without one', 
   }
 })
 
-test('publishing records the bound socket privately and removing it is idempotent', async t => {
+test('publishing records the bound socket privately and removing it is idempotent', { skip: process.platform === 'win32' ? 'Unix Hosted Pi descriptor ownership fixture; Windows clients run separately' : false }, async t => {
   const { file } = await fixture(t)
   const config = { socketPath: '/run/user/1000/pi-tasks/control.sock', stateDir: '/home/kiosk/.local/state/pi-tasks' }
   await publishEndpoint(file, config)

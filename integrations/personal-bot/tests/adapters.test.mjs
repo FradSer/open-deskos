@@ -1,3 +1,4 @@
+import { endpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm, stat, open } from 'node:fs/promises'
@@ -78,14 +79,15 @@ test('uploads accept up to 25000000 bytes and reject larger files before network
 
 test('status transport preserves maximally escaped bounded replies and transcripts together', async t => {
   const dir = await temp(t)
-  const socketPath = join(dir, 'private', 'agent.sock')
+  const socketPath = endpoint(dir, 'agent.sock')
   const service = new PersonalBotService({ record: async () => { throw Error('no device') }, transcribe: async () => '', prompt: async () => '' })
   const reply = '\u0000'.repeat(16_384)
   const transcript = '\u0000'.repeat(4096)
   service.setState('idle', reply, transcript)
-  const server = await listen(socketPath, service)
+  const server = await listen(socketPath, service, { token: fixtureToken })
   t.after(() => server.close())
   const client = connect(socketPath)
+  if (process.platform === 'win32') client.write(JSON.stringify({ v: 1, token: fixtureToken }) + '\n')
   t.after(() => client.destroy())
   client.setEncoding('utf8')
   const received = new Promise((resolve, reject) => {
@@ -170,13 +172,16 @@ test('personal bot service forwards Chinese requests and replies unchanged', asy
 
 test('private socket accepts JSONL and rejects invalid framing', async t => {
   const dir = await temp(t)
-  const socketPath = join(dir, 'private', 'agent.sock')
+  const socketPath = endpoint(dir, 'agent.sock')
   const service = new PersonalBotService({ record: async () => { throw Error('no device') }, transcribe: async () => '', prompt: async () => {} })
-  const server = await listen(socketPath, service)
+  const server = await listen(socketPath, service, { token: fixtureToken })
   t.after(() => server.close())
-  assert.equal((await stat(socketPath)).mode & 0o777, 0o600)
-  assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700)
+  if (process.platform !== 'win32') {
+    assert.equal((await stat(socketPath)).mode & 0o777, 0o600)
+    assert.equal((await stat(dir)).mode & 0o777, 0o700)
+  }
   const client = connect(socketPath)
+  if (process.platform === 'win32') client.write(JSON.stringify({ v: 1, token: fixtureToken }) + '\n')
   t.after(() => client.destroy())
   const messages = []
   client.setEncoding('utf8')

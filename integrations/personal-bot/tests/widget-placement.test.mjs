@@ -1,3 +1,4 @@
+import { endpoint, tokenEnvironment, requests } from './helpers/private-channel.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
@@ -8,16 +9,13 @@ import { loadCapabilities } from '../src/capabilities.mjs'
 
 test('desktop discovery and exact install/move placement reach the lifecycle socket', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odeskv-'))
-  const socketPath = path.join(root, 'apps.sock')
+  await tokenEnvironment(t, root)
+  const socketPath = endpoint(root, 'apps.sock')
   const original = process.env.ODESK_APPS_CONTROL_SOCKET
   process.env.ODESK_APPS_CONTROL_SOCKET = socketPath
   const received = []
   const server = net.createServer(client => {
-    let buffer = ''
-    client.on('data', chunk => {
-      buffer += chunk
-      if (!buffer.includes('\n')) return
-      const request = JSON.parse(buffer)
+    requests(client, request => {
       received.push(request)
       client.end(JSON.stringify({ v: 1, id: request.id, ok: true, pages: [] }) + '\n')
     })

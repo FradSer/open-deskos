@@ -75,3 +75,9 @@ Feature: Confirmed personal DiDi rides
     When the transport validates its response
     Then the response is rejected rather than interpreted as success
     And an attempted cancellation remains cancel_unknown
+  Scenario: Windows private state preserves order authority
+    Given a Windows host with a private credential and a private order directory
+    When the controller saves an order and restarts
+    Then Windows ACLs protect the credential and order state
+    And uncertain orders still block repeated creation and cancellation
+    And a shared credential or order directory is rejected before a request

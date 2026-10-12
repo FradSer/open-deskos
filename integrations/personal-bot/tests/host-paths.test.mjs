@@ -17,8 +17,8 @@ test('a Windows host keeps captures and agent state in its own application data'
 
 test('a Unix host keeps captures in the runtime directory and state where XDG says', () => {
   assert.deepEqual(hostDirectories({ XDG_RUNTIME_DIR: '/run/user/1000', XDG_STATE_HOME: '/home/kiosk/.local/state' }, 'linux'), {
-    captures: '/run/user/1000/open-deskos-personal-bot',
-    state: '/home/kiosk/.local/state/open-deskos-personal-bot',
+    captures: join('/run/user/1000','open-deskos-personal-bot'),
+    state: join('/home/kiosk/.local/state','open-deskos-personal-bot'),
   })
 })
 
@@ -42,6 +42,6 @@ test('a host that cannot hold the directory stops startup instead of recording n
   const created = []
   await prepareHostDirectories({ XDG_RUNTIME_DIR: '/run/user/1000', XDG_STATE_HOME: '/run/user/1000/state' }, 'linux',
     async (directory, options) => { created.push([directory, options]) })
-  assert.deepEqual(created.map(([directory]) => directory), ['/run/user/1000/open-deskos-personal-bot', '/run/user/1000/state/open-deskos-personal-bot'])
+  assert.deepEqual(created.map(([directory]) => directory), [join('/run/user/1000','open-deskos-personal-bot'), join('/run/user/1000/state','open-deskos-personal-bot')])
   assert.deepEqual(created[0][1], { recursive: true, mode: 0o700 })
 })

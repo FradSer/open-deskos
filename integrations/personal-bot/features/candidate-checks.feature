@@ -50,3 +50,15 @@ Feature: Check results carry host-observed source evidence
     When its result is recorded
     Then its observed outcome is distinct from exit zero
     And evidence is bounded and private in the existing session log
+
+  Scenario: Windows executes checks with the SDK shell contract
+    Given private Windows state and available Git and Bash executables
+    When a coding check executes a command in a scratch Git project
+    Then its exit status and source evidence remain accurate
+    And timeout and cancellation retain bounded partial output
+
+  Scenario: Windows persists task records without Unix directory synchronization
+    Given a private Windows task store
+    When it atomically publishes a task record and restarts
+    Then the record remains readable with its original identity
+    And file synchronization errors still fail the write

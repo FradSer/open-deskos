@@ -1,3 +1,5 @@
+import { nodeExecutable } from './helpers/node-executable.mjs'
+import { endpoint, tokenEnvironment, requests } from './helpers/private-channel.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
@@ -14,7 +16,7 @@ import { agentOptions, validateWorkspace, createPersonalBot, createResourceLoade
 
 test('pre-cancelled Agent initialization does not create its router or state directory', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-init-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const controller = new AbortController()
   controller.abort()
   let calls = 0
@@ -29,7 +31,7 @@ test('pre-cancelled Agent initialization does not create its router or state dir
 for (const stage of ['runtime', 'models', 'session', 'binding', 'failed-binding']) {
   test(`Agent startup owns cancellation and cleanup during ${stage}`, async t => {
     const dir = await mkdtemp(join(tmpdir(), 'voice-init-'))
-    t.after(() => rm(dir, { recursive: true, force: true }))
+    t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
     const controller = new AbortController()
     let entered
     const ready = new Promise(resolve => { entered = resolve })
@@ -90,7 +92,7 @@ for (const stage of ['runtime', 'models', 'session', 'binding', 'failed-binding'
 
 test('real SDK resource loader loads the widget skill without undefined agentDir', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const loader = await createResourceLoader(fileURLToPath(new URL('../../..', import.meta.url)), dir)
   assert.ok(loader.getSkills().skills.some(skill => skill.name === 'open-deskos-widget'))
   assert.match(loader.getAppendSystemPrompt().join('\n'), /never edit active/i)
@@ -109,7 +111,7 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
 async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-generation-env-'))
   await mkdir(join(dir, 'private'), { mode: 0o700 })
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   let sessionNumber = 0
   let listener
   const session = (generator = false) => ({
@@ -140,7 +142,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
 
 test('selected Agent preserves Home binding, cached updates, and runtime restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'home-agent-selection-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const entry = join(dir, 'agent.cjs')
   const config = join(dir, 'selection.json')
   await writeFile(entry, `exports.create = () => {
@@ -500,14 +502,13 @@ test('SDK adapter rejects concurrent prompts without sharing subscriptions', asy
 
 test('user application lifecycle tools use the bounded shell control protocol', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-apps-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const socketPath = join(dir, 'control.sock')
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
+  await tokenEnvironment(t, dir)
+  const socketPath = endpoint(dir, 'control.sock')
   process.env.ODESK_APPS_CONTROL_SOCKET = socketPath
   t.after(() => delete process.env.ODESK_APPS_CONTROL_SOCKET)
   const server = createServer(connection => {
-    connection.setEncoding('utf8')
-    connection.once('data', data => {
-      const request = JSON.parse(data.trim())
+    requests(connection, request => {
       connection.end(JSON.stringify({ v: 1, id: request.id, ok: true, apps: [] }) + '\n')
     })
   })
@@ -525,7 +526,7 @@ test('user application lifecycle tools use the bounded shell control protocol', 
 
 test('trusted capability modules augment readonly coordination tools and resume dedicated sessions', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-cap-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   await writeFile(join(dir, 'custom.mjs'), 'export default async () => [{name:"custom",execute:async()=>({content:[],details:{}})}]')
   const tools = await loadCapabilities([join(dir, 'custom.mjs')])
   assert.ok(tools.some(tool => tool.name === 'coding_targets'))
@@ -543,7 +544,7 @@ test('trusted capability modules augment readonly coordination tools and resume 
 
 test('capability modules cannot replace builtin inspection or shell names', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-reserved-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   for (const name of ['grep', 'find', 'ls', 'powershell', 'codemode', 'tool_search']) {
     const file = join(dir, name + '.mjs')
     await writeFile(file, 'export default async () => [{name:' + JSON.stringify(name) + ',execute:async()=>({content:[],details:{}})}]')
@@ -553,17 +554,19 @@ test('capability modules cannot replace builtin inspection or shell names', asyn
 
 test('coding tools list configuration only and route explicit project requests', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-targets-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const file = join(dir, 'targets.json')
-  const executable = join(dir, 'helper')
+  let executable = join(dir, 'helper')
   await writeFile(executable, '#!/usr/bin/env node\nlet s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({...r,ok:true}))})', { mode: 0o700 })
-  await writeFile(file, JSON.stringify({ targets: [{ id: 'cm5', name: '开发板', roots: ['/work'], executable }] }))
+  executable = await nodeExecutable(t, executable)
+  const projectRoot = process.platform === 'win32' ? join(dir, 'work') : '/work'
+  await writeFile(file, JSON.stringify({ targets: [{ id: 'cm5', name: '开发板', roots: [projectRoot], executable }] }))
   const previous = process.env.ODESK_TASK_TARGETS_FILE
   process.env.ODESK_TASK_TARGETS_FILE = file
   t.after(() => { if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE; else process.env.ODESK_TASK_TARGETS_FILE = previous })
   const tools = await loadCapabilities()
   const targets = await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)
-  assert.deepEqual(JSON.parse(targets.content[0].text), { targets: [{ id: 'cm5', name: '开发板', roots: ['/work'] }] })
+  assert.deepEqual(JSON.parse(targets.content[0].text), { targets: [{ id: 'cm5', name: '开发板', roots: [projectRoot] }] })
   const targetTool = tools.find(tool => tool.name === 'coding_targets')
   assert.ok(targetTool.outputSchema)
   assert.deepEqual(targets.structuredContent, JSON.parse(targets.content[0].text))
@@ -572,7 +575,7 @@ test('coding tools list configuration only and route explicit project requests',
   assert.equal(tools.find(tool => tool.name === 'coding_task_start').annotations.readOnlyHint, false)
   for (const command of ['start', 'status', 'history', 'prompt', 'cancel', 'end', 'list']) {
     const tool = tools.find(tool => tool.name === (command === 'list' ? 'coding_tasks_list' : `coding_task_${command}`))
-    const params = { target: 'cm5', project: '/work/天气', prompt: '修改已有应用', taskId: '12345678-1234-1234-1234-123456789abc' }
+    const params = { target: 'cm5', project: join(projectRoot, '天气'), prompt: '修改已有应用', taskId: '12345678-1234-1234-1234-123456789abc' }
     const response = JSON.parse((await tool.execute('call', params, undefined)).content[0].text)
     assert.equal(response.command, command)
     assert.equal(response.project, params.project)

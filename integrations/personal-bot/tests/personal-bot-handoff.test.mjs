@@ -11,7 +11,7 @@ import { PersonalBotService } from '../src/service.mjs'
 
 // The coordinator is a fixture, not a model. Real capability/helper/host boundaries
 // pin the handoff lifecycle; this is not provider routing or microphone acceptance.
-test('a coding handoff frees the next Spoken Turn while the Hosted Pi remains working', async t => {
+test('a coding handoff frees the next Spoken Turn while the Hosted Pi remains working', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-bot-handoff-')))
   const project = join(dir, 'project')
   await mkdir(project)
