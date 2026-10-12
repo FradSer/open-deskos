@@ -9,6 +9,7 @@ const { createPluginHost } = require('../src/plugin-host')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { createDiagnosticsPlugin, requestDiagnostics } = require('../src/plugin-diagnostics')
 const { independentFutuDiagnosis } = require('./fixtures/futu-diagnostic-replacement')
+const { diagnosticChannel } = require('./helpers/private-test-host.cjs')
 const id = 'odk.system.futu-runtime-diagnostics'
 const port = 'odk:plugin-runtime/python-agent/futu-poller/v1'
 const unavailable = reason => ({ host: 'python-agent', instance: 'futu-poller', state: 'unavailable', reason, plugins: [] })
@@ -19,8 +20,8 @@ const report = { host: 'python-agent', instance: 'futu-poller', state: 'availabl
 
 async function setup(t, independent, source) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-fdiag-'))
-  const endpoint = path.join(root, 'diagnose.sock')
-  const host = createPluginHost({ capabilities: { 'plugin.diagnostics': { endpoint, stateDir: root, snapshot: () => host.list() } } })
+  const channel = diagnosticChannel(root)
+  const host = createPluginHost({ capabilities: { 'plugin.diagnostics': { ...channel, snapshot: () => host.list() } } })
   t.after(async () => { await host.stop(); await fs.rm(root, { recursive: true, force: true }) })
   const selected = createMainPlugins({ replacementPlugins: independent ? [independentFutuDiagnosis()] : [] }).find(plugin => plugin.manifest.id === id)
   assert.equal(selected.manifest.version, independent ? '2.0.0' : '1.0.0')
@@ -30,7 +31,7 @@ async function setup(t, independent, source) {
   host.register(selected)
   host.register(createDiagnosticsPlugin({ runtimePorts: [port] }))
   await host.start()
-  return { host, diagnose: pluginId => requestDiagnostics({ endpoint, ...(pluginId ? { pluginId } : {}) }) }
+  return { host, diagnose: pluginId => requestDiagnostics({ ...channel, ...(pluginId ? { pluginId } : {}) }) }
 }
 
 for (const independent of [false, true]) {

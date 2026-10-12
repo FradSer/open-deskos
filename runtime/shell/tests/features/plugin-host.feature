@@ -1571,3 +1571,9 @@ Feature: Active product components use replaceable plugin contracts
     And CLI signed Clock activation, update, and built-in recovery preserve the document and foreground App
     And a missing selected bridge fails its version guard
     And page shutdown releases the selected request subscription
+
+  Scenario: Repeated native staging verifies an existing revision
+    Given a signed revision already exists in the native store
+    When publication encounters a directory collision reported as a permission error
+    Then staging succeeds only after verification of the existing revision
+    And a missing or corrupt destination cannot produce success

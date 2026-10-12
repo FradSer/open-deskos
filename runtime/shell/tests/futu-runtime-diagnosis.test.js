@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createPluginHost } = require('../src/plugin-host')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
+const { serviceChannel, diagnosticChannel, pythonExecutable } = require('./helpers/private-test-host.cjs')
 const port = 'odk:plugin-runtime/python-agent/futu-poller/v1'
 
 test('Main exposes the owned Futu source report through a declared runtime port', async t => {
@@ -46,14 +47,16 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const { requestDiagnostics } = require('../src/plugin-diagnostics')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-fmain-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const endpoint = path.join(root, 'service.sock')
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
-  const diagnosisEndpoint = require('../src/platform').resolveShellHost({ env }).endpoint('plugin-diagnostics')
+  const channel = await serviceChannel(root)
+  const diagnostic = diagnosticChannel(root)
+  const endpoint = channel.endpoint
+  const env = diagnostic.env
+  const diagnosisEndpoint = diagnostic.endpoint
   const host = createPluginHost({ capabilities: {
     ipc: { handle() {}, removeHandler() {} },
     'desk.catalog': { create: () => ({ list: async () => [] }) },
-    'desk.futu': { create: createFutuSource, options: {}, env: { ODK_FUTU_ENDPOINT: endpoint }, report() {} },
-    'plugin.diagnostics': { endpoint: diagnosisEndpoint, stateDir: path.join(root, 'state'), platform: process.platform, snapshot: () => host.list() },
+    'desk.futu': { create: createFutuSource, options: { channelToken: channel.channelToken, stateDir: channel.stateDir }, env: { ODK_FUTU_ENDPOINT: endpoint }, report() {} },
+    'plugin.diagnostics': { ...diagnostic, endpoint: diagnosisEndpoint, snapshot: () => host.list() },
   } })
   t.after(() => host.stop())
   const replacements = independent ? [require('./fixtures/futu-diagnostic-replacement').independentFutuDiagnosis()] : []
@@ -65,7 +68,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   await host.get(DESK_PORTS.futu).refresh()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1]})',
+    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',
@@ -74,14 +77,14 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn('python3', ['-c', code, endpoint], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''
   child.stderr.on('data', bytes => { stderr += bytes })
   const [ready] = await once(child.stdout, 'data')
   assert.equal(ready.toString().trim(), 'waiting')
-  const result = await requestDiagnostics({ endpoint: diagnosisEndpoint, platform: process.platform, pluginId: 'odk.futu.publisher' })
+  const result = await requestDiagnostics({ ...diagnostic, endpoint: diagnosisEndpoint, platform: process.platform, pluginId: 'odk.futu.publisher' })
   const runtime = result.runtimes.find(runtime => runtime.host === 'python-agent')
   assert.equal(runtime.state, 'available')
   assert.equal(runtime.plugins[0].manifest.id, 'odk.futu.publisher')
@@ -90,7 +93,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const { execFile } = require('node:child_process')
   const { promisify } = require('node:util')
   const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
-  const output = await promisify(execFile)(process.execPath, [cli, 'diagnose', 'odk.futu.publisher'], { env })
+  const output = await promisify(execFile)(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), cli, 'diagnose', 'odk.futu.publisher'], { env })
   assert.equal(JSON.parse(output.stdout).runtimes.find(runtime => runtime.host === 'python-agent').plugins[0].state, 'running')
   assert.equal((await completed)[0], 0, stderr)
 })

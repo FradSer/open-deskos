@@ -6,6 +6,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
 const { once } = require('node:events')
+const { privateEndpoint, diagnosticChannel } = require('./helpers/private-test-host.cjs')
 const { createPersonalBotClient } = require('../src/personal-bot-client')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
@@ -24,7 +25,8 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const { createPersonalBotComposition } = await import('../../../integrations/personal-bot/src/plugin-composition.mjs')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bdiag-'))
   t.after(() => fs.rm(directory, { recursive: true, force: true }))
-  const endpoint = path.join(directory, 'voice', 'agent.sock')
+  const endpoint = privateEndpoint(directory, 'resident')
+  const channel = diagnosticChannel(directory)
   const token = 'a'.repeat(64)
   let toggles = 0
   let snapshots = 0
@@ -42,13 +44,13 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   bad.write(`${JSON.stringify({ v: 1, token: 'b'.repeat(64) })}\n${JSON.stringify({ v: 1, type: 'runtime_diagnose', requestId: require('node:crypto').randomUUID() })}\n`)
   await refused
   assert.equal(snapshots, 0)
-  const client = createPersonalBotClient({ socketPath: endpoint, token })
+  const client = createPersonalBotClient({ token: 'a'.repeat(64), socketPath: endpoint, token })
   t.after(() => client.stop())
   const connected = new Promise(resolve => { client.subscribe(state => { if (state.state === 'error') resolve() }) })
   client.start()
   await connected
   const host = createPluginHost({ capabilities: {
-    'plugin.diagnostics': { endpoint: path.join(directory, 'open-deskos-plugins', 'diagnose.sock'), stateDir: directory, snapshot: () => host.list() },
+    'plugin.diagnostics': { ...channel, snapshot: () => host.list() },
   } })
   t.after(() => host.stop())
   const provider = selectedProvider(independent)
@@ -58,15 +60,15 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   host.register(provider)
   host.register(createDiagnosticsPlugin({ runtimePorts: ['odk:plugin-runtime/personal-agent/v1'] }))
   await host.start()
-  const result = await requestDiagnostics({ endpoint: path.join(directory, 'open-deskos-plugins', 'diagnose.sock'), pluginId: 'odk.personal-bot.runtime' })
+  const result = await requestDiagnostics({ ...channel, pluginId: 'odk.personal-bot.runtime' })
   assert.equal(result.runtimes[0].state, 'available')
   assert.equal(result.runtimes[0].plugins[0].state, 'failed')
   assert.equal(JSON.stringify(result).includes('private'), false)
   assert.equal(toggles, 0)
   assert.equal(snapshots, 1)
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
-  await assert.rejects(execFile(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', 'odk.personal-bot.runtime'], {
-    env: { ...process.env, XDG_RUNTIME_DIR: directory, XDG_STATE_HOME: directory, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config') },
+  await assert.rejects(execFile(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', 'odk.personal-bot.runtime'], {
+    env: channel.env,
   }), error => {
     assert.equal(error.code, 1)
     const response = JSON.parse(error.stdout)
@@ -84,10 +86,10 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
 test('invalid asynchronous resident snapshots remain unavailable without leaking rejected errors', { timeout: 3000 }, async t => {
   const { listen } = await import('../../../integrations/personal-bot/src/socket.mjs')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-basync-'))
-  const endpoint = path.join(directory, 'agent.sock')
+  const endpoint = privateEndpoint(directory, 'resident')
   const service = { status: { v: 1, type: 'status', state: 'idle' }, subscribe: () => () => {} }
-  const server = await listen(endpoint, service, { runtimeSnapshot: () => Promise.reject(Error('private failure')) })
-  const client = createPersonalBotClient({ socketPath: endpoint })
+  const server = await listen(endpoint, service, { token: 'a'.repeat(64), runtimeSnapshot: () => Promise.reject(Error('private failure')) })
+  const client = createPersonalBotClient({ token: 'a'.repeat(64), socketPath: endpoint })
   t.after(async () => { client.stop(); await server.close(); await fs.rm(directory, { recursive: true, force: true }) })
   const ready = new Promise(resolve => { client.subscribe(state => { if (state.state === 'idle') resolve() }) })
   client.start()
@@ -101,11 +103,11 @@ test('invalid asynchronous resident snapshots remain unavailable without leaking
 for (const independent of [false, true]) test(`${independent ? 'selected independent' : 'default'} diagnosis requests are bounded and client stop cancels pending work`, { timeout: 3000 }, async t => {
   const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bpend-'))
-  const endpoint = path.join(directory, 'a.sock')
+  const endpoint = privateEndpoint(directory, 'resident')
   const server = net.createServer()
   server.listen(endpoint)
   await once(server, 'listening')
-  const client = createPersonalBotClient({ socketPath: endpoint, diagnosisTimeoutMs: 20 })
+  const client = createPersonalBotClient({ token: 'a'.repeat(64), socketPath: endpoint, diagnosisTimeoutMs: 20 })
   let peer
   t.after(async () => { client.stop(); peer?.destroy(); await new Promise(resolve => server.close(resolve)); await fs.rm(directory, { recursive: true, force: true }) })
   const connection = once(server, 'connection')
@@ -136,11 +138,11 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
 test('runtime reports reject invalid reasons and correlate out-of-order replies without changing voice state', { timeout: 3000 }, async t => {
   const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-breply-'))
-  const endpoint = path.join(directory, 'a.sock')
+  const endpoint = privateEndpoint(directory, 'resident')
   const server = net.createServer()
   server.listen(endpoint)
   await once(server, 'listening')
-  const client = createPersonalBotClient({ socketPath: endpoint })
+  const client = createPersonalBotClient({ token: 'a'.repeat(64), socketPath: endpoint })
   let peer
   t.after(async () => { client.stop(); peer?.destroy(); await new Promise(resolve => server.close(resolve)); await fs.rm(directory, { recursive: true, force: true }) })
   const connection = once(server, 'connection')
@@ -177,14 +179,16 @@ test('runtime reports reject invalid reasons and correlate out-of-order replies 
 test('diagnosing an older resident sends no unknown command and preserves its voice connection', { timeout: 3000 }, async t => {
   const net = require('node:net')
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bolder-'))
-  const endpoint = path.join(directory, 'a.sock')
+  const endpoint = privateEndpoint(directory, 'resident')
   const commands = []
   let peer
   const server = net.createServer(socket => {
     peer = socket
     socket.on('data', chunk => {
       for (const line of chunk.toString().trim().split('\n')) {
-        const command = JSON.parse(line); commands.push(command.type)
+        const command = JSON.parse(line)
+        if (command.token !== undefined) { assert.equal(command.token, 'a'.repeat(64)); continue }
+        commands.push(command.type)
         if (command.type === 'status') socket.write('{"v":1,"type":"status","state":"idle"}\n')
         else if (command.type !== 'toggle') socket.destroy()
       }
@@ -192,7 +196,7 @@ test('diagnosing an older resident sends no unknown command and preserves its vo
   })
   server.listen(endpoint)
   await once(server, 'listening')
-  const client = createPersonalBotClient({ socketPath: endpoint })
+  const client = createPersonalBotClient({ token: 'a'.repeat(64), socketPath: endpoint })
   t.after(async () => { client.stop(); peer?.destroy(); await new Promise(resolve => server.close(resolve)); await fs.rm(directory, { recursive: true, force: true }) })
   const ready = new Promise(resolve => { client.subscribe(state => { if (state.state === 'idle') resolve() }) })
   client.start()

@@ -155,29 +155,30 @@ test('two Electron verifiers run concurrently with independent profiles', { time
   assert.deepEqual(results, [{ ok: true }, { ok: true }])
 })
 
-test('verifier restarts bounded cleanup after the child closes and releases its profile lock', async () => {
+test('verifier restarts bounded cleanup after the child closes and releases its profile lock', { timeout: 10000 }, async () => {
   const pending = []
   let child
   let closeObserved = false
   let lockReleased = false
   let rmAttempts = 0
+  let killed = false
+  let cleaned
+  const cleanupCompleted = new Promise(resolve => { cleaned = resolve })
   const originalRmSync = fs.rmSync
   const originalProcessKill = process.kill
   fs.rmSync = (target, options) => {
     const directory = pending[0] && path.dirname(pending[0][2])
     if (directory && target === directory && !lockReleased) {
       rmAttempts++
-      if (closeObserved && rmAttempts >= 41) lockReleased = true
+      if (killed && rmAttempts === 41) queueMicrotask(() => { closeObserved = true; child.emit('close', 0) })
+      if (closeObserved && rmAttempts > 41) lockReleased = true
       throw new Error('profile is still locked')
     }
-    return originalRmSync(target, options)
+    const result = originalRmSync(target, options)
+    if (directory && target === directory) cleaned()
+    return result
   }
-  const closeAfterKill = () => {
-    setTimeout(() => {
-      closeObserved = true
-      child.emit('close', 0)
-    }, 2100)
-  }
+  const closeAfterKill = () => { killed = true }
   process.kill = (pid, signal) => {
     if (pid === -4242) {
       closeAfterKill()
@@ -193,7 +194,7 @@ test('verifier restarts bounded cleanup after the child closes and releases its 
       return child
     } }).verify({ html: '<body>locked profile</body>' })
     assert.deepEqual(result, { ok: false, error: 'verification-timeout' })
-    await new Promise(resolve => setTimeout(resolve, 2400))
+    await cleanupCompleted
     assert.ok(rmAttempts >= 41, `expected cleanup to encounter the exhausted retry budget, got ${rmAttempts}`)
     assert.equal(fs.existsSync(path.dirname(pending[0][2])), false)
   } finally {

@@ -1,6 +1,7 @@
 'use strict'
 
 const test = require('node:test')
+if (require('./not-ported').notPortedOnWindows(test, 'unix-socket')) return
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const path = require('node:path')

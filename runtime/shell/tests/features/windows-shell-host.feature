@@ -134,3 +134,9 @@ Feature: 64-bit Windows as a Shell Host
     Given the runtime reads a configuration variable on the Windows path
     When the configuration inventory check runs
     Then that variable has a documented row naming a consumer that reads it
+  Scenario: Acceptance channels remain private on each host
+    Given the Shell already runs on the Windows desktop
+    When isolated diagnosis checks start
+    Then they use unique named pipes and private token files
+    And authenticated commands preserve the same behavior as Unix checks
+    And every test client and process closes before cleanup

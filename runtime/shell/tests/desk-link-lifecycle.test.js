@@ -79,7 +79,7 @@ test('Desk Link stop drains all native pending request connections', { skip: pos
 test('per-request cancellation does not cancel an independent request', async () => {
   const gates = [deferred(), deferred()]
   const signals = []
-  const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', send: async (_endpoint, _record, _timeout, channel) => {
+  const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', token: 'fixture-token', send: async (_endpoint, _record, _timeout, channel) => {
     signals.push(channel.signal)
     return gates[signals.length - 1].promise
   } })
@@ -99,7 +99,7 @@ test('per-request cancellation does not cancel an independent request', async ()
 
 test('pre-cancelled and stopped Desk Link reads never invoke transport', async () => {
   let sends = 0
-  const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', send: async () => { sends++; return { machines: [] } } })
+  const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', token: 'fixture-token', send: async () => { sends++; return { machines: [] } } })
   const controller = new AbortController()
   controller.abort()
   assert.deepEqual(await client.machines({ signal: controller.signal }), [])
@@ -112,7 +112,7 @@ test('cancelled transport rejection is unavailable while normal rejection remain
   for (const cancel of [false, true]) {
     const gate = deferred()
     const ready = deferred()
-    const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', send: () => { ready.resolve(); return gate.promise } })
+    const client = createDeskLinkClient({ socketPath: '/fixture/link.sock', token: 'fixture-token', send: () => { ready.resolve(); return gate.promise } })
     const controller = new AbortController()
     const reading = client.machines({ signal: controller.signal })
     await ready.promise

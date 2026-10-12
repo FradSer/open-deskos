@@ -21,6 +21,8 @@ const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../sr
 const { resolveShellHost } = require('../src/platform')
 const { readOrCreateToken, requiresToken } = require('../src/local-channel')
 
+const { privateEndpoint } = require('./helpers/private-test-host.cjs')
+const { posixOnlyReason } = require('./not-ported')
 const WINDOWS_PIPE = '\\\\.\\pipe\\open-deskos-personal-bot'
 
 function hostFor(platform, env) {
@@ -120,7 +122,7 @@ test('the voice link keeps the host endpoint name on every host', () => {
   assert.equal(resolvePersonalBotSocketPath({}, hostFor('win32', {})), WINDOWS_PIPE)
   assert.equal(
     resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }, hostFor('linux', { XDG_RUNTIME_DIR: '/run/user/1000' })),
-    '/run/user/1000/open-deskos-personal-bot/agent.sock',
+    path.join('/run/user/1000', 'open-deskos-personal-bot', 'agent.sock'),
   )
   // A Unix host still refuses to guess where a service would listen, so a host
   // without a runtime directory keeps reporting voice as unavailable.
@@ -130,7 +132,7 @@ test('the voice link keeps the host endpoint name on every host', () => {
 
 test('the Windows voice pipe is one the channel token must authenticate', () => {
   assert.equal(requiresToken({ endpoint: WINDOWS_PIPE, platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: '/run/user/1000/open-deskos-personal-bot/agent.sock', platform: 'linux' }), false)
+  assert.equal(requiresToken({ endpoint: path.join('/run/user/1000', 'open-deskos-personal-bot', 'agent.sock'), platform: 'linux' }), false)
 })
 
 test('a Windows voice connection presents the channel token before the protocol', async (t) => {
@@ -144,7 +146,7 @@ test('a Windows voice connection presents the channel token before the protocol'
   // host state is this test's directory, while the client is told it is on a
   // Windows host, which is what makes it present the token.
   const token = await readOrCreateToken({ stateDir: host.stateDir })
-  const socketPath = path.join(dir, 'voice.sock')
+  const socketPath = privateEndpoint(dir, 'voice')
   const { server, commands, handshakes } = voiceService(token, (_command, peer) => {
     peer.write(`${JSON.stringify({ v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 })}\n`)
   })
@@ -167,7 +169,7 @@ test('a Windows voice connection presents the channel token before the protocol'
 test('a voice connection without the token never reaches the protocol', async (t) => {
   const dir = await stateDir(t)
   const host = isolatedHost(dir)
-  const socketPath = path.join(dir, 'voice.sock')
+  const socketPath = privateEndpoint(dir, 'voice')
   const { server, commands, handshakes } = voiceService('a-different-token')
   t.after(() => server.close())
   server.listen(socketPath)
@@ -185,7 +187,7 @@ test('a voice connection without the token never reaches the protocol', async (t
   assert.equal(client.toggle(), false)
 })
 
-test('a Unix voice socket still receives the protocol with no handshake', async (t) => {
+test('a Unix voice socket still receives the protocol with no handshake', { skip: posixOnlyReason('unix-socket') }, async (t) => {
   const dir = await stateDir(t)
   const socketPath = path.join(dir, 'agent.sock')
   const { server, commands, handshakes } = voiceService(null, (_command, peer) => {

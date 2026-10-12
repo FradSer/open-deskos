@@ -18,14 +18,14 @@ const appearances = require('../src/renderer/core/appearance-plugins')
 
 if (process.platform === 'darwin') app.dock.hide()
 registerUserAppScheme(protocol)
-const root = fs.mkdtempSync(path.join(process.platform === 'win32' ? os.tmpdir() : '/tmp', 'odk-ap-'))
+const root = process.env.ODK_APPEARANCE_ROOT
+assert.ok(root && path.isAbsolute(root), 'Appearance requires a private parent-owned root')
 app.setPath('userData', path.join(root, 'profile'))
 app.setPath('sessionData', path.join(root, 'session'))
 const assets = createNativeRendererAssets()
 let host
 let win
 const deadline = setTimeout(() => app.exit(1), 20000)
-process.once('exit', () => fs.rmSync(root, { recursive: true, force: true }))
 
 app.whenReady().then(async () => {
   const failedEntry = process.argv.includes('--failed-entry')

@@ -32,6 +32,25 @@ async function fixture(t) {
   return { root, source, stateDir, manifest, keyring, sign, marker, store: createNativePluginStore({ stateDir, keyring }) }
 }
 
+test('native staging verifies an existing revision after an EPERM publication collision', async t => {
+  const f = await fixture(t)
+  const first = await f.store.stage(f.source)
+  const collision = Object.assign(Error('controlled directory collision'), { code: 'EPERM' })
+  t.mock.method(fs, 'rename', async () => { throw collision })
+  assert.deepEqual(await f.store.stage(f.source), first)
+  await fs.writeFile(path.join(f.stateDir, 'revisions', first.revision, 'entry.cjs'), 'corrupt')
+  await assert.rejects(f.store.stage(f.source), /hash mismatch/)
+  assert.deepEqual(await fs.readdir(path.join(f.stateDir, 'revisions')), [first.revision])
+})
+
+test('native staging preserves an EPERM failure without an existing revision', async t => {
+  const f = await fixture(t)
+  const denied = Object.assign(Error('controlled permission denial'), { code: 'EPERM' })
+  t.mock.method(fs, 'rename', async () => { throw denied })
+  await assert.rejects(f.store.stage(f.source), error => error === denied)
+  assert.deepEqual(await fs.readdir(path.join(f.stateDir, 'revisions')), [])
+})
+
 test('signed native staging snapshots exact bytes without executing entries or changing sources', async t => {
   const f = await fixture(t)
   const result = await f.store.stage(f.source)

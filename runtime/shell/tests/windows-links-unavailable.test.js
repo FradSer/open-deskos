@@ -14,7 +14,8 @@ const WINDOWS_ENV = {}
 const WINDOWS_HOST = process.platform === 'win32'
 
 test('a link that is not ported to this host resolves no endpoint', () => {
-  assert.equal(resolvePersonalBotSocketPath(WINDOWS_ENV), resolveDeskLinkSocketPath(WINDOWS_ENV))
+  assert.equal(resolvePersonalBotSocketPath(WINDOWS_ENV), WINDOWS_HOST ? '\\\\.\\pipe\\open-deskos-personal-bot' : null)
+  assert.equal(resolveDeskLinkSocketPath(WINDOWS_ENV), WINDOWS_HOST ? '\\\\.\\pipe\\open-deskos-desk-link' : null)
   assert.equal(resolveRemoteBridgeSocketPath(WINDOWS_ENV), null)
 
   // A Unix host needs a runtime directory for a ported link; a Windows host has no
@@ -35,8 +36,9 @@ test('a link that is not ported to this host resolves no endpoint', () => {
   assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\open-deskos-remote-bridge')
 })
 
-test('the voice surface reads unavailable without a local endpoint', () => {
-  const client = createPersonalBotClient({ socketPath: resolvePersonalBotSocketPath(WINDOWS_ENV) })
+test('the voice surface reads unavailable without a local endpoint', t => {
+  const client = createPersonalBotClient({ socketPath: null })
+  t.after(() => client.stop())
 
   assert.equal(client.snapshot().state, 'unavailable')
   assert.equal(client.toggle(), false, 'a toggle cannot be accepted without a service')

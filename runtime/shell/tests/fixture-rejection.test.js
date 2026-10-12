@@ -34,7 +34,7 @@ for (const [control, mode, message] of [['missing', 'built-in', 'Selected Render
   test(`Clock Main ${control}/${mode} negative guard requires its own failure exit`, async () => {
     const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm')
     const source = fs.readFileSync(path.join(__dirname, 'clock-main-bootstrap.test.js'), 'utf8')
-    const start = source.indexOf("        if (control === 'missing') await assert.rejects(launch,")
+    const start = source.indexOf("        if (control === 'missing-bridge') await assert.rejects(launch,")
     const end = source.indexOf('        else {', start)
     assert.ok(start >= 0 && end > start)
     const run = error => vm.runInNewContext(`(async()=>{${source.slice(start, end)}})()`, {

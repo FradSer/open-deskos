@@ -9,6 +9,7 @@ const path = require('node:path')
 const { once } = require('node:events')
 const { createServicePluginSocket } = require('../src/service-plugin-socket')
 
+const { serviceChannel, connectEndpoint, pythonExecutable } = require('./helpers/private-test-host.cjs')
 const report = { host: 'python-agent', instance: 'futu-poller', state: 'available', plugins: [{
   manifest: { schemaVersion: 1, id: 'odk.futu.publisher', name: 'Publisher', version: '1.0.0', host: 'python-agent', kind: 'service', provides: [], requires: [], permissions: [] },
   state: 'running', enabled: true,
@@ -16,14 +17,16 @@ const report = { host: 'python-agent', instance: 'futu-poller', state: 'availabl
 async function fixture(t, capabilities = ['runtime_diagnosis']) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-sdiag-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const endpoint = path.join(root, 'service.sock')
+  const channel = await serviceChannel(root)
+  const endpoint = channel.endpoint
   const snapshots = []
-  const server = createServicePluginSocket({ endpoint, services: { 'futu-poller': { revision: 'dev' } }, onSnapshot: record => snapshots.push(record) })
+  const server = createServicePluginSocket({ ...channel, endpoint, services: { 'futu-poller': { revision: 'dev' } }, onSnapshot: record => snapshots.push(record) })
   t.after(() => server.stop())
   await server.start()
-  const client = net.connect(endpoint)
+  const client = net.connect(connectEndpoint(endpoint))
   t.after(() => client.destroy())
   await once(client, 'connect')
+  if (channel.channelToken) require('../src/local-channel').writeHandshake(client, channel.channelToken)
   let buffer = ''
   const lines = []
   const waiters = []
@@ -86,14 +89,15 @@ test('actual Python publisher answers diagnosis with its owned plugin lifecycle'
   const { promisify } = require('node:util')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pdiag-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const endpoint = path.join(root, 'service.sock')
+  const channel = await serviceChannel(root)
+  const endpoint = channel.endpoint
   let resolveReport
   let rejectReport
   const result = new Promise((resolve, reject) => { resolveReport = resolve; rejectReport = reject })
   const observed = result.then(report => report)
   observed.catch(() => {})
   const snapshots = []
-  const server = createServicePluginSocket({ endpoint, services: { 'futu-poller': { revision: 'dev' } },
+  const server = createServicePluginSocket({ ...channel, endpoint, services: { 'futu-poller': { revision: 'dev' } },
     onSnapshot: record => snapshots.push(record),
     onStatus: status => {
       if (status.state === 'connected') server.diagnoseRuntime('futu-poller').then(resolveReport, rejectReport)
@@ -103,12 +107,12 @@ test('actual Python publisher answers diagnosis with its owned plugin lifecycle'
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1]})',
+    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'try: runtime.host.get(poller.PORTS["publisher"]).send({"type":"data","snapshot":{"positions":[],"totals":{}}})',
     'finally: runtime.close()',
   ].join('\n')
-  await promisify(execFile)('python3', ['-c', code, endpoint], {
+  await promisify(execFile)(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], {
     cwd: path.resolve(__dirname, '../../../integrations/futu-poller'), timeout: 10000,
   })
   const actual = await observed
@@ -123,13 +127,14 @@ test('Python owner receives diagnosis while waiting after publication', async t 
   const { spawn } = require('node:child_process')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pwait-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const endpoint = path.join(root, 'service.sock')
-  const server = createServicePluginSocket({ endpoint, services: { 'futu-poller': { revision: 'dev' } } })
+  const channel = await serviceChannel(root)
+  const endpoint = channel.endpoint
+  const server = createServicePluginSocket({ ...channel, endpoint, services: { 'futu-poller': { revision: 'dev' } } })
   t.after(() => server.stop())
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1]})',
+    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',
@@ -138,7 +143,7 @@ test('Python owner receives diagnosis while waiting after publication', async t 
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn('python3', ['-c', code, endpoint], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''

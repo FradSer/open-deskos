@@ -27,7 +27,7 @@ function tree(dir, match, visit) {
   if (!fs.existsSync(dir)) return
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
-    if (SKIP.test(full)) continue
+    if (SKIP.test(full.split(path.sep).join('/'))) continue
     if (entry.isDirectory()) tree(full, match, visit)
     else if (match.test(entry.name)) visit(full)
   }

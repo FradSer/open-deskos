@@ -131,8 +131,12 @@ function createNativePluginStore({ stateDir, keyring }) {
         if (copied.revision !== bundle.revision) throw Error('native snapshot mismatch')
         declaration(staging, copied)
         try { await fs.rename(staging, path.join(revisions, bundle.revision)) } catch (error) {
-          if (!['EEXIST', 'ENOTEMPTY'].includes(error.code)) throw error
-          await read(bundle.revision)
+          // Windows reports EPERM when a revision directory already exists.
+          if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error
+          try { await read(bundle.revision) } catch (verificationError) {
+            if (error.code === 'EPERM' && verificationError.code === 'ENOENT') throw error
+            throw verificationError
+          }
         }
         return { revision: bundle.revision, manifest: structuredClone(bundle.manifest), replacement: bundle.replacement }
       } finally {
