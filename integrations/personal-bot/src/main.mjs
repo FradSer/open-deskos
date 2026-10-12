@@ -1,11 +1,14 @@
+import { createPersonalBotComposition, loadPersonalBotPluginConfig } from './plugin-composition.mjs'
+import { loadPersonalBotReplacements } from './development-plugins.mjs'
+import { parseArgs } from 'node:util'
 import { migratePersonalBotState, personalBotEnvironment } from './personal-bot-migration.mjs'
 import { readdir, rm, access } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createPersonalBot } from './agent.mjs'
 import { record } from './recorder.mjs'
 import { transcribe, transcriptionProvider, transcriptionLanguage, transcriptionPrompt, isLoopbackUrl, isDeviceLocalStt } from './transcribe.mjs'
 import { PersonalBotService } from './service.mjs'
-import { channelTokenFile, listen, personalBotEndpoint } from './socket.mjs'
+import { channelTokenFile, listen, personalBotEndpoint, personalBotControlEndpoint } from './socket.mjs'
 import { prepareHostDirectories } from './host-paths.mjs'
 import { loadPersonalConfig } from './personal-config.mjs'
 import { proposalStateStore } from './proactive-state.mjs'
@@ -16,9 +19,11 @@ import { loadTargets, taskRequest } from './task-client.mjs'
 import { rideNotification } from './ride-notification.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
 
-async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined) {
+async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined) {
+  signal?.throwIfAborted()
   report('Check ODESK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
   const personal = await loadPersonalConfig(env)
+  signal?.throwIfAborted()
   report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
   if (personal.profile === 'coding' && !env.ODESK_WORKSPACE) throw Error('Workspace missing')
   // The provider declares the request shape the endpoint expects, so a desk that
@@ -70,13 +75,14 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     if (!env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || env.ODESK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
   }
   const directories = await prepareHostDirectories(env, platform)
+  signal?.throwIfAborted()
   report('Check Jev credential (TYPESAFE_API_KEY or ODESK_JEV_KEY_FILE), writable checkout, Pi authentication/model and capability paths; restart service')
   const agent = await createPersonalBot({
     workspace: env.ODESK_WORKSPACE,
     stateDir: directories.state,
     model: env.ODESK_PERSONAL_BOT_MODEL,
     capabilityPaths: personal.profile === 'coding' && env.ODESK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODESK_PERSONAL_BOT_CAPABILITIES) : [],
-    personal, onRideUpdate, getWatch, env,
+    personal, onRideUpdate, getWatch, env, signal,
   })
   return {
     agent,
@@ -93,9 +99,30 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
 
 async function main() {
   process.umask(0o077)
+  const { values } = parseArgs({ options: {
+    'plugin-selection': { type: 'string' }, 'trust-plugins': { type: 'boolean', default: false },
+    plugins: { type: 'string' },
+  } })
+  if (values.plugins && !['list', 'validate'].includes(values.plugins)) throw Error('invalid resident inspection command')
+  if (values['trust-plugins'] && !values['plugin-selection']) throw Error('resident trust requires a startup selection')
+  const replacementPlugins = values['plugin-selection']
+    ? loadPersonalBotReplacements(values['plugin-selection'], { trusted: values['trust-plugins'] }) : []
   const env = personalBotEnvironment(process.env)
-  await migratePersonalBotState(env)
   const platform = process.platform
+  const control = { endpoint: personalBotControlEndpoint(env, platform), stateDir: dirname(channelTokenFile(env, platform)), platform }
+  const disabled = loadPersonalBotPluginConfig().resolveStartupDisabled(env)
+  if (values.plugins) {
+    const unavailable = () => { throw Error('inspection must not start providers') }
+    const inspection = createPersonalBotComposition({ replacementPlugins, disabled, control,
+      createService: unavailable, openChannel: unavailable, initialize: unavailable,
+      createHome: unavailable, ...(env.ODESK_PROACTIVE_CONFIG ? { createWatch: unavailable } : {}),
+    })
+    inspection.validate()
+    console.info(JSON.stringify({ host: 'personal-agent', instance: 'personal-bot', scope: 'declarations',
+      validated: values.plugins === 'validate', plugins: inspection.catalog() }))
+    return
+  }
+  await migratePersonalBotState(env)
   // The voice link is a runtime channel, so the host's own naming decides where it
   // is bound: a socket in the runtime directory, or the personal-bot named pipe
   // that a channel token authenticates.
@@ -105,42 +132,46 @@ async function main() {
   let runtime
   let watch
   let home
-  const service = new PersonalBotService({
-    failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
-    record: async onLevel => {
-      if (!runtime) throw Error('Configuration incomplete')
-      return record(directory, env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
+  let service
+  const composition = createPersonalBotComposition({
+    replacementPlugins, disabled, control,
+    onService(value) { service = value },
+    createService() {
+      service = new PersonalBotService({
+        failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
+        record: async onLevel => {
+          if (!runtime) throw Error('Configuration incomplete')
+          return record(directory, env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
+        },
+        transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
+        prompt: (text, onResponseSnapshot) => runtime.agent.prompt(text, onResponseSnapshot),
+      })
+      service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
+      const originalToggle = service.toggle.bind(service)
+      service.toggle = async () => { if (runtime) await originalToggle() }
+      return service
     },
-    transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
-    prompt: (text, onResponseSnapshot) => runtime.agent.prompt(text, onResponseSnapshot),
-  })
-  service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
-  const server = await listen(endpoint, service, { platform, tokenFile: channelTokenFile(env, platform) })
-  const originalToggle = service.toggle.bind(service)
-  service.toggle = async () => { if (runtime) await originalToggle() }
-  for (const name of await readdir(directory)) {
-    if (name.startsWith('capture-')) await rm(join(directory, name), { recursive: true, force: true })
-  }
-  let closing = false
-  const close = async () => {
-    if (closing) return
-    closing = true
-    home?.close()
-    await watch?.close()
-    await server.close()
-    await runtime?.agent.abort()
-    await service.close()
-    await runtime?.agent.close()
-  }
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void close().catch(() => { process.exitCode = 1 }) })
-  try {
-    runtime = await initialize(env, message => service.setState('error', message), snapshot => {
+    async openChannel(service) {
+      const server = await listen(endpoint, service, { platform, tokenFile: channelTokenFile(env, platform), runtimeSnapshot: () => composition.catalog() })
+      return {
+        close: () => server.close(),
+        async prepare() {
+          for (const name of await readdir(directory)) {
+            if (name.startsWith('capture-')) await rm(join(directory, name), { recursive: true, force: true })
+          }
+        },
+      }
+    },
+    initialize: (service, context) => initialize(env, message => service.setState('error', message), snapshot => {
       const message = rideNotification(snapshot)
       if (message) service.notify(message)
-    }, platform, () => watch)
-    if (closing) await runtime.agent.close()
-    else {
-      service.setState('idle')
+    }, platform, () => watch, context.signal),
+    onRuntime(value, context) {
+      runtime = value
+      if (runtime) service.setState('idle')
+      else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')
+    },
+    createHome(_runtime, _service) {
       home = new HomeBriefing({
         requireBindings: true,
         list: async signal => (await deskDataRequest('list', { signal, env, platform })).readings,
@@ -148,48 +179,58 @@ async function main() {
         generate: runtime.agent.generateBriefing,
         publish: frame => service.publishBriefing(frame),
       })
+      return home
+    },
+    onHome(value, service, context) {
+      home = value
       service.attachHome(home)
-      home.start()
-      if (env.ODESK_PROACTIVE_CONFIG) {
-        try {
-          const config = loadProactiveConfig(env.ODESK_PROACTIVE_CONFIG)
-          const targets = await loadTargets(env.ODESK_TASK_TARGETS_FILE)
-          const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
-          watch = new ProactiveWatch({ config, loadState: state.load, saveState: state.save,
-            generate: runtime.agent.generateProposals,
-            onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
-            judge: createJevJudge({ env }),
-            onJudgment: record => console.info(JSON.stringify({ event: 'proactive_jev', ...record })),
-            read: async (id, signal) => (await deskDataRequest('read', { id, signal, env, platform })).reading,
-            save: ownerConfigWriter(env.ODESK_PROACTIVE_CONFIG, config),
-            phrase: runtime.agent.phraseProposal,
-            execute: runtime.agent.executeProposal,
-            codingList: async (scope, signal) => {
-              const target = targets.find(target => target.id === scope.target)
-              if (!target) throw Error('Coding target unavailable')
-              return (await taskRequest(target, { command: 'list', project: scope.project }, signal)).tasks
-            },
-            codingStatus: async (identity, signal) => {
-              const target = targets.find(target => target.id === identity.target)
-              if (!target) throw Error('Coding target unavailable')
-              return (await taskRequest(target, { ...identity, command: 'status' }, signal)).task
-            },
-            publish: frame => service.propose(frame),
-          })
-          service.attachWatch(watch)
-          service.subscribe(status => {
-            const busy = service.starting || !['idle', 'error'].includes(status.state)
-            if (watch.busy !== busy) watch.setBusy(busy)
-          })
-          watch.start()
-        } catch {
-          service.notify('主动建议未启用：请检查私有 owner 配置和 Jev 凭据并重启服务。')
-        }
-      }
-    }
-  } catch {
-    // Keep the safe, actionable initialization-stage message; never expose SDK errors.
+      context.onCleanup(() => { service.attachHome(undefined); home = undefined })
+    },
+    ...(env.ODESK_PROACTIVE_CONFIG ? { async createWatch(_runtime, _service) {
+      const config = loadProactiveConfig(env.ODESK_PROACTIVE_CONFIG)
+      const targets = await loadTargets(env.ODESK_TASK_TARGETS_FILE)
+      const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
+      watch = new ProactiveWatch({ config, loadState: state.load, saveState: state.save,
+        generate: runtime.agent.generateProposals,
+        onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
+        judge: createJevJudge({ env }),
+        onJudgment: record => console.info(JSON.stringify({ event: 'proactive_jev', ...record })),
+        read: async (id, signal) => (await deskDataRequest('read', { id, signal, env, platform })).reading,
+        save: ownerConfigWriter(env.ODESK_PROACTIVE_CONFIG, config),
+        phrase: runtime.agent.phraseProposal,
+        execute: runtime.agent.executeProposal,
+        codingList: async (scope, signal) => {
+          const target = targets.find(target => target.id === scope.target)
+          if (!target) throw Error('Coding target unavailable')
+          return (await taskRequest(target, { command: 'list', project: scope.project }, signal)).tasks
+        },
+        codingStatus: async (identity, signal) => {
+          const target = targets.find(target => target.id === identity.target)
+          if (!target) throw Error('Coding target unavailable')
+          return (await taskRequest(target, { ...identity, command: 'status' }, signal)).task
+        },
+        publish: frame => service.propose(frame),
+      })
+      return watch
+    } } : {}),
+    onWatch(value, service, context) {
+      watch = value
+      service.attachWatch(watch)
+      context.onCleanup(() => { service.attachWatch(undefined); watch = undefined })
+      context.onCleanup(service.subscribe(status => {
+        const busy = service.starting || !['idle', 'error'].includes(status.state)
+        if (watch.busy !== busy) watch.setBusy(busy)
+      }))
+    },
+    onError(id) {
+      if (id === 'odk.personal-bot.watch') service.notify('主动建议未启用：请检查私有 owner 配置和 Jev 凭据并重启服务。')
+      // Configuration reports remain actionable; SDK errors stay private.
+    },
+  })
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, () => { void composition.stop().catch(() => { process.exitCode = 1 }) })
   }
+  await composition.start()
 }
 
 main().catch(() => {

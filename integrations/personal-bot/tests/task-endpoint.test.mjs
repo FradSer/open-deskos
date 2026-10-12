@@ -19,7 +19,16 @@ test('the endpoint path is derived from the session and is absent without one', 
   const { dir } = await fixture(t)
   assert.equal(endpointFile(dir), join(dir, 'open-deskos/hosted-pi/endpoint.json'))
   assert.equal(endpointFile('relative/run'), undefined)
-  assert.equal(endpointFile(undefined), undefined)
+  const previous = process.env.XDG_RUNTIME_DIR
+  try {
+    delete process.env.XDG_RUNTIME_DIR
+    assert.equal(endpointFile(undefined), undefined)
+    process.env.XDG_RUNTIME_DIR = dir
+    assert.equal(endpointFile(), join(dir, 'open-deskos/hosted-pi/endpoint.json'))
+  } finally {
+    if (previous === undefined) delete process.env.XDG_RUNTIME_DIR
+    else process.env.XDG_RUNTIME_DIR = previous
+  }
 })
 
 test('publishing records the bound socket privately and removing it is idempotent', async t => {

@@ -82,13 +82,27 @@ export async function serveTasks(socketPath, handle, disconnect = () => {}) {
   await privateDirectory(dirname(socketPath))
   await clearStaleSocket(socketPath)
   const sockets = new Set()
+  const disconnects = new Map()
+  let listenerClosing
+  const beginDisconnect = entry => {
+    if (!entry.pending) {
+      entry.pending = Promise.resolve().then(entry.operation)
+      void entry.pending.then(() => disconnects.delete(entry.id), () => {})
+    }
+    return entry.pending
+  }
   const server = createServer(socket => {
     const connectionId = randomUUID()
     let held = false
     let chain = Promise.resolve()
     sockets.add(socket)
     socket.on('error', () => {})
-    socket.once('close', () => { sockets.delete(socket); void disconnect(connectionId) })
+    socket.once('close', () => {
+      sockets.delete(socket)
+      const entry = { id: connectionId, operation: () => disconnect(connectionId), pending: undefined }
+      disconnects.set(connectionId, entry)
+      beginDisconnect(entry)
+    })
     socket.setTimeout(REQUEST_TIMEOUT, () => socket.destroy())
     const send = event => {
       const frame = `${JSON.stringify(event)}\n`
@@ -117,5 +131,31 @@ export async function serveTasks(socketPath, handle, disconnect = () => {}) {
   })
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(socketPath, () => { server.off('error', reject); resolve(undefined) }) })
   await chmod(socketPath, 0o600)
-  return { async close() { for (const socket of sockets) socket.destroy(); await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined))) } }
+  async function disconnectClients() {
+    await Promise.all([...sockets].map(socket => new Promise(resolve => {
+      socket.once('close', () => resolve(undefined))
+      socket.destroy()
+    })))
+    const entries = [...disconnects.values()]
+    const results = await Promise.allSettled(entries.map(beginDisconnect))
+    const errors = []
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        entries[index].pending = undefined
+        errors.push(result.reason)
+      }
+    })
+    if (errors.length) throw new AggregateError(errors, 'Hosted Pi connection cleanup failed')
+  }
+  return {
+    disconnectClients,
+    async close() {
+      if (!listenerClosing) {
+        listenerClosing = new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined)))
+        void listenerClosing.catch(() => {})
+      }
+      await disconnectClients()
+      await listenerClosing
+    },
+  }
 }

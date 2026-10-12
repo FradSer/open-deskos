@@ -5,8 +5,88 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:net'
+import { createPersonalBotComposition, personalBotManifest, BOT_PORTS } from '../src/plugin-composition.mjs'
+import { loadPersonalBotReplacements } from '../src/development-plugins.mjs'
+import { HomeBriefing } from '../src/home-briefing.mjs'
+import { PersonalBotService } from '../src/service.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 import { agentOptions, validateWorkspace, createPersonalBot, createResourceLoader, sessionAdapter } from '../src/agent.mjs'
+
+test('pre-cancelled Agent initialization does not create its router or state directory', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'voice-init-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const controller = new AbortController()
+  controller.abort()
+  let calls = 0
+  await assert.rejects(createPersonalBot({ stateDir: join(dir, 'state'), signal: controller.signal }, {
+    createIntentRouter: () => { calls++; return async () => ({ intent: 'conversation' }) },
+  }), { name: 'AbortError' })
+  assert.equal(calls, 0)
+  const { access } = await import('node:fs/promises')
+  await assert.rejects(access(join(dir, 'state')), /ENOENT/)
+})
+
+for (const stage of ['runtime', 'models', 'session', 'binding', 'failed-binding']) {
+  test(`Agent startup owns cancellation and cleanup during ${stage}`, async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'voice-init-'))
+    t.after(() => rm(dir, { recursive: true, force: true }))
+    const controller = new AbortController()
+    let entered
+    const ready = new Promise(resolve => { entered = resolve })
+    let release
+    const gate = new Promise(resolve => { release = resolve })
+    let sessions = 0
+    let binds = 0
+    let disposed = 0
+    let aborted = 0
+    const session = {
+      async bindExtensions() {
+        binds++
+        if (stage === 'failed-binding') throw Error('fixture binding failed')
+        if (stage === 'binding') { entered(); await gate }
+      },
+      async abort() { aborted++; release() },
+      dispose() { disposed++ },
+      setActiveToolsByName() {},
+    }
+    const initializing = createPersonalBot({ stateDir: join(dir, 'state'), signal: controller.signal,
+      personal: { profile: 'personal', memoryFile: join(dir, 'memory.json'), skillPaths: [] }, env: {},
+    }, {
+      createIntentRouter: () => async () => ({ intent: 'conversation' }),
+      createRuntime: async options => {
+        assert.equal(options.signal, controller.signal)
+        if (stage === 'runtime') {
+          options.signal.addEventListener('abort', release, { once: true })
+          entered(); await gate
+        }
+        return { async getAvailable(_filter, options) {
+        assert.equal(options.signal, controller.signal)
+        if (stage === 'models') {
+          options.signal.addEventListener('abort', release, { once: true })
+          entered(); await gate
+        }
+        return [{ provider: 'fixture', id: 'model' }]
+      } }
+      },
+      createSession: async () => {
+        sessions++
+        if (stage === 'session') { entered(); await gate }
+        return { session }
+      },
+    })
+    const rejected = assert.rejects(initializing, stage === 'failed-binding' ? /fixture binding failed/ : { name: 'AbortError' })
+    if (stage !== 'failed-binding') {
+      await ready
+      controller.abort()
+      if (stage === 'session') release()
+    }
+    await rejected
+    assert.equal(sessions, ['runtime', 'models'].includes(stage) ? 0 : 1)
+    assert.equal(binds, ['binding', 'failed-binding'].includes(stage) ? 1 : 0)
+    assert.equal(disposed, ['runtime', 'models'].includes(stage) ? 0 : 1)
+    assert.equal(aborted, ['runtime', 'models'].includes(stage) ? 0 : 1)
+  })
+}
 
 test('real SDK resource loader loads the widget skill without undefined agentDir', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
@@ -49,7 +129,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
     createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined }),
     createIntentRouter: () => async () => ({ intent: 'conversation' }),
     createSession: async options => {
-      const generator = ++sessionNumber === 2
+      const generator = ++sessionNumber > 1
       if (generator) inspect(options)
       return { session: session(generator) }
     },
@@ -57,6 +137,134 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
   t.after(() => bot.close())
   return bot
 }
+
+test('selected Agent preserves Home binding, cached updates, and runtime restart', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'home-agent-selection-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const entry = join(dir, 'agent.cjs')
+  const config = join(dir, 'selection.json')
+  await writeFile(entry, `exports.create = () => {
+    let calls = 0, enter, release, finish
+    const ready = new Promise(resolve => { enter = resolve })
+    const gate = new Promise(resolve => { release = resolve })
+    const finished = new Promise(resolve => { finish = resolve })
+    const runtime = { mode: 'normal', ready, release, finished, agent: {
+    get calls() { return calls },
+    async generateBriefing({ signal }) {
+      calls++
+      if (runtime.mode === 'fail') throw Error('private generation detail')
+      if (runtime.mode === 'hold') {
+        enter()
+        let cancel
+        try {
+          await Promise.race([gate.then(() => finish()), new Promise((_resolve, reject) => {
+            cancel = () => reject(Error('cancelled'))
+            signal.addEventListener('abort', cancel, { once: true })
+            if (signal.aborted) cancel()
+          })])
+        } finally { signal.removeEventListener('abort', cancel) }
+      }
+      return { items: [{ text: '{{pi|@label|text}} {{pi|count|integer}} sessions.',
+        segments: [{ text: '{{pi|@label|text}} {{pi|count|integer}} sessions.', icon: 'sessions' }], readingIds: ['pi'] }] }
+    }, abort() {}, close() {}
+    } }
+    return runtime
+  }`)
+  await writeFile(config, JSON.stringify({ schemaVersion: 1, replacements: [{
+    manifest: { ...personalBotManifest('runtime'), version: '2.0.0' }, entry,
+  }] }))
+  const reports = []
+  for (const external of [false, true]) {
+    let count = 2, generations = 0, now = 2000
+    const reading = () => ({ id: 'pi', label: 'Pi', state: 'live', updatedAt: 1000,
+      value: { count }, home: { mode: 'required', priority: 100, icon: 'sessions', fields: ['count'] } })
+    const service = new PersonalBotService({ record: async () => assert.fail('no recording'),
+      transcribe: async () => assert.fail('no transcription'), prompt: async () => assert.fail('no voice request') })
+    const resident = createPersonalBotComposition({
+      replacementPlugins: external ? loadPersonalBotReplacements(config, { trusted: true }) : [],
+      createService: () => service, openChannel: async () => ({ close() {} }),
+      async initialize() {
+        assert.equal(external, false, 'selected Agent must not construct the default adapter')
+        let enter, release, finish
+        const ready = new Promise(resolve => { enter = resolve })
+        const gate = new Promise(resolve => { release = resolve })
+        const finished = new Promise(resolve => { finish = resolve })
+        const runtime = { mode: 'normal', ready, release, finished }
+        const agent = await generationFixture(t, {}, async emit => {
+          generations++
+          if (runtime.mode === 'fail') throw Error('private generation detail')
+          const held = runtime.mode === 'hold'
+          if (held) { enter(); await gate }
+          const text = '{{pi|@label|text}} {{pi|count|integer}} sessions.'
+          emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{
+            text, segments: [{ text, icon: 'sessions' }], readingIds: ['pi'],
+          }] })) })
+          if (held) finish()
+        })
+        return Object.assign(runtime, { agent })
+      },
+      createHome(runtime) {
+        return new HomeBriefing({ requireBindings: true, list: async () => [reading()], read: async () => reading(),
+          generate: runtime.agent.generateBriefing, publish: frame => service.publishBriefing(frame), now: () => now })
+      },
+      onHome(home, current, context) {
+        current.attachHome(home)
+        context.onCleanup(() => current.attachHome(undefined))
+      },
+    })
+    try {
+      await resident.start()
+      const home = resident.port(BOT_PORTS.home)
+      const agent = resident.port(BOT_PORTS.runtime).agent
+      const channel = resident.port(BOT_PORTS.channel)
+      await home.refresh()
+      assert.equal(service.status.briefing.state, 'live')
+      assert.equal(service.status.briefing.items[0].text, 'Pi 2 sessions.')
+      const first = structuredClone(service.status.briefing)
+      count = 5
+      await home.refresh()
+      assert.equal(service.status.briefing.items[0].text, 'Pi 5 sessions.')
+      assert.equal(external ? agent.calls : generations, 1)
+      const updated = structuredClone(service.status.briefing)
+      const runtime = resident.port(BOT_PORTS.runtime)
+      runtime.mode = 'fail'
+      now += 15 * 60 * 1000
+      await home.refresh()
+      assert.equal(service.status.briefing.state, 'stale')
+      assert.deepEqual(service.status.briefing.items, updated.items)
+      assert.doesNotMatch(JSON.stringify(service.status.briefing), /private generation detail/)
+      const stale = structuredClone(service.status.briefing)
+      runtime.mode = 'normal'
+      await home.refresh()
+      assert.equal(service.status.briefing.state, 'live')
+      const recovered = structuredClone(service.status.briefing)
+      runtime.mode = 'hold'
+      now += 15 * 60 * 1000
+      const pending = home.refresh()
+      await runtime.ready
+      await resident.setEnabled('odk.personal-bot.runtime', false)
+      await pending
+      assert.equal(home.closed, true)
+      const disabled = structuredClone(service.status.briefing)
+      count = 7
+      await home.refresh()
+      assert.deepEqual(service.status.briefing, disabled)
+      await resident.setEnabled('odk.personal-bot.runtime', true)
+      const fresh = resident.port(BOT_PORTS.home)
+      assert.notEqual(fresh, home)
+      assert.equal(resident.port(BOT_PORTS.service), service)
+      assert.equal(resident.port(BOT_PORTS.channel), channel)
+      await fresh.refresh()
+      assert.equal(service.status.briefing.items[0].text, 'Pi 7 sessions.')
+      const resumed = structuredClone(service.status.briefing)
+      runtime.release()
+      await runtime.finished
+      assert.deepEqual(service.status.briefing, resumed)
+      reports.push({ first, updated, stale, recovered, resumed })
+    } finally { await resident.stop() }
+  }
+  assert.deepEqual(reports[1], reports[0])
+})
 
 test('home generation uses an isolated zero-tool SDK session and its own schema', async t => {
   let inspected = false

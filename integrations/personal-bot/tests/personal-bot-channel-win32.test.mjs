@@ -303,11 +303,14 @@ test('a Windows listener provisions the shared token file when the caller names 
   const requested = []
   // The token file is a Windows path, so the filesystem is the seam that lets
   // this host create it; the path itself is asserted through the calls made.
-  const mapped = file => join(dir, String(file).split(/[\\/]/).pop())
+  const mapped = file => String(file).startsWith(dir) ? file : join(dir, String(file).split(/[\\/]/).pop())
   const fsModule = {
     readFile: (file, ...rest) => fs.readFile(mapped(file), ...rest),
     writeFile: (file, ...rest) => { requested.push({ call: 'writeFile', file, options: rest[1] }); return fs.writeFile(mapped(file), ...rest) },
     mkdir: (file, ...rest) => { requested.push({ call: 'mkdir', file }); return fs.mkdir(mapped(file), ...rest) },
+    mkdtemp: prefix => fs.mkdtemp(mapped(prefix)),
+    link: (source, target) => { requested.push({ call: 'link', target }); return fs.link(mapped(source), mapped(target)) },
+    rm: (file, ...rest) => fs.rm(mapped(file), ...rest),
     chmod: (file, ...rest) => fs.chmod(mapped(file), ...rest),
   }
   const server = await listen(PIPE, service, { platform: 'win32', env: WINDOWS_ENV, net: pipeNet, fsModule })
@@ -317,8 +320,8 @@ test('a Windows listener provisions the shared token file when the caller names 
   const token = created.trim()
   assert.equal(Buffer.from(token, 'base64url').length, TOKEN_BYTES)
   assert.ok(requested.some(entry => entry.call === 'writeFile'
-    && entry.file === 'C:\\Users\\fradser\\AppData\\Local\\open-deskos\\local-channel.token'
     && entry.options.mode === 0o600 && entry.options.flag === 'wx'), 'the token is created exclusively and owner-readable')
+  assert.ok(requested.some(entry => entry.call === 'link' && entry.target === channelTokenFile(WINDOWS_ENV, 'win32')))
 
   const { client, records } = openPipe(pipeNet)
   t.after(() => client.destroy())
@@ -341,8 +344,7 @@ test('a listener with no token to check refuses to bind a named pipe', async t =
 
 test('two services starting on a cold host adopt one token', async t => {
   const file = join(await temp(t), TOKEN_FILENAME)
-  // The race the `wx` flag exists for: this service read nothing, and another
-  // one created the file before its own exclusive create could.
+  // Another service publishes its token before this candidate can be linked.
   const winner = 'token-the-first-service-wrote'
   const racer = { written: null, reads: 0, candidates: [] }
   const racerFs = {
@@ -352,13 +354,16 @@ test('two services starting on a cold host adopt one token', async t => {
       return racer.written
     },
     async mkdir() {},
+    async mkdtemp() { return '/candidate' },
+    async rm() {},
     async writeFile(_file, data, options = {}) {
       if (options.flag === 'wx') {
         racer.candidates.push(data)
-        racer.written = `${winner}\n`
-        throw Object.assign(Error('exists'), { code: 'EEXIST' })
       }
-      racer.written = data
+    },
+    async link() {
+      racer.written = `${winner}\n`
+      throw Object.assign(Error('exists'), { code: 'EEXIST' })
     },
     async chmod() {},
   }
@@ -379,6 +384,30 @@ test('two services reading one cold host file together end up with the same toke
   assert.equal(first, second)
   assert.equal((await fs.readFile(file, 'utf8')).trim(), first)
   assert.equal((await stat(file)).mode & 0o777, 0o600)
+})
+
+test('a delayed token writer cannot split the Shell and Bot credentials', async t => {
+  const dir = await temp(t)
+  const file = join(dir, TOKEN_FILENAME)
+  let opened
+  const ready = new Promise(resolve => { opened = resolve })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  let paused = false
+  const fsModule = { ...fs, async writeFile(target, data, options) {
+    if (paused || options?.flag !== 'wx') return fs.writeFile(target, data, options)
+    paused = true
+    const handle = await fs.open(target, 'wx', options.mode)
+    opened()
+    try { await gate; await handle.writeFile(data) } finally { await handle.close() }
+  } }
+  const creator = readOrCreateChannelToken({ file, fsModule })
+  await ready
+  let contender
+  try { contender = await require('../../../runtime/shell/src/local-channel').readOrCreateToken({ stateDir: dir, fsModule }) } finally { release() }
+  assert.equal(await creator, contender)
+  assert.equal((await fs.readFile(file, 'utf8')).trim(), contender)
+  assert.deepEqual(await fs.readdir(dir), [TOKEN_FILENAME])
 })
 
 test('the token file is created on first use and then left alone', async t => {

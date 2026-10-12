@@ -15,6 +15,145 @@ function fixture(overrides = {}) {
   return { service, calls }
 }
 
+test('service suspension drains capture and restores work without accepting late recording completion', async () => {
+  let done
+  let cleaned = 0
+  let transcribed = 0
+  let records = 0
+  const oldDone = new Promise(resolve => { done = resolve })
+  const service = new PersonalBotService({
+    record: async () => ({ done: ++records === 1 ? oldDone : new Promise(() => {}),
+      stop: async () => 'fixture.wav', cleanup: async () => { cleaned++ } }),
+    transcribe: async () => { transcribed++; return 'fixture' }, prompt: async () => '',
+  })
+  await service.toggle()
+  const oldSignal = service.controller.signal
+  await service.suspend()
+  assert.equal(oldSignal.aborted, true)
+  assert.equal(cleaned, 1)
+  await service.toggle()
+  assert.equal(records, 1)
+  await service.resume()
+  assert.notEqual(service.controller.signal, oldSignal)
+  assert.equal(service.controller.signal.aborted, false)
+  await service.toggle()
+  done()
+  await new Promise(setImmediate)
+  assert.equal(service.status.state, 'recording')
+  assert.equal(transcribed, 0)
+  await service.toggle()
+  assert.equal(transcribed, 1)
+  await service.close()
+  await service.resume()
+  await service.toggle()
+  assert.equal(records, 2)
+})
+
+test('failed suspension retains recording ownership until cleanup retry succeeds', async () => {
+  let fail = true
+  const recording = { done: new Promise(() => {}), stop: async () => 'fixture', cleanup: async () => { if (fail) throw Error('private cleanup') } }
+  const service = new PersonalBotService({ record: async () => recording, transcribe: async () => '', prompt: async () => '' })
+  await service.toggle()
+  await assert.rejects(service.suspend(), /Recording cleanup failed/)
+  assert.equal(service.recording, recording)
+  await service.resume()
+  assert.equal(service.closed, true)
+  fail = false
+  await service.suspend()
+  assert.equal(service.recording, undefined)
+  await service.resume()
+  assert.equal(service.closed, false)
+  await service.close()
+})
+
+test('late capture cleanup failure retains suspension ownership and close can retry', async () => {
+  let acquire
+  let fail = true
+  const recording = { done: new Promise(() => {}), stop: async () => 'fixture', cleanup: async () => { if (fail) throw Error('private cleanup') } }
+  const service = new PersonalBotService({ record: () => new Promise(resolve => { acquire = resolve }), transcribe: async () => '', prompt: async () => '' })
+  const starting = service.toggle()
+  const stopping = service.suspend()
+  acquire(recording)
+  await starting
+  await assert.rejects(stopping, /Recording cleanup failed/)
+  assert.equal(service.recording, recording)
+  await assert.rejects(service.close(), /Recording cleanup failed/)
+  assert.equal(service.recording, recording)
+  fail = false
+  await service.close()
+  assert.equal(service.recording, undefined)
+})
+
+test('permanent close during failed suspension retries its retained capture', async () => {
+  let release
+  let entered
+  let calls = 0
+  const ready = new Promise(resolve => { entered = resolve })
+  const cleanup = new Promise((_, reject) => { release = reject })
+  const service = new PersonalBotService({ record: async () => ({ done: new Promise(() => {}), stop: async () => 'fixture',
+    cleanup: () => { if (++calls === 1) { entered(); return cleanup } return Promise.resolve() } }),
+    transcribe: async () => '', prompt: async () => '' })
+  await service.toggle()
+  const suspended = assert.rejects(service.suspend(), /Recording cleanup failed/)
+  await ready
+  const closing = service.close()
+  release(Error('private fixture cleanup'))
+  await Promise.all([suspended, closing])
+  assert.equal(calls, 2)
+  assert.equal(service.recording, undefined)
+  await service.resume()
+  assert.equal(service.closed, true)
+})
+
+test('late submission cannot discard recording ownership after suspension failure', async () => {
+  let respond
+  let entered
+  let fail = true
+  const ready = new Promise(resolve => { entered = resolve })
+  const response = new Promise(resolve => { respond = resolve })
+  const recording = { done: new Promise(() => {}), stop: async () => 'fixture', cleanup: async () => { if (fail) throw Error('private cleanup') } }
+  const service = new PersonalBotService({ record: async () => recording, transcribe: async () => 'fixture',
+    prompt: () => { entered(); return response } })
+  await service.toggle()
+  const turn = service.toggle()
+  await ready
+  await assert.rejects(service.suspend(), /Recording cleanup failed/)
+  respond('late')
+  await turn
+  assert.equal(service.recording, recording)
+  await assert.rejects(service.suspend(), /Recording cleanup failed/)
+  await service.resume()
+  assert.equal(service.closed, true)
+  fail = false
+  await service.suspend()
+  await service.resume()
+  assert.equal(service.closed, false)
+  await service.close()
+})
+
+test('cleanup that started before suspension retains ownership when it later fails', async () => {
+  let entered
+  let rejectCleanup
+  let fail = true
+  const ready = new Promise(resolve => { entered = resolve })
+  const cleanup = new Promise((_, reject) => { rejectCleanup = reject })
+  const recording = { done: new Promise(() => {}), stop: async () => 'fixture',
+    cleanup: () => { if (fail) { entered(); return cleanup } return Promise.resolve() } }
+  const service = new PersonalBotService({ record: async () => recording, transcribe: async () => 'fixture', prompt: async () => '' })
+  await service.toggle()
+  const turn = service.toggle()
+  await ready
+  const suspended = assert.rejects(service.suspend(), /Recording cleanup failed/)
+  rejectCleanup(Error('private cleanup'))
+  await Promise.all([turn, suspended])
+  assert.equal(service.recording, recording)
+  fail = false
+  await service.suspend()
+  await service.resume()
+  assert.equal(service.closed, false)
+  await service.close()
+})
+
 test('toggle capture sends transcript once and removes audio', async () => {
   const { service, calls } = fixture()
   await service.toggle()

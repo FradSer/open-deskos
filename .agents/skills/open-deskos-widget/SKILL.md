@@ -36,6 +36,9 @@ Use the supported installation lifecycle.
 Read `PRODUCT.md`, `DESIGN.md`, and `runtime/shell/CONTEXT.md` before interface changes.
 Their contracts and machine-readable rules override generic design advice.
 
+For plugin extraction, replacement, or compatibility claims, read [plugin replacement](references/plugin-replacement.md) before implementation.
+Use its ownership and evidence gates when a source change affects a Widget or App.
+
 - Keep the desk interface calm and precise.
 - Render truthful loading, empty, unavailable, unauthorized, stale, malformed, and error states. Never present them as live data.
 - Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens.

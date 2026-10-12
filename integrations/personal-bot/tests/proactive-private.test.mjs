@@ -1,13 +1,70 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync, realpathSync, chmodSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, realpathSync, chmodSync, linkSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { readProactiveFile, protectProactivePath } from '../src/proactive-private.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
+import { createMemoryStore } from '../src/memory.mjs'
 
 const windows = process.platform === 'win32'
+test('native memory preserves exact grants across private atomic writes', async t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-memory-native-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, 'notes', 'MEMORY.json')
+  const memory = createMemoryStore(file)
+  await assert.rejects(memory.update({ category: 'language', value: 'zh-CN' }), /exact explicit/)
+  memory.beginTurn('remember language: zh-CN')
+  assert.equal(await memory.update({ category: 'language', value: 'zh-CN' }), 'Memory updated.')
+  assert.equal(readProactiveFile(file, 16384), '{"language":"zh-CN"}')
+  assert.equal(await createMemoryStore(file).read(), '{"language":"zh-CN"}')
+  await assert.rejects(memory.update({ category: 'language', value: 'zh-CN' }), /exact explicit/)
+  memory.beginTurn('remember language: en')
+  await memory.update({ category: 'language', value: 'en' })
+  assert.equal(readProactiveFile(file, 16384), '{"language":"en"}')
+  memory.beginTurn('forget language')
+  assert.equal(await memory.forget({ category: 'language' }), 'Memory forgotten.')
+  assert.equal(await memory.read(), '{}')
+})
+
+test('Windows memory rejects broad existing ACLs without repairing them', { skip: !windows }, async t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-memory-acl-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, 'MEMORY.json')
+  writeFileSync(file, '{"note":"fixture"}')
+  protectProactivePath(file)
+  for (const target of [file, dir]) {
+    const broaden = spawnSync('icacls.exe', [target, '/grant', '*S-1-1-0:(R)'], { encoding: 'utf8', windowsHide: true })
+    assert.equal(broaden.status, 0)
+    const before = spawnSync('icacls.exe', [target], { encoding: 'utf8', windowsHide: true }).stdout
+    const memory = createMemoryStore(file)
+    await assert.rejects(memory.read(), /unsafe/)
+    memory.beginTurn('remember note: changed')
+    await assert.rejects(memory.update({ category: 'note', value: 'changed' }), /unsafe/)
+    assert.equal(spawnSync('icacls.exe', [target], { encoding: 'utf8', windowsHide: true }).stdout, before)
+    protectProactivePath(target)
+  }
+  assert.equal(await createMemoryStore(file).read(), '{"note":"fixture"}')
+})
+
+test('native memory rejects hard links without changing saved notes', async t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-memory-links-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, 'MEMORY.json'), alias = join(dir, 'alias.json')
+  writeFileSync(file, '{"note":"fixture"}', { mode: 0o600 })
+  protectProactivePath(file)
+  linkSync(file, alias)
+  const memory = createMemoryStore(file)
+  await assert.rejects(memory.read(), /unsafe/)
+  memory.beginTurn('remember note: changed')
+  await assert.rejects(memory.update({ category: 'note', value: 'changed' }), /unsafe/)
+  unlinkSync(alias)
+  assert.equal(await memory.read(), '{"note":"fixture"}')
+})
 test('native host protects private proactive files and round trips checkpoints', t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-proactive-native-')))
   t.after(() => rmSync(dir, { recursive: true, force: true }))

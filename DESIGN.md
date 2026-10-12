@@ -73,7 +73,7 @@ New installations use Pixel; explicit local selection survives restart. There is
 
 ## Interaction
 
-- Widgets open focused views. Back/Escape restore the source page. Touch/keyboard remain independent of Remote Link and camera state.
+- Widgets display readings. Apps own interactive views. Back/Escape restore the source page. Touch and keyboard work without Remote Link or camera services.
 - Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
 - Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
 - Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.

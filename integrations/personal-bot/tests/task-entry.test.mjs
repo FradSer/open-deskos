@@ -25,8 +25,8 @@ async function host(t) {
   return { dir, config, socket, entry: join(dir, 'current/src/task-daemon.mjs') }
 }
 
-function start(entry, { dir, config }) {
-  return spawn(process.execPath, [entry], {
+function start(entry, { dir, config }, preload = undefined) {
+  return spawn(process.execPath, [...(preload ? ['--import', preload] : []), entry], {
     env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODESK_TASK_CONFIG: config },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -117,4 +117,49 @@ test('importing the task daemon without running it starts no daemon', async t =>
   child.kill()
   assert.equal(exit, 0, 'importing the module must not start a daemon')
   assert.ok(!existsSync(paths.socket), 'importing the module created a control socket')
+})
+
+test('CLI shutdown during service initialization cleans the late service without publishing', async t => {
+  const paths = await host(t)
+  const serviceUrl = new URL('../src/task-service.mjs', import.meta.url).href
+  const mockSource = `export async function createTaskService() {
+    process.stdout.write('TASK_INIT_PENDING\\n');
+    await new Promise(resolve => process.once('SIGTERM', resolve));
+    return { handle() {}, disconnect() {}, close() { process.stdout.write('TASK_SERVICE_CLOSED\\n'); } };
+  }`
+  const preload = 'data:text/javascript,' + encodeURIComponent(`
+    import { registerHooks } from 'node:module';
+    registerHooks({ load(url, context, next) {
+      const result = next(url, context);
+      if (url !== ${JSON.stringify(serviceUrl)}) return result;
+      const original = typeof result.source === 'string' ? result.source : Buffer.from(result.source).toString('utf8');
+      return { ...result, source: original.replace('export async function createTaskService(', 'async function originalTaskService(') + ${JSON.stringify(mockSource)} };
+    } });
+  `)
+  const child = start(paths.entry, paths, preload)
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL') })
+  let stdout = ''
+  let stderr = ''
+  child.stderr.on('data', chunk => { stderr += chunk.toString() })
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })))
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error(`Initialization marker missing: ${stderr}`)), 15000)
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString()
+      if (stdout.includes('TASK_INIT_PENDING')) { clearTimeout(timer); resolve(undefined) }
+    })
+  })
+  assert.equal(existsSync(paths.socket), true)
+  child.kill('SIGTERM')
+  let deadline
+  const exit = await Promise.race([
+    exited,
+    new Promise((_, reject) => { deadline = setTimeout(() => reject(Error(`Shutdown did not finish: ${stderr}`)), 15000) }),
+  ]).finally(() => clearTimeout(deadline))
+  assert.deepEqual(exit, { code: 0, signal: null })
+  assert.equal(stdout.split('TASK_SERVICE_CLOSED').length - 1, 1)
+  assert.equal(existsSync(join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')), false)
+  const client = await connector(paths.socket)
+  client?.destroy()
+  assert.equal(client, undefined, 'a stopped daemon must not accept clients')
 })

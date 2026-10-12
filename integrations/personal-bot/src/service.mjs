@@ -15,6 +15,8 @@ export class PersonalBotService {
     this.status = { v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
+    this.terminated = false
+    this.suspending = undefined
     this.starting = false
     this.controller = new AbortController()
     /** @type {Recording | undefined} */
@@ -107,8 +109,8 @@ export class PersonalBotService {
       })
       if (this.closed) { await this.discard(); return }
       this.setState('recording')
-      void this.recording.done.then(() => this.finish(), () => {
-        if (!this.closed && this.status.state === 'recording') this.pending = this.failCapture()
+      void this.recording.done.then(() => { if (captureId === this.captureId) return this.finish() }, () => {
+        if (!this.closed && captureId === this.captureId && this.status.state === 'recording') this.pending = this.failCapture()
       })
     } catch {
       if (!this.closed) this.setState('error', 'Microphone unavailable')
@@ -187,21 +189,49 @@ export class PersonalBotService {
       await recording?.cleanup()
       return true
     } catch {
+      if (this.closed) this.recording = recording
       return false
     }
   }
 
   close() {
-    this.closing ??= this.shutdown()
+    this.terminated = true
+    if (!this.closing) {
+      const attempt = this.suspending
+        ? this.suspending.catch(() => {}).then(() => this.shutdown())
+        : this.shutdown()
+      this.closing = attempt
+      void attempt.catch(() => { if (this.closing === attempt) this.closing = undefined })
+    }
     return this.closing
+  }
+
+  suspend() {
+    if (this.terminated) return this.close()
+    if (!this.suspending) {
+      const attempt = this.shutdown()
+      this.suspending = attempt
+      void attempt.catch(() => { if (this.suspending === attempt) this.suspending = undefined })
+    }
+    return this.suspending
+  }
+
+  async resume() {
+    await this.suspending
+    if (this.terminated || !this.suspending) return
+    this.controller = new AbortController()
+    this.closed = false
+    this.suspending = undefined
   }
 
   async shutdown() {
     this.closed = true
+    this.captureId++
     this.controller.abort()
     this.cancelStreaming()
     this.setState('idle', '', '')
-    await this.discard()
+    if (!await this.discard()) throw Error('Recording cleanup failed')
     await this.pending
+    if (this.recording) throw Error('Recording cleanup failed')
   }
 }

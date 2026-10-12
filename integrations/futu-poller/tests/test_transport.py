@@ -420,3 +420,10 @@ def test_with_no_target_configured_records_go_to_stdout(monkeypatch, tmp_path):
     line = json.loads(links.stdout.getvalue().strip())
     assert line == {"type": "auth-required", "secrets": ["futu-trade-password"],
                     "v": 1, "service": SERVICE}
+
+def test_single_endpoint_fallback_retains_the_configured_token(monkeypatch, tmp_path):
+    isolate_home(monkeypatch, tmp_path)
+    targets = poller.load_targets({"ODESK_FUTU_SOCKET": "tcp://127.0.0.1:9876",
+                                   poller.TOKEN_ENV: str(tmp_path / "token")})
+    assert len(targets) == 1
+    assert targets[0].token_file == str(tmp_path / "token")

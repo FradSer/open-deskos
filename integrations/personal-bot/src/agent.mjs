@@ -71,7 +71,9 @@ export function agentOptions(cwd, stateDir, customTools, profile = 'coding', set
   }
 }
 
-export async function createPersonalBot(config, { createSession = createAgentSession, createRuntime = () => ModelRuntime.create(), createIntentRouter = createJevIntentRouter } = {}) {
+export async function createPersonalBot(config, { createSession = createAgentSession, createRuntime = options => ModelRuntime.create(options), createIntentRouter = createJevIntentRouter } = {}) {
+  const signal = config.signal
+  signal?.throwIfAborted()
   const profile = config.personal?.profile || 'coding'
   const personal = profile === 'personal'
   const inferIntent = createIntentRouter({ env: config.env ?? process.env })
@@ -84,8 +86,18 @@ export async function createPersonalBot(config, { createSession = createAgentSes
     return result
   }
   await mkdir(config.stateDir, { recursive: true, mode: 0o700 })
+  signal?.throwIfAborted()
   const cwd = personal ? config.stateDir : await validateWorkspace(config.workspace)
+  signal?.throwIfAborted()
   let rides
+  let session
+  let aborting
+  const abortSession = () => {
+    if (!session || aborting) return
+    aborting = Promise.resolve().then(() => session.abort())
+    void aborting.catch(() => {})
+  }
+  signal?.addEventListener('abort', abortSession, { once: true })
   try {
     const memory = personal ? createMemoryStore(config.personal.memoryFile) : undefined
     const skillPaths = personal ? [...new Set([
@@ -95,12 +107,14 @@ export async function createPersonalBot(config, { createSession = createAgentSes
     let currentTurn = ''
     /** @type {NonNullable<import('@earendil-works/pi-coding-agent').CreateAgentSessionOptions['customTools']>} */
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths)
+    signal?.throwIfAborted()
     // Both catalogs expose the shared desk reader; register it only once.
     if (personal) customTools.push(...createPersonalTools({ memory, skillPaths }).filter(tool => tool.name !== 'desk_data'))
     if (personal && config.personal.didi) {
       const { keyFile, environment } = config.personal.didi
       rides = await createDidiController({ keyFile, sandbox: environment === 'sandbox',
         stateFile: join(config.stateDir, 'personal', environment, 'rides.json'), onUpdate: config.onRideUpdate })
+      signal?.throwIfAborted()
       customTools.push(...createDidiTools(rides))
     }
     if (config.getWatch) {
@@ -121,15 +135,22 @@ export async function createPersonalBot(config, { createSession = createAgentSes
       capabilities: customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
       extensionTools: customTools.filter(isExtensionTool).map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })), getWatch: config.getWatch })
     const resourceLoader = await createResourceLoader(cwd, getAgentDir(), { profile, skillPaths })
-    const modelRuntime = await createRuntime()
-    if ((await modelRuntime.getAvailable()).length === 0) throw Error('Pi authentication required')
+    signal?.throwIfAborted()
+    const modelRuntime = await createRuntime({ signal })
+    signal?.throwIfAborted()
+    const available = await modelRuntime.getAvailable(undefined, { signal })
+    signal?.throwIfAborted()
+    if (available.length === 0) throw Error('Pi authentication required')
     const model = config.model ? modelRuntime.getModel(...splitModel(config.model)) : undefined
     if (config.model && !model) throw Error('Configured Pi model unavailable')
     // Pi's Code Mode 'only' hides active direct schemas while preserving both
     // execution entries. Register once: never translate/replay a failed call.
     const baseTools = [...(personal ? [] : ['read', 'grep', 'find', 'ls']), 'codemode']
-    const { session } = await createSession({ ...agentOptions(cwd, config.stateDir, guardIntentTools(customTools, () => lifetime.signal.aborted ? null : intentTurn.getIntent(), intentTurn.getTurn), profile, sessionSettings(cwd, profile), 'direct'), resourceLoader, modelRuntime, model })
+    const acquired = await createSession({ ...agentOptions(cwd, config.stateDir, guardIntentTools(customTools, () => lifetime.signal.aborted ? null : intentTurn.getIntent(), intentTurn.getTurn), profile, sessionSettings(cwd, profile), 'direct'), resourceLoader, modelRuntime, model })
+    session = acquired.session
+    signal?.throwIfAborted()
     await session.bindExtensions({})
+    signal?.throwIfAborted()
     session.setActiveToolsByName(baseTools)
     const adapter = sessionAdapter(session, {
       prepareTurn: async (text, signal) => {
@@ -219,8 +240,15 @@ export async function createPersonalBot(config, { createSession = createAgentSes
       close: async () => { lifetime.abort(); adapter.close(); await rides?.close() } }
   } catch (error) {
     lifetime.abort()
-    await rides?.close()
+    try {
+      if (session) {
+        abortSession()
+        try { await aborting } finally { session.dispose() }
+      }
+    } finally { await rides?.close() }
     throw error
+  } finally {
+    signal?.removeEventListener('abort', abortSession)
   }
 }
 

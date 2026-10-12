@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import { dirname, isAbsolute, join } from 'node:path'
+import { loadPersonalBotRuntimeReport } from './plugin-composition.mjs'
 import {
   MAX_HANDSHAKE_BYTES,
   channelTokenFile,
@@ -51,6 +52,13 @@ export function personalBotEndpoint(env = process.env, platform = process.platfo
   const runtimeDir = typeof env.XDG_RUNTIME_DIR === 'string' && isAbsolute(env.XDG_RUNTIME_DIR) ? env.XDG_RUNTIME_DIR : null
   if (!runtimeDir) return null
   return join(runtimeDir, 'open-deskos-personal-bot', 'agent.sock')
+}
+
+export function personalBotControlEndpoint(env = process.env, platform = process.platform) {
+  const voice = personalBotEndpoint(env, platform)
+  if (!voice) return null
+  if (platform === 'win32') return voice + '-control'
+  return join(env.XDG_RUNTIME_DIR, 'open-deskos-personal-bot', 'control.sock')
 }
 
 /** A named pipe carries no owner, no mode and no uid, so there is nothing to check. */
@@ -125,6 +133,8 @@ export async function listen(path, service, options = {}) {
   }
   const clients = new Set()
   const connections = new Set()
+  const diagnosisClients = new WeakSet()
+  const sendStatus = (client, status) => send(client, diagnosisClients.has(client) ? { ...status, runtimeDiagnosis: 1 } : status)
 
   /** An admitted client joins the broadcast list and starts reading commands. */
   function open(client, remainder) {
@@ -141,24 +151,47 @@ export async function listen(path, service, options = {}) {
         pending = pending.slice(newline + 1)
         let command
         try { command = JSON.parse(line) } catch { return client.destroy() }
-        if (command?.v !== 1 || !['toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
+        if (command?.v !== 1 || !['runtime_diagnose', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
+        if (command.type === 'status' && command.runtimeDiagnosis === 1) diagnosisClients.add(client)
+        if (command.type === 'runtime_diagnose') {
+          if (Object.keys(command).some(key => !['v', 'type', 'requestId'].includes(key))
+            || typeof command.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(command.requestId)) return client.destroy()
+          /** @type {{ host: string, instance: string, state: string, reason?: string, plugins: object[] }} */
+          let runtime = { host: 'personal-agent', instance: 'resident', state: 'unavailable', reason: 'not-supported', plugins: [] }
+          if (options.runtimeSnapshot) {
+            try {
+              const { sanitizeRuntimePlugins } = loadPersonalBotRuntimeReport()
+              const plugins = options.runtimeSnapshot()
+              if (typeof plugins?.then === 'function') {
+                void Promise.resolve(plugins).catch(() => {})
+                throw Error('Runtime snapshot must be synchronous')
+              }
+              runtime = { host: 'personal-agent', instance: 'resident', state: 'available',
+                plugins: sanitizeRuntimePlugins({ plugins }, 'personal-agent') }
+            } catch { runtime.reason = 'invalid-report' }
+          }
+          const frame = `${JSON.stringify({ v: 1, type: 'runtime_diagnosis', requestId: command.requestId, runtime })}\n`
+          if (client.writableLength + Buffer.byteLength(frame) > MAX_QUEUED_BYTES) client.destroy()
+          else client.write(frame)
+          continue
+        }
         if (command.type === 'proactive_event') {
           if (Object.keys(command).some(key => !['v', 'type', 'readingIds'].includes(key)) || !Array.isArray(command.readingIds) || !command.readingIds.length || command.readingIds.length > 32 || !command.readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id))) return client.destroy()
-          try { service.servicePush(command.readingIds); send(client, service.status) } catch { send(client, { ...service.status, proposalError: 'Service update refused; check selected readings and Jev configuration.' }) }
+          try { service.servicePush(command.readingIds); sendStatus(client, service.status) } catch { sendStatus(client, { ...service.status, proposalError: 'Service update refused; check selected readings and Jev configuration.' }) }
           continue
         }
         if (command.type.startsWith('proposal_')) {
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return client.destroy()
           if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return client.destroy()
-          void service.proposalCommand(command).then(() => send(client, service.status), () => {
-            send(client, { ...service.status, proposalError: 'Suggestion response refused; check confirmation, source freshness and service availability.' })
+          void service.proposalCommand(command).then(() => sendStatus(client, service.status), () => {
+            sendStatus(client, { ...service.status, proposalError: 'Suggestion response refused; check confirmation, source freshness and service availability.' })
           })
         } else if (command.type === 'toggle') {
           void service.toggle().then(
-            () => send(client, service.status),
-            () => { service.setState('error', 'Personal Bot request failed'); send(client, service.status) },
+            () => sendStatus(client, service.status),
+            () => { service.setState('error', 'Personal Bot request failed'); sendStatus(client, service.status) },
           )
-        } else send(client, service.status)
+        } else sendStatus(client, service.status)
       }
     })
     if (remainder.length > 0) client.unshift(remainder)
@@ -219,7 +252,7 @@ export async function listen(path, service, options = {}) {
     client.on('error', () => client.destroy())
     gate(client)
   })
-  const unsubscribe = service.subscribe(status => { for (const client of clients) send(client, status) })
+  const unsubscribe = service.subscribe(status => { for (const client of clients) sendStatus(client, status) })
   try {
     await new Promise((resolve, reject) => {
       server.once('error', reject)

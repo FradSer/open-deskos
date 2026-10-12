@@ -9,6 +9,7 @@ Deployment and service operations require separate authorization.
 ## Evidence and difficult states
 
 Test the final candidate through its actual composition.
+For plugin replacement claims, also apply [plugin replacement](plugin-replacement.md).
 Separate source checks, DOM assertions, rendered geometry, operational health, and user acceptance.
 A successful component or process does not establish the user's completed task.
 A fixture pass does not prove live-source recovery or physical input.
@@ -53,6 +54,42 @@ Allow two animation frames and the harness settle period after theme changes.
 Mock each invoked preload/IPC endpoint in the isolated density harness.
 Missing mocks must not turn intended live fixtures into unconfigured placeholders.
 Verify remote-asset bounds, CSP, and actual Electron loading.
+
+## Fixture controls and execution scheduling
+
+Identify every fixture control that changes time, motion, fonts, provider responses, or process scheduling.
+For rendered comparisons, record viewport, device scale, page zoom, and font readiness before each measurement.
+Apply startup controls before the runtime consumes them; confirm the resulting document state.
+Verify each control through observable state before using its measurements.
+Successful injection does not establish that the document policy permits the control or that the intended element receives it.
+Keep fixture controls scoped to their comparison and remove them afterward.
+Verify removal before subsequent assertions in the same document.
+Use separate checks for product behavior suppressed during a static comparison.
+Do not weaken production policy, motion behavior, or measurement tolerances to repair a fixture.
+
+For coordinated processes, define each readiness checkpoint and the work required before it can occur.
+Bound checkpoint waits and observe child termination while waiting.
+Preserve the initiating failure and available child diagnostics before cleanup.
+Stop dependent mutations and assertions after a required phase fails.
+Continue independent scenarios only with their own isolated state.
+A checkpoint timeout establishes an incomplete phase; it does not identify a product defect or justify increasing the timeout.
+
+Investigate intermittent failures through their reported errors and execution conditions.
+Retain the failing boundary's actual verdict before fixture cleanup or a generic assertion hides it.
+Distinguish completed assertions, verified resource release, and actual process closure.
+None of these observations substitutes for the others.
+A sequential pass alone does not identify the cause of a concurrent failure.
+A controlled experiment can establish a possible cause without proving an earlier unobserved failure's cause.
+Keep that distinction explicit when historical rendering inputs were not recorded.
+When changing test scheduling, retain explicit concurrency scenarios for the affected runtime contracts.
+Run the resulting standard command before reporting its gate as passed.
+Report scheduling changes and their verification cost separately from product changes.
+
+Read failures across the complete command output before summarizing progress or final results.
+Recent output alone cannot establish that earlier checks passed.
+Record the final exit status, pass count, failure count, skips, and candidate identity.
+Keep a failed shared gate unresolved after a focused rerun passes.
+Use the rerun to narrow the investigation; clear the gate only with a successful complete rerun on the applicable candidate.
 
 ## Verification commands
 
