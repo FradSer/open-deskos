@@ -56,7 +56,7 @@ The camera check requires USB identity `303a:7002`, resolves the V4L2 video devi
 The microphone check requires the same USB identity and resolves its ALSA card.
 It streams bounded raw PCM through a pipe without writing speech to disk.
 It rejects silence, constant data, clipping, and truncated capture.
-After acceptance, set `ODESK_PERSONAL_BOT_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0` in the device-local Personal Bot environment rather than hardcoding a numeric card index in a release.
+After acceptance, set `ODK_PERSONAL_BOT_AUDIO_DEVICE=plughw:CARD=Microphone,DEV=0` in the device-local Personal Bot environment rather than hardcoding a numeric card index in a release.
 
 The board-level wiring authority is the OSPTEK [`esp32-p4c6-module-dev-board`](https://gitee.com/osptek/esp32-p4c6-module-dev-board) repository at the reviewed V1.3 baseboard schematic.
 The camera implementation follows the SC2336 MIPI CSI configuration demonstrated by [osptek/camera-mipi-csi-sc2336](https://github.com/osptek/camera-mipi-csi-sc2336), retaining its compatible SC2336 pins and `esp_video` capture boundary.
