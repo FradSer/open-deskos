@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.buffers",
+  "name": "Remote buffers",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "service",
+  "lifecycle": "s3_buffers_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/buffers/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:s3/display/v1"
+    },
+    {
+      "interface": "odk:s3/touch/v1"
+    }
+  ]
+}

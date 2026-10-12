@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.gesture",
+  "name": "Remote gesture",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "processor",
+  "lifecycle": "s3_gesture_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/gesture/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:s3/buffers/v1"
+    }
+  ]
+}

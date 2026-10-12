@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.serial",
+  "name": "Remote serial",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "transport",
+  "lifecycle": "s3_serial_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/serial/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:s3/buffers/v1"
+    },
+    {
+      "interface": "odk:s3/gesture/v1"
+    }
+  ]
+}

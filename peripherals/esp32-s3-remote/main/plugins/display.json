@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.display",
+  "name": "Remote display",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "device-driver",
+  "lifecycle": "s3_display_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/display/v1"
+    }
+  ],
+  "requires": []
+}

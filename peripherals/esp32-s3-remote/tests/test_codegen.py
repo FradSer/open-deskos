@@ -23,6 +23,34 @@ MANIFEST_ST7789 = """{
 
 
 class TestCodegenPluginDescriptor(unittest.TestCase):
+    def test_lifecycle_binding_is_explicit_native_symbol(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            manifest = json.loads(MANIFEST_ST7789)
+            manifest["lifecycle"] = "s3_display_lifecycle"
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[3] / "tools/codegen_plugin_descriptor.py"), str(root / "out.h"), str(root / "out.c"), str(root / "manifest.json")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            source = (root / "out.c").read_text()
+            self.assertIn("extern const odk_plugin_lifecycle_t s3_display_lifecycle;", source)
+            self.assertIn(".lifecycle = &s3_display_lifecycle", source)
+
+    def test_invalid_lifecycle_symbol_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            manifest = json.loads(MANIFEST_ST7789)
+            manifest["lifecycle"] = "driver; injected()"
+            (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parents[3] / "tools/codegen_plugin_descriptor.py"), str(root / "out.h"), str(root / "out.c"), str(root / "manifest.json")],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / "out.c").exists())
+
     def test_c_descriptor_generation(self):
         compiler = shutil.which("cc")
         if compiler is None:
@@ -79,7 +107,7 @@ class TestCodegenPluginDescriptor(unittest.TestCase):
                 encoding="utf-8",
             )
             built = subprocess.run(
-                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", str(c_path), str(root / "main.c"), "-I", tmpdir, "-o", str(root / "descriptor")],
+                [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", str(c_path), str(root / "main.c"), "-I", tmpdir, "-I", str(Path(__file__).resolve().parents[2] / "common"), "-o", str(root / "descriptor")],
                 capture_output=True, text=True, check=False,
             )
             self.assertEqual(built.returncode, 0, built.stderr)

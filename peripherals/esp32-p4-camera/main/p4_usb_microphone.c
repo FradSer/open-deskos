@@ -15,19 +15,34 @@
 #include "esp_codec_dev_defaults.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "usb_device_uac.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 static const char *TAG = "p4_usb_mic";
 static esp_codec_dev_handle_t s_microphone;
 static i2s_chan_handle_t s_i2s_rx;
+static bool s_i2s_enabled;
+static const audio_codec_data_if_t *s_data_if;
+static const audio_codec_ctrl_if_t *s_control_if;
+static const audio_codec_gpio_if_t *s_gpio_if;
+static const audio_codec_if_t *s_codec_if;
+static const p4_usb_port_t *s_transport;
+static StaticSemaphore_t s_capture_storage;
+static SemaphoreHandle_t s_capture_lock;
+static bool s_active;
+static bool s_release_failed;
+static esp_err_t microphone_input(uint8_t *, size_t, size_t *, void *);
+static const p4_audio_source_t s_source = {.read=microphone_input};
 
 static esp_err_t microphone_input(uint8_t *buffer, size_t length, size_t *bytes_read, void *context)
 {
     (void)context;
-    if (s_microphone == NULL || esp_codec_dev_read(s_microphone, buffer, (int)length) != ESP_CODEC_DEV_OK) {
+    xSemaphoreTake(s_capture_lock, portMAX_DELAY);
+    if (!s_active || s_microphone == NULL || esp_codec_dev_read(s_microphone, buffer, (int)length) != ESP_CODEC_DEV_OK) {
         memset(buffer, 0, length);
     }
     *bytes_read = length;
+    xSemaphoreGive(s_capture_lock);
     return ESP_OK;
 }
 
@@ -52,7 +67,9 @@ static esp_err_t init_i2s(void)
     };
     stream_config.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_i2s_rx, &stream_config), TAG, "configure I2S RX channel");
-    return i2s_channel_enable(s_i2s_rx);
+    const esp_err_t result = i2s_channel_enable(s_i2s_rx);
+    s_i2s_enabled = result == ESP_OK;
+    return result;
 }
 
 static esp_err_t read_self_test_samples(int16_t *samples, uint32_t sample_count)
@@ -123,33 +140,33 @@ static esp_err_t init_codec(i2c_master_bus_handle_t i2c_bus)
         .port = CONFIG_APP_AUDIO_I2S_PORT,
         .rx_handle = s_i2s_rx,
     };
-    const audio_codec_data_if_t *data_if = audio_codec_new_i2s_data(&data_config);
+    s_data_if = audio_codec_new_i2s_data(&data_config);
 
     audio_codec_i2c_cfg_t control_config = {
         .port = CONFIG_APP_CAMERA_SCCB_I2C_PORT,
         .addr = ES8311_CODEC_DEFAULT_ADDR,
         .bus_handle = i2c_bus,
     };
-    const audio_codec_ctrl_if_t *control_if = audio_codec_new_i2c_ctrl(&control_config);
-    const audio_codec_gpio_if_t *gpio_if = audio_codec_new_gpio();
-    ESP_RETURN_ON_FALSE(data_if && control_if && gpio_if, ESP_ERR_NO_MEM, TAG, "create codec interfaces");
+    s_control_if = audio_codec_new_i2c_ctrl(&control_config);
+    s_gpio_if = audio_codec_new_gpio();
+    ESP_RETURN_ON_FALSE(s_data_if && s_control_if && s_gpio_if, ESP_ERR_NO_MEM, TAG, "create codec interfaces");
 
     es8311_codec_cfg_t codec_config = {
-        .ctrl_if = control_if,
-        .gpio_if = gpio_if,
+        .ctrl_if = s_control_if,
+        .gpio_if = s_gpio_if,
         .codec_mode = ESP_CODEC_DEV_WORK_MODE_ADC,
         .pa_pin = -1,
         .master_mode = false,
         .use_mclk = true,
         .digital_mic = false,
     };
-    const audio_codec_if_t *codec_if = es8311_codec_new(&codec_config);
-    ESP_RETURN_ON_FALSE(codec_if != NULL, ESP_ERR_NO_MEM, TAG, "create ES8311 codec");
+    s_codec_if = es8311_codec_new(&codec_config);
+    ESP_RETURN_ON_FALSE(s_codec_if != NULL, ESP_ERR_NO_MEM, TAG, "create ES8311 codec");
 
     esp_codec_dev_cfg_t device_config = {
         .dev_type = ESP_CODEC_DEV_TYPE_IN,
-        .codec_if = codec_if,
-        .data_if = data_if,
+        .codec_if = s_codec_if,
+        .data_if = s_data_if,
     };
     s_microphone = esp_codec_dev_new(&device_config);
     ESP_RETURN_ON_FALSE(s_microphone != NULL, ESP_ERR_NO_MEM, TAG, "create microphone device");
@@ -166,20 +183,81 @@ static esp_err_t init_codec(i2c_master_bus_handle_t i2c_bus)
     return run_microphone_self_test();
 }
 
-esp_err_t p4_usb_microphone_init(i2c_master_bus_handle_t i2c_bus)
+esp_err_t p4_usb_microphone_init_with_transport(i2c_master_bus_handle_t i2c_bus,
+    const p4_usb_port_t *transport)
 {
+    ESP_RETURN_ON_FALSE(transport != NULL && transport->bind_audio != NULL && transport->unbind_audio != NULL,
+                        ESP_ERR_INVALID_ARG, TAG, "audio transport is unavailable");
+    ESP_RETURN_ON_FALSE(s_transport == NULL && s_microphone == NULL && s_i2s_rx == NULL
+                        && s_data_if == NULL && s_control_if == NULL && s_gpio_if == NULL
+                        && s_codec_if == NULL && !s_release_failed,
+                        ESP_ERR_INVALID_STATE, TAG, "microphone still owns resources");
+    if (s_capture_lock == NULL) s_capture_lock = xSemaphoreCreateMutexStatic(&s_capture_storage);
+    s_transport = transport;
     const esp_err_t codec_status = init_codec(i2c_bus);
     if (codec_status != ESP_OK) {
         ESP_LOGW(TAG, "ES8311 capture unavailable; USB microphone will stream silence: %s", esp_err_to_name(codec_status));
     }
-
-    uac_device_config_t config = {
-        .skip_tinyusb_init = true,
-        .input_cb = microphone_input,
-        .mic_itf_num = P4_USB_MIC_INTERFACE_NUMBER,
-        .spk_itf_num = -1,
-    };
-    ESP_RETURN_ON_ERROR(uac_device_init(&config), TAG, "initialize USB Audio Class microphone");
+    s_active = true;
+    ESP_RETURN_ON_ERROR(transport->bind_audio(transport->context, &s_source), TAG, "initialize USB Audio Class microphone");
     ESP_LOGI(TAG, "USB microphone ready: signed 16-bit mono PCM at 16 kHz");
+    return ESP_OK;
+}
+
+esp_err_t p4_usb_microphone_init(i2c_master_bus_handle_t i2c_bus)
+{ return p4_usb_microphone_init_with_transport(i2c_bus, p4_usb_default_port()); }
+
+const p4_audio_source_t *p4_microphone_source(void) { return &s_source; }
+
+esp_err_t p4_usb_microphone_stop(void)
+{
+    if (s_transport != NULL)
+        ESP_RETURN_ON_ERROR(s_transport->unbind_audio(s_transport->context, &s_source), TAG, "unbind microphone callbacks");
+    if (s_capture_lock != NULL) {
+        ESP_RETURN_ON_FALSE(xSemaphoreTake(s_capture_lock, pdMS_TO_TICKS(1000)) == pdTRUE,
+                            ESP_ERR_TIMEOUT, TAG, "microphone read has not completed");
+        s_active = false;
+        xSemaphoreGive(s_capture_lock);
+    }
+    return ESP_OK;
+}
+
+esp_err_t p4_usb_microphone_deinit(void)
+{
+    ESP_RETURN_ON_ERROR(p4_usb_microphone_stop(), TAG, "stop microphone before cleanup");
+    ESP_RETURN_ON_FALSE(!s_release_failed, ESP_FAIL, TAG, "codec close state is unresolved");
+    if (s_microphone != NULL) {
+        ESP_RETURN_ON_FALSE(esp_codec_dev_close(s_microphone) == ESP_CODEC_DEV_OK,
+                            ESP_FAIL, TAG, "close microphone device");
+        esp_codec_dev_delete(s_microphone);
+        s_microphone = NULL;
+    }
+    /* These SDK helpers free the interface even when its close operation fails. */
+#define RELEASE_INTERFACE(resource, operation) do { \
+    if (resource != NULL) { \
+        const int result = operation(resource); \
+        resource = NULL; \
+        if (result != ESP_CODEC_DEV_OK) { \
+            s_release_failed = true; \
+            return ESP_FAIL; \
+        } \
+    } \
+} while (0)
+    RELEASE_INTERFACE(s_codec_if, audio_codec_delete_codec_if);
+    RELEASE_INTERFACE(s_control_if, audio_codec_delete_ctrl_if);
+    RELEASE_INTERFACE(s_gpio_if, audio_codec_delete_gpio_if);
+    RELEASE_INTERFACE(s_data_if, audio_codec_delete_data_if);
+#undef RELEASE_INTERFACE
+    if (s_i2s_rx != NULL) {
+        if (s_i2s_enabled) {
+            const esp_err_t result = i2s_channel_disable(s_i2s_rx);
+            ESP_RETURN_ON_FALSE(result == ESP_OK || result == ESP_ERR_INVALID_STATE,
+                                result, TAG, "disable microphone I2S channel");
+            s_i2s_enabled = false;
+        }
+        ESP_RETURN_ON_ERROR(i2s_del_channel(s_i2s_rx), TAG, "delete microphone I2S channel");
+        s_i2s_rx = NULL;
+    }
+    s_transport = NULL;
     return ESP_OK;
 }

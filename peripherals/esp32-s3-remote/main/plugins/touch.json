@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.touch",
+  "name": "Remote touch",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "device-driver",
+  "lifecycle": "s3_touch_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/touch/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:s3/display/v1"
+    }
+  ]
+}

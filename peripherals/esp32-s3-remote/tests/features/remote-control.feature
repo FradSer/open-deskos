@@ -134,3 +134,24 @@ Feature: Apple TV style Remote Touchpad with contextual Touch Bar
     Then it compiles without warnings
     And the original identifier and display name are preserved
     And each manifest has a distinct descriptor and port table
+
+  Scenario: Native plugins retain the Remote boot order
+    Given display, touch, buffers, gesture, serial, and surface plugins
+    When the Remote boots
+    Then it starts their declared dependencies before the surface
+    And the surface uses the same touch gestures and serial records
+
+  Scenario: A Remote driver fails during boot
+    Given a partially initialized native driver
+    When its initialization fails
+    Then the host destroys its owned resources
+    And the boot entry stops other initialized drivers before it reports failure
+
+  Scenario: Remote consumers use the selected buffer provider
+    Given generated Remote descriptors select a buffer provider
+    When the actual Serial and Surface consumers initialize
+    Then both consumers use that provider's framebuffer and state queue
+    And Surface renders through the selected display port
+    When display draining fails during shutdown
+    Then the host retains the Surface dependencies until cleanup succeeds
+    And successful cleanup clears the consumer references
