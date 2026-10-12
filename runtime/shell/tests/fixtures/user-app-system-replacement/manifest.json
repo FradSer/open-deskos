@@ -7,6 +7,6 @@
   "host": "electron-main",
   "entry": "entry.cjs",
   "provides": [],
-  "requires": [{ "interface": "odk:system/desk-data/v1", "optional": true }, { "interface": "odk:system/package-catalog/v1" }],
+  "requires": [{ "interface": "odk:system/data/v1", "optional": true }, { "interface": "odk:system/package-catalog/v1" }],
   "permissions": ["desk.user-apps"]
 }

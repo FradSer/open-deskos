@@ -21,7 +21,7 @@ test('production Main preserves default, independent signed and development navi
       for (const mode of ['default', 'signed', 'development', 'corrupt']) {
         const directory = path.join(root, mode)
         await fs.mkdir(directory)
-        let env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+        let env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
           XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state') }
         if (mode !== 'default') {
           const selected = await selection(t, { mode: mode === 'development' ? mode : 'signed', parentDir: directory })
@@ -31,8 +31,8 @@ test('production Main preserves default, independent signed and development navi
         const expectedVersion = ['default', 'corrupt'].includes(mode) ? '1.0.0' : '2.0.0'
         const enabled = new Set(['odk.system.app-manager', 'odk.system.renderer-development'])
         env = { ...env, ODK_APP_MANAGER_MAIN_PROFILE: path.join(directory, 'profile'), ODK_APP_MANAGER_MAIN_VERSION: expectedVersion,
-          ODESK_WORKSPACE: path.join(directory, 'workspace'), ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280',
-          ODESK_DISABLE_GPU: '1', ODESK_DISABLED_PLUGINS: createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
+          ODK_WORKSPACE: path.join(directory, 'workspace'), ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280',
+          ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
         delete env.ELECTRON_RUN_AS_NODE
         delete env.XDG_RUNTIME_DIR
         const result = await runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, fixture],
@@ -72,8 +72,8 @@ for (const { rejected, fullComposition } of [
         const env = { ...selected.env, ODK_APP_MANAGER_MAIN_PROFILE: path.join(root, 'profile'), ODK_APP_MANAGER_MAIN_VERSION: '1.0.0',
           ODK_APP_MANAGER_MAIN_LIVE: '1', ODK_APP_MANAGER_MAIN_REJECT: rejected ? '1' : '0', XDG_RUNTIME_DIR: path.join(root, 'runtime'),
           ODK_APP_MANAGER_MAIN_COMPOSITION: fullComposition ? '1' : '0',
-          ODESK_WORKSPACE: path.join(root, 'workspace'), ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280',
-          ODESK_DISABLE_GPU: '1', ODESK_DISABLED_PLUGINS: fullComposition ? '' : createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
+          ODK_WORKSPACE: path.join(root, 'workspace'), ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280',
+          ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: fullComposition ? '' : createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',') }
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         const result = await runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
@@ -92,7 +92,7 @@ for (const { rejected, fullComposition } of [
         const { resolveShellHost } = require('../src/platform')
         const host = resolveShellHost({ env })
         const channels = fullComposition
-          ? ['plugin-control', 'renderer-plugin-control', 'plugin-diagnostics', 'user-app-control', 'desk-data'] : ['plugin-control']
+          ? ['plugin-control', 'renderer-plugin-control', 'plugin-diagnostics', 'user-app-control', 'odk-data'] : ['plugin-control']
         for (const channel of channels) await assert.rejects(fs.stat(host.endpoint(channel)), { code: 'ENOENT' })
       } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }
     })
@@ -107,19 +107,19 @@ test('production Main preserves selected installed desktop consumers and detects
       for (const mode of ['default', 'development', 'missing']) {
         const directory = path.join(root, mode)
         const version = mode === 'default' ? '1.0.0' : '2.0.0'
-        const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+        const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
           XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'), XDG_RUNTIME_DIR: path.join(directory, 'runtime'),
           ODK_APP_MANAGER_MAIN_PROFILE: path.join(directory, 'profile'), ODK_APP_MANAGER_MAIN_VERSION: '1.0.0',
           ODK_APP_MANAGER_MAIN_LIVE: '0', ODK_APP_MANAGER_MAIN_REJECT: '0', ODK_APP_MANAGER_MAIN_COMPOSITION: '1',
           ODK_BUILTIN_MAIN_VERSION: '', ODK_DIAGNOSTIC_MAIN_MODE: '', ODK_INSTALLED_DESKTOP_MAIN_VERSION: version,
-          ODESK_WORKSPACE: path.join(directory, 'workspace'), ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280',
-          ODESK_DISABLE_GPU: '1', ODESK_DISABLED_PLUGINS: '' }
+          ODK_WORKSPACE: path.join(directory, 'workspace'), ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280',
+          ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: '' }
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { recursive: true, mode: 0o700 })
-        const store = createUserAppStore({ workspace: env.ODESK_WORKSPACE, stateDir: resolveUserAppSurface({ env }).stateDir, verify: () => true })
+        const store = createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: resolveUserAppSurface({ env }).stateDir, verify: () => true })
         // Seed private accepted snapshots. This check exercises startup, not installation verification.
         for (const [id, kind] of [['note', 'widget'], ['counter', 'app']]) {
-          const draft = path.join(env.ODESK_WORKSPACE, 'apps', id)
+          const draft = path.join(env.ODK_WORKSPACE, 'apps', id)
           await fs.mkdir(draft, { recursive: true })
           await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id, name: id, version: '1', kind }))
           await fs.writeFile(path.join(draft, 'index.html'), kind === 'app'
@@ -132,7 +132,7 @@ test('production Main preserves selected installed desktop consumers and detects
           await fs.cp(path.join(__dirname, 'fixtures/user-app-desktop-replacement'), bundle, { recursive: true })
           const entry = path.join(bundle, 'entry.js')
           await fs.writeFile(entry, 'window.desktopExternalEntryExecuted=true;\n' + await fs.readFile(entry, 'utf8'))
-          await runCommand(process.execPath, [path.join(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', bundle, '--trust', '--replace'],
+          await runCommand(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'link', bundle, '--trust', '--replace'],
             { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
         }
         const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
@@ -160,12 +160,12 @@ test('production Main preserves signed built-in App consumers and detects invali
         const directory = path.join(root, mode)
         await fs.mkdir(directory)
         const version = mode === 'default' ? '1.0.0' : '2.0.0'
-        const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+        const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
           XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'), XDG_RUNTIME_DIR: path.join(directory, 'runtime'),
           ODK_APP_MANAGER_MAIN_PROFILE: path.join(directory, 'profile'), ODK_APP_MANAGER_MAIN_VERSION: '1.0.0',
           ODK_APP_MANAGER_MAIN_LIVE: '0', ODK_APP_MANAGER_MAIN_REJECT: '0', ODK_APP_MANAGER_MAIN_COMPOSITION: '1',
-          ODK_BUILTIN_MAIN_VERSION: version, ODESK_WORKSPACE: path.join(directory, 'workspace'),
-          ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODESK_DISABLE_GPU: '1', ODESK_DISABLED_PLUGINS: '' }
+          ODK_BUILTIN_MAIN_VERSION: version, ODK_WORKSPACE: path.join(directory, 'workspace'),
+          ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: '' }
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         if (mode !== 'default') await installBuiltinViews(directory, env, {
@@ -221,12 +221,12 @@ test('production Main preserves externally selected diagnostic consumers and ref
         'missing-refresh', 'missing-notifications', 'missing-frame-status']) {
         const directory = path.join(root, mode)
         await fs.mkdir(directory)
-        const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+        const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
           XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'), XDG_RUNTIME_DIR: path.join(directory, 'runtime'),
           ODK_APP_MANAGER_MAIN_PROFILE: path.join(directory, 'profile'), ODK_APP_MANAGER_MAIN_VERSION: '1.0.0',
           ODK_APP_MANAGER_MAIN_LIVE: '0', ODK_APP_MANAGER_MAIN_REJECT: '0', ODK_APP_MANAGER_MAIN_COMPOSITION: '1',
-          ODK_DIAGNOSTIC_MAIN_MODE: mode, ODK_BUILTIN_MAIN_VERSION: '', ODESK_WORKSPACE: path.join(directory, 'workspace'),
-          ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODESK_DISABLE_GPU: '1', ODESK_DISABLED_PLUGINS: '' }
+          ODK_DIAGNOSTIC_MAIN_MODE: mode, ODK_BUILTIN_MAIN_VERSION: '', ODK_WORKSPACE: path.join(directory, 'workspace'),
+          ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_DISABLE_GPU: '1', ODK_DISABLED_PLUGINS: '' }
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         if (mode !== 'default') for (const { factory, options } of factories) {
@@ -255,7 +255,7 @@ const {sanitizeRuntimePlugins}=require(${JSON.stringify(path.resolve(__dirname, 
 const {healthPort}=require(${JSON.stringify(path.resolve(__dirname, '../src/plugins/health'))});
 const {createPluginControl}=require(${JSON.stringify(path.resolve(__dirname, '../src/plugin-control'))});
 const {createRendererManagement}=require(${JSON.stringify(path.resolve(__dirname, '../src/renderer-management'))});
-const {listenDeskData}=require(${JSON.stringify(path.resolve(__dirname, '../src/desk-data-control'))});
+const {listenOdkData}=require(${JSON.stringify(path.resolve(__dirname, '../src/odk-data-control'))});
 const {SYSTEM_PORTS}=require(${JSON.stringify(path.resolve(__dirname, '../src/plugins/system-channels'))});
 const {DESK_PORTS}=require(${JSON.stringify(path.resolve(__dirname, '../src/plugins/desk-runtime'))});
 const {createRuntimeChannelProbe}=require(${JSON.stringify(path.resolve(__dirname, '../src/runtime-channel-probe'))});
@@ -263,7 +263,7 @@ exports.create=${create};
 globalThis.odkDiagnosticMainEntries ||= [];
 globalThis.odkDiagnosticMainEntries.push(${JSON.stringify(plugin.manifest.id)});`
           await fs.writeFile(path.join(folder, 'entry.cjs'), shared)
-          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', folder, '--trust', '--replace',
+          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', folder, '--trust', '--replace',
             ...plugin.manifest.permissions.flatMap(permission => ['--grant', permission])], { env, signal: t.signal, timeout: 10000 })
         }
         const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],

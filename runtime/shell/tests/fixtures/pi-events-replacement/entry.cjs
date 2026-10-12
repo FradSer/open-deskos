@@ -4,7 +4,7 @@
 exports.create = context => {
   const { readLocal } = context.capability('source.pi-events')
   if (typeof readLocal !== 'function') throw TypeError('Pi Events requires a local event reader')
-  const link = context.get('odk:source/desk-link/v1')
+  const link = context.get('odk:source/link/v1')
   const controller = new AbortController()
   let active = 0
   const drains = []
@@ -18,7 +18,7 @@ exports.create = context => {
     try {
       const reported = await link.sessionEvents(request.sessionId, { hostedPi: request.hostedPi === true, signal: controller.signal })
       if (controller.signal.aborted) return unavailable()
-      if (reported.ok || !['session-log-missing', 'desk-link-unconfigured', 'desk-link-unavailable'].includes(reported.reason)) return reported
+      if (reported.ok || !['session-log-missing', 'odk-link-unconfigured', 'odk-link-unavailable'].includes(reported.reason)) return reported
       const local = await readLocal(request)
       return controller.signal.aborted ? unavailable() : local
     } catch (error) {

@@ -1,14 +1,14 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { boundedEvent } = require('../src/desk-link-service')
+const { boundedEvent } = require('../src/odk-link-service')
 const { retainEvents } = require('../src/pi-session-events')
 
-test('Desk Link keeps complete Markdown result text and separate tool identity', () => {
+test('Open DeskOS Link keeps complete Markdown result text and separate tool identity', () => {
   const text = '# Result\n\n| Name | Value |\n| --- | --- |\n| example | 42 |\n\nLast line.'
   assert.deepEqual(boundedEvent({ kind: 'result', toolName: 'bash', text }), { kind: 'result', toolName: 'bash', text })
 })
 
-test('Desk Link keeps a bounded Markdown assistant body without flattening it', () => {
+test('Open DeskOS Link keeps a bounded Markdown assistant body without flattening it', () => {
   const reply = '# Answer\n\n```js\nconst value = 1\n```\n\nDone.'
   assert.deepEqual(boundedEvent({ kind: 'assistant', text: reply }), { kind: 'assistant', text: reply })
 })
@@ -28,7 +28,7 @@ test('the shared event contract bounds every kind of body', () => {
 // Pi colours a tool box by the outcome it recorded, so the desk carries that
 // record rather than guessing one from the event kind. The fields stay optional:
 // a reporter that does not send them yields an event without them.
-test('Desk Link carries Pi\'s recorded tool outcome and call identity', () => {
+test('Open DeskOS Link carries Pi\'s recorded tool outcome and call identity', () => {
   assert.deepEqual(
     boundedEvent({ kind: 'tool', text: 'bash: pnpm test', toolCallId: 'call_1' }),
     { kind: 'tool', text: 'bash: pnpm test', toolCallId: 'call_1' })
@@ -47,7 +47,7 @@ test('Desk Link carries Pi\'s recorded tool outcome and call identity', () => {
 
 // The desk no longer flattens anything: a prompt, a thought, and a bash command
 // keep the lines Pi produced so the page reads them the way Pi does.
-test('Desk Link keeps user, thinking, and tool bodies with their own lines', () => {
+test('Open DeskOS Link keeps user, thinking, and tool bodies with their own lines', () => {
   assert.deepEqual(boundedEvent({ kind: 'user', text: 'prompt one\nprompt two' }), { kind: 'user', text: 'prompt one\nprompt two' })
   assert.deepEqual(boundedEvent({ kind: 'thinking', text: 'idea\nmore idea' }), { kind: 'thinking', text: 'idea\nmore idea' })
   const command = "python3 - <<'PY'\nprint('one')\nPY"
@@ -129,17 +129,17 @@ test('plugin IPC routes local and reported events through the tested source seam
   let reply = reported
   const host = createPluginHost({ capabilities: {
     ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
-    'source.desk-link': { create: () => ({ sessionEvents: async (...args) => { calls.push(args); return reply } }) },
+    'source.odk-link': { create: () => ({ sessionEvents: async (...args) => { calls.push(args); return reply } }) },
     'source.pi-events': { create: options => createPiSessionEventsSource({ ...options, readLocal: request => { calls.push(request); return local } }) },
   } })
-  for (const plugin of createDataSourcePlugins().filter(def => ['odk.source.desk-link', 'odk.source.pi-events'].includes(def.manifest.id))) host.register(plugin)
+  for (const plugin of createDataSourcePlugins().filter(def => ['odk.source.odk-link', 'odk.source.pi-events'].includes(def.manifest.id))) host.register(plugin)
   await host.start()
   const invoke = handlers.get('odk-pi-session-events')
   assert.equal(await invoke(null, { cwd: '/project', sessionId: 'reported', hostedPi: true }), reported)
   assert.equal(calls[0][1].signal instanceof AbortSignal, true)
   const { signal: reportedSignal, ...reportedOptions } = calls[0][1]
   assert.deepEqual([calls[0][0], reportedOptions], ['reported', { hostedPi: true }])
-  reply = { ok: false, reason: 'desk-link-unavailable' }
+  reply = { ok: false, reason: 'odk-link-unavailable' }
   assert.equal(await invoke(null, { cwd: '/project', sessionId: 'local', hostedPi: false }), local)
   assert.equal(calls[1][1].signal instanceof AbortSignal, true)
   const { signal: localSignal, ...localOptions } = calls[1][1]
@@ -150,7 +150,7 @@ test('plugin IPC routes local and reported events through the tested source seam
   assert.equal(handlers.size, 0)
 })
 
-test('Desk Link result truncation is explicit and UTF-8 bounded', () => {
+test('Open DeskOS Link result truncation is explicit and UTF-8 bounded', () => {
   const event = boundedEvent({ kind: 'result', text: '中'.repeat(30000), toolName: 'read' })
   assert.equal(event.truncated, true)
   assert.ok(Buffer.byteLength(event.text) <= 65536)
@@ -159,7 +159,7 @@ test('Desk Link result truncation is explicit and UTF-8 bounded', () => {
   assert.equal(boundedEvent({ kind: 'result', text: 'already bounded', truncated: true }).truncated, true)
 })
 
-test('Desk Link assistant truncation is explicit and UTF-8 bounded', () => {
+test('Open DeskOS Link assistant truncation is explicit and UTF-8 bounded', () => {
   const event = boundedEvent({ kind: 'assistant', text: '中'.repeat(20000) })
   assert.equal(event.truncated, true)
   assert.ok(Buffer.byteLength(event.text) <= 16 * 1024)

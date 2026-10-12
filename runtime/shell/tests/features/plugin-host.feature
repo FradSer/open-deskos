@@ -136,12 +136,12 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: Actual Main bootstrap selects independent Pi Sessions and Events
     Given the Native CLI selects signed independent Pi Sessions and Events with explicit trust and grants
-    And an owned Desk Link endpoint supplies reported sessions, hosted collisions, and events
+    And an owned Open DeskOS Link endpoint supplies reported sessions, hosted collisions, and events
     When separate actual Main processes start installed, updated, rolled-back, and restored default revisions
     Then actual preload preserves complete session and event payloads
     And Hosted Pi identities retain precedence over reported sessions
     And signed processes never construct either default Pi source
-    And normal Main shutdown releases both IPC handlers and all Desk Link request connections
+    And normal Main shutdown releases both IPC handlers and all Open DeskOS Link request connections
 
   Scenario: Actual Main bootstrap selects independent Hydra revisions
     Given the Native CLI selects a signed independent Hydra source with explicit trust and grants
@@ -170,16 +170,16 @@ Feature: Active product components use replaceable plugin contracts
     And cached health performs no capture
     And normal Main shutdown releases the frame handler and source without live device access
 
-  Scenario: Actual Main bootstrap selects independent Desk Link revisions
-    Given the Native CLI selects a signed independent Desk Link source with explicit trust and grants
+  Scenario: Actual Main bootstrap selects independent Open DeskOS Link revisions
+    Given the Native CLI selects a signed independent Open DeskOS Link source with explicit trust and grants
     When separate actual Main processes start installed, updated, rolled-back, and restored default revisions
     Then actual preload preserves Pi session and event results from an owned local reporter endpoint
-    And signed processes never construct the default Desk Link client
+    And signed processes never construct the default Open DeskOS Link client
     And unsigned updates preserve configuration and removal retains both verified revisions
     And normal Main shutdown releases the sources and owned request connections
 
-  Scenario: Independent Desk Link replacements preserve shared Pi consumers
-    Given default, linked, and signed Desk Link sources use the declared raw transport
+  Scenario: Independent Open DeskOS Link replacements preserve shared Pi consumers
+    Given default, linked, and signed Open DeskOS Link sources use the declared raw transport
     When consumers request snapshots, machines, hosted sessions, and session events
     Then the wire messages and available or unavailable results remain unchanged
     And Pi Session Events preserves reported events and local fallback
@@ -258,7 +258,7 @@ Feature: Active product components use replaceable plugin contracts
     When the Native CLI updates, rolls back, or removes its selection
     Then the running source remains unchanged until complete Host shutdown and new composition
     And the newly composed source executes the selected revision or the restored default
-    And IPC, Desk Data, cached health, cache bytes, and unrelated preferences remain unchanged
+    And IPC, Open DeskOS Data, cached health, cache bytes, and unrelated preferences remain unchanged
     And an unsigned update preserves configuration bytes and the running source
     And removal preserves both verified revisions
 
@@ -271,7 +271,7 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: Signed independent Weather preserves source consumers
     Given the Native CLI installs the independent Weather bundle with explicit trust and grants
-    When the Host supplies Weather IPC, Desk Data, and cached health
+    When the Host supplies Weather IPC, Open DeskOS Data, and cached health
     Then the signed implementation preserves the shared consumer and cancellation scenarios
     And executed source markers prove selection without the default source constructor
     And changes to stored files after discovery cannot change captured behavior
@@ -282,7 +282,7 @@ Feature: Active product components use replaceable plugin contracts
     When the Native CLI updates, rolls back, or removes its selection
     Then the running source remains unchanged until complete Host shutdown and new composition
     And the newly composed source executes the selected revision or the restored default
-    And IPC, Desk Data, cached health, cache bytes, and unrelated preferences remain unchanged
+    And IPC, Open DeskOS Data, cached health, cache bytes, and unrelated preferences remain unchanged
     And an unsigned update preserves configuration bytes and the running source
     And removal preserves both verified revisions
 
@@ -327,15 +327,15 @@ Feature: Active product components use replaceable plugin contracts
     And disable releases IPC, protocol, and the owned listener before enable starts another runtime
     And unchanged package publications survive the restart
 
-  Scenario: Signed Desk Data preserves declarations and published package values
-    Given default and independently signed Desk Data factories consume the same declared reading ports
+  Scenario: Signed Open DeskOS Data preserves declarations and published package values
+    Given default and independently signed Open DeskOS Data factories consume the same declared reading ports
     When source plugins stop, restart, or change their readings
     Then consumers receive the same identities, values, availability, and source ownership
     And unchanged package publications survive dependency restarts
     And changed package revisions invalidate previous publications
     And cancelled catalog results cannot restore removed readings
     And the signed factory constructs its registry without the injected default factory
-    And the existing read-only Desk Data Link refuses mutation commands
+    And the existing read-only Open DeskOS Data Link refuses mutation commands
 
   Scenario: Signed App Manager owns its state and preserves intent behavior
     Given the default and independently signed App Managers use the same App catalog
@@ -349,7 +349,7 @@ Feature: Active product components use replaceable plugin contracts
   Scenario: Signed Futu service replacement preserves consumer behavior
     Given the default and independent signed Futu service factories use the same local publisher protocol
     When installed service declarations and publisher states change
-    Then IPC and Desk Data retain the same values, percentages, provenance, and availability
+    Then IPC and Open DeskOS Data retain the same values, percentages, provenance, and availability
     And health excludes private holdings, errors, and authentication details
     And disable closes the owned listener before enable creates another source
     And removed or corrupt selections restore the default factory
@@ -424,24 +424,24 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: Independent Pi source factories preserve consumer behavior
     Given default or independently linked Pi Sessions and Pi Events factories
-    When consumers use their existing IPC and Desk Data endpoints
+    When consumers use their existing IPC and Open DeskOS Data endpoints
     Then reported sessions, local fallback, and Hosted Pi identity remain unchanged
     And event fallback follows the existing unavailable reasons
-    And disabling one Pi source preserves the shared Desk Link and the other source
+    And disabling one Pi source preserves the shared Open DeskOS Link and the other source
     And restart waits for retained reads and suppresses late results
     And removing the development links restores the default factories without deleting their source
 
   Scenario: Pi Events implements its public lifecycle without the default source factory
-    Given the replacement receives Desk Link and a declared local event reader
+    Given the replacement receives Open DeskOS Link and a declared local event reader
     When reported event reads finish, fail, or require local fallback
     Then the replacement preserves complete responses and the existing fallback reasons
     And it imports no Shell modules and never invokes the default source constructor
     And cancellation drains reported and local reads before another instance starts
 
   Scenario: Pi Sessions implements aggregation without the default source factory
-    Given a Pi Sessions factory with configured scan and Desk Link capabilities but no Shell module imports
+    Given a Pi Sessions factory with configured scan and Open DeskOS Link capabilities but no Shell module imports
     When consumers scan local, SSH, reported, or Hosted Pi sessions
-    Then it preserves source precedence, identity deduplication, workspace summaries, and Desk Data projection
+    Then it preserves source precedence, identity deduplication, workspace summaries, and Open DeskOS Data projection
     And concurrent scans share one active request and later scans refresh
     And a reentrant provider shares that request and synchronous provider failures retain their rejection
     And cancellation drains every owned request even after a parallel request fails
@@ -465,7 +465,7 @@ Feature: Active product components use replaceable plugin contracts
     Given both independent Pi factories are installed with signed revision-specific execution markers
     When the Native CLI updates one factory or rolls it back
     Then its running instance and signed peer remain unchanged until complete Host shutdown
-    And a new composition executes the selected entry and preserves session, event, and Desk Data responses
+    And a new composition executes the selected entry and preserves session, event, and Open DeskOS Data responses
     And an unsigned entry update preserves configuration bytes and running consumers
     And removal restores defaults after shutdown without deleting either verified revision
 
@@ -477,13 +477,13 @@ Feature: Active product components use replaceable plugin contracts
     And it validates the remaining replacement dependency graph without executing entries
     And a replacement that requires the damaged provider fails without changing configuration
 
-  Scenario: Pi cancellation closes only its owned Desk Link connections
-    Given a shared Desk Link client has independent pending requests
+  Scenario: Pi cancellation closes only its owned Open DeskOS Link connections
+    Given a shared Open DeskOS Link client has independent pending requests
     When a Pi reading plugin is cancelled
     Then its request connections close before its read completes
     And unrelated requests remain usable
     And protocol records retain their existing fields and authentication
-    When the Desk Link plugin stops
+    When the Open DeskOS Link plugin stops
     Then all its requests close before replacement
     And stopped or pre-cancelled requests create no new connection
 
@@ -511,7 +511,7 @@ Feature: Active product components use replaceable plugin contracts
     When the owner links the replacement and the Shell starts the complete composition
     Then linking validates the complete selected graph without executing entries
     And the extension starts before the replacement
-    And existing IPC and Desk Data consumers receive the replacement values
+    And existing IPC and Open DeskOS Data consumers receive the replacement values
     And missing dependencies, cycles, and conflicting ports fail before execution
     And rejected extensions cannot silently leave an invalid fallback graph
 
@@ -690,10 +690,10 @@ Feature: Active product components use replaceable plugin contracts
     And a pending startup receives cancellation before another plugin can start
     And a shutdown rejection is reported before normal exit resumes
 
-  Scenario: Desk Data follows the active source instances
-    Given Desk Data uses optional source ports and the installed package catalog
+  Scenario: Open DeskOS Data follows the active source instances
+    Given Open DeskOS Data uses optional source ports and the installed package catalog
     When a source is disabled and enabled
-    Then Desk Data releases its previous source reference
+    Then Open DeskOS Data releases its previous source reference
     And the next composition reads the new source instance
     And package synchronization completes before periodic service refresh starts
 
@@ -835,7 +835,7 @@ Feature: Active product components use replaceable plugin contracts
     When the diagnosis plugin stops
     Then its listener and client connections are released
 
-  Scenario: Desk Data Link retains a listener after cleanup failure
+  Scenario: Open DeskOS Data Link retains a listener after cleanup failure
     Given the link owns a listener or is awaiting listener startup
     When shutdown cannot close that listener
     Then the link retains its listener and its required data provider
@@ -844,9 +844,9 @@ Feature: Active product components use replaceable plugin contracts
     Then the listener closes before its provider is released
 
   Scenario: A new source contributes readings through its declared port
-    Given a source plugin provides a declared Desk Data reading port
+    Given a source plugin provides a declared Open DeskOS Data reading port
     When the Main composition includes that declaration
-    Then Desk Data registers its reading without a source-specific branch
+    Then Open DeskOS Data registers its reading without a source-specific branch
     And disabling the source withdraws that reading
     And enabling the source binds its replacement instance
     And installed package publications remain unchanged
@@ -861,7 +861,7 @@ Feature: Active product components use replaceable plugin contracts
   Scenario: Service plugins own their reading projections
     Given service plugins provide declared reading factories
     When their service declarations change
-    Then Desk Data reconciles their readings through the generic service contract
+    Then Open DeskOS Data reconciles their readings through the generic service contract
     And a disabled service provider withdraws only its owned readings
     And Futu holdings retain their existing state and percentage projection
     And other service providers can refresh when Futu is disabled
@@ -894,7 +894,7 @@ Feature: Active product components use replaceable plugin contracts
     Given a replacement preserves its built-in identity, host, kind, and provided ports
     When the Main composition receives that replacement
     Then it registers only the replacement implementation for that identity
-    And Desk Data and IPC use the replacement source instance
+    And Open DeskOS Data and IPC use the replacement source instance
     And disabling and enabling it creates a new instance with the same reading identity
     When a replacement changes its external ports or has an invalid dependency graph
     Then composition fails before any plugin factory runs
@@ -903,7 +903,7 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: Weather replacements preserve readings and resource ownership
     Given the default Weather source or an independent trusted replacement
-    When IPC and Desk Data read live, stale, unavailable, or unconfigured snapshots
+    When IPC and Open DeskOS Data read live, stale, unavailable, or unconfigured snapshots
     Then both consumers retain the same reading identity, values, and availability
     And cached health does not initiate a provider request
     When the Weather plugin stops during a weather or location request
@@ -1029,7 +1029,7 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: A linked WeRead replacement preserves highlight consumers
     Given default WeRead and an independently linked source use controlled API responses and cache files
-    When clients request highlights through IPC and Desk Data
+    When clients request highlights through IPC and Open DeskOS Data
     Then both preserve highlight selection, book cooldown, cover limits, cache reuse, and resync timing
     And both preserve empty, error, and unconfigured states
     When the plugin is disabled and enabled again
@@ -1047,7 +1047,7 @@ Feature: Active product components use replaceable plugin contracts
     Then it retains the pending request until that request settles
 
   Scenario: Concurrent WeRead consumers retain completion order
-    Given IPC and Desk Data request different cached highlights concurrently
+    Given IPC and Open DeskOS Data request different cached highlights concurrently
     When their cover responses complete in reverse request order
     Then each consumer receives its selected highlight
     And the last completion remains the cached source state
@@ -1075,7 +1075,7 @@ Feature: Active product components use replaceable plugin contracts
     Given default, linked, and signed Hydra sources use the canonical installed MQTT SDK
     And a task-owned endpoint listens only on loopback at an ephemeral port
     When sources subscribe and receive retained and live MQTT packets
-    Then IPC, Desk Data, and cached health preserve values and availability
+    Then IPC, Open DeskOS Data, and cached health preserve values and availability
     And every source subscribes to its configured root
     When the Host stops
     Then the SDK connection and owned endpoint close before temporary state is removed
@@ -1094,14 +1094,14 @@ Feature: Active product components use replaceable plugin contracts
     When the Native CLI updates, rolls back, rejects an unsigned update, or removes the selection
     Then the running source remains unchanged until complete Host shutdown
     And the next Host executes the selected version or restored default
-    And IPC, Desk Data, cached health, enable preferences, and unrelated preferences preserve their values
+    And IPC, Open DeskOS Data, cached health, enable preferences, and unrelated preferences preserve their values
     And shutdown closes each controlled client before another source starts
     And both retained signed revisions remain verified and unchanged
 
   Scenario: Linked and signed Hydra replacements preserve read-only MQTT consumers
     Given default Hydra and independent linked and signed sources use controlled MQTT clients
     When clients receive retained and live readings through the same topic contract
-    Then IPC and Desk Data preserve values, timestamps, stale states, diagnostics, and availability
+    Then IPC and Open DeskOS Data preserve values, timestamps, stale states, diagnostics, and availability
     And connection retries retain the existing interval and subscription settings
     And signed source execution uses captured verified bytes without the default parser or factory
     And atomic summaries, invalid messages, soil limits, and watering status preserve the protocol contract
@@ -1143,7 +1143,7 @@ Feature: Active product components use replaceable plugin contracts
 
   Scenario: An external Quota replacement preserves consumers
     Given the default Quota plugin and an independently linked replacement use controlled provider responses
-    When clients read quota through IPC and Desk Data
+    When clients read quota through IPC and Open DeskOS Data
     Then both retain account identities, quota windows, percentages, reset times, and availability states
     When the replacement link is removed
     Then the next startup restores the default Quota plugin
@@ -1161,7 +1161,7 @@ Feature: Active product components use replaceable plugin contracts
     Given a signed independent Quota factory runs with declared provider responses
     When the operator updates, rolls back, or removes its stored selection
     Then the running instance changes only after the composition restarts
-    And every selected revision preserves IPC responses and Desk Data readings
+    And every selected revision preserves IPC responses and Open DeskOS Data readings
     And an unsigned update preserves the previous selection and running instance
     And removal restores the default factory without deleting retained revision bytes
 

@@ -225,8 +225,8 @@ def test_windows_refuses_missing_token_before_creating_handle():
 
 def test_windows_defaults_match_shell_identity_and_token_location():
     assert poller.management_settings({"LOCALAPPDATA": r"C:\Profile\AppData\Local"}, "win32") == (
-        r"\\.\pipe\open-deskos-futu-plugin-control", r"C:\Profile\AppData\Local\open-deskos\local-channel.token")
-    assert poller.management_settings({"ODESK_FUTU_CONTROL": ""}, "win32")[0] is None
+        r"\\.\pipe\odk-futu-plugin-control", r"C:\Profile\AppData\Local\odk\local-channel.token")
+    assert poller.management_settings({"ODK_FUTU_CONTROL": ""}, "win32")[0] is None
 
 
 def test_windows_composition_selects_pipe_and_authenticates_before_lifecycle(tmp_path, monkeypatch):
@@ -304,8 +304,8 @@ def test_native_windows_management_preserves_composition_lifecycle(tmp_path):
             events.append("publisher.close")
 
     runtime = poller.create_poller({
-        "ODESK_FUTU_CONTROL": endpoint, "ODK_CHANNEL_TOKEN_FILE": str(token),
-        "ODESK_FUTU_PLUGIN_CONFIG": str(preferences),
+        "ODK_FUTU_CONTROL": endpoint, "ODK_CHANNEL_TOKEN_FILE": str(token),
+        "ODK_FUTU_PLUGIN_CONFIG": str(preferences),
     }, platform="win32", publisher_factory=lambda context: Publisher())
     source = Path(poller.__file__).resolve().parents[2] / "runtime/shell/src/local-control-client.js"
     script = """
@@ -315,7 +315,7 @@ requestLocalControl({endpoint:process.argv[2],tokenFile:process.argv[3],platform
   .then(result=>process.stdout.write(JSON.stringify(result)))
   .catch(error=>{process.stderr.write(error.message);process.exit(1)});
 """
-    cli = source.parents[1] / "scripts/open-deskos-plugin-cli.js"
+    cli = source.parents[1] / "scripts/odk-plugin-cli.js"
     preload = tmp_path / "isolated-host.cjs"
     # Keep native Windows host resolution; isolate every discovery endpoint.
     preload.write_text("""
@@ -342,7 +342,7 @@ platform.resolveShellHost = options => {
                 if use_cli else ["node", "-e", script, str(source), endpoint,
                                  str(token_file), json.dumps(payload)])
         env = {**os.environ, "ODK_TEST_TOKEN": str(token_file), "ODK_TEST_PIPE_PREFIX": prefix,
-               "OPEN_DESKOS_CONFIG_DIR": str(tmp_path / "cli-preferences")}
+               "ODK_CONFIG_DIR": str(tmp_path / "cli-preferences")}
         process = subprocess.Popen(args, env=env,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:

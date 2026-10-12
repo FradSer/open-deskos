@@ -14,7 +14,7 @@ from plugin_control import dispatch_plugin_control
 
 @pytest.mark.parametrize("unavailable", ["occupied", "public-directory"])
 def test_failed_management_startup_preserves_independent_polling(tmp_path, unavailable):
-    directory = tmp_path / "open-deskos-futu"
+    directory = tmp_path / "odk-futu"
     directory.mkdir(mode=0o700)
     endpoint = directory / "control.sock"
     if unavailable == "occupied":
@@ -47,7 +47,7 @@ def test_failed_management_startup_preserves_independent_polling(tmp_path, unava
 
 
 def test_feature_error_is_not_hidden_by_unavailable_management(tmp_path):
-    directory = tmp_path / "open-deskos-futu"
+    directory = tmp_path / "odk-futu"
     directory.mkdir(mode=0o700)
     endpoint = directory / "control.sock"
     endpoint.write_text("preserved")
@@ -170,7 +170,7 @@ def test_wait_stops_when_reused_loop_gets_a_new_activation(tmp_path, monkeypatch
 
 def test_actual_external_loop_fault_recovers_through_cli(tmp_path):
     root = Path(poller.__file__).resolve().parents[2]
-    cli = root / "runtime/shell/scripts/open-deskos-plugin-cli.js"
+    cli = root / "runtime/shell/scripts/odk-plugin-cli.js"
     directory = tmp_path / "replacement"
     directory.mkdir()
     manifest = next(entry["manifest"] for entry in poller.create_poller({}).catalog() if entry["manifest"]["id"] == "odk.futu.loop")
@@ -193,9 +193,9 @@ def create(context):
     return Loop()
 ''')
     env = {**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "XDG_STATE_HOME": str(tmp_path),
-           "OPEN_DESKOS_CONFIG_DIR": str(tmp_path / "config"), "FUTU_TRADE_PWD": "",
-           "ODESK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")}
-    env.pop("ODESK_FUTU_SOCKET", None)
+           "ODK_CONFIG_DIR": str(tmp_path / "config"), "FUTU_TRADE_PWD": "",
+           "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")}
+    env.pop("ODK_FUTU_SOCKET", None)
     args = [sys.executable, poller.__file__, "--plugin-directory", str(directory), "--trust-plugins"]
     for capability in manifest["permissions"]:
         args += ["--grant-plugin", "odk.futu.loop:" + capability]
@@ -224,16 +224,16 @@ def create(context):
             process.communicate()
             raise
     assert process.returncode == 0, stderr.decode()
-    assert not (tmp_path / "open-deskos-futu/control.sock").exists()
+    assert not (tmp_path / "odk-futu/control.sock").exists()
 
 
 def test_operational_cli_disables_and_recovers_polling_without_preferences(tmp_path):
     root = Path(poller.__file__).resolve().parents[2]
-    cli = root / "runtime/shell/scripts/open-deskos-plugin-cli.js"
+    cli = root / "runtime/shell/scripts/odk-plugin-cli.js"
     env = {**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "XDG_STATE_HOME": str(tmp_path),
-           "OPEN_DESKOS_CONFIG_DIR": str(tmp_path / "config"), "FUTU_INTERVAL": "60",
-           "FUTU_TRADE_PWD": "", "ODESK_FUTU_TARGETS_FILE": str(tmp_path / "no-targets.json")}
-    env.pop("ODESK_FUTU_SOCKET", None)
+           "ODK_CONFIG_DIR": str(tmp_path / "config"), "FUTU_INTERVAL": "60",
+           "FUTU_TRADE_PWD": "", "ODK_FUTU_TARGETS_FILE": str(tmp_path / "no-targets.json")}
+    env.pop("ODK_FUTU_SOCKET", None)
     process = subprocess.Popen([sys.executable, poller.__file__], env=env, text=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     def publication():
@@ -245,7 +245,7 @@ def test_operational_cli_disables_and_recovers_polling_without_preferences(tmp_p
         return result
     try:
         assert publication() == {"v": 1, "service": "futu-poller", "type": "auth-required", "secrets": ["futu-trade-password"]}
-        endpoint = tmp_path / "open-deskos-futu/control.sock"
+        endpoint = tmp_path / "odk-futu/control.sock"
         assert endpoint.exists()
         for name in ("publisher", "loop", "gateway", "transport"):
             result = command("disable", name)
@@ -315,7 +315,7 @@ def test_managed_loop_switches_generation_before_reusing_closed_publisher(tmp_pa
     assert waits == [23, 23]
     assert len(publishers) == 2
     assert all(publisher.closed and len(publisher.records) == 1 for publisher in publishers)
-    assert not (tmp_path / "open-deskos-futu/control.sock").exists()
+    assert not (tmp_path / "odk-futu/control.sock").exists()
 
 
 def test_manager_reads_do_not_restart_publication_deadline(tmp_path, monkeypatch):
@@ -327,7 +327,7 @@ def test_manager_reads_do_not_restart_publication_deadline(tmp_path, monkeypatch
         waits.append(seconds)
         now[0] += seconds
     monkeypatch.setattr(poller.LinkSet, "wait", wait)
-    runtime = poller.create_poller({"XDG_RUNTIME_DIR": str(tmp_path), "ODESK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")})
+    runtime = poller.create_poller({"XDG_RUNTIME_DIR": str(tmp_path), "ODK_FUTU_TARGETS_FILE": str(tmp_path / "absent.json")})
     runtime.start()
     control = runtime.host.get(poller.CONTROL_PORT)
     def poll(seconds=0):

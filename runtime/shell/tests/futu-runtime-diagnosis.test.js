@@ -68,7 +68,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   await host.get(DESK_PORTS.futu).refresh()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',
@@ -92,7 +92,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   assert.equal(host.get(DESK_PORTS.futu).source.snapshot('futu-poller').state, 'live')
   const { execFile } = require('node:child_process')
   const { promisify } = require('node:util')
-  const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+  const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
   const output = await promisify(execFile)(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), cli, 'diagnose', 'odk.futu.publisher'], { env })
   assert.equal(JSON.parse(output.stdout).runtimes.find(runtime => runtime.host === 'python-agent').plugins[0].state, 'running')
   assert.equal((await completed)[0], 0, stderr)

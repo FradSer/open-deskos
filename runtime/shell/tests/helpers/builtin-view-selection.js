@@ -10,7 +10,7 @@ async function installBuiltinViews(profile, env, { mode = 'native', invalid = fa
   const keys = mode === 'native' ? crypto.generateKeyPairSync('ed25519') : null
   const keyring = path.join(profile, 'publishers.json')
   if (keys) {
-    env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+    env.ODK_NATIVE_KEYRING = keyring
     await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { views: {
       publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }),
       identities: ['calendar', 'clock', 'pomodoro', 'year', 'app-manager'].map(id => `odk.app.${id}`),
@@ -48,7 +48,7 @@ async function installBuiltinViews(profile, env, { mode = 'native', invalid = fa
       if (version === '2.0.0') {
         const args = keys ? ['native', 'install', directory, '--keyring', keyring, '--trust']
           : ['link', directory, '--trust', '--replace']
-        const receipt = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'),
+        const receipt = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'),
           ...args], { env, signal, timeout: 10000 })
         if (keys) assert.equal(JSON.parse(receipt.stdout).effect, 'selection-only')
       }

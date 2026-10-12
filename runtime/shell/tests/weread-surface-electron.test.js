@@ -13,7 +13,7 @@ const { runCommand } = require('./helpers/hydra-wire-lifecycle')
 for (const mode of ['development', 'native']) test(`${mode} independent WeRead surface preserves actual preload rendered and decoded cover consumers`, { timeout: surfaceTimeouts().test }, async t => {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weread-surface-'))
   const env = { ...process.env, ODK_WEREAD_FIXTURE_PROFILE: profile, ODK_WEREAD_SURFACE_REPLACEMENT: '1', ODK_WEREAD_SURFACE_NATIVE: mode === 'native' ? '1' : '0',
-    OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
+    ODK_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
   try {
     await install(profile, env, { signal: t.signal })
     const directory = path.join(profile, 'surface')
@@ -22,7 +22,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent WeRead s
     if (mode === 'native') {
       const native = await prepare(profile, env, directory, { signal: t.signal })
       env.ODK_WEREAD_SURFACE_KEYRING = native.keyring
-    } else await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
+    } else await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
       { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
     delete env.ELECTRON_RUN_AS_NODE
     const result = await runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weread-plugin-electron.cjs')],

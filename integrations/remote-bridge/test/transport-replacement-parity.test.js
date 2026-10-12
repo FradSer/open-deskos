@@ -173,7 +173,7 @@ test('operational entry loads both external transports and keeps USB priority', 
     .replace('item.sent.push(record)', `item.sent.push(record); require('node:fs').writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({ id: manifest.id, record }))`))
   const child = spawn(process.execPath, ['--unhandled-rejections=strict', path.resolve(__dirname, '../lib/main.js'),
     '--plugin-selection', setup.selection, '--trust-plugins'], { env: { ...process.env, XDG_RUNTIME_DIR: setup.directory,
-      OPEN_DESKOS_CONFIG_DIR: setup.directory, ODESK_DISABLED_PLUGINS: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
+      ODK_CONFIG_DIR: setup.directory, ODK_DISABLED_PLUGINS: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
   const exit = once(child, 'exit')
   t.after(async () => {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
@@ -190,7 +190,7 @@ test('operational entry loads both external transports and keeps USB priority', 
     child.once('error', reject)
     child.once('exit', code => reject(Error(`startup exited ${code}: ${errors}`)))
   })
-  const client = await clientAt(path.join(setup.directory, 'open-deskos-remote', 'bridge.sock'))
+  const client = await clientAt(path.join(setup.directory, 'odk-remote', 'bridge.sock'))
   t.after(() => client.socket.destroy())
   assert.equal((await client.next()).state, 'syncing')
   const state = { v: 1, type: 'state', name: 'Home', page: 1, pages: 1, canPrev: false, canNext: false }
@@ -207,7 +207,7 @@ test('operational entry loads both external transports and keeps USB priority', 
   client.socket.destroy()
   child.kill('SIGTERM')
   assert.deepEqual(await exit, [0, null], errors)
-  await assert.rejects(fs.stat(path.join(setup.directory, 'open-deskos-remote', 'bridge.sock')), { code: 'ENOENT' })
+  await assert.rejects(fs.stat(path.join(setup.directory, 'odk-remote', 'bridge.sock')), { code: 'ENOENT' })
   const records = (await fs.readFile(cleanup, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
   assert.deepEqual(records, [setup.manifests[1].id, setup.manifests[0].id].flatMap(id => [{ id, phase: 'stop' }, { id, phase: 'destroy' }]))
 })

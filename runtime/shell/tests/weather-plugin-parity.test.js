@@ -12,7 +12,7 @@ const { createRequire } = require('node:module')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createWeatherSource } = require('../src/weather-source')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
@@ -21,7 +21,7 @@ const { healthPort } = require('../src/plugins/health')
 const { install } = require('./helpers/weather-selection')
 const run = promisify(execFile)
 const replacementDirectory = path.join(__dirname, 'fixtures/weather-replacement')
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const timestamp = 1700000000000
 const response = () => ({ ok: true, headers: { get: () => 'application/json' }, json: async () => ({
   current_units: { temperature_2m: '°C' }, current: { temperature_2m: 21.3, weather_code: 2 },
@@ -46,7 +46,7 @@ test('independent Weather constructs when default source imports are refused', a
 async function fixture(t, replacement, options) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-wparity-'))
   options = { ...options, cacheFile: path.join(root, 'weather.json') }
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   let host
   t.after(async () => { try { await host?.stop() } finally { fs.rmSync(root, { recursive: true, force: true }) } })
@@ -70,10 +70,10 @@ async function fixture(t, replacement, options) {
       assert.equal(replacement, false, 'replacement must not call the built-in source factory')
       return createWeatherSource(configuration)
     } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   const plugins = createMainPlugins({ replacementPlugins: replacements })
-  plugins.filter(plugin => ['odk.source.weather', 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  plugins.filter(plugin => ['odk.source.weather', 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   assert.equal(host.get(DATA_PORTS.weather).fixtureRevision, replacement === 'signed' ? '2.0.0' : undefined)
   assert.equal(host.list().find(record => record.manifest.id === 'odk.source.weather').manifest.version, replacement ? '2.0.0' : '1.0.0')
@@ -87,7 +87,7 @@ async function fixture(t, replacement, options) {
 
 for (const replacement of [false, true, 'signed']) {
   const implementation = replacement === 'signed' ? 'signed independent Weather plugin' : replacement ? 'linked independent Weather plugin' : 'default Weather plugin'
-  test(`${implementation} publishes relocation through IPC and Desk Data with the correct cache identity`, async t => {
+  test(`${implementation} publishes relocation through IPC and Open DeskOS Data with the correct cache identity`, async t => {
     let located = 0
     const pending = []
     const starts = []

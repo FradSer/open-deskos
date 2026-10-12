@@ -21,7 +21,7 @@ assert.ok(!surfaceVersion || ['1.0.0', '2.0.0', '3.0.0'].includes(surfaceVersion
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODESK_DISABLED_PLUGINS += ',' + surfaces.filter(id => id !== 'odk.tile.weather').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => id !== 'odk.tile.weather').join(',')
 let providerCalls = 0
 globalThis.fetch = async url => {
   const parsed = new URL(url)

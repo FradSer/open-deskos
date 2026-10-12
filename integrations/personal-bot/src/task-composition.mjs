@@ -81,8 +81,8 @@ export function createTaskComposition({ openChannel, createService, endpointFile
       context.onCleanup(async () => { if (server) { await server.close(); server = undefined } })
       return { async start() {
         if (context.signal.aborted) return
-        const { createPluginControl, listenDeskData } = loadPersonalBotManagementModules()
-        server = await listenDeskData({ ...control, requestTimeoutMs: 30000,
+        const { createPluginControl, listenOdkData } = loadPersonalBotManagementModules()
+        server = await listenOdkData({ ...control, requestTimeoutMs: 30000,
           control: createPluginControl({ scope: 'personal-agent', signal: context.signal,
             protectedIds: ['odk.hosted-pi.control'], snapshot: () => host.list(),
             setEnabled }) })

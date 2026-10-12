@@ -42,7 +42,7 @@ export async function startTaskDaemon(config) {
 
 /**
  * Node resolves symlinks before setting import.meta.url, so a service started through a stable
- * `/opt/open-deskos/current` symlink would compare a real path against a symlinked argv[1], skip
+ * `/opt/odk/current` symlink would compare a real path against a symlinked argv[1], skip
  * this block, and exit 0 without a socket or any diagnostic. Accept either form so the entry
  * point does not depend on release switching or a `--preserve-symlinks-main` flag.
  * @returns {boolean}

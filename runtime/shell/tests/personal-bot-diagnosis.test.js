@@ -67,7 +67,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   assert.equal(toggles, 0)
   assert.equal(snapshots, 1)
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
-  await assert.rejects(execFile(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', 'odk.personal-bot.runtime'], {
+  await assert.rejects(execFile(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'diagnose', 'odk.personal-bot.runtime'], {
     env: channel.env,
   }), error => {
     assert.equal(error.code, 1)

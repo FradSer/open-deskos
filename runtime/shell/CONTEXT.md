@@ -16,6 +16,17 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 **Apple P4 Companion**: The USB subscription/time-sync client in `research/esp32-p4-c6-deskos/apple/`. Its P4 serial commands are research interfaces, not Shell dependencies.
 
+## Technical namespace
+
+Use **Open DeskOS Link** and **Open DeskOS Data** as product names.
+Use `odk` for technical prefixes and `ODK_` for environment variables.
+Use `odk-link` and `odk-data` for their modules, services, and local endpoints.
+The Personal Bot data tool is `odk_data`.
+Previous names have no aliases or automatic fallback.
+Deployment must transfer required configuration and state to the new paths before activation.
+Keep repository addresses, public domains, and historical evidence unchanged.
+Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
+
 ## Language
 
 **Widget / App (unified)**: Widgets share grid pages; Apps own pages. Either can have a declared Service Plugin. Installed HTML packages retain their verification/sandbox limits.
@@ -44,9 +55,9 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 **Service Plugin Endpoint**: Absolute socket, named pipe or TCP address selected by its declaration. See ADR-0026.
 
-**Desk Data**: One main-owned registry of source measurements used by tiles and Personal Bot. Values are untrusted data, never rules or authorization.
+**Open DeskOS Data**: One main-owned registry of source measurements used by tiles and Personal Bot. Values are untrusted data, never rules or authorization.
 
-**Desk Data Link**: The read-only `list`/`read` Runtime Channel. It has no mutation or second snapshot cache.
+**Open DeskOS Data Link**: The read-only `list`/`read` Runtime Channel. It has no mutation or second snapshot cache.
 
 **Declared Data**: The manifest `data` fields an installed package may publish through the validated system bridge. Values cannot become instructions, rules or authorization.
 
@@ -74,13 +85,13 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 ## Pi Sessions Inspection
 
-**Desk Link**: A package-initiated, token-authenticated connection from one Pi machine to one Open DeskOS runtime. It is the only channel through which that machine's Reported Sessions are known, and it never requires Open DeskOS to reach the machine. Control does not travel on this connection: a machine opens a separate control connection to the same listener, gated by a Control Credential.
+**Open DeskOS Link**: A package-initiated, token-authenticated connection from one Pi machine to one Open DeskOS runtime. It is the only channel through which that machine's Reported Sessions are known, and it never requires Open DeskOS to reach the machine. Control does not travel on this connection: a machine opens a separate control connection to the same listener, gated by a Control Credential.
 
-**Reporting Machine**: A machine with at least one live Desk Link. It is identified by its Desk Link, never by a network address or an SSH alias.
+**Reporting Machine**: A machine with at least one live Open DeskOS Link. It is identified by its Open DeskOS Link, never by a network address or an SSH alias.
 
-**Reported Session**: A Pi session that Open DeskOS knows only through a Desk Link. It is inspected exactly like a scanned session, and visibility through a Desk Link never implies that it can be managed.
+**Reported Session**: A Pi session that Open DeskOS knows only through a Open DeskOS Link. It is inspected exactly like a scanned session, and visibility through a Open DeskOS Link never implies that it can be managed.
 
-**Desk Link Service**: The Open DeskOS runtime service that accepts Desk Links. It listens on the local network only and authenticates every Desk Link with a per-link token; its channel to the runtime is a Unix socket authenticated by filesystem ownership instead.
+**Open DeskOS Link Service**: The Open DeskOS runtime service that accepts Open DeskOS Links. It listens on the local network only and authenticates every Open DeskOS Link with a per-link token; its channel to the runtime is a Unix socket authenticated by filesystem ownership instead.
 
 **Live Session**: A session whose process runs, either Working or Idle. Live is the default filter; Exited/All can explicitly show history.
 
@@ -100,9 +111,9 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 **Session Detail**: The Pi Sessions page's single-session view: the session's own Pi state as the title, its directory, how long it has been running, and its bounded stream of recent Session Events.
 
-**Session Event**: A bounded Pi log/Desk Link entry. ADR-0015 owns per-kind body limits and the 300-event/1 MiB retained tail.
+**Session Event**: A bounded Pi log/Open DeskOS Link entry. ADR-0015 owns per-kind body limits and the 300-event/1 MiB retained tail.
 
-**Folded Reasoning**: One `Thinking...` row per turn by default. Exact `ODESK_PI_REASONING=shown` displays bodies; events still carry bounded text. See ADR-0020.
+**Folded Reasoning**: One `Thinking...` row per turn by default. Exact `ODK_PI_REASONING=shown` displays bodies; events still carry bounded text. See ADR-0020.
 
 **Pi Reading Palette**: Pi theme roles quoted inside Session Detail, including prompt/tool surfaces. Page chrome retains Shell semantic tokens. See ADR-0021.
 
@@ -122,7 +133,7 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 **Console**: A Pi session on another machine that has attached to one Hosted Pi and directs its turns. One Console drives one Hosted Pi at a time.
 
-**Control Link**: A separate authenticated connection to the Desk Link listener, one-shot or held during attachment. See ADR-0013.
+**Control Link**: A separate authenticated connection to the Open DeskOS Link listener, one-shot or held during attachment. See ADR-0013.
 
 **Control Credential**: The control secret, distinct from reporting token. It never crosses the wire; nonce/HMAC proves it. See ADR-0013.
 

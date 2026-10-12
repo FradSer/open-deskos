@@ -9,7 +9,7 @@ const DESK_PORTS = Object.freeze({
   futu: 'odk:service/futu/v1',
   futuReadings: 'odk:desk-service-readings/futu/v1',
   futuHealth: healthPort('odk.service.futu'),
-  data: 'odk:system/desk-data/v1',
+  data: 'odk:system/data/v1',
 })
 
 function define(id, name, port, requires, permissions, create) {
@@ -54,8 +54,8 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
             }
           } catch {}
           if (ctx.signal.aborted) return
-          const endpoint = config.env.ODK_FUTU_ENDPOINT || config.env.ODESK_FUTU_SOCKET
-          const bootstrap = { revision: config.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint }
+          const endpoint = config.env.ODK_FUTU_ENDPOINT || config.env.ODK_FUTU_SOCKET
+          const bootstrap = { revision: config.env.ODK_FUTU_SERVICE_REVISION || 'dev', endpoint }
           if (next) {
             if (endpoint && !next['futu-poller']) next['futu-poller'] = bootstrap
             for (const id of Object.keys(definitions)) if (!(id in next)) delete definitions[id]
@@ -73,7 +73,7 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
           [DESK_PORTS.futuHealth]: { snapshot: () => getFutuHealth(source, definitions) },
         } }
       }),
-    define('odk.system.desk-data', 'Desk Data registry', DESK_PORTS.data,
+    define('odk.system.data', 'Open DeskOS Data registry', DESK_PORTS.data,
       [{ interface: DESK_PORTS.catalog, optional: true },
         ...servicePorts.map(interfaceName => ({ interface: interfaceName, optional: true })),
         ...(readingPorts === undefined ? ['hydra', 'weather', 'weread', 'piSessions', 'quota'].map(name => DATA_PORTS[name]) : readingPorts).map(interfaceName => ({ interface: interfaceName, optional: true }))],
@@ -151,7 +151,7 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
         const data = ctx.get(DESK_PORTS.data)
         return { async start() {
           if (ctx.signal.aborted) return
-          await config.start({ ...config.options, store: ctx.get(DESK_PORTS.catalog), deskData: data, onCleanup: ctx.onCleanup,
+          await config.start({ ...config.options, store: ctx.get(DESK_PORTS.catalog), odkData: data, onCleanup: ctx.onCleanup,
             isStopping: () => ctx.signal.aborted || config.isStopping() })
           if (ctx.signal.aborted) return
           if (!installedRuntimeStarted && !config.smokeMode) {
@@ -162,7 +162,7 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
           installedRuntimeStarted = true
         } }
       }),
-    define('odk.transport.desk-data', 'Desk Data Link', null,
+    define('odk.transport.data', 'Open DeskOS Data Link', null,
       [{ interface: DESK_PORTS.data }], ['desk.link'], ctx => {
         const config = ctx.capability('desk.link')
         const data = ctx.get(DESK_PORTS.data)
@@ -181,7 +181,7 @@ function createDeskRuntimePlugins({ readingPorts, serviceReadingPorts = [] } = {
             try {
               // Cleanup waits for opening, including a listener returned after cancellation.
               server = await config.listen({ ...config.options, control: data.control })
-            } catch (error) { config.report(`desk data link unavailable: ${error.message}`) }
+            } catch (error) { config.report(`Open DeskOS Data link unavailable: ${error.message}`) }
           })()
         } }
       }),

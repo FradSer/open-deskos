@@ -26,7 +26,7 @@ function isolateComposition(root) {
   require('../../src/opencode-go').resolveOpenCodeGoConfig = () => ({ configured: false, baseUrl: null, managementKey: null,
     missing: ['controlled-unavailable-provider'] })
 
-  for (const key of ['ODESK_REMOTE_BRIDGE_SOCKET', 'ODESK_DESK_LINK_SOCKET', 'ODK_FUTU_ENDPOINT', 'ODESK_FUTU_SOCKET', 'ODK_HOSTED_PI_SOCKET']) delete process.env[key]
+  for (const key of ['ODK_REMOTE_BRIDGE_SOCKET', 'ODK_LINK_SOCKET', 'ODK_FUTU_ENDPOINT', 'ODK_FUTU_SOCKET', 'ODK_HOSTED_PI_SOCKET']) delete process.env[key]
   const net = require('node:net')
   const connect = net.Socket.prototype.connect
   net.Socket.prototype.connect = function (...args) {

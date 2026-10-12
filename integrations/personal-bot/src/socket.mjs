@@ -48,17 +48,17 @@ export function statusFrames(status) {
  * cannot place it, and the caller refuses to start rather than invent a path.
  */
 export function personalBotEndpoint(env = process.env, platform = process.platform) {
-  if (platform === 'win32') return '\\\\.\\pipe\\open-deskos-personal-bot'
+  if (platform === 'win32') return '\\\\.\\pipe\\odk-personal-bot'
   const runtimeDir = typeof env.XDG_RUNTIME_DIR === 'string' && isAbsolute(env.XDG_RUNTIME_DIR) ? env.XDG_RUNTIME_DIR : null
   if (!runtimeDir) return null
-  return join(runtimeDir, 'open-deskos-personal-bot', 'agent.sock')
+  return join(runtimeDir, 'odk-personal-bot', 'agent.sock')
 }
 
 export function personalBotControlEndpoint(env = process.env, platform = process.platform) {
   const voice = personalBotEndpoint(env, platform)
   if (!voice) return null
   if (platform === 'win32') return voice + '-control'
-  return join(env.XDG_RUNTIME_DIR, 'open-deskos-personal-bot', 'control.sock')
+  return join(env.XDG_RUNTIME_DIR, 'odk-personal-bot', 'control.sock')
 }
 
 /** A named pipe carries no owner, no mode and no uid, so there is nothing to check. */
@@ -286,7 +286,7 @@ function send(client, status) {
   const home = frames[1]
   if (home && sentBriefings.get(client) === home) frames.pop()
   const frame = frames.join('')
-  // Desk Data pushes can echo the current snapshot while the reader is busy.
+  // Open DeskOS Data pushes can echo the current snapshot while the reader is busy.
   // Only byte-identical snapshots are redundant; popup/error/content changes send.
   if (client.writableLength > 0 && sentFrames.get(client) === frame) return
   if (client.writableLength + Buffer.byteLength(frame) > MAX_QUEUED_BYTES) client.destroy()

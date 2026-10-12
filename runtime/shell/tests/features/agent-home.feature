@@ -1,6 +1,6 @@
 Feature: Personal Agent home briefing
   Scenario: Home follows Widget and App state
-    Given Desk Data exposes current Widget and App readings
+    Given Open DeskOS Data exposes current Widget and App readings
     When Personal Agent starts or a reading changes
     Then it generates a bounded home briefing from those readings
     And each statement identifies its source and measurement state
@@ -20,7 +20,7 @@ Feature: Personal Agent home briefing
     And touch, keyboard, Widgets, and Apps remain usable
 
   Scenario: Content from a future mail App
-    Given a mail App publishes content through Desk Data
+    Given a mail App publishes content through Open DeskOS Data
     When its reading changes
     Then that content can inform the home briefing without a mail-specific home path
     And source content grants no tool, memory, or action authority

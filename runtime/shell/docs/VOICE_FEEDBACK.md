@@ -51,7 +51,7 @@ While thinking, `message` holds accumulated public text. Idle holds the complete
 
 Use OpenCC to normalize validated transcripts to Simplified Chinese. Preserve Latin spelling, punctuation and identifiers. Display and agent prompt use the same normalized text. Agent replies default to Simplified Chinese unless the user selects another language. Do not guess recognition substitutions.
 
-`ODESK_PERSONAL_BOT_STT_PROMPT` supplies or disables the recognition context. Limit it to 1024 UTF-16 code units. Default language is `zh`. Accept two/three-letter language codes; do not send unsupported `zh-CN` locale tags.
+`ODK_PERSONAL_BOT_STT_PROMPT` supplies or disables the recognition context. Limit it to 1024 UTF-16 code units. Default language is `zh`. Accept two/three-letter language codes; do not send unsupported `zh-CN` locale tags.
 
 - Standard OpenAI-style recognition sends multipart audio. Omit language for `auto`.
 - The known loopback whisper.cpp `/inference` endpoint requires explicit `auto`; omission selects its English default. Send `translate=false` only to that local contract.

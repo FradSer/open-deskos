@@ -102,26 +102,26 @@ function restartRequiredService(releaseId, kiosk, unit, component) {
 }
 
 function restartServices(releaseId, kiosk) {
-  const kioskResult = restartUserService(kiosk.user, kiosk.uid, kiosk.home, 'open-deskos-shell.service')
+  const kioskResult = restartUserService(kiosk.user, kiosk.uid, kiosk.home, 'odk-shell.service')
   if (kioskResult.status !== 0) return { ok: false, reason: `kiosk service restart failed for ${releaseId}` }
 
-  const bridgeResult = restartUserService(kiosk.user, kiosk.uid, kiosk.home, 'open-deskos-remote-bridge.service')
+  const bridgeResult = restartUserService(kiosk.user, kiosk.uid, kiosk.home, 'odk-remote-bridge.service')
   if (bridgeResult.status !== 0) {
     console.error('Remote Bridge restart did not complete; the base shell remains independently usable.')
   }
 
-  // The Desk Link Service resolves the Hosted Pi endpoint through the descriptor the daemon
+  // The Open DeskOS Link Service resolves the Hosted Pi endpoint through the descriptor the daemon
   // publishes, so it must run the release that is now active instead of the previous one. Like the
   // Remote Bridge it is peripheral to the base shell and to voice, so a failed restart is reported
   // rather than rolling back an activation that otherwise succeeded.
-  const linkResult = restartRequiredService(releaseId, kiosk, 'open-deskos-desk-link.service', 'desk link service')
+  const linkResult = restartRequiredService(releaseId, kiosk, 'odk-link.service', 'Open DeskOS Link service')
   if (linkResult.ok === false) {
-    console.error('Desk Link restart did not complete; restart it to run the active release, and the desk keeps reporting either way.')
+    console.error('Open DeskOS Link restart did not complete; restart it to run the active release, and the desk keeps reporting either way.')
   }
 
-  const botResult = restartRequiredService(releaseId, kiosk, 'open-deskos-personal-bot.service', 'required Personal Bot component')
+  const botResult = restartRequiredService(releaseId, kiosk, 'odk-personal-bot.service', 'required Personal Bot component')
   if (botResult.ok === false) return botResult
-  const tasksResult = restartRequiredService(releaseId, kiosk, 'open-deskos-pi-tasks.service', 'required Hosted Pi control')
+  const tasksResult = restartRequiredService(releaseId, kiosk, 'odk-pi-tasks.service', 'required Hosted Pi control')
   if (tasksResult.ok === false) return tasksResult
   return { ok: true }
 }

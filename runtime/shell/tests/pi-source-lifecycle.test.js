@@ -74,7 +74,7 @@ test('Pi Events cancellation during promise settlement suppresses a successful r
   for (const depth of [2, 3]) {
     const controller = new AbortController()
     const read = createPiSessionEventsSource({ signal: controller.signal,
-      deskLink: { sessionEvents: () => ({ ok: true, events: [] }) } })
+      odkLink: { sessionEvents: () => ({ ok: true, events: [] }) } })
     const reading = read({ sessionId: 'fixture' })
     let pendingAtCancellation = null
     const cancel = remaining => queueMicrotask(() => {
@@ -96,8 +96,8 @@ test('pre-aborted and stopped Pi sources start no additional reads', async () =>
     const controller = new AbortController()
     if (before) controller.abort()
     let calls = 0
-    const scan = createPiSessionsSource({ signal: controller.signal, env: {}, deskLink: { machines: () => { calls++; return [] } } })
-    const read = createPiSessionEventsSource({ signal: controller.signal, deskLink: { sessionEvents: () => { calls++; return { ok: true } } } })
+    const scan = createPiSessionsSource({ signal: controller.signal, env: {}, odkLink: { machines: () => { calls++; return [] } } })
+    const read = createPiSessionEventsSource({ signal: controller.signal, odkLink: { sessionEvents: () => { calls++; return { ok: true } } } })
     const pending = [scan(), read({ sessionId: 'fixture' })]
     await Promise.all([scan.stop(), read.stop()])
     assert.deepEqual((await Promise.all(pending)).map(value => value.ok), [false, false])
@@ -112,7 +112,7 @@ test('pre-aborted and stopped Pi sources start no additional reads', async () =>
 test('Pi Events waits for an already started local read and preserves normal rejection', async () => {
   const gate = deferred()
   const started = deferred()
-  const read = createPiSessionEventsSource({ deskLink: { sessionEvents: async () => ({ ok: false, reason: 'desk-link-unavailable' }) },
+  const read = createPiSessionEventsSource({ odkLink: { sessionEvents: async () => ({ ok: false, reason: 'odk-link-unavailable' }) },
     readLocal: () => { started.resolve(); return gate.promise } })
   const reading = read({ sessionId: 'fixture' })
   await started.promise
@@ -123,7 +123,7 @@ test('Pi Events waits for an already started local read and preserves normal rej
   gate.resolve({ ok: true, events: [] })
   assert.equal((await reading).ok, false)
   await stopping
-  const failing = createPiSessionEventsSource({ deskLink: { sessionEvents: async () => { throw Error('fixture') } } })
+  const failing = createPiSessionEventsSource({ odkLink: { sessionEvents: async () => { throw Error('fixture') } } })
   await assert.rejects(failing({ sessionId: 'fixture' }), /fixture/)
   await failing.stop()
 })
@@ -153,7 +153,7 @@ test('Pi Sessions stop drains parallel requests and prevents late local fallback
   const started = deferred()
   let scans = 0
   const scan = createPiSessionsSource({ env: {}, scanLocal: () => { scans++; return { ok: true, sessions: [] } },
-    deskLink: { machines: () => machines.promise, hostedSessions: () => { started.resolve(); return hosted.promise } } })
+    odkLink: { machines: () => machines.promise, hostedSessions: () => { started.resolve(); return hosted.promise } } })
   const reading = scan()
   assert.equal(scan(), reading)
   await started.promise
@@ -172,7 +172,7 @@ test('Pi Sessions stop drains parallel requests and prevents late local fallback
 test('Pi Sessions retains a parallel request after its sibling fails', async () => {
   const hosted = deferred()
   const started = deferred()
-  const scan = createPiSessionsSource({ env: {}, deskLink: { machines: async () => { throw Error('fixture') },
+  const scan = createPiSessionsSource({ env: {}, odkLink: { machines: async () => { throw Error('fixture') },
     hostedSessions: () => { started.resolve(); return hosted.promise } } })
   const reading = scan()
   await started.promise
@@ -191,7 +191,7 @@ test('Pi Events stop drains concurrent reads without starting late local fallbac
   const started = deferred()
   let reads = 0
   let local = 0
-  const read = createPiSessionEventsSource({ deskLink: { sessionEvents() {
+  const read = createPiSessionEventsSource({ odkLink: { sessionEvents() {
     const gate = gates[reads++]
     if (reads === 2) started.resolve()
     return gate.promise
@@ -201,7 +201,7 @@ test('Pi Events stop drains concurrent reads without starting late local fallbac
   await started.promise
   let stopped = false
   const stopping = read.stop().then(() => { stopped = true })
-  gates[0].resolve({ ok: false, reason: 'desk-link-unavailable' })
+  gates[0].resolve({ ok: false, reason: 'odk-link-unavailable' })
   assert.equal((await first).ok, false)
   assert.equal(stopped, false)
   gates[1].resolve({ ok: true, events: [{ type: 'assistant' }] })
@@ -218,12 +218,12 @@ test('Pi source replacement waits for the old callable source to finish', async 
   let instances = 0
   const handlers = new Map()
   const host = createPluginHost({ capabilities: {
-    'source.desk-link': { create: () => ({ machines: async () => [] }) },
+    'source.odk-link': { create: () => ({ machines: async () => [] }) },
     'source.pi-sessions': { create: options => { instances++; return createPiSessionsSource({ ...options, env: {},
       scanLocal: () => { started.resolve(); return gate.promise } }) } },
     ipc: { handle: (id, handler) => handlers.set(id, handler), removeHandler: id => handlers.delete(id) },
   } })
-  createDataSourcePlugins().filter(plugin => ['odk.source.desk-link', 'odk.source.pi-sessions'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  createDataSourcePlugins().filter(plugin => ['odk.source.odk-link', 'odk.source.pi-sessions'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   const stale = host.get(DATA_PORTS.piSessions)
   const reading = handlers.get('odk-pi-sessions')()

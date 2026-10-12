@@ -154,7 +154,7 @@ Feature: Durable per-host Hosted Pi sessions
 
   Scenario: Real paths restrict admission, not the coding tools
     Given configured roots and a symlink pointing outside them
-    When a project outside the roots or under /opt/open-deskos is requested
+    When a project outside the roots or under /opt/odk is requested
     Then admission is rejected
     And the service does not claim to sandbox bash
 

@@ -40,9 +40,9 @@ async function fixture(t, { code = true, change = {} } = {}) {
   await fs.writeFile(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: ['odk.theme.pixel'], hosts: ['electron-renderer'],
   } } }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
-    LOCALAPPDATA: path.join(root, 'state'), OPEN_DESKOS_NATIVE_KEYRING: policy }
-  const store = createNativePluginStore({ stateDir: path.join(root, 'state', 'open-deskos', 'plugins', 'native'), keyring })
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), ODK_NATIVE_KEYRING: policy }
+  const store = createNativePluginStore({ stateDir: path.join(root, 'state', 'odk', 'plugins', 'native'), keyring })
   const configPath = path.join(root, 'config', 'plugins.json')
   const manager = createNativePluginManager({ store, configPath })
   const assets = createNativeRendererAssets()

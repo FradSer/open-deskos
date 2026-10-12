@@ -9,12 +9,12 @@ const crypto = require('node:crypto')
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
-const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-native-cli-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
     LOCALAPPDATA: path.join(root, 'state') }
   const source = path.join(root, 'source')
   await fs.mkdir(source)

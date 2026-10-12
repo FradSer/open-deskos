@@ -13,9 +13,9 @@ This file lists environment variables read by the Shell and integrations. Update
 - The resource owner declares its port or socket. Clients read that declaration or the published endpoint. The STT bridge declares `ODK_STT_PORT`; the bot derives its loopback endpoint.
 - The Hosted Pi daemon checks project admission once. Clients reject invalid transport paths; they do not copy the daemon root policy.
 - Do not copy release defaults into device files. Remove a setting that only repeats the code default.
-- Installers generate personal-bot, pi-tasks, remote-bridge and desk-link units from release templates.
+- Installers generate personal-bot, pi-tasks, remote-bridge and odk-link units from release templates.
 - Use one source per setting. Keep permanent settings in environment files. A temporary systemd drop-in overrides `EnvironmentFile=`; remove it after use.
-- Use `ODESK_` for new variables. Keep existing `ODK_` names unchanged.
+- Use `ODK_` for new variables. Keep existing `ODK_` names unchanged.
 
 ## Inventory
 
@@ -23,66 +23,66 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 
 | Variable | Layer | Owner | Consumer | Default | Purpose |
 | --- | --- | --- | --- | --- | --- |
-| `ALIYUNCS_TOKEN` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/transcribe.mjs | — | DashScope bearer credential. Only the aliyun provider reads it. OpenAI uses ODESK_PERSONAL_BOT_STT_KEY_FILE. |
+| `ALIYUNCS_TOKEN` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/transcribe.mjs | — | DashScope bearer credential. Only the aliyun provider reads it. OpenAI uses ODK_PERSONAL_BOT_STT_KEY_FILE. |
 | `DISPLAY` | Environment | Graphical session | runtime/shell/src/main.js | — | The graphical session imports this value into the user systemd environment. |
 | `FUTU_HOST` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 10.10.0.195 | Futu gateway address. |
 | `FUTU_INTERVAL` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 60 | Poll interval in seconds. |
 | `FUTU_PORT` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | 11111 | Futu gateway port. |
 | `FUTU_RSA_FILE` | External tool (sensitive) | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | Path to the gateway RSA private key copy. |
 | `FUTU_TRADE_PWD` | External tool (sensitive) | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | — | Trade unlock password. |
-| `ODK_CHANNEL_TOKEN_FILE` | L3 device (sensitive) | Plugin and Personal Bot clients | integrations/futu-poller/poller.py, integrations/personal-bot/src/runtime-channel.mjs | — | Read-only client token file for TCP or named-pipe channels. The bot uses it for app control and Desk Data. Unix socket ownership supplies authentication without a token. |
+| `ODK_CHANNEL_TOKEN_FILE` | L3 device (sensitive) | Plugin and Personal Bot clients | integrations/futu-poller/poller.py, integrations/personal-bot/src/runtime-channel.mjs | — | Read-only client token file for TCP or named-pipe channels. The bot uses it for app control and Open DeskOS Data. Unix socket ownership supplies authentication without a token. |
 | `HOME` | Environment | Login session | runtime/shell/src/opencode-go.js, runtime/shell/src/plugin-config.js | — | Find host configuration and credentials. |
 | `LIBGL_ALWAYS_SOFTWARE` | Environment | Operator | runtime/shell/src/main.js | — | Force software rendering for diagnosis. |
 | `LOCALAPPDATA` | Environment | Windows user session | runtime/shell/src/platform/index.js | — | Windows persistent state root. If absent, use AppData/Local under the user directory. |
-| `ODESK_APPS_CONTROL_SOCKET` | Test | Test process | integrations/personal-bot/src/apps-control.mjs | Host app control socket (Windows: `\\.\pipe\open-deskos-user-app-control`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes the channel unavailable; do not guess a path. |
-| `ODESK_CAMERA_DEVICE` | L3 device | Operator | runtime/shell/src/camera-source.js | — | Camera device override. |
-| `ODESK_DESK_DATA_SOCKET` | Test | Test process | integrations/personal-bot/src/desk-data.mjs | Host Desk Data socket (Windows: `\\.\pipe\open-deskos-desk-data`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes Desk Data unavailable; do not guess a listener path. |
-| `ODESK_DESK_LINK_SOCKET` | Internal | Shell | runtime/shell/src/desk-link-client.js | Host Desk Link socket | Shell client override for the local Desk Link socket. |
-| `ODESK_DISABLED_PLUGINS` | L3 device | Operator | runtime/shell/src/main.js | — | Additional disabled plugin IDs. Saved enable preferences cannot override this list. |
-| `ODESK_DISABLE_GPU` | L3 device | Operator | runtime/shell/src/main.js | — | Disable GPU acceleration. |
-| `ODESK_FUTU_SOCKET` | L3 device | runtime.env (Listener owner) | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | — | Shared absolute socket path for the poller and local Shell. Historical form; ODK_FUTU_ENDPOINT takes priority. |
+| `ODK_APPS_CONTROL_SOCKET` | Test | Test process | integrations/personal-bot/src/apps-control.mjs | Host app control socket (Windows: `\\.\pipe\odk-user-app-control`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes the channel unavailable; do not guess a path. |
+| `ODK_CAMERA_DEVICE` | L3 device | Operator | runtime/shell/src/camera-source.js | — | Camera device override. |
+| `ODK_DATA_SOCKET` | Test | Test process | integrations/personal-bot/src/odk-data.mjs | Host Open DeskOS Data socket (Windows: `\\.\pipe\odk-data`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes Open DeskOS Data unavailable; do not guess a listener path. |
+| `ODK_LINK_SOCKET` | Internal | Shell | runtime/shell/src/odk-link-client.js | Host Open DeskOS Link socket | Shell client override for the local Open DeskOS Link socket. |
+| `ODK_DISABLED_PLUGINS` | L3 device | Operator | runtime/shell/src/main.js | — | Additional disabled plugin IDs. Saved enable preferences cannot override this list. |
+| `ODK_DISABLE_GPU` | L3 device | Operator | runtime/shell/src/main.js | — | Disable GPU acceleration. |
+| `ODK_FUTU_SOCKET` | L3 device | runtime.env (Listener owner) | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | — | Shared absolute socket path for the poller and local Shell. Historical form; ODK_FUTU_ENDPOINT takes priority. |
 | `ODK_FUTU_ENDPOINT` | L3 device | runtime.env / `.env.local` (Listener owner) | runtime/shell/src/plugins/desk-runtime.js | — | Service Plugin listener: socket path, named pipe or tcp://host:port. Pipes and TCP require the channel token. The plugin declares remote targets in its own target file. |
-| `ODESK_FUTU_CONTROL` | L3 device | Optional poller environment | integrations/futu-poller/poller.py | Host default | Python management endpoint. Empty disables management. The [Python guide](../../../integrations/futu-poller/README.md#local-component-plugins) owns defaults and authentication. |
-| `ODESK_FUTU_PLUGIN_CONFIG` | L3 device | Optional poller environment | integrations/futu-poller/poller.py | — | Optional Python component preference file. No setting is required. CLI paths take priority. |
-| `ODESK_FUTU_TARGETS_FILE` | L3 device | futu-poller.env | integrations/futu-poller/poller.py | `~/.config/open-deskos/futu-targets.json` | Desk targets with an endpoint and optional token file per entry. If absent, use the single ODESK_FUTU_SOCKET endpoint. |
-| `ODESK_GPU_BACKEND` | L3 device | Operator | runtime/shell/src/main.js | Auto-detect | GPU backend selection. |
-| `ODESK_PI_REASONING` | L3 device | runtime.env | runtime/shell/src/main.js | Hidden (`hidden`) | Only shown displays reasoning bodies. All other values keep the hidden default. Do not restate that default in host configuration. |
-| `ODESK_REMOTE_BRIDGE_SOCKET` | Internal | Shell | runtime/shell/src/remote-bridge-client.js | Host Remote Bridge socket | Shell client override for the Remote Bridge socket. |
-| `ODESK_SHELL_HEIGHT` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window height override. |
-| `ODESK_SHELL_KIOSK` | Test | Acceptance | runtime/shell/src/main.js | — | Kiosk mode switch. |
-| `ODESK_SHELL_TEST_MODE` | Test | Test process | runtime/shell/src/desk-link-client.js, runtime/shell/src/remote-bridge-client.js | — | Client test mode. |
-| `ODESK_SHELL_WIDTH` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window width override. |
-| `ODESK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
-| `ODESK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
-| `ODESK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |
-| `ODESK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/open-deskos/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
-| `ODESK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-bot/src/task-client.mjs | Unset | Personal Bot target list. If absent, report that configuration is required. |
-| `ODESK_PROACTIVE_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Bot CONTRACT.md proposal section. |
-| `ODESK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Personal profile with skill and credential paths. |
-| `ODESK_PERSONAL_BOT_AUDIO_DEVICE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | default | ALSA capture device. Windows requires the exact DirectShow device name. |
-| `ODESK_PERSONAL_BOT_CAPABILITIES` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Empty | Paths to trusted capability modules. |
-| `ODESK_PERSONAL_BOT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | — | Pi provider/id model selection. |
-| `ODESK_PERSONAL_BOT_STT_KEY_FILE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset | Required only for a nonlocal transcription endpoint. |
-| `ODESK_PERSONAL_BOT_STT_LANGUAGE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | zh | Two or three lowercase letters for a language code. |
-| `ODESK_PERSONAL_BOT_STT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | whisper-1 | The local bridge ignores this value. No setting is required. |
-| `ODESK_PERSONAL_BOT_STT_PROMPT` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Built-in Chinese context | Maximum 1024 UTF-16 code units. An empty value disables the context. |
-| `ODESK_PERSONAL_BOT_STT_PROVIDER` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | openai | Declared request shape: openai uses multipart audio; aliyun uses DashScope JSON with inline audio. Never infer the provider from the URL. |
-| `ODESK_PERSONAL_BOT_STT_URL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Cloud OpenAI endpoint | Explicit endpoint. If absent, derive a loopback endpoint from ODK_STT_PORT. |
-| `ODESK_WORKSPACE` | L3 device | runtime.env | runtime/shell/src/main.js, runtime/shell/src/user-app-system.js, integrations/personal-bot/src/main.mjs | — | Writable checkout shared by Shell and Personal Bot. |
+| `ODK_FUTU_CONTROL` | L3 device | Optional poller environment | integrations/futu-poller/poller.py | Host default | Python management endpoint. Empty disables management. The [Python guide](../../../integrations/futu-poller/README.md#local-component-plugins) owns defaults and authentication. |
+| `ODK_FUTU_PLUGIN_CONFIG` | L3 device | Optional poller environment | integrations/futu-poller/poller.py | — | Optional Python component preference file. No setting is required. CLI paths take priority. |
+| `ODK_FUTU_TARGETS_FILE` | L3 device | futu-poller.env | integrations/futu-poller/poller.py | `~/.config/odk/futu-targets.json` | Desk targets with an endpoint and optional token file per entry. If absent, use the single ODK_FUTU_SOCKET endpoint. |
+| `ODK_GPU_BACKEND` | L3 device | Operator | runtime/shell/src/main.js | Auto-detect | GPU backend selection. |
+| `ODK_PI_REASONING` | L3 device | runtime.env | runtime/shell/src/main.js | Hidden (`hidden`) | Only shown displays reasoning bodies. All other values keep the hidden default. Do not restate that default in host configuration. |
+| `ODK_REMOTE_BRIDGE_SOCKET` | Internal | Shell | runtime/shell/src/remote-bridge-client.js | Host Remote Bridge socket | Shell client override for the Remote Bridge socket. |
+| `ODK_SHELL_HEIGHT` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window height override. |
+| `ODK_SHELL_KIOSK` | Test | Acceptance | runtime/shell/src/main.js | — | Kiosk mode switch. |
+| `ODK_SHELL_TEST_MODE` | Test | Test process | runtime/shell/src/odk-link-client.js, runtime/shell/src/remote-bridge-client.js | — | Client test mode. |
+| `ODK_SHELL_WIDTH` | Test | Smoke/acceptance | runtime/shell/src/main.js | — | Window width override. |
+| `ODK_SKIP_GPU_USERSPACE` | L2 install | Installer override | runtime/shell/scripts/cm5-install.sh | 0 | Skip the Mali userspace install. |
+| `ODK_SMOKE_RESULT_FILE` | Test | Smoke run | runtime/shell/src/main.js | — | Smoke result file. |
+| `ODK_TAILSCALE_BIN` | L3 device | Operator | runtime/shell/scripts/provision-tailscale.sh | /usr/bin/tailscale | Override a nonstandard Tailscale executable path. Reuse an existing host installation. |
+| `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
+| `ODK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-bot/src/task-client.mjs | Unset | Personal Bot target list. If absent, report that configuration is required. |
+| `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Bot CONTRACT.md proposal section. |
+| `ODK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Personal profile with skill and credential paths. |
+| `ODK_PERSONAL_BOT_AUDIO_DEVICE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | default | ALSA capture device. Windows requires the exact DirectShow device name. |
+| `ODK_PERSONAL_BOT_CAPABILITIES` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Empty | Paths to trusted capability modules. |
+| `ODK_PERSONAL_BOT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | — | Pi provider/id model selection. |
+| `ODK_PERSONAL_BOT_STT_KEY_FILE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset | Required only for a nonlocal transcription endpoint. |
+| `ODK_PERSONAL_BOT_STT_LANGUAGE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | zh | Two or three lowercase letters for a language code. |
+| `ODK_PERSONAL_BOT_STT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | whisper-1 | The local bridge ignores this value. No setting is required. |
+| `ODK_PERSONAL_BOT_STT_PROMPT` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Built-in Chinese context | Maximum 1024 UTF-16 code units. An empty value disables the context. |
+| `ODK_PERSONAL_BOT_STT_PROVIDER` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | openai | Declared request shape: openai uses multipart audio; aliyun uses DashScope JSON with inline audio. Never infer the provider from the URL. |
+| `ODK_PERSONAL_BOT_STT_URL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Cloud OpenAI endpoint | Explicit endpoint. If absent, derive a loopback endpoint from ODK_STT_PORT. |
+| `ODK_WORKSPACE` | L3 device | runtime.env | runtime/shell/src/main.js, runtime/shell/src/user-app-system.js, integrations/personal-bot/src/main.mjs | — | Writable checkout shared by Shell and Personal Bot. |
 | `ODK_ELECTRON_HEADERS_URL` | L2 build | Builder | runtime/shell/scripts/build-native.mjs | https://electronjs.org/headers | Electron header source. Use a mirror if the build host cannot reach GitHub; npm_config_disturl also applies. Set this override for the remote Windows handheld build when required. |
 | `ODK_CANDIDATE_RELEASE` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Absolute candidate release path for this activation transaction. |
 | `ODK_CLIPROXY_MANAGEMENT_KEY` | L3 device (sensitive) | runtime.env | runtime/shell/src/opencode-go.js | — | Management key value. Prefer the file form. |
 | `ODK_CLIPROXY_MANAGEMENT_KEY_FILE` | L3 device | runtime.env | runtime/shell/src/opencode-go.js | — | Management key file path. |
 | `ODK_CLIPROXY_URL` | L3 device | runtime.env | runtime/shell/src/opencode-go.js | — | CLIProxyAPI management endpoint. Match the tunnel forwarding port. |
 | `ODK_CM5_TARGET` | L2 build | cm5-stage-release.sh | runtime/shell/scripts/cm5-stage-release.sh | cm5 | SSH target alias. |
-| `ODK_DESK_LINK_BIND` | L3 device | runtime.env | runtime/shell/src/desk-link-service.js | — | Listener address override. |
-| `ODK_DESK_LINK_CONTROL_CREDENTIAL` | L3 device (sensitive, transitional) | runtime.env | runtime/shell/scripts/desk-link-service.js | Unset | Transitional environment credential. Use ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE instead. If absent, the desk accepts reports only. |
-| `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` | L3 device (sensitive) | runtime.env | runtime/shell/scripts/desk-link-service.js | Unset | Preferred control credential file, mode 0600. Match the Console credential. |
-| `ODK_DESK_LINK_PORT` | L3 device | runtime.env | runtime/shell/scripts/desk-link-service.js | 8765 | Listener port. Match the Console port. |
-| `ODK_DESK_LINK_SOCKET` | L3 device | runtime.env | runtime/shell/scripts/desk-link-service.js | Host runtime default | Desk Link service IPC socket. |
-| `ODK_DESK_LINK_TOKEN` | L3 device (sensitive, transitional) | runtime.env | runtime/shell/scripts/desk-link-service.js | Unset | Transitional environment reporting token. Other processes of the same user can read it. Prefer ODK_DESK_LINK_TOKEN_FILE; the file form takes priority. |
-| `ODK_DESK_LINK_TOKEN_FILE` | L3 device (sensitive) | runtime.env | runtime/shell/scripts/desk-link-service.js | Unset | Preferred reporting token file, mode 0600. Match the reporting client token. |
-| `ODK_HOSTED_PI_SOCKET` | Test | Test process | runtime/shell/src/desk-link-host-adapter.js | Read endpoint.json | Explicit override for isolated operation/tests. Production reads the daemon endpoint descriptor. |
+| `ODK_LINK_BIND` | L3 device | runtime.env | runtime/shell/src/odk-link-service.js | — | Listener address override. |
+| `ODK_LINK_CONTROL_CREDENTIAL` | L3 device (sensitive, transitional) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Transitional environment credential. Use ODK_LINK_CONTROL_CREDENTIAL_FILE instead. If absent, the desk accepts reports only. |
+| `ODK_LINK_CONTROL_CREDENTIAL_FILE` | L3 device (sensitive) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Preferred control credential file, mode 0600. Match the Console credential. |
+| `ODK_LINK_PORT` | L3 device | runtime.env | runtime/shell/scripts/odk-link-service.js | 8765 | Listener port. Match the Console port. |
+| `ODK_LINK_SOCKET` | L3 device | runtime.env | runtime/shell/scripts/odk-link-service.js | Host runtime default | Open DeskOS Link service IPC socket. |
+| `ODK_LINK_TOKEN` | L3 device (sensitive, transitional) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Transitional environment reporting token. Other processes of the same user can read it. Prefer ODK_LINK_TOKEN_FILE; the file form takes priority. |
+| `ODK_LINK_TOKEN_FILE` | L3 device (sensitive) | runtime.env | runtime/shell/scripts/odk-link-service.js | Unset | Preferred reporting token file, mode 0600. Match the reporting client token. |
+| `ODK_HOSTED_PI_SOCKET` | Test | Test process | runtime/shell/src/odk-link-host-adapter.js | Read endpoint.json | Explicit override for isolated operation/tests. Production reads the daemon endpoint descriptor. |
 | `ODK_HYDRA_MQTT_TOPIC` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Hydra topic prefix. |
 | `ODK_HYDRA_MQTT_URL` | L3 device | shell drop-in | runtime/shell/src/main.js | — | Hydra MQTT endpoint. |
 | `ODK_KIOSK_BIN_DIR` | L2 install | cm5-install.sh → update-runtime.js | runtime/shell/scripts/update-runtime.js | — | Directory for Corepack/pnpm shims. |
@@ -101,18 +101,18 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_PI_SSH_COLLECTOR` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Absolute collector path on the remote host. |
 | `ODK_PI_SSH_HOST` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Remote Pi collection host. |
 | `ODK_PI_SSH_NODE` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Absolute Node path on the remote host. |
-| `ODK_RUNTIME_ROOT` | L2 install | cm5-install.sh | runtime/shell/src/user-app-context.js, runtime/shell/scripts/cm5-acceptance.sh, runtime/shell/scripts/cm5-install.sh, runtime/shell/scripts/cm5-stage-release.sh, runtime/shell/scripts/migrate-runtime.js, runtime/shell/scripts/start-kiosk.sh, runtime/shell/scripts/update-runtime.js | /opt/open-deskos | Root for releases and mutable state. |
+| `ODK_RUNTIME_ROOT` | L2 install | cm5-install.sh | runtime/shell/src/user-app-context.js, runtime/shell/scripts/cm5-acceptance.sh, runtime/shell/scripts/cm5-install.sh, runtime/shell/scripts/cm5-stage-release.sh, runtime/shell/scripts/migrate-runtime.js, runtime/shell/scripts/start-kiosk.sh, runtime/shell/scripts/update-runtime.js | /opt/odk | Root for releases and mutable state. |
 | `ODK_STAGING_ID` | L2 build | cm5-stage-release.sh | runtime/shell/scripts/cm5-stage-release.sh | timestamp-$-random | Isolated staging directory identifier. |
 | `ODK_STT_PORT` | L3 device | stt-bridge unit (runtime.env override) | integrations/local-stt-bridge/scripts/provision-stt-bridge.sh, integrations/personal-bot/src/main.mjs | 17840 | Single declaration of the local STT port. The bot derives its endpoint from this value. |
 | `ODK_WEATHER_LAT` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather latitude. A valid latitude/longitude pair disables location lookup. |
 | `ODK_WEATHER_LON` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather longitude. A valid latitude/longitude pair disables location lookup. |
 | `ODK_WEATHER_PLACE` | L3 device | runtime.env | runtime/shell/src/weather-source.js | — | Weather location name. |
-| `OPEN_DESKOS_CONFIG_DIR` | L3 device | Operator | runtime/shell/src/plugin-config.js | ~/.config/open-deskos | Shared Plugin CLI and Shell configuration directory. |
-| `OPEN_DESKOS_NATIVE_KEYRING` | L3 device | Operator | runtime/shell/src/native-plugin-loader.js | — | External publisher policy file for signed Shell startup. See [native startup](NATIVE_PLUGINS.md#main-startup). |
+| `ODK_CONFIG_DIR` | L3 device | Operator | runtime/shell/src/plugin-config.js | ~/.config/odk | Shared Plugin CLI and Shell configuration directory. |
+| `ODK_NATIVE_KEYRING` | L3 device | Operator | runtime/shell/src/native-plugin-loader.js | — | External publisher policy file for signed Shell startup. See [native startup](NATIVE_PLUGINS.md#main-startup). |
 | `USERPROFILE` | Environment | Windows user session | runtime/shell/src/plugin-config.js | — | Find the plugin configuration directory when HOME is absent. |
 | `PATH` | Environment | Unit / installer | runtime/shell/scripts/cm5-install.sh | — | Units pin Node and shim directories. Do not depend on an interactive version manager PATH. |
 | `PI_AGENT_DIR` | Environment | Pi runtime | runtime/shell/src/pi-sessions.js | ~/.pi/agent | Pi session and authentication directory. |
-| `ODESK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
+| `ODK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
 | `SystemRoot` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
 | `WINDIR` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |
 | `SERVICE_ID` | External tool | External consumer integrations/futu-poller/poller.py | integrations/futu-poller/poller.py | futu-poller | Service identity. The Shell registry uses this same protocol identity. |
@@ -133,24 +133,24 @@ Requests have a three-second timeout. A failed lookup reports Unavailable with a
 
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
-| `ODESK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/jev-client.mjs | config | Private credential path; never expose file contents |
-| `ODESK_JEV_MODEL` | device | jev-latest | integrations/personal-bot/src/jev-client.mjs | config | Mandatory typed intent and proactive judgments |
-| `ODESK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
-| `ODESK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
-| `ODESK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-bot/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
+| `ODK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/jev-client.mjs | config | Private credential path; never expose file contents |
+| `ODK_JEV_MODEL` | device | jev-latest | integrations/personal-bot/src/jev-client.mjs | config | Mandatory typed intent and proactive judgments |
+| `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
+| `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
+| `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-bot/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
 | `TYPESAFE_API_KEY` | device | none | integrations/personal-bot/src/jev-client.mjs | config | Private environment credential fallback |
-| `ODESK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-bot/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
+| `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-bot/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
 
 ## Saved plugin preferences
 
 ### Explicit runtime management
 
-Use `open-deskos plugin disable <id> --runtime` to stop a registered Main plugin.
-Use `open-deskos plugin enable <id> --runtime` to start it through the existing dependency graph.
+Use `odk plugin disable <id> --runtime` to stop a registered Main plugin.
+Use `odk plugin enable <id> --runtime` to start it through the existing dependency graph.
 These commands do not change saved startup preferences.
 The separate `plugin-control` channel uses local channel ownership and token authentication.
-Unix hosts use `open-deskos-plugins/control.sock` under `XDG_RUNTIME_DIR`.
-Windows hosts use `\\.\pipe\open-deskos-plugin-control`.
+Unix hosts use `odk-plugins/control.sock` under `XDG_RUNTIME_DIR`.
+Windows hosts use `\\.\pipe\odk-plugin-control`.
 The control plugin cannot disable itself through this channel.
 Unknown identities, failed cleanup, blocked starts, and invalid requests cause command failure.
 An uncertain response reports an unknown operation outcome and does not trigger automatic replay.
@@ -161,22 +161,22 @@ It selects the unique online owner of the requested identity instead of selectin
 Duplicate ownership, invalid inventories, and oversized inventory responses prevent mutation.
 An unavailable independent endpoint does not prevent management of a uniquely reported online plugin.
 The Bridge refuses listener and control identities through this channel.
-Its standard Unix endpoint is `open-deskos-remote/bridge.sock.control` under `XDG_RUNTIME_DIR`.
+Its standard Unix endpoint is `odk-remote/bridge.sock.control` under `XDG_RUNTIME_DIR`.
 Custom Bridge socket paths use a separate endpoint with the `.control` suffix.
 The standard Windows control name follows the host's `remote-plugin-control` mapping.
 Endpoint mapping checks do not establish native Windows Bridge operation.
 Resident identities use the independent resident management channel selected through this inventory.
-Its Unix endpoint is `open-deskos-personal-bot/control.sock` under `XDG_RUNTIME_DIR`.
+Its Unix endpoint is `odk-personal-bot/control.sock` under `XDG_RUNTIME_DIR`.
 Windows uses the host's `personal-bot-control` named-pipe mapping and shared token.
 Service and voice channel changes retain management access for recovery.
 The resident refuses its control identity and unknown components.
 Older service replacements without suspension support refuse partial service, channel, and runtime changes.
-Hosted Pi uses `open-deskos-hosted-pi/control.sock` under `XDG_RUNTIME_DIR` on Unix.
+Hosted Pi uses `odk-hosted-pi/control.sock` under `XDG_RUNTIME_DIR` on Unix.
 Its Windows endpoint follows the `hosted-pi-control` named-pipe mapping.
 Its independent management remains available while task components stop or recover from startup failure.
 Stopping its service disconnects existing Consoles while preserving the accepting task listener.
-Renderer uses `open-deskos-plugins/renderer-control.sock` under `XDG_RUNTIME_DIR` on Unix.
-Windows uses `\\.\pipe\open-deskos-renderer-plugin-control` with the shared channel token.
+Renderer uses `odk-plugins/renderer-control.sock` under `XDG_RUNTIME_DIR` on Unix.
+Windows uses `\\.\pipe\odk-renderer-plugin-control` with the shared channel token.
 The Main control plugin sends commands only to one known Shell main frame.
 Multiple frames refuse inventory instead of selecting an arbitrary frame.
 Surface commands complete factory, placement, pager, and Remote coordination before returning a successful receipt.
@@ -195,7 +195,7 @@ An unavailable endpoint disables the control plugin during startup.
 
 ### Startup preferences
 
-The Plugin CLI stores local enable preferences in `plugins.json` under `OPEN_DESKOS_CONFIG_DIR`.
+The Plugin CLI stores local enable preferences in `plugins.json` under `ODK_CONFIG_DIR`.
 The default directory uses `HOME`, then Windows `USERPROFILE`, then the operating system home directory.
 Main, Personal Bot, Hosted Pi, Remote Bridge, and Futu Python read this file during startup.
 Main and renderer use the same disabled plugin snapshot.
@@ -204,7 +204,7 @@ Disabled themes fall back to Instrument without deleting the saved explicit them
 The saved theme returns after re-enabling its plugin and restarting the Shell.
 These preferences do not add an external appearance loading path.
 Saved entries with `enabled: false` disable their plugins.
-`ODESK_DISABLED_PLUGINS` adds disabled identities, including plugins with saved enable preferences.
+`ODK_DISABLED_PLUGINS` adds disabled identities, including plugins with saved enable preferences.
 Preference changes take effect on the next startup of the applicable runtime.
 They do not change a running runtime.
 The explicit `activate <id> --runtime` command rereads signed selection settings for an existing Main plugin, Renderer surface, or Appearance factory.
@@ -246,19 +246,19 @@ The trust timestamp records independent operator authorization rather than packa
 An optional `previous` record retains the same fields without nested history.
 Unknown native fields, invalid values, and nested histories invalidate the configuration.
 Native selection changes preserve `enabled` and unrelated plugin entries.
-Main loads selected signed revisions when `OPEN_DESKOS_NATIVE_KEYRING` identifies an external publisher policy.
+Main loads selected signed revisions when `ODK_NATIVE_KEYRING` identifies an external publisher policy.
 Renderer surface startup uses the same policy and captured signed assets.
 Signed Appearance startup supports factories and palette declarations through the [Appearance startup contract](NATIVE_PLUGINS.md#appearance-startup).
 
 ## Plugin diagnosis
 
-`open-deskos plugin diagnose [id]` requests current lifecycle states from the Main plugin Host.
+`odk plugin diagnose [id]` requests current lifecycle states from the Main plugin Host.
 The response separates these states from saved enable preferences.
 A running lifecycle state does not certify source freshness, renderer behavior, or hardware operation.
 The command exits with failure for blocked plugins, lifecycle faults, unknown identities, or an unavailable channel.
 Unix hosts require an absolute `XDG_RUNTIME_DIR`.
-The Unix endpoint is `open-deskos-plugins/diagnose.sock` under that directory.
-Windows uses the `open-deskos-plugin-diagnostics` named pipe with the existing local channel token.
+The Unix endpoint is `odk-plugins/diagnose.sock` under that directory.
+Windows uses the `odk-plugin-diagnostics` named pipe with the existing local channel token.
 The diagnosis plugin is disabled during smoke checks and when no endpoint exists.
 It accepts read-only requests and releases its listener during plugin shutdown.
 Main can also request renderer, resident Personal Bot, Hosted Pi, Remote Bridge, and Futu Python snapshots through declared runtime ports.
@@ -389,13 +389,13 @@ Health reads do not refresh declarations, open listeners, or expose holdings and
 
 ## Plugin package management
 
-`open-deskos plugin list` reads Main plugin states, runtime snapshots, and the installed Widget/App catalog from their local services.
+`odk plugin list` reads Main plugin states, runtime snapshots, and the installed Widget/App catalog from their local services.
 The response includes saved preferences separately.
 An unavailable service causes the command to fail.
 Runtime snapshots include negotiated Python and Hosted Pi reports when their channels are available.
 This inventory excludes firmware states.
 
-`open-deskos plugin add <local-package-directory>` installs a local HTML Widget/App package through the application store.
+`odk plugin add <local-package-directory>` installs a local HTML Widget/App package through the application store.
 The directory must contain `manifest.json` and `index.html`.
 The store verifies their exact bytes before it installs a snapshot.
 Adding the same identifier installs a verified replacement and retains the previous revision for rollback.
@@ -403,14 +403,14 @@ The source directory remains unchanged.
 An imported package does not require a configured workspace.
 Use `add` again to install changes from that directory.
 
-`open-deskos plugin update <installed-app-id>` verifies and installs the current workspace draft for an installed package.
+`odk plugin update <installed-app-id>` verifies and installs the current workspace draft for an installed package.
 The application store retains the previous revision for rollback.
 An unknown identifier or failed verification leaves installed state unchanged.
-`open-deskos plugin rollback <installed-app-id>` verifies and restores the retained previous revision.
+`odk plugin rollback <installed-app-id>` verifies and restores the retained previous revision.
 The store uses installed snapshots and does not require the workspace draft.
 Missing history or failed verification leaves the current revision unchanged.
 Rollback retains the replaced revision for another rollback.
-`open-deskos plugin remove <installed-app-id>` removes an installed package through the same application store.
+`odk plugin remove <installed-app-id>` removes an installed package through the same application store.
 Removal preserves workspace draft files.
 These commands accept Widget/App identifiers, not trusted built-in plugin identities.
 [USER_APPLICATIONS](USER_APPLICATIONS.md) defines draft locations, verification, and package permissions.
@@ -426,7 +426,7 @@ The HTML package commands grant no new package capabilities.
 
 ### Development links
 
-`open-deskos plugin link <directory> --trust [--replace] [--grant <capability> ...]` records a local development link.
+`odk plugin link <directory> --trust [--replace] [--grant <capability> ...]` records a local development link.
 The directory must contain `manifest.json`.
 Code links also require a relative `entry` file.
 Development links support `electron-main` plugins and explicit `electron-renderer` replacements.
@@ -552,7 +552,7 @@ This code is not sandboxed.
 Directory changes remain trusted until the owner disables or replaces the link.
 These links do not provide signatures, hot reload, or third-party isolation.
 
-`open-deskos plugin remove <development-plugin-id>` removes the saved development link.
+`odk plugin remove <development-plugin-id>` removes the saved development link.
 Removal preserves source files and other saved preferences.
 The running plugin remains active until the next Shell startup.
 An unknown development identity causes the command to fail.
@@ -560,7 +560,7 @@ Installed Widget/App removal continues to use the application store.
 
 ## Plugin declaration validation
 
-`open-deskos plugin validate <path>` checks a trusted local plugin manifest with the Host declaration validator.
+`odk plugin validate <path>` checks a trusted local plugin manifest with the Host declaration validator.
 The checks cover schema version, identity, name, version, supported kind and host, ports, and capability names.
 The validator returns a separate normalized declaration.
 It does not load the entry module or change the input declaration.

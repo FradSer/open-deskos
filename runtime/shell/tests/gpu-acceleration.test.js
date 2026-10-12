@@ -84,9 +84,9 @@ test('configureGpuSwitches leaves a Wayland session on the default backend', () 
   assert.equal(result.backend, 'default')
 })
 
-test('configureGpuSwitches honours an explicit ODESK_GPU_BACKEND override', () => {
+test('configureGpuSwitches honours an explicit ODK_GPU_BACKEND override', () => {
   const forced = mockApp()
-  const forcedResult = configureGpuSwitches({ commandLine: forced.commandLine }, { ODESK_GPU_BACKEND: 'mali' }, {
+  const forcedResult = configureGpuSwitches({ commandLine: forced.commandLine }, { ODK_GPU_BACKEND: 'mali' }, {
     platform: 'darwin',
     arch: 'arm64',
     maliUserspacePresent: false,
@@ -95,7 +95,7 @@ test('configureGpuSwitches honours an explicit ODESK_GPU_BACKEND override', () =
   assert.deepEqual(forced.switches.map((s) => s.key), MALI_SWITCHES)
 
   const defaulted = mockApp()
-  const defaultedResult = configureGpuSwitches({ commandLine: defaulted.commandLine }, { ODESK_GPU_BACKEND: 'default', DISPLAY: ':0' }, {
+  const defaultedResult = configureGpuSwitches({ commandLine: defaulted.commandLine }, { ODK_GPU_BACKEND: 'default', DISPLAY: ':0' }, {
     platform: 'linux',
     arch: 'arm64',
     maliUserspacePresent: true,
@@ -104,11 +104,11 @@ test('configureGpuSwitches honours an explicit ODESK_GPU_BACKEND override', () =
   assert.deepEqual(defaulted.switches.map((s) => s.key), BASE_SWITCHES)
 })
 
-test('configureGpuSwitches respects ODESK_DISABLE_GPU and LIBGL_ALWAYS_SOFTWARE=1 fallback', () => {
+test('configureGpuSwitches respects ODK_DISABLE_GPU and LIBGL_ALWAYS_SOFTWARE=1 fallback', () => {
   const softwareOptions = { platform: 'linux', arch: 'arm64', maliUserspacePresent: true }
 
   const first = mockApp()
-  const firstResult = configureGpuSwitches({ commandLine: first.commandLine }, { ODESK_DISABLE_GPU: '1', DISPLAY: ':0' }, softwareOptions)
+  const firstResult = configureGpuSwitches({ commandLine: first.commandLine }, { ODK_DISABLE_GPU: '1', DISPLAY: ':0' }, softwareOptions)
   assert.equal(firstResult.hardwareAcceleration, false)
   assert.equal(firstResult.backend, 'software')
   assert.deepEqual(first.switches.map((s) => s.key), ['disable-gpu'])
@@ -127,5 +127,5 @@ test('resolveGpuBackend requires linux arm64, the userspace blob, and an X11 ses
   assert.equal(resolveGpuBackend({ DISPLAY: ':0' }, { ...base, arch: 'x64' }), 'default')
   assert.equal(resolveGpuBackend({ DISPLAY: ':0', WAYLAND_DISPLAY: 'wayland-0' }, base), 'default')
   assert.equal(resolveGpuBackend({}, base), 'default')
-  assert.equal(resolveGpuBackend({ ODESK_GPU_BACKEND: 'mali' }, { platform: 'darwin', arch: 'arm64' }), 'mali')
+  assert.equal(resolveGpuBackend({ ODK_GPU_BACKEND: 'mali' }, { platform: 'darwin', arch: 'arm64' }), 'mali')
 })

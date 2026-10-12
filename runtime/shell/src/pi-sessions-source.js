@@ -186,7 +186,7 @@ function createConfiguredPiSessionReader({ env = process.env, scanLocal = scanPi
     : Promise.resolve().then(() => active.aborted ? stopped() : scanLocal()).then((data) => ({ ...data, source }))) }
 }
 
-function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions, execute = execFile, deskLink = null, signal } = {}) {
+function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions, execute = execFile, odkLink = null, signal } = {}) {
   const configured = createConfiguredPiSessionReader({ env, scanLocal, execute })
   const source = configured.source
   const stopped = () => unavailable(source, 'Pi source stopped.')
@@ -209,11 +209,11 @@ function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions,
     if (active.aborted) return Promise.resolve(stopped())
     // Reported Sessions still replace only the scanned reporting source. Hosted
     // Pi is desk-owned and overlays whichever normal source answered.
-    if (!deskLink) return scanConfiguredSource(active).then((data) => data?.ok === true ? dedupeSnapshot(data) : data)
-    return Promise.all([own(deskLink.machines({ signal: active })), own(deskLink.hostedSessions?.({ signal: active }) ?? { ok: false, sessions: [] })])
+    if (!odkLink) return scanConfiguredSource(active).then((data) => data?.ok === true ? dedupeSnapshot(data) : data)
+    return Promise.all([own(odkLink.machines({ signal: active })), own(odkLink.hostedSessions?.({ signal: active }) ?? { ok: false, sessions: [] })])
       .then(([machines, hosted]) => {
         if (active.aborted) return stopped()
-        return Promise.resolve(machines.length === 0 ? scanConfiguredSource(active) : deskLink.snapshot({ signal: active }))
+        return Promise.resolve(machines.length === 0 ? scanConfiguredSource(active) : odkLink.snapshot({ signal: active }))
           .then((data) => overlayHosted(data?.ok === true ? dedupeSnapshot(data) : data, hosted))
       })
   }

@@ -9,7 +9,7 @@ const { install } = require('./helpers/weather-selection')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createWeatherSource } = require('../src/weather-source')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { resolveConfigPath, updateConfig } = require('../src/plugin-config')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
@@ -19,7 +19,7 @@ const now = 1791504000000
 
 for (const mode of ['cached', 'live']) test(`signed Weather ${mode} consumers survive update rollback and removal`, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-weather-revisions-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const cacheFile = path.join(root, 'weather.json')
   const reading = { place: 'Saved English 与中文', updatedAt: now,
@@ -56,10 +56,10 @@ for (const mode of ['cached', 'live']) test(`signed Weather ${mode} consumers su
           created++
           return createWeatherSource(configuration)
         } },
-        'desk.data': { create: createShellDeskData, smokeMode: true },
+        'desk.data': { create: createShellOdkData, smokeMode: true },
       } })
       active = { host, handlers }
-      createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [id, 'odk.system.desk-data'].includes(plugin.manifest.id))
+      createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [id, 'odk.system.data'].includes(plugin.manifest.id))
         .forEach(plugin => host.register(plugin))
       await host.start()
       assert.equal(host.list().find(record => record.manifest.id === id).manifest.version, version)

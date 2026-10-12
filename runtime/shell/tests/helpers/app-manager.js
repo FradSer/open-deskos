@@ -29,12 +29,12 @@ async function selection(t, { mode = 'signed', transformManager, parentDir = os.
     await fs.writeFile(file, transformManager(await fs.readFile(file, 'utf8')))
   }
   if (mode === 'development') {
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
       LOCALAPPDATA: path.join(root, 'state') }
-    const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), ...args],
+    const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), ...args],
       { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
     await invoke(['link', bundle, '--trust', '--replace', '--grant', 'ipc', '--grant', 'system.app-manager'])
-    const config = () => readConfig(path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json'))
+    const config = () => readConfig(path.join(env.ODK_CONFIG_DIR, 'plugins.json'))
     return { root, env, invoke, load: options => loadDevelopmentPlugins(config(), options) }
   }
   const keys = crypto.generateKeyPairSync('ed25519')
@@ -48,13 +48,13 @@ async function selection(t, { mode = 'signed', transformManager, parentDir = os.
   await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [ID], hosts: ['electron-main'],
   } } }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
-    LOCALAPPDATA: path.join(root, 'state'), OPEN_DESKOS_NATIVE_KEYRING: keyring }
-  const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'native', ...args],
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), ODK_NATIVE_KEYRING: keyring }
+  const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'native', ...args],
     { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
   const installed = JSON.parse((await invoke(['install', bundle, '--keyring', keyring, '--trust', '--grant', 'ipc', '--grant', 'system.app-manager'])).stdout)
   assert.equal(installed.effect, 'selection-only')
-  const config = () => readConfig(path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json'))
+  const config = () => readConfig(path.join(env.ODK_CONFIG_DIR, 'plugins.json'))
   const store = createNativePluginStore({ stateDir: path.join(resolveShellHost({ env }).stateDir, 'plugins/native'), keyring: await readNativeKeyring(keyring) })
   const stored = await store.read(config().plugins[ID].native.revision)
   return { root, env, stored, invoke, load: options => loadNativePlugins(config(), { env, ...options }) }

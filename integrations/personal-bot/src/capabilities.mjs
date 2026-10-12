@@ -2,7 +2,7 @@ import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Type } from 'typebox'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { createDeskDataTool } from './desk-data.mjs'
+import { createOdkDataTool } from './odk-data.mjs'
 import { userAppsRequest } from './apps-control.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 
@@ -21,7 +21,7 @@ function userAppTool(command, description, needsAppId = true) {
     name: ['list', 'desktop'].includes(command) ? `user_apps_${command}` : `user_app_${command}`,
     label: `User app ${command}`,
     description, exposure: 'codemode', outputSchema: OBJECT_OUTPUT,
-    namespace: { name: 'desk_apps', description: 'System-owned Widget/App lifecycle. Mutations need the actual user request; no unknown-outcome retries.' },
+    namespace: { name: 'odk_apps', description: 'System-owned Widget/App lifecycle. Mutations need the actual user request; no unknown-outcome retries.' },
     annotations: ['list', 'desktop'].includes(command) ? readingHints : mutationHints,
     executionMode: ['list', 'desktop'].includes(command) ? 'parallel' : 'sequential',
     parameters: needsAppId ? Type.Object({
@@ -87,7 +87,7 @@ function codingTaskTool(command, targets) {
 
 function coreCapabilities(targets) {
   return [
-    createDeskDataTool(),
+    createOdkDataTool(),
     userAppTool('list', 'List installed resident user applications from the shell lifecycle backend.', false),
     userAppTool('desktop', 'List desktop page IDs, one-based page numbers, grid dimensions and occupied cells before selecting a widget location. Only grid pages accept widgets.', false),
     userAppTool('install', 'Verify and install a resident user application draft. Optional widget placement uses pageId and CSS grid line strings col/row (for example 2 / 4). Occupied locations are rejected, never overwritten.', true),

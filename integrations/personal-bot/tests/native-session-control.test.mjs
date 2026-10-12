@@ -15,9 +15,9 @@ async function configuredTools(t, root, executable) {
   executable = await nodeExecutable(t, executable)
   const config = join(root, 'targets.json')
   await writeFile(config, JSON.stringify({ targets: [{ id: 'mac', name: 'Mac', roots: [root], executable }] }))
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = config
-  t.after(() => { if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE; else process.env.ODESK_TASK_TARGETS_FILE = previous })
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = config
+  t.after(() => { if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE; else process.env.ODK_TASK_TARGETS_FILE = previous })
   const tools = await loadCapabilities()
   return { tools, call: async (name, params) => (await tools.find(tool => tool.name === name).execute('fixture', params)).structuredContent }
 }
@@ -73,10 +73,10 @@ test('an incomplete native inventory retains unavailable endpoints and cannot pr
 })
 // Real published helper and SessionHost sockets; only the Pi message receiver is mocked.
 test('coordinator discovers native sessions by root and continues the exact Chinese task identity', { skip: process.platform === 'win32' ? 'Unix external Pi SessionHost fixture; Windows native client contracts run separately' : false }, async t => {
-  const packageRoot = process.env.ODESK_PI_PACKAGE_DIR ?? fileURLToPath(new URL('../../../../pi-packages/packages/open-deskos/', import.meta.url))
+  const packageRoot = process.env.ODK_PI_PACKAGE_DIR ?? fileURLToPath(new URL('../../../../pi-packages/packages/open-deskos/', import.meta.url))
   try { await access(join(packageRoot, 'src/session-host.ts')) } catch (error) {
-    if (process.env.ODESK_PI_PACKAGE_DIR || error.code !== 'ENOENT') throw error
-    return t.skip('Set ODESK_PI_PACKAGE_DIR to exercise the native Pi package helper')
+    if (process.env.ODK_PI_PACKAGE_DIR || error.code !== 'ENOENT') throw error
+    return t.skip('Set ODK_PI_PACKAGE_DIR to exercise the native Pi package helper')
   }
   const { SessionHost } = await import(pathToFileURL(join(packageRoot, 'src/session-host.ts')).href)
   const root = await temporaryRoot(t)
@@ -103,7 +103,7 @@ test('coordinator discovers native sessions by root and continues the exact Chin
   const executable = join(root, 'helper')
   const helper = join(packageRoot, 'src/session-host-client.mjs')
   const quote = value => `'${value.replaceAll("'", "'\\''")}'`
-  const sessionDirectory = join(runtime, 'open-deskos', 'sessions')
+  const sessionDirectory = join(runtime, 'odk', 'sessions')
   await writeFile(executable, `#!/bin/sh\nexport XDG_RUNTIME_DIR=${quote(runtime)}\nexport ODK_SESSION_HOST_SOCKET=${quote(sessionDirectory)}\nexec ${quote(process.execPath)} ${quote(helper)} --find\n`, { mode: 0o700 })
   const { tools: available } = await configuredTools(t, root, executable)
   const turn = createIntentTurn({ route: async () => ({ intent: 'session_continue' }), profile: 'personal', tools: available.map(tool => tool.name) })
@@ -158,7 +158,7 @@ test('coordinator discovers native sessions by root and continues the exact Chin
   const dropped = createServer(socket => socket.once('data', () => socket.end()))
   await new Promise((resolve, reject) => { dropped.once('error', reject); dropped.listen(socketPath, resolve) })
   t.after(() => new Promise(resolve => dropped.close(resolve)))
-  await writeFile(join(runtime, 'open-deskos', 'sessions', 'dropped.json'), JSON.stringify({ version: 1, sessionId: '10000000-0000-4000-8000-000000000004', project: firstProject, socketPath }))
+  await writeFile(join(runtime, 'odk', 'sessions', 'dropped.json'), JSON.stringify({ version: 1, sessionId: '10000000-0000-4000-8000-000000000004', project: firstProject, socketPath }))
   const incomplete = await call('coding_tasks_list', { target: 'mac', project: root })
   assert.deepEqual(incomplete.tasks.map(task => task.taskId).sort(), [...IDS].sort())
   assert.equal(incomplete.incomplete, true, 'the actual package helper must expose the dropped endpoint')

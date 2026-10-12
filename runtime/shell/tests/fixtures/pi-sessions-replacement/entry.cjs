@@ -68,7 +68,7 @@ function project(data) {
 // Aggregation, projection, and request ownership use no Shell implementation imports.
 exports.create = context => {
   const configured = context.capability('source.pi-sessions').configured()
-  const link = context.get('odk:source/desk-link/v1')
+  const link = context.get('odk:source/link/v1')
   const controller = new AbortController()
   const operations = new Set()
   let current = null

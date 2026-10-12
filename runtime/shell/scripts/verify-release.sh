@@ -6,7 +6,7 @@ cd "$DIR"
 
 verify_in_session() {
   env -u ELECTRON_RUN_AS_NODE "${DIR}/node_modules/.bin/electron" "${DIR}/scripts/validate-runtime-dependencies.js" "${DIR}"
-  exec env ODESK_SKIP_STYLE_BUILD=1 ./run.sh --smoke
+  exec env ODK_SKIP_STYLE_BUILD=1 ./run.sh --smoke
 }
 
 if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || [ "$(uname -s)" = Darwin ]; then

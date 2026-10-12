@@ -168,9 +168,9 @@ test('composer build contains a broken tile and still builds every other widget'
 test('resolveDisabledPlugins parses the launch parameter list', () => {
   const main = require(path.join(__dirname, '..', 'src', 'main.js'))
   assert.deepEqual(
-    main.resolveDisabledPlugins({ ODESK_DISABLED_PLUGINS: 'odk.tile.hydra, odk.status.clock\nodk.page.quota' }),
+    main.resolveDisabledPlugins({ ODK_DISABLED_PLUGINS: 'odk.tile.hydra, odk.status.clock\nodk.page.quota' }),
     ['odk.tile.hydra', 'odk.status.clock', 'odk.page.quota'],
   )
   assert.deepEqual(main.resolveDisabledPlugins({}), [])
-  assert.deepEqual(main.resolveDisabledPlugins({ ODESK_DISABLED_PLUGINS: '  ' }), [])
+  assert.deepEqual(main.resolveDisabledPlugins({ ODK_DISABLED_PLUGINS: '  ' }), [])
 })

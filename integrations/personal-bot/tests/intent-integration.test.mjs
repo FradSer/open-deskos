@@ -41,13 +41,13 @@ for (const profile of ['coding', 'personal']) {
     })
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(endpoint, resolve) })
     t.after(() => new Promise(resolve => server.close(resolve)))
-    const savedChannel = { ODESK_DESK_DATA_SOCKET: process.env.ODESK_DESK_DATA_SOCKET, ODK_CHANNEL_TOKEN_FILE: process.env.ODK_CHANNEL_TOKEN_FILE }
-    process.env.ODESK_DESK_DATA_SOCKET = endpoint
+    const savedChannel = { ODK_DATA_SOCKET: process.env.ODK_DATA_SOCKET, ODK_CHANNEL_TOKEN_FILE: process.env.ODK_CHANNEL_TOKEN_FILE }
+    process.env.ODK_DATA_SOCKET = endpoint
     process.env.ODK_CHANNEL_TOKEN_FILE = tokenFile
     t.after(() => { for (const [key, value] of Object.entries(savedChannel)) { if (value === undefined) delete process.env[key]; else process.env[key] = value } })
-    const savedTargets = process.env.ODESK_TASK_TARGETS_FILE
-    delete process.env.ODESK_TASK_TARGETS_FILE
-    t.after(() => { if (savedTargets !== undefined) process.env.ODESK_TASK_TARGETS_FILE = savedTargets })
+    const savedTargets = process.env.ODK_TASK_TARGETS_FILE
+    delete process.env.ODK_TASK_TARGETS_FILE
+    t.after(() => { if (savedTargets !== undefined) process.env.ODK_TASK_TARGETS_FILE = savedTargets })
     let selected = 'task_query', guardedTools
     const events = [], states = []
     const agent = await createPersonalBot({ stateDir: dir, workspace: repository, personal: { profile, skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
@@ -63,9 +63,9 @@ for (const profile of ['coding', 'personal']) {
         guardedTools = options.customTools
         assert.equal(new Set(guardedTools.map(tool => tool.name)).size, guardedTools.length, 'each capability must be registered once')
         options.sessionManager.appendMessage({ role: 'user', content: [{ type: 'text', text: '花今天活得怎么样了？' }], timestamp: Date.now() })
-        options.sessionManager.appendMessage(assistant([{ type: 'toolCall', id: 'historical-direct', name: 'desk_data', arguments: { id: 'odk.tile.hydra' } }], 'toolUse'))
-        options.sessionManager.appendMessage({ role: 'toolResult', toolCallId: 'historical-direct', toolName: 'desk_data',
-          content: [{ type: 'text', text: 'Tool desk_data not found' }], isError: true, timestamp: Date.now() })
+        options.sessionManager.appendMessage(assistant([{ type: 'toolCall', id: 'historical-direct', name: 'odk_data', arguments: { id: 'odk.tile.hydra' } }], 'toolUse'))
+        options.sessionManager.appendMessage({ role: 'toolResult', toolCallId: 'historical-direct', toolName: 'odk_data',
+          content: [{ type: 'text', text: 'Tool odk_data not found' }], isError: true, timestamp: Date.now() })
         options.sessionManager.appendMessage(assistant('之前没有读到花卉数据。'))
         return { session: (await offlineSession(options, async context => {
           events.push('pi')
@@ -78,7 +78,7 @@ for (const profile of ['coding', 'personal']) {
             }
           }
           if (selected === 'session_continue') await assert.rejects(guardedTools.find(tool => tool.name === 'coding_task_start').execute('test', {}), /Jev intent/)
-          if (selected === 'desk_data') {
+          if (selected === 'odk_data') {
             assert.match(JSON.stringify(context.messages), /await tools\.<exact name>\(args\)/, 'all routes teach the actual Pi v1 call entry')
             const result = context.messages.findLast(message => message.role === 'toolResult' && message.toolCallId === 'desk-read-' + states.length)
             if (result) {
@@ -89,7 +89,7 @@ for (const profile of ['coding', 'personal']) {
               return assistant('offline routed response')
             }
             return assistant([{ type: 'toolCall', id: 'desk-read-' + states.length, name: 'codemode', arguments: {
-              code: 'const listed = await tools.desk_data({}); text(listed); text(await tools.desk_data({id:"odk.tile.hydra"}));',
+              code: 'const listed = await tools.odk_data({}); text(listed); text(await tools.odk_data({id:"odk.tile.hydra"}));',
             } }], 'toolUse')
           }
           return assistant('offline routed response')
@@ -97,12 +97,12 @@ for (const profile of ['coding', 'personal']) {
       },
     })
     t.after(() => agent.close())
-    for (const [intent, text] of [['task_query', '现在任务怎样了'], ['session_continue', '继续那个 Pi 会话'], ['widget_create', '创建天气 widget'], ['app_create', '创建 App'], ['desk_data', '今天花怎么样'], ['desk_data', '现在花怎么样']]) {
+    for (const [intent, text] of [['task_query', '现在任务怎样了'], ['session_continue', '继续那个 Pi 会话'], ['widget_create', '创建天气 widget'], ['app_create', '创建 App'], ['odk_data', '今天花怎么样'], ['odk_data', '现在花怎么样']]) {
       selected = intent
       assert.equal(await agent.prompt(text), 'offline routed response')
       assert.equal(states.at(-1).text, text)
       assert(states.at(-1).availableTools.includes('coding_task_start'))
-      assert(states.at(-1).capabilities.some(tool => tool.name === 'desk_data' && tool.description.includes('runtime data')))
+      assert(states.at(-1).capabilities.some(tool => tool.name === 'odk_data' && tool.description.includes('runtime data')))
     }
     assert.equal(events.filter(event => event === 'jev').length, 6)
     assert.deepEqual(requests.map(request => request.command), ['list', 'read', 'list', 'read'])

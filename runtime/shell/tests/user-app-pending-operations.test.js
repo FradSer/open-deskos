@@ -36,7 +36,7 @@ test('runtime stop retains ownership of an installation waiting for verification
     ipcMain: { handle: (id, callback) => handlers.set(id, callback), removeHandler: id => handlers.delete(id) },
     protocol: { handle() {}, unhandle() {} },
     BrowserWindow: { getAllWindows: () => [{ webContents: { send() { notifications++ } } }] },
-    env: { ODESK_WORKSPACE: workspace }, onCleanup: cleanup => cleanups.push(cleanup),
+    env: { ODK_WORKSPACE: workspace }, onCleanup: cleanup => cleanups.push(cleanup),
   })
   const installing = handlers.get('odk-user-apps-dispatch')(null, { command: 'install', appId: 'counter' })
   await entered
@@ -88,7 +88,7 @@ async function runtime({ content = () => new Response('Content'), syncPackages =
     ipcMain: { handle: (id, callback) => handlers.set(id, callback), removeHandler: id => handlers.delete(id) },
     protocol: { handle: (id, callback) => routes.set(id, callback), unhandle: id => routes.delete(id) },
     BrowserWindow: { getAllWindows: () => [{ webContents: { send() { notifications++ } } }] },
-    deskData: { registry: { publish() { publishes++; return { ok: true } } }, syncPackages },
+    odkData: { registry: { publish() { publishes++; return { ok: true } } }, syncPackages },
     env: {}, onCleanup: cleanup => cleanups.push(cleanup),
   }
   let host
@@ -108,7 +108,7 @@ async function runtime({ content = () => new Response('Content'), syncPackages =
     create: () => ({ ports: { [DESK_PORTS.catalog]: selectedStore } }) })
     host.register({ manifest: { schemaVersion: 1, id: 'odk.test.data', name: 'Data', version: '1.0.0',
       kind: 'service', host: 'electron-main', provides: [{ interface: DESK_PORTS.data }], requires: [], permissions: [] },
-    create: () => ({ ports: { [DESK_PORTS.data]: options.deskData }, stop() { providerReleases++ } }) })
+    create: () => ({ ports: { [DESK_PORTS.data]: options.odkData }, stop() { providerReleases++ } }) })
     let definition = createDeskRuntimePlugins().find(plugin => plugin.manifest.id === 'odk.system.user-apps')
     if (replacement) {
       const entry = path.join(__dirname, 'fixtures/user-app-system-replacement/entry.cjs')

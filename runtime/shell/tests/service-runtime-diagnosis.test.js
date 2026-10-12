@@ -107,7 +107,7 @@ test('actual Python publisher answers diagnosis with its owned plugin lifecycle'
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'try: runtime.host.get(poller.PORTS["publisher"]).send({"type":"data","snapshot":{"positions":[],"totals":{}}})',
     'finally: runtime.close()',
@@ -134,7 +134,7 @@ test('Python owner receives diagnosis while waiting after publication', async t 
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODESK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODESK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',

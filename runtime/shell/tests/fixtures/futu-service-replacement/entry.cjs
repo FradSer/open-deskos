@@ -20,8 +20,8 @@ module.exports = { manifest, create(ctx) {
       }
     } catch { next = null }
     if (ctx.signal.aborted) return
-    const endpoint = config.env.ODK_FUTU_ENDPOINT || config.env.ODESK_FUTU_SOCKET
-    const bootstrap = { revision: config.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint }
+    const endpoint = config.env.ODK_FUTU_ENDPOINT || config.env.ODK_FUTU_SOCKET
+    const bootstrap = { revision: config.env.ODK_FUTU_SERVICE_REVISION || 'dev', endpoint }
     if (next) {
       if (endpoint && !next['futu-poller']) next['futu-poller'] = bootstrap
       for (const id of Object.keys(definitions)) if (!(id in next)) delete definitions[id]

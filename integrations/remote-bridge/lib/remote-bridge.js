@@ -14,7 +14,7 @@ const {
   validateShellState,
 } = require('./protocol')
 
-const SOCKET_DIRECTORY = 'open-deskos-remote'
+const SOCKET_DIRECTORY = 'odk-remote'
 const SOCKET_NAME = 'bridge.sock'
 
 class RemoteBridge {

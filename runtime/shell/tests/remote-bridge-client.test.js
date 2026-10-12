@@ -76,26 +76,26 @@ function waitFor(predicate, message = 'timed out waiting for condition') {
 test('resolves the runtime Remote Bridge socket and confines overrides to explicit test mode', () => {
   assert.equal(
     resolveRemoteBridgeSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }),
-    path.join('/run/user/1000', 'open-deskos-remote', 'bridge.sock'),
+    path.join('/run/user/1000', 'odk-remote', 'bridge.sock'),
   )
   assert.equal(
     resolveRemoteBridgeSocketPath({
       XDG_RUNTIME_DIR: '/run/user/1000',
-      ODESK_REMOTE_BRIDGE_SOCKET: '/tmp/ignored.sock',
+      ODK_REMOTE_BRIDGE_SOCKET: '/tmp/ignored.sock',
     }),
-    path.join('/run/user/1000', 'open-deskos-remote', 'bridge.sock'),
+    path.join('/run/user/1000', 'odk-remote', 'bridge.sock'),
   )
   assert.equal(
     resolveRemoteBridgeSocketPath({
-      ODESK_SHELL_TEST_MODE: '1',
-      ODESK_REMOTE_BRIDGE_SOCKET: '/tmp/open-deskos-remote-test.sock',
+      ODK_SHELL_TEST_MODE: '1',
+      ODK_REMOTE_BRIDGE_SOCKET: '/tmp/odk-remote-test.sock',
     }),
-    '/tmp/open-deskos-remote-test.sock',
+    '/tmp/odk-remote-test.sock',
   )
   assert.throws(
     () => resolveRemoteBridgeSocketPath({
-      ODESK_SHELL_TEST_MODE: '1',
-      ODESK_REMOTE_BRIDGE_SOCKET: 'relative.sock',
+      ODK_SHELL_TEST_MODE: '1',
+      ODK_REMOTE_BRIDGE_SOCKET: 'relative.sock',
     }),
     /absolute Unix socket path/,
   )
@@ -105,7 +105,7 @@ test('forwards only valid C6 navigation records to subscribers', async () => {
   const socket = new FakeSocket()
   const navigations = []
   const client = createRemoteBridgeClient({
-    socketPath: '/tmp/open-deskos-remote-test.sock',
+    socketPath: '/tmp/odk-remote-test.sock',
     createConnection: () => socket,
   })
   client.onNavigation((direction) => navigations.push(direction))
@@ -122,7 +122,7 @@ test('forwards valid Remote inputs and routes MIC directly to the resident agent
   const inputs = []
   let micToggles = 0
   const client = createRemoteBridgeClient({
-    socketPath: '/tmp/open-deskos-remote-test.sock',
+    socketPath: '/tmp/odk-remote-test.sock',
     createConnection: () => socket,
     onRemoteMic: () => { micToggles++ },
   })
@@ -139,7 +139,7 @@ test('forwards valid Remote inputs and routes MIC directly to the resident agent
 
 test('actual Remote Bridge synchronizes Shell state, link state, and C6 navigation', async (t) => {
   const runtimeDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'odk-shell-remote-'))
-  const socketPath = path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock')
+  const socketPath = path.join(runtimeDirectory, 'odk-remote', 'bridge.sock')
   const adapter = new FakeRemoteLinkAdapter()
   const bridge = new RemoteBridge({ adapter, socketPath, logger: { error() {} } })
   const client = createRemoteBridgeClient({ socketPath, reconnectDelayMs: 1 })
@@ -184,7 +184,7 @@ test('actual Remote Bridge synchronizes Shell state, link state, and C6 navigati
 test('carries page-owned Remote Control Strip actions in the state frame', async () => {
   const sockets = []
   const client = createRemoteBridgeClient({
-    socketPath: '/tmp/open-deskos-remote-test.sock',
+    socketPath: '/tmp/odk-remote-test.sock',
     reconnectDelayMs: 1,
     createConnection() {
       const socket = new FakeSocket()
@@ -244,7 +244,7 @@ test('reconnects, resends complete authoritative state, and forwards only valid 
   const sockets = []
   const linkStates = []
   const client = createRemoteBridgeClient({
-    socketPath: '/tmp/open-deskos-remote-test.sock',
+    socketPath: '/tmp/odk-remote-test.sock',
     reconnectDelayMs: 1,
     createConnection() {
       const socket = new FakeSocket()

@@ -26,7 +26,7 @@ Feature: Owner controlled proactive Personal Bot proposals
   Scenario: A service push asks Jev without waiting for the heartbeat
     Given an authenticated service reports a changed owner-selected reading
     When the personal bot service receives its bounded reading identifiers
-    Then it rereads authoritative Desk Data and asks Jev with a service-push trigger
+    Then it rereads authoritative Open DeskOS Data and asks Jev with a service-push trigger
     And pushed advice, action parameters and arbitrary data cannot enter the judgment
 
   Scenario: Pushes during inference supersede the older observation
@@ -78,7 +78,7 @@ Feature: Owner controlled proactive Personal Bot proposals
 
   Scenario: Dry soil creates a read-only proposal
     Given live Hydra soil below an owner threshold with a recent measured time
-    When the watch polls Desk Data
+    When the watch polls Open DeskOS Data
     Then one evidence-bearing proposal appears and no action tool runs
 
   Scenario: A previously live measurement expires

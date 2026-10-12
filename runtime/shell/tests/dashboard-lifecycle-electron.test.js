@@ -10,7 +10,7 @@ const { runCommand } = require('./helpers/hydra-wire-lifecycle')
 test('Dashboard fences released callbacks in the actual Shell document', { timeout: 60000 }, async t => {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-dashboard-lifecycle-'))
   const env = { ...process.env, ODK_DASHBOARD_LIFECYCLE_PROFILE: profile,
-    OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    ODK_CONFIG_DIR: path.join(profile, 'config'),
     XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
   delete env.ELECTRON_RUN_AS_NODE
   try {

@@ -34,7 +34,7 @@ verifierModule.createUserAppVerifier = options => {
 }
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
-process.env.ODESK_DISABLED_PLUGINS += ',' + layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
+process.env.ODK_DISABLED_PLUGINS += ',' + layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
   .filter(id => id !== 'odk.tile.clock').join(',')
 
 // Capture the production Host without replacing its capabilities or handlers.
@@ -51,7 +51,7 @@ const handle = ipcMain.handle.bind(ipcMain)
 const remove = ipcMain.removeHandler.bind(ipcMain)
 ipcMain.handle = (channel, handler) => { handle(channel, handler); handlers.add(channel) }
 ipcMain.removeHandler = channel => { remove(channel); handlers.delete(channel) }
-const command = args => run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), ...args], {
+const command = args => run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), ...args], {
   env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 65536,
 })
 let report
@@ -179,13 +179,13 @@ app.on('browser-window-created', (_event, win) => {
         assert.equal(win.webContents.mainFrame.frames.find(frame => frame.url.startsWith('odk-user-app://app/counter/')), appFrame)
         assert.deepEqual(await measure(), baseline)
       }
-      if (emptyStartup) await command(['native', 'install', process.env.ODK_APPEARANCE_FIRST, '--trust', '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING])
+      if (emptyStartup) await command(['native', 'install', process.env.ODK_APPEARANCE_FIRST, '--trust', '--keyring', process.env.ODK_NATIVE_KEYRING])
       const configPath = resolveConfigPath(process.env)
       let previous = emptyStartup ? null : '2.0.0'
       const expectedTrace = emptyStartup ? [] : ['create:2.0.0', 'start:2.0.0']
       for (const version of ['2.0.0', '3.0.0']) {
         if (version === '3.0.0') await command(['native', 'update', 'odk.theme.pixel', process.env.ODK_APPEARANCE_NEXT,
-          '--trust', '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING])
+          '--trust', '--keyring', process.env.ODK_NATIVE_KEYRING])
         const config = fs.readFileSync(configPath)
         const receipt = JSON.parse((await command(['activate', 'odk.theme.pixel', '--runtime'])).stdout)
         assert.equal(receipt.ok, true)
@@ -204,7 +204,7 @@ app.on('browser-window-created', (_event, win) => {
       }
       assert.equal(await js('window.__appearanceExecutions'), emptyStartup ? 2 : 3)
       const config = fs.readFileSync(configPath)
-      const policyPath = process.env.OPEN_DESKOS_NATIVE_KEYRING
+      const policyPath = process.env.ODK_NATIVE_KEYRING
       const policy = fs.readFileSync(policyPath)
       const broken = Buffer.from('{malformed fixture configuration')
       const revoked = Buffer.from(JSON.stringify({ schemaVersion: 1, publishers: {} }))

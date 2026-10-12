@@ -3,7 +3,7 @@ import { privateDirectory } from './task-store.mjs'
 import { boundedText } from './task-service.mjs'
 import { createCodingCheckTool } from './candidate-checks.mjs'
 
-const CHECK_ENTRY = 'open-deskos-coding-check'
+const CHECK_ENTRY = 'odk-coding-check'
 
 /** @returns {import('@earendil-works/pi-coding-agent').ExtensionFactory} */
 function checkHistoryExtension() {

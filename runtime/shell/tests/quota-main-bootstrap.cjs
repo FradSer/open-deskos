@@ -20,7 +20,7 @@ const signed = version !== '1.0.0'
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODESK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceView || id !== 'odk.page.quota').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceView || id !== 'odk.page.quota').join(',')
 let defaults = 0
 let providerCalls = 0
 let measuring = false

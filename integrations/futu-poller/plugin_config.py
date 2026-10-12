@@ -16,17 +16,17 @@ def _reject_json_constant(_value: str) -> NoReturn:
 
 def resolve_shared_config_path(env: Mapping[str, str]) -> Path:
     """Use the Shell's configuration directory precedence without provider settings."""
-    directory = env.get("OPEN_DESKOS_CONFIG_DIR")
+    directory = env.get("ODK_CONFIG_DIR")
     if not directory:
         home = env.get("HOME") or env.get("USERPROFILE") or str(Path.home())
-        directory = str(Path(home) / ".config" / "open-deskos")
+        directory = str(Path(home) / ".config" / "odk")
     return Path(directory) / "plugins.json"
 
 
 def resolve_shared_disabled(env: Mapping[str, str], known: AbstractSet[str],
                             report: Callable[[str], None]) -> tuple[str, ...]:
     """Read common enable preferences; native development metadata has no authority here."""
-    disabled = {identity for identity in re.split(r"[\s,]+", env.get("ODESK_DISABLED_PLUGINS", "")) if identity in known}
+    disabled = {identity for identity in re.split(r"[\s,]+", env.get("ODK_DISABLED_PLUGINS", "")) if identity in known}
     try:
         file = resolve_shared_config_path(env)
         try:

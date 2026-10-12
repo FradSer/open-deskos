@@ -25,11 +25,11 @@ for (const { mode, control } of [
     : `production Clock ${mode} startup with ${control} control preserves authenticated replacement and recovery`,
     { timeout: clockMainTimeouts(mode).test, skip: posixOnlyReason('isolated-native-activation') }, async t => {
       const root = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-clock-main-'))
-      const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+      const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
         XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-        XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODESK_WORKSPACE: path.join(root, 'workspace'),
-        ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODESK_DISABLE_GPU: '1',
-        ODESK_DISABLED_PLUGINS: '', ODK_CLOCK_MAIN_ROOT: root, ODK_CLOCK_MAIN_MODE: mode, ODK_CLOCK_MAIN_CONTROL: control }
+        XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODK_WORKSPACE: path.join(root, 'workspace'),
+        ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_DISABLE_GPU: '1',
+        ODK_DISABLED_PLUGINS: '', ODK_CLOCK_MAIN_ROOT: root, ODK_CLOCK_MAIN_MODE: mode, ODK_CLOCK_MAIN_CONTROL: control }
       delete env.ELECTRON_RUN_AS_NODE
       try {
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
@@ -37,7 +37,7 @@ for (const { mode, control } of [
         const localSurfaces = mode === 'calendar'
           ? [...require('./helpers/calendar-surfaces'), ...require('./helpers/desk-tool-surfaces'), { file: 'preorder', id: 'odk.tile.preorder' }] : []
         const keyring = path.join(root, 'publishers.json')
-        env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+        env.ODK_NATIVE_KEYRING = keyring
         await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { clock: {
           publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: ['odk.tile.clock', ...localSurfaces.map(spec => spec.id)], hosts: ['electron-renderer'],
         } } }))
@@ -70,7 +70,7 @@ for (const { mode, control } of [
           await fs.writeFile(path.join(directory, 'bundle.json'), JSON.stringify({ ...payload, signature }))
         }
         for (const bundle of bundles.filter(bundle => bundle.version === '2.0.0')) {
-          const installed = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'),
+          const installed = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
             'native', 'install', path.join(root, bundle.directory), '--keyring', keyring, '--trust'],
           { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })).stdout)
           assert.equal(installed.effect, 'selection-only')
@@ -83,11 +83,11 @@ for (const { mode, control } of [
           await fs.writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ ...plugin.manifest, entry: 'entry.cjs' }))
           await fs.writeFile(path.join(directory, 'entry.cjs'), `
 const {createRendererManagement}=require(${JSON.stringify(path.resolve(__dirname, '../src/renderer-management'))});
-const {listenDeskData}=require(${JSON.stringify(path.resolve(__dirname, '../src/desk-data-control'))});
+const {listenOdkData}=require(${JSON.stringify(path.resolve(__dirname, '../src/odk-data-control'))});
 exports.create=(${factory.toString()})().create;
 globalThis.clockSelectedControlEntry=true;
 `)
-          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', directory, '--trust', '--replace',
+          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace',
             ...plugin.manifest.permissions.flatMap(permission => ['--grant', permission])], { env, signal: t.signal, timeout: 10000 })
         }
         const launch = runCommand(require('electron'), [`--user-data-dir=${path.join(root, 'profile')}`, '--force-device-scale-factor=1',
@@ -118,7 +118,7 @@ globalThis.clockSelectedControlEntry=true;
           }
         }
         const host = resolveShellHost({ env })
-        for (const channel of ['plugin-control', 'renderer-plugin-control', 'plugin-diagnostics', 'user-app-control', 'desk-data']) {
+        for (const channel of ['plugin-control', 'renderer-plugin-control', 'plugin-diagnostics', 'user-app-control', 'odk-data']) {
           await assert.rejects(fs.stat(host.endpoint(channel)), { code: 'ENOENT' })
         }
       } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }

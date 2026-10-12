@@ -9,7 +9,7 @@ test('model storage migration keeps stable runtime paths through bind mounts', (
   assert.match(script, /\/opt\/rkllama\/models/)
   assert.match(script, /\/opt\/qwen3-asr-1\.7b\/rknn/)
   assert.match(script, /SSD_MOUNT="\$\{ODK_MODEL_SSD_MOUNT:-\/mnt\/ssd\}"/)
-  assert.match(script, /SSD_ROOT="\$\{ODK_MODEL_SSD_ROOT:-\$\{SSD_MOUNT\}\/open-deskos\/models\}"/)
+  assert.match(script, /SSD_ROOT="\$\{ODK_MODEL_SSD_ROOT:-\$\{SSD_MOUNT\}\/odk\/models\}"/)
   assert.match(script, /"\$\{SSD_ROOT\}\/rkllama"/)
   assert.match(script, /"\$\{SSD_ROOT\}\/qwen3-asr-1\.7b-rknn"/)
   assert.match(script, /mount --bind/)
@@ -31,8 +31,8 @@ test('model storage migration verifies the SSD copy before removing root data', 
 })
 
 test('model migration is idempotent and limited to model payloads', () => {
-  assert.match(script, /BEGIN open-deskos model storage/)
-  assert.match(script, /END open-deskos model storage/)
+  assert.match(script, /BEGIN odk model storage/)
+  assert.match(script, /END odk model storage/)
   assert.doesNotMatch(script, /mv \/opt\/rkllama /)
   assert.doesNotMatch(script, /mv \/opt\/qwen3-asr-1\.7b /)
   assert.match(script, /patch_ssd_fstab/)

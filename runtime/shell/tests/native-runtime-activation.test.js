@@ -23,15 +23,15 @@ const manifest = { schemaVersion: 1, id, name: 'Activation fixture', version: '1
 
 async function fixture(t, { channel = false, load } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-activate-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
     LOCALAPPDATA: path.join(root, 'state'), XDG_RUNTIME_DIR: root }
-  const configPath = path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')
+  const configPath = path.join(env.ODK_CONFIG_DIR, 'plugins.json')
   const keys = crypto.generateKeyPairSync('ed25519')
-  env.OPEN_DESKOS_NATIVE_KEYRING = path.join(root, 'publishers.json')
+  env.ODK_NATIVE_KEYRING = path.join(root, 'publishers.json')
   const policy = { schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [id], hosts: ['electron-main'],
   } } }
-  await fs.writeFile(env.OPEN_DESKOS_NATIVE_KEYRING, JSON.stringify(policy))
+  await fs.writeFile(env.ODK_NATIVE_KEYRING, JSON.stringify(policy))
   const platform = resolveShellHost({ env })
   const store = createNativePluginStore({ stateDir: path.join(platform.stateDir, 'plugins/native'),
     keyring: new Map([['fixture', { publicKey: keys.publicKey, identities: [id], hosts: ['electron-main'] }]]) })
@@ -106,8 +106,8 @@ test('activation refuses changed trust, grants, host, disabled state, policy, an
       if (change === 'disabled') config.plugins[id].enabled = false
       if (change === 'missing-selection') delete config.plugins[id].native
       if (change === 'runtime-disabled') await f.host.setEnabled(id, false)
-      if (change === 'environment-disabled') f.env.ODESK_DISABLED_PLUGINS = id
-      if (change === 'policy') await fs.writeFile(f.env.OPEN_DESKOS_NATIVE_KEYRING, JSON.stringify({ schemaVersion: 1, publishers: {} }))
+      if (change === 'environment-disabled') f.env.ODK_DISABLED_PLUGINS = id
+      if (change === 'policy') await fs.writeFile(f.env.ODK_NATIVE_KEYRING, JSON.stringify({ schemaVersion: 1, publishers: {} }))
       if (change === 'bytes') await fs.writeFile((await f.store.read(selection.revision)).entry, 'throw Error("private corrupt bytes")')
       // Bypass the writer only to exercise a malformed persisted trust record.
       if (change === 'trust') await fs.writeFile(f.configPath, JSON.stringify(config))
@@ -145,7 +145,7 @@ test('activation protects control authority and refuses request-supplied code or
 test('actual CLI activates over an isolated Main channel without changing saved selection', { skip: posixOnlyReason('unix-socket') }, async t => {
   const f = await fixture(t, { channel: true })
   const before = await fs.readFile(f.configPath, 'utf8')
-  const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+  const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
   const response = JSON.parse((await run(process.execPath, [cli, 'activate', id, '--runtime'], { env: f.env, timeout: 10000 })).stdout)
   assert.equal(response.revision, readConfig(f.configPath).plugins[id].native.revision)
   assert.equal(response.version, '2.0.0')
@@ -211,11 +211,11 @@ test('serialized activation captures each current selection and uses immutable v
 
 test('activation rejects incorrect channel authentication before signed capture or mutation', { skip: posixOnlyReason('unix-socket') }, async t => {
   const f = await fixture(t)
-  const { listenDeskData } = require('../src/desk-data-control')
+  const { listenOdkData } = require('../src/odk-data-control')
   const { requestLocalControl } = require('../src/local-control-client')
   const endpoint = path.join(f.root, 'token.sock')
   const stateDir = path.join(f.root, 'token-state')
-  const server = await listenDeskData({ endpoint, stateDir, platform: 'win32', control: f.control })
+  const server = await listenOdkData({ endpoint, stateDir, platform: 'win32', control: f.control })
   t.after(() => server.close())
   const wrong = path.join(f.root, 'wrong-token')
   await fs.writeFile(wrong, 'wrong')
@@ -255,14 +255,14 @@ const restoreRequest = { command: 'restore-default', pluginId: id }
 test('default restoration rebuilds consumers without publisher access or saved-selection writes', async t => {
   const f = await fixture(t)
   await f.control.dispatch(request)
-  await fs.writeFile(f.env.OPEN_DESKOS_NATIVE_KEYRING, 'invalid policy')
+  await fs.writeFile(f.env.ODK_NATIVE_KEYRING, 'invalid policy')
   const before = await fs.readFile(f.configPath, 'utf8')
   assert.deepEqual(await f.control.dispatch(restoreRequest), { ok: true, scope: 'electron-main', pluginId: id,
     implementation: 'built-in', version: '1.0.0', state: 'running' })
   assert.equal(f.host.get(port).version, 'default')
   assert.equal(f.trace.at(-1), 'consumer:default')
   assert.equal(await fs.readFile(f.configPath, 'utf8'), before)
-  assert.equal(await fs.readFile(f.env.OPEN_DESKOS_NATIVE_KEYRING, 'utf8'), 'invalid policy')
+  assert.equal(await fs.readFile(f.env.ODK_NATIVE_KEYRING, 'utf8'), 'invalid policy')
 })
 
 test('restoration retries retained cleanup before constructing the default', async t => {
@@ -293,7 +293,7 @@ test('actual CLI restores the default and preserves the signed selection', { ski
   const f = await fixture(t, { channel: true })
   await f.control.dispatch(request)
   const before = await fs.readFile(f.configPath, 'utf8')
-  const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+  const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
   await fs.writeFile(f.configPath, 'malformed saved selection')
   const response = JSON.parse((await run(process.execPath, [cli, 'restore-default', id, '--runtime'], { env: f.env, timeout: 10000 })).stdout)
   assert.equal(response.implementation, 'built-in')

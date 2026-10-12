@@ -13,7 +13,7 @@ const packets = sdkRequire('mqtt-packet')
 const { createHydraSource, connectHydraMqtt } = require('../src/hydra-mqtt')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createPluginHost } = require('../src/plugin-host')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const { install } = require('./helpers/hydra-selection')
@@ -73,7 +73,7 @@ async function endpoint() {
 for (const kind of ['default', 'linked', 'signed']) {
   test(`${kind} Hydra uses real canonical MQTT SDK traffic and releases its connection`, { timeout: 15000 }, async t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-hydra-wire-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
     let broker, host
     try {
@@ -83,7 +83,7 @@ for (const kind of ['default', 'linked', 'signed']) {
         replacements = await native.load()
         native.mutate()
       } else if (kind === 'linked') {
-        await run(process.execPath, [path.join(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link',
+        await run(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'link',
           path.join(__dirname, 'fixtures/hydra-replacement'), '--replace', '--trust', '--grant', 'source.hydra', '--grant', 'ipc'], { env, signal: t.signal })
         replacements = loadDevelopmentPlugins(readConfig(resolveConfigPath(env)))
       }
@@ -100,10 +100,10 @@ for (const kind of ['default', 'linked', 'signed']) {
           defaults++
           return createHydraSource(configuration)
         } },
-        'desk.data': { create: createShellDeskData, smokeMode: true },
+        'desk.data': { create: createShellOdkData, smokeMode: true },
       } })
       createMainPlugins({ replacementPlugins: replacements })
-        .filter(plugin => ['odk.source.hydra', 'odk.system.desk-data'].includes(plugin.manifest.id))
+        .filter(plugin => ['odk.source.hydra', 'odk.system.data'].includes(plugin.manifest.id))
         .forEach(plugin => host.register(plugin))
       await host.start()
       const source = host.get(DATA_PORTS.hydra)
@@ -113,7 +113,7 @@ for (const kind of ['default', 'linked', 'signed']) {
       assert.deepEqual(subscription.subscriptions.map(({ topic, qos }) => ({ topic, qos })), [{ topic: 'plants/#', qos: 0 }])
       const connect = broker.received.find(packet => packet.cmd === 'connect')
       assert.equal(connect.protocolVersion, 4)
-      assert.match(connect.clientId, /^open-deskos-shell-/)
+      assert.match(connect.clientId, /^odk-shell-/)
       assert.equal(connect.username, undefined)
       assert.equal(connect.password, undefined)
       const read = async () => (await host.get(DESK_PORTS.data).control.dispatch({ command: 'read', readingId: 'odk.tile.hydra' })).reading

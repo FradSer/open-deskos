@@ -214,7 +214,7 @@ function createHydraSource({ url, topicPrefix, onUpdate = () => {}, connectImpl 
     lastAttempt = time
     try {
       client = connectImpl(url, {
-        clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
+        clientId: `odk-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
         reconnectPeriod: 5000,
         connectTimeout: 10000,
       })

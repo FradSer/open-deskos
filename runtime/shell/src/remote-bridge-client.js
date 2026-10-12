@@ -8,15 +8,15 @@ const REMOTE_INPUTS = new Set(['left', 'right', 'up', 'down', 'primary', 'second
 const DEFAULT_RECONNECT_DELAY_MS = 1000
 
 function resolveRemoteBridgeSocketPath(env = process.env) {
-  if (env.ODESK_SHELL_TEST_MODE === '1' && env.ODESK_REMOTE_BRIDGE_SOCKET) {
-    if (!path.isAbsolute(env.ODESK_REMOTE_BRIDGE_SOCKET)) {
-      throw new Error('ODESK_REMOTE_BRIDGE_SOCKET must be an absolute Unix socket path')
+  if (env.ODK_SHELL_TEST_MODE === '1' && env.ODK_REMOTE_BRIDGE_SOCKET) {
+    if (!path.isAbsolute(env.ODK_REMOTE_BRIDGE_SOCKET)) {
+      throw new Error('ODK_REMOTE_BRIDGE_SOCKET must be an absolute Unix socket path')
     }
-    return env.ODESK_REMOTE_BRIDGE_SOCKET
+    return env.ODK_REMOTE_BRIDGE_SOCKET
   }
   const runtimeDir = env.XDG_RUNTIME_DIR
   if (!runtimeDir || !path.isAbsolute(runtimeDir)) return null
-  return path.join(runtimeDir, 'open-deskos-remote', 'bridge.sock')
+  return path.join(runtimeDir, 'odk-remote', 'bridge.sock')
 }
 
 function normalizePageState(state) {

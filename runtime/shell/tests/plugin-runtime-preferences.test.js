@@ -11,7 +11,7 @@ const { execFile } = require('node:child_process')
 const { resolveStartupDisabled } = require('../src/plugin-config')
 const { createBridgePluginRuntime, loadPluginConfig } = require('../../../integrations/remote-bridge/lib/plugin-runtime')
 const run = promisify(execFile)
-const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
 const botEntry = path.resolve(__dirname, '../../../integrations/personal-bot/src/main.mjs')
 const taskEntry = path.resolve(__dirname, '../../../integrations/personal-bot/src/task-daemon.mjs')
 const bridgeEntry = path.resolve(__dirname, '../../../integrations/remote-bridge/lib/main.js')
@@ -19,7 +19,7 @@ const bridgeEntry = path.resolve(__dirname, '../../../integrations/remote-bridge
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-runtime-pref-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: root, ODESK_DISABLED_PLUGINS: '', ODESK_PROACTIVE_CONFIG: '' }
+  const env = { ...process.env, ODK_CONFIG_DIR: root, ODK_DISABLED_PLUGINS: '', ODK_PROACTIVE_CONFIG: '' }
   return { env, root,
     change: (command, id) => run(process.execPath, [cli, command, id], { env }),
     inspect: async entry => JSON.parse((await run(process.execPath, [entry, '--plugins', 'list'], { env })).stdout),
@@ -36,9 +36,9 @@ for (const [id, entry] of [
     assert.equal(selected(await f.inspect(entry)).enabled, false)
     await f.change('enable', id)
     assert.equal(selected(await f.inspect(entry)).enabled, true)
-    f.env.ODESK_DISABLED_PLUGINS = id
+    f.env.ODK_DISABLED_PLUGINS = id
     assert.equal(selected(await f.inspect(entry)).enabled, false)
-    f.env.ODESK_DISABLED_PLUGINS = ''
+    f.env.ODK_DISABLED_PLUGINS = ''
     await fs.writeFile(path.join(f.root, 'plugins.json'), '{invalid')
     const result = await run(process.execPath, [entry, '--plugins', 'list'], { env: f.env })
     assert.equal(selected(JSON.parse(result.stdout)).enabled, true)

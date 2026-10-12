@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
     const compare = phaseIndex > 0
     if (independent && signedSurface) {
       if (!runtimeSurface) await host.stop()
-      entries = await capture(process.env, process.env.OPEN_DESKOS_NATIVE_KEYRING, assets, { productionPolicy: true, mutate: !surfaceRevision })
+      entries = await capture(process.env, process.env.ODK_NATIVE_KEYRING, assets, { productionPolicy: true, mutate: !surfaceRevision })
       capturedEntries = entries
       if (!runtimeSurface) await host.start()
       assert.equal(protocol.isProtocolHandled(NATIVE_PLUGIN_SCHEME), surfaceRevision !== '1.0.0')

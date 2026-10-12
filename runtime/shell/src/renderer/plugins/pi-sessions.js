@@ -1244,7 +1244,7 @@
         return
       }
       // A remote session's events are not this host's business to judge: a machine
-      // that reports over a Desk Link brings its own bounded event tail with it, and
+      // that reports over a Open DeskOS Link brings its own bounded event tail with it, and
       // the main process already asks that link first and falls back to a local log.
       // What this surface must not do is refuse a remote session before the source
       // that actually holds its events has been asked. When nothing holds them, the

@@ -8,7 +8,7 @@ const os = require('node:os')
 const { EventEmitter } = require('node:events')
 const { install } = require('./helpers/hydra-selection')
 const { createHydraSource } = require('../src/hydra-mqtt')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createPluginHost } = require('../src/plugin-host')
 const { resolveConfigPath, updateConfig } = require('../src/plugin-config')
@@ -21,7 +21,7 @@ const time = 1700000000000
 for (const mode of ['live', 'stale', 'unavailable', 'unconfigured']) {
   test(`signed Hydra ${mode} consumers survive update rollback and removal`, async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-hydra-revisions-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
     const clients = []
     let active
@@ -64,11 +64,11 @@ for (const mode of ['live', 'stale', 'unavailable', 'unconfigured']) {
             defaults++
             return createHydraSource({ ...configuration, connectImpl: options.connectImpl })
           } },
-          'desk.data': { create: createShellDeskData, smokeMode: true },
+          'desk.data': { create: createShellOdkData, smokeMode: true },
         } })
         active = { host, handlers }
         createMainPlugins({ replacementPlugins: replacements })
-          .filter(plugin => [id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+          .filter(plugin => [id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
         await host.start()
         assert.equal(host.list().find(plugin => plugin.manifest.id === id).manifest.version, version)
         assert.equal(host.get(DATA_PORTS.hydra).fixtureRevision, version === '1.0.0' ? undefined : version)

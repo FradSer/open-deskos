@@ -204,7 +204,7 @@ app.whenReady().then(async () => {
     let eventResponse = events
     let eventRead = () => eventResponse
     let scan = async () => scanResponse
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(profile, 'config'),
       XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
     const native = signed ? await install(profile, env, { sessions: true }) : null
     const replacements = native ? await native.load() : []
@@ -248,8 +248,8 @@ app.whenReady().then(async () => {
         frames: () => [win.webContents], entries: () => entries,
         ...(signedViews ? { protocol, nativeAssets: assets } : {}),
       } } : {}),
-      'source.desk-link': { create: () => ({ machines: async () => [], hostedSessions: async () => ({ ok: false, sessions: [] }),
-        sessionEvents: async () => ({ ok: false, reason: 'desk-link-unavailable' }) }) },
+      'source.odk-link': { create: () => ({ machines: async () => [], hostedSessions: async () => ({ ok: false, sessions: [] }),
+        sessionEvents: async () => ({ ok: false, reason: 'odk-link-unavailable' }) }) },
       'source.pi-sessions': { configured: () => createConfiguredPiSessionReader(sourceOptions), create: options => {
         assert.equal(signed, false, 'Signed Sessions cannot call the default factory')
         return createPiSessionsSource({ ...options, ...sourceOptions })
@@ -259,7 +259,7 @@ app.whenReady().then(async () => {
         return createPiSessionEventsSource({ ...options, readLocal: () => eventRead() })
       } },
     } })
-    createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [...ids, 'odk.source.desk-link', 'odk.system.app-manager'].includes(plugin.manifest.id))
+    createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [...ids, 'odk.source.odk-link', 'odk.system.app-manager'].includes(plugin.manifest.id))
       .forEach(plugin => host.register(plugin))
     if (externalViews) host.register(createRendererDevelopmentPlugin())
     await host.start()

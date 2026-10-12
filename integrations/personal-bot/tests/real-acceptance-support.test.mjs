@@ -34,7 +34,7 @@ test('a failed prompt preserves its actual mutation ID and identity without repl
 
 test('the acceptance custom catalog permits only required coding reads and exact continuation', async () => {
   const names = ['coding_targets', 'coding_tasks_list', 'coding_task_status', 'coding_task_history', 'coding_task_prompt',
-    'memory_update', 'user_app_install', 'didi_submit', 'coding_task_start', 'desk_data']
+    'memory_update', 'user_app_install', 'didi_submit', 'coding_task_start', 'odk_data']
   const guarded = acceptanceTools(names.map(name => ({ name, execute: () => assert.fail('Catalog check must not execute') })), {}, [])
   assert.deepEqual(guarded.tools.map(tool => tool.name), names.slice(0, 5))
 })

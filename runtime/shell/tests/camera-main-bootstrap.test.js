@@ -16,13 +16,13 @@ for (const mode of ['live', 'unavailable']) test(`actual Main bootstrap preserve
     const fixture = path.join(__dirname, 'camera-main-bootstrap.cjs')
     await fs.access(fixture)
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-camera-main-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-      ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280' }
+      ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280' }
     env.ODK_CAMERA_PRIVATE_PIPE_PREFIX = '\\\\.\\pipe\\odk-camera-' + randomUUID().replaceAll('-', '') + '-'
     delete env.XDG_RUNTIME_DIR
     const enabled = new Set(['odk.source.camera', 'odk.system.renderer-development'])
-    env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+    env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
     try {
       const native = await install(root, env, { signal: t.signal })
       const pids = new Set()

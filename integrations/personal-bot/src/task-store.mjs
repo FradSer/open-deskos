@@ -48,8 +48,8 @@ export async function validateConfig(config) {
   return { ...config, roots }
 }
 /** @param {string} [file] */
-export async function loadTaskConfig(file = process.env.ODESK_TASK_CONFIG) {
-  if (!file || !isAbsolute(file)) throw new Error('未配置 ODESK_TASK_CONFIG 绝对路径')
+export async function loadTaskConfig(file = process.env.ODK_TASK_CONFIG) {
+  if (!file || !isAbsolute(file)) throw new Error('未配置 ODK_TASK_CONFIG 绝对路径')
   const info = await stat(file)
   if (info.uid !== process.getuid?.() || (info.mode & 0o022)) throw new Error('任务配置必须由当前用户拥有且不可被其他用户写入')
   return validateConfig(JSON.parse(await readFile(file, 'utf8')))
@@ -58,7 +58,7 @@ export async function loadTaskConfig(file = process.env.ODESK_TASK_CONFIG) {
 export async function admittedProject(config, project) {
   if (typeof project !== 'string' || !validProject(project)) throw new Error('项目需要有效的绝对路径')
   const path = await realpath(project)
-  if (!(await stat(path)).isDirectory() || within('/opt/open-deskos', path) || !config.roots.some(root => within(root, path))) {
+  if (!(await stat(path)).isDirectory() || within('/opt/odk', path) || !config.roots.some(root => within(root, path))) {
     throw new Error('项目不在允许的开发目录内')
   }
   return path

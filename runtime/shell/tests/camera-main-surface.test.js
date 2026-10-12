@@ -20,13 +20,13 @@ for (const mode of ['live', 'unavailable']) test(`actual Main jointly starts sig
   { timeout: 180000 }, async t => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-camera-joint-'))
     const runtimeRoot = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-cr-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-      ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280' }
+      ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280' }
     env.ODK_CAMERA_PRIVATE_PIPE_PREFIX = '\\\\.\\pipe\\odk-camera-' + randomUUID().replaceAll('-', '') + '-'
     delete env.XDG_RUNTIME_DIR
     const enabled = new Set(['odk.source.camera', 'odk.system.renderer-development'])
-    env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+    env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
     try {
       const native = await install(root, env, { signal: t.signal })
       const sourcePreference = structuredClone(native.config().plugins['odk.source.camera'])
@@ -40,7 +40,7 @@ for (const mode of ['live', 'unavailable']) test(`actual Main jointly starts sig
         ...JSON.parse(await fs.readFile(native.keyring)).publishers,
         ...JSON.parse(await fs.readFile(surface.keyring)).publishers,
       } }))
-      env.OPEN_DESKOS_NATIVE_KEYRING = policy
+      env.ODK_NATIVE_KEYRING = policy
       updateConfig(resolveConfigPath(env), config => ({ ...config, plugins: { ...config.plugins,
         'odk.tile.camera': { ...config.plugins['odk.tile.camera'], enabled: true }, 'odk.tile.clock': { enabled: false } } }))
       const pids = new Set()
@@ -51,7 +51,7 @@ for (const mode of ['live', 'unavailable']) test(`actual Main jointly starts sig
         if (runtime) {
           childEnv.XDG_RUNTIME_DIR = runtimeRoot
           childEnv.ODK_CAMERA_BOOTSTRAP_SURFACE_RUNTIME = '1'
-          childEnv.ODESK_DISABLED_PLUGINS = childEnv.ODESK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.renderer-control').join(',')
+          childEnv.ODK_DISABLED_PLUGINS = childEnv.ODK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.renderer-control').join(',')
         }
         delete childEnv.ELECTRON_RUN_AS_NODE
         const operation = execute(require('electron'), [`--user-data-dir=${profile}`, '--force-device-scale-factor=1',
@@ -64,7 +64,7 @@ for (const mode of ['live', 'unavailable']) test(`actual Main jointly starts sig
           if (runtime) {
             const ready = await readMarker(path.join(profile, 'runtime-ready.json'), { signal: t.signal, outcome })
             assert.equal(ready.version, surfaceVersion)
-            const command = args => runCommand(process.execPath, ['--require', path.resolve(__dirname, 'helpers/camera-private-host.cjs'), path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), ...args],
+            const command = args => runCommand(process.execPath, ['--require', path.resolve(__dirname, 'helpers/camera-private-host.cjs'), path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), ...args],
               { env: childEnv, signal: t.signal, timeout: 10000, maxBuffer: 65536 })
             const configPath = resolveConfigPath(env)
             let sequence = 0
@@ -145,7 +145,7 @@ for (const mode of ['live', 'unavailable']) test(`actual Main jointly starts sig
                 platform: 'win32', request: { command: 'inventory' }, label: 'Camera control pipe release',
               }), /ENOENT|ECONNREFUSED/)
             } else {
-              await assert.rejects(fs.stat(path.join(runtimeRoot, 'open-deskos-plugins/renderer-control.sock')), { code: 'ENOENT' })
+              await assert.rejects(fs.stat(path.join(runtimeRoot, 'odk-plugins/renderer-control.sock')), { code: 'ENOENT' })
             }
           }
           assert.equal(report.surface.released, true)

@@ -6,7 +6,7 @@ const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createPluginHost } = require('../src/plugin-host')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 
 function weatherReplacement() {
   const original = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.weather')
@@ -42,12 +42,12 @@ test('a replacement can depend on an extension in the complete validated graph',
   assert.throws(() => createMainPlugins({ replacementPlugins: [selected], developmentPlugins: [extension, extension], report() {} }), /missing required port/)
 })
 
-test('trusted replacement supplies IPC and Desk Data through one source instance', async () => {
+test('trusted replacement supplies IPC and Open DeskOS Data through one source instance', async () => {
   const replacement = weatherReplacement()
   const handlers = new Map()
   const host = createPluginHost({ capabilities: {
     ipc: { handle: (name, callback) => handlers.set(name, callback), removeHandler: name => handlers.delete(name) },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
     'source.weather': { create() { throw Error('original source factory must not run') }, options: {} },
   } })
   const composition = createMainPlugins({ replacementPlugins: [replacement.plugin] })
@@ -169,7 +169,7 @@ test('default capture retains dynamic extension contracts without capturing repl
   assert.equal(plugins.find(plugin => plugin.manifest.id === selected.manifest.id), selected)
   assert.notEqual(defaults.find(plugin => plugin.manifest.id === selected.manifest.id).create, selected.create)
   assert.equal(defaults.some(plugin => plugin.manifest.id === extension.manifest.id), false)
-  const selectedData = plugins.find(plugin => plugin.manifest.id === 'odk.system.desk-data')
+  const selectedData = plugins.find(plugin => plugin.manifest.id === 'odk.system.data')
   const defaultData = defaults.find(plugin => plugin.manifest.id === selectedData.manifest.id)
   assert.deepEqual(defaultData.manifest, selectedData.manifest)
   assert.equal(defaultData.manifest.requires.some(port => port.interface === 'odk:desk-reading/extension/v1'), true)

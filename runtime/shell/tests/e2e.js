@@ -708,14 +708,14 @@ async function runMotionChecks(win) {
 }
 
 function createPiFixture() {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-pi-e2e-'))
-  const workspaceDir = path.join(fixtureRoot, 'directory-sessions', '--workspace-open-deskos--')
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-e2e-'))
+  const workspaceDir = path.join(fixtureRoot, 'directory-sessions', '--workspace-odk--')
   fs.mkdirSync(workspaceDir, { recursive: true })
   const now = Date.now()
   fs.writeFileSync(path.join(workspaceDir, 'running.json'), JSON.stringify({
     sessionId: 'e2e-running-4102',
     pid: 4102,
-    cwd: '/workspace/open-deskos',
+    cwd: '/workspace/odk',
     startedAt: now - 7 * 60 * 1000,
     updatedAt: now - 20 * 1000,
     status: 'running',
@@ -760,7 +760,7 @@ async function main() {
     listProcesses: (scanNow) => [
       {
         pid: 4102,
-        cwd: '/workspace/open-deskos',
+        cwd: '/workspace/odk',
         command: 'pi',
         startedAt: piFixture.startedAt - 7 * 60 * 1000,
         isAlive: true,

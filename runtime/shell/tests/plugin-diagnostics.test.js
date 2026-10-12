@@ -58,7 +58,7 @@ for (const selected of [false, true]) {
     host.register({ manifest: { schemaVersion: 1, id: 'odk.test.failure', name: 'Failure fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [], requires: [], permissions: [] }, create() { throw Error('fixture failure') } })
     await host.start()
     t.after(() => host.stop())
-    const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
     const success = await run(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), cli, 'diagnose', 'odk.system.plugin-diagnostics'], { env })
     assert.equal(JSON.parse(success.stdout).plugins[0].state, 'running')
     await assert.rejects(run(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), cli, 'diagnose'], { env }), error => {
@@ -151,7 +151,7 @@ for (const selected of [false, true]) {
     t.after(() => fs.rmSync(root, { recursive: true, force: true }))
     const env = channel.env
     const endpoint = channel.endpoint
-    const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
     const id = 'odk.source.weather'
     const port = `odk:plugin-health/${id}/v1`
     let snapshot = { status: 'unavailable', updatedAt: 1000, current: { temperature: 99 }, error: 'private fixture details' }
@@ -270,7 +270,7 @@ for (const selected of [false, true]) {
       assert.deepEqual(await diagnose(), { state: 'failed', reason: 'invalid-health-snapshot' })
     }
     value = { state: 'unknown', components: [{ id: 'one', state: 'failed' }] }
-    const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
     await assert.rejects(run(process.execPath, ['--require', path.join(__dirname, 'helpers/private-test-host.cjs'), cli, 'diagnose', 'odk.test.components'], { env }), error => {
       assert.equal(error.code, 1)
       assert.equal(JSON.parse(error.stdout).plugins[0].health.components[0].state, 'failed')

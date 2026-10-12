@@ -68,7 +68,7 @@ function prepareDiagnosticMain(mode) {
     assert.deepEqual(selectedReports.map(runtime => `${runtime.host}:${runtime.instance}`).sort(), expectedRuntimes)
     assert.ok(selectedReports.every(runtime => runtime.state === 'unavailable'))
     assert.ok(result.runtimes.some(runtime => runtime.host === 'electron-renderer' && runtime.state === 'available' && runtime.plugins.length > 0))
-    await assert.rejects(runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'diagnose'],
+    await assert.rejects(runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'diagnose'],
       { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 1024 * 1024 }), error => {
       assert.equal(error.code, 1)
       const report = JSON.parse(error.stdout)
@@ -80,7 +80,7 @@ function prepareDiagnosticMain(mode) {
     assert.deepEqual(inventory.plugins, host.list().map(plugin => ({ pluginId: plugin.manifest.id, host: plugin.manifest.host })))
     const managedId = 'odk.system.frame-status'
     for (const command of ['disable', 'enable']) {
-      const operation = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), command, managedId, '--runtime'],
+      const operation = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), command, managedId, '--runtime'],
         { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 1024 * 1024 })
       const { v, id, ...receipt } = JSON.parse(operation.stdout)
       assert.equal(v, 1)
@@ -99,7 +99,7 @@ function prepareDiagnosticMain(mode) {
     const appearanceState = () => win.webContents.executeJavaScript('({theme:window.odkTheme.get(),saved:localStorage.getItem("odk.theme")})')
     const appearance = await appearanceState()
     for (const command of ['disable', 'enable']) {
-      const operation = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), command, 'odk.theme.pixel', '--runtime'],
+      const operation = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), command, 'odk.theme.pixel', '--runtime'],
         { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 1024 * 1024 })
       const { v, id, ...receipt } = JSON.parse(operation.stdout)
       assert.equal(v, 1)

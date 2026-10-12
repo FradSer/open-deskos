@@ -13,12 +13,12 @@ const id = 'odk.tile.hydra'
 
 async function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-ra-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
     LOCALAPPDATA: path.join(root, 'state'), XDG_RUNTIME_DIR: root }
   const directory = path.join(root, 'surface')
   fs.cpSync(path.join(__dirname, 'fixtures/hydra-surface-replacement'), directory, { recursive: true })
   const selection = await prepare(root, env, directory)
-  env.OPEN_DESKOS_NATIVE_KEYRING = selection.keyring
+  env.ODK_NATIVE_KEYRING = selection.keyring
   const assets = createNativeRendererAssets()
   const entries = []
   const activate = createNativeRendererActivator({ env, assets, publishSelection(entry) { entries.splice(0, entries.length, entry) } })

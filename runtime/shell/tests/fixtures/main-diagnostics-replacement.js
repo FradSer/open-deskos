@@ -1,6 +1,6 @@
 'use strict'
 
-const { listenDeskData } = require('../../src/desk-data-control')
+const { listenOdkData } = require('../../src/odk-data-control')
 const { sanitizeRuntimePlugins } = require('../../src/plugin-runtime-report')
 const { healthPort } = require('../../src/plugins/health')
 
@@ -101,7 +101,7 @@ function independentMainDiagnostics({ healthPorts = [], runtimePorts = [] } = {}
       return { async start() {
         if (ctx.signal.aborted) return
         if (options.smokeMode || !options.endpoint) throw Error('plugin diagnosis channel unavailable')
-        listener = await listenDeskData({ ...options, control, requestTimeoutMs: 2000 })
+        listener = await listenOdkData({ ...options, control, requestTimeoutMs: 2000 })
       } }
     },
   }

@@ -13,7 +13,7 @@ const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
 const { createCameraSource, createCameraCaptureProvider } = require('./camera-source')
 const { createPiSessionsSource, createConfiguredPiSessionReader } = require('./pi-sessions-source')
-const { createDeskLinkClient, createDeskLinkTransport } = require('./desk-link-client')
+const { createOdkLinkClient, createOdkLinkTransport } = require('./odk-link-client')
 const { KIOSK_WINDOW_LOCK, enterPanel, resolvePanelBounds } = require('./panel')
 const { createPiSessionEventsSource } = require('./pi-session-events-source')
 const { readSessionEvents } = require('./pi-sessions')
@@ -24,8 +24,8 @@ const { createFutuSource } = require('./futu-source')
 const { createWeatherSource } = require('./weather-source')
 const { registerUserAppScheme, startUserAppSystem, resolveUserAppSurface } = require('./user-app-system')
 const { createUserAppVerifier } = require('./user-app-verifier')
-const { createShellDeskData } = require('./desk-data')
-const { listenDeskData } = require('./desk-data-control')
+const { createShellOdkData } = require('./odk-data')
+const { listenOdkData } = require('./odk-data-control')
 const { createPluginHost } = require('./plugin-host')
 const { resolveStartupDisabled, readConfig, resolveConfigPath } = require('./plugin-config')
 const { loadDevelopmentPlugins, loadAppearanceReplacements } = require('./development-plugins')
@@ -37,7 +37,7 @@ const { selectAppearancePlugins } = require('./renderer/core/appearance-plugins'
 const { installPluginShutdown } = require('./plugin-shutdown')
 const { createMainPlugins } = require('./plugins/main-composition')
 const { createFrameReadyEvents } = require('./frame-ready')
-const { resolveHostedPiSocketPath } = require('./desk-link-host-adapter')
+const { resolveHostedPiSocketPath } = require('./odk-link-host-adapter')
 const { SYSTEM_PORTS } = require('./plugins/system-channels')
 
 // Mali userspace (ARM libmali blob plus CSF firmware) installed by
@@ -54,7 +54,7 @@ function hasMaliUserspace(dir = MALI_USERSPACE_DIR) {
 }
 
 function resolveGpuBackend(env = process.env, options = {}) {
-  const requested = env.ODESK_GPU_BACKEND
+  const requested = env.ODK_GPU_BACKEND
   if (requested === 'mali' || requested === 'default') return requested
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
@@ -68,7 +68,7 @@ function resolveGpuBackend(env = process.env, options = {}) {
 }
 
 function configureGpuSwitches(targetApp = app, env = process.env, options = {}) {
-  const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
+  const forceSoftware = env.ODK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
   if (forceSoftware) {
     if (targetApp?.commandLine?.appendSwitch) {
       targetApp.commandLine.appendSwitch('disable-gpu')
@@ -96,13 +96,13 @@ function configureGpuSwitches(targetApp = app, env = process.env, options = {}) 
 }
 
 function resolveLaunchOptions(argv, env) {
-  const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
-  const height = Number.parseInt(env.ODESK_SHELL_HEIGHT ?? '', 10) || DEFAULT_HEIGHT
+  const width = Number.parseInt(env.ODK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
+  const height = Number.parseInt(env.ODK_SHELL_HEIGHT ?? '', 10) || DEFAULT_HEIGHT
   return {
     width,
     height,
     smoke: argv.includes('--smoke'),
-    kiosk: argv.includes('--kiosk') || env.ODESK_SHELL_KIOSK === '1',
+    kiosk: argv.includes('--kiosk') || env.ODK_SHELL_KIOSK === '1',
     disabledPlugins: resolveDisabledPlugins(env),
     piSessionReasoning: resolvePiSessionReasoning(env),
   }
@@ -111,7 +111,7 @@ function resolveLaunchOptions(argv, env) {
 // The panel itself is src/panel.js: what a kiosk panel covers, and how it asks
 // for that geometry again while a Windows Shell Host has dropped the request.
 function resolveDisabledPlugins(env = process.env) {
-  return (env.ODESK_DISABLED_PLUGINS ?? '')
+  return (env.ODK_DISABLED_PLUGINS ?? '')
     .split(/[\s,]+/)
     .map((id) => id.trim())
     .filter(Boolean)
@@ -121,7 +121,7 @@ function resolveDisabledPlugins(env = process.env) {
 // explicit `shown` publishes what Pi was thinking, and every other value keeps
 // the desk's folded default instead of guessing at intent.
 function resolvePiSessionReasoning(env = process.env) {
-  return String(env.ODESK_PI_REASONING ?? '').trim() === 'shown' ? 'shown' : 'hidden'
+  return String(env.ODK_PI_REASONING ?? '').trim() === 'shown' ? 'shown' : 'hidden'
 }
 
 // The renderer learns launch configuration from its own URL. A value the desk
@@ -188,7 +188,7 @@ function createWindow(options) {
 function writeSmokeResult(result) {
   const serialized = `${JSON.stringify(result)}\n`
   process.stdout.write(serialized)
-  const resultFile = process.env.ODESK_SMOKE_RESULT_FILE
+  const resultFile = process.env.ODK_SMOKE_RESULT_FILE
   if (resultFile) fs.writeFileSync(resultFile, serialized, 'utf8')
 }
 
@@ -300,12 +300,12 @@ async function main() {
       ipc: ipcMain,
       broadcast,
       'desk.catalog': { create: createUserAppStore, createVerifier: () => createUserAppVerifier({ electronPath: process.execPath }), smokeMode, options: {
-        workspace: process.env.ODESK_WORKSPACE,
+        workspace: process.env.ODK_WORKSPACE,
         stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
       } },
       'desk.futu': { create: createFutuSource, env: process.env, report: message => console.error(message), options: {
         onUpdate: id => servicePush([id]),
-        runtimeDir: require('node:path').join(process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir(), 'open-deskos'),
+        runtimeDir: require('node:path').join(process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir(), 'odk'),
         stateDir: shellHost.stateDir,
         onReject: reason => {
           if (reason === lastFutuRejection) return
@@ -314,20 +314,20 @@ async function main() {
         },
         onRefuse: (id, reason) => console.error(`futu service ${id} is not listening: ${reason}`),
       } },
-      'desk.data': { create: createShellDeskData, smokeMode, onUpdate: id => servicePush([id]) },
+      'desk.data': { create: createShellOdkData, smokeMode, onUpdate: id => servicePush([id]) },
       'desk.refresh': { smokeMode, setInterval, clearInterval, report: message => console.error(message) },
       'desk.user-apps': { start: startUserAppSystem, smokeMode, isStopping, options: {
         app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, appearancePlugins,
       } },
-      'desk.link': { listen: listenDeskData, smokeMode, enabled: shellHost.provisionsDeskData, report: message => console.error(message), options: {
-        endpoint: shellHost.deskDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
+      'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
+        endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
       } },
       'system.personal-bot': { create: createPersonalBotClient, smokeMode, options: {
         socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost,
       } },
       'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },
       'system.app-manager': { create: createAppManagerEndpoint },
-      'source.desk-link': { create: createDeskLinkClient, createTransport: createDeskLinkTransport },
+      'source.odk-link': { create: createOdkLinkClient, createTransport: createOdkLinkTransport },
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
       'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
       'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },

@@ -2,7 +2,7 @@
 
 ## Ownership
 
-`odk.source.hydra` owns one MQTT client, protocol state, IPC handlers, Desk Data readings, and cached health.
+`odk.source.hydra` owns one MQTT client, protocol state, IPC handlers, Open DeskOS Data readings, and cached health.
 Main grants its dependencies through `source.hydra` and `ipc`.
 The source releases its client before another instance starts.
 Failed release retains uncertain ownership and blocks another connection.
@@ -25,7 +25,7 @@ Native code remains trusted process code; connection declarations do not provide
 
 The default source retains its existing MQTT connector, subscription scope, reconnect settings, and connection timeout.
 Snapshots preserve retained values, live values, timestamps, stale boundaries, diagnostics, soil limits, and watering states.
-IPC and Desk Data share the same source instance.
+IPC and Open DeskOS Data share the same source instance.
 Health reads cached state without initiating connection retries.
 Shutdown suppresses late publications and waits for the client completion callback.
 A failed completion does not certify client release.
@@ -33,8 +33,8 @@ A failed completion does not certify client release.
 ## Evidence
 
 The [canonical connector checks](../tests/hydra-dependency-resolution.test.js) verify dependency resolution, canonical loading, and raw client return without constructing a source.
-The [Main wiring checks](../tests/desk-data-wiring.test.js) inspect the actual Main capability passed to Plugin Host under controlled dependencies.
-The [shared cases](../tests/hydra-plugin-parity.test.js) compare default, linked, and signed implementations through IPC, Desk Data, health, and ownership scenarios.
+The [Main wiring checks](../tests/odk-data-wiring.test.js) inspect the actual Main capability passed to Plugin Host under controlled dependencies.
+The [shared cases](../tests/hydra-plugin-parity.test.js) compare default, linked, and signed implementations through IPC, Open DeskOS Data, health, and ownership scenarios.
 The [revision cases](../tests/hydra-revision.test.js) exercise actual Native CLI operations and captured signed execution through controlled Node Hosts.
 The [wire cases](../tests/hydra-mqtt-wire.test.js) use the installed SDK and real TCP packets through a controlled loopback endpoint.
 

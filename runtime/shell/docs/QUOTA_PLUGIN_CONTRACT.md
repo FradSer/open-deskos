@@ -33,7 +33,7 @@ Cleanup removes the owned handler.
 The reading has ID `odk.page.quota`, label `API quota`, and kind `page`.
 Its home declaration has mode `optional`, priority `40`, icon `quota`, and fields `['accounts']`.
 Its asynchronous `read()` method returns `{ state, value }`.
-[Desk Data](DESK_DATA_SPEC.md) owns registry transport, reading metadata, and overall availability rules.
+[Open DeskOS Data](ODK_DATA_SPEC.md) owns registry transport, reading metadata, and overall availability rules.
 
 Provider state `available` maps to reading state `live`.
 Provider state `unconfigured` maps to reading state `unconfigured`.
@@ -74,7 +74,7 @@ An update with unsigned entry changes fails without changing the previous config
 ## Example and acceptance
 
 The [independent example](../tests/fixtures/quota-replacement/entry.cjs) uses declared capabilities and standard JavaScript globals without Shell module imports.
-The [shared checks](../tests/quota-plugin-parity.test.js) exercise default, linked, and signed implementations through actual Main composition and Desk Data.
+The [shared checks](../tests/quota-plugin-parity.test.js) exercise default, linked, and signed implementations through actual Main composition and Open DeskOS Data.
 The signed checks use temporary publisher policy, trust, grants, and installation records.
 These checks do not certify alternative account providers, rendered interaction, deployed hosts, or physical input.
 The separate [Electron consumer check](../tests/quota-electron.test.js) compares the existing page with default and signed source implementations.

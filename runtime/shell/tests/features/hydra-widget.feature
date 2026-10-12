@@ -17,7 +17,7 @@ Feature: Hydra plant and environment widget on the Home grid
 
   Scenario: Trusted runtime replacement drains signed Hydra source ownership
     Given the Native loader captures an independent signed Hydra source
-    And production source, IPC, Desk Data, and cached health plugins run in one Host
+    And production source, IPC, Open DeskOS Data, and cached health plugins run in one Host
     When a trusted controller replaces that factory with another captured signed revision
     Then the previous MQTT completion callback blocks new client construction
     And late old messages cannot change fresh readings

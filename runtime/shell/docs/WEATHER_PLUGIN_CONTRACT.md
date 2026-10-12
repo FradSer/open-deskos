@@ -61,7 +61,7 @@ Its home declaration uses mode `optional`, priority `80`, icon `weather`, and fi
 Its value contains `asOf`, `place`, `temperatureC`, `condition`, `highC`, and `lowC`.
 Unavailable and unconfigured readings have null values; stale readings preserve measurements.
 The reading retains the source timestamp as `updatedAt`.
-[Desk Data](DESK_DATA_SPEC.md) owns registry transport and reading metadata.
+[Open DeskOS Data](ODK_DATA_SPEC.md) owns registry transport and reading metadata.
 
 Health reads cached source state without requesting the provider.
 Live state maps to `healthy`; stale and unconfigured states map to `degraded`; unavailable state maps to `failed`.
@@ -77,7 +77,7 @@ The [independent source](../tests/fixtures/weather-replacement/source.cjs) owns 
 It explicitly shares the device-location helper and public reading and health projections.
 This independence does not prove an alternative provider protocol.
 The [source scenarios](../tests/weather-source.test.js) run against default and independent algorithms.
-The [consumer scenarios](../tests/weather-plugin-parity.test.js) run against default, linked, and signed selections through Main composition, IPC, and Desk Data.
+The [consumer scenarios](../tests/weather-plugin-parity.test.js) run against default, linked, and signed selections through Main composition, IPC, and Open DeskOS Data.
 Signed tests use actual Native CLI installation, temporary publisher policy, explicit trust, and grants.
 They verify actual source execution and captured execution after stored modules change following discovery.
 
@@ -90,7 +90,7 @@ Unsigned entry changes cannot update the selection or configuration.
 [Configuration](CONFIGURATION.md) owns these operations and their authorization requirements.
 
 The [revision checks](../tests/weather-revision.test.js) exercise actual Native CLI update, rollback, and removal with cached and controlled live readings.
-They compare IPC, Desk Data, health, cache bytes, and unrelated preferences across complete Host reconstructions.
+They compare IPC, Open DeskOS Data, health, cache bytes, and unrelated preferences across complete Host reconstructions.
 Executed source markers identify each signed implementation; default construction is allowed only after removal.
 Each reconstructed live source forces one controlled refresh; subsequent fresh consumer reads avoid additional requests.
 These are in-process Host reconstructions, not separate Electron process startups or deployed revision changes.

@@ -86,14 +86,14 @@ Feature: Every Personal Bot user turn is routed by Jev
 
   Scenario: Personal plant questions can read the desk's live measurements
     Given the Personal Bot runs in the personal profile and the plant channel is live
-    When the user asks "今天花怎么样" and Jev selects desk_data
+    When the user asks "今天花怎么样" and Jev selects odk_data
     Then the personal session can list readings and read the plant measurement
     And the answer uses this turn's reading rather than remembered values
     And sensor connectivity and soil moisture alone are not claimed to prove plant health or watering needs
 
   Scenario: A historical direct tool failure is not a plant-channel failure
-    Given an older session contains a direct desk_data call reporting Tool desk_data not found
-    When Jev routes a new plant question to desk_data
-    Then the workflow directs the model to codemode and tools.desk_data
+    Given an older session contains a direct odk_data call reporting Tool odk_data not found
+    When Jev routes a new plant question to odk_data
+    Then the workflow directs the model to codemode and tools.odk_data
     And the current read succeeds through the real SDK tool pipeline
     And the answer does not substitute historical measurements

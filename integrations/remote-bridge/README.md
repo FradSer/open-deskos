@@ -9,7 +9,7 @@ It requires the Shell plugin host from the same source checkout or immutable rel
 
 ## Protocol
 
-The bridge listens at `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`, matching the Display Shell client.
+The bridge listens at `$XDG_RUNTIME_DIR/odk-remote/bridge.sock`, matching the Display Shell client.
 The socket mode is `0600`; its containing runtime directory is created with mode `0700`.
 Every message is one UTF-8 JSON record terminated by `\n`, is limited by the connected peer implementation, and has `"v": 1`.
 
@@ -79,8 +79,8 @@ The multiple transport host selects an available fallback when its active plugin
 The listener remains open during transport changes.
 
 The Plugin CLI routes explicit `--runtime` enable and disable operations to the Bridge control plugin.
-Use `open-deskos plugin disable <transport-id> --runtime` to stop one registered transport.
-Use `open-deskos plugin enable <transport-id> --runtime` to restore it through the existing host lifecycle.
+Use `odk plugin disable <transport-id> --runtime` to stop one registered transport.
+Use `odk plugin enable <transport-id> --runtime` to restore it through the existing host lifecycle.
 These commands preserve startup preferences and do not stop the listener or control plugin.
 The separate control channel uses the shared local ownership and token authentication rules.
 [Shell configuration](../../runtime/shell/docs/CONFIGURATION.md#explicit-runtime-management) owns endpoint mapping and management limits.
@@ -100,7 +100,7 @@ XDG_RUNTIME_DIR=/run/user/$(id -u) \
   node integrations/remote-bridge/lib/main.js
 ```
 
-`systemd/open-deskos-remote-bridge.service` is provided for user-session installation.
+`systemd/odk-remote-bridge.service` is provided for user-session installation.
 Its integration with the CM5 installer is intentionally outside this subtree.
 
 ## Test
@@ -112,10 +112,10 @@ node --test integrations/remote-bridge/test/*.test.js
 ## Development
 
 `lib/main.js` starts the service.
-The existing `bin/open-deskos-remote-bridge.js` wrapper calls the same entry.
+The existing `bin/odk-remote-bridge.js` wrapper calls the same entry.
 `lib/remote-bridge.js` owns socket/relay lifecycle; `lib/protocol.js` validates records; `lib/usb-cdc-adapter.js` discovers wired devices.
 Use 2-space CommonJS and Node built-ins only.
-The installer substitutes `__OPEN_DESKOS_REMOTE_BRIDGE_DIR__` with the installed integration path.
+The installer substitutes `__ODK_REMOTE_BRIDGE_DIR__` with the installed integration path.
 
 The host suite uses temporary Unix sockets and injected/mock serial transports without a connected Remote.
 Scenarios live in `test/features/remote-bridge-host.feature`; regressions belong in matching `test/*.test.js` files.

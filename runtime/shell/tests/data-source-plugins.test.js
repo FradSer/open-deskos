@@ -17,16 +17,16 @@ function fixture() {
     sessions: { ok: true, sessions: [{ sessionId: 'session' }] },
     events: { ok: true, events: [{ type: 'assistant', body: 'Result' }] },
   }
-  const deskLink = { machines: async () => [] }
+  const odkLink = { machines: async () => [] }
   const capabilities = {
     ipc: { handle: (id, handler) => handlers.set(id, handler), removeHandler: id => handlers.delete(id) },
-    'source.desk-link': { create: () => deskLink },
+    'source.odk-link': { create: () => odkLink },
     'source.pi-sessions': { create: options => {
-      assert.equal(options.deskLink, deskLink)
+      assert.equal(options.odkLink, odkLink)
       return async () => snapshots.sessions
     } },
     'source.pi-events': { create: options => {
-      assert.equal(options.deskLink, deskLink)
+      assert.equal(options.odkLink, odkLink)
       return async request => { calls.push(['events', request]); return snapshots.events }
     } },
     'source.hydra': { create: options => {

@@ -9,13 +9,13 @@ import sys
 import pytest
 import poller
 
-CLI = Path(__file__).resolve().parents[3] / "runtime/shell/scripts/open-deskos-plugin-cli.js"
+CLI = Path(__file__).resolve().parents[3] / "runtime/shell/scripts/odk-plugin-cli.js"
 
 
 def fixture_env(tmp_path: Path) -> dict[str, str]:
-    return {**os.environ, "OPEN_DESKOS_CONFIG_DIR": str(tmp_path), "ODESK_DISABLED_PLUGINS": "",
-            "ODESK_FUTU_PLUGIN_CONFIG": "", "FUTU_PORT": "private-invalid-port",
-            "FUTU_TRADE_PWD": "private-fixture-password", "ODESK_FUTU_SOCKET": "/private/fixture/channel"}
+    return {**os.environ, "ODK_CONFIG_DIR": str(tmp_path), "ODK_DISABLED_PLUGINS": "",
+            "ODK_FUTU_PLUGIN_CONFIG": "", "FUTU_PORT": "private-invalid-port",
+            "FUTU_TRADE_PWD": "private-fixture-password", "ODK_FUTU_SOCKET": "/private/fixture/channel"}
 
 
 def command(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
@@ -39,7 +39,7 @@ def test_actual_common_cli_disable_enable_and_environment_exclusion(tmp_path):
         subprocess.run([node, str(CLI), operation, "odk.futu.gateway"], env=env,
                        capture_output=True, text=True, timeout=10, check=True)
         assert disabled(command(env)) == expected
-    env["ODESK_DISABLED_PLUGINS"] = "odk.futu.gateway, odk.source.weather odk.personal-bot.home"
+    env["ODK_DISABLED_PLUGINS"] = "odk.futu.gateway, odk.source.weather odk.personal-bot.home"
     assert disabled(command(env)) == {"odk.futu.gateway"}
 
 
@@ -52,8 +52,8 @@ def test_common_selection_combines_standalone_cli_and_environment_disables(tmp_p
     }}))
     local = tmp_path / "local.json"
     local.write_text(json.dumps({"version": 1, "plugins": {"odk.futu.gateway": {"enabled": False}}}))
-    env["ODESK_FUTU_PLUGIN_CONFIG"] = str(local)
-    env["ODESK_DISABLED_PLUGINS"] = "odk.futu.loop"
+    env["ODK_FUTU_PLUGIN_CONFIG"] = str(local)
+    env["ODK_DISABLED_PLUGINS"] = "odk.futu.loop"
     assert disabled(command(env, "--disable-plugin", "odk.futu.transport")) == {
         "odk.futu.gateway", "odk.futu.publisher", "odk.futu.loop", "odk.futu.transport"}
     override = tmp_path / "override.json"
@@ -85,7 +85,7 @@ def test_shared_parser_nesting_failure_keeps_disables_and_private_diagnostic(tmp
     import plugin_config
     from types import SimpleNamespace
     env = fixture_env(tmp_path)
-    env["ODESK_DISABLED_PLUGINS"] = "odk.futu.gateway"
+    env["ODK_DISABLED_PLUGINS"] = "odk.futu.gateway"
     file = tmp_path / "plugins.json"
     content = '{"version":1,"plugins":{"odk.futu.publisher":{"enabled":false}}}'
     file.write_text(content)
@@ -103,7 +103,7 @@ def test_operational_entry_applies_preferences_before_disabled_factories(tmp_pat
     env = fixture_env(tmp_path)
     (tmp_path / "plugins.json").write_text('{"version":1,"plugins":{"odk.futu.gateway":{"enabled":false}}}')
     env["FUTU_PORT"] = "11111"
-    env.pop("ODESK_FUTU_SOCKET")
+    env.pop("ODK_FUTU_SOCKET")
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     real_create = poller.create_poller
@@ -134,16 +134,16 @@ def test_missing_shared_config_preserves_default_inspection(tmp_path):
     assert result.stderr == ""
 
 
-@pytest.mark.parametrize("env_key", ["OPEN_DESKOS_CONFIG_DIR", "HOME", "USERPROFILE", None])
+@pytest.mark.parametrize("env_key", ["ODK_CONFIG_DIR", "HOME", "USERPROFILE", None])
 def test_shared_path_matches_shell_precedence(tmp_path, monkeypatch, env_key):
     from plugin_config import resolve_shared_config_path
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "fallback"))
     env = {} if env_key is None else {env_key: str(tmp_path / env_key)}
     actual = resolve_shared_config_path(env)
-    expected = (tmp_path / "OPEN_DESKOS_CONFIG_DIR" / "plugins.json") if env_key == "OPEN_DESKOS_CONFIG_DIR" else (
-        tmp_path / (env_key or "fallback") / ".config" / "open-deskos" / "plugins.json")
+    expected = (tmp_path / "ODK_CONFIG_DIR" / "plugins.json") if env_key == "ODK_CONFIG_DIR" else (
+        tmp_path / (env_key or "fallback") / ".config" / "odk" / "plugins.json")
     assert actual == expected
-    assert resolve_shared_config_path({"OPEN_DESKOS_CONFIG_DIR": str(tmp_path), "HOME": "/unused", "USERPROFILE": "/unused"}) == tmp_path / "plugins.json"
+    assert resolve_shared_config_path({"ODK_CONFIG_DIR": str(tmp_path), "HOME": "/unused", "USERPROFILE": "/unused"}) == tmp_path / "plugins.json"
 
 
 def test_shared_file_projects_enable_values_without_standalone_bounds_or_metadata_authority(tmp_path):
@@ -183,7 +183,7 @@ def test_common_utf8_replacement_and_large_numeric_metadata_match_shell(tmp_path
 
 def test_actual_startup_does_not_import_a_shared_disabled_external_entry(tmp_path):
     env = fixture_env(tmp_path)
-    env.update({"FUTU_PORT": "11111", "FUTU_TRADE_PWD": "", "FUTU_INTERVAL": "60", "ODESK_FUTU_CONTROL": ""})
+    env.update({"FUTU_PORT": "11111", "FUTU_TRADE_PWD": "", "FUTU_INTERVAL": "60", "ODK_FUTU_CONTROL": ""})
     (tmp_path / "plugins.json").write_text('{"version":1,"plugins":{"odk.futu.loop":{"enabled":false},"odk.futu.publisher":{"enabled":false}}}')
     package = tmp_path / "loop"
     package.mkdir()

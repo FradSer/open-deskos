@@ -40,7 +40,7 @@ foreach ($candidate in $personalBotCandidates) {
 }
 if (-not $personalBotRoot) { $personalBotRoot = $personalBotCandidates[0] }
 
-$configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'open-deskos' } else { $env:TEMP }
+$configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'odk' } else { $env:TEMP }
 $personalBotEnv = Join-Path $configDir 'personal-bot.env'
 if (-not (Test-Path $personalBotEnv)) { $personalBotEnv = Join-Path $configDir 'voice-agent.env' }
 $runtimeEnv = Join-Path $configDir 'runtime.env'
@@ -57,10 +57,10 @@ $problems = @()
 if (-not (Test-Path -LiteralPath $entryPoint)) { $problems += "personal bot entry point missing: $entryPoint" }
 if (-not (Test-Path -LiteralPath $launcher)) { $problems += "Personal Bot launcher missing: $launcher" }
 if (-not (Test-Command 'node.exe')) { $problems += 'node.exe is not on PATH' }
-if (-not (Test-Path -LiteralPath $runtimeEnv)) { $problems += "shared device configuration missing: $runtimeEnv (ODESK_WORKSPACE)" }
+if (-not (Test-Path -LiteralPath $runtimeEnv)) { $problems += "shared device configuration missing: $runtimeEnv (ODK_WORKSPACE)" }
 if (-not (Test-Path -LiteralPath $personalBotEnv)) { $problems += "Personal Bot configuration missing: $personalBotEnv (transcription provider, model, ALIYUNCS_TOKEN)" }
 if (-not (Test-Command 'ffmpeg.exe')) { $problems += 'ffmpeg is not on PATH; Windows capture needs it for DirectShow input' }
-$listening = Test-Path -LiteralPath '\\.\pipe\open-deskos-personal-bot'
+$listening = Test-Path -LiteralPath '\\.\pipe\odk-personal-bot'
 "personal-bot: node=$((Test-Command 'node.exe')) ffmpeg=$((Test-Command 'ffmpeg.exe')) pipe=$listening token=$([bool](Test-Path -LiteralPath $token))"
 foreach ($problem in $problems) { "needs: $problem" }
 
@@ -110,5 +110,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Personal Bot state migration failed; task rema
 if ($Start) {
   Start-ScheduledTask -TaskName $TaskName
   Start-Sleep -Seconds 2
-  "started $TaskName; pipe present=$([bool](Test-Path -LiteralPath '\\.\pipe\open-deskos-personal-bot'))"
+  "started $TaskName; pipe present=$([bool](Test-Path -LiteralPath '\\.\pipe\odk-personal-bot'))"
 }

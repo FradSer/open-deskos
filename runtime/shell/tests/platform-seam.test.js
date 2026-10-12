@@ -18,12 +18,12 @@ test('the reference host keeps the Linux state directory and socket endpoints', 
   assert.equal(host.isReference, true)
   assert.equal(host.supported, true)
   assert.equal(host.isWindows, false)
-  assert.equal(host.stateDir, path.join('/home/desk/.local/state', 'open-deskos'))
+  assert.equal(host.stateDir, path.join('/home/desk/.local/state', 'odk'))
   assert.equal(host.runtimeDir, '/run/user/1000')
-  assert.equal(host.endpoint('user-app-control'), path.join('/run/user/1000', 'open-deskos-apps', 'control.sock'))
-  assert.equal(host.endpoint('remote-bridge'), path.join('/run/user/1000', 'open-deskos-remote', 'bridge.sock'))
-  assert.equal(host.endpoint('personal-bot'), path.join('/run/user/1000', 'open-deskos-personal-bot', 'agent.sock'))
-  assert.equal(host.endpoint('desk-link'), path.join('/run/user/1000', 'open-deskos-desk-link', 'service.sock'))
+  assert.equal(host.endpoint('user-app-control'), path.join('/run/user/1000', 'odk-apps', 'control.sock'))
+  assert.equal(host.endpoint('remote-bridge'), path.join('/run/user/1000', 'odk-remote', 'bridge.sock'))
+  assert.equal(host.endpoint('personal-bot'), path.join('/run/user/1000', 'odk-personal-bot', 'agent.sock'))
+  assert.equal(host.endpoint('odk-link'), path.join('/run/user/1000', 'odk-link', 'service.sock'))
   assert.equal(host.provisionsUserAppControl, true)
 })
 
@@ -33,7 +33,7 @@ test('a Unix host without an absolute runtime directory provisions nothing', () 
   assert.equal(host.runtimeDir, null)
   assert.equal(host.endpoint('user-app-control'), null)
   assert.equal(host.provisionsUserAppControl, false)
-  assert.equal(host.stateDir, path.join('/home/desk', '.local/state', 'open-deskos'))
+  assert.equal(host.stateDir, path.join('/home/desk', '.local/state', 'odk'))
 })
 
 test('a Windows host resolves Windows state and pipe endpoints', () => {
@@ -47,13 +47,13 @@ test('a Windows host resolves Windows state and pipe endpoints', () => {
   assert.equal(host.isReference, false)
   assert.equal(host.supported, true)
   assert.equal(host.isWindows, true)
-  assert.equal(host.stateDir, 'C:\\Users\\desk\\AppData\\Local\\open-deskos')
+  assert.equal(host.stateDir, 'C:\\Users\\desk\\AppData\\Local\\odk')
   assert.equal(host.runtimeDir, null)
-  assert.equal(host.endpoint('user-app-control'), '\\\\.\\pipe\\open-deskos-user-app-control')
-  assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\open-deskos-remote-bridge')
-  assert.equal(host.endpoint('personal-bot'), '\\\\.\\pipe\\open-deskos-personal-bot')
-  assert.equal(host.endpoint('desk-link'), '\\\\.\\pipe\\open-deskos-desk-link')
-  assert.equal(host.localChannelTokenFile, 'C:\\Users\\desk\\AppData\\Local\\open-deskos\\local-channel.token')
+  assert.equal(host.endpoint('user-app-control'), '\\\\.\\pipe\\odk-user-app-control')
+  assert.equal(host.endpoint('remote-bridge'), '\\\\.\\pipe\\odk-remote-bridge')
+  assert.equal(host.endpoint('personal-bot'), '\\\\.\\pipe\\odk-personal-bot')
+  assert.equal(host.endpoint('odk-link'), '\\\\.\\pipe\\odk-link')
+  assert.equal(host.localChannelTokenFile, 'C:\\Users\\desk\\AppData\\Local\\odk\\local-channel.token')
   // The pipe exists for an external agent; it is bound, and the channel token is
   // what authenticates a client there, because a pipe carries no owner to check.
   assert.equal(host.provisionsUserAppControl, true)
@@ -62,7 +62,7 @@ test('a Windows host resolves Windows state and pipe endpoints', () => {
 test('a Windows host without a local application data root still resolves one', () => {
   const host = resolveShellHost({ ...WINDOWS, env: {}, homedir: 'C:\\Users\\desk' })
 
-  assert.equal(host.stateDir, 'C:\\Users\\desk\\AppData\\Local\\open-deskos')
+  assert.equal(host.stateDir, 'C:\\Users\\desk\\AppData\\Local\\odk')
 })
 
 test('a host outside the supported set is reported as unsupported', () => {
@@ -85,11 +85,11 @@ test('macOS x64 and arm64 are supported without inventing runtime channels', () 
     assert.equal(host.supported, true)
     assert.equal(host.isWindows, false)
     assert.equal(host.isReference, false)
-    assert.equal(host.stateDir, path.join('/Users/desk', '.local/state', 'open-deskos'))
+    assert.equal(host.stateDir, path.join('/Users/desk', '.local/state', 'odk'))
     assert.equal(host.runtimeDir, null)
     assert.equal(host.endpoint('personal-bot'), null)
     assert.equal(host.provisionsUserAppControl, false)
-    assert.equal(host.provisionsDeskData, false)
+    assert.equal(host.provisionsOdkData, false)
   }
 })
 

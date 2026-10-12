@@ -133,12 +133,12 @@ test('renderer startup discovery retains valid entries beside a missing link wit
 test('CLI links renderer browser entries separately from Main code and removal preserves source', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-rdev-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config') }
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config') }
   const manifest = { schemaVersion: 1, id: 'odk.tile.clock', name: 'Clock replacement', version: '2.0.0', kind: 'surface', host: 'electron-renderer', surfaceKind: 'tile', interaction: 'display-only',
     provides: [{ interface: 'odk:surface/odk.tile.clock/v1' }], requires: [], permissions: [], entry: 'entry.js' }
   fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(manifest))
   fs.writeFileSync(path.join(directory, 'entry.js'), 'throw Error("browser entry must not execute in Main")')
-  const cli = path.resolve('scripts/open-deskos-plugin-cli.js')
+  const cli = path.resolve('scripts/odk-plugin-cli.js')
   await assert.rejects(run(process.execPath, [cli, 'link', directory, '--replace'], { env }))
   await run(process.execPath, [cli, 'link', directory, '--trust', '--replace'], { env })
   const config = () => readConfig(resolveConfigPath(env))

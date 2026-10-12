@@ -19,10 +19,10 @@ for (const profile of ['coding', 'personal']) {
     const dir = await realpath(await mkdtemp(join(tmpdir(), 'voice-settings-scope-')))
     t.after(() => rm(dir, { recursive: true, force: true }))
     const agentDir = await isolateAgentDirectory(t, dir)
-    const previousTargets = process.env.ODESK_TASK_TARGETS_FILE
-    delete process.env.ODESK_TASK_TARGETS_FILE
+    const previousTargets = process.env.ODK_TASK_TARGETS_FILE
+    delete process.env.ODK_TASK_TARGETS_FILE
     t.after(() => {
-      if (previousTargets !== undefined) process.env.ODESK_TASK_TARGETS_FILE = previousTargets
+      if (previousTargets !== undefined) process.env.ODK_TASK_TARGETS_FILE = previousTargets
     })
     const before = await operatorSettingsBytes(agentDir)
     let sdk
@@ -42,7 +42,7 @@ for (const profile of ['coding', 'personal']) {
     assert.deepEqual(sdk.session.getActiveToolNames().sort(), active)
     const callable = sdk.session.getCallableToolNames()
     const registered = sdk.session.getAllTools().map(tool => tool.name)
-    for (const name of profile === 'personal' ? ['memory_read', 'memory_update', 'skill_read'] : ['desk_data', 'coding_targets', 'coding_task_start']) {
+    for (const name of profile === 'personal' ? ['memory_read', 'memory_update', 'skill_read'] : ['odk_data', 'coding_targets', 'coding_task_start']) {
       assert.ok(registered.includes(name), name + ' must remain registered after the loader reloads')
       assert.ok(!callable.includes(name), name + ' requires a current Jev judgment before activation')
     }
@@ -71,9 +71,9 @@ for (const profile of ['coding', 'personal', 'hosted']) {
       })
       hosted.dispose()
     } else {
-      const previousTargets = process.env.ODESK_TASK_TARGETS_FILE
-      delete process.env.ODESK_TASK_TARGETS_FILE
-      t.after(() => { if (previousTargets !== undefined) process.env.ODESK_TASK_TARGETS_FILE = previousTargets })
+      const previousTargets = process.env.ODK_TASK_TARGETS_FILE
+      delete process.env.ODK_TASK_TARGETS_FILE
+      t.after(() => { if (previousTargets !== undefined) process.env.ODK_TASK_TARGETS_FILE = previousTargets })
       const voice = await createPersonalBot({
         stateDir: join(dir, 'state'), workspace: repository, capabilityPaths: [],
         personal: { profile, memoryFile: join(dir, 'MEMORY.json'), skillPaths: [] },

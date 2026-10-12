@@ -20,12 +20,12 @@ assert.ok(!surfaceVersion || ['1.0.0', '2.0.0', '3.0.0'].includes(surfaceVersion
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODESK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.weread').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.weread').join(',')
 const mode = process.env.ODK_WEREAD_BOOTSTRAP_MODE
 assert.ok(['live', 'empty', 'error', 'unconfigured'].includes(mode))
 const cacheFile = process.env.ODK_WEREAD_BOOTSTRAP_CACHE
 assert.ok(cacheFile && path.isAbsolute(cacheFile))
-assert.equal(path.dirname(cacheFile), path.dirname(process.env.OPEN_DESKOS_CONFIG_DIR))
+assert.equal(path.dirname(cacheFile), path.dirname(process.env.ODK_CONFIG_DIR))
 const cacheLoaded = fs.existsSync(cacheFile)
 const timestamp = 1700000000000
 let defaults = 0

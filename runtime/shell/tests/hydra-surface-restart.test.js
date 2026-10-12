@@ -15,7 +15,7 @@ const childTimeout = cm5 ? 160000 : 80000
 
 test('signed Hydra surface revisions preserve rendered consumers across separate processes', { timeout: 4 * childTimeout + 100000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-surface-revisions-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const pids = new Set()
   try {
@@ -31,7 +31,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
       ...JSON.parse(await fs.readFile(source.keyring)).publishers,
       ...JSON.parse(await fs.readFile(surface.keyring)).publishers,
     } }))
-    env.OPEN_DESKOS_NATIVE_KEYRING = policy
+    env.ODK_NATIVE_KEYRING = policy
     updateConfig(resolveConfigPath(env), config => ({ ...config, plugins: { ...config.plugins,
       [id]: { ...config.plugins[id], enabled: true }, 'odk.tile.clock': { enabled: false } } }))
     const config = () => readConfig(resolveConfigPath(env))

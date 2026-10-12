@@ -57,7 +57,7 @@ test('target configuration rejects duplicate IDs, unexpected keys and invalid ro
     { targets: [target, target] }, { targets: [{ ...target, id: 'other' }] },
     { targets: [{ ...target, roots: ['relative'] }] }, { targets: [{ ...target, host: '' }] },
     { targets: [{ ...target, command: 'bad' }] }, { targets: [target], extra: true },
-    { targets: [{ ...target, roots: ['/opt/open-deskos/current'] }] },
+    { targets: [{ ...target, roots: ['/opt/odk/current'] }] },
   ]) {
     await writeFile(path, JSON.stringify(config))
     await assert.rejects(loadTargets(path), /Invalid|Duplicate/)
@@ -145,7 +145,7 @@ test('a refused prompt reports the reason rather than an unknown outcome', async
 // this host's rules is what a Windows Shell Host did: it rewrote every separator and
 // prefixed a root, so every project it was asked to carry came back as invalid.
 test('a remote target carries a project its own host would resolve', () => {
-  for (const project of ['/Users/fradser/Developer/open-deskos', '/work/中文', '/srv/deep/path']) {
+  for (const project of ['/Users/fradser/Developer/odk', '/work/中文', '/srv/deep/path']) {
     assert.equal(carriedProject(project, true), true, `a remote project must travel: ${project}`)
   }
   // What the target host could not resolve is refused before the wire: a relative
@@ -207,7 +207,7 @@ test('remote target configuration rejects POSIX production roots on every desk h
   const dir = await mkdtemp(join(tmpdir(), 'task-remote-roots-'))
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const path = join(dir, 'targets.json')
-  for (const root of ['/opt/open-deskos', '/opt/open-deskos/current', '/opt/open-deskos/../open-deskos/current', '//opt/open-deskos/current']) {
+  for (const root of ['/opt/odk', '/opt/odk/current', '/opt/odk/../odk/current', '//opt/odk/current']) {
     await writeFile(path, JSON.stringify({ targets: [{ ...target, host: 'user@mac.local', roots: [root] }] }))
     await assert.rejects(loadTargets(path), /Invalid task target configuration/)
   }

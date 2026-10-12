@@ -2,7 +2,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { selectIndependentCoordinators } = require('./fixtures/service-coordinator-replacements')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { createPluginHost } = require('../src/plugin-host')
 const { createDeskRuntimePlugins, DESK_PORTS } = require('../src/plugins/desk-runtime')
 
@@ -10,7 +10,7 @@ function entry(id, value) { return { id, label: id, kind: 'service', read: async
 
 test('generic service readings reconcile without Futu-specific arguments', async () => {
   let entries = [entry('custom', 1)]
-  const data = createShellDeskData({ readings: [], serviceReadings: () => entries })
+  const data = createShellOdkData({ readings: [], serviceReadings: () => entries })
   assert.equal((await data.registry.read('custom')).reading.value.count, 1)
   entries = [entry('next', 2)]
   data.syncServices()
@@ -24,9 +24,9 @@ test('generic service readings reconcile without Futu-specific arguments', async
 test('a declared service reading port supports provider replacement and withdrawal', async () => {
   const port = 'odk:desk-service-readings/fixture/v1'
   let generation = 0
-  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.service-refresh', 'odk.system.user-apps', 'odk.transport.desk-data'], capabilities: {
+  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.service-refresh', 'odk.system.user-apps', 'odk.transport.data'], capabilities: {
     'desk.catalog': { create: () => ({ list: async () => [] }) },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   host.register({ manifest: { schemaVersion: 1, id: 'odk.service.fixture', name: 'Fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: port }] }, create() {
     const value = ++generation
@@ -50,9 +50,9 @@ test(`${independent ? 'independent' : 'default'} service refresh continues for a
   let value = 0
   let tick
   let reports = []
-  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.desk-data'], capabilities: {
+  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.data'], capabilities: {
     'desk.catalog': { create: () => ({ list: async () => [] }) },
-    'desk.data': { create: createShellDeskData, smokeMode: false },
+    'desk.data': { create: createShellOdkData, smokeMode: false },
     'desk.refresh': { setInterval: fn => { tick = fn; return { unref() {} } }, clearInterval() {}, report: error => reports.push(error) },
   } })
   host.register({ manifest: { schemaVersion: 1, id: 'odk.service.fixture', name: 'Fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: port }] }, create: () => ({ ports: {
@@ -77,9 +77,9 @@ test(`${independent ? 'independent' : 'default'} a refresh or diagnostic failure
   const good = 'odk:desk-service-readings/good/v1'
   const order = []
   let value = 0
-  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.desk-data'], capabilities: {
+  const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.data'], capabilities: {
     'desk.catalog': { create: () => ({ list: async () => [] }) },
-    'desk.data': { create: createShellDeskData },
+    'desk.data': { create: createShellOdkData },
     'desk.refresh': { setInterval: () => ({ unref() {} }), clearInterval() {}, report() { throw Error('diagnostic unavailable') } },
   } })
   for (const [name, port, provider] of [
@@ -103,9 +103,9 @@ test(`${independent ? 'independent' : 'default'} shutdown and provider disable d
     const gate = new Promise(resolve => { finishRefresh = resolve })
     let tick
     let timers = 0
-    const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.desk-data'], capabilities: {
+    const host = createPluginHost({ disabled: ['odk.service.futu', 'odk.system.user-apps', 'odk.transport.data'], capabilities: {
       'desk.catalog': { create: () => ({ list: async () => [] }) },
-      'desk.data': { create: createShellDeskData },
+      'desk.data': { create: createShellOdkData },
       'desk.refresh': { setInterval: fn => { tick = fn; timers++; return { unref() {} } }, clearInterval() { timers-- }, report() {} },
     } })
     host.register({ manifest: { schemaVersion: 1, id: 'odk.service.fixture', name: 'Fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: port }] }, create: () => ({

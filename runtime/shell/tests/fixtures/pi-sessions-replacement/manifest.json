@@ -10,6 +10,6 @@
     { "interface": "odk:source/pi-sessions/v1" },
     { "interface": "odk:desk-reading/pi-sessions/v1" }
   ],
-  "requires": [{ "interface": "odk:source/desk-link/v1" }],
+  "requires": [{ "interface": "odk:source/link/v1" }],
   "permissions": ["source.pi-sessions", "ipc"]
 }

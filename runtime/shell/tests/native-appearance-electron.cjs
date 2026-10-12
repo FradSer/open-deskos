@@ -67,11 +67,11 @@ app.whenReady().then(async () => {
   fs.writeFileSync(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: [manifest.id], hosts: [manifest.host],
   } } }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
-    LOCALAPPDATA: path.join(root, 'state'), XDG_RUNTIME_DIR: path.join(root, 'runtime'), OPEN_DESKOS_NATIVE_KEYRING: policy }
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODK_NATIVE_KEYRING: policy }
   fs.mkdirSync(env.XDG_RUNTIME_DIR, { mode: 0o700 })
   const run = require('node:util').promisify(require('node:child_process').execFile)
-  await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'native', 'install', source, '--trust', '--keyring', policy], {
+  await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'native', 'install', source, '--trust', '--keyring', policy], {
     env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
   })
   let entries = emptyStartup ? [] : await loadNativeAppearancePlugins(readConfig(resolveConfigPath(env)), { env, assets })
@@ -159,7 +159,7 @@ app.whenReady().then(async () => {
       fs.writeFileSync(policy, JSON.stringify({ schemaVersion: 1, publishers: {} }))
       const configBefore = fs.readFileSync(configPath, 'utf8')
       const policyBefore = fs.readFileSync(policy, 'utf8')
-      const result = await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'),
+      const result = await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
         'restore-default', manifest.id, '--runtime'], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
       const { id, v, ...receipt } = JSON.parse(result.stdout)
       assert.equal(v, 1)
@@ -174,7 +174,7 @@ app.whenReady().then(async () => {
       assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('odk.theme')"), 'pixel')
       assert.deepEqual(await measure(), selected)
       assert.equal(await win.webContents.executeJavaScript("window.odkTheme.catalog().find(plugin => plugin.manifest.id === 'odk.theme.pixel').manifest.version"), '1.0.0')
-      const command = args => run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), ...args],
+      const command = args => run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), ...args],
         { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
       await assert.rejects(command(['activate', manifest.id, '--runtime']))
       fs.writeFileSync(configPath, validConfig)

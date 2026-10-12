@@ -79,8 +79,8 @@ async function loadNativeSelections(config, { store, env = process.env, disabled
   }
   if (!store) {
     try {
-      if (!env.OPEN_DESKOS_NATIVE_KEYRING) throw Error('native startup requires explicit publisher policy')
-      const keyring = await readNativeKeyring(path.resolve(env.OPEN_DESKOS_NATIVE_KEYRING))
+      if (!env.ODK_NATIVE_KEYRING) throw Error('native startup requires explicit publisher policy')
+      const keyring = await readNativeKeyring(path.resolve(env.ODK_NATIVE_KEYRING))
       store = createNativePluginStore({ stateDir: path.join(resolveShellHost({ env }).stateDir, 'plugins', 'native'), keyring })
     } catch (error) {
       for (const [id] of selected) reject(id, error)

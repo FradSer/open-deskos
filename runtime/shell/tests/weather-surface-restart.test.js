@@ -14,7 +14,7 @@ const id = 'odk.tile.weather'
 
 test('signed independent Weather surface update rollback and removal preserve separate Electron consumers', { timeout: surfaceTimeouts().revisions }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weather-surface-revisions-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const pids = new Set()
   const cacheFile = path.join(root, 'weather-cache.json')
@@ -33,7 +33,7 @@ test('signed independent Weather surface update rollback and removal preserve se
       ...JSON.parse(await fs.readFile(native.keyring)).publishers }
     const policy = path.join(root, 'publishers.json')
     await fs.writeFile(policy, JSON.stringify({ schemaVersion: 1, publishers }))
-    env.OPEN_DESKOS_NATIVE_KEYRING = policy
+    env.ODK_NATIVE_KEYRING = policy
     env.ODK_WEATHER_SURFACE_KEYRING = policy
     updateConfig(resolveConfigPath(env), config => ({ ...config, plugins: { ...config.plugins,
       [id]: { ...config.plugins[id], enabled: true }, 'odk.tile.clock': { enabled: false } } }))

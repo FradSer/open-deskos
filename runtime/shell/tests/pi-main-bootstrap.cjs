@@ -11,7 +11,7 @@ const profile = process.env.ODK_PI_BOOTSTRAP_PROFILE
 assert.ok(profile && path.isAbsolute(profile), 'Pi bootstrap requires a private parent-owned profile')
 assert.ok(process.env.ODK_PI_MAIN_ROOT && path.isAbsolute(process.env.ODK_PI_MAIN_ROOT), 'Pi composition requires private parent-owned state')
 require('./helpers/app-manager-composition-isolation').isolateComposition(process.env.ODK_PI_MAIN_ROOT)
-process.env.ODESK_DESK_LINK_SOCKET = path.join(process.env.ODK_PI_MAIN_ROOT, 'link.sock')
+process.env.ODK_LINK_SOCKET = path.join(process.env.ODK_PI_MAIN_ROOT, 'link.sock')
 app.setPath('userData', profile)
 app.setPath('sessionData', profile)
 app.getAppPath = () => path.resolve(__dirname, '..')
@@ -23,7 +23,7 @@ const signed = version !== '1.0.0'
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODESK_DISABLED_PLUGINS += ',' + surfaces.filter(id => id !== 'odk.page.pi-sessions').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => id !== 'odk.page.pi-sessions').join(',')
 if (signed) {
   const loadFile = BrowserWindow.prototype.loadFile
   BrowserWindow.prototype.loadFile = async function (...args) {
@@ -176,7 +176,7 @@ app.on('browser-window-created', (_event, win) => {
         await js(`window.piOriginalDocument = document;
           window.piOriginalPage = document.querySelector('.page[data-page-id="pi-sessions"]');`)
         const saved = fs.readFileSync(configPath)
-        const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), ...args],
+        const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), ...args],
           { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 65536 })
         const change = async (action, kind, expectedVersion) => {
           stage = `${action}:${kind}`
@@ -249,7 +249,7 @@ app.on('will-quit', () => {
     assert.equal(handlers.has('odk-pi-session-events'), false)
     for (const channel of ['odk-app-manager-list', 'odk-app-manager-state', 'odk-app-manager-intent', 'odk-renderer-development-plugins']) assert.equal(handlers.has(channel), false)
     assert.equal(protocol.isProtocolHandled('odk-native-plugin'), false)
-    for (const name of ['desk-link', 'pi-sessions', 'pi-events']) {
+    for (const name of ['odk-link', 'pi-sessions', 'pi-events']) {
       assert.equal(host.list().find(record => record.manifest.id === `odk.source.${name}`).state, 'stopped')
     }
     clearTimeout(deadline)

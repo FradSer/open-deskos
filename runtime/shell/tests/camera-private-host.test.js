@@ -29,13 +29,13 @@ test('Camera private host preserves native Windows facts and isolates every endp
     assert.notEqual(selected.endpoint(name), original.endpoint(name))
   }
   assert.equal(selected.endpoint('unknown-channel'), null)
-  assert.equal(selected.deskDataEndpoint, selected.endpoint('desk-data'))
-  for (const name of ['platform', 'arch', 'id', 'supported', 'stateDir', 'localChannelTokenFile', 'provisionsUserAppControl', 'provisionsDeskData']) {
+  assert.equal(selected.odkDataEndpoint, selected.endpoint('odk-data'))
+  for (const name of ['platform', 'arch', 'id', 'supported', 'stateDir', 'localChannelTokenFile', 'provisionsUserAppControl', 'provisionsOdkData']) {
     assert.equal(selected[name], original[name], name)
   }
 })
 
-for (const value of [undefined, '', '\\\\.\\pipe\\open-deskos-', prefix + 'extra', '/tmp/camera']) {
+for (const value of [undefined, '', '\\\\.\\pipe\\odk-', prefix + 'extra', '/tmp/camera']) {
   test(`Camera Windows fixture refuses invalid isolation prefix ${JSON.stringify(value)}`, () => {
     assert.throws(() => load('win32', value), /private Camera pipe prefix/)
   })

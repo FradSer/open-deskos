@@ -42,8 +42,8 @@ async function install(root, env, { signal } = {}) {
   fs.writeFileSync(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [id], hosts: ['electron-main'],
   } } }))
-  env.OPEN_DESKOS_NATIVE_KEYRING = keyring
-  const command = args => run(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'native', ...args],
+  env.ODK_NATIVE_KEYRING = keyring
+  const command = args => run(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'native', ...args],
     { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal, timeout: 10000 })
   const receipt = JSON.parse((await command(['install', directory, '--keyring', keyring, '--trust', '--grant', 'source.weread', '--grant', 'ipc'])).stdout)
   assert.equal(receipt.effect, 'selection-only')

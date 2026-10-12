@@ -14,19 +14,19 @@ for (const mode of ['development', 'native']) {
     const fixture = path.join(__dirname, 'calendar-surface-electron.cjs')
     await fs.access(fixture)
     const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-calendar-surface-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(profile, 'config'),
       XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state'),
       ODK_CALENDAR_SURFACE_PROFILE: profile, ODK_CALENDAR_SURFACE_NATIVE: mode === 'native' ? '1' : '0' }
     delete env.ELECTRON_RUN_AS_NODE
     try {
-      const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+      const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
       const keys = crypto.generateKeyPairSync('ed25519')
       const keyring = path.join(profile, 'publishers.json')
       await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { calendar: {
         publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }),
         identities: specs.map(spec => spec.id), hosts: ['electron-renderer'],
       } } }))
-      env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+      env.ODK_NATIVE_KEYRING = keyring
       for (const spec of specs) {
         const directory = path.join(profile, spec.file)
         await fs.cp(path.join(__dirname, `fixtures/${spec.file}-surface-replacement`), directory, { recursive: true })

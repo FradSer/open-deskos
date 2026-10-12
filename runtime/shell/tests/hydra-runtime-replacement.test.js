@@ -9,7 +9,7 @@ const { EventEmitter } = require('node:events')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createHydraSource } = require('../src/hydra-mqtt')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { healthPort } = require('../src/plugins/health')
@@ -24,7 +24,7 @@ const deferred = () => {
 
 test('runtime Host replaces signed Hydra factories only after old MQTT ownership releases', { timeout: 30000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-runtime-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const clients = []
   const handlers = new Map()
@@ -74,12 +74,12 @@ test('runtime Host replaces signed Hydra factories only after old MQTT ownership
         defaults++
         return createHydraSource({ ...configuration, connectImpl: connect })
       } },
-      'desk.data': { create: createShellDeskData, smokeMode: true },
+      'desk.data': { create: createShellOdkData, smokeMode: true },
     } })
     const plugins = createMainPlugins({ replacementPlugins: [signed] })
-    plugins.filter(plugin => [id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+    plugins.filter(plugin => [id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
     await host.start()
-    const originalDeskData = host.get(DESK_PORTS.data)
+    const originalOdkData = host.get(DESK_PORTS.data)
     publish(clients[0])
     const baseline = await consumers()
     assert.equal(baseline.ipc.env.tempC, 24.5)
@@ -100,7 +100,7 @@ test('runtime Host replaces signed Hydra factories only after old MQTT ownership
     await replacement
     assert.equal(clients.length, 2)
     assert.equal(host.get(DATA_PORTS.hydra).fixtureRevision, '3.0.0')
-    assert.notEqual(host.get(DESK_PORTS.data), originalDeskData)
+    assert.notEqual(host.get(DESK_PORTS.data), originalOdkData)
     publish(clients[1])
     assert.deepEqual(await consumers(), baseline)
     await native.command(['remove', id])

@@ -152,8 +152,8 @@ Each connection carries one request and one correlated result.
 Requests, clients, and response sizes have explicit limits.
 Startup preserves active listeners and unrelated files while recovering a verified stale owned socket.
 The Shell CLI can select this endpoint through the authenticated runtime inventory.
-On Unix, an absolute `XDG_RUNTIME_DIR` selects `open-deskos-futu/control.sock` inside that directory.
-`ODESK_FUTU_CONTROL` selects an explicit Unix management path.
+On Unix, an absolute `XDG_RUNTIME_DIR` selects `odk-futu/control.sock` inside that directory.
+`ODK_FUTU_CONTROL` selects an explicit Unix management path.
 An empty value disables automatic management selection.
 The operational command starts the independent protected `odk.futu.control` plugin before feature components.
 Provider startup failures retain a successfully started control plugin for recovery.
@@ -170,8 +170,8 @@ An error or wait from a retired activation cannot affect its replacement.
 No management endpoint keeps the previous single-run behavior.
 Blocking SDK calls remain synchronous and cannot process commands until they return.
 External loops must use the declared wait capability and cancellation signal for cooperative management.
-Windows selects `\\.\pipe\open-deskos-futu-plugin-control` and requires the shared channel token.
-`ODK_CHANNEL_TOKEN_FILE` overrides `%LOCALAPPDATA%\open-deskos\local-channel.token`.
+Windows selects `\\.\pipe\odk-futu-plugin-control` and requires the shared channel token.
+`ODK_CHANNEL_TOKEN_FILE` overrides `%LOCALAPPDATA%\odk\local-channel.token`.
 The backend uses CPython's [overlapped I/O wrapper](https://github.com/python/cpython/blob/v3.13.10/Modules/_winapi.c).
 It processes native completions on the resource owner thread without a lifecycle worker thread.
 Pending cancellation retains operations and buffers until explicit cleanup retry succeeds.
@@ -231,7 +231,7 @@ A missing file supplies the default selection.
 A malformed selected file prevents startup before any provider executes.
 
 Pass `--plugin-config <file>` when starting the poller to read the saved selection.
-Alternatively, set `ODESK_FUTU_PLUGIN_CONFIG` in the poller's operational environment.
+Alternatively, set `ODK_FUTU_PLUGIN_CONFIG` in the poller's operational environment.
 Explicit CLI paths take priority over that environment setting.
 Inspection reads plugin preference settings without reading provider configuration.
 Invocation disables add to saved disables; they cannot silently enable a saved disabled component.
@@ -279,8 +279,8 @@ Filesystem ownership authenticates Unix sockets; they need no token handshake.
 
 | Endpoint | Example | Token |
 | --- | --- | --- |
-| Unix socket path | `/run/user/1000/open-deskos/futu-poller.sock` | no |
-| Windows named pipe | `\\.\pipe\open-deskos-futu-poller` | yes |
+| Unix socket path | `/run/user/1000/odk/futu-poller.sock` | no |
+| Windows named pipe | `\\.\pipe\odk-futu-poller` | yes |
 | TCP address | `tcp://100.82.50.70:8790` | yes |
 
 For a pipe or `tcp://` endpoint, send the exact shared handshake as the first line:
@@ -312,66 +312,66 @@ uv pip install --python ~/.venv/futu/bin/python -r requirements.txt
 
 # 2. gateway RSA key (client copy; treat as a secret, mode 0600).
 #    Source: frad-nas:/mnt/user/appdata/futuopend/config/rsa_private.pem
-install -m 600 rsa_private.pem ~/.config/open-deskos/futu-rsa.pem
+install -m 600 rsa_private.pem ~/.config/odk/futu-rsa.pem
 
 # 3. configuration (mode 0600; values never enter the package)
-cat > ~/.config/open-deskos/futu-poller.env <<'EOF'
+cat > ~/.config/odk/futu-poller.env <<'EOF'
 FUTU_HOST=10.10.0.195
 FUTU_PORT=11111
-FUTU_RSA_FILE=$HOME/.config/open-deskos/futu-rsa.pem
+FUTU_RSA_FILE=$HOME/.config/odk/futu-rsa.pem
 FUTU_TRADE_PWD=<trade-unlock-password>
 FUTU_INTERVAL=60
 SERVICE_ID=futu-poller
 EOF
-chmod 600 ~/.config/open-deskos/futu-poller.env
+chmod 600 ~/.config/odk/futu-poller.env
 
 # 4. the desks to feed. `name` is optional and only labels the target in logs.
-cat > ~/.config/open-deskos/futu-targets.json <<'EOF'
+cat > ~/.config/odk/futu-targets.json <<'EOF'
 {"targets":[
-  {"name":"local","endpoint":"/run/user/1000/open-deskos/futu-poller.sock"},
+  {"name":"local","endpoint":"/run/user/1000/odk/futu-poller.sock"},
   {"name":"handheld","endpoint":"tcp://100.82.50.70:8790",
-   "tokenFile":"/home/orangepi/.config/open-deskos/handheld-channel.token"}
+   "tokenFile":"/home/orangepi/.config/odk/handheld-channel.token"}
 ]}
 EOF
-chmod 600 ~/.config/open-deskos/futu-targets.json
+chmod 600 ~/.config/odk/futu-targets.json
 ```
 
-`ODESK_FUTU_TARGETS_FILE` overrides the targets file location (default `~/.config/open-deskos/futu-targets.json`).
-Without a targets file, `ODESK_FUTU_SOCKET` selects the single Unix socket.
+`ODK_FUTU_TARGETS_FILE` overrides the targets file location (default `~/.config/odk/futu-targets.json`).
+Without a targets file, `ODK_FUTU_SOCKET` selects the single Unix socket.
 It needs no token handshake.
 
 Declare the shared socket once in `runtime.env`:
 
 ```sh
-printf 'ODESK_FUTU_SOCKET=%s/open-deskos/futu-poller.sock\n' "$XDG_RUNTIME_DIR" >> ~/.config/open-deskos/runtime.env
-chmod 600 ~/.config/open-deskos/runtime.env
+printf 'ODK_FUTU_SOCKET=%s/odk/futu-poller.sock\n' "$XDG_RUNTIME_DIR" >> ~/.config/odk/runtime.env
+chmod 600 ~/.config/odk/runtime.env
 ```
 
 Without `FUTU_TRADE_PWD` the poller reports `auth-required` to every desk and the tile honestly shows "trade unlock needed".
 
 ## systemd user unit
 
-`open-deskos-futu-poller.service` is the resident unit.
+`odk-futu-poller.service` is the resident unit.
 It runs the venv python against `poller.py`, loads `futu-poller.env` and `runtime.env`, and restarts always with `RestartSec=5`.
-The unit is a template: the installer substitutes `__OPEN_DESKOS_FUTU_POLLER_DIR__` with the installed integration path, the same pattern the other integration units use.
+The unit is a template: the installer substitutes `__ODK_FUTU_POLLER_DIR__` with the installed integration path, the same pattern the other integration units use.
 A manual install is:
 
 ```sh
 mkdir -p ~/.config/systemd/user
-sed "s|__OPEN_DESKOS_FUTU_POLLER_DIR__|$PWD|g" \
-  integrations/futu-poller/open-deskos-futu-poller.service \
-  > ~/.config/systemd/user/open-deskos-futu-poller.service
+sed "s|__ODK_FUTU_POLLER_DIR__|$PWD|g" \
+  integrations/futu-poller/odk-futu-poller.service \
+  > ~/.config/systemd/user/odk-futu-poller.service
 systemctl --user daemon-reload
-systemctl --user enable --now open-deskos-futu-poller.service
-journalctl --user -u open-deskos-futu-poller.service -f
+systemctl --user enable --now odk-futu-poller.service
+journalctl --user -u odk-futu-poller.service -f
 ```
 
 ## Shell side (tracer bootstrap)
 
-`ODESK_FUTU_SOCKET` is absolute under `$XDG_RUNTIME_DIR/open-deskos/` and currently registers the service.
+`ODK_FUTU_SOCKET` is absolute under `$XDG_RUNTIME_DIR/odk/` and currently registers the service.
 Holdings (`odk.tile.futu`) renders live positions or truthful unavailable state.
 
-Set `ODESK_FUTU_SERVICE_REVISION` once in `runtime.env`.
+Set `ODK_FUTU_SERVICE_REVISION` once in `runtime.env`.
 The poller handshake and Shell expectation share that revision instead of separate `dev` values.
 
 ## Tests
@@ -412,6 +412,6 @@ An ambiguous service connection cannot supply a diagnosis result.
 A failed desk connection does not stop other desk connections.
 
 Main exposes these reports through `odk:plugin-runtime/python-agent/futu-poller/v1`.
-`open-deskos plugin diagnose` includes this runtime.
-`open-deskos plugin diagnose odk.futu.publisher` selects its publisher state.
+`odk plugin diagnose` includes this runtime.
+`odk plugin diagnose odk.futu.publisher` selects its publisher state.
 Unavailable or incompatible injected sources report unavailable without changing holdings interfaces.

@@ -1,6 +1,6 @@
 'use strict'
 
-const { listenDeskData } = require('./desk-data-control')
+const { listenOdkData } = require('./odk-data-control')
 const { requestLocalControl } = require('./local-control-client')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { healthPort } = require('./plugins/health')
@@ -96,7 +96,7 @@ function createDiagnosticsPlugin({ healthPorts = [], runtimePorts = [] } = {}) {
       return { async start() {
         if (ctx.signal.aborted) return
         if (config.smokeMode || !config.endpoint) throw Error('plugin diagnosis channel unavailable')
-        server = await listenDeskData({ ...config, requestTimeoutMs: 2000, control: { async dispatch(request) {
+        server = await listenOdkData({ ...config, requestTimeoutMs: 2000, control: { async dispatch(request) {
           if (request.command !== 'diagnose') return { ok: false, error: 'invalid-command' }
           const plugins = config.snapshot()
           if (request.pluginId !== undefined && typeof request.pluginId !== 'string') return { ok: false, error: 'unknown-plugin' }

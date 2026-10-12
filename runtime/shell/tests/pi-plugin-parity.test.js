@@ -12,7 +12,7 @@ const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createPiSessionsSource, createConfiguredPiSessionReader } = require('../src/pi-sessions-source')
 const { createPiSessionEventsSource } = require('../src/pi-session-events-source')
 const { readSessionEvents } = require('../src/pi-sessions')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
 const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
@@ -22,7 +22,7 @@ const vm = require('node:vm')
 const { EventEmitter } = require('node:events')
 const { install: installSignedEvents } = require('./helpers/pi-events-selection')
 const { loadNativePlugins } = require('../src/native-plugin-loader')
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const ids = ['odk.source.pi-sessions', 'odk.source.pi-events']
 const directories = ids.map(id => path.join(__dirname, 'fixtures', id.replace('odk.source.', '') + '-replacement'))
 const session = { sessionId: 'fixture', uuid: 'fixture', status: 'running', isAlive: true, pid: 1,
@@ -47,13 +47,13 @@ for (const preAborted of [false, true]) test(`Pi Events replacement constructs w
   })
   const handlers = new Map()
   const cleanups = []
-  const reported = { ok: false, reason: 'desk-link-unavailable' }
+  const reported = { ok: false, reason: 'odk-link-unavailable' }
   const local = { ok: true, events: [{ kind: 'assistant', text: 'Fixture local event' }] }
   const controller = new AbortController()
   if (preAborted) controller.abort()
   let reportedReads = 0
   const instance = exported.create({ signal: controller.signal,
-    get(name) { assert.equal(name, DATA_PORTS.deskLink); return { sessionEvents: async () => { reportedReads++; return reported } } },
+    get(name) { assert.equal(name, DATA_PORTS.odkLink); return { sessionEvents: async () => { reportedReads++; return reported } } },
     capability(name) {
       if (name === 'source.pi-events') return { create() { throw Error('Default source construction refused') }, readLocal: async () => local }
       assert.equal(name, 'ipc')
@@ -107,7 +107,7 @@ test('Main supplies configured session inspection alongside the existing constru
 async function fixture(t, replacement, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-parity-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const env = options.env || { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = options.env || { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   let native
   if (replacement === 'signed' || replacement === 'signed-pi') native = await installSignedEvents(root, env, { sessions: replacement === 'signed-pi' })
@@ -131,7 +131,7 @@ async function fixture(t, replacement, options = {}) {
   let localScans = 0
   const localEvents = []
   const link = { machines: async () => [], hostedSessions: async () => ({ ok: false, sessions: [] }),
-    snapshot: async () => snapshot(), sessionEvents: async () => ({ ok: false, reason: 'desk-link-unavailable' }),
+    snapshot: async () => snapshot(), sessionEvents: async () => ({ ok: false, reason: 'odk-link-unavailable' }),
     ...options.link }
   const handlers = new Map()
   const readLocal = request => {
@@ -140,7 +140,7 @@ async function fixture(t, replacement, options = {}) {
   }
   const host = createPluginHost({ capabilities: {
     ipc: { handle(name, handler) { assert.equal(handlers.has(name), false); handlers.set(name, handler) }, removeHandler: name => handlers.delete(name) },
-    'source.desk-link': { create: () => link },
+    'source.odk-link': { create: () => link },
     'source.pi-sessions': { configured: () => createConfiguredPiSessionReader({ env: options.sessionEnv || {}, execute: options.execute,
       scanLocal: () => { localScans++; return options.scanLocal ? options.scanLocal() : snapshot() } }),
       create: config => {
@@ -153,10 +153,10 @@ async function fixture(t, replacement, options = {}) {
       assert.equal(replacementIds.has(ids[1]), false, 'independent Pi Events must not use the default source constructor')
       return createPiSessionEventsSource({ ...config, readLocal })
     } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   t.after(() => host.stop())
-  createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [...ids, 'odk.source.desk-link', 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  createMainPlugins({ replacementPlugins: replacements }).filter(plugin => [...ids, 'odk.source.odk-link', 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   for (const id of ids) {
     const record = host.list().find(item => item.manifest.id === id)
@@ -244,7 +244,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal((await pending).error, 'Pi source stopped.')
     await Promise.all([disable, enable])
     assert.notEqual(f.host.get(DATA_PORTS.piSessions), old)
-    assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+    assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
     assert.equal(child.listenerCount('close'), 0)
   })
 
@@ -265,7 +265,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal(f.localScans(), 0)
     gate.resolve({ ok: false, sessions: [] })
     await disable
-    assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+    assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
     assert.equal((await f.events({ sessionId: 'fixture' })).ok, true)
   })
 
@@ -348,7 +348,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.deepEqual(await f.events({ cwd, sessionId }), { ok: false, reason: 'reported-session-ended' })
     assert.equal(f.localEvents.length, 1)
     fs.rmSync(file)
-    f.link.sessionEvents = async () => ({ ok: false, reason: 'desk-link-unavailable' })
+    f.link.sessionEvents = async () => ({ ok: false, reason: 'odk-link-unavailable' })
     assert.deepEqual(await f.events({ cwd, sessionId }), { ok: false, reason: 'session-log-missing' })
   })
   test(`${name} drain local event fallback and suppress its late rejection`, async t => {
@@ -372,7 +372,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.deepEqual(await pending, { ok: false, reason: 'pi-source-stopped' })
     await Promise.all([disable, enable])
     assert.notEqual(f.host.get(DATA_PORTS.piEvents), previous)
-    assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+    assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
   })
 
   test(`${name} preserve local event rejection while active`, async t => {
@@ -401,7 +401,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal(f.localEvents.length, 0)
     assert.equal(f.handlers.has('odk-pi-session-events'), false)
   })
-  test(`${name} preserve local snapshots and Desk Data projection`, async t => {
+  test(`${name} preserve local snapshots and Open DeskOS Data projection`, async t => {
     const f = await fixture(t, replacement)
     assert.deepEqual(await f.scan(), { ...snapshot(), source: { kind: 'local', label: 'Local' } })
     const reading = (await f.reading()).reading
@@ -413,7 +413,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
       state: 'running', goal: 'Keep behavior', activity: null, updatedAt: '2026-10-08T00:00:00.000Z' })
     await f.host.setEnabled(ids[0], false)
     assert.equal(f.host.get(DATA_PORTS.piSessions), null)
-    assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+    assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
     assert.equal(f.host.get(DESK_PORTS.data).registry.has('odk.app.pi-sessions'), false)
     assert.equal((await f.events({ sessionId: 'fixture' })).ok, true)
     await f.host.setEnabled(ids[0], true)
@@ -442,7 +442,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     } } })
     assert.deepEqual(await f.events({ cwd: '/fixture', sessionId: 'fixture', hostedPi: true }), response)
     assert.deepEqual(requests, [['fixture', true]])
-    for (const reason of ['session-log-missing', 'desk-link-unconfigured', 'desk-link-unavailable']) {
+    for (const reason of ['session-log-missing', 'odk-link-unconfigured', 'odk-link-unavailable']) {
       response = { ok: false, reason }
       assert.deepEqual(await f.events({ cwd: '/fixture', sessionId: 'fixture', hostedPi: false }), { ok: true, events: [{ kind: 'result', text: 'Local' }] })
     }
@@ -453,7 +453,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal(f.localEvents.length, 3)
     await f.host.setEnabled(ids[1], false)
     assert.equal(f.handlers.has('odk-pi-session-events'), false)
-    assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+    assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
     assert.equal((await f.scan()).ok, true)
   })
 
@@ -486,7 +486,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
       assert.equal(active.aborted, true)
       await new Promise(setImmediate)
       assert.equal(restarted, false)
-      assert.equal(f.host.get(DATA_PORTS.deskLink), f.link)
+      assert.equal(f.host.get(DATA_PORTS.odkLink), f.link)
     } finally { gate.resolve(index === 0 ? ['fixture'] : { ok: true, events: [] }) }
     assert.equal((await pending).ok, false)
     await Promise.all([disable, enable])

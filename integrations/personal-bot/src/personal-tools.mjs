@@ -1,6 +1,6 @@
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { createDeskDataTool } from './desk-data.mjs';
+import { createOdkDataTool } from './odk-data.mjs';
 import { readLocalFile } from './personal-config.mjs';
 import { MEMORY_INSTRUCTIONS } from './memory.mjs';
 
@@ -19,7 +19,7 @@ export function createPersonalTools({ memory, skillPaths }) {
     return `${index}: ${name} — ${description}`;
   }).join('\n');
   return [
-    createDeskDataTool(),
+    createOdkDataTool(),
     defineTool({
       name: 'memory_read', label: 'Read private memory',
       exposure: 'codemode', executionMode: 'sequential',

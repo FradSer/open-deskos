@@ -59,7 +59,7 @@ function prepareQuotaMainView(BrowserWindow, mode) {
         measuring(false)
         await js(`window.quotaMainAllowDefault=${phase === 'restored'}`)
         const action = phase === 'restored' ? 'restore-default' : 'activate'
-        const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), action, 'odk.page.quota', '--runtime'],
+        const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), action, 'odk.page.quota', '--runtime'],
           { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 65536 })).stdout)
         assert.equal(receipt.version, phase === 'restored' ? '1.0.0' : '2.0.0')
         assert.equal(receipt.state, 'running')

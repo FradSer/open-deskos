@@ -14,7 +14,7 @@ function createNativeRuntimeActivator({ host, env = process.env, configPath = re
       const current = host.list().find(plugin => plugin.manifest.id === id)
       const states = restoreDefault && !completed ? ['running', 'failed', 'cleanup-failed', 'cleanup-blocked', 'blocked'] : ['running']
       if (!current || current.manifest.host !== 'electron-main' || !current.enabled || !states.includes(current.state)
-        || (env.ODESK_DISABLED_PLUGINS || '').split(/[\s,]+/).includes(id)) throw Error('native activation requires a running Main plugin')
+        || (env.ODK_DISABLED_PLUGINS || '').split(/[\s,]+/).includes(id)) throw Error('native activation requires a running Main plugin')
     }
     const result = pending.then(async () => {
       requireAvailable()

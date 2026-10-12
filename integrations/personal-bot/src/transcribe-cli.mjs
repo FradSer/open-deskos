@@ -28,7 +28,7 @@ import { transcribe, transcriptionProvider, transcriptionLanguage, transcription
  * @returns {{ path: string, config: import('./transcribe.mjs').TranscriptionConfig }}
  */
 export function transcriptionRequest(argv = [], env = process.env) {
-  let url = env.ODESK_PERSONAL_BOT_STT_URL
+  let url = env.ODK_PERSONAL_BOT_STT_URL
   const files = []
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -43,17 +43,17 @@ export function transcriptionRequest(argv = [], env = process.env) {
     files.push(argument)
   }
   if (files.length !== 1) throw Error('Exactly one audio file is required')
-  if (!url) throw Error('Set ODESK_PERSONAL_BOT_STT_URL or pass --url with the endpoint')
-  const provider = transcriptionProvider(env.ODESK_PERSONAL_BOT_STT_PROVIDER)
+  if (!url) throw Error('Set ODK_PERSONAL_BOT_STT_URL or pass --url with the endpoint')
+  const provider = transcriptionProvider(env.ODK_PERSONAL_BOT_STT_PROVIDER)
   return {
     path: files[0],
     config: {
       url,
       provider,
-      model: env.ODESK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
-      keyFile: env.ODESK_PERSONAL_BOT_STT_KEY_FILE,
-      language: transcriptionLanguage(env.ODESK_PERSONAL_BOT_STT_LANGUAGE),
-      prompt: transcriptionPrompt(env.ODESK_PERSONAL_BOT_STT_PROMPT),
+      model: env.ODK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
+      keyFile: env.ODK_PERSONAL_BOT_STT_KEY_FILE,
+      language: transcriptionLanguage(env.ODK_PERSONAL_BOT_STT_LANGUAGE),
+      prompt: transcriptionPrompt(env.ODK_PERSONAL_BOT_STT_PROMPT),
     },
   }
 }

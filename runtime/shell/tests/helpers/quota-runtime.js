@@ -7,7 +7,7 @@ const crypto = require('node:crypto')
 const run = require('node:util').promisify(require('node:child_process').execFile)
 const { createPluginHost } = require('../../src/plugin-host')
 const { createMainPlugins } = require('../../src/plugins/main-composition')
-const { createShellDeskData } = require('../../src/desk-data')
+const { createShellOdkData } = require('../../src/odk-data')
 const { DESK_PORTS } = require('../../src/plugins/desk-runtime')
 const { loadDevelopmentPlugins } = require('../../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../../src/plugin-config')
@@ -16,13 +16,13 @@ const { createNativePluginStore } = require('../../src/native-plugin-store')
 const { readNativeKeyring } = require('../../src/native-plugin-policy')
 const { resolveShellHost } = require('../../src/platform')
 const directory = path.join(__dirname, '../fixtures/quota-replacement')
-const cli = path.join(__dirname, '../../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../../scripts/odk-plugin-cli.js')
 const id = 'odk.source.quota'
 const channel = 'odk-opencode-go-status'
 
 async function fixture(t, replacement, read, { mutateCaptured = true, ipc } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-qparity-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   let replacements = []
@@ -48,7 +48,7 @@ async function fixture(t, replacement, read, { mutateCaptured = true, ipc } = {}
     fs.writeFileSync(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
       publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [id], hosts: ['electron-main'],
     } } }))
-    env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+    env.ODK_NATIVE_KEYRING = keyring
     const authorization = ['--keyring', keyring, '--trust', '--grant', 'source.quota', '--grant', 'ipc']
     const command = args => run(process.execPath, [cli, 'native', ...args], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
     const installed = JSON.parse((await command(['install', bundle, ...authorization])).stdout)
@@ -73,9 +73,9 @@ async function fixture(t, replacement, read, { mutateCaptured = true, ipc } = {}
     host = createPluginHost({ capabilities: {
       ipc: { handle(name, handler) { assert.equal(handlers.has(name), false); ipc?.handle(name, handler); handlers.set(name, handler) }, removeHandler(name) { ipc?.removeHandler(name); handlers.delete(name) } },
       'source.quota': { read },
-      'desk.data': { create: createShellDeskData, smokeMode: true },
+      'desk.data': { create: createShellOdkData, smokeMode: true },
     } })
-    createMainPlugins({ replacementPlugins: selected }).filter(plugin => [id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+    createMainPlugins({ replacementPlugins: selected }).filter(plugin => [id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
     await host.start()
   }
   t.after(() => host.stop())

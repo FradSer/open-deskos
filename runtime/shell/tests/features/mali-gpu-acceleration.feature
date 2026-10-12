@@ -26,15 +26,15 @@ Feature: Mali GPU acceleration for the CM5 shell
     Then no ANGLE backend is pinned
 
   Scenario: Operators can force a backend explicitly
-    Given the operator sets ODESK_GPU_BACKEND to mali
+    Given the operator sets ODK_GPU_BACKEND to mali
     When no libmali userspace blob is installed
     Then ANGLE is pinned to the gles-egl backend
-    Given the operator sets ODESK_GPU_BACKEND to default
+    Given the operator sets ODK_GPU_BACKEND to default
     When the libmali userspace blob is installed
     Then no ANGLE backend is pinned
 
   Scenario: Software fallback still wins over the Mali backend
-    Given ODESK_DISABLE_GPU is set to 1
+    Given ODK_DISABLE_GPU is set to 1
     When the libmali userspace blob is installed
     Then Chromium is started with the disable-gpu switch only
     And no ANGLE backend is pinned

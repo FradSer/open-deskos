@@ -57,7 +57,7 @@ export function loadPersonalBotPluginConfig(base = import.meta.url) {
 export function loadPersonalBotManagementModules(base = import.meta.url) {
   return {
     ...loadShellModule('plugin-control.js', base),
-    ...loadShellModule('desk-data-control.js', base),
+    ...loadShellModule('odk-data-control.js', base),
     ...loadShellModule('platform/index.js', base),
   }
 }
@@ -120,8 +120,8 @@ export function createPersonalBotComposition({ createService, openChannel, initi
       return { async start() {
         if (context.signal.aborted) return
         const { createPluginControl } = loadShellModule('plugin-control.js', import.meta.url)
-        const { listenDeskData } = loadShellModule('desk-data-control.js', import.meta.url)
-        server = await listenDeskData({ ...control, requestTimeoutMs: 30000, control: createPluginControl({
+        const { listenOdkData } = loadShellModule('odk-data-control.js', import.meta.url)
+        server = await listenOdkData({ ...control, requestTimeoutMs: 30000, control: createPluginControl({
           scope: 'personal-agent', signal: context.signal, protectedIds: ['odk.personal-bot.control'],
           snapshot: () => host.list(), setEnabled,
         }) })

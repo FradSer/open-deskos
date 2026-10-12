@@ -47,7 +47,7 @@ app.whenReady().then(async () => {
   const unavailableLinkedCss = process.argv.includes('--unavailable-linked-css')
   const rejectedLinkedEntry = failedLinkedEntry || unavailableLinkedCss || corruptNativeEntry
   const linkedMode = process.argv.includes('--linked-development') || rejectedLinkedEntry || nativeMode
-  const developmentEnv = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const developmentEnv = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config') }
   const controlEnv = { ...developmentEnv, XDG_RUNTIME_DIR: path.join(root, 'runtime'), XDG_STATE_HOME: path.join(root, 'state-home') }
   fs.mkdirSync(controlEnv.XDG_RUNTIME_DIR, { mode: 0o700 })
   const controlHost = require('../src/platform').resolveShellHost({ env: controlEnv })
@@ -58,7 +58,7 @@ app.whenReady().then(async () => {
       host: 'electron-renderer', kind: 'surface', provides: [{ interface: 'odk:theme/pixel/v1' }], requires: [], permissions: [],
       appearance: { theme: 'pixel', name: 'Selected Pixel', css: 'themes/pixel.css', faces: ['zpix'], extra: 'image-rendering:pixelated;', tokens: { '--odk-primary': '#fafafa' } } }))
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', folder, '--trust', '--replace'], {
+    await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', folder, '--trust', '--replace'], {
       env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
   }
@@ -114,8 +114,8 @@ app.whenReady().then(async () => {
       fs.writeFileSync(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
         publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: ['odk.tile.clock'], hosts: ['electron-renderer'],
       } } }))
-      controlEnv.OPEN_DESKOS_NATIVE_KEYRING = policy
-      await execFile(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'native', 'install', folder, '--trust', '--keyring', policy], {
+      controlEnv.ODK_NATIVE_KEYRING = policy
+      await execFile(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'native', 'install', folder, '--trust', '--keyring', policy], {
         env: { ...controlEnv, ELECTRON_RUN_AS_NODE: '1' },
       })
       const config = readConfig(resolveConfigPath(controlEnv))
@@ -127,7 +127,7 @@ app.whenReady().then(async () => {
       fs.writeFileSync(path.join(stored, 'clock.css'), 'body { display:none }')
       fs.writeFileSync(path.join(stored, 'assets', 'extra.css'), 'body { display:none }')
     } else {
-      await execFile(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', folder, '--trust', '--replace'], {
+      await execFile(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', folder, '--trust', '--replace'], {
         env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
       })
     }
@@ -240,7 +240,7 @@ app.whenReady().then(async () => {
     process.env.ODK_DIAGNOSIS_EXPECTED_VERSION, 'selected Renderer diagnosis is missing')
   if (disabledAppearance) {
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'disable', 'odk.theme.pixel'], {
+    await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'disable', 'odk.theme.pixel'], {
       env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
   }
@@ -310,7 +310,7 @@ app.whenReady().then(async () => {
       { radius: '0px', font: '"Zpix", monospace' })
     protocol.unhandle('odk-user-app')
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'remove', 'odk.theme.pixel'], {
+    await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'remove', 'odk.theme.pixel'], {
       env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
     assert.equal(loadAppearanceReplacements(readConfig(resolveConfigPath(developmentEnv))).length, 0)
@@ -324,7 +324,7 @@ app.whenReady().then(async () => {
     assert.deepEqual(await win.webContents.executeJavaScript(`({ theme: window.odkTheme.get(), saved: localStorage.getItem('odk.theme') })`),
       { theme: 'instrument', saved: 'pixel' })
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'enable', 'odk.theme.pixel'], {
+    await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'enable', 'odk.theme.pixel'], {
       env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
     const enabled = ['odk.tile.camera', ...resolveStartupDisabled(developmentEnv)]
@@ -356,7 +356,7 @@ app.whenReady().then(async () => {
       return JSON.stringify(window.odkPlugins.catalog());
     })()`)
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    const cli = await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', 'odk.tile.weather'], {
+    const cli = await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'diagnose', 'odk.tile.weather'], {
       env: { ...controlEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
     const { id: cliRequestId, preferences, ...cliReport } = JSON.parse(cli.stdout)
@@ -570,7 +570,7 @@ app.whenReady().then(async () => {
     assert.ok(inventory.plugins.some(plugin => plugin.pluginId === 'odk.status.clock'))
     assert.ok(inventory.plugins.some(plugin => plugin.pluginId === 'odk.theme.pixel'))
     const run = require('node:util').promisify(require('node:child_process').execFile)
-    const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
     const env = { ...controlEnv, ELECTRON_RUN_AS_NODE: '1' }
     const command = async (verb, id) => JSON.parse((await run(process.execPath, [cli, verb, id, '--runtime'], { env })).stdout)
     assert.equal((await command('enable', 'odk.status.clock')).scope, 'electron-renderer')

@@ -45,9 +45,9 @@ for (const selected of [false, true]) {
     const { createPluginControlPlugin } = require('../src/plugin-control')
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-plugin-control-'))
     t.after(() => fs.rm(root, { recursive: true, force: true }))
-    const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: path.join(root, 'state'), OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
-    await fs.mkdir(env.OPEN_DESKOS_CONFIG_DIR)
-    const file = path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')
+    const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: path.join(root, 'state'), ODK_CONFIG_DIR: path.join(root, 'config') }
+    await fs.mkdir(env.ODK_CONFIG_DIR)
+    const file = path.join(env.ODK_CONFIG_DIR, 'plugins.json')
     const bytes = JSON.stringify({ version: 1, plugins: { [id]: { enabled: true } } })
     await fs.writeFile(file, bytes)
     const platform = resolveShellHost({ env })
@@ -60,7 +60,7 @@ for (const selected of [false, true]) {
     assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.plugin-control').manifest.version, selected ? '2.0.0' : '1.0.0')
     const inventory = await requestLocalControl({ endpoint: platform.endpoint('plugin-control'), request: { command: 'inventory' } })
     assert.deepEqual(inventory.plugins, host.list().map(plugin => ({ pluginId: plugin.manifest.id, host: plugin.manifest.host })))
-    const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
     for (const command of ['disable', 'enable']) {
       const result = await run(process.execPath, [cli, command, id, '--runtime'], { env })
       const response = JSON.parse(result.stdout)
@@ -77,7 +77,7 @@ for (const selected of [false, true]) {
 test('actual CLI routes a Main plugin from declared ownership rather than its resident prefix', { skip: posixOnlyReason('unix-socket') }, async t => {
   const { createPluginControlPlugin } = require('../src/plugin-control')
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-route-'))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: path.join(root, 'config') }
   const platform = resolveShellHost({ env })
   const target = 'odk.personal-bot.extension-fixture'
   const host = createPluginHost({ capabilities: { 'plugin.control': {
@@ -88,7 +88,7 @@ test('actual CLI routes a Main plugin from declared ownership rather than its re
   host.register(createPluginControlPlugin())
   host.register({ manifest: { schemaVersion: 1, id: target, name: 'Routing fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [] }, create: () => ({}) })
   await host.start()
-  const result = await run(process.execPath, [path.join(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'disable', target, '--runtime'], { env })
+  const result = await run(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'disable', target, '--runtime'], { env })
   assert.equal(JSON.parse(result.stdout).scope, 'electron-main')
   assert.equal(host.list().find(plugin => plugin.manifest.id === target).state, 'disabled')
 })
@@ -176,13 +176,13 @@ test('cancelled control and failed lifecycle calls do not publish a successful r
 })
 
 test('malformed failure receipts remain uncertain without replay', { skip: posixOnlyReason('unix-socket') }, async t => {
-  const { listenDeskData } = require('../src/desk-data-control')
+  const { listenOdkData } = require('../src/odk-data-control')
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-control-receipt-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
   for (const error of [undefined, { garbage: true }, '']) {
     const endpoint = path.join(root, 'control.sock')
     let calls = 0
-    const server = await listenDeskData({ endpoint, control: { async dispatch() { calls++; return { ok: false, error } } } })
+    const server = await listenOdkData({ endpoint, control: { async dispatch() { calls++; return { ok: false, error } } } })
     try {
       await assert.rejects(requestLocalControl({ endpoint, label: 'fixture control', request: { command: 'disable', pluginId: id } }), /invalid.*operation outcome unknown/)
       assert.equal(calls, 1)

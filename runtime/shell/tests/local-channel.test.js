@@ -233,11 +233,11 @@ test('a token-less client is refused only where ownership cannot authenticate it
 })
 
 test('a host that cannot check ownership states that a token is required', () => {
-  assert.equal(requiresToken({ endpoint: '\\\\.\\pipe\\open-deskos-desk-link', platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: 'C:\\Users\\frads\\AppData\\Local\\open-deskos\\service.sock', platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: '/run/user/1000/open-deskos-desk-link/service.sock', platform: 'linux' }), false)
-  assert.equal(isNamedPipe('\\\\.\\pipe\\open-deskos-desk-link'), true)
-  assert.equal(isNamedPipe('/run/user/1000/open-deskos-desk-link/service.sock'), false)
+  assert.equal(requiresToken({ endpoint: '\\\\.\\pipe\\odk-link', platform: 'win32' }), true)
+  assert.equal(requiresToken({ endpoint: 'C:\\Users\\frads\\AppData\\Local\\odk\\service.sock', platform: 'win32' }), true)
+  assert.equal(requiresToken({ endpoint: '/run/user/1000/odk-link/service.sock', platform: 'linux' }), false)
+  assert.equal(isNamedPipe('\\\\.\\pipe\\odk-link'), true)
+  assert.equal(isNamedPipe('/run/user/1000/odk-link/service.sock'), false)
   assert.equal(isNamedPipe(undefined), false)
 })
 

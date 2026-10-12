@@ -52,9 +52,9 @@ function readSecretFile(filePath, fileSystem) {
 
 function readDefaultManagementKey(env, fileSystem) {
   const paths = [
-    '/etc/open-deskos/cliproxy-management.key',
-    env.HOME ? `${env.HOME}/.config/open-deskos/cliproxy-management.key` : null,
-    env.HOME ? `${env.HOME}/.open-deskos/cliproxy-management.key` : null,
+    '/etc/odk/cliproxy-management.key',
+    env.HOME ? `${env.HOME}/.config/odk/cliproxy-management.key` : null,
+    env.HOME ? `${env.HOME}/.odk/cliproxy-management.key` : null,
   ].filter(Boolean)
   for (const filePath of paths) {
     const key = readSecretFile(filePath, fileSystem)

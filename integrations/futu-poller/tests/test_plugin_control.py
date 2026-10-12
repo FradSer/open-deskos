@@ -36,7 +36,7 @@ def test_control_inventory_excludes_private_catalog_fields():
 def test_control_disable_enable_preserves_independent_resources_and_does_not_save_preferences(tmp_path, monkeypatch):
     config = tmp_path / "preferences.json"
     config.write_text('{"version":1,"plugins":{}}')
-    monkeypatch.setenv("ODESK_FUTU_PLUGIN_CONFIG", str(config))
+    monkeypatch.setenv("ODK_FUTU_PLUGIN_CONFIG", str(config))
     runtime, events = composition()
     gateway = runtime.host.get(poller.PORTS["gateway"])
     for command, enabled, state in [("disable", False, "disabled"), ("enable", True, "running")]:

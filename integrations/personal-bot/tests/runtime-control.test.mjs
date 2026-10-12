@@ -15,7 +15,7 @@ const require = createRequire(import.meta.url)
 const { resolveShellHost } = require('../../../runtime/shell/src/platform')
 const { requestLocalControl } = require('../../../runtime/shell/src/local-control-client')
 const run = promisify(execFile)
-const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/open-deskos-plugin-cli.js', import.meta.url))
+const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/odk-plugin-cli.js', import.meta.url))
 
 test('resident control endpoint agrees with every Shell Host mapping', () => {
   const env = { XDG_RUNTIME_DIR: '/run/user/1000', LOCALAPPDATA: 'C:\\Users\\desk\\AppData\\Local' }
@@ -56,7 +56,7 @@ test('resident control authenticates before changing its component graph', { ski
 
 test('actual runtime CLI manages resident components and preserves independent recovery', { skip: process.platform === 'win32' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'odk-bot-control-'))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, OPEN_DESKOS_CONFIG_DIR: join(root, 'config') }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: join(root, 'config') }
   const platform = resolveShellHost({ env })
   let initialized = 0
   let closed = 0
@@ -108,7 +108,7 @@ test('actual runtime CLI manages resident components and preserves independent r
   })
   failHome = false
   await command('enable', 'home')
-  await assert.rejects(access(join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')), /ENOENT/)
+  await assert.rejects(access(join(env.ODK_CONFIG_DIR, 'plugins.json')), /ENOENT/)
   await composition.stop()
   await assert.rejects(access(platform.endpoint('personal-bot-control')), /ENOENT/)
 })

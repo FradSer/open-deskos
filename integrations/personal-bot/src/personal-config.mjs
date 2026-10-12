@@ -43,9 +43,9 @@ function objectWithKeys(value, keys) {
  * @param {Record<string, string | undefined>} [env] @returns {Promise<PersonalConfig>}
  */
 export async function loadPersonalConfig(env = process.env) {
-  if (env.ODESK_PERSONAL_BOT_CONFIG === undefined) return { profile: 'coding', skillPaths: [] };
+  if (env.ODK_PERSONAL_BOT_CONFIG === undefined) return { profile: 'coding', skillPaths: [] };
   try {
-    const value = JSON.parse(readLocalFile(env.ODESK_PERSONAL_BOT_CONFIG, 16384));
+    const value = JSON.parse(readLocalFile(env.ODK_PERSONAL_BOT_CONFIG, 16384));
     if (!objectWithKeys(value, ['profile', 'skillPaths', 'memoryFile', 'didi']) || !['coding', 'personal'].includes(value.profile)) throw new Error();
     const skillPaths = value.skillPaths ?? [];
     if (!Array.isArray(skillPaths) || skillPaths.length > 32 || new Set(skillPaths).size !== skillPaths.length || !skillPaths.every((path) => isLocalAbsolutePath(path) && extname(path) === '.md')) throw new Error();
@@ -53,7 +53,7 @@ export async function loadPersonalConfig(env = process.env) {
     if (value.memoryFile !== undefined && !isLocalAbsolutePath(value.memoryFile)) throw new Error();
     if (value.didi !== undefined && (!objectWithKeys(value.didi, ['environment', 'keyFile']) || !['sandbox', 'production'].includes(value.didi.environment) || !isLocalAbsolutePath(value.didi.keyFile))) throw new Error();
     if (value.profile === 'coding' && (skillPaths.length || value.memoryFile !== undefined || value.didi !== undefined)) throw new Error();
-    if (value.memoryFile === env.ODESK_PERSONAL_BOT_CONFIG || skillPaths.includes(value.memoryFile) || skillPaths.includes(env.ODESK_PERSONAL_BOT_CONFIG) || (value.didi && (skillPaths.includes(value.didi.keyFile) || value.didi.keyFile === value.memoryFile || value.didi.keyFile === env.ODESK_PERSONAL_BOT_CONFIG))) throw new Error();
+    if (value.memoryFile === env.ODK_PERSONAL_BOT_CONFIG || skillPaths.includes(value.memoryFile) || skillPaths.includes(env.ODK_PERSONAL_BOT_CONFIG) || (value.didi && (skillPaths.includes(value.didi.keyFile) || value.didi.keyFile === value.memoryFile || value.didi.keyFile === env.ODK_PERSONAL_BOT_CONFIG))) throw new Error();
     for (const path of skillPaths) readLocalFile(path, 65536);
     return { ...value, skillPaths };
   } catch {

@@ -33,7 +33,7 @@ function registerUserAppScheme(protocol) {
     { scheme: NATIVE_PLUGIN_SCHEME, privileges: NATIVE_PLUGIN_PRIVILEGES }])
 }
 
-async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, deskData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins }) {
+async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env = process.env, smokeMode = false, odkData = null, store: selectedStore, isStopping = () => app.isQuitting === true, onCleanup, appearancePlugins }) {
   let stopped = false
   let server = null
   let opening = null
@@ -80,13 +80,13 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   if (!selectedStore) verifier = createUserAppVerifier({ electronPath: process.execPath })
   const store = smokeMode
     ? { list: async () => [], getContent: async () => ({ ok: false, error: 'not-found' }) }
-    : selectedStore || createUserAppStore({ workspace: env.ODESK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle) })
+    : selectedStore || createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify: bundle => verifier.verify(bundle) })
   const control = createUserAppControl(store, () => {
     if (stopping()) return
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-user-apps-changed')
     // An installed revision drives which packages may answer, so a new, replaced
     // or removed revision re-registers what those packages may publish.
-    if (deskData) void Promise.resolve(execute(() => deskData.syncPackages())).catch(() => {
+    if (odkData) void Promise.resolve(execute(() => odkData.syncPackages())).catch(() => {
       console.error('User application data synchronization failed')
     })
   })
@@ -96,7 +96,7 @@ async function startUserAppSystem({ app, ipcMain, protocol, BrowserWindow, env =
   }
   bind('odk-user-apps-list', () => control.dispatch({ command: 'list' }))
   bind('odk-user-apps-dispatch', (_event, request) => control.dispatch(request))
-  bind('odk-user-apps-publish', (_event, request) => deskData?.registry.publish(request?.appId, request?.data) ?? { ok: false, error: 'unknown-reading' })
+  bind('odk-user-apps-publish', (_event, request) => odkData?.registry.publish(request?.appId, request?.data) ?? { ok: false, error: 'unknown-reading' })
   protocol.handle('odk-user-app', request => execute(
     () => createUserAppResponse(request.url, store, buildUserAppDocument, USER_APP_CSP, { appearancePlugins }),
     () => new Response('Application runtime unavailable', { status: 503 })))

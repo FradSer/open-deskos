@@ -25,7 +25,7 @@ The command was `corepack pnpm@11.22.0 test` from the private candidate's `runti
 It exited with status zero in 3051 seconds without timeout or cancellation.
 All 1033 captured inputs remained unchanged remotely and matched the local worktree before this report update.
 The final local input inventory also matched, and both recorded runner processes had exited.
-The candidate was `/home/orangepi/.local/state/open-deskos-acceptance/odk-cm5-2qj2iqxz/candidate`.
+The candidate was `/home/orangepi/.local/state/odk-acceptance/odk-cm5-2qj2iqxz/candidate`.
 Retrieved receipts are in `/Users/FradSer/.codex/tmp/odk-cm5-2qj2iqxz/full/`.
 This command includes the Renderer bridges and the Appearance, Hydra watchdog, and Quota isolation repairs.
 Two skips require Windows; the third requires the absent adjacent `pi-packages` checkout.
@@ -41,7 +41,7 @@ The [contract comparison](../tests/control-contract-fixture.test.js) confirmed b
 This supplemental result does not change the complete commands' three recorded skips.
 It does not establish physical input, live providers, camera capture, microphone capture, or current Windows acceptance.
 The current Windows check reports the handheld offline; its SSH endpoint timed out after Tailscale resumed.
-A read-only CM5 check enumerated `303a:7002 Open DeskOS P4 Camera and Microphone` and `/dev/open-deskos-p4-camera`.
+A read-only CM5 check enumerated `303a:7002 Open DeskOS P4 Camera and Microphone` and `/dev/odk-p4-camera`.
 This establishes USB enumeration only; the candidate P4 firmware remains unflashed, and no image or audio was captured.
 Earlier macOS temporary receipts are unavailable; the current complete command has retained receipts.
 Read [Renderer bridge replacement](#renderer-bridge-programmatic-replacement) for its evidence limits.
@@ -468,11 +468,11 @@ The first Futu run exceeded the macOS Unix socket path limit in the default temp
 The isolated short directory run passed; the skip requires native Windows management.
 These checks use local fixtures and do not establish live providers, deployment, physical input, capture, or hardware acceptance.
 
-## Desk Data Link selection verification
+## Open DeskOS Data Link selection verification
 
 These checks completed on 2026-10-10 and are included in the latest full Shell run.
-The [shared checks](../tests/desk-data-replacement.test.js) compare default and alternative Link implementations through the existing Personal Bot client.
-The [alternative](../tests/fixtures/desk-data-link-replacement.js) owns framing and listener lifecycle without calling the default listener.
+The [shared checks](../tests/odk-data-replacement.test.js) compare default and alternative Link implementations through the existing Personal Bot client.
+The [alternative](../tests/fixtures/odk-data-link-replacement.js) owns framing and listener lifecycle without calling the default listener.
 It reuses the authenticated local channel and the selected read-only control.
 Actual list and read requests preserve source readings, current package publications, and their untrusted flag.
 Both implementations reject mutation requests and release their socket when disabled.
@@ -483,7 +483,7 @@ The first run exposed fixture readiness and request-count errors; the corrected 
 No production interface or implementation changed for this verification.
 These initial results established local Unix startup selection and consumer behavior without supported-device acceptance.
 
-### Native Desk Data Link acceptance
+### Native Open DeskOS Data Link acceptance
 
 The existing replacement command subsequently passed all 21 scenarios on Windows x64 and CM5 Linux arm64 on 2026-10-10.
 Windows completed in 4.86 seconds; CM5 completed in 7.87 seconds, with zero failures, cancellations, or skips.
@@ -493,7 +493,7 @@ They reused dependencies from the previous isolated candidates through explicit 
 Both dependency owners' manifests and lockfiles matched the captured source on each host.
 
 The initial Windows command passed 15 scenarios and skipped six Link scenarios because the fixture required Unix sockets.
-Production already supports Windows Desk Data through an authenticated named pipe.
+Production already supports Windows Open DeskOS Data through an authenticated named pipe.
 The fixture now selects a unique test pipe, private token file, and explicit Bot client environment on Windows.
 Unix checks retain their socket-path assertion; both hosts also require a failed connection after release.
 Existing default, alternative Link, and signed registry scenarios now run on both hosts.
@@ -511,7 +511,7 @@ These controlled service checks do not establish full Electron startup, live pro
 Run this command from `runtime/shell/`:
 
 ```sh
-node --test --test-concurrency=1 tests/desk-data-replacement.test.js tests/desk-data.test.js tests/desk-data-shell.test.js tests/desk-data-wiring.test.js tests/desk-runtime-plugins.test.js
+node --test --test-concurrency=1 tests/odk-data-replacement.test.js tests/odk-data.test.js tests/odk-data-shell.test.js tests/odk-data-wiring.test.js tests/desk-runtime-plugins.test.js
 ```
 
 ## Shared service input ownership
@@ -854,7 +854,7 @@ node --test --test-concurrency=1 tests/builtin-view-timeouts.test.js tests/e2e-i
 Independent test factories replace service refresh, service notifications, and initial frame status through the existing Main composition selection.
 The factories use declared ports and capabilities without invoking packaged factories.
 The shared scenarios run selected definitions in the actual Plugin Host with controlled providers, timers, frames, and clients.
-Refresh checks use the actual Desk Data registry and reading consumer.
+Refresh checks use the actual Open DeskOS Data registry and reading consumer.
 They cover provider order, failed providers, failed diagnostics, overlapping requests, cancellation, and release before provider shutdown.
 Notification checks preserve reading identities, return values, unavailable providers, and retained port behavior after disable.
 Frame checks preserve broadcast destinations, initial states, unavailable fallbacks, and retained callback behavior after release.
@@ -921,7 +921,7 @@ Actual CLI update and rollback preserve other plugin preferences.
 Entry-owned version markers distinguish executing bytes from selected declarations.
 Unsigned edits to either view are rejected without changing saved configuration bytes.
 All four retained signed view revisions remain byte-identical after removal.
-Both views preserve the reported Desk Link path and event through preload and rendered consumers.
+Both views preserve the reported Open DeskOS Link path and event through preload and rendered consumers.
 Shutdown releases source, App Manager, and discovery IPC handlers and the signed asset protocol route.
 
 Three signed processes also complete twelve authenticated implementation changes and three refusals while the Pi App remains open.
@@ -1285,7 +1285,7 @@ The fixture loads through the actual CLI and development loader, using temporary
 It reuses the existing Weather provider library without invoking the built-in plugin factory.
 This establishes a local replacement boundary, not compatibility with another weather provider.
 
-Both factories preserve IPC payloads, Desk Data identities and values, four availability states, and cached health without provider requests.
+Both factories preserve IPC payloads, Open DeskOS Data identities and values, four availability states, and cached health without provider requests.
 Both reload persisted readings after disable and enable operations.
 Both drain cancellation before replacement and retain resources after failed cleanup until retry succeeds.
 Removing the link preserves its source package and permits the default factory to start again.
@@ -1573,8 +1573,8 @@ Temporary evidence retains app, bootloader, and partition binaries with SHA-256 
 
 | App | SHA-256 |
 | --- | --- |
-| `open_deskos_remote_control.bin` | `20aefd4d25d344831bc93150976d88cef9839e98219993ab43281d3f9e5084cd` |
-| `open_deskos_p4_camera.bin` | `1418d16d166ed34d827d5ba35bb9f8bd6fb70cbbfa36a9f70fa98f2b6884f702` |
+| `odk_remote_control.bin` | `20aefd4d25d344831bc93150976d88cef9839e98219993ab43281d3f9e5084cd` |
+| `odk_p4_camera.bin` | `1418d16d166ed34d827d5ba35bb9f8bd6fb70cbbfa36a9f70fa98f2b6884f702` |
 
 The S3 host gesture and state-frame executables also passed both CTest checks.
 Their temporary source tree includes the existing cJSON host fixture from preserved research.
@@ -1669,7 +1669,7 @@ The [shared checks](../tests/weread-plugin-parity.test.js) select the default so
 The [replacement entry](../tests/fixtures/weread-replacement/entry.cjs) does not import the built-in WeRead source or call its factory.
 It implements controlled notebook requests, highlight selection, synchronization, cache persistence, and cover resolution.
 Both implementations use the same public reading projection.
-The checks verify IPC records and actual Desk Data readings from the owned source.
+The checks verify IPC records and actual Open DeskOS Data readings from the owned source.
 They cover empty, error, unconfigured, and cached states, four-book cooldown, notebook limits, highlight limits, and resync timing.
 They also cover cover retries, image types, byte limits, API errors, invalid cache schemas, and cache failures.
 Cached health queries do not refresh the provider.
@@ -1696,7 +1696,7 @@ Post-cancellation responses do not start new body processing.
 A failed bookmark request does not release ownership of pending sibling requests.
 
 The [shared checks](../tests/weread-plugin-parity.test.js) exercise these boundaries for the default source and independent replacement.
-They also preserve separate concurrent IPC and Desk Data selections with reverse completion order.
+They also preserve separate concurrent IPC and Open DeskOS Data selections with reverse completion order.
 The last completed request remains the source state, as before.
 Stopped sources do not start another refresh.
 The focused checks passed 59 tests on macOS and Linux.
@@ -1761,7 +1761,7 @@ The earlier fixture shared the existing protocol parser and public reading proje
 The later signed Hydra section records independent protocol and projection acceptance.
 
 Both implementations retain subscription scope, connection settings, retained readings, live readings, timestamps, stale boundaries, diagnostics, and availability states.
-IPC and Desk Data read the same owned source.
+IPC and Open DeskOS Data read the same owned source.
 Disable waits for MQTT release before another source starts.
 Uncertain release retains ownership and blocks another connection.
 Removing the development link restores the default factory using the same saved configuration.
@@ -2156,7 +2156,7 @@ The [shared scenarios](../tests/quota-plugin-parity.test.js) select default or e
 The [external entry](../tests/fixtures/quota-replacement/entry.cjs) owns its composition without calling the built-in plugin factory.
 The later independent implementation follows the [Quota contract](QUOTA_PLUGIN_CONTRACT.md).
 The checks preserve IPC account details, reset credits, errors, and availability states.
-Desk Data retains reading identity, account identity, percentages, reset times, and its existing restricted projection.
+Open DeskOS Data retains reading identity, account identity, percentages, reset times, and its existing restricted projection.
 Disable removes IPC and readings; enable creates one new instance after cleanup.
 Cleanup failure retains ownership and prevents another instance until retry succeeds.
 Removing the development link preserves package files and restores the default on the next composition.
@@ -2235,7 +2235,7 @@ These results do not establish firmware preference management, live cross-runtim
 ## Plugin CLI package rollback verification
 
 The rollback checks ran on 2026-10-08.
-The [Plugin CLI](../scripts/open-deskos-plugin-cli.js) now exposes the existing application store rollback operation.
+The [Plugin CLI](../scripts/odk-plugin-cli.js) now exposes the existing application store rollback operation.
 The [configuration contract](CONFIGURATION.md#plugin-package-management) owns command scope and recovery semantics.
 The command restores verified installed snapshots without the workspace draft.
 It preserves the current revision when history, package verification, or identifier validation fails.
@@ -2268,7 +2268,7 @@ Disabled links remain unread, and discovery does not execute entry code.
 Strict calls still reject invalid selections and overlapping namespaces.
 A throwing diagnostic callback cannot block independent discovery.
 The renderer and appearance checks retain valid selections without changing configuration bytes.
-The [wired Main check](../tests/desk-data-wiring.test.js) uses actual CLI links and selects Weather beside a removed independent directory.
+The [wired Main check](../tests/odk-data-wiring.test.js) uses actual CLI links and selects Weather beside a removed independent directory.
 Changed dependency declarations still trigger composition validation before entry execution.
 
 The focused commands passed 73 tests on macOS and 73 tests on Linux.
@@ -2335,9 +2335,9 @@ The [composition check](../tests/main-plugin-replacement.test.js) accepts an ext
 Missing dependencies, cycles, and duplicate extensions still fail without executing factories.
 Rejected extensions cannot leave an invalid fallback graph.
 The [CLI check](../tests/development-plugins.test.js) links independent provider and Weather entries without executing them.
-The real Host then supplies matching Weather values through IPC and Desk Data.
+The real Host then supplies matching Weather values through IPC and Open DeskOS Data.
 Failed relinking preserves configuration bytes, and shutdown removes the owned IPC handler.
-The [Main wiring check](../tests/desk-data-wiring.test.js) starts the linked provider and replacement beside an unavailable independent link.
+The [Main wiring check](../tests/odk-data-wiring.test.js) starts the linked provider and replacement beside an unavailable independent link.
 Changed dependencies restore defaults before replacement execution.
 
 The focused commands passed 82 tests on macOS and 82 tests on Linux.
@@ -2380,7 +2380,7 @@ The Pi Sessions source now passes its active cancellation signal to the existing
 It retains the existing SSH arguments, deadline, output bound, and kill signal.
 An early abort callback cannot certify child release.
 Stop waits for child close before the source releases its pending read.
-The [architecture contract](ARCHITECTURE.md#current-shell-plugin-composition) owns the completion boundary and Desk Link limits.
+The [architecture contract](ARCHITECTURE.md#current-shell-plugin-composition) owns the completion boundary and Open DeskOS Link limits.
 
 A failing regression preceded implementation.
 The [lifecycle checks](../tests/pi-source-lifecycle.test.js) exercise an abort callback before a controlled close event.
@@ -2398,12 +2398,12 @@ One complete concurrent command failed the real Electron package rollback verifi
 The isolated Electron command passed without changing its verifier or assertions.
 The final complete Shell command passed 1067 tests and skipped two tests.
 
-These checks do not establish real SSH collector compatibility, Desk Link transport cancellation, native Windows behavior, or CM5 acceptance.
+These checks do not establish real SSH collector compatibility, Open DeskOS Link transport cancellation, native Windows behavior, or CM5 acceptance.
 
-## Desk Link request cancellation verification
+## Open DeskOS Link request cancellation verification
 
-The Desk Link cancellation checks ran on 2026-10-08.
-Pi Sessions and Pi Events pass local cancellation signals to their individual Desk Link requests.
+The Open DeskOS Link cancellation checks ran on 2026-10-08.
+Pi Sessions and Pi Events pass local cancellation signals to their individual Open DeskOS Link requests.
 Each native request retains its connection until socket close.
 Cancelling one request preserves independent requests through the shared client.
 Client stop cancels all owned requests and waits for their completion.
@@ -2412,7 +2412,7 @@ Cancellation suppresses late responses and transport errors without suppressing 
 Protocol records and authentication retain their existing contracts.
 Cancellation signals remain local and do not enter protocol records.
 
-The [lifecycle checks](../tests/desk-link-lifecycle.test.js) use temporary Unix sockets and controlled transport promises.
+The [lifecycle checks](../tests/odk-link-lifecycle.test.js) use temporary Unix sockets and controlled transport promises.
 The [Pi Events integration check](../tests/pi-result-events.test.js) verifies signal propagation, existing request fields, fallback, and stop cancellation.
 The earlier focused commands passed 119 tests on macOS and 119 tests on Linux.
 After updating the integration assertion, the affected commands passed 33 tests on each host.
@@ -2423,7 +2423,7 @@ The updated assertion checks that signal separately and preserves the existing r
 The final complete Shell command passed 1072 tests and skipped two tests.
 Source syntax checks and the whitespace check passed.
 
-These checks do not establish native Windows named-pipe cancellation, deployed Desk Link compatibility, CM5 behavior, or physical input acceptance.
+These checks do not establish native Windows named-pipe cancellation, deployed Open DeskOS Link compatibility, CM5 behavior, or physical input acceptance.
 
 ## Development replacement repair verification
 
@@ -2461,10 +2461,10 @@ The Sessions factory reuses the existing source library and controlled provider 
 The later Events implementation follows the [independent Events contract](PI_EVENTS_PLUGIN_CONTRACT.md).
 The actual CLI links their declarations with explicit trust, replacement selection, and matching grants.
 
-Shared scenarios verify local IPC snapshots and Desk Data identity, availability, counts, and session projection.
+Shared scenarios verify local IPC snapshots and Open DeskOS Data identity, availability, counts, and session projection.
 They verify Reported Sessions precedence and authoritative Hosted Pi identity collisions without starting the local collector.
 Events retain their request validation, permitted local fallback reasons, authoritative failure responses, and ordinary rejection behavior.
-Disabling one source preserves the shared Desk Link and the other source.
+Disabling one source preserves the shared Open DeskOS Link and the other source.
 Reactivation waits for pending reads and suppresses their late results before creating a new source instance.
 CLI removal preserves external entry bytes and restores default selection.
 The first command confirmed that external replacement fixtures were missing.
@@ -3269,7 +3269,7 @@ Native Windows, CM5, and physical-device acceptance remain unverified.
 
 The [Main loader](../src/native-plugin-loader.js) executes captured signed CommonJS inputs after Host dependency validation.
 It shares the existing factory lifecycle and reading validation wrapper with development links.
-Startup requires an external publisher policy through `OPEN_DESKOS_NATIVE_KEYRING`.
+Startup requires an external publisher policy through `ODK_NATIVE_KEYRING`.
 Disabled, unauthorized, revoked, or corrupt selections execute no entries during discovery.
 Rejected discovery preserves the default Main composition.
 Factory failures retain existing Host failure behavior.
@@ -3401,7 +3401,7 @@ The native loader supplies the replacement to the actual Main composition and Pl
 Both implementations receive real records through a temporary Unix publisher channel.
 Checks cover service identity, labels, timestamps, percentage scaling, live values, authentication requirements, provider failure, and stale data.
 Health excludes holdings, private errors, and authentication details.
-Disable removes IPC handlers, withdraws Desk Data readings, and closes the listener before enable creates a new source.
+Disable removes IPC handlers, withdraws Open DeskOS Data readings, and closes the listener before enable creates a new source.
 Catalog removal closes its listener and withdraws service readings.
 Late catalog completion after disable cannot reopen a listener.
 Corrupt and removed selections feed the actual fallback composition, whose default factory receives publisher records and restores consumer values.
@@ -3434,7 +3434,7 @@ The separate positive Electron comparison passed in 13484 milliseconds on CM5 an
 Both commands retained all 673 captured source, test, script, and package inputs unchanged.
 No task-owned acceptance process remained on CM5 after completion.
 
-Default and signed service factories preserve publisher states, IPC values, Desk Data percentages, catalog changes, and listener release before restart.
+Default and signed service factories preserve publisher states, IPC values, Open DeskOS Data percentages, catalog changes, and listener release before restart.
 Failed endpoint withdrawal retains cleanup ownership until retry succeeds.
 Late catalog completion after disable cannot reopen the listener.
 Corrupt and removed selections restore the default composition.
@@ -3489,12 +3489,12 @@ Fresh independent review found no material findings in the signed factory, share
 The reviewer ran the three replacement checks without failures.
 These results do not establish another state-machine algorithm, production deployment, native Windows, CM5, or physical input acceptance.
 
-## Signed Desk Data replacement verification
+## Signed Open DeskOS Data replacement verification
 
 These checks completed on 2026-10-09.
-The [shared checks](../tests/desk-data-replacement.test.js) compare default Desk Data with a signed bundled factory.
-The [factory](../tests/fixtures/desk-data-replacement/entry.cjs) constructs its registry from captured modules inside the signed bundle.
-It does not call the packaged system plugin factory or the injected default Desk Data factory.
+The [shared checks](../tests/odk-data-replacement.test.js) compare default Open DeskOS Data with a signed bundled factory.
+The [factory](../tests/fixtures/odk-data-replacement/entry.cjs) constructs its registry from captured modules inside the signed bundle.
+It does not call the packaged system plugin factory or the injected default Open DeskOS Data factory.
 The bundle copies current registry, control, transport, and projection libraries.
 These checks establish factory and registry ownership without an independently authored registry algorithm.
 
@@ -3511,21 +3511,21 @@ Catalog removal withdraws package readings.
 Cancelled catalog work cannot restore removed readings after the registry restarts.
 Corrupt or removed native selections restore actual default consumers and preserve stored revisions.
 
-The real Unix Desk Data Link serves both implementations through the existing read-only protocol.
+The real Unix Open DeskOS Data Link serves both implementations through the existing read-only protocol.
 The actual Personal Bot client lists readings and reads Weather and published package values through that listener.
-Package values and timestamps survive a Desk Data disable and enable cycle.
-The channel rejects mutation commands and removes its socket when the Desk Data dependency stops.
+Package values and timestamps survive a Open DeskOS Data disable and enable cycle.
+The channel rejects mutation commands and removes its socket when the Open DeskOS Data dependency stops.
 All channels, configuration, and signed revisions use temporary local directories without production services or live capture.
 
 Seven replacement checks passed, including three signed factory checks and default fallback.
-The existing Personal Bot Desk Data command passed ten checks.
+The existing Personal Bot Open DeskOS Data command passed ten checks.
 The complete Shell suite passed 1,250 checks and skipped two checks.
 Fresh independent review reran all seven replacement checks without material findings.
 These results use selected synthetic providers and do not establish all source implementations or full Electron startup.
 Native Windows channels, CM5, production deployment, and physical-device acceptance remain unverified.
 
 The synchronization checks were updated on 2026-10-10.
-Only the latest started catalog synchronization can reconcile package readings within one Desk Data instance.
+Only the latest started catalog synchronization can reconcile package readings within one Open DeskOS Data instance.
 Six regressions failed before the repair; the repair adds one local generation counter without changing public interfaces.
 Both factories reject superseded results after removal, revision changes, unreadable responses, and malformed responses.
 The checks cover both completion orders and actual Personal Bot reads through the Unix listener.
@@ -3535,10 +3535,10 @@ A fresh independent review repeated 39 replacement and wiring checks with no act
 The Personal Bot client command also passed all ten checks.
 
 ```sh
-node --test --test-concurrency=1 tests/desk-data-replacement.test.js tests/desk-data.test.js tests/desk-data-shell.test.js tests/desk-data-wiring.test.js tests/desk-runtime-plugins.test.js tests/user-app-system-replacement.test.js tests/user-app-pending-operations.test.js
+node --test --test-concurrency=1 tests/odk-data-replacement.test.js tests/odk-data.test.js tests/odk-data-shell.test.js tests/odk-data-wiring.test.js tests/desk-runtime-plugins.test.js tests/user-app-system-replacement.test.js tests/user-app-pending-operations.test.js
 ```
 
-Run `node --test tests/desk-data.test.mjs` from `integrations/personal-bot/` for the client checks.
+Run `node --test tests/odk-data.test.mjs` from `integrations/personal-bot/` for the client checks.
 
 ## Installed runtime cleanup retry verification
 
@@ -3550,7 +3550,7 @@ Shutdown waits for pending listener startup and retains a late listener if its c
 Cancelled startup propagates cleanup failure instead of discarding the listener reference.
 
 The [regression checks](../tests/user-app-lifecycle.test.js) reproduced lost listener ownership, lost protocol retry, early concurrent completion, and swallowed late close failure.
-The actual Plugin Host now retains the Desk Data dependency after installed runtime cleanup fails.
+The actual Plugin Host now retains the Open DeskOS Data dependency after installed runtime cleanup fails.
 Restart refuses retained resources until another shutdown attempt succeeds.
 The checks also inject IPC removal failure and confirm that successful handlers release only once.
 The [runtime scenarios](../tests/features/user-app-runtime.feature) define these ownership and retry requirements.
@@ -3630,17 +3630,17 @@ The default runtime now consumes the selected package catalog instead of constru
 The default catalog owns verification; runtime cleanup waits for its retained verification resources without closing catalog admission.
 Standalone runtime callers retain their existing fallback store and verifier lifecycle.
 Three regressions reproduced catalog bypass and missing verification ownership; two further regressions reproduced lost child waiting and missing reusable drain.
-A minimal alternative catalog now drives actual runtime IPC, document responses, Unix control, and Desk Data publications.
+A minimal alternative catalog now drives actual runtime IPC, document responses, Unix control, and Open DeskOS Data publications.
 Its removals withdraw content and readings without modifying the unused default store.
 Real store checks preserve verification rejection, failed cleanup retry, and cleanup after catalog construction failure.
 Independent review repeated the updated lifecycle and verification checks without further actionable findings.
 The catalog repair command passed 125 checks with zero failures or skips in 36096 milliseconds on 2026-10-10.
-It covered store, runtime, verifier, control, protocol, Desk Data, Main startup, App Manager, Appearance, and installed desktop consumers.
+It covered store, runtime, verifier, control, protocol, Open DeskOS Data, Main startup, App Manager, Appearance, and installed desktop consumers.
 Actual Electron checks included verification, source confinement, and installed desktop composition.
 The command ran from `runtime/shell/` and completed with exit status zero.
 
 ```sh
-node --test --test-concurrency=1 tests/desk-runtime-plugins.test.js tests/user-app-lifecycle.test.js tests/user-app-pending-operations.test.js tests/user-app-system-replacement.test.js tests/user-app-runtime.test.js tests/user-app-verifier-lifecycle.test.js tests/user-app-store.test.js tests/user-app-control.test.js tests/user-app-protocol.test.js tests/main-smoke.test.js tests/main-plugin-replacement.test.js tests/desk-data-replacement.test.js tests/app-manager-main-bootstrap.test.js tests/appearance-main-bootstrap.test.js tests/user-app-desktop-plugins-electron.test.js
+node --test --test-concurrency=1 tests/desk-runtime-plugins.test.js tests/user-app-lifecycle.test.js tests/user-app-pending-operations.test.js tests/user-app-system-replacement.test.js tests/user-app-runtime.test.js tests/user-app-verifier-lifecycle.test.js tests/user-app-store.test.js tests/user-app-control.test.js tests/user-app-protocol.test.js tests/main-smoke.test.js tests/main-plugin-replacement.test.js tests/odk-data-replacement.test.js tests/app-manager-main-bootstrap.test.js tests/appearance-main-bootstrap.test.js tests/user-app-desktop-plugins-electron.test.js
 ```
 
 The catalog availability repair followed the preceding 2026-test Shell run on 2026-10-10.
@@ -3653,7 +3653,7 @@ The affected command passed 113 checks with zero failures or skips in 9214 milli
 A fresh independent review repeated 42 focused checks and reported no actionable findings.
 
 ```sh
-node --test --test-concurrency=1 tests/desk-runtime-plugins.test.js tests/user-app-system-replacement.test.js tests/user-app-lifecycle.test.js tests/user-app-pending-operations.test.js tests/desk-data-wiring.test.js tests/main-smoke.test.js tests/main-plugin-replacement.test.js tests/config-inventory.test.js tests/user-app-control.test.js tests/user-app-store.test.js tests/user-app-runtime.test.js
+node --test --test-concurrency=1 tests/desk-runtime-plugins.test.js tests/user-app-system-replacement.test.js tests/user-app-lifecycle.test.js tests/user-app-pending-operations.test.js tests/odk-data-wiring.test.js tests/main-smoke.test.js tests/main-plugin-replacement.test.js tests/config-inventory.test.js tests/user-app-control.test.js tests/user-app-store.test.js tests/user-app-runtime.test.js
 ```
 
 
@@ -3677,15 +3677,15 @@ No production source changed.
 node --test --test-concurrency=1 tests/user-app-system-replacement.test.js tests/user-app-control.test.js tests/user-app-store.test.js tests/desk-runtime-plugins.test.js tests/user-app-lifecycle.test.js
 ```
 
-Injected protocol removal failure retains the route and blocks the Desk Data dependency and runtime restart.
+Injected protocol removal failure retains the route and blocks the Open DeskOS Data dependency and runtime restart.
 A second shutdown releases the route, and restart restores the control listener.
-The Desk Data fixture has no cleanup callback; its blocked state does not prove retention of actual provider resources.
+The Open DeskOS Data fixture has no cleanup callback; its blocked state does not prove retention of actual provider resources.
 These cases do not inject failures into actual Electron protocol removal or listener close operations.
 
 The [hidden Electron fixture](../tests/user-app-system-electron.cjs) uses actual preload, IPC, protocol, and opaque package frames.
 It compares package content, theme selection, loaded Zpix, parent access refusal, and absent preload access across three themes.
 The package publishes a distinct value through its frame bridge before any direct preload publication.
-The fixture observes that value in Desk Data before disposing the frame.
+The fixture observes that value in Open DeskOS Data before disposing the frame.
 Disable and enable operations restore the actual preload package list.
 The catalog recovery rerun completed with exit status zero on 2026-10-10.
 Both factories released IPC and document routes when the catalog was disabled.
@@ -3718,7 +3718,7 @@ Its cancellation implementation counts active reads and resolves shutdown waiter
 The [public contract](QUOTA_PLUGIN_CONTRACT.md) defines declarations, capabilities, IPC, projection, and resource ownership.
 
 The import refusal check failed before the independent implementation replaced the shared libraries.
-The [shared checks](../tests/quota-plugin-parity.test.js) exercise default, linked, and signed implementations through actual Main composition and Desk Data.
+The [shared checks](../tests/quota-plugin-parity.test.js) exercise default, linked, and signed implementations through actual Main composition and Open DeskOS Data.
 They preserve complete IPC responses, restricted reading fields, home metadata, exact percentages, null values, and omitted measurements.
 Concurrent success and failure responses cannot publish live data after cancellation.
 Same-turn cancellation prevents provider entry, and shutdown waits for every pending read.
@@ -3729,7 +3729,7 @@ Changing the stored entry after discovery does not change captured execution.
 The example uses the existing provider capability; it does not implement another account provider or network transport.
 Fresh independent review found no material lifecycle or projection differences.
 The reviewer reran all 20 shared checks without failures.
-The focused source, plugin, service-reading, and Desk Data command passed 56 checks.
+The focused source, plugin, service-reading, and Open DeskOS Data command passed 56 checks.
 The complete Shell suite passed 1,272 checks and skipped two checks.
 Rendered interaction, deployed hosts, Windows devices, and CM5 remain unverified by these checks.
 
@@ -3742,7 +3742,7 @@ The marker identifies executed entry bytes separately from selected manifest ver
 
 Updating the stored selection leaves the running source instance unchanged.
 A complete in-process Host shutdown and new composition load the updated factory.
-Both revisions preserve actual IPC responses and Desk Data projection values.
+Both revisions preserve actual IPC responses and Open DeskOS Data projection values.
 An unsigned entry update fails with a file hash mismatch and preserves configuration bytes and the running source.
 Rollback retains the running source until restart and then executes the previous revision.
 Removal restores the actual default factory after restart without deleting retained signed revision bytes.
@@ -3760,7 +3760,7 @@ They do not establish an Electron process restart, runtime hot replacement, rend
 
 These checks completed on 2026-10-09.
 The [Electron check](../tests/quota-electron.test.js) compares default and signed independent Quota implementations through the existing Shell page.
-The [shared runtime fixture](../tests/helpers/quota-runtime.js) loads actual Main composition, source ports, Desk Data, and IPC handlers.
+The [shared runtime fixture](../tests/helpers/quota-runtime.js) loads actual Main composition, source ports, Open DeskOS Data, and IPC handlers.
 The signed factory uses temporary Native CLI installation, publisher policy, trust, exact grants, and captured entry bytes.
 The renderer uses the actual preload, subscription service, Quota page, and theme declarations.
 Other source channels return explicit synthetic fixtures.
@@ -3812,7 +3812,7 @@ The focused source, composition, replacement, and local parser command passed 73
 The complete Shell suite passed 1,285 checks and skipped two checks.
 
 Pi Sessions used its existing source implementation in the replacement fixture for these earlier checks.
-These earlier results do not establish signed Events distribution, rendered transcripts, live Desk Link, deployed hosts, or physical-device acceptance.
+These earlier results do not establish signed Events distribution, rendered transcripts, live Open DeskOS Link, deployed hosts, or physical-device acceptance.
 Replacement cancellation during promise settlement is not exhaustively tested.
 
 ## Signed independent Pi Session Events verification
@@ -3837,13 +3837,13 @@ The focused parity, source lifecycle, native loader, and Native CLI command pass
 Fresh independent review found no material issues and independently passed all 35 parity checks.
 The complete Shell suite passed 1,296 checks and skipped two checks.
 Main capability wiring remains a source assertion; the composition checks do not start production Electron Main.
-Signed Events update and rollback, rendered transcripts, live Desk Link, deployed hosts, Windows, CM5, and physical input remain unverified.
+Signed Events update and rollback, rendered transcripts, live Open DeskOS Link, deployed hosts, Windows, CM5, and physical input remain unverified.
 
 ## Independent Pi Sessions implementation verification
 
 These checks completed on 2026-10-09.
 Main now supplies configured session inspection alongside the existing default constructor in the granted `source.pi-sessions` capability.
-The [configured reader](../src/pi-sessions-source.js) retains local and SSH collection without Desk Link selection, aggregation, or reading projection.
+The [configured reader](../src/pi-sessions-source.js) retains local and SSH collection without Open DeskOS Link selection, aggregation, or reading projection.
 The default factory uses this extracted operation without changing its source selection or lifecycle contracts.
 The [independent entry](../tests/fixtures/pi-sessions-replacement/entry.cjs) owns aggregation, projection, and request lifetime without Shell imports or default constructor calls.
 The [public contract](PI_SESSIONS_PLUGIN_CONTRACT.md) owns its capability, source selection, identity precedence, projection, IPC, and shutdown behavior.
@@ -3853,7 +3853,7 @@ The [public contract](PI_SESSIONS_PLUGIN_CONTRACT.md) owns its capability, sourc
 | Independent factory | Import refusal, default constructor poison, active or pre-aborted construction, and subsequent signed revision acceptance | Electron process restart and deployed revision changes |
 | Source selection | Shared local and injected SSH reads, reported precedence, and authoritative Hosted Pi collision | Live alternative collector and transports |
 | Aggregation | Identity order, activity ties, observation times, anonymous sessions, workspace groups, and rebuilt counts | Rendered session navigation |
-| Reading projection | Actual Desk Data consumers, 20-session bound, 160-character text bound, nulls, omissions, and unknown status counts | Real agent reading consumer |
+| Reading projection | Actual Open DeskOS Data consumers, 20-session bound, 160-character text bound, nulls, omissions, and unknown status counts | Real agent reading consumer |
 | Request ownership | Shared coalescing, provider reentry, synchronous rejection, retained parallel reads, and local or SSH cancellation drain | Physical host execution |
 | Main integration | Capability source assertion and actual Main composition with selected factories | Production Electron Main startup |
 
@@ -3886,7 +3886,7 @@ The SSH responses and child close events remain injected.
 
 Two separate cases corrupt one stored entry before the next discovery.
 Each reports one explicit native hash mismatch and restores only that identity's default factory.
-The other signed factory remains selected and serves actual session, event, and Desk Data consumers.
+The other signed factory remains selected and serves actual session, event, and Open DeskOS Data consumers.
 Current captured instances still serve those consumers before shutdown, despite the stored corruption.
 Native removal changes only stored selections; subsequent composition restores both defaults.
 All three files of both fixture revisions retain their exact bytes after removal.
@@ -3906,7 +3906,7 @@ The HTML case failed during rollback verification on the rerun, rather than init
 The complete Shell gate remains failed despite the passing Pi and native acceptance command.
 
 These earlier checks do not establish signed Pi update or rollback, production Electron Main startup, rendered transcripts, or alternative collectors.
-Live SSH, live Desk Link, deployed hosts, Windows, CM5, and physical input remain unverified.
+Live SSH, live Open DeskOS Link, deployed hosts, Windows, CM5, and physical input remain unverified.
 
 ## Electron verification profile and lifecycle repair
 
@@ -3951,7 +3951,7 @@ Updating one stored selection leaves both running source instances and consumer 
 The other source's stored selection, trust record, and grants remain unchanged.
 Complete Host shutdown removes owned handlers and rejects retained cleanup failures before new composition.
 The new Host executes revision 3.0.0 for the updated identity and revision 2.0.0 for its peer.
-Actual session IPC, event IPC, and Desk Data responses match the initial baseline.
+Actual session IPC, event IPC, and Open DeskOS Data responses match the initial baseline.
 
 Changing incoming entry bytes without signing rejects the update with a native hash mismatch.
 The rejection preserves configuration bytes, both running instances, and consumer responses.
@@ -4014,7 +4014,7 @@ The fixture now restores valid sessions before malformed responses and compares 
 The corrected focused command passed, and independent follow-up review found no new actionable defects.
 The final complete Shell command passed 1,356 checks and skipped two checks, without failures or cancellations.
 
-This fixture constructs the actual Main plugin composition with only Desk Link and the two Pi sources selected.
+This fixture constructs the actual Main plugin composition with only Open DeskOS Link and the two Pi sources selected.
 It does not start production Main, use live providers, or compare screenshots.
 Synthetic keyboard and Remote events do not establish native or physical input acceptance.
 Electron process restart, revision transitions in rendered consumers, Windows, and CM5 remain unverified.
@@ -4031,18 +4031,18 @@ The initial signed-selection assertion rejected a development link before native
 Actual signed entry execution places a non-enumerable revision marker on the returned source.
 The injected default constructor rejects calls whenever a replacement is selected.
 Entry and projection module files change after discovery, before factory construction.
-The selected source still preserves IPC, Desk Data, cached health, provider requests, covers, selection, and cache behavior.
+The selected source still preserves IPC, Open DeskOS Data, cached health, provider requests, covers, selection, and cache behavior.
 
 The signed matrix includes asynchronous cancellation and drain checks for notebook requests, cover requests, parallel bookmark requests, and response bodies.
 It preserves late-write suppression and concurrent IPC and reading completion order.
 Corruption before discovery reports the native hash rejection and starts the actual default source.
-Default IPC, Desk Data, and health match the uncorrupted baseline.
+Default IPC, Open DeskOS Data, and health match the uncorrupted baseline.
 The retained corrupted revision still fails native store integrity verification.
 
 Removal follows complete Host shutdown, absent handlers, and no retained cleanup failures.
 Native removal reports a selection-only effect and leaves no selected replacement.
 Native store verification preserves every signed file and the original descriptor bytes.
-The next default composition restores the same IPC, Desk Data, and health using the retained highlight cache.
+The next default composition restores the same IPC, Open DeskOS Data, and health using the retained highlight cache.
 Development-link removal also preserves its source package and the same consumers.
 
 The focused source, source-reading, native loader, Native CLI, and parity command passed all 66 checks.
@@ -4144,7 +4144,7 @@ The actual Native CLI requires temporary publisher policy, explicit trust, and e
 The [revision checks](../tests/weread-revision.test.js) cover configured live synchronization and unconfigured cached consumers.
 Update, rollback, and removal change only selection records while the current source remains available.
 Complete Host shutdown removes owned handlers before new Main composition executes the selected source or actual default constructor.
-IPC, Desk Data, health, cache bytes, source enable preference, and an unrelated Clock preference remain unchanged.
+IPC, Open DeskOS Data, health, cache bytes, source enable preference, and an unrelated Clock preference remain unchanged.
 An unsigned update preserves configuration bytes and the current source.
 Removal preserves both verified signed revisions.
 Controlled live synchronization occurs once; subsequent revision transitions retain the fresh cache without extra provider requests.
@@ -4181,7 +4181,7 @@ It preserves the existing provider protocol; an alternative provider still needs
 The [source scenarios](../tests/weather-source.test.js) run unchanged assertions against default and independent algorithms.
 They cover configured and device locations, response validation, labels, cache behavior, freshness, concurrent requests, deadlines, and cancellation.
 The [shared consumers](../tests/weather-plugin-parity.test.js) run against default, development-linked, and signed implementations.
-They exercise actual Main composition, IPC, Desk Data, cached health, disable, enable, cancellation, and cleanup retry.
+They exercise actual Main composition, IPC, Open DeskOS Data, cached health, disable, enable, cancellation, and cleanup retry.
 The signed fixture uses actual Native CLI installation with temporary publisher policy, trust, and explicit grants.
 An execution marker identifies the actual source, while the default source constructor rejects replacement use.
 After discovery, stored source and dependency mutations do not change captured execution or re-enabled instance behavior.
@@ -4206,7 +4206,7 @@ The scenarios failed before the helper supported distinct signed bundles.
 Selection changes preserve the running source object until complete Host shutdown and reconstruction.
 New compositions execute signed version `3.0.0`, rolled-back version `2.0.0`, and the default implementation after removal.
 Actual source markers identify signed execution; the default construction capability rejects signed use.
-IPC, Desk Data, cached health, persisted cache bytes, and unrelated plugin preferences remain unchanged.
+IPC, Open DeskOS Data, cached health, persisted cache bytes, and unrelated plugin preferences remain unchanged.
 Unsigned entry changes fail without changing configuration bytes or the running source.
 Both retained signed revisions remain verified after removal.
 Each new live source receives one forced controlled refresh, while fresh consumer reads avoid additional requests.
@@ -4214,7 +4214,7 @@ Each new live source receives one forced controlled refresh, while fresh consume
 The focused source, consumer, revision, native loader, native CLI, and device-location command passed 102 checks.
 The final Shell Node suite passed 1,418 tests, skipped two platform-specific tests, and reported no failures from 1,420 tests.
 Fresh independent read-only review found no introduced findings.
-These scenarios construct the Node Plugin Host with Weather and Desk Data and use child processes for Native CLI operations.
+These scenarios construct the Node Plugin Host with Weather and Open DeskOS Data and use child processes for Native CLI operations.
 They do not establish separate Electron process startup, preload or rendered parity, production bootstrap, live services, or device acceptance.
 The later relocation repair section supersedes the relocation limitation recorded above.
 
@@ -4237,7 +4237,7 @@ A failing regression confirmed that a later ordinary lookup could suppress an ex
 The repair now checks actual provider acquisition before considering a forced refresh satisfied.
 
 The [shared source scenarios](../tests/weather-source.test.js) control lookup and provider completion without timing delays.
-The [consumer scenarios](../tests/weather-plugin-parity.test.js) check relocation through actual Main composition, IPC, Desk Data, health, and persisted cache.
+The [consumer scenarios](../tests/weather-plugin-parity.test.js) check relocation through actual Main composition, IPC, Open DeskOS Data, health, and persisted cache.
 These consumers run against default, development-linked, and signed implementations.
 The focused source, consumer, revision, location, native loader, and native CLI command passed 119 checks.
 The final Shell Node suite passed 1,435 tests, skipped two platform-specific tests, and reported no failures from 1,437 tests.
@@ -4482,7 +4482,7 @@ The [signing helper](../tests/helpers/hydra-selection.js) uses actual Native CLI
 Executed source markers identify the signed version; changing its stored entry after discovery does not change execution.
 
 Shared scenarios preserve retained and live values, soil limits, disconnected sensors, watering states, diagnostics, timestamps, stale boundaries, and rejected messages.
-IPC, Desk Data, cached health, and update counts match the default source across the protocol transition sequence.
+IPC, Open DeskOS Data, cached health, and update counts match the default source across the protocol transition sequence.
 Connection retries preserve subscription scope and existing timeouts.
 Disable waits for the client completion callback; uncertain release blocks another connection.
 Health queries do not create connection work.
@@ -4541,7 +4541,7 @@ Executed source markers verify signed versions `2.0.0` and `3.0.0`; default cons
 Stored selection changes preserve the running source until complete Host shutdown and new composition.
 Removal restores the actual default version `1.0.0`.
 
-IPC, Desk Data, cached health, enable preferences, and unrelated Clock preferences remain unchanged across each stage.
+IPC, Open DeskOS Data, cached health, enable preferences, and unrelated Clock preferences remain unchanged across each stage.
 Unsigned updates preserve exact configuration bytes and leave the active source unchanged.
 Both retained signed revisions pass verification, and their complete captured file maps remain unchanged after removal.
 Configured instances each create one controlled MQTT client; unconfigured instances create none.
@@ -4581,7 +4581,7 @@ The [wire cases](../tests/hydra-mqtt-wire.test.js) exercise default, linked, and
 A task-owned TCP endpoint binds only to `127.0.0.1` on an ephemeral port.
 The endpoint uses the SDK dependency `mqtt-packet` for actual MQTT packet decoding and encoding.
 It acknowledges connection and subscription packets and publishes controlled retained and live measurements.
-The sources subscribe to `plants/#` and preserve IPC, Desk Data, timestamps, units, watering states, and cached health.
+The sources subscribe to `plants/#` and preserve IPC, Open DeskOS Data, timestamps, units, watering states, and cached health.
 
 Signed execution uses captured verified entry bytes after the stored entry changes.
 Independent execution rejects default source construction and uses the public connector without an injected connection option.
@@ -4635,14 +4635,14 @@ The isolated bootstrap does not establish complete application startup with ever
 Timeout and abort cleanup ordering received source review without separate fault injection.
 The selected fixture, constructor rejection, and separate import guard establish source independence.
 
-## Independent Desk Link source verification
+## Independent Open DeskOS Link source verification
 
-The [Desk Link contract](DESK_LINK_PLUGIN_CONTRACT.md) defines the raw transport and existing public source methods.
-Main grants `source.desk-link.createTransport` alongside the existing client constructor.
+The [Open DeskOS Link contract](ODK_LINK_PLUGIN_CONTRACT.md) defines the raw transport and existing public source methods.
+Main grants `source.odk-link.createTransport` alongside the existing client constructor.
 The default client uses that transport without changing its endpoint, lazy credential, framing, timeout, or result policies.
 The initial transport checks failed before the capability and export existed.
 
-The [independent entry](../tests/fixtures/desk-link-replacement/entry.cjs) owns request lifetime and result projection without Shell imports or default client construction.
+The [independent entry](../tests/fixtures/odk-link-replacement/entry.cjs) owns request lifetime and result projection without Shell imports or default client construction.
 The actual CLI loads development links and installs signed bundles with explicit trust and grants.
 Signed tests execute captured entry bytes after stored entry mutation.
 Shared cases compare snapshots, hosted sessions, machines, event records, unavailable results, and actual Pi consumer behavior.
@@ -4653,7 +4653,7 @@ Fresh review found a cancellation gap between transport completion and public me
 The regression passed for the default source and failed for linked and signed replacements before repair.
 All four replacement methods now recheck cancellation before returning their results.
 Fresh follow-up review passed 19 focused checks and found no remaining actionable findings.
-The shared Desk Link, Pi, Main wiring, native loading, CLI, and Host command passed all 285 checks.
+The shared Open DeskOS Link, Pi, Main wiring, native loading, CLI, and Host command passed all 285 checks.
 That complete Shell command reported 1495 checks: 1493 passed, none failed, and two were skipped.
 
 These results cover local Node on macOS with controlled responses and task-owned Unix sockets.
@@ -4661,25 +4661,25 @@ The token checks inspect transport inputs without proving an actual Windows name
 The following bootstrap section records subsequent actual Main and preload evidence.
 Rendered replacement consumers, external reporters, real Hosted Pi control, Windows, and CM5 remain unverified.
 
-## Desk Link actual Main bootstrap verification
+## Open DeskOS Link actual Main bootstrap verification
 
-The [bootstrap cases](../tests/desk-link-main-bootstrap.test.js) use an isolated Electron wrapper that loads the actual Main module.
+The [bootstrap cases](../tests/odk-link-main-bootstrap.test.js) use an isolated Electron wrapper that loads the actual Main module.
 The parent supplies a task-owned Unix endpoint with controlled machine, snapshot, hosted session, and event responses.
 Four distinct processes start signed version two, updated version three, rollback version two, and the restored default.
 Each process verifies the executed source revision and uses actual preload IPC for Pi session and event consumers.
-Signed processes reject default Desk Link construction.
+Signed processes reject default Open DeskOS Link construction.
 Other Main sources remain disabled, and each window remains hidden.
 
 Native CLI operations require explicit trust and the existing source capability grant.
 Unsigned candidate mutation preserves exact configuration bytes.
 Removal retains both signed revisions, whose captured file maps remain verified and unchanged.
-Normal Main shutdown releases Pi handlers and stops Desk Link.
+Normal Main shutdown releases Pi handlers and stops Open DeskOS Link.
 The parent observes closure of all request connections before accepting each process result.
 Child closure precedes private profile removal on success, timeout, or cancellation.
 
 The initial fixture access check failed before the bootstrap wrapper existed.
 The focused bootstrap and parity command passed all 17 checks.
-The shared bootstrap, Desk Link, Pi, Main wiring, native loading, CLI, and Host command passed all 286 checks.
+The shared bootstrap, Open DeskOS Link, Pi, Main wiring, native loading, CLI, and Host command passed all 286 checks.
 Fresh independent review found no actionable findings in bootstrap fidelity, isolation, selection, or resource ownership.
 That complete Shell command reported 1496 checks: 1494 passed, none failed, and two were skipped.
 
@@ -4689,9 +4689,9 @@ The bootstrap disables unrelated Main factories and does not establish complete 
 Error, timeout, and abort cleanup paths received source review without separate fault injection.
 The checks do not include an Electron descendant-process census.
 
-## Native Desk Link source acceptance
+## Native Open DeskOS Link source acceptance
 
-The existing Desk Link checks ran on CM5 and macOS with private configuration, state, workspace, endpoints, temporary files, and Electron profiles.
+The existing Open DeskOS Link checks ran on CM5 and macOS with private configuration, state, workspace, endpoints, temporary files, and Electron profiles.
 All 25 checks passed on each host without failures or skips.
 The test durations were 12182 milliseconds on CM5 and 26521 milliseconds on macOS.
 Both commands retained all 673 captured source, test, script, and package inputs unchanged.
@@ -4707,7 +4707,7 @@ No implementation, fixture deadline, production service, or active release chang
 Run this command from `runtime/shell/` with private host paths:
 
 ```sh
-node --test --test-concurrency=1 tests/desk-link-plugin-parity.test.js tests/desk-link-transport.test.js tests/desk-link-lifecycle.test.js tests/desk-link-main-bootstrap.test.js
+node --test --test-concurrency=1 tests/odk-link-plugin-parity.test.js tests/odk-link-transport.test.js tests/odk-link-lifecycle.test.js tests/odk-link-main-bootstrap.test.js
 ```
 
 These checks use controlled reporters and a parent-owned Unix endpoint.
@@ -4741,7 +4741,7 @@ Electron descendant cleanup has no separate process-tree measurement.
 
 The initial RED command failed because the bootstrap wrapper did not exist.
 The focused bootstrap and parity command passed 93 checks without failures or skips.
-The shared Pi, Desk Link, Main selection, native loader, native manager, and Host command passed 203 checks without failures or skips.
+The shared Pi, Open DeskOS Link, Main selection, native loader, native manager, and Host command passed 203 checks without failures or skips.
 The complete Shell command reported 1500 checks: 1498 passed, none failed or cancelled, and two were skipped.
 The skips cover Windows-only token refusal and microphone-name encoding.
 Fresh read-only review found no actionable startup, provenance, isolation, consumer, or resource ownership defects.
@@ -5300,7 +5300,7 @@ Runtime hot replacement, independent density, external brokers, full-process can
 
 The [runtime contract](RUNTIME_PLUGIN_REPLACEMENT.md) owns the new trusted in-memory Host replacement interface and its remaining integration gates.
 Fourteen Host scenarios check release order, declaration refusal, rollback, retained cleanup, concurrent requests, shutdown, disabled selections, and declaration snapshots.
-The Hydra scenario checks actual signed source capture, controlled production IPC handlers, Desk Data, cached health, and MQTT completion ownership.
+The Hydra scenario checks actual signed source capture, controlled production IPC handlers, Open DeskOS Data, cached health, and MQTT completion ownership.
 It replaces signed source `2.0.0` with `3.0.0` and restores default behavior inside one Host.
 It does not render a Widget or use an actual MQTT broker.
 
@@ -7048,9 +7048,9 @@ No product source changed.
 
 ## Native selected registry reading bounds
 
-The extended Desk Data comparison passed locally and on CM5 on 2026-10-11.
-The [shared scenario](../tests/features/desk-data.feature) retains source errors and byte bounds through default and signed selected registries.
-The [consumer comparison](../tests/desk-data-replacement.test.js) reads through the actual control and Personal Bot Link.
+The extended Open DeskOS Data comparison passed locally and on CM5 on 2026-10-11.
+The [shared scenario](../tests/features/odk-data.feature) retains source errors and byte bounds through default and signed selected registries.
+The [consumer comparison](../tests/odk-data-replacement.test.js) reads through the actual control and Personal Bot Link.
 It verifies the selected version and prevents default registry construction during signed selection.
 
 Both consumers receive the complete value at the existing 65536-byte UTF-8 value limit.
@@ -7076,7 +7076,7 @@ This result does not certify those dependency builds or live SDK execution.
 The final command ran from the candidate Shell directory:
 
 ```sh
-node --unhandled-rejections=strict --test --test-concurrency=1 tests/desk-data-replacement.test.js tests/desk-data.test.js tests/desk-data-shell.test.js tests/desk-data-wiring.test.js
+node --unhandled-rejections=strict --test --test-concurrency=1 tests/odk-data-replacement.test.js tests/odk-data.test.js tests/odk-data-shell.test.js tests/odk-data-wiring.test.js
 ```
 
 Both final commands passed 74 checks without failures or skips.

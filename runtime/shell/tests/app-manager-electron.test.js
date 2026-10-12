@@ -13,7 +13,7 @@ for (const mode of ['signed', 'development']) for (const invalid of [false, true
     assert.match(await fs.readFile(fixture, 'utf8'), /ODK_APP_MANAGER_PROFILE/, 'Browser fixture requires parent-owned isolation')
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-app-manager-browser-'))
     const env = { ...process.env, ODK_APP_MANAGER_PROFILE: root, ODK_APP_MANAGER_MODE: mode,
-      ODK_APP_MANAGER_INVALID: invalid ? 'rollback' : '', OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+      ODK_APP_MANAGER_INVALID: invalid ? 'rollback' : '', ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
     delete env.ELECTRON_RUN_AS_NODE
     try {

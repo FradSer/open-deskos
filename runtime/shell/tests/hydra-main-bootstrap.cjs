@@ -30,7 +30,7 @@ assert.ok(!surfaceVersion || ['1.0.0', '2.0.0', '3.0.0'].includes(surfaceVersion
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODESK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.hydra').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.hydra').join(',')
 const sourceModule = require('../src/hydra-mqtt')
 const defaultCreate = sourceModule.createHydraSource
 let defaultConstructions = 0
@@ -97,7 +97,7 @@ app.on('browser-window-created', (_event, win) => {
       const runtimeVersions = []
       if (runtime) {
         const run = require('node:util').promisify(require('node:child_process').execFile)
-        const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+        const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
         const command = args => run(process.execPath, [cli, ...args], {
           env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 65536,
         })
@@ -105,7 +105,7 @@ app.on('browser-window-created', (_event, win) => {
         const configPath = resolveConfigPath(process.env)
         const baseline = await win.webContents.executeJavaScript('window.odkPlatform.getHydraStatus()')
         for (const target of ['2.0.0', '3.0.0']) {
-          await command(['native', 'rollback', 'odk.source.hydra', '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING])
+          await command(['native', 'rollback', 'odk.source.hydra', '--keyring', process.env.ODK_NATIVE_KEYRING])
           const before = fs.readFileSync(configPath)
           const receipt = JSON.parse((await command(['activate', 'odk.source.hydra', '--runtime'])).stdout)
           assert.equal(receipt.version, target)
@@ -189,7 +189,7 @@ app.on('browser-window-created', (_event, win) => {
           const { resolveConfigPath } = require('../src/plugin-config')
           const configPath = resolveConfigPath(process.env)
           const before = fs.readFileSync(configPath)
-          const receipt = JSON.parse((await run(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'),
+          const receipt = JSON.parse((await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
             'restore-default', 'odk.tile.hydra', '--runtime'], {
             env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 65536,
           })).stdout)
@@ -211,7 +211,7 @@ app.on('browser-window-created', (_event, win) => {
           await win.webContents.executeJavaScript(`window.odkRetainedDocument = document;
             window.odkRetainedDesktop = document.querySelector('[data-widget="odk.tile.hydra"]');`)
           const run = require('node:util').promisify(require('node:child_process').execFile)
-          const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+          const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
           const command = args => run(process.execPath, [cli, ...args], {
             env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 65536,
           })
@@ -223,8 +223,8 @@ app.on('browser-window-created', (_event, win) => {
               const bundle = process.env[target === '2.0.0' ? 'ODK_HYDRA_BOOTSTRAP_SURFACE_FIRST' : 'ODK_HYDRA_BOOTSTRAP_SURFACE_NEXT']
               assert.ok(bundle && path.isAbsolute(bundle), 'Runtime surface install requires a private parent-owned bundle')
               await command(['native', ...(target === '2.0.0' ? ['install', bundle] : ['update', 'odk.tile.hydra', bundle]),
-                '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING, '--trust'])
-            } else await command(['native', 'rollback', 'odk.tile.hydra', '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING])
+                '--keyring', process.env.ODK_NATIVE_KEYRING, '--trust'])
+            } else await command(['native', 'rollback', 'odk.tile.hydra', '--keyring', process.env.ODK_NATIVE_KEYRING])
             const before = fs.readFileSync(configPath)
             const receipt = JSON.parse((await command(['activate', 'odk.tile.hydra', '--runtime'])).stdout)
             assert.equal(receipt.scope, 'electron-renderer')
@@ -240,7 +240,7 @@ app.on('browser-window-created', (_event, win) => {
             assert.equal(host.get('odk:source/hydra/v1'), source)
             surface.runtimeVersions.push(target)
             if (target === '2.0.0') {
-              const policyPath = process.env.OPEN_DESKOS_NATIVE_KEYRING
+              const policyPath = process.env.ODK_NATIVE_KEYRING
               const policy = fs.readFileSync(policyPath)
               const broken = Buffer.from('{ malformed fixture configuration')
               const revoked = Buffer.from(JSON.stringify({ schemaVersion: 1, publishers: {} }))

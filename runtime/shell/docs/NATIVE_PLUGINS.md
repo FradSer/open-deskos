@@ -82,7 +82,7 @@ Main startup uses these records when an external publisher policy is configured.
 
 ## Main startup
 
-Set `OPEN_DESKOS_NATIVE_KEYRING` to the external publisher policy file.
+Set `ODK_NATIVE_KEYRING` to the external publisher policy file.
 The [Main loader](../src/native-plugin-loader.js) uses the same Host state directory as the Native CLI.
 Startup checks the current signature, publisher policy, identity, replacement declaration, trust record, and exact capability grants.
 Disabled selections do not load code.

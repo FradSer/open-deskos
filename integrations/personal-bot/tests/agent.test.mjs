@@ -94,7 +94,7 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   const dir = await mkdtemp(join(tmpdir(), 'voice-loader-'))
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const loader = await createResourceLoader(fileURLToPath(new URL('../../..', import.meta.url)), dir)
-  assert.ok(loader.getSkills().skills.some(skill => skill.name === 'open-deskos-widget'))
+  assert.ok(loader.getSkills().skills.some(skill => skill.name === 'odk-widget'))
   assert.match(loader.getAppendSystemPrompt().join('\n'), /never edit active/i)
   assert.equal(loader.getExtensions().extensions.length, 1, 'only the installed SDK codemode factory loads')
   const instructions = loader.getAppendSystemPrompt().join('\n')
@@ -302,22 +302,22 @@ test('required home correction names the exact visible coverage contract', async
 })
 
 test('Given different service and process environments When generating suggestions Then the service timeout controls the injected SDK session', { timeout: 5000 }, async t => {
-  const previous = process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
-  process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
+  const previous = process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS
+  process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
   t.after(() => {
-    if (previous === undefined) delete process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
-    else process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
+    if (previous === undefined) delete process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS
+    else process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
   })
-  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only', ODESK_PROACTIVE_GENERATION_TIMEOUT_MS: '1000' })
+  const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only', ODK_PROACTIVE_GENERATION_TIMEOUT_MS: '1000' })
   await assert.rejects(bot.generateProposals({ topics: [], maxCandidates: 1 }), /timed out/)
 })
 
 test('Given an isolated service environment When the process environment is invalid Then suggestion generation ignores the global value', async t => {
-  const previous = process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
-  process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
+  const previous = process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS
+  process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = 'invalid'
   t.after(() => {
-    if (previous === undefined) delete process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS
-    else process.env.ODESK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
+    if (previous === undefined) delete process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS
+    else process.env.ODK_PROACTIVE_GENERATION_TIMEOUT_MS = previous
   })
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
     emit?.({ type: 'message_end', message: assistant('{"suggestions":[]}') })
@@ -505,8 +505,8 @@ test('user application lifecycle tools use the bounded shell control protocol', 
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   await tokenEnvironment(t, dir)
   const socketPath = endpoint(dir, 'control.sock')
-  process.env.ODESK_APPS_CONTROL_SOCKET = socketPath
-  t.after(() => delete process.env.ODESK_APPS_CONTROL_SOCKET)
+  process.env.ODK_APPS_CONTROL_SOCKET = socketPath
+  t.after(() => delete process.env.ODK_APPS_CONTROL_SOCKET)
   const server = createServer(connection => {
     requests(connection, request => {
       connection.end(JSON.stringify({ v: 1, id: request.id, ok: true, apps: [] }) + '\n')
@@ -539,7 +539,7 @@ test('trusted capability modules augment readonly coordination tools and resume 
   for (const name of ['bash', 'powershell', 'edit', 'write']) assert.ok(options.excludeTools.includes(name))
   assert.ok(options.customTools.every(tool => tool.exposure === 'codemode'))
   assert.equal(options.cwd, '/work/checkout')
-  await assert.rejects(validateWorkspace('/opt/open-deskos/current'), /Workspace/)
+  await assert.rejects(validateWorkspace('/opt/odk/current'), /Workspace/)
 })
 
 test('capability modules cannot replace builtin inspection or shell names', async t => {
@@ -561,9 +561,9 @@ test('coding tools list configuration only and route explicit project requests',
   executable = await nodeExecutable(t, executable)
   const projectRoot = process.platform === 'win32' ? join(dir, 'work') : '/work'
   await writeFile(file, JSON.stringify({ targets: [{ id: 'cm5', name: '开发板', roots: [projectRoot], executable }] }))
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = file
-  t.after(() => { if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE; else process.env.ODESK_TASK_TARGETS_FILE = previous })
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = file
+  t.after(() => { if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE; else process.env.ODK_TASK_TARGETS_FILE = previous })
   const tools = await loadCapabilities()
   const targets = await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)
   assert.deepEqual(JSON.parse(targets.content[0].text), { targets: [{ id: 'cm5', name: '开发板', roots: [projectRoot] }] })

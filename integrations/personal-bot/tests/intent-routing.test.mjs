@@ -37,15 +37,15 @@ test('uncertain, no-match and conflicting distributions ask for clarification', 
 })
 
 test('follow-up intent state excludes previous answers and tool-derived private evidence', async () => {
-  const f = routerFixture(response('desk_data'))
-  const turn = createIntentTurn({ route: f.route, profile: 'personal', tools: ['desk_data'] })
+  const f = routerFixture(response('odk_data'))
+  const turn = createIntentTurn({ route: f.route, profile: 'personal', tools: ['odk_data'] })
   const signal = new AbortController().signal
   await turn.prepare('查看桌面当前读数', signal)
   turn.complete('查看桌面当前读数', 'PRIVATE_FIXTURE_EVIDENCE from a tool response')
   await turn.prepare('再查一次', signal)
-  assert.deepEqual(f.requests[1].body.state.previous, { text: '查看桌面当前读数', intent: 'desk_data' })
-  await f.route({ text: '再查一次', profile: 'personal', previous: { text: '查看桌面当前读数', intent: 'desk_data', answer: 'PRIVATE_FIXTURE_EVIDENCE', result: { private: true } } })
-  assert.deepEqual(f.requests[2].body.state.previous, { text: '查看桌面当前读数', intent: 'desk_data' })
+  assert.deepEqual(f.requests[1].body.state.previous, { text: '查看桌面当前读数', intent: 'odk_data' })
+  await f.route({ text: '再查一次', profile: 'personal', previous: { text: '查看桌面当前读数', intent: 'odk_data', answer: 'PRIVATE_FIXTURE_EVIDENCE', result: { private: true } } })
+  assert.deepEqual(f.requests[2].body.state.previous, { text: '查看桌面当前读数', intent: 'odk_data' })
   assert(!f.requests.some(request => JSON.stringify(request.body).includes('PRIVATE_FIXTURE_EVIDENCE')))
 })
 

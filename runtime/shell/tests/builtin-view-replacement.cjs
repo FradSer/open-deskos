@@ -168,9 +168,9 @@ app.whenReady().then(async () => {
           const before = readConfig(resolveConfigPath(process.env))
           const peers = config => Object.fromEntries(Object.entries(config.plugins).filter(([key]) => key !== id))
           const args = phase === 'updated'
-            ? ['update', id, path.join(profile, `${appId}-3.0.0`), '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING, '--trust']
-            : ['rollback', id, '--keyring', process.env.OPEN_DESKOS_NATIVE_KEYRING]
-          const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'),
+            ? ['update', id, path.join(profile, `${appId}-3.0.0`), '--keyring', process.env.ODK_NATIVE_KEYRING, '--trust']
+            : ['rollback', id, '--keyring', process.env.ODK_NATIVE_KEYRING]
+          const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'),
             'native', ...args], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000 })).stdout)
           assert.equal(receipt.effect, 'selection-only')
           const after = readConfig(resolveConfigPath(process.env))

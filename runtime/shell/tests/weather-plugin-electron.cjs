@@ -153,7 +153,7 @@ app.whenReady().then(async () => {
   let executedVersion
   let cacheReport
   for (const signed of restartVersion ? [restartVersion !== '1.0.0'] : [false, true]) {
-    const env = surfaceRevision ? process.env : { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    const env = surfaceRevision ? process.env : { ...process.env, ODK_CONFIG_DIR: path.join(profile, 'config'),
       XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
     if (surfaceReplacement && signed) {
       if (signedSurface) {

@@ -59,7 +59,7 @@ test('the acceptance script decides from the reported result, not from the exit 
     const seen = []
     const spawn = (command, args, options) => {
       seen.push({ command, args })
-      if (reported) fs.writeFileSync(options.env.ODESK_SMOKE_RESULT_FILE, `${JSON.stringify(payload)}\n`, 'utf8')
+      if (reported) fs.writeFileSync(options.env.ODK_SMOKE_RESULT_FILE, `${JSON.stringify(payload)}\n`, 'utf8')
       return { status, stdout: '' }
     }
     const code = runSmoke({ ...size, launcher, spawn, logger })
@@ -90,8 +90,8 @@ test('the acceptance script checks the size this host is configured for', async 
   // hold it states its own size instead — the same variable the main process
   // reads, so the check cannot disagree with the window that runs.
   assert.deepEqual(configuredSize({}), { width: 1920, height: 1280 })
-  assert.deepEqual(configuredSize({ ODESK_SHELL_WIDTH: '1280', ODESK_SHELL_HEIGHT: '800' }), { width: 1280, height: 800 })
-  assert.deepEqual(configuredSize({ ODESK_SHELL_WIDTH: 'nonsense', ODESK_SHELL_HEIGHT: '' }), { width: 1920, height: 1280 })
+  assert.deepEqual(configuredSize({ ODK_SHELL_WIDTH: '1280', ODK_SHELL_HEIGHT: '800' }), { width: 1280, height: 800 })
+  assert.deepEqual(configuredSize({ ODK_SHELL_WIDTH: 'nonsense', ODK_SHELL_HEIGHT: '' }), { width: 1920, height: 1280 })
 })
 
 test('the override scenario asks for a size this host can actually show', async () => {

@@ -1,7 +1,7 @@
 # Pi Session Events plugin contract
 
 This contract defines replacements for `odk.source.pi-events` on `electron-main`.
-The replacement retains kind `service`, required port `odk:source/desk-link/v1`, and provided port `odk:source/pi-events/v1`.
+The replacement retains kind `service`, required port `odk:source/link/v1`, and provided port `odk:source/pi-events/v1`.
 The manifest declares permissions `source.pi-events` and `ipc`.
 Native plugins are trusted code with process authority; declared capabilities do not provide a sandbox.
 
@@ -16,7 +16,7 @@ An independent implementation uses `readLocal` without invoking `create` or impo
 Main supplies the existing `readSessionEvents` operation for local log inspection.
 The default constructor remains available for existing factories.
 
-The Desk Link port supplies `sessionEvents(sessionId, { hostedPi, signal })`.
+The Open DeskOS Link port supplies `sessionEvents(sessionId, { hostedPi, signal })`.
 The plugin passes its cancellation signal and interprets `hostedPi` as true only for boolean true.
 Reported success returns the complete response without modification.
 
@@ -25,8 +25,8 @@ Reported success returns the complete response without modification.
 These reported failure reasons permit local log inspection:
 
 - `session-log-missing`
-- `desk-link-unconfigured`
-- `desk-link-unavailable`
+- `odk-link-unconfigured`
+- `odk-link-unavailable`
 
 Other reported failures remain authoritative and return without local inspection.
 A rejected reported operation rejects the source read while the source remains active.
@@ -53,7 +53,7 @@ After cancellation, success and rejection both resolve to `{ ok: false, reason: 
 The factory registers source cleanup before it registers IPC handlers.
 Cleanup removes the owned handler and drains its source.
 The Host retains failed cleanup and prevents another instance over retained resources.
-Stopping Pi Session Events leaves the shared Desk Link and Pi Sessions consumers available.
+Stopping Pi Session Events leaves the shared Open DeskOS Link and Pi Sessions consumers available.
 
 ## Example and acceptance
 

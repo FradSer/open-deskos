@@ -57,7 +57,7 @@ test('actual Hosted Pi inspection needs no task configuration and executes no en
   const { fileURLToPath } = await import('node:url')
   const selected = await selection(t, 'service', "throw Error('private entry executed')")
   const result = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../src/task-daemon.mjs', import.meta.url)), '--plugin-selection', selected.config, '--trust-plugins', '--plugins', 'validate'], {
-    timeout: 10000, env: { PATH: process.env.PATH, OPEN_DESKOS_CONFIG_DIR: selected.dir },
+    timeout: 10000, env: { PATH: process.env.PATH, ODK_CONFIG_DIR: selected.dir },
   })
   const report = JSON.parse(result.stdout)
   assert.equal(report.instance, 'hosted-pi')
@@ -92,7 +92,7 @@ exports.create = async () => {
 };
 `)
   const socket = join(selected.dir, 'control.sock')
-  const descriptor = join(selected.dir, 'open-deskos', 'hosted-pi', 'endpoint.json')
+  const descriptor = join(selected.dir, 'odk', 'hosted-pi', 'endpoint.json')
   const project = join(selected.dir, 'project')
   await mkdir(project)
   const taskConfig = join(selected.dir, 'tasks.json')
@@ -108,7 +108,7 @@ exports.create = async () => {
     { manifest: { ...hostedPiManifest('endpoint'), version: '2.0.0' }, entry: endpoint },
   ] }))
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/task-daemon.mjs', import.meta.url)), '--plugin-selection', selected.config, '--trust-plugins'], {
-    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, ODESK_TASK_CONFIG: taskConfig, ODK_TEST_SOCKET: socket },
+    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, ODK_TASK_CONFIG: taskConfig, ODK_TEST_SOCKET: socket },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') })
@@ -132,9 +132,9 @@ exports.create = async () => {
   assert.equal(diagnosis.runtime.plugins.find(plugin => plugin.manifest.id === 'odk.hosted-pi.control').manifest.version, '1.0.0')
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
-  const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/open-deskos-plugin-cli.js', import.meta.url))
+  const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/odk-plugin-cli.js', import.meta.url))
   const manage = action => promisify(execFile)(process.execPath, [cli, action, 'odk.hosted-pi.service', '--runtime'], {
-    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, OPEN_DESKOS_CONFIG_DIR: join(selected.dir, 'preferences') },
+    env: { PATH: process.env.PATH, HOME: selected.dir, XDG_RUNTIME_DIR: selected.dir, ODK_CONFIG_DIR: join(selected.dir, 'preferences') },
   })
   const taskId = randomUUID()
   const startRequest = { version: 1, requestId: randomUUID(), command: 'start', taskId, project, prompt: 'Controlled pending task' }

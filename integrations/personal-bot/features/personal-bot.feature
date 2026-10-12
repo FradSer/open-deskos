@@ -1,6 +1,6 @@
 Feature: Explicit personal assistant configuration and private opt-in note memory
   Scenario: Existing coding setup remains unchanged
-    Given ODESK_PERSONAL_BOT_CONFIG is absent
+    Given ODK_PERSONAL_BOT_CONFIG is absent
     When configuration is loaded
     Then the coding profile has no personal skills or memory
 

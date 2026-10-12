@@ -201,11 +201,11 @@ function validateRuntimeComposition(releasePath) {
 function validateRequiredComponents(releasePath) {
   const integration = path.join(releasePath, 'integrations', 'personal-bot')
   const botEntry = path.join(integration, 'src', 'main.mjs')
-  const botUnit = path.join(integration, 'systemd', 'open-deskos-personal-bot.service')
+  const botUnit = path.join(integration, 'systemd', 'odk-personal-bot.service')
   if (!fs.existsSync(path.join(integration, 'package.json')) || !fs.existsSync(botEntry) || !fs.existsSync(botUnit)) {
     return { ok: false, reason: 'required Personal Bot integration is missing' }
   }
-  if (!fs.existsSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'))) {
+  if (!fs.existsSync(path.join(integration, 'systemd', 'odk-pi-tasks.service'))) {
     return { ok: false, reason: 'required Hosted Pi control service is missing' }
   }
   const modules = path.join(integration, 'node_modules')

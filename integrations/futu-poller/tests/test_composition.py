@@ -215,11 +215,11 @@ def stop(_interval): raise KeyboardInterrupt
 time.sleep = stop
 runpy.run_path(str(Path('poller.py').resolve()), run_name='__main__')
 """
-    env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path), "ODESK_FUTU_TARGETS_FILE": str(targets), "SERVICE_ID": "fixture-service"}
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path), "ODK_FUTU_TARGETS_FILE": str(targets), "SERVICE_ID": "fixture-service"}
     if management != "off":
         env["XDG_RUNTIME_DIR"] = str(tmp_path)
     if management == "occupied":
-        directory = tmp_path / "open-deskos-futu"
+        directory = tmp_path / "odk-futu"
         directory.mkdir(mode=0o700)
         (directory / "control.sock").write_text("preserved")
     result = subprocess.run(

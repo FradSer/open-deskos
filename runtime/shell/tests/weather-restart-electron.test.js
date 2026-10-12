@@ -12,7 +12,7 @@ const id = 'odk.source.weather'
 
 test('signed Weather update rollback and removal preserve separate Electron consumers', { timeout: 180000 }, async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weather-process-revisions-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const pids = new Set()
   const cacheFile = path.join(root, 'persistent-weather.json')

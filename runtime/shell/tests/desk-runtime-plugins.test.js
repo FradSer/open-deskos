@@ -107,7 +107,7 @@ test('catalog synchronization precedes refresh and cancellation prevents later a
   assert.equal(f.events.includes('refresh'), false)
 })
 
-test('Desk Data restarts against the replacement optional source', async () => {
+test('Open DeskOS Data restarts against the replacement optional source', async () => {
   const f = fixture()
   let generation = 0
   f.host.register({ manifest: { schemaVersion: 1, id: 'odk.source.weather', name: 'Weather', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: DATA_PORTS.weather }] }, create: () => ({ ports: { [DATA_PORTS.weather]: { generation: ++generation } } }) })
@@ -132,9 +132,9 @@ test('smoke composition neither reads installed packages nor starts service refr
   await f.host.stop()
 })
 
-test('real Desk Data preserves published package data while rebinding built-in readers', async () => {
+test('real Open DeskOS Data preserves published package data while rebinding built-in readers', async () => {
   const f = fixture()
-  f.capabilities['desk.data'].create = require('../src/desk-data').createShellDeskData
+  f.capabilities['desk.data'].create = require('../src/odk-data').createShellOdkData
   f.catalog([{ id: 'timer', name: 'Timer', revision: 'r1', data: { fields: { remaining_seconds: { type: 'number' } } } }])
   let generation = 0
   f.host.register({ manifest: { schemaVersion: 1, id: 'odk.source.weather', name: 'Weather', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: DATA_PORTS.weather }] }, create: () => {
@@ -155,61 +155,61 @@ test('real Desk Data preserves published package data while rebinding built-in r
   await f.host.stop()
 })
 
-test('Desk Data recovery reconciles catalog changes made while its port was disabled', async () => {
+test('Open DeskOS Data recovery reconciles catalog changes made while its port was disabled', async () => {
   const f = fixture()
-  f.capabilities['desk.data'].create = require('../src/desk-data').createShellDeskData
+  f.capabilities['desk.data'].create = require('../src/odk-data').createShellOdkData
   const entry = { id: 'timer', name: 'Timer', revision: 'r1', data: { fields: { remaining_seconds: { type: 'number' } } } }
   f.catalog([entry])
   await f.host.start()
   const registry = f.host.get(DESK_PORTS.data).registry
   registry.publish('timer', { remaining_seconds: 42 })
-  await f.host.setEnabled('odk.system.desk-data', false)
+  await f.host.setEnabled('odk.system.data', false)
   f.catalog([])
-  await f.host.setEnabled('odk.system.desk-data', true)
+  await f.host.setEnabled('odk.system.data', true)
   assert.deepEqual(await registry.read('timer'), { ok: false, error: 'unknown-reading' })
-  await f.host.setEnabled('odk.system.desk-data', false)
+  await f.host.setEnabled('odk.system.data', false)
   f.catalog([{ ...entry, revision: 'r2' }])
-  await f.host.setEnabled('odk.system.desk-data', true)
+  await f.host.setEnabled('odk.system.data', true)
   assert.equal((await registry.read('timer')).reading.state, 'unconfigured')
   registry.publish('timer', { remaining_seconds: 10 })
-  await f.host.setEnabled('odk.system.desk-data', false)
+  await f.host.setEnabled('odk.system.data', false)
   f.catalog([{ ...entry, revision: 'r3' }])
-  await f.host.setEnabled('odk.system.desk-data', true)
+  await f.host.setEnabled('odk.system.data', true)
   assert.equal((await registry.read('timer')).reading.state, 'unconfigured')
   await f.host.stop()
 })
 
 test('a changed declaration at the same revision cannot retain a prior package publication', async () => {
   const f = fixture()
-  f.capabilities['desk.data'].create = require('../src/desk-data').createShellDeskData
+  f.capabilities['desk.data'].create = require('../src/odk-data').createShellOdkData
   const entry = { id: 'timer', name: 'Timer', revision: 'r1', data: { fields: { remaining_seconds: { type: 'number' } } } }
   f.catalog([entry])
   await f.host.start()
   const registry = f.host.get(DESK_PORTS.data).registry
   registry.publish('timer', { remaining_seconds: 42 })
-  await f.host.setEnabled('odk.system.desk-data', false)
+  await f.host.setEnabled('odk.system.data', false)
   f.catalog([{ ...entry, data: { fields: { remaining_seconds: { type: 'string' } } } }])
-  await f.host.setEnabled('odk.system.desk-data', true)
+  await f.host.setEnabled('odk.system.data', true)
   assert.equal((await registry.read('timer')).reading.state, 'unconfigured')
   await f.host.stop()
 })
 
 test('a cancelled catalog synchronization cannot restore removed package readings', async () => {
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   let release
   const pending = new Promise(resolve => { release = resolve })
   const controller = new AbortController()
-  const previous = createShellDeskData({ signal: controller.signal, store: { list: () => pending } })
+  const previous = createShellOdkData({ signal: controller.signal, store: { list: () => pending } })
   const syncing = previous.syncPackages()
   controller.abort()
-  const current = createShellDeskData({ registry: previous.registry, store: { list: async () => [] } })
+  const current = createShellOdkData({ registry: previous.registry, store: { list: async () => [] } })
   await current.syncPackages()
   release([{ id: 'removed', name: 'Removed', revision: 'r1', data: { fields: { count: { type: 'number' } } } }])
   await syncing
   assert.equal(current.registry.has('removed'), false)
 })
 
-test('Desk Data Link retries its retained listener after a failed close', async () => {
+test('Open DeskOS Data Link retries its retained listener after a failed close', async () => {
   const f = fixture()
   let closes = 0
   let opens = 0
@@ -220,16 +220,16 @@ test('Desk Data Link retries its retained listener after a failed close', async 
   await f.host.start()
   await settle()
   await f.host.stop()
-  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.transport.desk-data').state, 'cleanup-failed')
-  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'cleanup-blocked')
+  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.transport.data').state, 'cleanup-failed')
+  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'cleanup-blocked')
   await assert.rejects(f.host.start(), /still owns resources/)
   await f.host.stop()
   assert.equal(closes, 2)
   assert.equal(opens, 1)
-  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'stopped')
+  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'stopped')
 })
 
-test('a cancelled Desk Data Link startup retains a late listener when its close fails', async () => {
+test('a cancelled Open DeskOS Data Link startup retains a late listener when its close fails', async () => {
   const f = fixture()
   let resolveListen
   const listening = new Promise(resolve => { resolveListen = resolve })
@@ -239,7 +239,7 @@ test('a cancelled Desk Data Link startup retains a late listener when its close 
   const stopping = f.host.stop()
   resolveListen({ close: async () => { if (++closes === 1) throw Error('late listener close failed') } })
   await stopping
-  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.transport.desk-data').state, 'cleanup-failed')
+  assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.transport.data').state, 'cleanup-failed')
   await f.host.stop()
   assert.equal(closes, 2)
 })

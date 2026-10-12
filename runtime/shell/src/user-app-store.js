@@ -3,7 +3,7 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const { isDeepStrictEqual } = require('node:util')
 const { readBoundedFile, ensureDirectory, writeExclusive } = require('./user-app-files')
-const { parseDeclaration, parseHome } = require('./desk-data-registry')
+const { parseDeclaration, parseHome } = require('./odk-data-registry')
 
 const MAX_APPS = 32
 const MAX_HTML_BYTES = 256 * 1024

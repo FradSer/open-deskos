@@ -1,7 +1,7 @@
 'use strict'
 
 const { createRendererManagement } = require('../../src/renderer-management')
-const { listenDeskData } = require('../../src/desk-data-control')
+const { listenOdkData } = require('../../src/odk-data-control')
 
 function independentRendererControl() {
   return {
@@ -21,7 +21,7 @@ function independentRendererControl() {
       return { async start() {
         if (ctx.signal.aborted) return
         if (options.smokeMode || !options.endpoint) throw Error('renderer control channel unavailable')
-        endpoint = await listenDeskData({ ...options, control, requestTimeoutMs: 30000 })
+        endpoint = await listenOdkData({ ...options, control, requestTimeoutMs: 30000 })
       } }
     },
   }

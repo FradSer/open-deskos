@@ -1,7 +1,7 @@
 'use strict'
 
 const { randomUUID } = require('node:crypto')
-const { listenDeskData } = require('./desk-data-control')
+const { listenOdkData } = require('./odk-data-control')
 const ID = 'odk.system.renderer-control'
 const SCOPE = 'electron-renderer'
 const PLUGIN_ID = /^odk\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/
@@ -163,7 +163,7 @@ function createRendererControlPlugin() {
       return { async start() {
         if (ctx.signal.aborted) return
         if (config.smokeMode || !config.endpoint) throw Error('renderer control channel unavailable')
-        server = await listenDeskData({ ...config, requestTimeoutMs: 30000, control })
+        server = await listenOdkData({ ...config, requestTimeoutMs: 30000, control })
       } }
     },
   }

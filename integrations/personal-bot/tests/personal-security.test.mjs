@@ -71,14 +71,14 @@ test('Given config file aliases, unknown keys and bounds When loading Then rejec
   const base = { profile: 'personal', memoryFile: join(dir, 'MEMORY.json') };
   for (const config of [null, [], {}, { ...base, memoryFile: file }, { ...base, didi: { environment: 'sandbox', keyFile: '/safe', extra: true } }, { ...base, skillPaths: ['/safe/SKILL.md', '/safe/SKILL.md'] }, { profile: 'coding', memoryFile: '/safe' }]) {
     await writeFile(file, JSON.stringify(config));
-    await assert.rejects(loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: file }), /Invalid personal/);
+    await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: file }), /Invalid personal/);
   }
   await writeFile(file, ' '.repeat(16385));
-  await assert.rejects(loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: file }));
+  await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: file }));
   await writeFile(file, JSON.stringify(base));
   const alias = join(dir, 'alias');
   await symlink(file, alias);
-  await assert.rejects(loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: alias }));
+  await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: alias }));
 });
 
 test('Given bundled DiDi skill When read Then actual controlled tool flow and confirmation boundaries are documented', async () => {

@@ -30,7 +30,7 @@ Feature: Pi Sessions live session list with a Remote session reader
 
   Scenario: Production Main composes signed Pi views with their selected sources
     Given production Main starts with signed Pi App, Page, session, and event entries
-    When the Page and App read the controlled Desk Link session
+    When the Page and App read the controlled Open DeskOS Link session
     Then both views show the selected session and its reported event
     And neither view mounts the packaged default implementation
     And closing the App keeps the Page usable
@@ -364,8 +364,8 @@ Feature: Pi Sessions live session list with a Remote session reader
     And its arrow input does not navigate the Shell
     And identical tables in different result bodies do not exchange reading state when older events are evicted
 
-  Scenario: Local results do not require a Desk Link service
-    Given the selected source is Local and the Desk Link service is unavailable
+  Scenario: Local results do not require a Open DeskOS Link service
+    Given the selected source is Local and the Open DeskOS Link service is unavailable
     When the selected session has a readable result log
     Then the local result body remains available
 

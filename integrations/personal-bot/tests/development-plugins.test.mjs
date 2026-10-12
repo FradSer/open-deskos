@@ -1222,7 +1222,7 @@ test('actual resident inspection validates without executing entries or requirin
   const entry = new URL('../src/main.mjs', import.meta.url)
   const { fileURLToPath } = await import('node:url')
   const result = await promisify(execFile)(process.execPath, [fileURLToPath(entry), '--plugin-selection', selected.config, '--trust-plugins', '--plugins', 'validate'], {
-    timeout: 10000, env: { PATH: process.env.PATH, OPEN_DESKOS_CONFIG_DIR: selected.dir },
+    timeout: 10000, env: { PATH: process.env.PATH, ODK_CONFIG_DIR: selected.dir },
   })
   const report = JSON.parse(result.stdout)
   assert.equal(report.scope, 'declarations')

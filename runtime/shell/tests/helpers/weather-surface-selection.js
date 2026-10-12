@@ -36,7 +36,7 @@ async function prepare(root, env, directory, { signal } = {}) {
   fs.writeFileSync(keyring, JSON.stringify({ schemaVersion: 1, publishers: { 'surface-fixture': {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: ['odk.tile.weather'], hosts: ['electron-renderer'],
   } } }))
-  const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'native',
+  const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'native',
     ...args], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal, timeout: 10000 })
   const result = await command(['install', directory, '--keyring', keyring, '--trust'])
   assert.equal(JSON.parse(result.stdout).effect, 'selection-only')

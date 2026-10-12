@@ -16,8 +16,8 @@ test('a declared environment transcribes one file with no further arguments', as
   const path = join(dir, 'capture.wav')
   await writeFile(path, 'RIFFaudio')
   const { config } = transcriptionRequest([path], {
-    ODESK_PERSONAL_BOT_STT_URL: ENDPOINT,
-    ODESK_PERSONAL_BOT_STT_PROVIDER: 'aliyun',
+    ODK_PERSONAL_BOT_STT_URL: ENDPOINT,
+    ODK_PERSONAL_BOT_STT_PROVIDER: 'aliyun',
     ALIYUNCS_TOKEN: 'device-local-bearer',
   })
   assert.equal(config.url, ENDPOINT)
@@ -33,8 +33,8 @@ test('a declared environment transcribes one file with no further arguments', as
 
 test('an explicit endpoint overrides the environment without changing the provider', () => {
   const { path, config } = transcriptionRequest(['--url', ENDPOINT, 'capture.wav'], {
-    ODESK_PERSONAL_BOT_STT_PROVIDER: 'openai',
-    ODESK_PERSONAL_BOT_STT_KEY_FILE: '/device/stt.key',
+    ODK_PERSONAL_BOT_STT_PROVIDER: 'openai',
+    ODK_PERSONAL_BOT_STT_KEY_FILE: '/device/stt.key',
   })
   assert.equal(path, 'capture.wav')
   assert.equal(config.url, ENDPOINT)
@@ -44,11 +44,11 @@ test('an explicit endpoint overrides the environment without changing the provid
 })
 
 test('the command never guesses an endpoint or a file', () => {
-  assert.throws(() => transcriptionRequest(['capture.wav'], {}), /ODESK_PERSONAL_BOT_STT_URL/)
+  assert.throws(() => transcriptionRequest(['capture.wav'], {}), /ODK_PERSONAL_BOT_STT_URL/)
   assert.throws(() => transcriptionRequest(['--url'], {}), /required after --url/)
-  assert.throws(() => transcriptionRequest([], { ODESK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Exactly one audio file/)
-  assert.throws(() => transcriptionRequest(['a.wav', 'b.wav'], { ODESK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Exactly one audio file/)
-  assert.throws(() => transcriptionRequest(['--model', 'x', 'a.wav'], { ODESK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Unknown option/)
+  assert.throws(() => transcriptionRequest([], { ODK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Exactly one audio file/)
+  assert.throws(() => transcriptionRequest(['a.wav', 'b.wav'], { ODK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Exactly one audio file/)
+  assert.throws(() => transcriptionRequest(['--model', 'x', 'a.wav'], { ODK_PERSONAL_BOT_STT_URL: ENDPOINT }), /Unknown option/)
   // An undeclared provider is rejected by the same validator the service uses.
-  assert.throws(() => transcriptionRequest(['a.wav'], { ODESK_PERSONAL_BOT_STT_URL: ENDPOINT, ODESK_PERSONAL_BOT_STT_PROVIDER: 'dashscope' }), /Invalid transcription provider/)
+  assert.throws(() => transcriptionRequest(['a.wav'], { ODK_PERSONAL_BOT_STT_URL: ENDPOINT, ODK_PERSONAL_BOT_STT_PROVIDER: 'dashscope' }), /Invalid transcription provider/)
 })

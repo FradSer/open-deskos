@@ -195,7 +195,7 @@ app.whenReady().then(async () => {
   let cacheReport
   let primingProviderCalls
   for (const signed of restartVersion ? [restartVersion !== '1.0.0'] : [false, true]) {
-    const env = restartVersion || surfaceRevision ? { ...process.env } : { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    const env = restartVersion || surfaceRevision ? { ...process.env } : { ...process.env, ODK_CONFIG_DIR: path.join(profile, 'config'),
       XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
     const native = signed && !restartVersion && !surfaceReplacement ? await install(profile, env) : null
     const replacements = restartVersion || (surfaceReplacement && signed) ? await loadNativePlugins(readConfig(resolveConfigPath(env)), { env }) : native ? await native.load() : []

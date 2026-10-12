@@ -4,11 +4,11 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { resolveConfigPath, readConfig, resolveStartupDisabled, updateConfig } = require('../src/plugin-config')
-const { main } = require('../scripts/open-deskos-plugin-cli')
+const { main } = require('../scripts/odk-plugin-cli')
 
 test('a partial configuration write preserves the existing complete bytes', t => {
   const { file } = fixture(t)
-  const { writeConfig } = require('../scripts/open-deskos-plugin-cli')
+  const { writeConfig } = require('../scripts/odk-plugin-cli')
   const original = { version: 1, plugins: { 'odk.test.one': { enabled: false } } }
   fs.writeFileSync(file, JSON.stringify(original))
   const bytes = fs.readFileSync(file, 'utf8')
@@ -26,7 +26,7 @@ test('a partial configuration write preserves the existing complete bytes', t =>
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-plugin-config-'))
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
-  const env = { OPEN_DESKOS_CONFIG_DIR: dir }
+  const env = { ODK_CONFIG_DIR: dir }
   return { env, file: resolveConfigPath(env) }
 }
 
@@ -49,7 +49,7 @@ test('saved CLI disables and environment overrides reach the startup snapshot', 
   assert.equal(main(['disable', 'odk.tile.weather'], env), 0)
   assert.deepEqual(resolveStartupDisabled(env), ['odk.tile.weather'])
   assert.equal(main(['enable', 'odk.tile.weather'], env), 0)
-  assert.deepEqual(resolveStartupDisabled({ ...env, ODESK_DISABLED_PLUGINS: 'odk.tile.weather, odk.tile.clock odk.tile.clock' }), ['odk.tile.weather', 'odk.tile.clock'])
+  assert.deepEqual(resolveStartupDisabled({ ...env, ODK_DISABLED_PLUGINS: 'odk.tile.weather, odk.tile.clock odk.tile.clock' }), ['odk.tile.weather', 'odk.tile.clock'])
 })
 
 test('invalid configuration is reported at startup and cannot be overwritten by CLI', t => {
@@ -58,7 +58,7 @@ test('invalid configuration is reported at startup and cannot be overwritten by 
     fs.writeFileSync(file, bytes)
     assert.throws(() => readConfig(file))
     const errors = []
-    assert.deepEqual(resolveStartupDisabled({ ...env, ODESK_DISABLED_PLUGINS: 'odk.tile.clock' }, error => errors.push(error)), ['odk.tile.clock'])
+    assert.deepEqual(resolveStartupDisabled({ ...env, ODK_DISABLED_PLUGINS: 'odk.tile.clock' }, error => errors.push(error)), ['odk.tile.clock'])
     assert.equal(errors.length, 1)
     assert.equal(main(['disable', 'odk.tile.weather'], env), 1)
     assert.equal(fs.readFileSync(file, 'utf8'), bytes)
@@ -69,7 +69,7 @@ test('missing configuration preserves defaults and Windows profile resolves a fu
   const { env, file } = fixture(t)
   assert.deepEqual(readConfig(file), { version: 1, plugins: {} })
   assert.deepEqual(resolveStartupDisabled(env), [])
-  assert.equal(resolveConfigPath({ USERPROFILE: '/profile' }), path.join('/profile', '.config', 'open-deskos', 'plugins.json'))
+  assert.equal(resolveConfigPath({ USERPROFILE: '/profile' }), path.join('/profile', '.config', 'odk', 'plugins.json'))
 })
 
 

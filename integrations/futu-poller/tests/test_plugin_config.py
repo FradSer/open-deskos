@@ -41,7 +41,7 @@ def test_saved_selection_controls_operational_composition_without_opening_disabl
     def forbidden(_context): raise AssertionError("disabled provider ran")
     class Publisher:
         def send(self, _record): pass
-    runtime = poller.create_poller({"FUTU_TRADE_PWD": "fixture", "ODESK_FUTU_PLUGIN_CONFIG": str(file)},
+    runtime = poller.create_poller({"FUTU_TRADE_PWD": "fixture", "ODK_FUTU_PLUGIN_CONFIG": str(file)},
                                   gateway_factory=forbidden, publisher_factory=lambda ctx: Publisher())
     states = {item["manifest"]["id"]: item["state"] for item in runtime.start()}
     assert states == {"odk.futu.publisher": "running", "odk.futu.gateway": "disabled", "odk.futu.loop": "blocked", "odk.futu.transport": "running"}
@@ -71,7 +71,7 @@ def test_bad_startup_config_is_rejected_before_any_factory(tmp_path):
     file.write_text('{"version":1,"plugins":{"odk.futu.gateway":{"enabled":"false"}}}')
     def forbidden(_context): raise AssertionError("factory ran")
     with pytest.raises(ValueError, match="plugin configuration"):
-        poller.create_poller({"ODESK_FUTU_PLUGIN_CONFIG": str(file)}, publisher_factory=forbidden)
+        poller.create_poller({"ODK_FUTU_PLUGIN_CONFIG": str(file)}, publisher_factory=forbidden)
 
 
 def test_atomic_write_failure_preserves_file_and_removes_only_owned_artifacts(tmp_path, monkeypatch):

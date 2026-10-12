@@ -8,8 +8,8 @@ Feature: CM5 model payload storage on the SSD
     Given the SSD is mounted at /mnt/ssd
     And rkllama and Qwen ASR model payloads are stored on the root filesystem
     When the model storage migration runs
-    Then rkllama models are stored below /mnt/ssd/open-deskos/models
-    And Qwen ASR RKNN models are stored below /mnt/ssd/open-deskos/models
+    Then rkllama models are stored below /mnt/ssd/odk/models
+    And Qwen ASR RKNN models are stored below /mnt/ssd/odk/models
     And /opt/rkllama/models remains the runtime path
     And /opt/qwen3-asr-1.7b/rknn remains the runtime path
 

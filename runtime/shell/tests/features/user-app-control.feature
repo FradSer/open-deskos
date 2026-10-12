@@ -51,7 +51,7 @@ Feature: One system-owned application lifecycle
     Then all page hit targets remain distinct and clear of the Pi status control
 
   Scenario: Voice and Shell share system workspace configuration
-    Given a system runtime environment file defines ODESK_WORKSPACE
+    Given a system runtime environment file defines ODK_WORKSPACE
     When the Shell and Personal Bot user services start
     Then both load the same shared environment file
     And bot-specific configuration remains separate

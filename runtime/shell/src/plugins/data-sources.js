@@ -10,7 +10,7 @@ const { createQuotaReadings } = require('./readings/quota')
 const { createQuotaSource } = require('../quota-source')
 
 const DATA_PORTS = Object.freeze({
-  deskLink: 'odk:source/desk-link/v1',
+  odkLink: 'odk:source/link/v1',
   piSessions: 'odk:source/pi-sessions/v1',
   piEvents: 'odk:source/pi-events/v1',
   hydra: 'odk:source/hydra/v1',
@@ -34,7 +34,7 @@ function sourcePlugin({ id, name, port, requires = [], channels = {}, construct,
       const config = ctx.capability(`source.${id}`)
       const source = construct ? construct(config, ctx) : config.create(config.options)
       // Register ownership before any IPC operation can fail. Shutdown releases
-      // the same provider instance used by its Widget and Desk Data readers.
+      // the same provider instance used by its Widget and Open DeskOS Data readers.
       if (stop) ctx.onCleanup(() => stop(source))
       for (const [channel, dispatch] of Object.entries(channels)) {
         const ipc = ctx.capability('ipc')
@@ -51,18 +51,18 @@ function sourcePlugin({ id, name, port, requires = [], channels = {}, construct,
 
 function createDataSourcePlugins() {
   return [
-    sourcePlugin({ id: 'desk-link', name: 'Desk Link readings', port: DATA_PORTS.deskLink,
+    sourcePlugin({ id: 'odk-link', name: 'Open DeskOS Link readings', port: DATA_PORTS.odkLink,
       construct: (config, ctx) => config.create({ ...config.options, signal: ctx.signal }),
       stop: source => source.stop?.() }),
     sourcePlugin({
-      id: 'pi-sessions', createReadings: scan => createPiSessionReadings({ scan }), name: 'Pi sessions', port: DATA_PORTS.piSessions, requires: [DATA_PORTS.deskLink],
-      construct: (config, ctx) => config.create({ deskLink: ctx.get(DATA_PORTS.deskLink), signal: ctx.signal }),
+      id: 'pi-sessions', createReadings: scan => createPiSessionReadings({ scan }), name: 'Pi sessions', port: DATA_PORTS.piSessions, requires: [DATA_PORTS.odkLink],
+      construct: (config, ctx) => config.create({ odkLink: ctx.get(DATA_PORTS.odkLink), signal: ctx.signal }),
       stop: source => source.stop?.(),
       channels: { 'odk-pi-sessions': scan => scan() },
     }),
     sourcePlugin({
-      id: 'pi-events', name: 'Pi session events', port: DATA_PORTS.piEvents, requires: [DATA_PORTS.deskLink],
-      construct: (config, ctx) => config.create({ deskLink: ctx.get(DATA_PORTS.deskLink), signal: ctx.signal }),
+      id: 'pi-events', name: 'Pi session events', port: DATA_PORTS.piEvents, requires: [DATA_PORTS.odkLink],
+      construct: (config, ctx) => config.create({ odkLink: ctx.get(DATA_PORTS.odkLink), signal: ctx.signal }),
       stop: source => source.stop?.(),
       channels: { 'odk-pi-session-events': (read, request) => read({
         cwd: typeof request?.cwd === 'string' ? request.cwd : '',

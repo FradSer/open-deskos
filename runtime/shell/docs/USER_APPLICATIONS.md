@@ -4,7 +4,7 @@ Widgets and Apps are installed local packages. They are separate from trusted bu
 
 ## Author a draft
 
-Set `ODESK_WORKSPACE` to the shared writable project checkout in `~/.config/open-deskos/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `personal-bot.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
+Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `personal-bot.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
 
 ```json
 {"schemaVersion":1,"id":"desk-note","name":"Desk note","version":"1","kind":"widget"}
@@ -70,7 +70,7 @@ The verifier sets private `userData` and `sessionData` paths before Electron rea
 Its hidden window disables background throttling and retains the existing sandbox and network restrictions.
 The parent owns temporary verification files and profile cleanup.
 
-Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/open-deskos/user-apps`, outside the runtime release.
+Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/odk/user-apps`, outside the runtime release.
 
 A fresh Shell process reads the installed catalog. Applications do not require modifying `index.html`, built-in layout or plugin registry, nor rebuilding the Shell release for each update. The runtime feature itself must first be deployed.
 
@@ -92,7 +92,7 @@ Standalone callers without a catalog retain their existing store and verifier li
 
 ## Agent operations
 
-The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
+The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/odk-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
 
 Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based page indices (Home is page 2, Reading page 3), kinds, and for grids `columns: 5`, `rows: 3`, and occupied built-in/user rectangles. Only grid pages accept Widgets. Built-in cells remain reserved even when a development URL disables their plugin.
 

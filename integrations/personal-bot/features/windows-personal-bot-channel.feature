@@ -4,21 +4,21 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     Given an authenticated Shell has received recording state with current suggestions
     And its status channel temporarily has queued output
     When repeated recording frames change only the audio level
-    Or Desk Data pushes repeat the unchanged current snapshot
+    Or Open DeskOS Data pushes repeat the unchanged current snapshot
     Then those replaceable updates do not grow the queue or disconnect the Shell
     And changed suggestions, transcription state and the final answer are still delivered
     And oversized authoritative frames retain the bounded queue refusal
   Scenario: The voice link resolves to the endpoint the Shell Host already names
     Given a 64-bit Windows Shell Host with an empty local application data directory variable
     When the personal bot service resolves the endpoint of the personal-bot link
-    Then the endpoint is the named pipe "\\.\pipe\open-deskos-personal-bot"
+    Then the endpoint is the named pipe "\\.\pipe\odk-personal-bot"
     And the Shell client resolves the same endpoint for the same link name
     And a Windows host provisions the voice control channel without a runtime directory
 
   Scenario: The token file is the one every other Windows runtime channel uses
     Given a Windows host whose local application data directory is C:\Users\fradser\AppData\Local
     When the personal bot service resolves the shared channel token file
-    Then the file is C:\Users\fradser\AppData\Local\open-deskos\local-channel.token
+    Then the file is C:\Users\fradser\AppData\Local\odk\local-channel.token
     And the Shell Host resolves the same file for its own channels
     And the file is created on first use with 32 random bytes, base64url, a trailing newline and mode 0600
     And a host without mode bits still creates it, because a failed mode change is not a failed channel
@@ -45,7 +45,7 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
   Scenario: A Unix host still authenticates by ownership
     Given a Unix host with an absolute XDG_RUNTIME_DIR
     When the personal bot service resolves the endpoint of the personal-bot link
-    Then the endpoint is $XDG_RUNTIME_DIR/open-deskos-personal-bot/agent.sock
+    Then the endpoint is $XDG_RUNTIME_DIR/odk-personal-bot/agent.sock
     And a client that sends no handshake at all still reaches the protocol with every byte it wrote
     And the control socket is 0600 inside a 0700 directory
     And a control directory that is not owned by this user is refused
@@ -90,7 +90,7 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
 
   Scenario: Native Windows acceptance preserves shared agent behavior
     Given an isolated Windows profile and private authenticated channels
-    When the agent reads Desk Data and controls installed applications
+    When the agent reads Open DeskOS Data and controls installed applications
     Then its public tool results match the Unix host behavior
     And invalid frames remain rejected
     And proactive confirmation completes without microphone capture

@@ -49,12 +49,12 @@ test('actual Main bootstrap preserves Hydra signed revisions through canonical M
       } catch (error) { fail(error) }
     })
   })
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-    ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODK_HYDRA_MQTT_TOPIC: 'plants/ignored' }
+    ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_HYDRA_MQTT_TOPIC: 'plants/ignored' }
   delete env.XDG_RUNTIME_DIR
   const enabled = new Set(['odk.source.hydra', 'odk.system.renderer-development'])
-  env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+  env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
     env.ODK_HYDRA_MQTT_URL = `mqtt://127.0.0.1:${server.address().port}`
@@ -67,7 +67,7 @@ test('actual Main bootstrap preserves Hydra signed revisions through canonical M
         ODK_HYDRA_BOOTSTRAP_RUNTIME: runtime ? '1' : '0' }
       if (runtime) {
         childEnv.XDG_RUNTIME_DIR = runtimeRoot
-        childEnv.ODESK_DISABLED_PLUGINS = childEnv.ODESK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.plugin-control').join(',')
+        childEnv.ODK_DISABLED_PLUGINS = childEnv.ODK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.plugin-control').join(',')
       }
       delete childEnv.ELECTRON_RUN_AS_NODE
       const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], {
@@ -92,7 +92,7 @@ test('actual Main bootstrap preserves Hydra signed revisions through canonical M
         assert.deepEqual(phases.slice(-3).map(phase => phase.event), ['will-quit', 'release-verified', 'quit'])
         if (runtime) {
           assert.deepEqual(report.runtimeVersions, ['2.0.0', '1.0.0', '3.0.0'])
-          await assert.rejects(fs.stat(path.join(runtimeRoot, 'open-deskos-plugins/control.sock')), { code: 'ENOENT' })
+          await assert.rejects(fs.stat(path.join(runtimeRoot, 'odk-plugins/control.sock')), { code: 'ENOENT' })
         }
         await wait(Promise.all(closures), t.signal)
         assert.equal(sockets.size, 0)

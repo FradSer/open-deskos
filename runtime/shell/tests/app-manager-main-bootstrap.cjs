@@ -86,7 +86,7 @@ if (liveHandoff) {
 }
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(base, 'src/renderer/config/desktop_layout.js'), 'utf8'), layout)
-if (!fullComposition) process.env.ODESK_DISABLED_PLUGINS += ',' + layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin]).join(',')
+if (!fullComposition) process.env.ODK_DISABLED_PLUGINS += ',' + layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin]).join(',')
 const endpointModule = require(path.join(base, 'src/app-manager-endpoint'))
 const originalCreate = endpointModule.createAppManagerEndpoint
 let defaultConstructions = 0
@@ -196,7 +196,7 @@ app.on('browser-window-created', (_event, win) => {
         const js = source => win.webContents.executeJavaScript(source)
         fs.writeFileSync(configPath, savedConfiguration)
         const { runCommand } = require('./helpers/hydra-wire-lifecycle')
-        const command = args => runCommand(process.execPath, [path.join(base, 'scripts/open-deskos-plugin-cli.js'), ...args],
+        const command = args => runCommand(process.execPath, [path.join(base, 'scripts/odk-plugin-cli.js'), ...args],
           { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 65536 })
         assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"), true)
         assert.equal((await js("odkPlatform.dispatchIntent({type:'remove-app',appId:'pomodoro'})")).ok, true)

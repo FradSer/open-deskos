@@ -52,12 +52,12 @@ for (const omitPage of [false, true]) {
           socket.end(JSON.stringify(replies[record.type]) + '\n')
         })
       })
-      const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+      const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
         XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-        XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODESK_WORKSPACE: path.join(root, 'workspace'), ODK_PI_MAIN_ROOT: root,
-        ODESK_SHELL_TEST_MODE: '1', ODESK_DESK_LINK_SOCKET: endpoint,
-        ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280' }
-      env.ODESK_DISABLED_PLUGINS = ''
+        XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODK_WORKSPACE: path.join(root, 'workspace'), ODK_PI_MAIN_ROOT: root,
+        ODK_SHELL_TEST_MODE: '1', ODK_LINK_SOCKET: endpoint,
+        ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280' }
+      env.ODK_DISABLED_PLUGINS = ''
       try {
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         await new Promise((resolve, reject) => { server.once('error', reject); server.listen(endpoint, resolve) })

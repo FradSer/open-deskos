@@ -15,7 +15,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent Weather 
   const env = { ...process.env, ODK_WEATHER_FIXTURE_PROFILE: profile, ODK_WEATHER_SURFACE_REPLACEMENT: '1', ODK_WEATHER_SURFACE_NATIVE: mode === 'native' ? '1' : '0' }
   delete env.ELECTRON_RUN_AS_NODE
   try {
-    Object.assign(env, { OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') })
+    Object.assign(env, { ODK_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') })
     await prepareSource(profile, env, { signal: t.signal })
     const directory = path.join(profile, 'surface-selection')
     await fs.cp(path.join(__dirname, 'fixtures/weather-surface-replacement'), directory, { recursive: true })
@@ -25,7 +25,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent Weather 
       env.ODK_WEATHER_SURFACE_KEYRING = prepared.keyring
     } else {
       await require('./helpers/hydra-wire-lifecycle').runCommand(process.execPath,
-        [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
+        [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'],
         { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal: t.signal, timeout: 10000 })
     }
     const operation = run(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'weather-plugin-electron.cjs')], {

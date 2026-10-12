@@ -115,7 +115,7 @@ Feature: Continue the original native Pi session
 
   Scenario: Windows rejects a remote production root
     Given a Windows desk has a remote Mac target
-    And its declared root is /opt/open-deskos/current
+    And its declared root is /opt/odk/current
     When the desk loads its target configuration
     Then it rejects the production root before a remote request
 

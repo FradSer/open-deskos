@@ -8,27 +8,27 @@ const { tokenFile } = require('../local-channel')
 // out. A Windows host keeps the same logical names and maps each to a named
 // pipe, so a ported link inherits the naming instead of inventing a transport.
 const LINK_ENDPOINTS = {
-  'plugin-control': ['open-deskos-plugins', 'control.sock'],
-  'renderer-plugin-control': ['open-deskos-plugins', 'renderer-control.sock'],
-  'remote-plugin-control': ['open-deskos-remote', 'bridge.sock.control'],
-  'personal-bot-control': ['open-deskos-personal-bot', 'control.sock'],
-  'hosted-pi-control': ['open-deskos-hosted-pi', 'control.sock'],
-  'futu-plugin-control': ['open-deskos-futu', 'control.sock'],
-  'plugin-diagnostics': ['open-deskos-plugins', 'diagnose.sock'],
-  'user-app-control': ['open-deskos-apps', 'control.sock'],
-  'remote-bridge': ['open-deskos-remote', 'bridge.sock'],
-  'personal-bot': ['open-deskos-personal-bot', 'agent.sock'],
-  'desk-link': ['open-deskos-desk-link', 'service.sock'],
-  // The Desk Data Link the Personal Bot reads through: one name, one transport
+  'plugin-control': ['odk-plugins', 'control.sock'],
+  'renderer-plugin-control': ['odk-plugins', 'renderer-control.sock'],
+  'remote-plugin-control': ['odk-remote', 'bridge.sock.control'],
+  'personal-bot-control': ['odk-personal-bot', 'control.sock'],
+  'hosted-pi-control': ['odk-hosted-pi', 'control.sock'],
+  'futu-plugin-control': ['odk-futu', 'control.sock'],
+  'plugin-diagnostics': ['odk-plugins', 'diagnose.sock'],
+  'user-app-control': ['odk-apps', 'control.sock'],
+  'remote-bridge': ['odk-remote', 'bridge.sock'],
+  'personal-bot': ['odk-personal-bot', 'agent.sock'],
+  'odk-link': ['odk-link', 'service.sock'],
+  // The Open DeskOS Data Link the Personal Bot reads through: one name, one transport
   // decision per host, no second copy of any reading.
-  'desk-data': ['open-deskos-desk-data', 'service.sock'],
+  'odk-data': ['odk-data', 'service.sock'],
 }
 
-const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\open-deskos-'
+const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\odk-'
 
 function windowsEndpoints() {
   const endpoints = {}
-  for (const name of Object.keys(LINK_ENDPOINTS)) endpoints[name] = `${WINDOWS_PIPE_PREFIX}${name}`
+  for (const name of Object.keys(LINK_ENDPOINTS)) endpoints[name] = `${WINDOWS_PIPE_PREFIX}${name.replace(/^odk-/, '')}`
   return endpoints
 }
 
@@ -49,8 +49,8 @@ function resolveShellHost({ platform = process.platform, arch = process.arch, en
     || (platform === 'darwin' && (arch === 'x64' || arch === 'arm64'))
 
   const stateDir = isWindows
-    ? path.win32.join(env.LOCALAPPDATA || path.win32.join(homedir, 'AppData', 'Local'), 'open-deskos')
-    : path.join(env.XDG_STATE_HOME || path.join(homedir, '.local/state'), 'open-deskos')
+    ? path.win32.join(env.LOCALAPPDATA || path.win32.join(homedir, 'AppData', 'Local'), 'odk')
+    : path.join(env.XDG_STATE_HOME || path.join(homedir, '.local/state'), 'odk')
 
   const runtimeDir = !isWindows && typeof env.XDG_RUNTIME_DIR === 'string' && path.isAbsolute(env.XDG_RUNTIME_DIR)
     ? env.XDG_RUNTIME_DIR
@@ -83,10 +83,10 @@ function resolveShellHost({ platform = process.platform, arch = process.arch, en
     // socket owned by this user, or a named pipe gated by the channel token.
     // Widget and App control through the shell itself never needs it.
     provisionsUserAppControl: endpoint('user-app-control') !== null,
-    // The Desk Data Link is the same arrangement for a reading: the Personal Bot
+    // The Open DeskOS Data Link is the same arrangement for a reading: the Personal Bot
     // reads through it, and it exists wherever the endpoint itself exists.
-    provisionsDeskData: endpoint('desk-data') !== null,
-    deskDataEndpoint: endpoint('desk-data'),
+    provisionsOdkData: endpoint('odk-data') !== null,
+    odkDataEndpoint: endpoint('odk-data'),
   }
 }
 

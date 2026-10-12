@@ -69,7 +69,7 @@ test('operational CLI inspects selected declarations without executing entries',
   const selection = await selected(t)
   await fs.writeFile(selection.entry, "throw Error('entry executed')")
   const run = promisify(execFile)
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: selection.dir, ODESK_DISABLED_PLUGINS: '' }
+  const env = { ...process.env, ODK_CONFIG_DIR: selection.dir, ODK_DISABLED_PLUGINS: '' }
   const { stdout } = await run(process.execPath, [cli, '--plugin-selection', selection.file, '--trust-plugins', '--plugins', 'validate'], { env })
   const report = JSON.parse(stdout)
   assert.equal(report.validated, true)
@@ -88,7 +88,7 @@ test('operational CLI starts external USB, serves diagnosis, and releases resour
     .replace('transport.destroyed = true', `transport.destroyed = true; require('node:fs').appendFileSync(${JSON.stringify(cleanup)}, 'destroy\\n')`)
     .replace('transport.sent.push(record)', `transport.sent.push(record); require('node:fs').writeFileSync(${JSON.stringify(retainedState)}, JSON.stringify(record)); transport.emit('message', { v: 1, type: 'input', input: 'back' })`))
   const child = spawn(process.execPath, ['--unhandled-rejections=strict', cli, '--plugin-selection', selection.file, '--trust-plugins'], {
-    env: { ...process.env, XDG_RUNTIME_DIR: selection.dir, OPEN_DESKOS_CONFIG_DIR: selection.dir, ODESK_DISABLED_PLUGINS: '' }, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, XDG_RUNTIME_DIR: selection.dir, ODK_CONFIG_DIR: selection.dir, ODK_DISABLED_PLUGINS: '' }, stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') })
   let errors = ''
@@ -100,7 +100,7 @@ test('operational CLI starts external USB, serves diagnosis, and releases resour
     child.once('exit', code => reject(Error(`startup exited ${code}: ${errors}`)))
     child.once('error', reject)
   })
-  const socket = net.createConnection(path.join(selection.dir, 'open-deskos-remote', 'bridge.sock'))
+  const socket = net.createConnection(path.join(selection.dir, 'odk-remote', 'bridge.sock'))
   t.after(() => socket.destroy())
   await once(socket, 'connect')
   const report = await new Promise((resolve, reject) => {
@@ -137,7 +137,7 @@ test('operational CLI starts external USB, serves diagnosis, and releases resour
   child.kill('SIGTERM')
   assert.deepEqual(await exited, [0, null], errors)
   assert.equal(await fs.readFile(cleanup, 'utf8'), 'stop\ndestroy\n')
-  await assert.rejects(fs.stat(path.join(selection.dir, 'open-deskos-remote', 'bridge.sock')), { code: 'ENOENT' })
+  await assert.rejects(fs.stat(path.join(selection.dir, 'odk-remote', 'bridge.sock')), { code: 'ENOENT' })
 })
 
 test('selection rejects changes to transport ports, authority, and USB policy before entry execution', async t => {

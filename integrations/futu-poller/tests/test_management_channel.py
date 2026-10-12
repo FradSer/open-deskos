@@ -171,7 +171,7 @@ def test_channel_preserves_live_listener(tmp_path):
 
 
 def test_actual_cli_changes_owned_python_resources_without_saved_preferences(tmp_path):
-    endpoint = tmp_path / "open-deskos-futu" / "control.sock"
+    endpoint = tmp_path / "odk-futu" / "control.sock"
     events = []
     class Publisher:
         def send(self, record):
@@ -183,9 +183,9 @@ def test_actual_cli_changes_owned_python_resources_without_saved_preferences(tmp
     channel = ManagementChannel(str(endpoint), lambda request: dispatch_plugin_control(runtime.host, request))
     channel.start()
     root = Path(poller.__file__).resolve().parents[2]
-    cli = root / "runtime/shell/scripts/open-deskos-plugin-cli.js"
+    cli = root / "runtime/shell/scripts/odk-plugin-cli.js"
     env = {**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "XDG_STATE_HOME": str(tmp_path),
-           "OPEN_DESKOS_CONFIG_DIR": str(tmp_path / "config")}
+           "ODK_CONFIG_DIR": str(tmp_path / "config")}
     try:
         for command, state in [("disable", "disabled"), ("enable", "running")]:
             process = subprocess.Popen(["node", str(cli), command, "odk.futu.publisher", "--runtime"],

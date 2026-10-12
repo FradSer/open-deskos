@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
-const { main } = require('../scripts/open-deskos-plugin-cli')
+const { main } = require('../scripts/odk-plugin-cli')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const { createPluginHost } = require('../src/plugin-host')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
@@ -15,7 +15,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   const folder = path.join(root, 'plugin')
   fs.mkdirSync(folder)
-  const env = { OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const env = { ODK_CONFIG_DIR: path.join(root, 'config') }
   const marker = path.join(root, 'executed')
   const manifest = { schemaVersion: 1, id: 'odk.test.development', name: 'Development fixture', version: '1.0.0', kind: 'service', host: 'electron-main', entry: 'entry.cjs', permissions: ['fixture'], provides: [{ interface: 'odk:test-development/v1' }] }
   const write = value => fs.writeFileSync(path.join(folder, 'manifest.json'), JSON.stringify(value))
@@ -28,7 +28,7 @@ test('CLI links a replacement that consumes a selected extension without executi
   const provider = fixture(t)
   const replacement = fixture(t)
   const { createMainPlugins } = require('../src/plugins/main-composition')
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   const { DESK_PORTS } = require('../src/plugins/desk-runtime')
   const original = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.weather')
   const port = 'odk:weather-provider/v1'
@@ -52,9 +52,9 @@ test('CLI links a replacement that consumes a selected extension without executi
   const composition = createMainPlugins({ developmentPlugins: definitions.filter(plugin => !plugin.replacement), replacementPlugins: definitions.filter(plugin => plugin.replacement) })
   const handlers = new Map()
   const host = createPluginHost({ capabilities: { ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
-    'desk.data': { create: createShellDeskData, smokeMode: true } } })
+    'desk.data': { create: createShellOdkData, smokeMode: true } } })
   t.after(() => host.stop())
-  composition.filter(plugin => ['odk.test.weather-provider', 'odk.source.weather', 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  composition.filter(plugin => ['odk.test.weather-provider', 'odk.source.weather', 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.source.weather').state, 'running')
   assert.equal((await handlers.get('odk-weather-status')()).current.temperature, 23)
@@ -201,7 +201,7 @@ test('Main composition discovers development readings and preserves its default 
   const port = 'odk:desk-reading/development/v1'
   const extension = { manifest: { schemaVersion: 1, id: 'odk.test.development', name: 'Fixture', version: '1.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: port }], requires: [], permissions: [] }, create() { throw Error('preflight must not execute') } }
   const result = createMainPlugins({ developmentPlugins: [extension] })
-  assert.ok(result.find(plugin => plugin.manifest.id === 'odk.system.desk-data').manifest.requires.some(requirement => requirement.interface === port))
+  assert.ok(result.find(plugin => plugin.manifest.id === 'odk.system.data').manifest.requires.some(requirement => requirement.interface === port))
   const baseline = createMainPlugins().map(plugin => plugin.manifest)
   for (const manifest of [
     { ...extension.manifest, id: baseline[0].id },
@@ -229,24 +229,24 @@ test('an unavailable granted capability prevents entry execution', async t => {
   await host.stop()
 })
 
-test('invalid development reading ports fail their provider before Desk Data activation', async t => {
+test('invalid development reading ports fail their provider before Open DeskOS Data activation', async t => {
   const f = fixture(t)
   f.write({ ...f.manifest, provides: [{ interface: 'odk:desk-reading/development/v1' }] })
   fs.writeFileSync(path.join(f.folder, 'entry.cjs'), "exports.create = () => ({ ports: { 'odk:desk-reading/development/v1': {} } })")
   assert.equal(main(['link', f.folder, '--trust', '--grant', 'fixture'], f.env), 0)
   const { loadDevelopmentPlugins } = require('../src/development-plugins')
   const { createMainPlugins } = require('../src/plugins/main-composition')
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   const plugins = createMainPlugins({ developmentPlugins: loadDevelopmentPlugins(readConfig(resolveConfigPath(f.env))) })
-  const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellDeskData, smokeMode: true } } })
-  plugins.filter(plugin => [f.manifest.id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellOdkData, smokeMode: true } } })
+  plugins.filter(plugin => [f.manifest.id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   assert.equal(host.list().find(plugin => plugin.manifest.id === f.manifest.id).state, 'failed')
-  assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'running')
+  assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'running')
   await host.stop()
 })
 
-test('linked readings reach the real Desk Data registry and withdraw on disable', async t => {
+test('linked readings reach the real Open DeskOS Data registry and withdraw on disable', async t => {
   const f = fixture(t)
   const port = 'odk:desk-reading/development/v1'
   const id = `${f.manifest.id}.value`
@@ -256,11 +256,11 @@ test('linked readings reach the real Desk Data registry and withdraw on disable'
   const { loadDevelopmentPlugins } = require('../src/development-plugins')
   const { createMainPlugins } = require('../src/plugins/main-composition')
   const { DESK_PORTS } = require('../src/plugins/desk-runtime')
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   const plugins = createMainPlugins({ developmentPlugins: loadDevelopmentPlugins(readConfig(resolveConfigPath(f.env))) })
   const value = { measured: 42 }
-  const host = createPluginHost({ capabilities: { fixture: value, 'desk.data': { create: createShellDeskData, smokeMode: true } } })
-  plugins.filter(plugin => [f.manifest.id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  const host = createPluginHost({ capabilities: { fixture: value, 'desk.data': { create: createShellOdkData, smokeMode: true } } })
+  plugins.filter(plugin => [f.manifest.id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
   assert.equal((await host.get(DESK_PORTS.data).registry.read(id)).reading.value.measured, 42)
   value.measured = 43
@@ -328,12 +328,12 @@ test('dynamic service declarations preserve the last valid reading after invalid
   const { loadDevelopmentPlugins } = require('../src/development-plugins')
   const { createMainPlugins } = require('../src/plugins/main-composition')
   const { DESK_PORTS } = require('../src/plugins/desk-runtime')
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   const plugins = createMainPlugins({ developmentPlugins: loadDevelopmentPlugins(readConfig(resolveConfigPath(f.env))) })
-  const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellDeskData, smokeMode: true } } })
-  plugins.filter(plugin => [f.manifest.id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+  const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellOdkData, smokeMode: true } } })
+  plugins.filter(plugin => [f.manifest.id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
   await host.start()
-  assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'running')
+  assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'running')
   const data = host.get(DESK_PORTS.data)
   assert.equal(host.list().find(plugin => plugin.manifest.id === f.manifest.id).state, 'running', JSON.stringify(host.list()))
   assert.equal((await data.registry.read(id)).ok, true)
@@ -373,12 +373,12 @@ test('dynamic service identities cannot collide with another reading port', asyn
     const { loadDevelopmentPlugins } = require('../src/development-plugins')
     const { createMainPlugins } = require('../src/plugins/main-composition')
     const { DESK_PORTS } = require('../src/plugins/desk-runtime')
-    const { createShellDeskData } = require('../src/desk-data')
+    const { createShellOdkData } = require('../src/odk-data')
     const plugins = createMainPlugins({ developmentPlugins: loadDevelopmentPlugins(readConfig(resolveConfigPath(f.env))) })
-    const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellDeskData, smokeMode: true } } })
-    plugins.filter(plugin => [f.manifest.id, 'odk.system.desk-data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
+    const host = createPluginHost({ capabilities: { fixture: {}, 'desk.data': { create: createShellOdkData, smokeMode: true } } })
+    plugins.filter(plugin => [f.manifest.id, 'odk.system.data'].includes(plugin.manifest.id)).forEach(plugin => host.register(plugin))
     await host.start()
-    assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'running')
+    assert.equal(host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'running')
     assert.equal(host.list().find(plugin => plugin.manifest.id === f.manifest.id).state, 'running', JSON.stringify(host.list()))
     const data = host.get(DESK_PORTS.data)
     const reading = await data.registry.read(`${f.manifest.id}.service`)
@@ -392,7 +392,7 @@ test('dynamic service identities cannot collide with another reading port', asyn
 test('explicit development replacement preserves built-in reading identities and removal restores the default', async t => {
   const f = fixture(t)
   const { createMainPlugins } = require('../src/plugins/main-composition')
-  const { createShellDeskData } = require('../src/desk-data')
+  const { createShellOdkData } = require('../src/odk-data')
   const { DATA_PORTS } = require('../src/plugins/data-sources')
   const { DESK_PORTS } = require('../src/plugins/desk-runtime')
   const baseline = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.weather')
@@ -419,7 +419,7 @@ test('explicit development replacement preserves built-in reading identities and
   const handlers = new Map()
   const host = createPluginHost({ capabilities: {
     ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
-    'source.weather': {}, 'desk.data': { create: createShellDeskData, smokeMode: true },
+    'source.weather': {}, 'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   composition.forEach(plugin => host.register(plugin))
   await host.start()

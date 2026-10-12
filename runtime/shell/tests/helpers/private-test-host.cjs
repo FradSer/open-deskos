@@ -15,7 +15,7 @@ function privateEndpoint(root, name) {
 
 function diagnosticChannel(root) {
   const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, LOCALAPPDATA: root,
-    OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), ODK_TEST_PRIVATE_PIPE_PREFIX: prefix(root),
+    ODK_CONFIG_DIR: path.join(root, 'config'), ODK_TEST_PRIVATE_PIPE_PREFIX: prefix(root),
     ODK_TEST_DIAGNOSTIC_ENDPOINT: process.platform === 'win32' ? prefix(root) + 'plugin-diagnostics' : path.join(root, 'diag.sock') }
   const host = resolve({ env })
   return { endpoint: env.ODK_TEST_DIAGNOSTIC_ENDPOINT,
@@ -31,7 +31,7 @@ if (process.execArgv.some((arg, index, args) => arg === '--require' && path.reso
     const host = resolve(options)
     if (process.platform !== 'win32') return { ...host, endpoint: name => name === 'plugin-diagnostics' ? env.ODK_TEST_DIAGNOSTIC_ENDPOINT : host.endpoint(name) }
     return { ...host, endpoint: name => host.endpoint(name) === null ? null : env.ODK_TEST_PRIVATE_PIPE_PREFIX + name,
-      deskDataEndpoint: env.ODK_TEST_PRIVATE_PIPE_PREFIX + 'desk-data' }
+      odkDataEndpoint: env.ODK_TEST_PRIVATE_PIPE_PREFIX + 'odk-data' }
   }
 }
 

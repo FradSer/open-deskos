@@ -141,9 +141,9 @@ test('selected diagnosis bridge preserves actual Electron reports and rejects a 
     let baseline
     for (const mode of ['default', 'selected', 'missing']) {
       const directory = path.join(root, mode)
-      const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+      const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
         XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'),
-        XDG_RUNTIME_DIR: path.join(directory, 'runtime'), ODESK_WORKSPACE: path.join(directory, 'workspace'),
+        XDG_RUNTIME_DIR: path.join(directory, 'runtime'), ODK_WORKSPACE: path.join(directory, 'workspace'),
         ODK_RENDERER_BRIDGE_EXPECTED_VERSION: mode === 'default' ? '1.0.0' : '2.0.0' }
       delete env.ELECTRON_RUN_AS_NODE
       const running = runCommand(require('electron'), [path.join(__dirname, 'renderer-diagnosis-electron.cjs'),

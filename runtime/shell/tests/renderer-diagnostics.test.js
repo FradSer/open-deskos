@@ -133,7 +133,7 @@ for (const selected of [false, true]) {
     const { resolveShellHost } = require('../src/platform')
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-rcli-'))
     t.after(() => fs.rmSync(root, { recursive: true, force: true }))
-    const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+    const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: path.join(root, 'config') }
     const shell = resolveShellHost({ env })
     const ipc = new EventEmitter()
     const sender = {}
@@ -153,7 +153,7 @@ for (const selected of [false, true]) {
     host.register(definition())
     await host.start()
     const run = promisify(execFile)
-    const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+    const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
     await assert.rejects(run(process.execPath, [cli, 'diagnose', manifest.id], { env }), error => {
       assert.equal(error.code, 1)
       const result = JSON.parse(error.stdout)
@@ -224,9 +224,9 @@ test('actual Electron diagnosis preserves selected consumers and rejects missing
     for (const mode of ['default', 'selected', 'missing']) {
       const directory = path.join(root, mode)
       await fs.mkdir(directory)
-      const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+      const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
         XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'),
-        XDG_RUNTIME_DIR: path.join(directory, 'runtime'), ODESK_WORKSPACE: path.join(directory, 'workspace'),
+        XDG_RUNTIME_DIR: path.join(directory, 'runtime'), ODK_WORKSPACE: path.join(directory, 'workspace'),
         ODK_DIAGNOSIS_EXPECTED_VERSION: mode === 'default' ? '1.0.0' : '2.0.0' }
       delete env.ELECTRON_RUN_AS_NODE
       const running = runCommand(require('electron'), [path.join(__dirname, 'renderer-diagnosis-electron.cjs'),

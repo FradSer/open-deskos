@@ -10,7 +10,7 @@ const { RemoteBridge } = require('../lib/remote-bridge')
 const { RemoteBridgeHost } = require('../lib/remote-bridge-host')
 const { MockTransport } = require('./mock-transport')
 const run = promisify(execFile)
-const cli = path.resolve(__dirname, '../../../runtime/shell/scripts/open-deskos-plugin-cli.js')
+const cli = path.resolve(__dirname, '../../../runtime/shell/scripts/odk-plugin-cli.js')
 
 test('Bridge control endpoint agrees with the logical host mapping', () => {
   const { resolveBridgeControlEndpoint } = require('../lib/plugin-runtime')
@@ -23,10 +23,10 @@ test('Bridge control endpoint agrees with the logical host mapping', () => {
 
 for (const multiple of [false, true]) test(`${multiple ? 'transport host' : 'single bridge'} serves unified runtime control without stopping independent resources`, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bridge-control-'))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, ODK_CONFIG_DIR: path.join(root, 'config') }
   const transport = new MockTransport({ id: 'odk.remote.transport.fixture', transport: 'usb-cdc', priority: 100 })
   const independent = new MockTransport({ id: 'odk.remote.transport.other', transport: 'wireless', priority: 50 })
-  const options = { socketPath: path.join(root, 'open-deskos-remote', 'bridge.sock'), logger: { error() {} } }
+  const options = { socketPath: path.join(root, 'odk-remote', 'bridge.sock'), logger: { error() {} } }
   const bridge = multiple ? new RemoteBridgeHost({ ...options, transports: [transport, independent] }) : new RemoteBridge({ ...options, adapter: transport })
   let fail = false
   const stop = transport.stop.bind(transport)
@@ -57,7 +57,7 @@ for (const multiple of [false, true]) test(`${multiple ? 'transport host' : 'sin
   fail = false
   await command('enable', transport.manifest.id)
   assert.equal(transport.started, true)
-  await assert.rejects(fs.access(path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')), /ENOENT/)
+  await assert.rejects(fs.access(path.join(env.ODK_CONFIG_DIR, 'plugins.json')), /ENOENT/)
   await bridge.stop()
   await assert.rejects(fs.access(options.socketPath + '.control'), /ENOENT/)
 })

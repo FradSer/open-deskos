@@ -7,6 +7,6 @@
   "host": "electron-main",
   "entry": "entry.cjs",
   "provides": [{ "interface": "odk:source/pi-events/v1" }],
-  "requires": [{ "interface": "odk:source/desk-link/v1" }],
+  "requires": [{ "interface": "odk:source/link/v1" }],
   "permissions": ["source.pi-events", "ipc"]
 }

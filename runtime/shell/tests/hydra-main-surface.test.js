@@ -50,12 +50,12 @@ test('actual Main jointly starts signed Hydra source and surface through canonic
       } catch (error) { fail(error) }
     })
   })
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-    ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODK_HYDRA_MQTT_TOPIC: 'plants/ignored' }
+    ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_HYDRA_MQTT_TOPIC: 'plants/ignored' }
   delete env.XDG_RUNTIME_DIR
   const enabled = new Set(['odk.source.hydra', 'odk.system.renderer-development'])
-  env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+  env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
     env.ODK_HYDRA_MQTT_URL = `mqtt://127.0.0.1:${server.address().port}`
@@ -72,7 +72,7 @@ test('actual Main jointly starts signed Hydra source and surface through canonic
       ...JSON.parse(await fs.readFile(native.keyring)).publishers,
       ...JSON.parse(await fs.readFile(surface.keyring)).publishers,
     } }))
-    env.OPEN_DESKOS_NATIVE_KEYRING = policy
+    env.ODK_NATIVE_KEYRING = policy
     const pids = new Set()
     const launch = async (version, runtime = false, stylesheet = false) => {
       const connectionsBefore = received.filter(packet => packet.cmd === 'connect').length
@@ -84,7 +84,7 @@ test('actual Main jointly starts signed Hydra source and surface through canonic
         if (stylesheet) childEnv.ODK_HYDRA_BOOTSTRAP_CSS_RECOVERY = '1'
         childEnv.ODK_HYDRA_BOOTSTRAP_SURFACE_FIRST = directory
         childEnv.ODK_HYDRA_BOOTSTRAP_SURFACE_NEXT = path.join(root, 'surface-revision-3.0.0')
-        childEnv.ODESK_DISABLED_PLUGINS = childEnv.ODESK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.renderer-control').join(',')
+        childEnv.ODK_DISABLED_PLUGINS = childEnv.ODK_DISABLED_PLUGINS.split(',').filter(id => id !== 'odk.system.renderer-control').join(',')
       }
       delete childEnv.ELECTRON_RUN_AS_NODE
       const operation = execFile(require('electron'), [`--user-data-dir=${profile}`, fixture], {
@@ -110,7 +110,7 @@ test('actual Main jointly starts signed Hydra source and surface through canonic
         assert.equal(report.surface.released, true)
         if (runtime) {
           assert.deepEqual(report.surface.runtimeVersions, ['2.0.0', '1.0.0', '2.0.0', '3.0.0'])
-          await assert.rejects(fs.stat(path.join(runtimeRoot, 'open-deskos-plugins/renderer-control.sock')), { code: 'ENOENT' })
+          await assert.rejects(fs.stat(path.join(runtimeRoot, 'odk-plugins/renderer-control.sock')), { code: 'ENOENT' })
         }
         if (stylesheet) assert.equal(report.surface.stylesheetRestored, true)
         assert.deepEqual(native.config().plugins['odk.source.hydra'], sourcePreference)

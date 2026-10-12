@@ -56,7 +56,7 @@ The Host retains failed cleanup resources and owns retry behavior.
 
 The [independent example](../tests/fixtures/weread-replacement/entry.cjs) implements notebook requests, highlight selection, synchronization, caching, and cover resolution.
 It does not import the default source or call its constructor.
-The [shared checks](../tests/weread-plugin-parity.test.js) compare default, development-linked, and signed implementations through actual Main composition, IPC, Desk Data, and health.
+The [shared checks](../tests/weread-plugin-parity.test.js) compare default, development-linked, and signed implementations through actual Main composition, IPC, Open DeskOS Data, and health.
 The [signed helper](../tests/helpers/weread-selection.js) uses the actual Native CLI, temporary publisher policy, explicit trust, and exact grants.
 Signed entry execution markers distinguish the actual source from selected manifest metadata.
 
@@ -79,7 +79,7 @@ Widget release does not cancel shared Main provider requests; the source owns pr
 
 The [revision checks](../tests/weread-revision.test.js) use actual Native CLI update, rollback, and removal for cached and controlled live consumers.
 Selection changes retain running instances until complete Host shutdown and new composition.
-IPC, Desk Data, cached health, cache bytes, and unrelated enable preferences remain unchanged.
+IPC, Open DeskOS Data, cached health, cache bytes, and unrelated enable preferences remain unchanged.
 Unsigned update rejection preserves configuration bytes; removal preserves both verified revisions.
 
 The [process checks](../tests/weread-restart-electron.test.js) launch separate Electron consumers for version two, version three, rollback, and restored default selection.

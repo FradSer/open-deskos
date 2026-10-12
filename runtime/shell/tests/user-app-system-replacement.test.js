@@ -89,7 +89,7 @@ for (const signed of [false, true]) {
       const selected = signed ? await selection(t) : null
       const f = await runtime(t, selected ? await selected.load() : [], { verify: () => accepted })
       const first = (await f.request({ command: 'list' })).apps[0]
-      const draft = path.join(f.env.ODESK_WORKSPACE, 'apps/counter/index.html')
+      const draft = path.join(f.env.ODK_WORKSPACE, 'apps/counter/index.html')
       const dispatch = request => f.handlers.get('odk-user-apps-dispatch')(null, request)
       await fs.writeFile(draft, '<p>Updated counter</p>')
       const updated = await dispatch({ command: 'update', appId: 'counter' })
@@ -196,7 +196,7 @@ for (const signed of [false, true]) {
       const f = await runtime(t, selected ? await selected.load() : [], { releaseFailures: 1 })
       await f.host.stop()
       assert.equal(f.host.list().find(plugin => plugin.manifest.id === ID).state, 'cleanup-failed')
-      assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.desk-data').state, 'cleanup-blocked')
+      assert.equal(f.host.list().find(plugin => plugin.manifest.id === 'odk.system.data').state, 'cleanup-blocked')
       assert.equal(f.handlers.size, 0)
       assert.equal(f.routes.size, 1)
       await assert.rejects(fs.stat(f.endpoint), { code: 'ENOENT' })

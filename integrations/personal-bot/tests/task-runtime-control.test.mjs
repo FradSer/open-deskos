@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url)
 const { resolveShellHost } = require('../../../runtime/shell/src/platform')
 const { requestLocalControl } = require('../../../runtime/shell/src/local-control-client')
 const run = promisify(execFile)
-const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/open-deskos-plugin-cli.js', import.meta.url))
+const cli = fileURLToPath(new URL('../../../runtime/shell/scripts/odk-plugin-cli.js', import.meta.url))
 
 test('Hosted Pi management authenticates before changing task resources', { skip: process.platform === 'win32' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'odk-task-token-'))
@@ -50,7 +50,7 @@ test('saved listener disable retains Hosted Pi management for startup recovery',
 
 test('actual CLI manages Hosted Pi with independent recovery and preserved preferences', { skip: process.platform === 'win32' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'odk-task-manage-'))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, OPEN_DESKOS_CONFIG_DIR: join(root, 'config') }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: join(root, 'config') }
   const host = resolveShellHost({ env })
   let handler
   let closed = 0
@@ -89,7 +89,7 @@ test('actual CLI manages Hosted Pi with independent recovery and preserved prefe
   await command('enable', 'listener')
   assert.equal((await handler(request)).generation, 3)
   await assert.rejects(command('disable', 'control'), /protected-plugin/)
-  await assert.rejects(access(join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')), /ENOENT/)
+  await assert.rejects(access(join(env.ODK_CONFIG_DIR, 'plugins.json')), /ENOENT/)
   await composition.close()
   await assert.rejects(access(host.endpoint('hosted-pi-control')), /ENOENT/)
 })

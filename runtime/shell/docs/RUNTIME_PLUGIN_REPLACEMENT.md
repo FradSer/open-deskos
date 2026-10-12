@@ -43,7 +43,7 @@ Controlled promises synchronize construction and release without timing delays.
 The shared existing Host and Renderer lifecycle checks retain their prior behavior.
 
 The [Hydra check](../tests/hydra-runtime-replacement.test.js) uses actual Native installation and captured signed factories in one running Host.
-It runs production source, Desk Data, and cached health plugin consumers.
+It runs production source, Open DeskOS Data, and cached health plugin consumers.
 Production IPC handlers run through a controlled map without Electron preload IPC.
 Signed source versions `2.0.0` and `3.0.0` and the restored default preserve the same controlled telemetry values.
 The previous MQTT completion callback must finish before another client starts.

@@ -64,7 +64,7 @@ if (-not $electron -or -not (Test-Path -LiteralPath $electron)) {
   exit 1
 }
 
-if ($Kiosk) { $env:ODESK_SHELL_KIOSK = '1' }
+if ($Kiosk) { $env:ODK_SHELL_KIOSK = '1' }
 # A kiosk panel is always on; the platform's own idle blanking is not the desk's.
 if ($Kiosk -and $ShellArgs -notcontains '--kiosk') { $ShellArgs = @('--kiosk') + $ShellArgs }
 

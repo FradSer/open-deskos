@@ -135,7 +135,7 @@ function createSource({ url, topicPrefix, connectImpl, onUpdate, now = Date.now 
     lastAttempt = time
     try {
       connection = connectImpl(url, {
-        clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
+        clientId: `odk-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
         reconnectPeriod: 5000, connectTimeout: 10000,
       })
       connection.on('connect', () => {

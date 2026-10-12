@@ -12,7 +12,7 @@ const { spawnSync } = require('node:child_process')
 const validator = path.join(__dirname, '../scripts/validate-runtime-dependencies.js')
 
 function candidate(t, complete) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-dependencies-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-dependencies-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { mqtt: '1.0.0' } }))
   const modules = path.join(root, 'node_modules')
@@ -36,14 +36,14 @@ function validate(root) {
 // Browser-asset dependency: shipped inside the release and loaded by a script
 // tag, with no main or exports entry for Node to resolve.
 function assetCandidate(t, { external = false } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-assets-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-assets-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { '@highlightjs/cdn-assets': '11.12.0' } }))
   const modules = path.join(root, 'node_modules')
   fs.mkdirSync(modules, { recursive: true })
   let packageDir
   if (external) {
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-assets-external-'))
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-assets-external-'))
     t.after(() => fs.rmSync(outside, { recursive: true, force: true }))
     packageDir = path.join(outside, 'cdn-assets')
   } else {
@@ -70,7 +70,7 @@ test('still rejects an asset-only dependency that resolves outside the candidate
 })
 
 test('rejects a declared dependency that is not installed at all', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-missing-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-missing-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { '@highlightjs/cdn-assets': '11.12.0' } }))
   fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true })
@@ -120,7 +120,7 @@ for (const runtime of ['Node', 'Electron browser']) {
   for (const source of ['NODE_PATH', 'pnpm symlink']) {
     test(`${runtime} rejects a transitive dependency supplied by external ${source}`, (t) => {
       const root = candidate(t, false)
-      const external = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-external-'))
+      const external = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-external-'))
       t.after(() => fs.rmSync(external, { recursive: true, force: true }))
       const packet = path.join(external, 'mqtt-packet')
       fs.mkdirSync(packet)

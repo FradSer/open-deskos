@@ -17,7 +17,7 @@ if [ ! -x node_modules/.bin/electron ] || [ ! -x node_modules/.bin/unocss ]; the
   exit 1
 fi
 
-if [ "${ODESK_SKIP_STYLE_BUILD:-0}" != "1" ]; then
+if [ "${ODK_SKIP_STYLE_BUILD:-0}" != "1" ]; then
   ./node_modules/.bin/unocss "src/renderer/**/*.html" "src/renderer/**/*.js" \
     -c uno.config.mjs -o src/renderer/uno.css --minify >/dev/null
 fi

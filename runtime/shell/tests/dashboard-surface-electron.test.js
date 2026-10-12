@@ -12,7 +12,7 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
   test(`${mode} Dashboard ${invalid ? `rejects invalid ${invalid} behavior` : 'preserves rendered briefing and recovery without navigation'}`, { timeout: 60000 }, async t => {
     await fs.access(path.join(__dirname, 'dashboard-surface-electron.cjs'))
     const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-dashboard-surface-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(profile, 'config'),
       XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state'),
       ODK_DASHBOARD_SURFACE_PROFILE: profile, ODK_DASHBOARD_SURFACE_NATIVE: mode === 'native' ? '1' : '0' }
     delete env.ELECTRON_RUN_AS_NODE
@@ -29,7 +29,7 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
           : invalid === 'released' ? 'const current = () => true'
             : marker + "\n      if (container.id !== 'dashboard-acceptance') { container.replaceChildren(); return }"))
       }
-      const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+      const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
       if (mode === 'native') {
         const keys = crypto.generateKeyPairSync('ed25519')
         const keyring = path.join(profile, 'publishers.json')
@@ -43,7 +43,7 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
         const payload = { schemaVersion: 1, keyId: 'dashboard', replace: true, files }
         const signature = crypto.sign(null, Buffer.from(`Open DeskOS native bundle v1\n${JSON.stringify(payload)}`), keys.privateKey).toString('base64')
         await fs.writeFile(path.join(directory, 'bundle.json'), JSON.stringify({ ...payload, signature }))
-        env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+        env.ODK_NATIVE_KEYRING = keyring
         await runCommand(process.execPath, [cli, 'native', 'install', directory, '--keyring', keyring, '--trust'],
           { env, signal: t.signal, timeout: 10000 })
       } else await runCommand(process.execPath, [cli, 'link', directory, '--trust', '--replace'],

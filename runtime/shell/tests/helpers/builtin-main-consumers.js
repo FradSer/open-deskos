@@ -43,7 +43,7 @@ async function exerciseBuiltinMainViews(win, host, { version, configPath }) {
       for (const appId of ids) {
         const id = `odk.app.${appId}`
         const executions = await js('viewExternalEntries.length')
-        const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), action, id, '--runtime'],
+        const receipt = JSON.parse((await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), action, id, '--runtime'],
           { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000 })).stdout)
         assert.equal(receipt.scope, 'electron-renderer')
         assert.equal(receipt.pluginId, id)

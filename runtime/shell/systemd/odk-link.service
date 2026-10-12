@@ -1,0 +1,16 @@
+[Unit]
+Description=Open DeskOS Link Service
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env node __ODK_LINK_DIR__/scripts/odk-link-service.js
+EnvironmentFile=-%h/.config/odk/runtime.env
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+RestartForceExitStatus=SIGHUP
+
+[Install]
+WantedBy=default.target

@@ -42,14 +42,14 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /"active-release"/)
   assert.match(script, /"rollback-release"/)
   assert.match(script, /"kiosk-release-launcher"/)
-  assert.match(script, /open-deskos-shell\.service/)
+  assert.match(script, /odk-shell\.service/)
   assert.match(script, /"runtime-update-state"/)
   assert.match(script, /"runtime-migrations"/)
-  assert.match(script, /"open-deskos-remote-bridge\.service"/)
+  assert.match(script, /"odk-remote-bridge\.service"/)
   assert.doesNotMatch(script, /face-agent/)
   assert.match(script, /"graphical-session-autostart"/)
   assert.match(script, /import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY/)
-  assert.match(script, /service_evidence "open-deskos-shell\.service" "true" "runtime"/)
+  assert.match(script, /service_evidence "odk-shell\.service" "true" "runtime"/)
   assert.match(script, /"kiosk-process"/)
   assert.match(script, /node_modules\/\.pnpm\/electron/)
   assert.doesNotMatch(script, /autostart-entry/)
@@ -79,11 +79,11 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
 // installation outside the release.
 test('CM5 acceptance reports duplicated and leftover device-local configuration', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
-    '.config/open-deskos/personal-bot.env': 'ODESK_PERSONAL_BOT_STT_URL=http://127.0.0.1:19999/inference\nODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
-    '.config/systemd/user/open-deskos-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
-    '.config/systemd/user/open-deskos-personal-bot.service.d/personal-bot.conf.disabled': '[Service]\n',
-    '.local/share/open-deskos/personal-bot-releases/personal-1/src/main.mjs': '',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_STT_PORT=17840\n',
+    '.config/odk/personal-bot.env': 'ODK_PERSONAL_BOT_STT_URL=http://127.0.0.1:19999/inference\nODK_WORKSPACE=/home/kiosk/Developer/odk\n',
+    '.config/systemd/user/odk-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
+    '.config/systemd/user/odk-personal-bot.service.d/personal-bot.conf.disabled': '[Service]\n',
+    '.local/share/odk/personal-bot-releases/personal-1/src/main.mjs': '',
   })
   const check = acceptance(home)
   const endpoint = check('stt-endpoint-consistency')
@@ -92,7 +92,7 @@ test('CM5 acceptance reports duplicated and leftover device-local configuration'
   assert.match(endpoint.detail, /19999.*17840/)
   const shadowed = check('no-shadowed-configuration')
   assert.equal(shadowed.ok, false)
-  assert.match(shadowed.detail, /ODESK_WORKSPACE/)
+  assert.match(shadowed.detail, /ODK_WORKSPACE/)
   assert.equal(check('no-zombie-config').ok, false)
   assert.match(check('no-zombie-config').detail, /personal-bot\.conf\.disabled/)
   assert.equal(check('single-bot-installation').ok, false)
@@ -101,9 +101,9 @@ test('CM5 acceptance reports duplicated and leftover device-local configuration'
 
 test('CM5 acceptance accepts one declaration per fact', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\nODK_STT_PORT=17840\n',
-    '.config/open-deskos/personal-bot.env': 'ODESK_PERSONAL_BOT_AUDIO_DEVICE=default\n',
-    '.config/systemd/user/open-deskos-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODESK_TASK_TARGETS_FILE=/home/kiosk/.config/open-deskos/task-targets.json\n',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\nODK_STT_PORT=17840\n',
+    '.config/odk/personal-bot.env': 'ODK_PERSONAL_BOT_AUDIO_DEVICE=default\n',
+    '.config/systemd/user/odk-personal-bot.service.d/tasks.conf': '[Service]\nEnvironment=ODK_TASK_TARGETS_FILE=/home/kiosk/.config/odk/task-targets.json\n',
   })
   const check = acceptance(home)
   assert.equal(check('stt-endpoint-consistency').ok, true)
@@ -118,11 +118,11 @@ test('CM5 acceptance accepts one declaration per fact', t => {
 // the report has to state whether that descriptor names a socket that is actually there.
 test('CM5 acceptance reports the published Hosted Pi endpoint rather than assuming it works', async t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
     'bin/systemctl': '#!/bin/sh\nprintf "active\\n"\n',
   })
   const socketPath = path.join(home, 'run/gone.sock')
-  const descriptor = path.join(home, 'run/open-deskos/hosted-pi/endpoint.json')
+  const descriptor = path.join(home, 'run/odk/hosted-pi/endpoint.json')
   fs.mkdirSync(path.dirname(descriptor), { recursive: true, mode: 0o700 })
   fs.writeFileSync(descriptor, JSON.stringify({ version: 1, socketPath }), { mode: 0o600 })
   const dead = acceptance(home)('hosted-pi-endpoint')
@@ -142,9 +142,9 @@ test('CM5 acceptance reports the published Hosted Pi endpoint rather than assumi
 
 test('CM5 acceptance does not claim an endpoint when the host is not running', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
     'bin/systemctl': '#!/bin/sh\nprintf "inactive\\n"\n',
-    'run/open-deskos/hosted-pi/endpoint.json': '{"version":1,"socketPath":"/whatever.sock"}',
+    'run/odk/hosted-pi/endpoint.json': '{"version":1,"socketPath":"/whatever.sock"}',
   })
   const check = acceptance(home)('hosted-pi-endpoint')
   assert.equal(check.ok, false)
@@ -156,7 +156,7 @@ test('CM5 acceptance does not claim an endpoint when the host is not running', t
 // not be reported as a failure just because the report was launched from a terminal.
 test('CM5 acceptance accepts a display that answers even from a non-graphical session', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
     'bin/xrandr': '#!/bin/sh\nprintf "Screen 0: minimum 320 x 200, current 1920 x 1280, maximum 16384 x 16384\\nHDMI-1 connected primary 1920x1280+0+0 (normal left inverted right x axis y axis) 222mm x 148mm\\n   1920x1280     60.00*+\\n"\n',
   })
   // The stub stands in for a display that answers; DISPLAY itself is left unset so this test does not
@@ -169,7 +169,7 @@ test('CM5 acceptance accepts a display that answers even from a non-graphical se
   assert.match(check('panel-resolution').detail, /active mode 1920x1280/)
 
   // With nothing answering, the same run is still a failure rather than an assumption.
-  const silent = fixture(t, { '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n' })
+  const silent = fixture(t, { '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n' })
   const unanswered = acceptance(silent, { XDG_SESSION_TYPE: 'tty' })
   assert.equal(unanswered('session-type').ok, false)
   assert.equal(unanswered('display-mode').ok, false)
@@ -179,7 +179,7 @@ test('CM5 acceptance accepts a display that answers even from a non-graphical se
 // wrong tree. The report must name it instead of leaving it invisible.
 test('CM5 acceptance reports runtime code copied outside the release', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODESK_WORKSPACE=/home/kiosk/Developer/open-deskos\n',
+    '.config/odk/runtime.env': 'ODK_WORKSPACE=/home/kiosk/Developer/odk\n',
     'runtime/integrations/personal-bot/src/main.mjs': '// stale copy\n',
   })
   const check = acceptance(home, { ODK_RUNTIME_ROOT: path.join(home, 'runtime') })
@@ -192,8 +192,8 @@ test('CM5 acceptance reports runtime code copied outside the release', t => {
 
 test('CM5 acceptance accepts legacy Personal Bot upgrade configuration', t => {
   const home = fixture(t, {
-    '.config/open-deskos/runtime.env': 'ODK_STT_PORT=17840\n',
-    '.config/open-deskos/voice-agent.env': 'ODESK_VOICE_STT_URL=http://127.0.0.1:19999/inference\n',
+    '.config/odk/runtime.env': 'ODK_STT_PORT=17840\n',
+    '.config/odk/voice-agent.env': 'ODK_VOICE_STT_URL=http://127.0.0.1:19999/inference\n',
   })
   const endpoint = acceptance(home)('stt-endpoint-consistency')
   assert.equal(endpoint.ok, false)

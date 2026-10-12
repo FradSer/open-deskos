@@ -10,7 +10,7 @@ const execFile = require('node:util').promisify(require('node:child_process').ex
 
 test('default and signed independent Weather preserve the actual rendered Widget', { timeout: surfaceTimeouts().test }, async t => {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-weather-render-'))
-  const env = { ...process.env, ODK_WEATHER_FIXTURE_PROFILE: profile, OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'),
+  const env = { ...process.env, ODK_WEATHER_FIXTURE_PROFILE: profile, ODK_CONFIG_DIR: path.join(profile, 'config'),
     XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
   delete env.ELECTRON_RUN_AS_NODE
   try {

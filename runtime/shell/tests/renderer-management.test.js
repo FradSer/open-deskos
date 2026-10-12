@@ -31,11 +31,11 @@ for (const selected of [false, true]) {
       const { resolveShellHost } = require('../src/platform')
       const { requestLocalControl } = require('../src/local-control-client')
       const root = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'odk-rctrl-'))
-      const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: path.join(root, 'state'), OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+      const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: path.join(root, 'state'), ODK_CONFIG_DIR: path.join(root, 'config') }
       const platform = resolveShellHost({ env })
       const endpoint = platform.endpoint('renderer-plugin-control')
-      const configFile = path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json')
-      await fs.mkdir(env.OPEN_DESKOS_CONFIG_DIR)
+      const configFile = path.join(env.ODK_CONFIG_DIR, 'plugins.json')
+      await fs.mkdir(env.ODK_CONFIG_DIR)
       const saved = JSON.stringify({ version: 1, plugins: {} })
       await fs.writeFile(configFile, saved)
       const ipc = new EventEmitter()
@@ -75,7 +75,7 @@ for (const selected of [false, true]) {
       assert.ok(requestId)
       assert.deepEqual(publicInventory, inventory)
       for (const command of ['disable', 'enable']) {
-        const result = JSON.parse((await run(process.execPath, [path.join(__dirname, '../scripts/open-deskos-plugin-cli.js'), command, id, '--runtime'], { env })).stdout)
+        const result = JSON.parse((await run(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), command, id, '--runtime'], { env })).stdout)
         assert.equal(result.scope, 'electron-renderer')
         assert.equal(result.enabled, command === 'enable')
         assert.equal(result.state, command === 'enable' ? 'running' : 'disabled')

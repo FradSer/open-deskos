@@ -9,7 +9,7 @@ const { createUserAppStore } = require('../src/user-app-store')
 const roots = []
 test.after(async () => { await Promise.all(roots.map(root => fs.rm(root, { recursive: true, force: true }))) })
 async function fixture() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-store-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-store-'))
   roots.push(root)
   const workspace = path.join(root, 'workspace')
   const stateDir = path.join(root, 'state')

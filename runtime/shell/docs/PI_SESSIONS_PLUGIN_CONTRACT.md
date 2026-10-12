@@ -13,7 +13,7 @@ The replacement retains the `service` kind and these provided ports:
 | `odk:source/pi-sessions/v1` | A callable asynchronous scan with a `stop()` method |
 | `odk:desk-reading/pi-sessions/v1` | An array containing the Pi Sessions reading declaration |
 
-The manifest requires `odk:source/desk-link/v1` and declares `source.pi-sessions` and `ipc` permissions.
+The manifest requires `odk:source/link/v1` and declares `source.pi-sessions` and `ipc` permissions.
 The factory receives `ctx.signal`, `ctx.onCleanup(callback)`, declared ports through `ctx.get(name)`, and capabilities through `ctx.capability(name)`.
 
 ## Configured inspection
@@ -22,14 +22,14 @@ The `source.pi-sessions` capability supplies `configured()` alongside the existi
 An independent factory uses `configured()` without invoking the default constructor.
 The returned reader supplies a `source` descriptor and asynchronous `read({ signal })` operation.
 It retains the existing configured local collector or SSH transport, validation, request bounds, and source labels.
-It does not select Desk Link data, overlay Hosted Pi, deduplicate sessions, or project readings.
+It does not select Open DeskOS Link data, overlay Hosted Pi, deduplicate sessions, or project readings.
 The factory owns those operations and the reader's request lifecycle.
 After cancellation, the existing SSH reader waits for its child process to close before settling.
 
 ## Source selection and aggregation
 
-Each scan requests connected machines and Hosted Pi sessions from Desk Link with the same cancellation signal.
-Connected reporting machines select the Desk Link snapshot instead of configured inspection.
+Each scan requests connected machines and Hosted Pi sessions from Open DeskOS Link with the same cancellation signal.
+Connected reporting machines select the Open DeskOS Link snapshot instead of configured inspection.
 An empty machine list selects configured inspection.
 A failed selected snapshot remains unavailable; Hosted Pi cannot replace a failed source.
 Successful Hosted Pi results overlay successful selected snapshots.
@@ -62,25 +62,25 @@ Missing goal and activity become null; explicit null values remain null.
 Goal and activity strings retain 160 characters before an appended `...`.
 Finite observation times become ISO timestamps; missing session times become null and missing snapshot time leaves `asOf` undefined.
 Private source fields do not enter the projection.
-[Desk Data](DESK_DATA_SPEC.md) owns reading transport and registry behavior.
+[Open DeskOS Data](ODK_DATA_SPEC.md) owns reading transport and registry behavior.
 
 ## Lifecycle and failures
 
 Concurrent and reentrant scans return the same active promise.
 A scan after settlement starts another request.
 Asynchronous scan failures return the existing `Pi scan unavailable.` response.
-Synchronous Desk Link invocation failures retain their rejection while active.
+Synchronous Open DeskOS Link invocation failures retain their rejection while active.
 Cancellation prevents new requests and aborts active requests.
 After cancellation, successful and rejected operations resolve to the existing `Pi source stopped.` response.
-Shutdown waits for active configured inspection and each parallel Desk Link request, including requests retained after another request fails.
+Shutdown waits for active configured inspection and each parallel Open DeskOS Link request, including requests retained after another request fails.
 The factory registers source cleanup before IPC cleanup.
-Stopping Pi Sessions leaves Desk Link and Pi Events available.
+Stopping Pi Sessions leaves Open DeskOS Link and Pi Events available.
 The Host owns cleanup retries and prevents new instances over retained resources.
 
 ## Example and acceptance
 
 The [independent example](../tests/fixtures/pi-sessions-replacement/entry.cjs) implements aggregation, projection, and request ownership without Shell imports or default constructor calls.
-The [shared checks](../tests/pi-plugin-parity.test.js) compare default, linked, and signed session consumers through actual Main composition, IPC handlers, and Desk Data.
+The [shared checks](../tests/pi-plugin-parity.test.js) compare default, linked, and signed session consumers through actual Main composition, IPC handlers, and Open DeskOS Data.
 Event-only signed cases retain default Pi Sessions; paired signed cases replace both sources.
 
 Signed installation uses the actual Native CLI with temporary publisher policy, trust, exact grants, and captured factory bytes.
@@ -92,7 +92,7 @@ The retained valid peer passes native store integrity checks; the retained corru
 Revision cases exercise actual Native CLI update, rollback, and removal for each source independently.
 Execution markers distinguish captured factory bytes from selected manifest versions.
 Stored selection changes leave running instances unchanged until complete Host shutdown and new composition.
-Session, event, and Desk Data responses remain unchanged after each transition.
+Session, event, and Open DeskOS Data responses remain unchanged after each transition.
 Unsigned updates preserve configuration bytes and running instances.
 Native store checks verify retained old, updated, and peer revisions after removal.
 

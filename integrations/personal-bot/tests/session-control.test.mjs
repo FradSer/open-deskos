@@ -34,11 +34,11 @@ process.stdin.on('end', () => {
   executable = await nodeExecutable(t, executable)
   const targets = join(dir, 'targets.json')
   await writeFile(targets, `${JSON.stringify({ targets: [{ id: 'cm5', name: 'CM5', executable, roots: [PROJECT] }] })}\n`)
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = targets
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
   t.after(() => {
-    if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE
-    else process.env.ODESK_TASK_TARGETS_FILE = previous
+    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
+    else process.env.ODK_TASK_TARGETS_FILE = previous
   })
   const tools = await loadCapabilities()
   const call = async (name, params) => JSON.parse((await tools.find(tool => tool.name === name).execute('call', params)).content[0].text)
@@ -96,11 +96,11 @@ test('an empty target list is reported instead of a guessed host', async t => {
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const targets = join(dir, 'targets.json')
   await writeFile(targets, '{"targets":[]}\n')
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = targets
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
   t.after(() => {
-    if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE
-    else process.env.ODESK_TASK_TARGETS_FILE = previous
+    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
+    else process.env.ODK_TASK_TARGETS_FILE = previous
   })
   const tools = await loadCapabilities()
   const listed = JSON.parse((await tools.find(tool => tool.name === 'coding_targets').execute('call', {}, undefined)).content[0].text)
@@ -125,11 +125,11 @@ async function hostCoordinator(t, seed) {
   await writeFile(hostConfig, `${JSON.stringify({ roots: [root], stateDir, socketPath: join(runDir, 'control.sock') })}\n`, { mode: 0o600 })
   await symlink(integration, join(dir, 'current'), 'dir')
   const helper = join(dir, 'pi-task-control')
-  await writeFile(helper, `#!/bin/sh\nexport ODESK_TASK_CONFIG='${hostConfig}'\nexec '${process.execPath}' '${join(dir, 'current/src/task-cli.mjs')}'\n`, { mode: 0o700 })
+  await writeFile(helper, `#!/bin/sh\nexport ODK_TASK_CONFIG='${hostConfig}'\nexec '${process.execPath}' '${join(dir, 'current/src/task-cli.mjs')}'\n`, { mode: 0o700 })
   const targets = join(dir, 'targets.json')
   await writeFile(targets, `${JSON.stringify({ targets: [{ id: 'cm5', name: 'CM5', executable: helper, roots: [root] }] })}\n`)
   const daemon = spawn(process.execPath, [join(dir, 'current/src/task-daemon.mjs')], {
-    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODESK_TASK_CONFIG: hostConfig },
+    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODK_TASK_CONFIG: hostConfig },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => daemon.kill())
@@ -144,11 +144,11 @@ async function hostCoordinator(t, seed) {
     if (!live) await new Promise(resolve => setTimeout(resolve, 50))
   }
   assert.ok(live, 'the host daemon never served its control socket')
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = targets
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
   t.after(() => {
-    if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE
-    else process.env.ODESK_TASK_TARGETS_FILE = previous
+    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
+    else process.env.ODK_TASK_TARGETS_FILE = previous
   })
   return { root, tools: await loadCapabilities() }
 }

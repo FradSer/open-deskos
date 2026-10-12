@@ -14,7 +14,7 @@ function createNativeRendererActivator({ env = process.env, configPath = resolve
       const config = readConfig(configPath)
       const preference = config.plugins[id]
       if (!preference?.native || preference.native.host !== 'electron-renderer'
-        || preference.enabled === false || (env.ODESK_DISABLED_PLUGINS || '').split(/[\s,]+/).includes(id)) {
+        || preference.enabled === false || (env.ODK_DISABLED_PLUGINS || '').split(/[\s,]+/).includes(id)) {
         throw Error('native activation requires an enabled signed Renderer selection')
       }
       return { config, preference }

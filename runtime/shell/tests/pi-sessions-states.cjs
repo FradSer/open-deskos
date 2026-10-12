@@ -12,7 +12,7 @@
  * Run it against this checkout, or against an installed release on the desk:
  *
  *   electron tests/pi-sessions-states.cjs
- *   ODK_SHELL_ROOT=/opt/open-deskos/current ODK_CAPTURE_DIR=/tmp/states \
+ *   ODK_SHELL_ROOT=/opt/odk/current ODK_CAPTURE_DIR=/tmp/states \
  *     electron tests/pi-sessions-states.cjs
  *
  * ODK_CAPTURE_WIDTH / ODK_CAPTURE_HEIGHT capture a narrower window (the shell's
@@ -59,7 +59,7 @@ const source = () => (sourceKind === 'ssh'
 const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60000).toISOString()
 
 const running = (extra = {}) => ({
-  sessionId: 'cap-running-4102', pid: 4102, cwd: '/workspace/open-deskos', workspaceName: 'open-deskos',
+  sessionId: 'cap-running-4102', pid: 4102, cwd: '/workspace/odk', workspaceName: 'odk',
   startedAt: minutesAgo(7), updatedAt: minutesAgo(0.3), status: 'running',
   latestGoal: 'Refactor the desk UI layout', activity: 'pnpm test', modifiedFiles: ['src/renderer/shell.js'], ...extra,
 })
@@ -443,7 +443,7 @@ async function main() {
   await capture(win, 'page-14-no-events', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'No session events recorded yet.'`, 'Session Detail: the session reported no events')
 
   await applyEvents(win, 'no-reported-events', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('no events have arrived')`)
-  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('no events have arrived')`, 'Session Detail: Pi is running but Desk Link has not delivered events yet')
+  await capture(win, 'page-15-not-reported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('Pi is running') && ${EVENT_NOTE}.includes('no events have arrived')`, 'Session Detail: Pi is running but Open DeskOS Link has not delivered events yet')
 
   await applyEvents(win, 'session-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`)
   await capture(win, 'page-16-log-missing', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('No session log is available')`, 'Session Detail: no session log on the desk')

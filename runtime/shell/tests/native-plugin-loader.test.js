@@ -147,7 +147,7 @@ test('startup resolves the CLI state directory and explicit external publisher p
   await fs.writeFile(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: f.keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: ['odk.test.native'], hosts: ['electron-main'],
   } } }))
-  const env = { ...f.env, OPEN_DESKOS_NATIVE_KEYRING: policy }
+  const env = { ...f.env, ODK_NATIVE_KEYRING: policy }
   const plugins = await loadNativePlugins(f.config, { env })
   assert.equal(plugins.length, 1)
   const host = createPluginHost({ capabilities: { fixture: [] } })

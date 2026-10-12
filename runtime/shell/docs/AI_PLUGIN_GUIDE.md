@@ -1,6 +1,6 @@
 # Built-in plugin guide
 
-Use this guide for trusted plugins packaged in a Shell release. For installed Widget/App packages, use [USER_APPLICATIONS](USER_APPLICATIONS.md). Use the [Widget skill](../../../.agents/skills/open-deskos-widget/SKILL.md) for design and verification.
+Use this guide for trusted plugins packaged in a Shell release. For installed Widget/App packages, use [USER_APPLICATIONS](USER_APPLICATIONS.md). Use the [Widget skill](../../../.agents/skills/odk-widget/SKILL.md) for design and verification.
 
 ## Files
 
@@ -342,10 +342,10 @@ Read [the Camera contract](CAMERA_PLUGIN_CONTRACT.md) when implementing frame co
 Read [the Hydra contract](HYDRA_PLUGIN_CONTRACT.md) when implementing MQTT sources, protocol state, cached health, or connection ownership.
 Its independent example shares the public reading projection and captures that module in signed acceptance bundles.
 Read [the Quota contract](QUOTA_PLUGIN_CONTRACT.md) when implementing a Main Quota replacement through declared capabilities.
-Its independent example implements request ownership and Desk Data projection without Shell module imports.
+Its independent example implements request ownership and Open DeskOS Data projection without Shell module imports.
 Read [the Pi Session Events contract](PI_EVENTS_PLUGIN_CONTRACT.md) when implementing event reads, local fallback, and owned cancellation.
-Read [the Pi Sessions contract](PI_SESSIONS_PLUGIN_CONTRACT.md) when implementing session aggregation, configured inspection, and Desk Data projection.
-Read [the Desk Link contract](DESK_LINK_PLUGIN_CONTRACT.md) when implementing reporting reads, raw transport, request cancellation, or source shutdown.
+Read [the Pi Sessions contract](PI_SESSIONS_PLUGIN_CONTRACT.md) when implementing session aggregation, configured inspection, and Open DeskOS Data projection.
+Read [the Open DeskOS Link contract](ODK_LINK_PLUGIN_CONTRACT.md) when implementing reporting reads, raw transport, request cancellation, or source shutdown.
 
 ## Home statements
 
@@ -362,10 +362,10 @@ The page displays source states and measurement times through the Sources disclo
 
 ## Home selection declarations
 
-Declare `home` on a Desk Data registration or an installed package manifest.
+Declare `home` on a Open DeskOS Data registration or an installed package manifest.
 Use [the Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-selection) for its schema and generation rules.
 A renderer statement does not control home selection.
-Futu holdings sources declare required coverage in `src/desk-data.js`.
+Futu holdings sources declare required coverage in `src/odk-data.js`.
 
 ## Plugin statement store
 
@@ -427,7 +427,7 @@ Use checked `--odk-*` tokens from root `DESIGN.md`. The documented Pi transcript
 To disable a suspect plugin during diagnosis:
 
 ```sh
-ODESK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
+ODK_DISABLED_PLUGINS="odk.tile.hydra odk.page.quota" ./run.sh --kiosk
 ```
 
 Tiles are removed, status slots remain empty and disabled pages leave the pager. Unknown IDs are ignored. Main passes this startup configuration to the renderer; plugins never inspect the environment.

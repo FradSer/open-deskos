@@ -9,9 +9,9 @@ The transport is an endpoint, not a Unix socket path, so the same poller can
 feed the reference desk and a second handheld without any platform-specific
 code. The endpoint forms are:
 
-  /run/user/1000/open-deskos/futu-poller.sock   a Unix socket (ownership is the
+  /run/user/1000/odk/futu-poller.sock   a Unix socket (ownership is the
                                                 authentication; no token)
-  \\\\.\\pipe\\open-deskos-futu-poller            a Windows named pipe (token)
+  \\\\.\\pipe\\odk-futu-poller            a Windows named pipe (token)
   tcp://100.82.50.70:8790                       a network address (token)
 
 A token is read from the file a target names (``tokenFile``) or from
@@ -28,12 +28,12 @@ never printed, logged, or placed in the package.
   FUTU_RSA_FILE      client copy of the gateway RSA private key
   FUTU_TRADE_PWD     trade unlock password (positions require unlock)
   FUTU_INTERVAL      poll interval seconds (default 60)
-  ODESK_FUTU_TARGETS_FILE      JSON file listing the desks to feed
-                               (default ~/.config/open-deskos/futu-targets.json)
-  ODESK_FUTU_SOCKET            single-target shell socket path, declared once in
+  ODK_FUTU_TARGETS_FILE      JSON file listing the desks to feed
+                               (default ~/.config/odk/futu-targets.json)
+  ODK_FUTU_SOCKET            single-target shell socket path, declared once in
                                runtime.env (absolute); used when no targets file
   ODK_CHANNEL_TOKEN_FILE       default token file for pipe/tcp targets
-  ODESK_FUTU_SERVICE_REVISION  package revision the shell expects (default dev)
+  ODK_FUTU_SERVICE_REVISION  package revision the shell expects (default dev)
   SERVICE_ID         service identity (default futu-poller)
 """
 
@@ -68,23 +68,23 @@ FAILURE_ALERT_AFTER = 3
 # failure on one never resets or delays the others.
 CONNECT_TIMEOUT = 10
 
-TARGETS_ENV = "ODESK_FUTU_TARGETS_FILE"
-DEFAULT_TARGETS_FILE = "~/.config/open-deskos/futu-targets.json"
+TARGETS_ENV = "ODK_FUTU_TARGETS_FILE"
+DEFAULT_TARGETS_FILE = "~/.config/odk/futu-targets.json"
 TOKEN_ENV = "ODK_CHANNEL_TOKEN_FILE"
 CONTROL_PORT = "odk:futu/control/v1"
 
 
 def management_settings(env: Mapping[str, str], platform: str) -> tuple[str | None, str | None]:
     """Resolve the shared local management identity without reading token files."""
-    endpoint = env.get("ODESK_FUTU_CONTROL")
+    endpoint = env.get("ODK_FUTU_CONTROL")
     if endpoint is None:
         if platform == "win32":
-            endpoint = r"\\.\pipe\open-deskos-futu-plugin-control"
+            endpoint = r"\\.\pipe\odk-futu-plugin-control"
         elif env.get("XDG_RUNTIME_DIR") and os.path.isabs(env["XDG_RUNTIME_DIR"]):
-            endpoint = os.path.join(env["XDG_RUNTIME_DIR"], "open-deskos-futu", "control.sock")
+            endpoint = os.path.join(env["XDG_RUNTIME_DIR"], "odk-futu", "control.sock")
     token_file = env.get(TOKEN_ENV)
     if not token_file and platform == "win32" and env.get("LOCALAPPDATA"):
-        token_file = ntpath.join(env["LOCALAPPDATA"], "open-deskos", "local-channel.token")
+        token_file = ntpath.join(env["LOCALAPPDATA"], "odk", "local-channel.token")
     return endpoint or None, token_file or None
 
 # The desk's own rule: a Windows named pipe has no owner, mode, or uid, so it
@@ -545,7 +545,7 @@ def load_targets(env=None, warn=None):
     """Return the configured desks, refusing a malformed one without stopping.
 
     A targets file wins over the single-target environment form; when there is
-    no file, ``ODESK_FUTU_SOCKET`` keeps the reference host working exactly as
+    no file, ``ODK_FUTU_SOCKET`` keeps the reference host working exactly as
     it does today.
     """
     env = os.environ if env is None else env
@@ -559,15 +559,15 @@ def load_targets(env=None, warn=None):
     if explicit:
         warn("targets file %s does not exist" % path)
 
-    single = env.get("ODESK_FUTU_SOCKET", "").strip()
+    single = env.get("ODK_FUTU_SOCKET", "").strip()
     if not single:
         return []
     try:
         parsed = parse_endpoint(single)
     except ValueError as exc:
-        warn("refusing ODESK_FUTU_SOCKET: %s" % exc)
+        warn("refusing ODK_FUTU_SOCKET: %s" % exc)
         return []
-    return [Target(endpoint=single, parsed=parsed, label="ODESK_FUTU_SOCKET",
+    return [Target(endpoint=single, parsed=parsed, label="ODK_FUTU_SOCKET",
                    token_file=env.get(TOKEN_ENV, "").strip())]
 
 
@@ -853,12 +853,12 @@ def create_poller(
                  "loop": loop_factory, "transport": transport_factory}
     if any(factory is not None and "odk.futu." + name in replacements for name, factory in factories.items()):
         raise ValueError("duplicate component factory selection")
-    config_path = env.get("ODESK_FUTU_PLUGIN_CONFIG")
+    config_path = env.get("ODK_FUTU_PLUGIN_CONFIG")
     if config_path:
         config = read_config(config_path, {"odk.futu." + name for name in PORTS})
         disabled = tuple(set(disabled) | {identity for identity, preference in config["plugins"].items() if not preference["enabled"]})
     service = env.get("SERVICE_ID", "futu-poller")
-    revision = env.get("ODESK_FUTU_SERVICE_REVISION", "dev")
+    revision = env.get("ODK_FUTU_SERVICE_REVISION", "dev")
     credentials = {
         "host": env.get("FUTU_HOST", "10.10.0.195"),
         "port": int(env.get("FUTU_PORT", "11111")),
@@ -866,7 +866,7 @@ def create_poller(
         "password": env.get("FUTU_TRADE_PWD", ""),
     }
     interval = int(env.get("FUTU_INTERVAL", "60"))
-    targets = {key: env[key] for key in (TARGETS_ENV, "ODESK_FUTU_SOCKET", TOKEN_ENV) if key in env}
+    targets = {key: env[key] for key in (TARGETS_ENV, "ODK_FUTU_SOCKET", TOKEN_ENV) if key in env}
     control_endpoint, control_token_file = management_settings(env, platform)
     errors = []
     def wait_for_publication(seconds: float) -> object:
@@ -1020,11 +1020,11 @@ def main(argv: list[str] | None = None) -> None:
         env = None
         if arguments.plugins:
             env = {}
-            if os.environ.get("ODESK_FUTU_PLUGIN_CONFIG"):
-                env["ODESK_FUTU_PLUGIN_CONFIG"] = os.environ["ODESK_FUTU_PLUGIN_CONFIG"]
+            if os.environ.get("ODK_FUTU_PLUGIN_CONFIG"):
+                env["ODK_FUTU_PLUGIN_CONFIG"] = os.environ["ODK_FUTU_PLUGIN_CONFIG"]
         if arguments.plugin_config:
             env = dict(os.environ) if env is None else env
-            env["ODESK_FUTU_PLUGIN_CONFIG"] = arguments.plugin_config
+            env["ODK_FUTU_PLUGIN_CONFIG"] = arguments.plugin_config
         shared_disabled = resolve_shared_disabled(os.environ, {"odk.futu." + name for name in PORTS}, _warn)
         options = {"disabled": tuple(sorted(set(arguments.disable_plugin) | set(shared_disabled)))}
         if arguments.plugin_directory:

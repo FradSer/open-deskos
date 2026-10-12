@@ -11,9 +11,9 @@
 - Declare Windows skips in `tests/not-ported.js`. Use `notPortedOnWindows(test, kind)` for a suite or `posixOnlyReason(kind)` for an assertion. Add a reason there; do not add silent host conditionals.
 - `scripts/start-kiosk.sh`, `scripts/cm5-install.sh` and `scripts/cm5-acceptance.sh` own CM5 launch, deployment and device acceptance.
 
-Read @docs/AI_PLUGIN_GUIDE.md for built-in contracts. Read @docs/USER_APPLICATIONS.md for installed package verification/lifecycle. For Widget/App or renderer changes, use @../../.agents/skills/open-deskos-widget/SKILL.md and only the relevant references.
+Read @docs/AI_PLUGIN_GUIDE.md for built-in contracts. Read @docs/USER_APPLICATIONS.md for installed package verification/lifecycle. For Widget/App or renderer changes, use @../../.agents/skills/odk-widget/SKILL.md and only the relevant references.
 
-Read @README.md for controlled releases and `scripts/verify-release.sh`. `ODESK_WORKSPACE` is writable; the active release is immutable. Generated packages must pass system verification before installation. Read @docs/WINDOWS_HOST.md before Windows connection, transfer, deployment or result collection.
+Read @README.md for controlled releases and `scripts/verify-release.sh`. `ODK_WORKSPACE` is writable; the active release is immutable. Generated packages must pass system verification before installation. Read @docs/WINDOWS_HOST.md before Windows connection, transfer, deployment or result collection.
 
 ## Verification
 

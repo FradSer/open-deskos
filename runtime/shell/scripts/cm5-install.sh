@@ -33,8 +33,8 @@ if ! $SUDO apt-get install -y libgtk-3-0 libnss3 libgbm1 libxss1 libasound2 uncl
 fi
 
 echo "== installing Mali GPU userspace (firmware + libmali blob) =="
-if [ "${ODESK_SKIP_GPU_USERSPACE:-0}" = "1" ]; then
-  echo "skipped (ODESK_SKIP_GPU_USERSPACE=1); the shell will render through llvmpipe"
+if [ "${ODK_SKIP_GPU_USERSPACE:-0}" = "1" ]; then
+  echo "skipped (ODK_SKIP_GPU_USERSPACE=1); the shell will render through llvmpipe"
 elif ! "${DIR}/scripts/cm5-gpu-userspace.sh" install; then
   echo "warning: Mali userspace not installed; the shell will render through llvmpipe" >&2
 fi
@@ -45,7 +45,7 @@ echo "== installing the bundled CJK face for surfaces outside the Shell =="
 # Chinese as tofu boxes. Register the release's own face instead of depending on
 # a package repository; it carries GB2312 Han and CJK punctuation.
 $SUDO install -D -m 0644 "${DIR}/src/renderer/fonts/NotoSansSC-Regular.ttf" \
-  /usr/local/share/fonts/open-deskos/NotoSansSC-Regular.ttf
+  /usr/local/share/fonts/odk/NotoSansSC-Regular.ttf
 if ! $SUDO fc-cache -f >/dev/null 2>&1; then
   echo "warning: fc-cache failed; restart the session before expecting the CJK face" >&2
 fi
@@ -113,7 +113,7 @@ if [ -z "${TARGET_NODE}" ]; then
 fi
 NODE_BIN="$(dirname "$(readlink -f "${TARGET_NODE}")")"
 COREPACK_PNPM="${NODE_BIN}/corepack"
-KIOSK_BIN="${TARGET_HOME}/.local/lib/open-deskos/bin"
+KIOSK_BIN="${TARGET_HOME}/.local/lib/odk/bin"
 $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${KIOSK_BIN}"
 cat <<EOF | $SUDO tee "${KIOSK_BIN}/pnpm" >/dev/null
 #!/bin/sh
@@ -125,15 +125,15 @@ $SUDO chmod 0755 "${KIOSK_BIN}/pnpm"
 install_p4_camera_mic() {
   echo "== configuring the ESP32-P4 camera and microphone link =="
   # The P4 native composite USB device exposes a UVC camera and a UAC microphone.
-  $SUDO tee /etc/udev/rules.d/99-open-deskos-p4-camera.rules >/dev/null <<'EOF'
-SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="7002", SYMLINK+="open-deskos-p4-camera", GROUP="video", MODE="0660"
-SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="open-deskos-p4-debug", GROUP="dialout", MODE="0660"
+  $SUDO tee /etc/udev/rules.d/99-odk-p4-camera.rules >/dev/null <<'EOF'
+SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="7002", SYMLINK+="odk-p4-camera", GROUP="video", MODE="0660"
+SUBSYSTEM=="tty", KERNEL=="ttyACM*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="odk-p4-debug", GROUP="dialout", MODE="0660"
 EOF
   $SUDO udevadm control --reload-rules
   $SUDO udevadm trigger --subsystem-match=video4linux
   $SUDO udevadm trigger --subsystem-match=tty
 
-  if [ ! -e /dev/open-deskos-p4-camera ]; then
+  if [ ! -e /dev/odk-p4-camera ]; then
     echo "ESP32-P4 camera video device not detected yet; connect the native USB data port and rerun udevadm trigger." >&2
   fi
 }
@@ -185,7 +185,7 @@ if [ -f "$OPENBOX_CONFIG_DIR/rc.xml" ]; then
 fi
 
 echo "== establishing the initial immutable Open DeskOS release =="
-RUNTIME_ROOT="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+RUNTIME_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
 RELEASES_DIR="${RUNTIME_ROOT}/releases"
 RELEASE_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 RELEASE_DIR="${RELEASES_DIR}/${RELEASE_ID}"
@@ -208,7 +208,7 @@ $SUDO install -d -o "${TARGET_UID}" -g "${TARGET_GID}" -m 0755 "${RUNTIME_ROOT}/
 
 KIOSK_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
 run_as_target_user mkdir -p "$KIOSK_UNIT_DIR"
-cat > "$KIOSK_UNIT_DIR/open-deskos-shell.service" <<EOF
+cat > "$KIOSK_UNIT_DIR/odk-shell.service" <<EOF
 [Unit]
 Description=Open DeskOS kiosk shell
 After=graphical-session.target
@@ -216,13 +216,13 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-EnvironmentFile=-%h/.config/open-deskos/runtime.env
+EnvironmentFile=-%h/.config/odk/runtime.env
 ExecStart=${RUNTIME_ROOT}/current/scripts/start-kiosk.sh
 Restart=always
 RestartSec=3
 EOF
-chown "${TARGET_UID}:${TARGET_GID}" "$KIOSK_UNIT_DIR/open-deskos-shell.service"
-chmod 0644 "$KIOSK_UNIT_DIR/open-deskos-shell.service"
+chown "${TARGET_UID}:${TARGET_GID}" "$KIOSK_UNIT_DIR/odk-shell.service"
+chmod 0644 "$KIOSK_UNIT_DIR/odk-shell.service"
 run_as_target_user systemctl --user daemon-reload
 GRAPHICAL_DISPLAY="$(loginctl show-session "$(loginctl list-sessions --no-legend | awk -v user="${TARGET_USER}" '$3 == user && $2 >= 1000 { print $1; exit }')" -p Display --value 2>/dev/null || true)"
 if [ -n "${GRAPHICAL_DISPLAY}" ]; then
@@ -241,15 +241,15 @@ fi
 
 echo "== staging the required Personal Bot and Hosted Pi control components =="
 stage_personal_bot_service || {
-  echo "Required Personal Bot component could not be installed; check ALSA access and ${TARGET_HOME}/.config/open-deskos/personal-bot.env, then re-run the installer." >&2
+  echo "Required Personal Bot component could not be installed; check ALSA access and ${TARGET_HOME}/.config/odk/personal-bot.env, then re-run the installer." >&2
   exit 1
 }
 stage_task_host_service || {
-  echo "Required Hosted Pi control component could not be installed; check ${TARGET_HOME}/.config/open-deskos/pi-tasks.json and the release contents, then re-run the installer." >&2
+  echo "Required Hosted Pi control component could not be installed; check ${TARGET_HOME}/.config/odk/pi-tasks.json and the release contents, then re-run the installer." >&2
   exit 1
 }
-stage_desk_link_service || {
-  echo "Desk Link unit could not be staged; check the release contents, then re-run the installer." >&2
+stage_odk_link_service || {
+  echo "Open DeskOS Link unit could not be staged; check the release contents, then re-run the installer." >&2
   exit 1
 }
 
@@ -284,36 +284,36 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
   echo "== installing Remote Bridge user service from active release =="
   BRIDGE_UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
   run_as_target_user mkdir -p "$BRIDGE_UNIT_DIR"
-  sed "s|__OPEN_DESKOS_REMOTE_BRIDGE_DIR__|${REMOTE_BRIDGE_RELEASE}|g" \
-    "${REMOTE_BRIDGE_RELEASE}/systemd/open-deskos-remote-bridge.service" \
-    > "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
-  chown "${TARGET_UID}:${TARGET_GID}" "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
-  chmod 0644 "$BRIDGE_UNIT_DIR/open-deskos-remote-bridge.service"
+  sed "s|__ODK_REMOTE_BRIDGE_DIR__|${REMOTE_BRIDGE_RELEASE}|g" \
+    "${REMOTE_BRIDGE_RELEASE}/systemd/odk-remote-bridge.service" \
+    > "$BRIDGE_UNIT_DIR/odk-remote-bridge.service"
+  chown "${TARGET_UID}:${TARGET_GID}" "$BRIDGE_UNIT_DIR/odk-remote-bridge.service"
+  chmod 0644 "$BRIDGE_UNIT_DIR/odk-remote-bridge.service"
   if ! run_as_target_user systemctl --user daemon-reload \
-    || ! run_as_target_user systemctl --user enable --now open-deskos-remote-bridge.service; then
+    || ! run_as_target_user systemctl --user enable --now odk-remote-bridge.service; then
     echo "Remote Bridge user service could not be activated for ${TARGET_USER}; verify the graphical user session and retry:" >&2
-    echo "  systemctl --user enable --now open-deskos-remote-bridge.service" >&2
+    echo "  systemctl --user enable --now odk-remote-bridge.service" >&2
   fi
 fi
 
 start_required_services || {
-  echo "Required Personal Bot or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/open-deskos/personal-bot.env and ${TARGET_HOME}/.config/open-deskos/pi-tasks.json." >&2
+  echo "Required Personal Bot or Hosted Pi control service could not be started; check ${TARGET_HOME}/.config/odk/personal-bot.env and ${TARGET_HOME}/.config/odk/pi-tasks.json." >&2
   exit 1
 }
 
 AUTOSTART_DIR="${TARGET_HOME}/.config/autostart"
 run_as_target_user mkdir -p "$AUTOSTART_DIR"
-cat > "$AUTOSTART_DIR/open-deskos-shell.desktop" <<EOF
+cat > "$AUTOSTART_DIR/odk-shell.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Open DeskOS Shell
-Exec=sh -lc "systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY; systemctl --user restart open-deskos-shell.service"
+Exec=sh -lc "systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY; systemctl --user restart odk-shell.service"
 X-GNOME-Autostart-enabled=true
 Terminal=false
 EOF
-chown "${TARGET_UID}:${TARGET_GID}" "$AUTOSTART_DIR/open-deskos-shell.desktop"
-chmod 0644 "$AUTOSTART_DIR/open-deskos-shell.desktop"
+chown "${TARGET_UID}:${TARGET_GID}" "$AUTOSTART_DIR/odk-shell.desktop"
+chmod 0644 "$AUTOSTART_DIR/odk-shell.desktop"
 
 echo "done. the graphical-session autostart activates the kiosk service resolving ${RUNTIME_ROOT}/current."
-echo "logs: ~/.local/state/open-deskos-shell/launcher.log"
-echo "override resolution with ODESK_SHELL_WIDTH / ODESK_SHELL_HEIGHT in the environment."
+echo "logs: ~/.local/state/odk-shell/launcher.log"
+echo "override resolution with ODK_SHELL_WIDTH / ODK_SHELL_HEIGHT in the environment."

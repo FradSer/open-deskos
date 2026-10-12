@@ -29,6 +29,6 @@
   "engines": {
     "node": ">=22.19.0"
   },
-  "name": "@open-deskos/personal-bot",
+  "name": "@odk/personal-bot",
   "version": "0.1.0"
 }

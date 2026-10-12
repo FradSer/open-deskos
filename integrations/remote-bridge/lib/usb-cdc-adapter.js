@@ -9,7 +9,7 @@ const { RemoteLinkAdapter } = require('./remote-link-adapter')
 
 const DEFAULT_SERIAL_DIRECTORY = '/dev/serial/by-id'
 const DEFAULT_SCAN_INTERVAL_MS = 1_000
-const REMOTE_DEVICE_NAME = 'open-deskos-remote'
+const REMOTE_DEVICE_NAME = 'odk-remote'
 const REMOTE_SERIAL_JTAG_NAME = 'espressifusbjtagserialdebugunit'
 
 class UsbCdcAdapter extends RemoteLinkAdapter {

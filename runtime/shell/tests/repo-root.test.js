@@ -7,7 +7,7 @@ const path = require('node:path')
 const { findRepositoryRoot } = require('./helpers/repo-root')
 
 function makeTree(layout) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-repo-root-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-repo-root-'))
   for (const file of layout) {
     const target = path.join(root, file)
     fs.mkdirSync(path.dirname(target), { recursive: true })

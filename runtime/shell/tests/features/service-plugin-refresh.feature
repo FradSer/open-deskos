@@ -44,7 +44,7 @@ Feature: A Service Plugin's data keeps arriving for as long as the service does
     Given the Shell has refreshed an installed service declaration
     When that declaration is absent from a later readable catalog
     Then the Shell stops listening for that service
-    And Desk Data no longer lists the removed service
+    And Open DeskOS Data no longer lists the removed service
 
   Scenario: Shell services stop when the application quits
     Given the Shell has started its Remote, Hydra, and service sources
@@ -80,7 +80,7 @@ Feature: A Service Plugin's data keeps arriving for as long as the service does
   Scenario: Replacement coordinators preserve service delivery
     Given default or independent refresh, notification, and frame status plugins
     When the Shell selects them through its existing Main composition
-    Then refreshes retain provider order and reconcile Desk Data readings
+    Then refreshes retain provider order and reconcile Open DeskOS Data readings
     And a failed provider or diagnostic does not silence another provider
     And overlapping refresh requests share the active operation
     And shutdown waits for that operation before releasing providers

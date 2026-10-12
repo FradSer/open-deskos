@@ -9,7 +9,7 @@ const { createMainPlugins } = require('../../src/plugins/main-composition')
 const { createPluginHost } = require('../../src/plugin-host')
 const { startUserAppSystem, resolveUserAppSurface } = require('../../src/user-app-system')
 const { createUserAppStore } = require('../../src/user-app-store')
-const { createShellDeskData } = require('../../src/desk-data')
+const { createShellOdkData } = require('../../src/odk-data')
 const { USER_APP_CSP } = require('../../src/user-app-content')
 const { DESK_PORTS } = require('../../src/plugins/desk-runtime')
 const net = require('node:net')
@@ -68,13 +68,13 @@ async function selection(t) {
   await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [ID], hosts: ['electron-main'],
   } } }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
-    LOCALAPPDATA: path.join(root, 'state'), OPEN_DESKOS_NATIVE_KEYRING: keyring }
-  const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'native', ...args],
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), ODK_NATIVE_KEYRING: keyring }
+  const invoke = args => execFile(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'native', ...args],
     { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
   const installed = JSON.parse((await invoke(['install', bundle, '--keyring', keyring, '--trust', '--grant', 'desk.user-apps'])).stdout)
   assert.equal(installed.effect, 'selection-only')
-  const config = () => readConfig(path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json'))
+  const config = () => readConfig(path.join(env.ODK_CONFIG_DIR, 'plugins.json'))
   const store = createNativePluginStore({ stateDir: path.join(resolveShellHost({ env }).stateDir, 'plugins/native'), keyring: await readNativeKeyring(keyring) })
   const stored = await store.read(config().plugins[ID].native.revision)
   return { root, env, stored, invoke, load: options => loadNativePlugins(config(), { env, ...options }) }
@@ -84,19 +84,19 @@ async function runtime(t, plugins = [], { ui, verify = () => true, html = '<p id
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-uar-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
   const env = { ...process.env, XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-    XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODESK_WORKSPACE: path.join(root, 'workspace') }
+    XDG_RUNTIME_DIR: path.join(root, 'runtime'), ODK_WORKSPACE: path.join(root, 'workspace') }
   const surface = resolveUserAppSurface({ env })
   await fs.mkdir(path.dirname(surface.controlEndpoint), { recursive: true, mode: 0o700 })
-  const draft = path.join(env.ODESK_WORKSPACE, 'apps/counter')
+  const draft = path.join(env.ODK_WORKSPACE, 'apps/counter')
   await fs.mkdir(draft, { recursive: true })
   await fs.writeFile(path.join(draft, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'counter', name: 'Counter', version: '1', kind: 'app', data: { fields: { count: { type: 'number' } } } }))
   await fs.writeFile(path.join(draft, 'index.html'), html)
   // This host check seeds a fixture revision. Electron verification has its own
   // gate; no production installation or document verifier claim is made here.
-  const store = createUserAppStore({ workspace: env.ODESK_WORKSPACE, stateDir: surface.stateDir, verify })
+  const store = createUserAppStore({ workspace: env.ODK_WORKSPACE, stateDir: surface.stateDir, verify })
   assert.equal((await store.install('counter')).ok, true)
   const publications = new Set()
-  const data = createShellDeskData({ store: catalog || store, readings: [], serviceReadings: () => [], onUpdate: id => {
+  const data = createShellOdkData({ store: catalog || store, readings: [], serviceReadings: () => [], onUpdate: id => {
     for (const listener of [...publications]) listener(id)
   } })
   await data.syncPackages()
@@ -105,7 +105,7 @@ async function runtime(t, plugins = [], { ui, verify = () => true, html = '<p id
   const routes = new Map()
   const changes = []
   let starts = 0
-  const dataPlugin = { manifest: { schemaVersion: 1, id: 'odk.system.desk-data', name: 'Fixture Desk Data', version: '1.0.0', kind: 'service', host: 'electron-main',
+  const dataPlugin = { manifest: { schemaVersion: 1, id: 'odk.system.data', name: 'Fixture Open DeskOS Data', version: '1.0.0', kind: 'service', host: 'electron-main',
     provides: [{ interface: DESK_PORTS.data }], requires: [], permissions: [] }, create: () => ({ ports: { [DESK_PORTS.data]: data } }) }
   const catalogPlugin = { manifest: { schemaVersion: 1, id: 'odk.system.package-catalog', name: 'Selected fixture catalog',
     version: '2.0.0', kind: 'service', host: 'electron-main', provides: [{ interface: DESK_PORTS.catalog }], requires: [], permissions: [] },

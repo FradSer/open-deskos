@@ -13,7 +13,7 @@ const { createMainPlugins } = require('../../src/plugins/main-composition')
 const { createPluginHost } = require('../../src/plugin-host')
 const { DESK_PORTS } = require('../../src/plugins/desk-runtime')
 const { createFutuSource } = require('../../src/futu-source')
-const { createShellDeskData } = require('../../src/desk-data')
+const { createShellOdkData } = require('../../src/odk-data')
 const { readConfig } = require('../../src/plugin-config')
 const { loadNativePlugins } = require('../../src/native-plugin-loader')
 const { createNativePluginStore } = require('../../src/native-plugin-store')
@@ -21,7 +21,7 @@ const { readNativeKeyring } = require('../../src/native-plugin-policy')
 const { resolveShellHost } = require('../../src/platform')
 
 const ID = 'odk.service.futu'
-const cli = path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js')
+const cli = path.resolve(__dirname, '../../scripts/odk-plugin-cli.js')
 
 async function signedSelection(root) {
   const bundle = path.join(root, 'bundle')
@@ -40,12 +40,12 @@ async function signedSelection(root) {
   await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: [ID], hosts: ['electron-main'],
   } } }))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
-    LOCALAPPDATA: path.join(root, 'state'), OPEN_DESKOS_NATIVE_KEYRING: keyring }
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), ODK_NATIVE_KEYRING: keyring }
   const invoke = args => execFile(process.execPath, [cli, 'native', ...args], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } })
   const installed = JSON.parse((await invoke(['install', bundle, '--keyring', keyring, '--trust', '--grant', 'desk.futu', '--grant', 'ipc'])).stdout)
   assert.equal(installed.effect, 'selection-only')
-  const config = () => readConfig(path.join(env.OPEN_DESKOS_CONFIG_DIR, 'plugins.json'))
+  const config = () => readConfig(path.join(env.ODK_CONFIG_DIR, 'plugins.json'))
   const store = createNativePluginStore({ stateDir: path.join(resolveShellHost({ env }).stateDir, 'plugins/native'), keyring: await readNativeKeyring(keyring) })
   return { env, config, store, invoke, load: () => loadNativePlugins(config(), { env }) }
 }
@@ -61,7 +61,7 @@ async function fixture(t, signed, { replacementPlugins } = {}) {
   const handlers = new Map()
   const sources = []
   let now = 1700000000000
-  const keep = new Set(['odk.system.package-catalog', ID, 'odk.system.desk-data'])
+  const keep = new Set(['odk.system.package-catalog', ID, 'odk.system.data'])
   const composition = createMainPlugins({ replacementPlugins: replacementPlugins ?? (selection ? await selection.load() : []) })
   let capturedRoot
   if (selection) {
@@ -75,7 +75,7 @@ async function fixture(t, signed, { replacementPlugins } = {}) {
     'desk.catalog': { create: () => ({ async list() { if (hold) { held(); await hold }; return installed } }) },
     'desk.futu': { env: {}, report() {}, options: { runtimeDir: root, now: () => now },
       create(options) { const source = createFutuSource(options); sources.push(source); return source } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   composition.forEach(plugin => host.register(plugin))
   t.after(() => host.stop())

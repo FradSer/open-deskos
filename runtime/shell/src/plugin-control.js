@@ -1,6 +1,6 @@
 'use strict'
 
-const { listenDeskData } = require('./desk-data-control')
+const { listenOdkData } = require('./odk-data-control')
 const ID = 'odk.system.plugin-control'
 
 function createPluginControl({ snapshot, inventorySnapshot = snapshot, setEnabled, activate, signal, scope = 'electron-main', protectedIds = [ID] }) {
@@ -58,7 +58,7 @@ function createPluginControlPlugin() {
       return { async start() {
         if (ctx.signal.aborted) return
         if (config.smokeMode || !config.endpoint) throw Error('plugin control channel unavailable')
-        server = await listenDeskData({ ...config, requestTimeoutMs: 30000,
+        server = await listenOdkData({ ...config, requestTimeoutMs: 30000,
           control: createPluginControl({ ...config, signal: ctx.signal }) })
       } }
     },

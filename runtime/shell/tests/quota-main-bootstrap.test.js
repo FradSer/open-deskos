@@ -16,12 +16,12 @@ test('actual Main bootstrap preserves independent Quota revisions and all preloa
     const fixture = path.join(__dirname, 'quota-main-bootstrap.cjs')
     await fs.access(fixture)
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-quota-main-'))
-    const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+    const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
       XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state'),
-      ODESK_SHELL_TEST_MODE: '1', ODESK_SHELL_KIOSK: '0', ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280' }
+      ODK_SHELL_TEST_MODE: '1', ODK_SHELL_KIOSK: '0', ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280' }
     delete env.XDG_RUNTIME_DIR
     const enabled = new Set(['odk.source.quota', 'odk.system.renderer-development'])
-    env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+    env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
     try {
       const native = await install(root, env, { signal: t.signal })
       const pids = new Set()
@@ -96,13 +96,13 @@ test('actual Main jointly selects Quota source and page and preserves authentica
         await fs.mkdir(directory)
         const version = mode === 'default' ? '1.0.0' : '2.0.0'
         const profile = path.join(directory, 'profile')
-        const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config'),
+        const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config'),
           XDG_STATE_HOME: path.join(directory, 'state'), LOCALAPPDATA: path.join(directory, 'state'), XDG_RUNTIME_DIR: path.join(directory, 'runtime'),
           ODK_QUOTA_BOOTSTRAP_PROFILE: profile, ODK_QUOTA_BOOTSTRAP_VERSION: version, ODK_QUOTA_MAIN_SURFACE_MODE: mode,
-          ODESK_WORKSPACE: path.join(directory, 'workspace'), ODESK_SHELL_TEST_MODE: '1', ODESK_SHELL_KIOSK: '0',
-          ODESK_SHELL_WIDTH: '1920', ODESK_SHELL_HEIGHT: '1280', ODESK_DISABLE_GPU: '1' }
+          ODK_WORKSPACE: path.join(directory, 'workspace'), ODK_SHELL_TEST_MODE: '1', ODK_SHELL_KIOSK: '0',
+          ODK_SHELL_WIDTH: '1920', ODK_SHELL_HEIGHT: '1280', ODK_DISABLE_GPU: '1' }
         const enabled = new Set(['odk.source.quota', 'odk.system.renderer-development', 'odk.system.renderer-control'])
-        env.ODESK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
+        env.ODK_DISABLED_PLUGINS = createMainPlugins().map(plugin => plugin.manifest.id).filter(id => !enabled.has(id)).join(',')
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         if (mode !== 'default') await install(directory, env, { signal: t.signal })
@@ -117,15 +117,15 @@ test('actual Main jointly selects Quota source and page and preserves authentica
           }
           await fs.writeFile(entry, source + '\nwindow.quotaMainEntries ||= [];window.quotaMainEntries.push("2.0.0");\n')
           const keys = crypto.generateKeyPairSync('ed25519')
-          const policy = JSON.parse(await fs.readFile(env.OPEN_DESKOS_NATIVE_KEYRING, 'utf8'))
+          const policy = JSON.parse(await fs.readFile(env.ODK_NATIVE_KEYRING, 'utf8'))
           policy.publishers['quota-surface'] = { publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: ['odk.page.quota'], hosts: ['electron-renderer'] }
-          await fs.writeFile(env.OPEN_DESKOS_NATIVE_KEYRING, JSON.stringify(policy))
+          await fs.writeFile(env.ODK_NATIVE_KEYRING, JSON.stringify(policy))
           const files = []
           for (const name of ['entry.js', 'manifest.json']) files.push({ path: name, sha256: crypto.createHash('sha256').update(await fs.readFile(path.join(folder, name))).digest('hex') })
           const payload = { schemaVersion: 1, keyId: 'quota-surface', replace: true, files }
           await fs.writeFile(path.join(folder, 'bundle.json'), JSON.stringify({ ...payload,
             signature: crypto.sign(null, Buffer.from(`Open DeskOS native bundle v1\n${JSON.stringify(payload)}`), keys.privateKey).toString('base64') }))
-          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'native', 'install', folder, '--keyring', env.OPEN_DESKOS_NATIVE_KEYRING, '--trust'],
+          await runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'native', 'install', folder, '--keyring', env.ODK_NATIVE_KEYRING, '--trust'],
             { env, signal: t.signal, timeout: 10000 })
         }
         const running = runCommand(require('electron'), [`--user-data-dir=${profile}`, path.join(__dirname, 'quota-main-bootstrap.cjs')],

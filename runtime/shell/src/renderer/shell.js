@@ -1,7 +1,7 @@
 const SWIPE_THRESHOLD_RATIO = 0.18
 const DRAG_SUPPRESS_PX = 10
 
-// Startup exclusion list: ODESK_DISABLED_PLUGINS carries comma/space separated
+// Startup exclusion list: ODK_DISABLED_PLUGINS carries comma/space separated
 // plugin ids (tile, status, or page) that must not block shell startup.
 const disabledPlugins = new Set(
   (new URLSearchParams(window.location.search).get('disabledPlugins') || '')

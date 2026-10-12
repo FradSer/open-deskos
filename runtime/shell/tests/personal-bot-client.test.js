@@ -134,7 +134,7 @@ test('voice levels and long Markdown replies cross the socket with validated bou
 test('missing runtime path never queues a microphone toggle', () => {
   assert.equal(resolvePersonalBotSocketPath({}), null)
   assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: 'relative' }), null)
-  assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/open-deskos-personal-bot/agent.sock')
+  assert.equal(resolvePersonalBotSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/odk-personal-bot/agent.sock')
   const client = createPersonalBotClient({ socketPath: null })
   client.start()
   assert.equal(client.toggle(), false)

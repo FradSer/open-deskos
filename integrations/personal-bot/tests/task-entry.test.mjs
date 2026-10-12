@@ -27,7 +27,7 @@ async function host(t) {
 
 function start(entry, { dir, config }, preload = undefined) {
   return spawn(process.execPath, [...(preload ? ['--import', preload] : []), entry], {
-    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODESK_TASK_CONFIG: config },
+    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODK_TASK_CONFIG: config },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 }
@@ -81,7 +81,7 @@ test('the task daemon serves its socket when started through a release symlink',
 // operator looking at a Console that reports no host.
 test('the running daemon publishes its endpoint and withdraws it on shutdown', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
-  const descriptor = join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')
+  const descriptor = join(paths.dir, 'odk/hosted-pi/endpoint.json')
   const child = start(paths.entry, paths)
   t.after(() => child.kill())
   let client
@@ -158,7 +158,7 @@ test('CLI shutdown during service initialization cleans the late service without
   ]).finally(() => clearTimeout(deadline))
   assert.deepEqual(exit, { code: 0, signal: null })
   assert.equal(stdout.split('TASK_SERVICE_CLOSED').length - 1, 1)
-  assert.equal(existsSync(join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')), false)
+  assert.equal(existsSync(join(paths.dir, 'odk/hosted-pi/endpoint.json')), false)
   const client = await connector(paths.socket)
   client?.destroy()
   assert.equal(client, undefined, 'a stopped daemon must not accept clients')

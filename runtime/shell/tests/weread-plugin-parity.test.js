@@ -10,7 +10,7 @@ const { execFile } = require('node:child_process')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { createWeReadSource } = require('../src/weread-source')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
@@ -19,14 +19,14 @@ const { healthPort } = require('../src/plugins/health')
 const { install } = require('./helpers/weread-selection')
 const run = promisify(execFile)
 const directory = path.join(__dirname, 'fixtures/weread-replacement')
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const timestamp = 1700000000000
 
 async function fixture(t, replacement, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-weread-parity-'))
   let host
   t.after(async () => { try { await host?.stop() } finally { fs.rmSync(root, { recursive: true, force: true }) } })
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   const cacheFile = path.join(root, 'highlights.json')
   if (options.cache) fs.writeFileSync(cacheFile, JSON.stringify(options.cache))
@@ -57,10 +57,10 @@ async function fixture(t, replacement, options = {}) {
       created++
       return createWeReadSource(settings)
     } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   createMainPlugins({ replacementPlugins: replacements })
-    .filter(plugin => ['odk.source.weread', 'odk.system.desk-data'].includes(plugin.manifest.id))
+    .filter(plugin => ['odk.source.weread', 'odk.system.data'].includes(plugin.manifest.id))
     .forEach(plugin => host.register(plugin))
   await host.start()
   assert.equal(host.list().find(record => record.manifest.id === 'odk.source.weread').state, 'running')
@@ -351,10 +351,10 @@ for (const selection of [true, 'signed']) test(`removing ${selection === 'signed
   const restored = createPluginHost({ capabilities: {
     ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
     'source.weread': { options: f.configuration, create(options) { created++; return createWeReadSource(options) } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
   t.after(() => restored.stop())
-  createMainPlugins().filter(plugin => ['odk.source.weread', 'odk.system.desk-data'].includes(plugin.manifest.id))
+  createMainPlugins().filter(plugin => ['odk.source.weread', 'odk.system.data'].includes(plugin.manifest.id))
     .forEach(plugin => restored.register(plugin))
   await restored.start()
   assert.equal(created, 1)

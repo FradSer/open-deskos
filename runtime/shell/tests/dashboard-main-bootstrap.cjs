@@ -206,7 +206,7 @@ async function exercise() {
   }
   for (const theme of ['instrument', 'pixel', 'border-beam']) baseline.push(await measure(theme))
   fs.writeFileSync(configPath, selectedConfiguration)
-  const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), ...args],
+  const command = args => runCommand(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), ...args],
     { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 65536 })
   const versions = []
   let themeComparisons = 0, tickTransitions = 0, frameComparisons = 0
@@ -252,7 +252,7 @@ async function exercise() {
   }
   await activate('2.0.0')
   const saved = fs.readFileSync(configPath)
-  const policyPath = process.env.OPEN_DESKOS_NATIVE_KEYRING
+  const policyPath = process.env.ODK_NATIVE_KEYRING
   const policy = fs.readFileSync(policyPath)
   const broken = Buffer.from('{ controlled malformed configuration')
   const revoked = Buffer.from(JSON.stringify({ schemaVersion: 1, publishers: {} }))

@@ -184,7 +184,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     When hardware acceleration is enabled by default
     Then the kiosk launcher does not force software OpenGL
     And the main process configures Chromium to ignore the GPU blocklist and enable GPU rasterization
-    And setting ODESK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
+    And setting ODK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
 
   Scenario: The desk surface never depends on peripheral gates
     Given the ESP32-P4 camera or the Remote Control is disconnected
@@ -399,7 +399,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And the shell keeps ticking on the next second
 
   Scenario: Selected plugins can be disabled by a launch parameter
-    Given ODESK_DISABLED_PLUGINS lists one tile, one status, and one page plugin id
+    Given ODK_DISABLED_PLUGINS lists one tile, one status, and one page plugin id
     When the shell starts
     Then the listed tile is absent from its grid while every other declared widget still mounts
     And the listed status plugin leaves its slot empty without blocking the other slot

@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
   await viewport(1920, 1280)
   for (const phase of ['default', 'independent', 'restored']) {
     if (phase === 'independent') {
-      entries = signed ? await capture(process.env, process.env.OPEN_DESKOS_NATIVE_KEYRING, assets, { productionPolicy: true })
+      entries = signed ? await capture(process.env, process.env.ODK_NATIVE_KEYRING, assets, { productionPolicy: true })
         : loadDevelopmentPlugins(readConfig(resolveConfigPath(process.env)), { host: 'electron-renderer' })
       assert.equal(entries.length, 1)
       await win.webContents.executeJavaScript(`(async () => {

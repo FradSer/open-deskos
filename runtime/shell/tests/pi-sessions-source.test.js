@@ -8,7 +8,7 @@ const { execFileSync, spawnSync } = require('node:child_process')
 const path = require('node:path')
 const { posixOnlyReason } = require('./not-ported')
 
-const env = { ODK_PI_SSH_HOST: 'desk-mac', ODK_PI_SSH_NODE: '/opt/homebrew/bin/node', ODK_PI_SSH_COLLECTOR: '/Users/example/.local/share/open-deskos/pi-sessions-snapshot.js' }
+const env = { ODK_PI_SSH_HOST: 'desk-mac', ODK_PI_SSH_NODE: '/opt/homebrew/bin/node', ODK_PI_SSH_COLLECTOR: '/Users/example/.local/share/odk/pi-sessions-snapshot.js' }
 function snapshot() {
   return { ok: true, scannedAt: Date.now(), summary: { total: 1, running: 1, settled: 0, exited: 0, workspacesCount: 1 }, sessions: [{ pid: 42, status: 'running', isAlive: true }], workspaces: [{ sessions: [] }] }
 }
@@ -142,9 +142,9 @@ test('concurrent polls coalesce and subsequent scans refresh', async () => {
   await third
 })
 
-/* --- Desk Link precedence --- */
+/* --- Open DeskOS Link precedence --- */
 
-function deskLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
+function odkLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
   const calls = { machines: 0, snapshot: 0 }
   return {
     calls,
@@ -156,7 +156,7 @@ function deskLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
       calls.snapshot += 1
       return snapshot ?? {
         ok: true,
-        source: { kind: 'desk-link', label: 'Desk Link · desk-mac' },
+        source: { kind: 'odk-link', label: 'Open DeskOS Link · desk-mac' },
         scannedAt: Date.now(),
         summary: { total: 1, running: 1, settled: 0, exited: 0, workspacesCount: 1 },
         sessions: [{
@@ -172,7 +172,7 @@ function deskLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
           latestGoal: 'Reported goal',
           activity: 'bash: pnpm test',
           modifiedFiles: [],
-          source: 'desk-link',
+          source: 'odk-link',
           reportedBy: 'desk-mac',
         }],
         workspaces: [{
@@ -196,28 +196,28 @@ function deskLinkFixture({ machines = ['desk-mac'], snapshot = null } = {}) {
   }
 }
 
-test('a connected Desk Link answers instead of the configured SSH source', async () => {
-  const link = deskLinkFixture()
+test('a connected Open DeskOS Link answers instead of the configured SSH source', async () => {
+  const link = odkLinkFixture()
   let executeCalls = 0
   const scan = createPiSessionsSource({
     env,
-    deskLink: link,
+    odkLink: link,
     execute: () => { executeCalls += 1 },
     scanLocal: async () => { throw new Error('the local collector must not run') },
   })
 
   const result = await scan()
 
-  assert.equal(executeCalls, 0, 'no SSH scan happens while a Desk Link answers')
+  assert.equal(executeCalls, 0, 'no SSH scan happens while a Open DeskOS Link answers')
   assert.equal(link.calls.machines, 1)
   assert.equal(link.calls.snapshot, 1)
   assert.equal(result.ok, true)
-  assert.equal(result.source.kind, 'desk-link')
+  assert.equal(result.source.kind, 'odk-link')
   assert.equal(result.sessions[0].reportedBy, 'desk-mac')
 })
 
-test('a Desk Link with no connected machine leaves the configured SSH source in charge', async () => {
-  const link = deskLinkFixture({ machines: [] })
+test('a Open DeskOS Link with no connected machine leaves the configured SSH source in charge', async () => {
+  const link = odkLinkFixture({ machines: [] })
   const execute = (command, args, options, callback) => {
     callback(null, JSON.stringify({
       ok: true,
@@ -227,19 +227,19 @@ test('a Desk Link with no connected machine leaves the configured SSH source in 
       workspaces: [],
     }))
   }
-  const scan = createPiSessionsSource({ env, deskLink: link, execute })
+  const scan = createPiSessionsSource({ env, odkLink: link, execute })
 
   const result = await scan()
 
-  assert.equal(link.calls.snapshot, 0, 'an empty Desk Link state never replaces the SSH source')
+  assert.equal(link.calls.snapshot, 0, 'an empty Open DeskOS Link state never replaces the SSH source')
   assert.equal(result.ok, true)
   assert.equal(result.source.kind, 'ssh')
 })
 
-test('an empty Desk Link state is reported as such rather than mixing sources', async () => {
-  const link = deskLinkFixture({ snapshot: {
+test('an empty Open DeskOS Link state is reported as such rather than mixing sources', async () => {
+  const link = odkLinkFixture({ snapshot: {
     ok: true,
-    source: { kind: 'desk-link', label: 'Desk Link · desk-mac' },
+    source: { kind: 'odk-link', label: 'Open DeskOS Link · desk-mac' },
     scannedAt: Date.now(),
     summary: { total: 0, running: 0, settled: 0, exited: 0, workspacesCount: 0 },
     sessions: [],
@@ -248,7 +248,7 @@ test('an empty Desk Link state is reported as such rather than mixing sources', 
   let executeCalls = 0
   const scan = createPiSessionsSource({
     env,
-    deskLink: link,
+    odkLink: link,
     execute: () => { executeCalls += 1 },
     scanLocal: async () => { throw new Error('the local collector must not run') },
   })
@@ -257,10 +257,10 @@ test('an empty Desk Link state is reported as such rather than mixing sources', 
 
   assert.equal(executeCalls, 0)
   assert.equal(result.summary.total, 0)
-  assert.equal(result.source.kind, 'desk-link')
+  assert.equal(result.source.kind, 'odk-link')
 })
 
-test('without a Desk Link client the local collector still answers', async () => {
+test('without a Open DeskOS Link client the local collector still answers', async () => {
   const scan = createPiSessionsSource({
     env: {},
     scanLocal: async () => ({ ok: true, scannedAt: Date.now(), summary: { total: 0, running: 0, settled: 0, exited: 0, workspacesCount: 0 }, sessions: [], workspaces: [] }),
@@ -278,7 +278,7 @@ test('one session reported by two machines becomes one entry with consistent cou
   }
   const deduped = dedupeSnapshot({
     ok: true,
-    source: { kind: 'desk-link', label: 'Desk Link' },
+    source: { kind: 'odk-link', label: 'Open DeskOS Link' },
     scannedAt: Date.now(),
     sessions: [shared, { ...shared, updatedAt: 1700000005000, activity: 'bash: pnpm test' }],
     workspaces: [{ name: 'desk', cwd: '/workspace/desk', sessions: [shared, shared] }],
@@ -305,20 +305,20 @@ test('a snapshot without duplicates is returned untouched', () => {
   assert.equal(dedupeSnapshot(snapshot), snapshot)
 })
 
-test('the source deduplicates what a connected Desk Link reports', async () => {
+test('the source deduplicates what a connected Open DeskOS Link reports', async () => {
   const shared = { uuid: 'shared', sessionId: 'shared', status: 'running', cwd: '/workspace/desk', workspaceName: 'desk', isAlive: true, updatedAt: 1 }
-  const deskLink = {
+  const odkLink = {
     machines: async () => ['first-mac', 'second-mac'],
     snapshot: async () => ({
-      ok: true, source: { kind: 'desk-link', label: 'Desk Link' }, scannedAt: Date.now(),
+      ok: true, source: { kind: 'odk-link', label: 'Open DeskOS Link' }, scannedAt: Date.now(),
       sessions: [shared, { ...shared, updatedAt: 2 }],
       workspaces: [{ name: 'desk', cwd: '/workspace/desk', sessions: [shared, shared] }],
       summary: { total: 2, running: 2, settled: 0, exited: 0, workspacesCount: 1 },
     }),
   }
-  const scan = createPiSessionsSource({ deskLink })
+  const scan = createPiSessionsSource({ odkLink })
   const result = await scan()
   assert.equal(result.sessions.length, 1)
   assert.equal(result.summary.total, 1)
-  assert.equal(result.source.kind, 'desk-link')
+  assert.equal(result.source.kind, 'odk-link')
 })

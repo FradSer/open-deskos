@@ -59,14 +59,14 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   // The voice link is ported, and the runbook says what carries it and what
   // authenticates it, so a missing personal bot service cannot read as a missing voice
   // capability.
-  assert.match(runbook, /open-deskos-personal-bot/)
+  assert.match(runbook, /odk-personal-bot/)
   assert.match(runbook, /DirectShow/)
 
   // The surfaces this host does provide are stated with their transport and the
   // thing that authenticates it, so 'not ported' and 'ported to a named pipe'
   // cannot be confused for one another.
-  assert.match(runbook, /open-deskos-desk-link/)
-  assert.match(runbook, /open-deskos-user-app-control/)
+  assert.match(runbook, /odk-link/)
+  assert.match(runbook, /odk-user-app-control/)
   assert.match(runbook, /local-channel\.token/)
   assert.match(runbook, /ADR-0025/)
 
@@ -90,7 +90,7 @@ test('the panel decision is recorded where a reader looks for it', () => {
 
 test('the Windows entry points do not require bash', () => {
   const launcher = read(RUNTIME, 'run.ps1')
-  assert.match(launcher, /ODESK_SHELL_KIOSK/)
+  assert.match(launcher, /ODK_SHELL_KIOSK/)
   assert.match(launcher, /\.env\.local/)
 
   // One set of acceptance rules: the CM5 wrapper delegates to the Node script

@@ -2,7 +2,7 @@
 
 The shared Shell runs on Linux, Windows x64 and macOS. CM5/Linux arm64 is the reference host. These records retain stable decision IDs. Acceptance of a decision does not certify every implementation or device.
 
-Read [CONTEXT](../CONTEXT.md) for terms, [runtime README](../README.md) for development/releases, and [CONFIGURATION](CONFIGURATION.md) before changing host settings. Current interfaces belong to [AI_PLUGIN_GUIDE](AI_PLUGIN_GUIDE.md), [USER_APPLICATIONS](USER_APPLICATIONS.md), [DESK_LINK](DESK_LINK.md), [DESK_DATA_SPEC](DESK_DATA_SPEC.md) and [VOICE_FEEDBACK](VOICE_FEEDBACK.md). Product and visual rules belong to [PRODUCT](../../../PRODUCT.md) and [DESIGN](../../../DESIGN.md).
+Read [CONTEXT](../CONTEXT.md) for terms, [runtime README](../README.md) for development/releases, and [CONFIGURATION](CONFIGURATION.md) before changing host settings. Current interfaces belong to [AI_PLUGIN_GUIDE](AI_PLUGIN_GUIDE.md), [USER_APPLICATIONS](USER_APPLICATIONS.md), [ODK_LINK](ODK_LINK.md), [ODK_DATA_SPEC](ODK_DATA_SPEC.md) and [VOICE_FEEDBACK](VOICE_FEEDBACK.md). Product and visual rules belong to [PRODUCT](../../../PRODUCT.md) and [DESIGN](../../../DESIGN.md).
 
 ## Current decisions
 
@@ -26,12 +26,12 @@ The separate User Application name is retired by ADR-0009. Its safety decision r
 
 P4 exposes composite USB `303a:7002`: UVC MJPEG 1280x720 at 30 fps and UAC 16-bit mono PCM at 16 kHz. It has no CDC metadata, face/owner recognition, enrollment, expression policy or biometric storage. The Face Agent target is withdrawn. Only capture (`p4_sc2336`), encode/push (`p4_uvc_stream`), microphone (`p4_usb_microphone`) and app-owned descriptors (`usb_descriptors.c`) remain in its firmware.
 
-CM5 uses V4L2 and `/dev/open-deskos-p4-camera`, not a vendor parser or status service. Isochronous alt 0 starts each host session at a fresh frame boundary; bulk left clients joining mid-frame. `scripts/p4-camera-acceptance.sh` checks USB identity, V4L2 MJPEG and one bounded frame without stored media. `scripts/p4-microphone-acceptance.sh` is a separate gate. `idf.py build` under ESP-IDF 6.0.1 proves compilation only. Home column 4 rows 2–3 remain unassigned after the removed analysis tiles.
+CM5 uses V4L2 and `/dev/odk-p4-camera`, not a vendor parser or status service. Isochronous alt 0 starts each host session at a fresh frame boundary; bulk left clients joining mid-frame. `scripts/p4-camera-acceptance.sh` checks USB identity, V4L2 MJPEG and one bounded frame without stored media. `scripts/p4-microphone-acceptance.sh` is a separate gate. `idf.py build` under ESP-IDF 6.0.1 proves compilation only. Home column 4 rows 2–3 remain unassigned after the removed analysis tiles.
 
 <a id="adr-0006"></a>
 ### ADR-0006: Package-initiated reporting
 
-A Pi machine opens its Desk Link to the desk. No inbound access to the machine is required. The dedicated LAN-only service authenticates a per-link token provisioned out of band. One link reports many sessions and bounded events. Disconnection reports unavailable. A report is neither a synchronized mirror nor control authority. Pulling an endpoint was rejected because it retains the inbound-access problem. ADR-0013 supersedes only the earlier control deferral. [DESK_LINK](DESK_LINK.md) owns reporting and the optional SSH source.
+A Pi machine opens its Open DeskOS Link to the desk. No inbound access to the machine is required. The dedicated LAN-only service authenticates a per-link token provisioned out of band. One link reports many sessions and bounded events. Disconnection reports unavailable. A report is neither a synchronized mirror nor control authority. Pulling an endpoint was rejected because it retains the inbound-access problem. ADR-0013 supersedes only the earlier control deferral. [ODK_LINK](ODK_LINK.md) owns reporting and the optional SSH source.
 
 <a id="adr-0009"></a>
 ### ADR-0009: One plugin model and declared services
@@ -55,12 +55,12 @@ The Shell lends verified package documents theme, resolved tokens, fonts and mea
 <a id="adr-0012"></a>
 ### ADR-0012: Safe multiline Pi results
 
-Results carry multiline Markdown, optional `toolName` and explicit `truncated: true`. ADR-0015 replaces the former 60-event/256 KiB retention with 300 events/1 MiB and keeps every event kind's bounded body. The local collector reads a 2 MiB tail. Desk Link event frames are bounded at 1 MiB; runtime replies at 2 MiB. Decode UTF-8 across chunks.
+Results carry multiline Markdown, optional `toolName` and explicit `truncated: true`. ADR-0015 replaces the former 60-event/256 KiB retention with 300 events/1 MiB and keeps every event kind's bounded body. The local collector reads a 2 MiB tail. Open DeskOS Link event frames are bounded at 1 MiB; runtime replies at 2 MiB. Decode UTF-8 across chunks.
 
 Use local `markdown-it`. Disable raw HTML and executable links; show links as inert text/address and images as alt text. Keep semantic headings, tables, code and lists. A wide table has a named focusable horizontal scroll region; its arrows cannot switch sessions/pages. Pixel uses Zpix without synthetic emphasis. Old reporters that discarded bodies require a reporter update; CSS cannot restore them. This is a bounded tail, not a full archive.
 
 <a id="adr-0013"></a>
-### ADR-0013: Separate Desk Link control
+### ADR-0013: Separate Open DeskOS Link control
 
 A Console opens its own connection to the existing LAN listener. One-shot requests close it; attachment holds it. Reporting transport/backoff remains separate. A Control Credential is distinct from the reporting token and never travels on the wire. A one-time nonce and HMAC proof authorize control. Validate protocol version explicitly. V2 adds control while V1 reporting remains valid.
 
@@ -68,7 +68,7 @@ The Console identity names its machine and Pi session. Verbs are list, launch, a
 
 Use durable log-entry position for history and live events. Apply each entry's event batch atomically. Attach catches up through an inclusive boundary, then follows later entries. No replay buffer, resync verb, expiring cursor or separate persisted counter is needed. The service calls the separate Pi host daemon; merging them would let a service restart kill sessions.
 
-The listener is an execution surface with the host user's capability. Keep it LAN-only. HMAC removes replayable-secret exposure, not plaintext confidentiality risk. Reusing the report token, sending the control secret, adding another listener and merging connection lifecycles were rejected. SSH polling would duplicate this capability. ACP/MCP were rejected for missing required authorization, durable resumption and multi-client semantics. [DESK_LINK](DESK_LINK.md) owns provisioning/protocol operation.
+The listener is an execution surface with the host user's capability. Keep it LAN-only. HMAC removes replayable-secret exposure, not plaintext confidentiality risk. Reusing the report token, sending the control secret, adding another listener and merging connection lifecycles were rejected. SSH polling would duplicate this capability. ACP/MCP were rejected for missing required authorization, durable resumption and multi-client semantics. [ODK_LINK](ODK_LINK.md) owns provisioning/protocol operation.
 
 <a id="adr-0014"></a>
 ### ADR-0014: Coordinator and full-capability Hosted Pi
@@ -119,7 +119,7 @@ Back/Escape/primary returns from Detail to Overview. Remote Back also exits App 
 
 The Rockchip 6.1 image has kbase `g21p0-01eac0`, no usable CSF firmware/blob and no panthor/Mesa 24+ route. Pin CSF firmware and `libmali-valhall-g610-g24p0-x11-gbm.so` together from `linux-6.1-stan-rkr4`; g13p0 exposes only EGL 1.4. `scripts/cm5-gpu-userspace.sh` installs them and diverts Mesa sonames into `odk-mesa/` with `dpkg-divert`. `remove` reverses the installation. Restart the graphical session after either operation.
 
-Select ANGLE `--use-gl=angle --use-angle=gles-egl` with `--disable-gpu-compositing` only for Linux arm64/X11 with the blob. Xorg glamor enables its X11 EGL path. GPU rasterization/WebGL remain accelerated; presentation is a software copy because X11 swaps lose the blob's context. `--use-gl=egl` is not an accepted Chromium 150 implementation. Overrides are `ODESK_GPU_BACKEND=mali|default`, `ODESK_DISABLE_GPU=1` and `LIBGL_ALWAYS_SOFTWARE=1`.
+Select ANGLE `--use-gl=angle --use-angle=gles-egl` with `--disable-gpu-compositing` only for Linux arm64/X11 with the blob. Xorg glamor enables its X11 EGL path. GPU rasterization/WebGL remain accelerated; presentation is a software copy because X11 swaps lose the blob's context. `--use-gl=egl` is not an accepted Chromium 150 implementation. Overrides are `ODK_GPU_BACKEND=mali|default`, `ODK_DISABLE_GPU=1` and `LIBGL_ALWAYS_SOFTWARE=1`.
 
 Do not treat Mesa GLX/llvmpipe as acceleration evidence. Check EGL vendor/version, Xorg glamor and installed pair through `scripts/cm5-acceptance.sh`. Recorded device evidence was ARM EGL 1.5, Mali-G610 glamor and ANGLE with software compositing. A new kernel/DDK requires re-pinning both artifacts/checksums; the firmware interface is `0x1010000`. Mainline panthor plus Mesa 24+ is the cleaner future route and would retire this workaround.
 
@@ -138,12 +138,12 @@ After successful activation and smoke, the locked transaction prunes only `relea
 <a id="adr-0019"></a>
 ### ADR-0019: Ready Hosted Pi endpoint descriptor
 
-After binding and becoming ready, the daemon atomically publishes `{version, socketPath, stateDir}` in `$XDG_RUNTIME_DIR/open-deskos/hosted-pi/endpoint.json` (directory `0700`, file `0600`). Withdraw it first on shutdown. Desk Link reads this descriptor, not `pi-tasks.json`; `ODK_HOSTED_PI_SOCKET` remains the isolated override. Require version 1 and an absolute socket path. Malformed data means no host. A publish failure reports stderr but does not stop voice-driven work. This avoids duplicate configuration and discovery that promises an unready socket.
+After binding and becoming ready, the daemon atomically publishes `{version, socketPath, stateDir}` in `$XDG_RUNTIME_DIR/odk/hosted-pi/endpoint.json` (directory `0700`, file `0600`). Withdraw it first on shutdown. Open DeskOS Link reads this descriptor, not `pi-tasks.json`; `ODK_HOSTED_PI_SOCKET` remains the isolated override. Require version 1 and an absolute socket path. Malformed data means no host. A publish failure reports stderr but does not stop voice-driven work. This avoids duplicate configuration and discovery that promises an unready socket.
 
 <a id="adr-0020"></a>
 ### ADR-0020: Fold reasoning by default
 
-Replace each turn's thought bodies with one `Thinking...` row at its first thought. The shared display publishes bodies only for exact `ODESK_PI_REASONING=shown`. Main resolves it, the URL carries `piReasoning=shown`, and plugins read `ctx.runtimeConfig.piSessionReasoning`. Typos/booleans stay folded. This changes display only; thought events retain their 4 KiB body/truncation flag. Preserve reading position by the row's place from the newest event. No reasoning control is added to Detail or the Remote strip.
+Replace each turn's thought bodies with one `Thinking...` row at its first thought. The shared display publishes bodies only for exact `ODK_PI_REASONING=shown`. Main resolves it, the URL carries `piReasoning=shown`, and plugins read `ctx.runtimeConfig.piSessionReasoning`. Typos/booleans stay folded. This changes display only; thought events retain their 4 KiB body/truncation flag. Preserve reading position by the row's place from the newest event. No reasoning control is added to Detail or the Remote strip.
 
 <a id="adr-0021"></a>
 ### ADR-0021: Tool boxes carry recorded outcomes
@@ -209,14 +209,14 @@ Configured latitude/longitude always win. An explicit empty location disables lo
 <a id="adr-0030"></a>
 ### ADR-0030: Declare transcription provider
 
-`ODESK_PERSONAL_BOT_STT_PROVIDER` declares `openai` multipart (default) or `aliyun` DashScope JSON before file/network access. Do not infer shape from URL or include configured values in errors. OpenAI uses `ODESK_PERSONAL_BOT_STT_KEY_FILE`; Aliyun uses `ALIYUNCS_TOKEN`; no credential fallback. A declared cloud provider wins over local `ODK_STT_PORT`/bridge settings.
+`ODK_PERSONAL_BOT_STT_PROVIDER` declares `openai` multipart (default) or `aliyun` DashScope JSON before file/network access. Do not infer shape from URL or include configured values in errors. OpenAI uses `ODK_PERSONAL_BOT_STT_KEY_FILE`; Aliyun uses `ALIYUNCS_TOKEN`; no credential fallback. A declared cloud provider wins over local `ODK_STT_PORT`/bridge settings.
 
 Both preserve normalization, language/context meaning, 25,000,000-byte upload, 45-second timeout, 64 KiB response and safe failure. [VOICE_FEEDBACK](VOICE_FEEDBACK.md#language-and-provider-contract) owns exact payload rules. URL inference, replacing multipart, a separate ASR fork and remote-readable local file paths were rejected: they break gateways/local contracts or duplicate bounds. Inline audio keeps capture local and removable.
 
 <a id="adr-0031"></a>
 ### ADR-0031: Resident Personal Bot on every host
 
-Voice uses host-resolved channels and ADR-0025 authentication before protocol parsing. Windows uses `\\.\pipe\open-deskos-personal-bot`; Unix retains owned sockets and old-client compatibility. Only capture is host-specific: `ffmpeg -f dshow` on Windows, `arecord` on Unix. Share signed little-endian 16-bit 16 kHz mono PCM, WAV, RMS, 640-byte/20 ms VAD frames, 60 silent frames, 4 GiB guard and temporary-file cleanup.
+Voice uses host-resolved channels and ADR-0025 authentication before protocol parsing. Windows uses `\\.\pipe\odk-personal-bot`; Unix retains owned sockets and old-client compatibility. Only capture is host-specific: `ffmpeg -f dshow` on Windows, `arecord` on Unix. Share signed little-endian 16-bit 16 kHz mono PCM, WAV, RMS, 640-byte/20 ms VAD frames, 60 silent frames, 4 GiB guard and temporary-file cleanup.
 
 Pass the actual DirectShow device name unchanged. Missing/`default` stops Windows startup explicitly. Stop ffmpeg through stdin to flush buffered samples, then terminate after the existing grace period; Windows has no SIGINT path. Use an independent interactive restart-loop task on Windows and `Restart=on-failure` user unit on Unix. Shell restart does not restart capture. Absence is unavailable, never simulated. The handheld uses a declared cloud provider.
 
@@ -230,11 +230,11 @@ Pass the bounded request to the helper as a private stdin file; remove it with t
 Remote project paths follow target admission: absolute POSIX paths without parent segments/control characters. Send them verbatim. Only local projects use local resolution. Waiting for helper exit caused valid answers to time out; requiring a Windows pipe client or repeating target root policy on the desk was rejected. [Personal Bot control documentation](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi-setup) owns the transport contract.
 
 <a id="adr-0033"></a>
-### ADR-0033: One read-only Desk Data registry
+### ADR-0033: One read-only Open DeskOS Data registry
 
-The main process registers each source once for tile IPC and Personal Bot. `list` reads no sources; `read` follows the source's refresh/state policy without a private cache or force-refresh. The read-only channel keeps request `id` separate from `readingId`; each channel's failure is independent. Both bot profiles use `desk_data` and read again for each question.
+The main process registers each source once for tile IPC and Personal Bot. `list` reads no sources; `read` follows the source's refresh/state policy without a private cache or force-refresh. The read-only channel keeps request `id` separate from `readingId`; each channel's failure is independent. Both bot profiles use `odk_data` and read again for each question.
 
-Projections retain measured numbers/times, identity and truth states. They drop binary/vendor/firmware details and mark shortened prose. Percent display scaling is shared; undeclared scales cannot be guessed. Nonlive Service Plugins show no holdings. Packages publish only declared data through the validated bridge; it remains untrusted data, never instruction or authorization. [DESK_DATA_SPEC](DESK_DATA_SPEC.md) owns fields, bounds, states and tests.
+Projections retain measured numbers/times, identity and truth states. They drop binary/vendor/firmware details and mark shortened prose. Percent display scaling is shared; undeclared scales cannot be guessed. Nonlive Service Plugins show no holdings. Packages publish only declared data through the validated bridge; it remains untrusted data, never instruction or authorization. [ODK_DATA_SPEC](ODK_DATA_SPEC.md) owns fields, bounds, states and tests.
 
 Snapshot files, renderer-owned truth, one tool per source, direct agent provider integrations and pushing every reading into prompts were rejected. Each duplicates truth, expands credential reach or freezes unused data. Adding write verbs was rejected because mutations already have separate verified lifecycle tools. A package publish operation grants no network, DOM or action authority. Fixtures do not prove spoken/model/device acceptance.
 
@@ -250,11 +250,16 @@ The panel is not movable, resizable, maximizable or minimizable. It has no `WS_T
 
 Use `runtime/shell/`, `tests/features/shell.feature` and `src/platform/` for shared behavior. Linux, Windows x64 and macOS x64/arm64 use one implementation; CM5 remains reference. Keep host/peripheral runbooks and acceptance separate. `runtime/linux` was rejected because its name assigns shared implementation to one host.
 
-Update discovery, imports, staging, skills and repository references together. Keep sealed release layouts, service names, channels and persisted paths unchanged. Retain `@fradser/open-deskos-linux-shell`: Electron derives the existing profile from that internal identity. Renaming it requires a separate state migration. Discovery/topology/import/asset fixtures verify the source move; macOS evidence is separate from Windows, CM5, microphones/cameras and physical input.
+Update discovery, imports, staging, skills and repository references together.
+The technical namespace is `odk`; the Electron package and CM5 profile launcher use `@odk/shell`.
+Current services, channels, environment variables, and state paths use the ODK names defined in [Shell terms](../CONTEXT.md#technical-namespace).
+Deployment must transfer required state before activation.
+Discovery, topology, import, and asset fixtures verify source changes.
+Host checks do not prove device presentation, capture, or physical input.
 
 ### ADR-0036: Personal Agent owns the home briefing
 
-The first page uses generated Personal Agent content from the read-only Desk Data registry.
+The first page uses generated Personal Agent content from the read-only Open DeskOS Data registry.
 Fixed plugin contributions no longer define that page.
 The Agent uses a separate temporary session without tools, extensions, Skills, or memory.
 Source updates invalidate pending output.
@@ -283,7 +288,7 @@ The current composition includes these components:
 
 - The data sources in [data-sources.js](../src/plugins/data-sources.js)
 - Personal Bot, Remote Link, the built-in App manager, service notifications, and initial frame status in [system-channels.js](../src/plugins/system-channels.js)
-- The package catalog, Futu services, Desk Data, service refresh, installed Widget/App runtime, and Desk Data Link in [desk-runtime.js](../src/plugins/desk-runtime.js)
+- The package catalog, Futu services, Open DeskOS Data, service refresh, installed Widget/App runtime, and Open DeskOS Data Link in [desk-runtime.js](../src/plugins/desk-runtime.js)
 - The appearance declarations in [appearance-plugins.js](../src/renderer/core/appearance-plugins.js)
 - The renderer surfaces in [registry.js](../src/renderer/core/registry.js).
 - The Remote Bridge listener and transports in [plugin-runtime.js](../../../integrations/remote-bridge/lib/plugin-runtime.js).
@@ -339,13 +344,13 @@ The frame status plugin broadcasts Personal Bot status and sends Remote Link sta
 Optional providers retain the existing unavailable and disconnected fallback states.
 The notification plugin forwards changed reading identities to the current Personal Bot instance.
 Stopping either consumer cancels its retained callbacks without stopping its providers.
-Desk Data Link retains its listener until close succeeds, including listeners returned after startup cancellation.
+Open DeskOS Data Link retains its listener until close succeeds, including listeners returned after startup cancellation.
 A failed close retains the required data provider and prevents replacement until cleanup succeeds.
 Normal Electron exit waits for plugin shutdown before it resumes.
 Repeated exit requests share that shutdown operation.
 Shutdown failures enter diagnostics before exit resumes.
-Source replacement makes Desk Data use the new source instance.
-Desk Data checks the package catalog again after restart.
+Source replacement makes Open DeskOS Data use the new source instance.
+Open DeskOS Data checks the package catalog again after restart.
 It retains published values only when the package revision, name, data declaration, and home declaration stay the same.
 Default package registration still clears previous published values.
 
@@ -430,7 +435,7 @@ Alternative providers and supported-device acceptance remain separate gates.
 Quota owns each active provider read through its plugin lifecycle.
 Stop cancels native requests and waits for their settlement before a new instance starts.
 Cancelled reads return unavailable instead of late quota values.
-The [Quota parity checks](../tests/quota-plugin-parity.test.js) compare default and replacement compositions with the same IPC and Desk Data scenarios.
+The [Quota parity checks](../tests/quota-plugin-parity.test.js) compare default and replacement compositions with the same IPC and Open DeskOS Data scenarios.
 The signed independent source owns provider requests and lifecycle behavior without default source imports.
 The [Quota contract](QUOTA_PLUGIN_CONTRACT.md) owns shared dependencies and current consumer evidence.
 Alternative provider compatibility and supported-device acceptance remain unverified.
@@ -443,9 +448,9 @@ Already completed Promises retain their values.
 The SSH source passes its cancellation signal to the native child process.
 Stop retains the child until its close event confirms process and stream release.
 The [Node child process contract](https://nodejs.org/api/child_process.html#event-close) defines this completion boundary.
-Pi sources pass their cancellation signals to individual Desk Link requests.
+Pi sources pass their cancellation signals to individual Open DeskOS Link requests.
 Each cancelled request closes its connection without stopping independent requests.
-The shared Desk Link client retains request ownership until socket close.
+The shared Open DeskOS Link client retains request ownership until socket close.
 Client stop cancels all its requests and waits for their connections to close.
 Cancellation signals remain local and do not change protocol records or authentication.
 

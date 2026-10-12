@@ -11,7 +11,7 @@ const { execFile } = require('node:child_process')
 const { createHydraSource } = require('../src/hydra-mqtt')
 const { createPluginHost } = require('../src/plugin-host')
 const { createMainPlugins } = require('../src/plugins/main-composition')
-const { createShellDeskData } = require('../src/desk-data')
+const { createShellOdkData } = require('../src/odk-data')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const { DATA_PORTS } = require('../src/plugins/data-sources')
@@ -19,7 +19,7 @@ const { DESK_PORTS } = require('../src/plugins/desk-runtime')
 const { healthPort } = require('../src/plugins/health')
 const run = promisify(execFile)
 const { install } = require('./helpers/hydra-selection')
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const directory = path.join(__dirname, 'fixtures/hydra-replacement')
 const timestamp = 1700000000000
 
@@ -33,7 +33,7 @@ async function fixture(t, replacement, configured = true, savedEnvironment) {
     for (const client of clients) client.done?.()
     try { await host?.stop() } finally { fs.rmSync(root, { recursive: true, force: true }) }
   })
-  const env = savedEnvironment || { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = savedEnvironment || { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   let replacements = []
   let native
@@ -57,7 +57,7 @@ async function fixture(t, replacement, configured = true, savedEnvironment) {
       assert.equal(url, 'mqtt://controlled')
       assert.equal(options.reconnectPeriod, 5000)
       assert.equal(options.connectTimeout, 10000)
-      assert.match(options.clientId, /^open-deskos-shell-/)
+      assert.match(options.clientId, /^odk-shell-/)
       if (failure) throw Error('controlled connection failure')
       const client = new EventEmitter()
       client.topics = []
@@ -72,9 +72,9 @@ async function fixture(t, replacement, configured = true, savedEnvironment) {
   host = createPluginHost({ capabilities: {
     ipc: { handle(name, handler) { assert.equal(handlers.has(name), false); handlers.set(name, handler) }, removeHandler: name => handlers.delete(name) },
     'source.hydra': { connect: settings.connectImpl, options: { ...settings, connectImpl: undefined }, create(options) { assert.equal(replacement, false); defaults++; return createHydraSource({ ...options, connectImpl: settings.connectImpl }) } },
-    'desk.data': { create: createShellDeskData, smokeMode: true },
+    'desk.data': { create: createShellOdkData, smokeMode: true },
   } })
-  createMainPlugins({ replacementPlugins: replacements }).filter(plugin => ['odk.source.hydra', 'odk.system.desk-data'].includes(plugin.manifest.id))
+  createMainPlugins({ replacementPlugins: replacements }).filter(plugin => ['odk.source.hydra', 'odk.system.data'].includes(plugin.manifest.id))
     .forEach(plugin => host.register(plugin))
   await host.start()
   if (native) {

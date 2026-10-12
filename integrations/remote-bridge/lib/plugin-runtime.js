@@ -51,9 +51,9 @@ const LISTENER_PORT = 'odk:remote/listener/v1'
 const LISTENER_ID = 'odk.remote.listener'
 
 function resolveBridgeControlEndpoint(socketPath) {
-  const suffix = 'open-deskos-remote-bridge'
+  const suffix = 'odk-remote-bridge'
   if (loadShellModule('local-channel.js').isNamedPipe(socketPath) && socketPath.endsWith(suffix)) {
-    return socketPath.slice(0, -suffix.length) + 'open-deskos-remote-plugin-control'
+    return socketPath.slice(0, -suffix.length) + 'odk-remote-plugin-control'
   }
   return `${socketPath}.control`
 }
@@ -175,9 +175,9 @@ function createBridgePluginRuntime({ transports, open, close, handlers, logger, 
       return { async start() {
         if (context.signal.aborted) return
         const { createPluginControl } = loadShellModule('plugin-control.js')
-        const { listenDeskData } = loadShellModule('desk-data-control.js')
+        const { listenOdkData } = loadShellModule('odk-data-control.js')
         const platform = loadShellModule('platform/index.js').resolveShellHost()
-        server = await listenDeskData({ endpoint: controlEndpoint, platform: platform.platform, stateDir: platform.stateDir, requestTimeoutMs: 30000,
+        server = await listenOdkData({ endpoint: controlEndpoint, platform: platform.platform, stateDir: platform.stateDir, requestTimeoutMs: 30000,
           control: createPluginControl({ scope: 'remote-bridge', signal: context.signal,
             protectedIds: [LISTENER_ID, 'odk.remote.control'],
             inventorySnapshot: () => host.list(),

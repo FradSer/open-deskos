@@ -12,7 +12,7 @@ import poller
 def test_operator_inventory_and_validation_do_not_read_provider_settings():
     script = Path(poller.__file__)
     env = {**os.environ, "FUTU_TRADE_PWD": "private-fixture-password", "FUTU_PORT": "invalid",
-           "ODESK_FUTU_SOCKET": "/private/fixture/channel"}
+           "ODK_FUTU_SOCKET": "/private/fixture/channel"}
     for operation in ("list", "validate"):
         result = subprocess.run([sys.executable, str(script), "--plugins", operation,
                                  "--disable-plugin", "odk.futu.gateway"], env=env,

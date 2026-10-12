@@ -8,7 +8,7 @@ const { app, BrowserWindow } = require('electron')
 const { createPluginHost } = require('../src/plugin-host')
 const { installPluginShutdown } = require('../src/plugin-shutdown')
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-plugin-shutdown-'))
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-plugin-shutdown-'))
 app.setPath('userData', profile)
 let completed = false
 let stops = 0

@@ -1,4 +1,4 @@
-const DEFAULT_DEVICE = '/dev/open-deskos-p4-camera'
+const DEFAULT_DEVICE = '/dev/odk-p4-camera'
 const DEFAULT_WIDTH = 1280
 const DEFAULT_HEIGHT = 720
 const MIN_FRAME_BYTES = 4096
@@ -6,7 +6,7 @@ const LOCK_FILE = '/tmp/odk-camera.lock'
 const LOCK_WAIT_SECONDS = 20
 
 function createCameraCaptureProvider({
-  device = process.env.ODESK_CAMERA_DEVICE || DEFAULT_DEVICE,
+  device = process.env.ODK_CAMERA_DEVICE || DEFAULT_DEVICE,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT,
   minIntervalMs = 10000,

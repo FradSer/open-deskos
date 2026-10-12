@@ -3,7 +3,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { validatePluginManifest } = require('./plugin-host')
-const { createDeskDataRegistry } = require('./desk-data-registry')
+const { createOdkDataRegistry } = require('./odk-data-registry')
 const { createMainPlugins, validateMainReplacement } = require('./plugins/main-composition')
 const { createDefaultSourceReadings } = require('./plugins/desk-readings')
 const { validateAppearanceReplacement, selectAppearancePlugins, selectAppearanceFactories, createAppearancePlugins } = require('./renderer/core/appearance-plugins')
@@ -15,7 +15,7 @@ const reservedReadings = new Set(['odk.plugins.installed', ...createDefaultSourc
 function validateDevelopmentReadings(manifest, instance, replacement = false) {
   const sourceName = manifest.id.replace(/^odk\.source\./, '').replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
   const ownedReadings = replacement ? new Set(createDefaultSourceReadings({ [sourceName]: declarationSource }).map(entry => entry.id)) : new Set()
-  const registry = createDeskDataRegistry()
+  const registry = createOdkDataRegistry()
   const ids = new Set()
   const check = (entries, service = false) => {
     if (typeof entries?.then === 'function') {

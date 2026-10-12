@@ -21,8 +21,8 @@ async function install(root, env, { sessions = false, signal } = {}) {
   fs.writeFileSync(keyring, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
     publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: selected, hosts: ['electron-main'],
   } } }))
-  env.OPEN_DESKOS_NATIVE_KEYRING = keyring
-  const command = args => run(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), 'native', ...args],
+  env.ODK_NATIVE_KEYRING = keyring
+  const command = args => run(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), 'native', ...args],
     { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal })
   const bundle = (pluginId, version = '2.0.0') => {
     assert.ok(selected.includes(pluginId))

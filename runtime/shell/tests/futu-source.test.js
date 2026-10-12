@@ -38,8 +38,8 @@ function accepts(sockPath) {
 // its binder already declared. Both have to land on the same socket, or the tile reports a service
 // that is not the one poller.py bound.
 test('an absolute declared socket is used as declared, a name resolves under the runtime dir', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
-  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-sock-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-sock-'))
   const absolute = path.join(elsewhere, 'futu-poller.sock')
   const source = createFutuSource({
     runtimeDir: dir,
@@ -65,7 +65,7 @@ test('an absolute declared socket is used as declared, a name resolves under the
 })
 
 test('a declared service data record becomes a live snapshot', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const updates = []
   const source = createFutuSource({
     onUpdate: id => updates.push(id),
@@ -94,7 +94,7 @@ test('a declared service data record becomes a live snapshot', async () => {
 })
 
 test('an undeclared service reads unconfigured and auth-required surfaces needs-auth', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const source = createFutuSource({
     runtimeDir: dir,
     services: () => ({ 'futu-poller': { revision: 'r1', socket: 'futu-poller.sock' } }),
@@ -130,7 +130,7 @@ test('BDD feature states the refresh contract of a Service Plugin', () => {
 // the tile then reads "syncing" for the life of the process, because the only
 // refresh is the one that was skipped.
 test('a service that could not bind is retried by the next refresh', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const endpoint = path.join(dir, 'futu-poller.sock')
   fs.writeFileSync(endpoint, 'left behind by a previous run')
   const refused = []
@@ -156,7 +156,7 @@ test('a service that could not bind is retried by the next refresh', async () =>
 })
 
 test('a listener that is starting when stop runs cannot resurrect after stop', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-race-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-race-'))
   const endpoint = path.join(dir, 'futu-poller.sock')
   const source = createFutuSource({
     runtimeDir: dir,
@@ -173,7 +173,7 @@ test('a listener that is starting when stop runs cannot resurrect after stop', a
 })
 
 test('an explicit start after stop restarts the service listener', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-restart-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-restart-'))
   const endpoint = path.join(dir, 'futu-poller.sock')
   const source = createFutuSource({
     runtimeDir: dir,
@@ -193,7 +193,7 @@ test('an explicit start after stop restarts the service listener', async () => {
 // One unusable endpoint is one unavailable service. The other declared service
 // still has to answer, or a broken package takes the whole seam down with it.
 test('one service that cannot bind does not stop the other from listening', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const blocked = path.join(dir, 'broken.sock')
   const healthy = path.join(dir, 'other.sock')
   fs.writeFileSync(blocked, 'not a socket')
@@ -221,7 +221,7 @@ test('one service that cannot bind does not stop the other from listening', asyn
 // answers for a service that no longer exists at that address and leaves the new
 // one with nothing listening.
 test('a declaration that moved is followed and the old endpoint is withdrawn', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const first = path.join(dir, 'first.sock')
   const second = path.join(dir, 'second.sock')
   let endpoint = first
@@ -245,7 +245,7 @@ test('a declaration that moved is followed and the old endpoint is withdrawn', a
 // snapshot as live for another freshness window is a number on a desk that no
 // longer means anything, and the tile draws live and stale differently.
 test('a plugin that dropped is stale, and is live again once it reconnects', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const endpoint = path.join(dir, 'futu-poller.sock')
   const source = createFutuSource({
     runtimeDir: dir,
@@ -285,7 +285,7 @@ test('a plugin that dropped is stale, and is live again once it reconnects', asy
 // quiet would otherwise put the snapshot from before its outage back on the desk
 // as live, which is the same claim the drop removed one moment earlier.
 test('a plugin that reconnects without publishing is still not live', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-futu-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-futu-'))
   const endpoint = path.join(dir, 'futu-poller.sock')
   const source = createFutuSource({
     runtimeDir: dir,

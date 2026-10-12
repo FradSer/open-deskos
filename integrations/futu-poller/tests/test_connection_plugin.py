@@ -23,7 +23,7 @@ def test_replacement_transport_opens_each_endpoint_without_default_factory(monke
             return connection
     def forbidden(_endpoint): raise AssertionError("default connection factory ran")
     monkeypatch.setattr(poller, "open_connection", forbidden)
-    runtime = poller.create_poller({"ODESK_FUTU_SOCKET": endpoint, poller.TOKEN_ENV: str(token)},
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": endpoint, poller.TOKEN_ENV: str(token)},
                                    transport_factory=lambda context: Transport())
     runtime.start()
     runtime.host.get(poller.PORTS["publisher"]).send({"type": "data", "snapshot": {"positions": []}})
@@ -65,7 +65,7 @@ def test_failed_consumer_cleanup_retains_transport_after_uncertain_close():
     class Transport:
         def connect(self, endpoint): return FailingConnection()
         def close(self): events.append("transport.close")
-    runtime = poller.create_poller({"ODESK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
     runtime.start()
     runtime.host.get(poller.PORTS["publisher"]).send({"type": "data", "snapshot": {}})
     with pytest.raises(RuntimeError): runtime.close()
@@ -85,7 +85,7 @@ def test_async_connection_results_are_rejected_before_link_ownership(capsys):
             result = unsupported()
             pending.append(result)
             return result
-    runtime = poller.create_poller({"ODESK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
     runtime.start()
     publisher = runtime.host.get(poller.PORTS["publisher"])
     publisher.send({"type": "data", "snapshot": {}})
@@ -102,7 +102,7 @@ def test_readable_replacement_without_socket_readiness_is_rejected_and_closed():
     connection.settimeout = lambda timeout: None
     class Transport:
         def connect(self, endpoint): return connection
-    runtime = poller.create_poller({"ODESK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
+    runtime = poller.create_poller({"ODK_FUTU_SOCKET": "/tmp/controlled.sock"}, transport_factory=lambda context: Transport())
     runtime.start()
     publisher = runtime.host.get(poller.PORTS["publisher"])
     publisher.send({"type": "data", "snapshot": {}})

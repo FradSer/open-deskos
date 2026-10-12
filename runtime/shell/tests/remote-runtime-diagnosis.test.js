@@ -117,7 +117,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const bridge = new RemoteBridgeHost({ socketPath, transports: [transport], logger: { error() {} } })
   const client = createRemoteBridgeClient({ socketPath })
   const host = createPluginHost({ capabilities: { 'plugin.diagnostics': {
-    endpoint: path.join(directory, 'open-deskos-plugins', 'diagnose.sock'), stateDir: directory, snapshot: () => host.list(),
+    endpoint: path.join(directory, 'odk-plugins', 'diagnose.sock'), stateDir: directory, snapshot: () => host.list(),
   } } })
   t.after(async () => { await host.stop(); client.stop(); await bridge.stop(); await fs.rm(directory, { recursive: true, force: true }) })
   await bridge.start()
@@ -128,8 +128,8 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   host.register(require('../src/plugin-diagnostics').createDiagnosticsPlugin({ runtimePorts: ['odk:plugin-runtime/remote-bridge/v1'] }))
   await host.start()
   const execFile = require('node:util').promisify(require('node:child_process').execFile)
-  await assert.rejects(execFile(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', transport.manifest.id], {
-    env: { ...process.env, XDG_RUNTIME_DIR: directory, XDG_STATE_HOME: directory, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config') },
+  await assert.rejects(execFile(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'diagnose', transport.manifest.id], {
+    env: { ...process.env, XDG_RUNTIME_DIR: directory, XDG_STATE_HOME: directory, ODK_CONFIG_DIR: path.join(directory, 'config') },
   }), error => {
     assert.equal(error.code, 1)
     assert.equal(JSON.parse(error.stdout).runtimes[0].plugins[0].state, 'failed')

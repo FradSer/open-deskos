@@ -4,7 +4,7 @@ Linux, Windows x64 and macOS run the same Electron Display Shell in `runtime/she
 
 Use [root PRODUCT](../../PRODUCT.md) for product scope, [CONTEXT](CONTEXT.md) for terms, and [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions. [WINDOWS_HOST](docs/WINDOWS_HOST.md) owns Windows operations. The systemd, GPU and release commands below are CM5/Linux operations.
 
-The internal package ID `@fradser/open-deskos-linux-shell` preserves Electron user-data locations. It does not restrict supported hosts. The Apple P4 USB companion remains separate research. S3 Remote, P4 camera/microphone and C6 hardware gates never block base installation or direct input.
+The internal package ID is `@odk/shell`. Deployment must transfer required profile state before activation. The Apple P4 USB companion remains separate research. S3 Remote, P4 camera/microphone and C6 hardware gates never block base installation or direct input.
 
 ## Development
 
@@ -13,7 +13,7 @@ cd runtime/shell
 pnpm install
 pnpm styles
 ./run.sh
-ODESK_SHELL_KIOSK=1 ./run.sh --kiosk
+ODK_SHELL_KIOSK=1 ./run.sh --kiosk
 bash tests/smoke.sh
 pnpm test
 pnpm run e2e
@@ -30,7 +30,7 @@ Linux/macOS use `./run.sh`; Windows uses `run.ps1`. Use `node tests/smoke.mjs` f
 The Pi state capture harness asserts fixture DOM states before writing screenshots and `manifest.json`. Screenshots support review; DOM assertions decide the result. It defaults to this checkout. To inspect an installed release:
 
 ```sh
-ODK_SHELL_ROOT=/opt/open-deskos/current ODK_CAPTURE_DIR=/tmp/states \
+ODK_SHELL_ROOT=/opt/odk/current ODK_CAPTURE_DIR=/tmp/states \
   electron tests/pi-sessions-states.cjs
 ODK_SHEET_DIR=/tmp/states ODK_SHEET_OUT=/tmp/states/sheet.png \
   electron tests/capture-sheet.cjs
@@ -60,9 +60,9 @@ Wayland startup adds `--ozone-platform-hint=auto`; root startup adds `--no-sandb
 
 ## Data, control and voice
 
-[Desk Link](docs/DESK_LINK.md) owns reporting and separately authenticated Hosted Pi control. A Console disconnect does not end its Hosted Pi. Monitoring does not grant control; accepted delivery does not prove completion. The [optional SSH source](docs/DESK_LINK.md#optional-mac-ssh-source) uses a pull scan. A failed selected source does not become local data or idle state.
+[Open DeskOS Link](docs/ODK_LINK.md) owns reporting and separately authenticated Hosted Pi control. A Console disconnect does not end its Hosted Pi. Monitoring does not grant control; accepted delivery does not prove completion. The [optional SSH source](docs/ODK_LINK.md#optional-mac-ssh-source) uses a pull scan. A failed selected source does not become local data or idle state.
 
-[Installed packages](docs/USER_APPLICATIONS.md) own draft format, verification, placement and revision lifecycle. Drafts use writable `ODESK_WORKSPACE`; the active release stays immutable. Writing a file does not install it.
+[Installed packages](docs/USER_APPLICATIONS.md) own draft format, verification, placement and revision lifecycle. Drafts use writable `ODK_WORKSPACE`; the active release stays immutable. Writing a file does not install it.
 
 [Personal Bot](../../integrations/personal-bot/README.md) owns coordination. [Deployment](docs/PERSONAL_BOT_DEPLOYMENT.md) owns host setup. [Voice feedback](docs/VOICE_FEEDBACK.md) owns recording, restore and streaming behavior. Live microphone, provider and model checks need separate authorization and evidence.
 
@@ -72,7 +72,7 @@ Configure the CM5 user session:
 
 ```sh
 export ODK_CLIPROXY_URL=https://cliproxy.internal.example
-export ODK_CLIPROXY_MANAGEMENT_KEY_FILE=/etc/open-deskos/cliproxy-management.key
+export ODK_CLIPROXY_MANAGEMENT_KEY_FILE=/etc/odk/cliproxy-management.key
 ```
 
 The Shell reads quotas from CLIProxyAPI's existing authentication files. It does not copy OAuth tokens or read macOS Keychain. Prefer a management key file with mode `0600`. `ODK_CLIPROXY_MANAGEMENT_KEY` remains a temporary environment form. Keep keys and authentication files out of Git and logs.
@@ -101,33 +101,33 @@ bash runtime/shell/scripts/cm5-stage-release.sh
 # Optional, only after the camera hardware acceptance gate:
 # bash runtime/shell/scripts/p4-camera-acceptance.sh
 
-ssh cm5 'cd /opt/open-deskos/current && bash scripts/cm5-acceptance.sh'
+ssh cm5 'cd /opt/odk/current && bash scripts/cm5-acceptance.sh'
 ```
 
-The graphical autostart imports display variables and starts `open-deskos-shell.service`. The service resolves the active release and restarts after exit. Its log is `~/.local/state/open-deskos-shell/launcher.log`.
+The graphical autostart imports display variables and starts `odk-shell.service`. The service resolves the active release and restarts after exit. Its log is `~/.local/state/odk-shell/launcher.log`.
 
 Composition validation requires `schemaVersion:1`. Extra declared fields such as tile `minCell` are valid; a missing schema version fails. `tests/runtime-release.test.js` covers both cases.
 
 ## Controlled runtime update
 
-The installer builds a versioned release and creates `/opt/open-deskos/current`. A candidate needs valid `release.json`: schema version 1 and an ID matching its directory. It must pass `pnpm preflight` before activation. Failed post-activation kiosk/smoke restores the previous release.
+The installer builds a versioned release and creates `/opt/odk/current`. A candidate needs valid `release.json`: schema version 1 and an ID matching its directory. It must pass `pnpm preflight` before activation. Failed post-activation kiosk/smoke restores the previous release.
 
 Run the standalone updater from the runtime directory only for an approved activation:
 
 ```sh
-sudo ODK_RUNTIME_ROOT=/opt/open-deskos \
-ODK_CANDIDATE_RELEASE=/opt/open-deskos/releases/<release-id> \
+sudo ODK_RUNTIME_ROOT=/opt/odk \
+ODK_CANDIDATE_RELEASE=/opt/odk/releases/<release-id> \
 ODK_KIOSK_USER=<kiosk-user> \
 ODK_KIOSK_UID=$(id -u <kiosk-user>) \
 ODK_KIOSK_HOME=/home/<kiosk-user> \
 node scripts/update-runtime.js
 ```
 
-Only one transaction can update pointers. State, rollback selection and per-user migration markers live under `/opt/open-deskos/state/`. Runtime rollback excludes system packages, kernel, host desktop and experiment services.
+Only one transaction can update pointers. State, rollback selection and per-user migration markers live under `/opt/odk/state/`. Runtime rollback excludes system packages, kernel, host desktop and experiment services.
 
 `cm5-acceptance.sh` reports active/rollback releases, migrations, base Shell, peripheral services and hardware separately. A host/no-display report is diagnostic evidence, not physical CM5 acceptance.
 
-Remote Bridge uses `$XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock`. Production does not support a socket override. Tests can use `ODESK_SHELL_TEST_MODE=1` with an absolute `ODESK_REMOTE_BRIDGE_SOCKET`.
+Remote Bridge uses `$XDG_RUNTIME_DIR/odk-remote/bridge.sock`. Production does not support a socket override. Tests can use `ODK_SHELL_TEST_MODE=1` with an absolute `ODK_REMOTE_BRIDGE_SOCKET`.
 
 ## Tests without a display
 

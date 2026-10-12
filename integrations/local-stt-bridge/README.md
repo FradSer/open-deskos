@@ -12,7 +12,7 @@ bash integrations/local-stt-bridge/scripts/provision-stt-bridge.sh
 ```
 
 The script builds/downloads missing server/model assets.
-It installs `systemd/open-deskos-stt-bridge.service` for the kiosk user.
+It installs `systemd/odk-stt-bridge.service` for the kiosk user.
 It checks `/health` and loopback-only binding.
 It transcribes sample WAV against the `{"text"}` contract in `features/local-stt-bridge.feature`.
 
@@ -20,22 +20,22 @@ It transcribes sample WAV against the `{"text"}` contract in `features/local-stt
 
 The bridge needs no credential or model name and ignores a bearer.
 Personal Bot derives its endpoint from `ODK_STT_PORT`.
-Declare the port once in private `~/.config/open-deskos/runtime.env` (mode `0600`):
+Declare the port once in private `~/.config/odk/runtime.env` (mode `0600`):
 
 ```sh
 ODK_STT_PORT=17840
 ```
 
 The unit carries that default, so a device on the default port needs no `runtime.env` line at all.
-Personal Bot uses `http://127.0.0.1:<ODK_STT_PORT>/inference` when `ODESK_PERSONAL_BOT_STT_URL` is absent.
+Personal Bot uses `http://127.0.0.1:<ODK_STT_PORT>/inference` when `ODK_PERSONAL_BOT_STT_URL` is absent.
 Set that override only for another transcription endpoint.
-Keep any local bridge port consistent. `ODESK_PERSONAL_BOT_STT_KEY_FILE` is not needed for a device-local endpoint: the credential is only for an endpoint that is not the loopback bridge.
+Keep any local bridge port consistent. `ODK_PERSONAL_BOT_STT_KEY_FILE` is not needed for a device-local endpoint: the credential is only for an endpoint that is not the loopback bridge.
 
 An invalid `ODK_STT_PORT` fails startup instead of falling back to a cloud endpoint, so a typo can never send audio off the device.
 
-The Personal Bot defaults to Chinese (`zh`), supplies a short mixed-language vocabulary prompt, and normalizes Chinese transcription to Simplified Chinese while keeping Latin terms. `ODESK_PERSONAL_BOT_STT_PROMPT` overrides that context; an explicitly empty value disables it.
+The Personal Bot defaults to Chinese (`zh`), supplies a short mixed-language vocabulary prompt, and normalizes Chinese transcription to Simplified Chinese while keeping Latin terms. `ODK_PERSONAL_BOT_STT_PROMPT` overrides that context; an explicitly empty value disables it.
 Context is limited to 1024 characters.
-For this loopback `/inference` endpoint, `ODESK_PERSONAL_BOT_STT_LANGUAGE=auto` sends `language=auto` explicitly because omitting it uses whisper.cpp's English default.
+For this loopback `/inference` endpoint, `ODK_PERSONAL_BOT_STT_LANGUAGE=auto` sends `language=auto` explicitly because omitting it uses whisper.cpp's English default.
 Local transcription sends `translate=false`; it must not translate English words into another language.
 Use `zh`, not the unsupported locale tag `zh-CN`.
 

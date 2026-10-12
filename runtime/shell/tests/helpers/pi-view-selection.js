@@ -29,11 +29,11 @@ async function installPiViews(root, env, { mode = 'native', omitPage = false, ca
   const keyring = path.join(root, 'pi-surface-publishers.json')
   if (signedViews) {
     fs.writeFileSync(keyring, JSON.stringify({ schemaVersion: 1, publishers: {
-      ...JSON.parse(fs.readFileSync(env.OPEN_DESKOS_NATIVE_KEYRING, 'utf8')).publishers,
+      ...JSON.parse(fs.readFileSync(env.ODK_NATIVE_KEYRING, 'utf8')).publishers,
       'pi-surface-fixture': { publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }),
         identities: ['odk.app.pi-sessions', 'odk.page.pi-sessions'], hosts: ['electron-renderer'] },
     } }))
-    env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+    env.ODK_NATIVE_KEYRING = keyring
   }
   const bundle = (kind, version) => {
     assert.ok(['app', 'page'].includes(kind) && ['2.0.0', '3.0.0'].includes(version))
@@ -73,7 +73,7 @@ async function installPiViews(root, env, { mode = 'native', omitPage = false, ca
     const directory = bundle(kind, '2.0.0')
     const args = signedViews ? ['native', 'install', directory, '--keyring', keyring, '--trust']
       : ['link', directory, '--replace', '--trust']
-    const receipt = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/open-deskos-plugin-cli.js'), ...args],
+    const receipt = await runCommand(process.execPath, [path.resolve(__dirname, '../../scripts/odk-plugin-cli.js'), ...args],
       { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, signal, timeout: 10000 })
     if (signedViews) assert.equal(JSON.parse(receipt.stdout).effect, 'selection-only')
     else assert.ok(receipt.stdout.includes(`Development plugin "${id}" linked for the next Shell startup.`))

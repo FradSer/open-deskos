@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.source.odk-link",
+  "name": "Independent Open DeskOS Link acceptance fixture",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [{ "interface": "odk:source/link/v1" }],
+  "requires": [],
+  "permissions": ["source.odk-link"]
+}

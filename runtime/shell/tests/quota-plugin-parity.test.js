@@ -13,7 +13,7 @@ const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const vm = require('node:vm')
 const { fixture, directory, id, channel } = require('./helpers/quota-runtime')
 const run = promisify(execFile)
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const available = { state: 'available', snapshot: {
   fetchedAt: '2026-10-08T00:00:00.000Z', accounts: [
     { id: 'codex-fixture', provider: 'codex', account: 'fixture@example.test', plan: 'Pro', fileName: 'private.json',
@@ -100,7 +100,7 @@ for (const replacement of [false, true, 'signed']) {
     await stopping
     assert.equal(f.handlers.size, 0)
   })
-  test(`${name} preserves IPC payloads and Desk Data availability and projection`, async t => {
+  test(`${name} preserves IPC payloads and Open DeskOS Data availability and projection`, async t => {
     let response = available
     const f = await fixture(t, replacement, async () => response)
     assert.deepEqual(await f.ipc(), available)

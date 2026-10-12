@@ -13,7 +13,7 @@ for (const mode of ['default', 'independent', 'invalid-contract', 'retained-clea
   test(`installed desktop ${mode} composition in the actual Shell`, { timeout: 60000 }, async t => {
     const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-installed-desktop-'))
     const env = { ...process.env, ODK_INSTALLED_DESKTOP_PROFILE: profile, ODK_INSTALLED_DESKTOP_MODE: mode,
-      OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'),
+      ODK_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'),
       LOCALAPPDATA: path.join(profile, 'state') }
     delete env.ELECTRON_RUN_AS_NODE
     try {
@@ -24,7 +24,7 @@ for (const mode of ['default', 'independent', 'invalid-contract', 'retained-clea
         await fs.writeFile(entry, 'window.desktopExternalEntryExecuted=true;\n' + await fs.readFile(entry, 'utf8'))
         if (mode.endsWith('wrong-role')) await fs.writeFile(entry, (await fs.readFile(entry, 'utf8')).replace("surface: 'app'", "surface: 'display'"))
         if (mode.endsWith('definition-rejected')) await fs.writeFile(entry, (await fs.readFile(entry, 'utf8')).replace('id: definition.manifest.id', "id: 'odk.system.other'"))
-        const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+        const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
         if (mode.startsWith('native')) {
           const keys = crypto.generateKeyPairSync('ed25519'), keyring = path.join(profile, 'publishers.json')
           await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { desktop: {
@@ -36,7 +36,7 @@ for (const mode of ['default', 'independent', 'invalid-contract', 'retained-clea
           const payload = { schemaVersion: 1, keyId: 'desktop', replace: true, files }
           const signature = crypto.sign(null, Buffer.from(`Open DeskOS native bundle v1\n${JSON.stringify(payload)}`), keys.privateKey).toString('base64')
           await fs.writeFile(path.join(directory, 'bundle.json'), JSON.stringify({ ...payload, signature }))
-          env.OPEN_DESKOS_NATIVE_KEYRING = keyring
+          env.ODK_NATIVE_KEYRING = keyring
           await runCommand(process.execPath, [cli, 'native', 'install', directory, '--keyring', keyring, '--trust'], { env, signal: t.signal, timeout: 10000 })
         } else await runCommand(process.execPath, [cli, 'link', directory, '--trust', '--replace'], { env, signal: t.signal, timeout: 10000 })
       }

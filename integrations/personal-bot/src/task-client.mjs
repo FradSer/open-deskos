@@ -12,7 +12,7 @@ const developmentPath = value => {
   // Compare the reserved POSIX namespace with the same separators on every desk.
   // Keep the original target path; only the host can resolve its actual roots.
   const path = posix.normalize(normalize(value).replaceAll('\\', '/'))
-  return path !== '/opt/open-deskos' && !path.startsWith('/opt/open-deskos/')
+  return path !== '/opt/odk' && !path.startsWith('/opt/odk/')
 }
 const keysOnly = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key))
 
@@ -24,7 +24,7 @@ export function taskCommand(executable, host) {
   return { executable: 'ssh', args: ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '--', host, quoted] }
 }
 
-export async function loadTargets(path = process.env.ODESK_TASK_TARGETS_FILE) {
+export async function loadTargets(path = process.env.ODK_TASK_TARGETS_FILE) {
   if (!path) return []
   if (!cleanPath(path)) throw Error('Invalid task targets configuration path')
   const config = JSON.parse(await readFile(path, 'utf8'))
@@ -120,7 +120,7 @@ function exchange(command, input, signal, timeout, failure) {
   return new Promise((resolve, reject) => {
     let settled = false
     let output = ''
-    const directory = mkdtempSync(join(tmpdir(), 'open-deskos-task-'))
+    const directory = mkdtempSync(join(tmpdir(), 'odk-task-'))
     const file = join(directory, 'request.json')
     writeFileSync(file, input, { mode: 0o600 })
     const stdin = openSync(file, 'r')

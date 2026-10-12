@@ -11,6 +11,6 @@ if (process.platform === 'win32') {
     const host = resolve(options)
     if (host.platform !== 'win32') throw Error('Camera acceptance requires native Windows host resolution')
     const endpoint = name => host.endpoint(name) === null ? null : prefix + name
-    return { ...host, endpoint, deskDataEndpoint: endpoint('desk-data') }
+    return { ...host, endpoint, odkDataEndpoint: endpoint('odk-data') }
   }
 }

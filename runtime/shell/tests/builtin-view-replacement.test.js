@@ -11,7 +11,7 @@ for (const mode of ['programmatic', 'development', 'native']) for (const fault o
   const invalid = fault === 'clock'
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-builtin-views-'))
   const env = { ...process.env, ODK_BUILTIN_VIEWS_PROFILE: profile, ODK_BUILTIN_VIEWS_MODE: mode, ODK_BUILTIN_VIEWS_INVALID: invalid ? '1' : '', ODK_BUILTIN_VIEWS_FOCUS_INVALID: fault === 'focus' ? '1' : '',
-    OPEN_DESKOS_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
+    ODK_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
   delete env.ELECTRON_RUN_AS_NODE
   try {
     if (mode !== 'programmatic') await installBuiltinViews(profile, env, { mode, invalid, signal: t.signal })

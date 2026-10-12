@@ -5,7 +5,7 @@ const path = require('node:path')
 const os = require('node:os')
 
 function resolveConfigPath(env = process.env) {
-  const base = env.OPEN_DESKOS_CONFIG_DIR || path.join(env.HOME || env.USERPROFILE || os.homedir(), '.config', 'open-deskos')
+  const base = env.ODK_CONFIG_DIR || path.join(env.HOME || env.USERPROFILE || os.homedir(), '.config', 'odk')
   return path.join(base, 'plugins.json')
 }
 
@@ -101,7 +101,7 @@ function writeConfig(configPath, config) {
 }
 
 function resolveStartupDisabled(env = process.env, report = error => console.error(`plugin configuration unavailable: ${error.message}`), snapshot) {
-  const disabled = new Set((env.ODESK_DISABLED_PLUGINS || '').split(/[\s,]+/).filter(Boolean))
+  const disabled = new Set((env.ODK_DISABLED_PLUGINS || '').split(/[\s,]+/).filter(Boolean))
   try {
     for (const [id, entry] of Object.entries((snapshot || readConfig(resolveConfigPath(env))).plugins)) {
       if (entry.enabled === false) disabled.add(id)

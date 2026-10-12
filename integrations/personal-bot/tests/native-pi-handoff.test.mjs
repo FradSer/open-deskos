@@ -15,7 +15,7 @@ import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 // messages. Model replies and intent judgments are scripted offline; this is not
 // natural model routing, TUI, device SSH or microphone acceptance.
 const repository = fileURLToPath(new URL('../../..', import.meta.url))
-const packageDir = process.env.PI_OPEN_DESKOS_PACKAGE || join(dirname(repository), 'pi-packages/packages/open-deskos')
+const packageDir = process.env.PI_ODK_PACKAGE || join(dirname(repository), 'pi-packages/packages/open-deskos')
 
 async function until(predicate, message) {
   const deadline = Date.now() + 10_000
@@ -41,19 +41,19 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   await writeFile(desks, JSON.stringify({ desks: [] }))
   const envChanges = {
     ODK_SESSION_HOST_SOCKET: socketDir,
-    ODK_DESK_LINK_DESKS_FILE: desks,
+    ODK_LINK_DESKS_FILE: desks,
     PI_DIRECTORY_SESSIONS_DIR: join(dir, 'registry'),
-    ODESK_TASK_TARGETS_FILE: join(dir, 'targets.json'),
+    ODK_TASK_TARGETS_FILE: join(dir, 'targets.json'),
     ODK_NODE: process.execPath,
-    ODK_DESK_LINK_ADDRESS: '',
-    ODK_DESK_LINK_TOKEN: '',
-    ODK_DESK_LINK_CONTROL_TOKEN: '',
+    ODK_LINK_ADDRESS: '',
+    ODK_LINK_TOKEN: '',
+    ODK_LINK_CONTROL_TOKEN: '',
   }
   const saved = Object.fromEntries(Object.keys(envChanges).map(key => [key, process.env[key]]))
   for (const [key, value] of Object.entries(envChanges)) process.env[key] = value
   t.after(() => { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value } })
   const target = { id: 'mac', name: 'Isolated native Pi', executable: join(packageDir, 'session-control'), roots: [project] }
-  await writeFile(envChanges.ODESK_TASK_TARGETS_FILE, JSON.stringify({ targets: [target] }))
+  await writeFile(envChanges.ODK_TASK_TARGETS_FILE, JSON.stringify({ targets: [target] }))
   const { default: extension } = await import(pathToFileURL(join(packageDir, 'index.ts')).href)
   const loader = new DefaultResourceLoader({ cwd: project, agentDir, noExtensions: true, noSkills: true, noPromptTemplates: true,
     settingsManager: SettingsManager.inMemory({ packages: [] }), extensionFactories: [extension],

@@ -34,7 +34,7 @@ for (const signed of [false, true]) {
     await peer.send({ type: 'data', updatedAt: f.now(), snapshot: { totals: { plRatio: 0.025 }, positions: [] } })
     assert.equal((await f.read()).reading.value.todayChangePercent, 2.5)
   })
-  test(`${label} preserves actual publisher states, IPC values and Desk Data percentages`, { skip: posixOnlyReason('unix-socket'), timeout: 10000 }, async t => {
+  test(`${label} preserves actual publisher states, IPC values and Open DeskOS Data percentages`, { skip: posixOnlyReason('unix-socket'), timeout: 10000 }, async t => {
     const f = await fixture(t, signed)
     assert.equal(f.host.list().find(plugin => plugin.manifest.id === ID).manifest.version, signed ? '2.0.0' : '1.0.0')
     assert.equal((await f.read()).reading.state, 'syncing')

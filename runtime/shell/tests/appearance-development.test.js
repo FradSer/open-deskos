@@ -40,8 +40,8 @@ test('CLI links pure appearance declarations without loading native or browser e
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-appearance-dev-'))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(replacement()))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config') }
-  const cli = path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js')
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(directory, 'config') }
+  const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
   const run = promisify(execFile)
   await assert.rejects(run(process.execPath, [cli, 'link', directory, '--replace'], { env }), /trust/)
   await run(process.execPath, [cli, 'link', directory, '--trust', '--replace'], { env })

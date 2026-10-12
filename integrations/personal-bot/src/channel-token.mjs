@@ -25,9 +25,9 @@ export const MAX_HANDSHAKE_BYTES = 512
 export function channelTokenFile(env = process.env, platform = process.platform) {
   if (platform === 'win32') {
     const local = env.LOCALAPPDATA || win32.join(homedir(), 'AppData', 'Local')
-    return win32.join(local, 'open-deskos', TOKEN_FILENAME)
+    return win32.join(local, 'odk', TOKEN_FILENAME)
   }
-  return join(env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'open-deskos', TOKEN_FILENAME)
+  return join(env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'odk', TOKEN_FILENAME)
 }
 
 async function read(file, fsModule) {

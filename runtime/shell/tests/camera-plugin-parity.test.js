@@ -13,7 +13,7 @@ const { createPluginHost } = require('../src/plugin-host')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const run = promisify(execFile)
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 const directory = path.join(__dirname, 'fixtures/camera-replacement')
 const sourcePort = 'odk:source/camera/v1'
 const healthPort = 'odk:plugin-health/odk.source.camera/v1'
@@ -21,7 +21,7 @@ const jpeg = Buffer.concat([Buffer.from([255, 216]), Buffer.alloc(8192), Buffer.
 
 async function fixture(t, replacement) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-cparity-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   let replacements = []

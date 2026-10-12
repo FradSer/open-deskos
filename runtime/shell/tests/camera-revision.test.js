@@ -17,7 +17,7 @@ const jpeg = Buffer.concat([Buffer.from([255, 216]), Buffer.alloc(8192), Buffer.
 
 for (const mode of ['live', 'unavailable']) test(`signed Camera ${mode} consumers survive update rollback and removal`, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-camera-revisions-'))
-  const env = { ...process.env, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'),
+  const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
   let active
   let calls = 0

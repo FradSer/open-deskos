@@ -34,7 +34,7 @@ test('concurrent service socket stops wait for one retained channel close', asyn
 })
 
 function endpoint() {
-  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-sock-')), 'svc.sock')
+  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'odk-sock-')), 'svc.sock')
 }
 
 function clientSend(sockPath, records) {

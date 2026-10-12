@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict')
 const { createMainPlugins } = require('../../src/plugins/main-composition')
 const { createPluginControl } = require('../../src/plugin-control')
-const { listenDeskData } = require('../../src/desk-data-control')
+const { listenOdkData } = require('../../src/odk-data-control')
 
 function independentPluginControl() {
   return {
@@ -20,7 +20,7 @@ function independentPluginControl() {
       return { async start() {
         if (ctx.signal.aborted) return
         if (options.smokeMode || !options.endpoint) throw Error('plugin control channel unavailable')
-        listener = await listenDeskData({ ...options, requestTimeoutMs: 30000,
+        listener = await listenOdkData({ ...options, requestTimeoutMs: 30000,
           control: createPluginControl({ ...options, signal: ctx.signal }) })
       } }
     },

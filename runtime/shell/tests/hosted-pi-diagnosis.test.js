@@ -8,7 +8,7 @@ const path = require('node:path')
 const os = require('node:os')
 const { createPluginHost } = require('../src/plugin-host')
 const { createDiagnosticsPlugin, requestDiagnostics } = require('../src/plugin-diagnostics')
-const { resolveHostedPiSocketPath } = require('../src/desk-link-host-adapter')
+const { resolveHostedPiSocketPath } = require('../src/odk-link-host-adapter')
 const { createMainPlugins } = require('../src/plugins/main-composition')
 const { independentHostedPiDiagnosis } = require('./fixtures/hosted-pi-diagnostic-replacement')
 
@@ -27,7 +27,7 @@ for (const independent of [false, true]) {
     const { serveTasks, requestTask } = await import('../../../integrations/personal-bot/src/task-protocol.mjs')
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hdiag-'))
     const endpoint = path.join(directory, 'task.sock')
-    const descriptor = path.join(directory, 'open-deskos', 'hosted-pi', 'endpoint.json')
+    const descriptor = path.join(directory, 'odk', 'hosted-pi', 'endpoint.json')
     const commands = []
     const composition = createTaskComposition({
       openChannel: (handle, disconnect) => serveTasks(endpoint, handle, disconnect),
@@ -38,7 +38,7 @@ for (const independent of [false, true]) {
     })
     const host = createPluginHost({ capabilities: {
       'system.hosted-pi-diagnostics': { endpoint: () => resolveHostedPiSocketPath({ XDG_RUNTIME_DIR: directory }) },
-      'plugin.diagnostics': { endpoint: path.join(directory, 'open-deskos-plugins', 'diagnose.sock'), stateDir: directory, snapshot: () => host.list() },
+      'plugin.diagnostics': { endpoint: path.join(directory, 'odk-plugins', 'diagnose.sock'), stateDir: directory, snapshot: () => host.list() },
     } })
     t.after(async () => { await host.stop(); await composition.close(); await fs.rm(directory, { recursive: true, force: true }) })
     await composition.start()
@@ -47,7 +47,7 @@ for (const independent of [false, true]) {
     host.register(selectedPlugin(independent))
     host.register(createDiagnosticsPlugin({ runtimePorts: [HOSTED_PI_RUNTIME_PORT] }))
     await host.start()
-    const result = await requestDiagnostics({ endpoint: path.join(directory, 'open-deskos-plugins', 'diagnose.sock'), pluginId: 'odk.hosted-pi.service' })
+    const result = await requestDiagnostics({ endpoint: path.join(directory, 'odk-plugins', 'diagnose.sock'), pluginId: 'odk.hosted-pi.service' })
     assert.equal(result.runtimes[0].host, 'personal-agent')
     assert.equal(result.runtimes[0].instance, 'hosted-pi')
     assert.equal(result.runtimes[0].state, 'available')
@@ -55,8 +55,8 @@ for (const independent of [false, true]) {
     assert.equal(JSON.stringify(result).includes('private'), false)
     assert.deepEqual(commands, ['list'])
     const execFile = require('node:util').promisify(require('node:child_process').execFile)
-    const cli = await execFile(process.execPath, [path.resolve(__dirname, '../scripts/open-deskos-plugin-cli.js'), 'diagnose', 'odk.hosted-pi.service'], {
-      env: { ...process.env, XDG_RUNTIME_DIR: directory, XDG_STATE_HOME: directory, OPEN_DESKOS_CONFIG_DIR: path.join(directory, 'config') },
+    const cli = await execFile(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'diagnose', 'odk.hosted-pi.service'], {
+      env: { ...process.env, XDG_RUNTIME_DIR: directory, XDG_STATE_HOME: directory, ODK_CONFIG_DIR: path.join(directory, 'config') },
     })
     assert.equal(JSON.parse(cli.stdout).runtimes[0].instance, 'hosted-pi')
     assert.deepEqual(commands, ['list'])

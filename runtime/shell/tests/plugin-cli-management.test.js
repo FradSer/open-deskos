@@ -12,12 +12,12 @@ const { createDiagnosticsPlugin } = require('../src/plugin-diagnostics')
 const { resolveShellHost } = require('../src/platform')
 const { posixOnlyReason } = require('./not-ported')
 const run = promisify(execFile)
-const cli = path.join(__dirname, '../scripts/open-deskos-plugin-cli.js')
+const cli = path.join(__dirname, '../scripts/odk-plugin-cli.js')
 
 async function fixture(t, verify) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-cli-manage-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, XDG_STATE_HOME: root, ODK_CONFIG_DIR: path.join(root, 'config') }
   const host = resolveShellHost({ env })
   const workspace = path.join(root, 'workspace')
   const folder = path.join(workspace, 'apps/notes')
@@ -194,7 +194,7 @@ test('CLI rollback preserves current revision when history or verification is un
 test('CLI unavailable and unsupported operations exit with failure', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-cli-unavailable-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
-  const env = { ...process.env, XDG_RUNTIME_DIR: root, OPEN_DESKOS_CONFIG_DIR: root }
+  const env = { ...process.env, XDG_RUNTIME_DIR: root, ODK_CONFIG_DIR: root }
   for (const args of [['add', '/tmp/package'], ['link', '/tmp/package'], ['update'], ['remove', 'notes'], ['list'], ['unknown']]) {
     await assert.rejects(run(process.execPath, [cli, ...args], { env }), error => error.code === 1 && !error.stdout.includes('executed successfully'))
   }

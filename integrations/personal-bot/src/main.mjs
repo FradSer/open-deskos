@@ -14,25 +14,25 @@ import { loadPersonalConfig } from './personal-config.mjs'
 import { proposalStateStore } from './proactive-state.mjs'
 import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
-import { deskDataRequest } from './desk-data.mjs'
+import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { rideNotification } from './ride-notification.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
 
 async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined) {
   signal?.throwIfAborted()
-  report('Check ODESK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
+  report('Check ODK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
   const personal = await loadPersonalConfig(env)
   signal?.throwIfAborted()
-  report('Set ODESK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
-  if (personal.profile === 'coding' && !env.ODESK_WORKSPACE) throw Error('Workspace missing')
+  report('Set ODK_WORKSPACE to the shared Open DeskOS writable checkout; restart service')
+  if (personal.profile === 'coding' && !env.ODK_WORKSPACE) throw Error('Workspace missing')
   // The provider declares the request shape the endpoint expects, so a desk that
   // sends JSON instead of a multipart upload, or the other way round, is a stated
   // configuration rather than a guess made from a URL.
-  const provider = transcriptionProvider(env.ODESK_PERSONAL_BOT_STT_PROVIDER)
+  const provider = transcriptionProvider(env.ODK_PERSONAL_BOT_STT_PROVIDER)
   report(provider === 'aliyun'
-    ? 'Set ODESK_PERSONAL_BOT_STT_URL to a DashScope multimodal-generation endpoint, and ALIYUNCS_TOKEN to its bearer credential; restart service'
-    : 'Set ODESK_PERSONAL_BOT_STT_URL to an HTTPS transcription endpoint, or ODK_STT_PORT for the device-local bridge; no URL credentials')
+    ? 'Set ODK_PERSONAL_BOT_STT_URL to a DashScope multimodal-generation endpoint, and ALIYUNCS_TOKEN to its bearer credential; restart service'
+    : 'Set ODK_PERSONAL_BOT_STT_URL to an HTTPS transcription endpoint, or ODK_STT_PORT for the device-local bridge; no URL credentials')
   // The bridge port is declared once by the service that binds it. Deriving the endpoint from that
   // same value is what keeps the desk from restating one port in two files, and an unreadable value
   // stops startup instead of quietly sending audio to a remote endpoint.
@@ -41,7 +41,7 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     report('Set ODK_STT_PORT to a port number such as 17840; restart service')
     throw Error('Invalid transcription port')
   }
-  const url = new URL(env.ODESK_PERSONAL_BOT_STT_URL || (provider === 'aliyun'
+  const url = new URL(env.ODK_PERSONAL_BOT_STT_URL || (provider === 'aliyun'
     ? 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
     : sttPort ? `http://127.0.0.1:${sttPort}/inference` : 'https://api.openai.com/v1/audio/transcriptions'))
   if (url.username || url.password) throw Error('Invalid transcription URL')
@@ -56,32 +56,32 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
       report('Set ALIYUNCS_TOKEN to the Alibaba Cloud bearer credential; restart service')
       if (!env.ALIYUNCS_TOKEN || !env.ALIYUNCS_TOKEN.trim()) throw Error('Credential missing')
     } else {
-      report('Set ODESK_PERSONAL_BOT_STT_KEY_FILE to a readable credential file; restart service')
-      if (!env.ODESK_PERSONAL_BOT_STT_KEY_FILE) throw Error('Credential missing')
-      await access(env.ODESK_PERSONAL_BOT_STT_KEY_FILE)
+      report('Set ODK_PERSONAL_BOT_STT_KEY_FILE to a readable credential file; restart service')
+      if (!env.ODK_PERSONAL_BOT_STT_KEY_FILE) throw Error('Credential missing')
+      await access(env.ODK_PERSONAL_BOT_STT_KEY_FILE)
     }
   }
-  report('Set ODESK_PERSONAL_BOT_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
-  const language = transcriptionLanguage(env.ODESK_PERSONAL_BOT_STT_LANGUAGE)
-  report('Set ODESK_PERSONAL_BOT_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')
-  const prompt = transcriptionPrompt(env.ODESK_PERSONAL_BOT_STT_PROMPT)
+  report('Set ODK_PERSONAL_BOT_STT_LANGUAGE to a two or three lowercase letter language code such as zh or en, or auto; restart service')
+  const language = transcriptionLanguage(env.ODK_PERSONAL_BOT_STT_LANGUAGE)
+  report('Set ODK_PERSONAL_BOT_STT_PROMPT to at most 1024 characters, or empty to disable context; restart service')
+  const prompt = transcriptionPrompt(env.ODK_PERSONAL_BOT_STT_PROMPT)
   if (platform === 'win32') {
     // DirectShow names a microphone the way Windows reports it, and ffmpeg takes
     // the device name itself: the value is what ffmpeg lists, without the audio=
     // input prefix it adds. The Unix default device name means nothing to it, so an
     // unset or default value is a configuration error rather than a capture that
     // silently opens nothing.
-    report('Set ODESK_PERSONAL_BOT_AUDIO_DEVICE to a DirectShow device name such as "Microphone (2- USB Audio Device)", without the audio= prefix; restart service')
-    if (!env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || env.ODESK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
+    report('Set ODK_PERSONAL_BOT_AUDIO_DEVICE to a DirectShow device name such as "Microphone (2- USB Audio Device)", without the audio= prefix; restart service')
+    if (!env.ODK_PERSONAL_BOT_AUDIO_DEVICE || env.ODK_PERSONAL_BOT_AUDIO_DEVICE === 'default') throw Error('Microphone device missing')
   }
   const directories = await prepareHostDirectories(env, platform)
   signal?.throwIfAborted()
-  report('Check Jev credential (TYPESAFE_API_KEY or ODESK_JEV_KEY_FILE), writable checkout, Pi authentication/model and capability paths; restart service')
+  report('Check Jev credential (TYPESAFE_API_KEY or ODK_JEV_KEY_FILE), writable checkout, Pi authentication/model and capability paths; restart service')
   const agent = await createPersonalBot({
-    workspace: env.ODESK_WORKSPACE,
+    workspace: env.ODK_WORKSPACE,
     stateDir: directories.state,
-    model: env.ODESK_PERSONAL_BOT_MODEL,
-    capabilityPaths: personal.profile === 'coding' && env.ODESK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODESK_PERSONAL_BOT_CAPABILITIES) : [],
+    model: env.ODK_PERSONAL_BOT_MODEL,
+    capabilityPaths: personal.profile === 'coding' && env.ODK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODK_PERSONAL_BOT_CAPABILITIES) : [],
     personal, onRideUpdate, getWatch, env, signal,
   })
   return {
@@ -89,8 +89,8 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     stt: {
       url: url.href,
       provider,
-      model: env.ODESK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
-      keyFile: env.ODESK_PERSONAL_BOT_STT_KEY_FILE,
+      model: env.ODK_PERSONAL_BOT_STT_MODEL || (provider === 'aliyun' ? 'qwen3-asr-flash' : 'whisper-1'),
+      keyFile: env.ODK_PERSONAL_BOT_STT_KEY_FILE,
       language,
       prompt,
     },
@@ -115,7 +115,7 @@ async function main() {
     const unavailable = () => { throw Error('inspection must not start providers') }
     const inspection = createPersonalBotComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
-      createHome: unavailable, ...(env.ODESK_PROACTIVE_CONFIG ? { createWatch: unavailable } : {}),
+      createHome: unavailable, ...(env.ODK_PROACTIVE_CONFIG ? { createWatch: unavailable } : {}),
     })
     inspection.validate()
     console.info(JSON.stringify({ host: 'personal-agent', instance: 'personal-bot', scope: 'declarations',
@@ -141,7 +141,7 @@ async function main() {
         failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
         record: async onLevel => {
           if (!runtime) throw Error('Configuration incomplete')
-          return record(directory, env.ODESK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
+          return record(directory, env.ODK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
         prompt: (text, onResponseSnapshot) => runtime.agent.prompt(text, onResponseSnapshot),
@@ -174,8 +174,8 @@ async function main() {
     createHome(_runtime, _service) {
       home = new HomeBriefing({
         requireBindings: true,
-        list: async signal => (await deskDataRequest('list', { signal, env, platform })).readings,
-        read: async (id, signal) => (await deskDataRequest('read', { id, signal, env, platform })).reading,
+        list: async signal => (await odkDataRequest('list', { signal, env, platform })).readings,
+        read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         generate: runtime.agent.generateBriefing,
         publish: frame => service.publishBriefing(frame),
       })
@@ -186,17 +186,17 @@ async function main() {
       service.attachHome(home)
       context.onCleanup(() => { service.attachHome(undefined); home = undefined })
     },
-    ...(env.ODESK_PROACTIVE_CONFIG ? { async createWatch(_runtime, _service) {
-      const config = loadProactiveConfig(env.ODESK_PROACTIVE_CONFIG)
-      const targets = await loadTargets(env.ODESK_TASK_TARGETS_FILE)
+    ...(env.ODK_PROACTIVE_CONFIG ? { async createWatch(_runtime, _service) {
+      const config = loadProactiveConfig(env.ODK_PROACTIVE_CONFIG)
+      const targets = await loadTargets(env.ODK_TASK_TARGETS_FILE)
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
       watch = new ProactiveWatch({ config, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_jev', ...record })),
-        read: async (id, signal) => (await deskDataRequest('read', { id, signal, env, platform })).reading,
-        save: ownerConfigWriter(env.ODESK_PROACTIVE_CONFIG, config),
+        read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
+        save: ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config),
         phrase: runtime.agent.phraseProposal,
         execute: runtime.agent.executeProposal,
         codingList: async (scope, signal) => {
