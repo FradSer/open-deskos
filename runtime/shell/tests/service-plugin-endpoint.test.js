@@ -33,7 +33,7 @@ function freePort() {
 /** One plugin connection: optional handshake, then the records it would push. */
 // `hold` keeps the plugin's connection open, because a connection that closes is
 // a reading that stops being live; the caller destroys the returned socket.
-function push(endpoint, records, { token, hold = false } = {}) {
+function push(endpoint, records, { token, hold = false, expectRefusal = false } = {}) {
   const target = endpoint.startsWith('tcp://')
     ? (() => { const [host, port] = endpoint.slice('tcp://'.length).split(':'); return { host, port: Number.parseInt(port, 10) } })()
     : endpoint
@@ -46,7 +46,11 @@ function push(endpoint, records, { token, hold = false } = {}) {
       setTimeout(() => { if (hold) resolve(socket); else { socket.end(); resolve() } }, 250)
     })
     socket.on('timeout', () => { socket.destroy(); resolve() })
-    socket.on('error', reject)
+    socket.on('error', error => {
+      // Authentication refusal can close TCP with a reset before queued writes drain.
+      if (expectRefusal && error.code === 'ECONNRESET') resolve()
+      else reject(error)
+    })
   })
 }
 
@@ -104,8 +108,8 @@ test('a tcp endpoint refuses a plugin that presents no token or the wrong one', 
   await server.start()
   t.after(() => server.stop())
 
-  await push(endpoint, [HELLO, DATA])
-  await push(endpoint, [HELLO, DATA], { token: 'not-the-token' })
+  await push(endpoint, [HELLO, DATA], { expectRefusal: true })
+  await push(endpoint, [HELLO, DATA], { token: 'not-the-token', expectRefusal: true })
   await new Promise((resolve) => setTimeout(resolve, 150))
 
   assert.deepEqual(sink.snapshots, [], 'a plugin that cannot prove the token never reaches the protocol')

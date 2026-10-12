@@ -7,7 +7,7 @@ const registrySource = fs.readFileSync('src/renderer/core/registry.js', 'utf8')
 const composerSource = fs.readFileSync('src/renderer/core/composer.js', 'utf8')
 
 function createRegistry() {
-  const root = {}
+  const root = { odkPluginHost: require('../src/plugin-host') }
   vm.runInContext(registrySource, vm.createContext({ window: root, globalThis: root }))
   return root.odkPlugins
 }

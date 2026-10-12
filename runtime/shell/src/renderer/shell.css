@@ -3005,6 +3005,7 @@ body.kiosk {
   display: flex;
   align-items: center;
   gap: 3cqi;
+  flex-wrap: wrap;
 }
 
 .hydra-head svg {
@@ -3236,6 +3237,16 @@ body.kiosk {
 
 .hydra-body[data-shape='compact'] .hydra-meter {
   height: 2cqi;
+}
+
+@container (max-width: 130px) {
+  .hydra-head {
+    gap: 1cqi;
+  }
+}
+
+.widget.w-hydra:has(.hydra-body[data-shape='plants']) {
+  padding: 12px;
 }
 
 .hydra-body[data-shape='plants'] {

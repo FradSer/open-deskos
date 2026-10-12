@@ -116,3 +116,50 @@ Feature: Personal Agent home briefing
     Then the paragraph uses the full content width
     And source icons retain distinct restrained colors
     And unavailable and retained values keep explicit state text
+
+  Scenario: Released Dashboard callbacks cannot change a later placement
+    Given Dashboard subscribes to briefing updates and the shared Tick
+    When its placement releases and the same container mounts again
+    Then callbacks captured from the released placement cannot change either placement
+    And the current placement still accepts briefing and date updates
+    And failed unsubscribe retains cleanup ownership until retry
+
+  Scenario: An independent Dashboard preserves briefing behavior during runtime replacement
+    Given Today displays literal briefing segments and source provenance
+    When a development or signed independent Dashboard replaces the default page
+    Then the same page container displays equivalent values and source states
+    And Instrument, Pixel, and Border Beam retain equivalent rendered content
+    And date updates and Sources disclosure remain available
+    And the foreground App stays mounted and Back returns to the same selected page
+    And built-in recovery preserves the document and neighboring placements
+
+  Scenario: Dashboard compatibility rejects changed state text
+    Given an independent Dashboard loads through the development or signed installation path
+    When its empty briefing message differs from the current product behavior
+    Then the rendered comparison fails at the changed message
+    And fixture cleanup releases the selected implementation before profile removal
+
+  Scenario: Authenticated Dashboard activation preserves the complete Main composition
+    Given production Main enables every plugin with private state and controlled external inputs
+    And the Shell starts with a built-in or signed Dashboard
+    And the actual Bot client has no external transport during injected briefing comparisons
+    When the CLI activates signed Dashboard revisions and restores the built-in page
+    Then the same Today container renders compatible briefings in all three themes
+    And briefing and Tick subscription counts remain stable
+    And the foreground App, selected page, and peer ports remain unchanged
+    And recovery works with malformed configuration and revoked publisher trust
+    And shutdown releases subscriptions, handlers, protocol routes, and private listeners
+
+  Scenario: Production Dashboard acceptance rejects missing briefing ownership
+    Given a signed Dashboard candidate omits its briefing subscription
+    When the authenticated activation path selects the candidate
+    Then the subscription ownership assertion fails after activation
+    And the fixture closes before its private profile is removed
+
+  Scenario: Hidden Dashboard comparisons retain declared rendering inputs
+    Given a hidden host window has different native bounds or display scaling
+    When the fixture prepares its comparison document
+    Then its renderer viewport is 1920 by 1280 at unit scale before measurement
+    And offscreen rendering supplies frames without showing the window
+    And Linux uses isolated software rendering
+    And briefing, placement, pointer, release, recovery, and deadline assertions remain required

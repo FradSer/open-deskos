@@ -192,32 +192,198 @@
     cellWatcher.observe(document.documentElement)
   }
 
+  function buildPage(page, index, track, uiCtx, before = null) {
+    const section = document.createElement('section')
+    const surface = page.surface || (page.kind === 'page' ? root.odkPlugins.get(page.plugin).surface : 'display') || 'display'
+    section.className = `page page-${surface} flex flex-col`
+    section.dataset.page = String(index)
+    section.dataset.pageId = page.id
+    section.dataset.surface = surface
+    section.dataset.builtBy = 'composer'
+    if (page.kind === 'page') section.dataset.plugin = page.plugin
+    section.setAttribute('aria-label', page.name)
+    if (before) track.insertBefore(section, before)
+    else track.append(section)
+    if (page.kind === 'grid') {
+      const grid = document.createElement('div')
+      grid.className = 'widget-grid grid'
+      for (const widget of page.widgets) grid.append(buildTile(page, widget, uiCtx))
+      section.append(grid)
+    } else {
+      const plugin = root.odkPlugins.get(page.plugin)
+      if (!root.odkPlugins.activate(plugin, section, uiCtx)) markActivationError(section, plugin)
+    }
+    return section
+  }
+
   function build(layout, track, uiCtx) {
     validate(layout)
     track.replaceChildren()
-    layout.pages.forEach((page, index) => {
-      const section = document.createElement('section')
-      const surface = page.surface || (page.kind === 'page' ? root.odkPlugins.get(page.plugin).surface : 'display') || 'display'
-      section.className = `page page-${surface} flex flex-col`
-      section.dataset.page = String(index)
-      section.dataset.pageId = page.id
-      section.dataset.surface = surface
-      section.dataset.builtBy = 'composer'
-      section.setAttribute('aria-label', page.name)
-      track.append(section)
-      if (page.kind === 'grid') {
-        const grid = document.createElement('div')
-        grid.className = 'widget-grid grid'
-        for (const widget of page.widgets) grid.append(buildTile(page, widget, uiCtx))
-        section.append(grid)
-      } else {
-        const plugin = root.odkPlugins.get(page.plugin)
-        if (!root.odkPlugins.activate(plugin, section, uiCtx)) markActivationError(section, plugin)
-      }
-    })
+    layout.pages.forEach((page, index) => buildPage(page, index, track, uiCtx))
     // The cell changes when the window does, and the cell is what decides a span.
     watchCellSize(track)
   }
 
-  root.odkComposer = { validate, build, filterLayout, placeGridTiles }
+  function statusSlots() {
+    const slots = new Map(['left', 'right'].map(name => [name, document.querySelector(`[data-slot="status-${name}"]`)]))
+    if ([...slots.values()].some(slot => !slot)) throw Error('State Bar slots unavailable')
+    return slots
+  }
+
+  function markStatusError(host, def) {
+    host.dataset.statusError = 'true'
+    host.className += ' status-plugin-error'
+    host.textContent = 'Plugin error'
+    host.title = def.id
+  }
+
+  function clearStatusError(host, def) {
+    if (host.dataset.statusError !== 'true') return
+    host.classList.remove('status-plugin-error')
+    if (host.title === def.id) host.removeAttribute('title')
+    delete host.dataset.statusError
+  }
+
+  function buildStatusHost(def, slot, uiCtx, before = null) {
+    const host = document.createElement('span')
+    host.className = `status-plugin status-${def.id.replace(/^odk\.status\./, '')}`
+    host.dataset.statusPlugin = def.id
+    host.dataset.builtBy = 'composer-status'
+    if (before) slot.insertBefore(host, before)
+    else slot.append(host)
+    if (!root.odkPlugins.activate(def, host, uiCtx)) markStatusError(host, def)
+    return host
+  }
+
+  function buildStatus(uiCtx, disabled = new Set()) {
+    const slots = statusSlots()
+    for (const def of root.odkPlugins.byKind('status')) {
+      if (!disabled.has(def.id)) buildStatusHost(def, slots.get(def.slot), uiCtx)
+    }
+  }
+
+  let reconciliation = Promise.resolve()
+  function reconcile(layout, track, uiCtx, disabled) {
+    const request = reconciliation.then(async () => {
+      validate(layout)
+      const exclusions = disabled || new Set(root.odkPlugins.catalog()
+        .filter(plugin => ['disabled', 'blocked'].includes(plugin.state)).map(plugin => plugin.manifest.id))
+      const selected = filterLayout(layout, exclusions)
+      const wantedPages = new Set(selected.pages.map(page => page.id))
+      const ownedPages = new Map([...track.children].filter(section => section.dataset.builtBy === 'composer')
+        .map(section => [section.dataset.pageId, section]))
+      const declarations = new Map(layout.pages.map(page => [page.id, page]))
+      for (const [id, section] of ownedPages) {
+        const page = declarations.get(id)
+        const kind = section.dataset.plugin ? 'page' : 'grid'
+        if ((!page && kind === 'grid') || (page && (page.kind !== kind
+          || (kind === 'page' && page.plugin !== section.dataset.plugin)
+          || validateSurface(page, kind === 'page' ? root.odkPlugins.get(page.plugin) : null) !== section.dataset.surface))) {
+          throw Error('runtime reconciliation cannot change page ownership or remove a base grid')
+        }
+      }
+      for (const [id, section] of ownedPages) {
+        if (wantedPages.has(id)) continue
+        if (section.dataset.plugin) {
+          await root.odkPlugins.deactivate(root.odkPlugins.get(section.dataset.plugin), section, uiCtx)
+        } else {
+          const grid = section.querySelector('.widget-grid')
+          if ([...grid.children].some(child => child.dataset.userAppId)) throw Error('installed package placement must remain available')
+          for (const tile of [...grid.children].filter(child => child.dataset.widget)) {
+            await root.odkPlugins.deactivate(root.odkPlugins.get(tile.dataset.widget), tile, uiCtx)
+          }
+        }
+        section.remove()
+        ownedPages.delete(id)
+      }
+      let cursor = track.firstChild
+      for (const [index, page] of selected.pages.entries()) {
+        let section = ownedPages.get(page.id)
+        const created = !section
+        if (!section) section = buildPage(page, index, track, uiCtx, cursor)
+        else if (section !== cursor) track.insertBefore(section, cursor)
+        cursor = section.nextSibling
+        if (created) continue
+        if (page.kind !== 'grid') {
+          const plugin = root.odkPlugins.get(page.plugin)
+          if (!root.odkPlugins.isActive(plugin, section)) {
+            await root.odkPlugins.deactivate(plugin, section, uiCtx)
+            section.replaceChildren()
+            if (!root.odkPlugins.activate(plugin, section, uiCtx)) markActivationError(section, plugin)
+          }
+          continue
+        }
+        const grid = section.querySelector('.widget-grid')
+        const wantedTiles = new Set(page.widgets.map(widget => widget.id))
+        const tiles = new Map([...grid.children].filter(tile => tile.dataset.widget).map(tile => [tile.dataset.widget, tile]))
+        for (const [id, tile] of tiles) {
+          if (wantedTiles.has(id)) continue
+          await root.odkPlugins.deactivate(root.odkPlugins.get(id), tile, uiCtx)
+          tile.remove()
+          tiles.delete(id)
+        }
+        let tileCursor = grid.firstChild
+        for (const widget of page.widgets) {
+          let tile = tiles.get(widget.id)
+          const created = !tile
+          if (!tile) { tile = buildTile(page, widget, uiCtx); grid.insertBefore(tile, tileCursor) }
+          else if (tile !== tileCursor) grid.insertBefore(tile, tileCursor)
+          const plugin = root.odkPlugins.get(widget.id)
+          if (!created && !root.odkPlugins.isActive(plugin, tile)) {
+            await root.odkPlugins.deactivate(plugin, tile, uiCtx)
+            tile.replaceChildren()
+            if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
+          }
+          placeTile(page, tile, widget, plugin)
+          tileCursor = tile.nextSibling
+        }
+      }
+      for (const [index, section] of [...track.children].entries()) section.dataset.page = String(index)
+      return selected
+    })
+    reconciliation = request.catch(() => {})
+    return request
+  }
+
+  function reconcileStatus(uiCtx, disabled) {
+    const request = reconciliation.then(async () => {
+      const slots = statusSlots()
+      const exclusions = disabled || new Set(root.odkPlugins.catalog()
+        .filter(plugin => ['disabled', 'blocked'].includes(plugin.state)).map(plugin => plugin.manifest.id))
+      const definitions = root.odkPlugins.byKind('status')
+      for (const [name, slot] of slots) {
+        const selected = definitions.filter(def => def.slot === name && !exclusions.has(def.id))
+        const wanted = new Set(selected.map(def => def.id))
+        const owned = new Map([...slot.children].filter(host => host.dataset.builtBy === 'composer-status')
+          .map(host => [host.dataset.statusPlugin, host]))
+        for (const [id, host] of owned) {
+          if (wanted.has(id)) continue
+          await root.odkPlugins.deactivate(root.odkPlugins.get(id), host, uiCtx)
+          host.remove()
+          owned.delete(id)
+        }
+        let cursor = slot.firstChild
+        for (const def of selected) {
+          let host = owned.get(def.id)
+          const created = !host
+          if (!host) host = buildStatusHost(def, slot, uiCtx, cursor)
+          else if (host !== cursor) slot.insertBefore(host, cursor)
+          if (!created && !root.odkPlugins.isActive(def, host)) {
+            await root.odkPlugins.deactivate(def, host, uiCtx)
+            host.replaceChildren()
+            clearStatusError(host, def)
+            host.className = `status-plugin status-${def.id.replace(/^odk\.status\./, '')}`
+            host.removeAttribute?.('title')
+            if (!root.odkPlugins.activate(def, host, uiCtx)) markStatusError(host, def)
+          }
+          if (root.odkPlugins.isActive(def, host)) clearStatusError(host, def)
+          cursor = host.nextSibling
+        }
+      }
+    })
+    reconciliation = request.catch(() => {})
+    return request
+  }
+
+  root.odkComposer = { validate, build, buildStatus, reconcile, reconcileStatus, filterLayout, placeGridTiles }
 })(typeof window !== 'undefined' ? window : globalThis)

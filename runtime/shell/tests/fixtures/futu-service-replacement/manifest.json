@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.service.futu",
+  "name": "Independent Futu service acceptance fixture",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [
+    { "interface": "odk:service/futu/v1" },
+    { "interface": "odk:desk-service-readings/futu/v1" },
+    { "interface": "odk:plugin-health/odk.service.futu/v1" }
+  ],
+  "requires": [{ "interface": "odk:system/package-catalog/v1" }],
+  "permissions": ["desk.futu", "ipc"]
+}

@@ -87,7 +87,7 @@ function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
      * read function the tile uses; an installed package supplies only its
      * declaration, and the registry keeps whatever that package publishes.
      */
-    register(entry) {
+    register(entry, { preservePublished = false } = {}) {
       if (!entry || typeof entry !== 'object') throw Error('invalid-reading')
       const { id, label, kind } = entry
       if (!readingId(id)) throw Error('invalid-reading-id')
@@ -100,10 +100,15 @@ function createDeskDataRegistry({ onPublish = (_id) => {} } = {}) {
       } else if (typeof entry.read !== 'function') throw Error('invalid-reading-reader')
       const declaration = kind === 'package' ? parseDeclaration(entry.declaration) : null
       const home = parseHome(entry.home)
-      entries.set(id, { id, label, kind, read: entry.read, declaration, home })
+      const previous = entries.get(id)
+      const sameRevision = preservePublished && kind === 'package' && previous?.kind === 'package'
+        && typeof entry.revision === 'string' && entry.revision.length > 0 && previous.revision === entry.revision
+        && previous.label === label && JSON.stringify(previous.declaration) === JSON.stringify(declaration)
+        && JSON.stringify(previous.home) === JSON.stringify(home)
+      entries.set(id, { id, label, kind, read: entry.read, declaration, home, revision: entry.revision })
       // A declaration is a contract of this revision: re-registering a package
       // drops what the previous one published rather than answering for it.
-      published.delete(id)
+      if (!sameRevision) published.delete(id)
       return id
     },
 

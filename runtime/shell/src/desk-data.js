@@ -5,211 +5,9 @@ const { createDeskDataControl } = require('./desk-data-control')
 
 const CATALOG_ID = 'odk.plugins.installed'
 
-// The Shell's own vocabulary for a reading. A source's own states map here once,
-// so a reading reaches a reader as itself and never as a plausible value. What a
-// state falls back to is the table's own decision: a source whose states all mean
-// a reading exists reads live, and one with nothing to say defaults to
-// unavailable rather than to a number.
-const WEATHER_STATES = { unconfigured: ['unconfigured'], unavailable: ['unavailable'], stale: ['stale'], live: ['live'] }
-const HYDRA_STATES = {
-  unconfigured: snapshot => snapshot?.configured === false,
-  unavailable: snapshot => snapshot?.connected !== true,
-  stale: snapshot => snapshot?.env?.stale === true,
-}
-const WEREAD_STATES = { unconfigured: ['unconfigured'], unavailable: ['loading', 'error'] }
-const QUOTA_STATES = { unconfigured: ['unconfigured'], live: ['available'] }
-
-function stateFrom(sourceState, table, fallback = 'live') {
-  for (const [state, cases] of Object.entries(table)) {
-    const matched = typeof cases === 'function' ? cases(sourceState) : cases.includes(sourceState)
-    if (matched) return state
-  }
-  return fallback
-}
-
-/*
- * What a reading says to a reader.
- *
- * A projection renames and drops; it never computes, rounds or infers. The tile
- * draws a source's own payload, which also carries the things no spoken answer
- * needs and can be misread as: a cover image, firmware and boot detail, vendor
- * status codes, a machine's working directory. A reading keeps the measurements,
- * gives them plain names, and carries the time each was taken so a stale answer
- * cannot be reported as a live one.
- */
-const READING_LIMIT = 20
-const TEXT_LIMIT = 400
-const GOAL_LIMIT = 160
-
-const isoTime = value => (Number.isFinite(value) ? new Date(value).toISOString() : null)
-
-function text(value, limit = TEXT_LIMIT) {
-  if (typeof value !== 'string') return value === undefined ? null : value
-  return value.length <= limit ? value : `${value.slice(0, limit)}...`
-}
-
-const omit = (value, key) => (value === undefined || value === null ? undefined : value[key])
-
-function pick(source, keys) {
-  const result = {}
-  for (const [key, read] of Object.entries(keys)) {
-    const value = read(source)
-    if (value !== undefined) result[key] = value
-  }
-  return result
-}
-
-const projectHydra = snapshot => ({
-  asOf: isoTime(snapshot?.updatedAt) ?? undefined,
-  gatewayOnline: snapshot?.mainOnline === true,
-  greenhouse: snapshot?.env ? pick(snapshot.env, {
-    temperatureC: env => env.tempC,
-    humidityPercent: env => env.humidity,
-    pressureHpa: env => env.pressureHpa,
-    lightLux: env => env.lux,
-    stale: env => env.stale,
-    measuredAt: env => isoTime(env.updatedAt),
-  }) : null,
-  plants: (Array.isArray(snapshot?.nodes) ? snapshot.nodes : []).map(node => pick(node, {
-    id: node => node.id,
-    name: node => `Plant ${node.id}`,
-    soilPercent: node => node.soilPercent,
-    watering: node => node.pump,
-    online: node => node.online,
-    stale: node => node.stale,
-    measuredAt: node => isoTime(node.soilUpdatedAt),
-  })),
-})
-
-const projectWeather = snapshot => ({
-  asOf: isoTime(snapshot?.updatedAt) ?? undefined,
-  place: snapshot?.place ?? null,
-  temperatureC: omit(snapshot, 'current')?.temperature,
-  condition: omit(snapshot, 'current')?.condition,
-  highC: omit(snapshot, 'daily')?.high,
-  lowC: omit(snapshot, 'daily')?.low,
-})
-
-const projectWeread = snapshot => {
-  const highlight = snapshot?.highlight
-  if (!highlight) return { asOf: isoTime(snapshot?.updatedAt) ?? undefined, book: null, highlight: null }
-  return {
-    asOf: isoTime(snapshot?.updatedAt) ?? undefined,
-    book: { title: highlight.title ?? null, author: highlight.author ?? null },
-    // A cover is a picture, not a reading: it is dropped rather than shortened.
-    highlight: { text: text(highlight.markText), chapterRange: highlight.range ?? null },
-  }
-}
-
-/**
- * A ratio the tile draws as a percent.
- *
- * The tile formats a ratio by multiplying it by 100, so a reading publishes that
- * same percent: the spoken answer and the tile cannot differ by a factor of a
- * hundred. This is the one arithmetic a projection does, and it applies only where
- * the display settles the scale. A ratio no display draws and no payload declares
- * is not rescaled and not published under a percent name — it is dropped, because
- * the loss and the value it is a loss against are both published and a guessed
- * scale would be the one number a reader could not trust. A ratio is read the way
- * the tile reads it, with Number(), so a numeric string draws a percentage on the
- * desk and publishes one here rather than dropping a field the desk is showing.
- */
-const percent = ratio => {
-  if (ratio === null || ratio === undefined || ratio === '') return undefined
-  const number = Number(ratio)
-  return Number.isNaN(number) ? undefined : Number((number * 100).toFixed(2))
-}
-
-const projectPosition = position => pick(position, {
-  symbol: position => position.code,
-  name: position => position.name,
-  quantity: position => position.qty,
-  averageCost: position => position.cost,
-  price: position => position.price,
-  marketValue: position => position.marketVal,
-  profitLoss: position => position.plVal,
-  currency: position => position.currency,
-  dayProfitLoss: position => position.dayPlVal,
-  dayChangePercent: position => percent(position.dayRatio),
-})
-
-const projectHoldings = snapshot => ({
-  todayChangePercent: percent(snapshot?.snapshot?.totals?.plRatio) ?? null,
-  asOf: isoTime(snapshot?.updatedAt) ?? undefined,
-  positions: (Array.isArray(snapshot?.snapshot?.positions) ? snapshot.snapshot.positions : []).slice(0, READING_LIMIT).map(projectPosition),
-  totals: snapshot?.snapshot?.totals ? pick(snapshot.snapshot.totals, {
-    marketValue: totals => totals.marketVal,
-    profitLoss: totals => totals.plVal,
-    cash: totals => totals.cash,
-    dayProfitLoss: totals => totals.dayPlVal,
-    dayProfitLossByCurrency: totals => totals.dayByCcy,
-    // The poller's totals ratio is the day's change over yesterday's base, so it
-    // is named as the day it is rather than as an overall profit.
-    todayChangePercent: totals => percent(totals.plRatio),
-  }) : null,
-})
-
-const projectQuota = reading => ({
-  asOf: isoTime(reading?.snapshot?.fetchedAt ? Date.parse(reading.snapshot.fetchedAt) : null) ?? undefined,
-  accounts: (Array.isArray(reading?.snapshot?.accounts) ? reading.snapshot.accounts : []).map(account => ({
-    id: account.id ?? null,
-    provider: account.provider ?? null,
-    account: account.account ?? null,
-    plan: account.plan ?? null,
-    groups: (Array.isArray(account.groups) ? account.groups : []).map(group => ({
-      title: group.title ?? null,
-      windows: (Array.isArray(group.quotas) ? group.quotas : []).map(window => pick(window, {
-        label: window => window.label,
-        remainingPercent: window => window.remainingPct,
-        resetsAt: window => window.resetAt ?? null,
-      })),
-    })),
-  })),
-})
-
-const projectSessions = snapshot => {
-  const sessions = Array.isArray(snapshot?.sessions) ? snapshot.sessions : []
-  return {
-    asOf: isoTime(snapshot?.updatedAt) ?? undefined,
-    total: sessions.length,
-    counts: Object.fromEntries([...new Set(sessions.map(session => session.status || 'unknown'))].sort().map(state => [state, sessions.filter(session => (session.status || 'unknown') === state).length])),
-    sessions: sessions.slice(0, READING_LIMIT).map(session => pick(session, {
-      id: session => session.sessionId ?? session.id,
-      project: session => session.workspaceName,
-      workingDirectory: session => session.cwd,
-      state: session => session.status,
-      goal: session => text(session.latestGoal, GOAL_LIMIT),
-      activity: session => text(session.activity, GOAL_LIMIT),
-      updatedAt: session => isoTime(session.updatedAt),
-    })),
-    truncated: sessions.length > READING_LIMIT,
-  }
-}
-
-const projectCatalog = apps => ({
-  total: apps.length,
-  apps: apps.slice(0, READING_LIMIT).map(app => pick(app, {
-    id: app => app.id,
-    name: app => app.name,
-    kind: app => app.kind,
-    version: app => app.version,
-    placement: app => app.placement ?? null,
-  })),
-  truncated: apps.length > READING_LIMIT,
-})
-
-/**
- * What a reading carries when it is not live.
- *
- * An instrument that cannot be read right now has no reading: an empty object
- * beside `unavailable` reads as "there is nothing there", which is a different
- * claim from "nothing could be read". A stale reading is the exception, because
- * its last measurement is the reading and it is marked as the last one.
- */
-const measured = (state, value) => (state === 'unavailable' || state === 'unconfigured' ? null : value)
-
-/** A plugin that declares no name is still answerable: its service id names it. */
-const serviceLabel = (label, id) => (typeof label === 'string' && label.trim() ? label : id)
+const { createDefaultSourceReadings, createFutuServiceReadings, projectCatalog } = require('./plugins/desk-readings')
+const sourceReadingIds = new WeakMap()
+const serviceReadingIds = new WeakMap()
 
 /**
  * The Shell's own Desk Data: what the desk holds, one declaration each.
@@ -220,104 +18,56 @@ const serviceLabel = (label, id) => (typeof label === 'string' && label.trim() ?
  * declaration, which is the only way an installed Widget or App becomes
  * answerable.
  */
-function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, store, services = () => ({}), onUpdate = (_id) => {} } = {}) {
-  const registry = createDeskDataRegistry({ onPublish: onUpdate })
+function createShellDeskData({ serviceReadings, readings, hydra, weather, weread, futu, piSessions, quota, store, services = () => ({}), onUpdate = (_id) => {}, registry = createDeskDataRegistry({ onPublish: onUpdate }), signal } = {}) {
   const control = createDeskDataControl(registry)
+  let packageSyncGeneration = 0
 
-  /**
-   * A Service Plugin publishes what it holds; the Shell never fetches it. The
-   * reading is the plugin's own snapshot while it is live, and a Service Plugin
-   * that is syncing, waiting for a credential or offline presents no holdings at
-   * all rather than the last ones it happened to hold.
-   */
-  const serviceReading = service => async () => {
-    const snapshot = futu?.snapshot?.(service)
-    const state = snapshot?.state || 'unavailable'
-    return { state, value: state === 'live' ? projectHoldings(snapshot) : null, updatedAt: snapshot?.updatedAt }
+  const entries = readings ?? createDefaultSourceReadings({ hydra, weather, weread, piSessions, quota })
+  if (!Array.isArray(entries)) throw Error('invalid-source-readings')
+  const previousIds = sourceReadingIds.get(registry) || new Set()
+  const nextIds = new Set()
+  const validation = createDeskDataRegistry()
+  for (const entry of entries) {
+    if (!entry || entry.kind === 'package' || entry.id === CATALOG_ID || nextIds.has(entry.id)
+      || (registry.has(entry.id) && !previousIds.has(entry.id))) throw Error('conflicting-source-reading')
+    validation.register(entry)
+    nextIds.add(entry.id)
   }
-  // A Service Plugin is answerable under the id its own package declared, so the
-  // reading follows the installed catalog rather than one hardcoded service.
-  const declaredServices = () => {
-    const declared = services() || {}
-    return Object.keys(declared).map(id => [id, declared[id]])
-  }
-  const syncServiceReadings = () => {
-    const declared = new Map(declaredServices())
-    for (const entry of registry.list().filter(reading => reading.kind === 'service' && !declared.has(reading.id))) {
-      registry.unregister(entry.id)
-    }
-    for (const [id, label] of declared) {
-      registry.register({ id, label: serviceLabel(typeof label === 'object' ? label?.label : label, 'Futu holdings'), kind: 'service',
-        home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] }, read: serviceReading(id) })
-    }
-  }
-  syncServiceReadings()
 
-  if (hydra?.snapshot) {
-    registry.register({
-      id: 'odk.tile.hydra',
-      home: { mode: 'optional', priority: 50, icon: 'plants', fields: ['greenhouse', 'plants'] },
-      label: 'Hydra plants',
-      kind: 'tile',
-      read: async () => {
-        const snapshot = hydra.snapshot()
-        const state = stateFrom(snapshot, HYDRA_STATES)
-        return { state, value: measured(state, projectHydra(snapshot)), updatedAt: snapshot?.updatedAt }
-      },
-    })
+  // Named Futu arguments remain a compatibility path for direct callers.
+  // Active service plugins provide factories for their own registry declarations.
+  const serviceEntries = () => {
+    const declared = serviceReadings === undefined ? createFutuServiceReadings(futu, services()) : serviceReadings()
+    if (!Array.isArray(declared)) throw Error('invalid-service-readings')
+    return declared
   }
-  if (weather?.refresh) {
-    registry.register({
-      id: 'odk.tile.weather',
-      home: { mode: 'optional', priority: 80, icon: 'weather', fields: ['place', 'temperatureC', 'condition'] },
-      label: 'Weather',
-      kind: 'tile',
-      read: async () => {
-        const snapshot = await weather.refresh()
-        const state = stateFrom(snapshot?.status, WEATHER_STATES, 'unavailable')
-        return { state, value: measured(state, projectWeather(snapshot)), updatedAt: snapshot?.updatedAt }
-      },
-    })
+  const validateServices = declared => {
+    const previousServices = serviceReadingIds.get(registry) || new Set()
+    const validation = createDeskDataRegistry()
+    const identities = new Set()
+    for (const entry of declared) {
+      if (!entry || entry.kind !== 'service' || identities.has(entry.id)) throw Error('conflicting-service-reading')
+      identities.add(entry.id)
+      if (entry.id === CATALOG_ID || nextIds.has(entry.id)
+        || (registry.has(entry.id) && !previousServices.has(entry.id))) throw Error('conflicting-service-reading')
+      validation.register(entry)
+    }
   }
-  if (weread?.refresh) {
-    registry.register({
-      id: 'odk.tile.weread',
-      home: { mode: 'optional', priority: 20, icon: 'reading', fields: ['book', 'highlight'] },
-      label: 'WeRead highlight',
-      kind: 'tile',
-      read: async () => {
-        const snapshot = await weread.refresh()
-        const state = stateFrom(snapshot?.status, WEREAD_STATES)
-        return { state, value: measured(state, projectWeread(snapshot)), updatedAt: snapshot?.updatedAt }
-      },
-    })
+  const syncServiceReadings = (declared = serviceEntries()) => {
+    validateServices(declared)
+    const next = new Set(declared.map(entry => entry.id))
+    for (const id of serviceReadingIds.get(registry) || []) if (!next.has(id)) registry.unregister(id)
+    for (const entry of declared) registry.register(entry)
+    serviceReadingIds.set(registry, next)
   }
-  if (piSessions?.scan) {
-    registry.register({
-      id: 'odk.app.pi-sessions',
-      home: { mode: 'optional', priority: 70, icon: 'sessions', fields: ['total', 'counts', 'truncated'] },
-      label: 'Pi sessions',
-      kind: 'app',
-      read: async () => {
-        const snapshot = await piSessions.scan()
-        if (snapshot?.ok !== true) return { state: 'unavailable', value: null }
-        return { state: 'live', value: projectSessions(snapshot), updatedAt: snapshot.updatedAt }
-      },
-    })
-  }
-  if (quota?.read) {
-    registry.register({
-      id: 'odk.page.quota',
-      home: { mode: 'optional', priority: 40, icon: 'quota', fields: ['accounts'] },
-      label: 'API quota',
-      kind: 'page',
-      read: async () => {
-        const reading = await quota.read()
-        const state = stateFrom(reading?.state, QUOTA_STATES, 'unavailable')
-        return { state, value: measured(state, projectQuota(reading)) }
-      },
-    })
-  }
+  const initialServices = serviceEntries()
+  validateServices(initialServices)
+  for (const id of previousIds) registry.unregister(id)
+  registry.unregister(CATALOG_ID)
+  for (const entry of entries) registry.register(entry)
+  sourceReadingIds.set(registry, nextIds)
+  syncServiceReadings(initialServices)
+
   if (store?.list) {
     registry.register({
       id: CATALOG_ID,
@@ -346,7 +96,7 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
      * under the id its own package declared.
      */
     syncServices() {
-      if (!futu?.snapshot) return
+      if (serviceReadings === undefined && !futu?.snapshot) return
       syncServiceReadings()
     },
     /**
@@ -355,25 +105,29 @@ function createShellDeskData({ hydra, weather, weread, futu, piSessions, quota, 
      * previous revision of that package published. A catalog that cannot be read
      * leaves every reading as it was: an unreadable catalog is not an empty desk.
      */
-    async syncPackages() {
-      if (!store?.list) return
+    async syncPackages({ preserveUnchanged = false } = {}) {
+      if (!store?.list || signal?.aborted) return
+      const generation = ++packageSyncGeneration
       let apps
       try {
         apps = await store.list()
       } catch {
         return
       }
-      if (!Array.isArray(apps)) return
+      if (signal?.aborted || generation !== packageSyncGeneration || !Array.isArray(apps)) return
       const declared = new Map()
       for (const app of apps) {
         if (app?.id && app.data && Object.keys(app.data.fields || {}).length > 0) declared.set(app.id, app)
       }
-      for (const entry of registry.list().filter(reading => reading.kind === 'package' && !declared.has(reading.id))) {
-        registry.unregister(entry.id)
+      const packageEntries = [...declared].map(([id, app]) => ({ id, label: app.name || id, kind: 'package', home: app.home, declaration: app.data, revision: app.revision }))
+      const previousEntries = registry.list()
+      const validation = createDeskDataRegistry()
+      for (const entry of packageEntries) {
+        if (previousEntries.some(previous => previous.id === entry.id && previous.kind !== 'package')) throw Error('conflicting-package-reading')
+        validation.register(entry)
       }
-      for (const [id, app] of declared) {
-        registry.register({ id, label: app.name || id, kind: 'package', home: app.home, declaration: app.data })
-      }
+      for (const entry of previousEntries.filter(reading => reading.kind === 'package' && !declared.has(reading.id))) registry.unregister(entry.id)
+      for (const entry of packageEntries) registry.register(entry, { preservePublished: preserveUnchanged })
     },
   }
 }

@@ -9,9 +9,9 @@
 
     function remove(id) {
       const entry = entries.get(id)
-      entries.delete(id)
       entry.mounted?.dispose()
       entry.host.remove()
+      entries.delete(id)
     }
 
     function destination(app) {
@@ -93,6 +93,7 @@
     }
 
     async function refresh() {
+      if (disposed) return
       const token = ++generation
       status.hidden = false
       status.dataset.state = 'loading'
@@ -123,7 +124,7 @@
       }
     }
 
-    const unsubscribe = root.odkUserApps?.subscribe(() => { void refresh() })
+    let unsubscribe = root.odkUserApps?.subscribe(() => { void refresh() })
     void refresh()
     return {
       refresh,
@@ -131,6 +132,7 @@
         disposed = true
         generation++
         unsubscribe?.()
+        unsubscribe = null
         for (const id of entries.keys()) remove(id)
       },
     }

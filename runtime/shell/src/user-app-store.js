@@ -87,7 +87,7 @@ function overlaps(a, b) {
   return a.col.start < b.col.end && b.col.start < a.col.end && a.row.start < b.row.end && b.row.start < a.row.end
 }
 
-function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopLayout() } = {}) {
+function createUserAppStore({ workspace, stateDir, verify, waitForVerification, layout = loadDesktopLayout() } = {}) {
   let pending = Promise.resolve()
   function serial(action) {
     const result = pending.then(action)
@@ -256,17 +256,25 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
     if (!validId(id)) throw Error('invalid-identifier')
     if (!workspace || !path.isAbsolute(workspace)) throw Error('workspace-not-configured')
     try { await fs.access(path.join(workspace, 'apps')) } catch { throw Error('workspace-not-configured') }
+    return readPackage(workspace, `apps/${id}/`, id)
+  }
+
+  async function readPackage(root, prefix = '', id) {
     let manifestBytes, htmlBytes
     try {
-      manifestBytes = await readBoundedFile(workspace, `apps/${id}/manifest.json`, MAX_MANIFEST_BYTES)
-      htmlBytes = await readBoundedFile(workspace, `apps/${id}/index.html`, MAX_HTML_BYTES)
+      manifestBytes = await readBoundedFile(root, `${prefix}manifest.json`, MAX_MANIFEST_BYTES)
+      htmlBytes = await readBoundedFile(root, `${prefix}index.html`, MAX_HTML_BYTES)
     } catch (error) {
       if (error.code === 'ENOENT') throw Error('package-not-found')
       if (error.message === 'file-too-large') throw Error(manifestBytes ? 'package-too-large' : 'manifest-too-large')
       throw Error('unsafe-package')
     }
     let manifest
-    try { manifest = parseManifest(manifestBytes, id) } catch { throw Error('invalid-manifest') }
+    try {
+      id ??= JSON.parse(manifestBytes.toString('utf8'))?.id
+      if (!validId(id)) throw Error('invalid-identifier')
+      manifest = parseManifest(manifestBytes, id)
+    } catch { throw Error('invalid-manifest') }
     const digest = digestOf(manifestBytes, htmlBytes)
     return { manifest, manifestBytes, htmlBytes, digest, revision: digest.slice(0, 32) }
   }
@@ -318,22 +326,30 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
     return { ok: true, app: metadata(entry), ...(!cleaned ? { warning: 'revision-cleanup-failed' } : {}) }
   }
 
-  function install(id, placement) {
+  function installDraft(id, placement, requireInstalled = false) {
     return mutate(async entries => {
+      if (requireInstalled && !entries.some(entry => entry.id === id)) return failure('not-found')
       const bundle = await draft(id)
-      const previous = entries.find(entry => entry.id === id)
-      if (!previous && entries.length >= MAX_APPS) return failure('catalog-limit')
-      if (bundle.manifest.kind !== 'widget' && placement !== undefined) return failure('placement-requires-widget')
-      const target = bundle.manifest.kind === 'widget'
-        ? (previous && previous.kind === bundle.manifest.kind && placement === undefined
-          ? chooseStoredPlacement(entries, id, previous.placement)
-          : choosePlacement(entries, id, placement))
-        : undefined
-      if (!await verifyBundle(bundle)) return failure('verification-failed')
-      const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
-      return publish(entries, id, bundle, rollback, target)
+      return installBundle(entries, bundle, placement)
     })
   }
+
+  async function installBundle(entries, bundle, placement) {
+    const id = bundle.manifest.id
+    const previous = entries.find(entry => entry.id === id)
+    if (!previous && entries.length >= MAX_APPS) return failure('catalog-limit')
+    if (bundle.manifest.kind !== 'widget' && placement !== undefined) return failure('placement-requires-widget')
+    const target = bundle.manifest.kind === 'widget'
+      ? (previous && previous.kind === bundle.manifest.kind && placement === undefined
+        ? chooseStoredPlacement(entries, id, previous.placement)
+        : choosePlacement(entries, id, placement))
+      : undefined
+    if (!await verifyBundle(bundle)) return failure('verification-failed')
+    const rollback = previous?.revision === bundle.revision ? previous.history[0] : previous?.revision
+    return publish(entries, id, bundle, rollback, target)
+  }
+
+  const install = (id, placement) => installDraft(id, placement)
 
   function rollback(id) {
     return mutate(async entries => {
@@ -353,6 +369,7 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
   }
 
   return {
+    ...(waitForVerification ? { waitForVerification } : {}),
     list: () => serial(async () => (await placedCatalog()).map(metadata)),
     desktop: () => serial(async () => desktop(await placedCatalog())),
     place: (id, placement) => mutate(async entries => {
@@ -375,6 +392,8 @@ function createUserAppStore({ workspace, stateDir, verify, layout = loadDesktopL
     }),
     install,
     update: install,
+    updateInstalled: (id, placement) => installDraft(id, placement, true),
+    addFromPath: (sourcePath, placement) => mutate(async entries => installBundle(entries, await readPackage(sourcePath), placement)),
     rollback,
     remove: id => mutate(async entries => {
       if (!entries.some(entry => entry.id === id)) return failure('not-found')

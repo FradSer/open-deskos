@@ -3,7 +3,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 
+if (process.platform === 'darwin') app.dock.hide()
 const root = path.resolve(__dirname, '..')
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-zpix-test-'))
 app.setPath('userData', profile)
@@ -16,6 +18,11 @@ const samples = ['Desk runtime', '桌面运行状态 中文输入', '繁體中�
 // fullwidth forms that a Han-only subset of the appearance face drops.
 const cjkSamples = ['中文句子，标点。', '状态：像素 100% 完成', '「引用」——说明…（已结束）']
 
+ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
+ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
@@ -191,10 +198,9 @@ async function main() {
   const win = new BrowserWindow({ width: 1000, height: 800, frame: false, show: false, useContentSize: true,
     webPreferences: { preload: path.join(root, 'src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   })
-  win.focus()
-  win.webContents.focus()
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
   await win.webContents.debugger.sendCommand('DOM.enable')
   await win.webContents.debugger.sendCommand('CSS.enable')
   await js(win, `odkTheme.set('pixel')`)

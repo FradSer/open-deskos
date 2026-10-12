@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
-const { DEFAULTS, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
+const { DEFAULTS, WEATHER_PROFILE, WEREAD_PROFILE, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
 const { installGeometryFixtures } = require('./helpers/live-fixtures.js')
 const { resolvePages } = require('./helpers/pages')
 
@@ -74,7 +74,7 @@ async function measureSize(win, width, height) {
       // same reason the Clock, Hydra, and Pi profiles lower theirs. Measured on the CM5
       // unavailable fixture (2026-09-18): 10.8% at 1920x1280, 11.2-11.8% across the other
       // resolutions, against 21.8-26.9% with a live reading.
-      'odk.tile.weather': { target: 0.62, tolerance: 0.08, minOccupied: 0.1, maxEmptyBand: 0.28 },
+      'odk.tile.weather': WEATHER_PROFILE,
       'odk.tile.pomodoro': { target: 0.42, tolerance: 0.14, minOccupied: 0.15, maxEmptyBand: 0.36 },
       'odk.tile.almanac': { target: 0.58, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.28 },
       'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.07, maxEmptyBand: 0.35 },
@@ -91,7 +91,7 @@ async function measureSize(win, width, height) {
       'odk.tile.preorder': { target: 0.18, tolerance: 0.18, minOccupied: 0.05, maxEmptyBand: 0.75 },
       // WeRead is the same shape: a canvas cover that the collector cannot see
       // as ink, beside a quote that fills its own copy area.
-      'odk.tile.weread': { target: 0.65, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.55 },
+      'odk.tile.weread': WEREAD_PROFILE,
     }
     const settings = profiles[widget.id]
     const result = measureDensity(widget.frame, widget.boxes, settings)

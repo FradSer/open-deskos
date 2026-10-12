@@ -1,5 +1,6 @@
 const net = require('node:net')
 const path = require('node:path')
+const { createRuntimeChannelProbe } = require('./runtime-channel-probe')
 
 const REMOTE_LINK_STATES = new Set(['disconnected', 'usb', 'wireless', 'syncing'])
 const REMOTE_NAVIGATION_DIRECTIONS = new Set(['previous', 'next'])
@@ -73,6 +74,7 @@ function createRemoteBridgeClient({
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   onRemoteMic,
+  diagnosisTimeoutMs = 500,
 } = {}) {
   let socket = null
   let reconnectTimer = null
@@ -83,6 +85,7 @@ function createRemoteBridgeClient({
   const linkSubscribers = new Set()
   const navigationSubscribers = new Set()
   const inputSubscribers = new Set()
+  const diagnosis = createRuntimeChannelProbe({ endpoint: socketPath, host: 'remote-bridge', instance: 'bridge', connect: createConnection, timeoutMs: diagnosisTimeoutMs })
 
   function notifyLinkState(next) {
     if (!REMOTE_LINK_STATES.has(next) || currentLinkState === next) return
@@ -156,6 +159,7 @@ function createRemoteBridgeClient({
     },
     stop() {
       running = false
+      diagnosis.stop()
       if (reconnectTimer) clearTimeoutFn(reconnectTimer)
       reconnectTimer = null
       const activeSocket = socket
@@ -166,6 +170,9 @@ function createRemoteBridgeClient({
     publishPageState(state) {
       lastPageState = normalizePageState(state)
       return writeState()
+    },
+    diagnose(options) {
+      return running ? diagnosis.request(options) : Promise.resolve([{ host: 'remote-bridge', instance: 'bridge', state: 'unavailable', reason: 'disconnected', plugins: [] }])
     },
     getLinkState() {
       return currentLinkState

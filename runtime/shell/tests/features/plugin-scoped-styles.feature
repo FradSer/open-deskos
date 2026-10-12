@@ -25,3 +25,11 @@ Feature: Plugin scoped styles
     Given a tile plugin declaring css "plugins/weread.css" already activated once
     When the plugin is deactivated
     Then the document head still contains the link for that plugin
+
+  Scenario: Runtime replacement retains the selected Shell stylesheet
+    Given a running surface uses a packaged Shell stylesheet
+    And a trusted replacement declares no external stylesheet
+    When runtime discovery validates the replacement before entry execution
+    Then its preview retains the selected Shell stylesheet contract
+    And the actual definition must retain that same stylesheet
+    And changed external stylesheets remain refused

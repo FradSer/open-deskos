@@ -20,7 +20,8 @@ test('a Hosted Pi event request carries its explicit ownership marker', async ()
     readLocal: () => assert.fail('Hosted Pi history stays on the host'),
   })
   await read({ sessionId: 'hosted', cwd: '/example', hostedPi: true })
-  assert.deepEqual(calls, [['hosted', { hostedPi: true }]])
+  assert.equal(calls[0][1].signal instanceof AbortSignal, true)
+  assert.deepEqual(calls.map(([id, { signal: _signal, ...options }]) => [id, options]), [['hosted', { hostedPi: true }]])
 })
 
 test('a known reported session without events never falls back to an unrelated local log', async () => {

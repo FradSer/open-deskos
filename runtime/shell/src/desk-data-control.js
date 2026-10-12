@@ -30,12 +30,13 @@ function createDeskDataControl(registry) {
  * The transport and its authentication belong to the local channel, so a Unix
  * host authenticates by ownership and a Windows pipe by the shared channel token.
  */
-async function listenDeskData({ endpoint, control, channelToken = '', stateDir = '', platform = process.platform }) {
+async function listenDeskData({ endpoint, control, channelToken = '', stateDir = '', platform = process.platform, requestTimeoutMs = 0 }) {
   return listenChannel({
     endpoint,
     token: channelToken,
     stateDir,
     platform,
+    connectionTimeoutMs: requestTimeoutMs,
     onConnection: (client) => {
       client.setEncoding('utf8')
       client.on('error', () => client.destroy())

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
@@ -33,6 +34,9 @@ for (const [channel, value] of Object.entries({
   'odk-remote-publish-page-state': true, 'odk-camera-frame': { state: 'unavailable' },
   'odk-weather-status': { status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: 'ODK_WEATHER_LAT', error: null },
 })) ipcMain.handle(channel, () => value)
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-user-apps-list', () => failure ? { ok: false, error: 'offline' } : { ok: true, apps })
 const deadline = setTimeout(() => { console.error('USER_APP_DESKTOP_TIMEOUT'); app.exit(1) }, 30000)
 app.whenReady().then(async () => {
@@ -54,6 +58,7 @@ app.whenReady().then(async () => {
   })
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
+  win.webContents.debugger.attach('1.3')
   await wait(`document.querySelector('#user-app-desktop-status')?.dataset.state === 'ready'`)
   await js(`window.originalBuiltin=document.querySelector('[data-widget="odk.tile.clock"]'); window.originalPage=document.querySelector('[data-page-id="home"]')`)
   await update([persisted, interactive])
@@ -77,7 +82,11 @@ app.whenReady().then(async () => {
     await js(`odkTheme.set('${theme}'); document.querySelectorAll('#dots .dot')[2].click()`)
     for (const width of [1920, 320]) {
       win.setContentSize(width, width === 1920 ? 1280 : 480)
-      await delay(150)
+      await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width, height: width === 1920 ? 1280 : 480, deviceScaleFactor: 1, mobile: false,
+      })
+      await js(`window.dispatchEvent(new Event('resize'))`)
+      await wait(`window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${width === 1920 ? 1280 : 480}`)
       const geometry = await js(`(()=>{const tile=document.querySelector('[data-user-app-id="note"]');const frame=tile.querySelector('iframe');const r=frame.getBoundingClientRect();const t=tile.getBoundingClientRect();return {width:r.width,height:r.height,contained:r.left>=t.left&&r.right<=t.right+1,horizontal:document.querySelector('[data-page-id="reading"]').scrollWidth<=innerWidth+1,col:tile.style.gridColumn,row:tile.style.gridRow,sameFrame:frame===responsiveWidget,overlaps:[...tile.parentElement.querySelectorAll('[data-widget]')].some(other=>{const b=other.getBoundingClientRect();return Math.min(t.right,b.right)-Math.max(t.left,b.left)>1&&Math.min(t.bottom,b.bottom)-Math.max(t.top,b.top)>1})}})()`)
       assert.ok(geometry.width > 100 && geometry.height > 100 && geometry.contained && geometry.horizontal, JSON.stringify({ theme, width, geometry }))
       assert.equal(geometry.col, width === 1920 ? '5' : '')

@@ -30,7 +30,7 @@ function mountWith(reading, height = 400) {
       return nodes.get(selector)
     },
   }
-  const root = { odkPlatform: { getFutuHoldings: async () => reading } }
+  const root = { odkPluginHost: require('../src/plugin-host'), odkPlatform: { getFutuHoldings: async () => reading } }
   const sandbox = { window: root, globalThis: root }
   vm.runInContext(registrySource, vm.createContext(sandbox))
   vm.runInContext(tileSource, vm.createContext(sandbox))

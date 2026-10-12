@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.system.user-app-desktop",
+  "name": "Independent installed desktop",
+  "version": "2.0.0",
+  "kind": "system",
+  "host": "electron-renderer",
+  "provides": [{ "interface": "odk:system/user-app-desktop/v1" }],
+  "requires": [],
+  "permissions": [],
+  "entry": "entry.js"
+}

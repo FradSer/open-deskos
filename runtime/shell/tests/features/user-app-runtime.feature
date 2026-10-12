@@ -1,5 +1,64 @@
 Feature: Sandboxed self-contained user applications
 
+  Scenario: The selected catalog owns installed runtime availability
+    Given the installed runtime uses a selected package catalog
+    When that catalog is disabled or fails to start
+    Then the installed runtime is blocked without constructing another store or verifier
+    And its IPC handlers, document route, and control listener are released
+    When the selected catalog is enabled again
+    Then the runtime uses that catalog's installed revisions and publications
+    And no package is removed or reinstalled during recovery
+
+  Scenario: Runtime release drains an accepted installation
+    Given an accepted installation is waiting for verification
+    When its runtime stops
+    Then cleanup waits for that installation to settle
+    And the accepted installation retains its ordinary result and persisted revision
+    And no change notification is sent after stopping begins
+
+  Scenario: Stopped runtime refuses retained request callbacks
+    Given a caller retains runtime IPC and control callbacks
+    When the runtime has stopped
+    Then those callbacks cannot start another store operation
+    And retained protocol callbacks return an unavailable response
+
+  Scenario: Runtime release drains accepted content and data synchronization
+    Given an accepted content request or package data synchronization is pending
+    When its runtime stops
+    Then cleanup retains dependencies until that operation settles
+    And rejected operations do not prevent resource cleanup
+
+  Scenario: Runtime release retains the verifier until actual child closure
+    Given verification has returned a timeout, abort, or output-limit failure
+    And the verifier child has not closed
+    When its runtime stops
+    Then cleanup retains ownership until the child closes
+    And the failure verdict remains unchanged
+    And a closed verifier refuses new verification
+
+  Scenario: Runtime release drains initial package data synchronization
+    Given default or signed selected runtime startup has started package data synchronization
+    When its Host stops before synchronization settles
+    Then the data provider remains owned until synchronization settles
+    And a synchronization rejection is handled before provider release
+
+  Scenario: CLI acceptance retains verifier process evidence without changing its verdict
+    Given the private CLI fixture uses the production verifier with its existing deadline
+    When installation, update, rollback, or controlled rejection completes
+    Then diagnostics distinguish process spawn, reported result, actual verdict, and process closure
+    And a reported success cannot replace the verifier's required normal process exit
+    And diagnostics exclude package contents, paths, and subprocess output
+
+  Scenario: Failed runtime cleanup retains resource ownership for retry
+    Given the installed package runtime owns IPC handlers, a protocol route, and a control listener
+    When handler removal or listener close fails during plugin shutdown
+    Then failed resources remain owned and required providers cannot release
+    And startup cannot allocate a replacement runtime before cleanup succeeds
+    When the owner retries shutdown
+    Then only retained resources release again
+    And concurrent cleanup callers share one release operation
+    And cancellation drains a late listener before shutdown completes
+
   Scenario: Startup does not create resources after quit
     Given Shell startup is waiting for an asynchronous catalog or control listen
     When Electron emits before-quit before that operation finishes
@@ -26,6 +85,9 @@ Feature: Sandboxed self-contained user applications
     Given two valid packages are verified at the same time
     When each independent Electron process starts
     Then both verifications succeed without using the global Electron profile
+    And userData and sessionData use the same private directory before Electron readiness
+    And the macOS verifier hides its Dock entry before readiness
+    And hidden verification windows do not throttle document processing
     And every temporary bundle, result and profile directory is removed
 
   Scenario: Retry cleanup after a verifier releases its profile lock
@@ -46,3 +108,45 @@ Feature: Sandboxed self-contained user applications
 
   # Runtime iframe CPU scheduling is not an isolation guarantee.
   # Remote shell key events do not cross into opaque frames; touch/mouse works directly.
+
+  Scenario: Preserve a reported failure when the verifier cannot exit
+    Given the verifier has written a bounded failure result to its result file
+    When the verifier process remains alive until its deadline
+    Then the parent terminates the process and preserves the reported failure reason
+    And a success file or console output cannot bypass the process exit requirement
+
+  Scenario: Installed runtime consumes the selected package catalog
+    Given a replacement catalog provides installed package operations
+    When the default or signed selected installed runtime starts
+    Then its list, commands, and content requests use that catalog instance
+    And IPC and local control forward installation, import, update, rollback, and placement arguments to that instance
+    And a selected catalog refusal does not invoke the unused default catalog
+    And it does not construct a second default catalog or verifier
+    And the default catalog owns verification and releases its verifier through plugin cleanup
+
+  Scenario: Runtime release waits for catalog verification without retiring the catalog
+    Given the selected catalog owns a verification child that has not closed
+    When the installed runtime stops after receiving a verification verdict
+    Then runtime cleanup waits for that child to close
+    And the catalog can verify another package after runtime restart
+
+  Scenario: Selected installed runtime preserves Widget import and placement
+    Given the default or signed selected runtime uses the installed package catalog
+    When local control imports a Widget and IPC moves it to another free Cell
+    Then list and desktop consumers report the same placement and revision
+    And content requests serve the imported document
+    When a client requests an occupied Cell
+    Then the persisted catalog and active placement remain unchanged
+    When the runtime restarts
+    Then the imported Widget retains its placement and revision
+    When IPC removes the Widget
+    Then local control and content consumers no longer expose it
+
+  Scenario: Selected installed runtime preserves package revision operations
+    Given the default or signed selected runtime uses the installed package catalog
+    When IPC and local control clients update and roll back a package
+    Then both consumers report the same active revision
+    And content requests serve that revision's captured document
+    When verification rejects a later update
+    Then the active revision and persisted catalog bytes remain unchanged
+    And runtime restart retains the accepted revision and rollback history

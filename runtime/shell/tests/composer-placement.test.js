@@ -56,6 +56,7 @@ function buildShell({ columns, rows, cell, minCell }) {
       })[name] || '',
     }),
   }
+  root.odkPluginHost = require('../src/plugin-host')
   const context = vm.createContext({ window: root, globalThis: root, document: { createElement: element }, setTimeout, ResizeObserver: undefined })
   for (const file of ['core/registry.js', 'core/grid-placement.js', 'core/composer.js']) {
     vm.runInContext(fs.readFileSync(path.join(RENDERER_DIR, file), 'utf8'), context)

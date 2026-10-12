@@ -74,14 +74,21 @@ function requestJson(endpoint, options = {}) {
       path: `${url.pathname}${url.search}`,
       method: options.method || 'GET',
       timeout: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+      signal: options.signal,
       headers: {
         Accept: 'application/json',
         ...(body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {}),
         ...options.headers,
       },
-    }, (response) => collectJsonResponse(response, resolve, reject))
+    }, (response) => collectJsonResponse(response, value => complete(resolve, value), error => complete(reject, error)))
+    let closed = false
+    request.once('close', () => { closed = true })
+    const complete = (callback, value) => {
+      if (options.signal?.aborted && !closed) request.once('close', () => callback(value))
+      else callback(value)
+    }
     request.on('timeout', () => request.destroy(new Error('CLIProxyAPI request timed out')))
-    request.on('error', reject)
+    request.on('error', error => complete(reject, error))
     if (body) request.write(body)
     request.end()
   })
@@ -109,6 +116,7 @@ function collectJsonResponse(response, resolve, reject) {
 
 function managementRequest(config, path, options = {}) {
   return requestJson(`${config.baseUrl}${MANAGEMENT_PATH}${path}`, {
+    signal: config.signal,
     ...options,
     headers: { Authorization: `Bearer ${config.managementKey}`, ...options.headers },
   })
@@ -350,8 +358,9 @@ async function fetchQuotaCard(config, auth) {
   return fetchXaiCard(config, auth)
 }
 
-async function fetchOpenCodeGo(config) {
+async function fetchOpenCodeGo(config, { signal } = {}) {
   if (!config?.configured) return { state: 'unconfigured', missing: config?.missing || ['configuration'] }
+  config = { ...config, signal }
   try {
     const response = await managementRequest(config, '/auth-files')
     const authFiles = enabledQuotaAuthFiles(response)

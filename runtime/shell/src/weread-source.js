@@ -12,7 +12,19 @@ function createWeReadSource({
   random = Math.random,
   cacheFile,
   fsImpl = require('node:fs'),
+  signal,
 } = {}) {
+  const lifetime = new AbortController()
+  const active = new Set()
+  const cancel = () => lifetime.abort()
+  if (signal?.aborted) cancel()
+  else signal?.addEventListener('abort', cancel, { once: true })
+  function track(pending) {
+    active.add(pending)
+    const release = () => active.delete(pending)
+    void pending.then(release, release)
+    return pending
+  }
   let state = { status: apiKey ? 'loading' : 'unconfigured', highlight: null, updatedAt: null }
   let recents = []
   let lastSync = 0
@@ -64,26 +76,41 @@ function createWeReadSource({
     return selected.entry
   }
 
-  async function request(body) {
+  function request(body) {
+    return track(requestCurrent(body))
+  }
+
+  async function requestCurrent(body) {
+    lifetime.signal.throwIfAborted()
     const response = await fetchImpl(API_URL, {
       method: 'POST',
+      signal: lifetime.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, skill_version: SKILL_VERSION }),
     })
+    lifetime.signal.throwIfAborted()
     if (!response.ok) throw new Error(`WeRead request failed (${response.status})`)
     const payload = await response.json()
+    lifetime.signal.throwIfAborted()
     if (payload.errcode) throw new Error(payload.errmsg || `WeRead error (${payload.errcode})`)
     return payload
   }
 
-  async function resolveCover(remoteUrl) {
+  function resolveCover(remoteUrl) {
+    return track(resolveCoverCurrent(remoteUrl))
+  }
+
+  async function resolveCoverCurrent(remoteUrl) {
+    if (lifetime.signal.aborted) return ''
     if (!remoteUrl) return ''
     if (coverCache.has(remoteUrl)) return coverCache.get(remoteUrl)
     try {
-      const coverResponse = await fetchImpl(remoteUrl)
+      const coverResponse = await fetchImpl(remoteUrl, { signal: lifetime.signal })
+      if (lifetime.signal.aborted) return ''
       const contentType = coverResponse.headers?.get?.('content-type') || 'image/jpeg'
       if (coverResponse.ok && contentType.startsWith('image/')) {
         const bytes = Buffer.from(await coverResponse.arrayBuffer())
+        if (lifetime.signal.aborted) return ''
         if (bytes.length > 0 && bytes.length <= MAX_COVER_BYTES) {
           const dataUrl = `data:${contentType.split(';')[0]};base64,${bytes.toString('base64')}`
           if (coverCache.size >= RECENT_LIMIT * 2) coverCache.clear()
@@ -97,8 +124,8 @@ function createWeReadSource({
     return ''
   }
 
-  async function refresh() {
-    if (!apiKey) return state
+  async function refreshCurrent() {
+    if (!apiKey || lifetime.signal.aborted) return state
     const nowMs = now()
     try {
       if (recents.length === 0 || nowMs - lastSync >= RESYNC_MS) {
@@ -112,6 +139,7 @@ function createWeReadSource({
             .map((note) => ({ ...note, title: entry.book?.title || '微信读书', author: entry.book?.author || entry.book?.writer || '', cover: entry.book?.cover || entry.book?.coverUrl || '' }))
         }))
         const highlights = results.flat()
+        if (lifetime.signal.aborted) return state
         highlights.sort((a, b) => (b.createTime || 0) - (a.createTime || 0))
         recents = highlights.slice(0, RECENT_LIMIT)
         coverCache.clear()
@@ -122,14 +150,27 @@ function createWeReadSource({
       }
       const entry = pickRandom()
       const highlight = entry ? { ...entry, cover: await resolveCover(entry.cover) } : null
+      if (lifetime.signal.aborted) return state
       state = { status: highlight ? 'live' : 'empty', highlight, updatedAt: nowMs }
     } catch (error) {
+      if (lifetime.signal.aborted) return state
       state = { status: 'error', highlight: null, updatedAt: nowMs, error: error.message }
     }
     return state
   }
 
-  return { refresh, snapshot: () => state }
+  function refresh() {
+    return track(refreshCurrent())
+  }
+
+  async function stop() {
+    cancel()
+    signal?.removeEventListener('abort', cancel)
+    // A failed parallel bookmark request can leave siblings pending after refresh settles.
+    await Promise.allSettled([...active])
+  }
+
+  return { refresh, snapshot: () => state, stop }
 }
 
 module.exports = { createWeReadSource }

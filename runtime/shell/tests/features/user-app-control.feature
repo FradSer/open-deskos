@@ -1,4 +1,32 @@
 Feature: One system-owned application lifecycle
+  Scenario: Plugin CLI installs a local HTML package through the application store
+    Given a local Widget/App directory with a manifest and HTML document
+    When the Plugin CLI adds that directory
+    Then the application store verifies its exact bytes before installation
+    And the installed revision remains available without the source directory
+    And a failed verification leaves the prior revision unchanged
+    And symlinks, oversized files, and native plugin manifests are rejected
+
+  Scenario: Plugin CLI manages verified installed packages
+    Given a running Main Host and application control service
+    When the Plugin CLI lists packages or updates or removes an installed identifier
+    Then it reports the actual service result
+    And updates retain verification and rollback snapshots
+    And an update cannot install an unknown identifier
+
+  Scenario: Unsupported plugin installation cannot report success
+    Given native package installation and development linking are unavailable
+    When the Plugin CLI receives a native package or link request
+    Then it exits with failure and an explicit unavailable message
+
+  Scenario: Plugin CLI restores a verified installed revision
+    Given an installed package with a retained previous revision
+    When the Plugin CLI rolls back that installed identifier
+    Then the application store verifies and restores the retained revision
+    And the restored bytes remain available after restart without the workspace draft
+    And failed verification or missing history preserves the current revision
+    And native plugin identities do not invoke package rollback
+
   Scenario: Agent and desktop invoke the same installer
     Given a system application store
     When a desktop intent or private control request installs a draft

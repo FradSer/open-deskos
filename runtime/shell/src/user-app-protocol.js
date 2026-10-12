@@ -8,7 +8,7 @@ const { fontResponse, DEFAULT_THEME, normalizeTheme } = require('./user-app-cont
  * for a face the appearance uses and nothing else, and never reaches outside the
  * release it is running in.
  */
-async function createUserAppResponse(rawUrl, store, buildDocument, policy, { runtimeRoot } = {}) {
+async function createUserAppResponse(rawUrl, store, buildDocument, policy, { runtimeRoot, appearancePlugins } = {}) {
   const unavailable = () => new Response('Application unavailable', { status: 404 })
   try {
     if (typeof rawUrl !== 'string' || rawUrl.length > 512) return unavailable()
@@ -22,11 +22,11 @@ async function createUserAppResponse(rawUrl, store, buildDocument, policy, { run
     const [, id, revision] = match
     const token = url.searchParams.get('token') || ''
     if (!/^[a-zA-Z0-9-]{0,128}$/.test(token)) return unavailable()
-    const theme = normalizeTheme(url.searchParams.get('theme') || DEFAULT_THEME)
+    const theme = normalizeTheme(url.searchParams.get('theme') || DEFAULT_THEME, { appearancePlugins })
     const radius = url.searchParams.get('radius') || undefined
     const result = await store.getContent(id)
     if (!result.ok || result.app.revision !== revision) return unavailable()
-    return new Response(buildDocument({ manifest: result.app, html: result.html, revision }, { token, theme, radius }), {
+    return new Response(buildDocument({ manifest: result.app, html: result.html, revision }, { token, theme, radius, ...(appearancePlugins ? { appearancePlugins } : {}) }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': policy,

@@ -151,3 +151,16 @@ test('the default provider and budget are documented constants', () => {
   assert.equal(LOCATION_TIMEOUT_MS, 3000)
   assert.equal(LOCATION_REFRESH_MS, 30 * 60 * 1000)
 })
+test('parent cancellation before the resolve continuation prevents location cache publication', async () => {
+  const controller = new AbortController()
+  const source = createDeviceLocation({ signal: controller.signal,
+    fetchImpl: async () => ({ ok: true, json: async () => {
+      queueMicrotask(() => queueMicrotask(() => controller.abort()))
+      return { success: true, latitude: 1, longitude: 2, city: 'Place' }
+    } }),
+  })
+  const result = await source.resolve()
+  assert.equal(controller.signal.aborted, true)
+  assert.equal(result.status, 'unavailable')
+  assert.equal(source.snapshot(), null)
+})

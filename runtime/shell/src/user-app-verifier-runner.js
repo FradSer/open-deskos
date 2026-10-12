@@ -13,7 +13,11 @@ const MAX_OUTPUT_BYTES = 64 * 1024
 const RUNNER_ARG_INDEX = process.argv.findIndex(value => value.endsWith('/user-app-verifier-runner.js') || value.endsWith('\\user-app-verifier-runner.js'))
 const runnerArg = offset => RUNNER_ARG_INDEX >= 0 ? process.argv[RUNNER_ARG_INDEX + offset] : undefined
 const PROFILE_PATH = typeof runnerArg(3) === 'string' ? runnerArg(3) : ''
-if (PROFILE_PATH) app.setPath('userData', PROFILE_PATH)
+if (process.platform === 'darwin') app.dock.hide()
+if (PROFILE_PATH) {
+  app.setPath('userData', PROFILE_PATH)
+  app.setPath('sessionData', PROFILE_PATH)
+}
 // Verification checks DOM and policy gates, so a GPU process only adds shared
 // host pressure when several independent runners start together.
 app.disableHardwareAcceleration()
@@ -88,7 +92,7 @@ async function run() {
       headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': USER_APP_CSP },
     })
   })
-  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (event, destination) => {
     if (!destination.startsWith('odk-user-app://app/verify/revision')) {

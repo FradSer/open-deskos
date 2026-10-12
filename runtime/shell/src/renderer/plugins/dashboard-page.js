@@ -184,9 +184,16 @@
       const md = el.querySelector('#dash-md')
       const year = el.querySelector('#dash-y')
 
-      renderBriefing(el, ctx.homeBriefing.snapshot())
-      ctx.trackCleanup?.(ctx.homeBriefing.subscribe((frame) => renderBriefing(el, frame)))
+      let released = false
+      const active = () => !released && !ctx.signal?.aborted
+      ctx.trackCleanup?.(() => { released = true })
+      const updateBriefing = (frame) => {
+        if (active()) renderBriefing(el, frame)
+      }
+      updateBriefing(ctx.homeBriefing.snapshot())
+      ctx.trackCleanup?.(ctx.homeBriefing.subscribe(updateBriefing))
       ctx.onTick((now) => {
+        if (!active()) return
         wd.textContent = WEEKDAYS_EN[now.getDay()]
         md.textContent = `${MONTHS_EN[now.getMonth()]} ${now.getDate()}`
         year.textContent = String(now.getFullYear())

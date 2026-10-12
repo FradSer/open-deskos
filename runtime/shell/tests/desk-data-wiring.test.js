@@ -18,9 +18,18 @@ function deferred() {
   return { promise, resolve }
 }
 
-function wireShell({ installed = [], host: hostOverride, env = {}, startupError = null, holdCatalogList = false, holdUserAppListen = false, holdDeskDataListen = false } = {}) {
+function wireShell({ installed = [], host: hostOverride, env = {}, startupError = null, holdCatalogList = false, holdUserAppListen = false, holdDeskDataListen = false, holdNativeDiscovery = false } = {}) {
+  env = { OPEN_DESKOS_CONFIG_DIR: '/fixture/absent-plugin-config', ...env }
   const handlers = new Map()
-  const win = { webContents: { setWindowOpenHandler() {}, on() {}, once() {}, send() {} }, loadFile() { win.loaded = true }, once() {} }
+  const frameEvents = new Map()
+  const frameMessages = []
+  const servicePushes = []
+  const windowLoaded = deferred()
+  let onHydraUpdate
+  let mainCapabilities
+  const hydraConnector = () => { throw Error('Controlled connector must not run during wiring inspection') }
+  const deskLinkTransport = () => { throw Error('Controlled transport must not run during wiring inspection') }
+  const win = { webContents: { setWindowOpenHandler() {}, on() {}, once: (event, callback) => frameEvents.set(event, callback), send: (...args) => frameMessages.push(args) }, loadFile(file, options) { win.loaded = true; win.loadOptions = options; windowLoaded.resolve() }, once() {} }
   const appListeners = new Map()
   const listen = (event, handler, once = false) => {
     const listeners = appListeners.get(event) || []
@@ -28,6 +37,7 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     appListeners.set(event, listeners)
   }
   const emit = (event, ...args) => {
+    if (event === 'before-quit' && args.length === 0) args.push({ preventDefault() {} })
     const listeners = appListeners.get(event) || []
     appListeners.set(event, listeners.filter(listener => !listener.once))
     for (const listener of listeners) listener.handler(...args)
@@ -37,6 +47,8 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
   const app = {
     on: (event, handler) => listen(event, handler),
     once: (event, handler) => listen(event, handler, true),
+    removeListener: (event, handler) => appListeners.set(event, (appListeners.get(event) || []).filter(listener => listener.handler !== handler)),
+    quit: () => emit('before-quit'),
     emit,
     commandLine: { appendSwitch() {} }, getPath: () => '/test',
     requestSingleInstanceLock: () => true,
@@ -61,6 +73,8 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
   let catalogListWaiting = false
   let userAppListenWaiting = false
   let deskDataListenWaiting = false
+  const nativeGate = holdNativeDiscovery ? deferred() : null
+  let nativeWaiting = false
   const installedStore = {
     list: async () => {
       if (catalogListGate) {
@@ -96,22 +110,40 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
   const modules = {
     electron: {
       app, BrowserWindow: Object.assign(function () { return win }, { getAllWindows: () => [win] }),
-      ipcMain: { handle: (id, handler) => handlers.set(id, handler) },
+      ipcMain: { on() {}, removeListener() {}, handle: (id, handler) => handlers.set(id, handler), removeHandler: id => handlers.delete(id) },
       session: { defaultSession: {
         setPermissionRequestHandler() { if (startupError) throw startupError },
         setPermissionCheckHandler() {},
       } },
-      protocol: { handle() {}, registerSchemesAsPrivileged() {} },
+      protocol: { handle() {}, unhandle() {}, registerSchemesAsPrivileged() {} },
     },
     './platform': { resolveShellHost: () => host },
+    './plugin-host': { ...require('../src/plugin-host'), createPluginHost(options) {
+      mainCapabilities = options.capabilities
+      return require('../src/plugin-host').createPluginHost(options)
+    } },
+    './frame-ready': require('../src/frame-ready'),
+    './plugin-config': require('../src/plugin-config'),
+    './native-renderer-assets': require('../src/native-renderer-assets'),
+    './native-runtime-activation': require('../src/native-runtime-activation'),
+    './native-renderer-activation': require('../src/native-renderer-activation'),
+    './native-plugin-loader': nativeGate ? { ...require('../src/native-plugin-loader'), loadNativePlugins: async () => { nativeWaiting = true; await nativeGate.promise; return [] } } : require('../src/native-plugin-loader'),
+    './development-plugins': require('../src/development-plugins'),
+    './renderer/core/appearance-plugins': require('../src/renderer/core/appearance-plugins'),
+    './plugins/main-composition': require('../src/plugins/main-composition'),
+    './plugin-diagnostics': require('../src/plugin-diagnostics'),
+    './plugin-shutdown': require('../src/plugin-shutdown'),
+    './plugins/data-sources': require('../src/plugins/data-sources'),
+    './plugins/system-channels': require('../src/plugins/system-channels'),
+    './plugins/desk-runtime': require('../src/plugins/desk-runtime'),
     './platform/native-process-reader': { createNativeProcessReader: () => ({ reason: null }) },
     './user-app-control': require('../src/user-app-control'),
     './user-app-protocol': require('../src/user-app-protocol'),
     './user-app-content': require('../src/user-app-content'),
     './local-channel': require('../src/local-channel'),
     './panel': { KIOSK_WINDOW_LOCK: {}, enterPanel() {}, resolvePanelBounds: () => null },
-    './remote-bridge-client': { resolveRemoteBridgeSocketPath: () => null, createRemoteBridgeClient: () => ({ onLinkState() {}, onNavigation() {}, onInput() {}, start() {}, stop() { remoteStopCount += 1 }, getLinkState: () => 'disconnected' }) },
-    './personal-bot-client': { resolvePersonalBotSocketPath: () => null, createPersonalBotClient: () => ({ subscribe() {}, start() {}, stop() {}, servicePush() {}, toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
+    './remote-bridge-client': { resolveRemoteBridgeSocketPath: () => null, createRemoteBridgeClient: () => ({ onLinkState: () => () => {}, onNavigation: () => () => {}, onInput: () => () => {}, start() {}, stop() { remoteStopCount += 1 }, getLinkState: () => 'disconnected' }) },
+    './personal-bot-client': { resolvePersonalBotSocketPath: () => null, createPersonalBotClient: () => ({ subscribe: () => () => {}, start() {}, stop() {}, servicePush: ids => servicePushes.push(ids), toggle: () => false, snapshot: () => ({ state: 'unavailable' }) }) },
     './desk-data-control': { listenDeskData: async () => {
       if (deskDataListenGate) {
         deskDataListenWaiting = true
@@ -122,12 +154,13 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     './user-app-store': { createUserAppStore: (options) => { storeOptions.push(options); return installedStore } },
     // The verifier is a construct-only dependency here: nothing is verified
     // because the store decides what is installed.
-    './user-app-verifier': { createUserAppVerifier: () => ({ verify: () => true }) },
+    './user-app-verifier': { createUserAppVerifier: () => ({ verify: () => true, close: async () => {} }) },
     './pi-sessions-source': { createPiSessionsSource: () => async () => ({ ok: true, sessions: [] }) },
     './pi-session-events-source': { createPiSessionEventsSource: () => async () => ({ ok: false }) },
     './pi-sessions': { readSessionEvents: () => ({ ok: false }) },
-    './desk-link-client': { createDeskLinkClient: () => ({ machines: async () => [] }) },
-    './hydra-mqtt': { createHydraSource: () => ({ snapshot: () => hydraSnapshot, stop() { hydraStopCount += 1 } }) },
+    './desk-link-client': { createDeskLinkClient: () => ({ machines: async () => [] }), createDeskLinkTransport: deskLinkTransport },
+    './desk-link-host-adapter': require('../src/desk-link-host-adapter'),
+    './hydra-mqtt': { connectHydraMqtt: hydraConnector, createHydraSource: options => { onHydraUpdate = options.onUpdate; return { snapshot: () => hydraSnapshot, stop() { hydraStopCount += 1 } } } },
     './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }) }) },
     './weread-source': { createWeReadSource: () => ({ refresh: async () => ({ status: 'unconfigured' }) }) },
     './futu-source': { createFutuSource: (options) => { futuServices = options.services; return { refreshServices: async () => { futuRefreshCount += 1 }, stop: async () => { futuStopCount += 1 }, snapshot: service => ({ state: 'live', service, snapshot: { positions: [] } }) } } },
@@ -165,6 +198,11 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     clearInterval: handle => { if (timerHandles.includes(handle)) intervalClearCount += 1 },
   })
   return {
+    frameMessages, servicePushes,
+    hydraConnector, hydraCapability: () => mainCapabilities['source.hydra'],
+    deskLinkTransport, deskLinkCapability: () => mainCapabilities['source.desk-link'],
+    finishFrame: () => frameEvents.get('did-finish-load')(),
+    notifyHydra: () => onHydraUpdate(),
     handlers,
     catalog,
     setCatalogError: error => { catalogError = error },
@@ -175,8 +213,11 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     getCounts: () => ({ remote: remoteStopCount, hydra: hydraStopCount, futu: futuStopCount, futuRefresh: futuRefreshCount, intervalClear: intervalClearCount }),
     startupStatus: () => ({ catchAttached: startupCatchAttached, exitCode: appExitCode }),
     windowLoaded: () => win.loaded === true,
+    windowOptions: () => win.loadOptions,
     intervalCount: () => intervals.length,
     waiting: () => ({ catalog: catalogListWaiting, userApp: userAppListenWaiting, deskData: deskDataListenWaiting }),
+    nativeWaiting: () => nativeWaiting,
+    releaseNative: () => nativeGate?.resolve(),
     releaseCatalogList: () => catalogListGate?.resolve(),
     releaseUserAppListen: () => userAppListenGate?.resolve(),
     releaseDeskDataListen: () => deskDataListenGate?.resolve(),
@@ -189,7 +230,12 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     // The window is created after the registry is registered and the installed
     // catalog is read, so its load is what says the boot sequence finished.
     ready: async () => {
-      for (let tick = 0; tick < 40 && !(wired.length === 1 && win.loaded); tick += 1) await new Promise(resolve => setTimeout(resolve, 0))
+      let deadline
+      try {
+        await Promise.race([windowLoaded.promise, new Promise((_, reject) => {
+          deadline = setTimeout(() => reject(Error('wired Shell did not load its window')), 10000)
+        })])
+      } finally { clearTimeout(deadline) }
       assert.equal(wired.length, 1, 'the wired shell must own one Desk Data registry')
       assert.equal(win.loaded, true, 'the desk window must be created after the readings are registered')
       return wired[0]
@@ -208,6 +254,25 @@ test('the tile and the spoken answer read one source through the wired shell', a
   assert.equal(reading.value.plants[0].soilPercent, 30)
   assert.equal(reading.value.asOf, new Date(shell.hydraSnapshot.updatedAt ?? 0).toISOString())
   assert.ok(deskData.registry.list().some(entry => entry.id === 'odk.tile.hydra'))
+})
+
+test('a disabled data-source plugin withdraws only its reading and endpoint', async () => {
+  const shell = wireShell({ env: { ODESK_DISABLED_PLUGINS: 'odk.source.weather' } })
+  const deskData = await shell.ready()
+  assert.equal(shell.handlers.has('odk-weather-status'), false)
+  assert.equal(deskData.registry.list().some(entry => entry.id === 'odk.tile.weather'), false)
+  assert.equal(shell.handlers.get('odk-hydra-status')().nodes[0].soilPercent, 30)
+  assert.equal(deskData.registry.list().some(entry => entry.id === 'odk.tile.hydra'), true)
+})
+
+test('a disabled Personal Bot plugin leaves direct data and package controls available', async () => {
+  const shell = wireShell({ env: { ODESK_DISABLED_PLUGINS: 'odk.system.personal-bot' } })
+  const deskData = await shell.ready()
+  assert.equal(shell.handlers.has('odk-personal-bot-toggle'), false)
+  assert.equal(shell.handlers.has('odk-personal-bot-status'), false)
+  assert.equal(shell.handlers.has('odk-user-apps-dispatch'), true)
+  assert.equal(shell.handlers.get('odk-hydra-status')().nodes[0].soilPercent, 30)
+  assert.equal(deskData.registry.list().some(entry => entry.id === 'odk.tile.hydra'), true)
 })
 
 test('a package publishes through the shell handler, and only what it declared', async () => {
@@ -281,9 +346,9 @@ test('service refresh uses the resolved cross-platform user-app state directory'
   })
   await shell.ready()
   await shell.refreshCatalog()
-  assert.equal(shell.storeOptions.length >= 2, true)
-  assert.equal(shell.storeOptions[0].stateDir, shell.storeOptions[1].stateDir, 'main and user-app lifecycle share one resolved state directory')
+  assert.equal(shell.storeOptions.length, 1, 'Main and the installed runtime use the selected catalog instance')
   assert.match(shell.storeOptions[0].stateDir, /user-apps$/)
+  assert.equal(shell.futuServices()['futu-poller'].endpoint, 'futu.sock')
 })
 
 test('an unreadable catalog retains the last successful service declarations', async () => {
@@ -335,7 +400,7 @@ test('a user-app control listener that finishes after quit closes immediately', 
       host: {
         id: 'linux-arm64', isWindows: false, supported: true, stateDir,
         provisionsUserAppControl: true, provisionsDeskData: false, deskDataEndpoint: null,
-        endpoint: () => path.join(stateDir, 'user-app-control.sock'),
+        endpoint: name => name === 'user-app-control' ? path.join(stateDir, 'user-app-control.sock') : null,
       },
     })
     for (let tick = 0; tick < 20 && !shell.waiting().userApp; tick += 1) await new Promise(resolve => setTimeout(resolve, 0))
@@ -370,4 +435,176 @@ test('a Desk Data listener that finishes after quit closes immediately', async (
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true })
   }
+})
+
+
+test('saved preferences reach Main and renderer through one boot snapshot', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-boot-preferences-'))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const file = path.join(dir, 'plugins.json')
+  fs.writeFileSync(file, JSON.stringify({ version: 1, plugins: {
+    'odk.source.weather': { enabled: false }, 'odk.tile.clock': { enabled: false },
+  } }))
+  const shell = wireShell({ env: { OPEN_DESKOS_CONFIG_DIR: dir }, holdCatalogList: true })
+  for (let tick = 0; tick < 40 && !shell.waiting().catalog; tick += 1) await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(shell.waiting().catalog, true)
+  fs.writeFileSync(file, JSON.stringify({ version: 1, plugins: {} }))
+  shell.releaseCatalogList()
+  await shell.ready()
+  assert.equal(shell.handlers.has('odk-weather-status'), false)
+  assert.equal(new URLSearchParams(shell.windowOptions().search.slice(1)).get('disabledPlugins'), 'odk.source.weather,odk.tile.clock,odk.system.plugin-diagnostics,odk.system.plugin-control,odk.system.renderer-control')
+})
+
+
+test('Main dispatches frame readiness and source notifications through the default plugins', async () => {
+  const shell = wireShell()
+  await shell.ready()
+  shell.frameMessages.length = 0
+  shell.servicePushes.length = 0
+  shell.finishFrame()
+  assert.deepEqual(shell.frameMessages, [
+    ['odk-personal-bot-status', { state: 'unavailable' }],
+    ['odk-remote-link-state', { state: 'disconnected', sequence: 0 }],
+  ])
+  shell.notifyHydra()
+  assert.deepEqual(shell.servicePushes.map(ids => Array.from(ids)), [['odk.tile.hydra']])
+  shell.app.emit('before-quit')
+  await new Promise(resolve => setImmediate(resolve))
+  const frames = shell.frameMessages.length
+  const pushes = shell.servicePushes.length
+  shell.finishFrame()
+  shell.notifyHydra()
+  assert.equal(shell.frameMessages.length, frames)
+  assert.equal(shell.servicePushes.length, pushes)
+})
+
+
+test('Main starts a replacement with its linked provider beside a missing link and rejects changed dependencies before execution', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-main-replacement-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const { main } = require('../scripts/open-deskos-plugin-cli')
+  const { createMainPlugins } = require('../src/plugins/main-composition')
+  const original = createMainPlugins().find(plugin => plugin.manifest.id === 'odk.source.weather')
+  const providerPort = 'odk:test-weather-source/v1'
+  const manifest = { ...original.manifest, entry: 'entry.cjs', requires: [{ interface: providerPort }] }
+  const manifestPath = path.join(root, 'manifest.json')
+  const marker = path.join(root, 'executed')
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+  fs.writeFileSync(path.join(root, 'entry.cjs'), `
+    require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed');
+    exports.create = ctx => {
+      const source = ctx.get('${providerPort}');
+      const original = require(${JSON.stringify(path.resolve('src/plugins/data-sources.js'))}).createDataSourcePlugins().find(plugin => plugin.manifest.id === 'odk.source.weather');
+      return original.create({ ...ctx, capability: name => name === 'source.weather' ? { create: () => source, options: {} } : ctx.capability(name) });
+    };
+  `)
+  const env = { OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config') }
+  const provider = path.join(root, 'provider')
+  fs.mkdirSync(provider)
+  fs.writeFileSync(path.join(provider, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'odk.test.weather-source', name: 'Weather source fixture', version: '1.0.0',
+    host: 'electron-main', kind: 'service', entry: 'entry.cjs', provides: [{ interface: providerPort }], requires: [], permissions: [] }))
+  fs.writeFileSync(path.join(provider, 'entry.cjs'), `exports.create = () => { const source = { snapshot: () => ({ status: 'live', current: { temperature: 24 } }), refresh: async () => source.snapshot() };
+    return { ports: { '${providerPort}': source } }; };`)
+  assert.equal(main(['link', provider, '--trust'], env), 0)
+  assert.equal(main(['link', root, '--trust', '--replace', '--grant', 'source.weather', '--grant', 'ipc'], env), 0)
+  const broken = path.join(root, 'broken')
+  fs.mkdirSync(broken)
+  fs.writeFileSync(path.join(broken, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'odk.test.broken', name: 'Broken fixture', version: '1.0.0',
+    host: 'electron-main', kind: 'service', entry: 'entry.cjs', provides: [], requires: [], permissions: [] }))
+  fs.writeFileSync(path.join(broken, 'entry.cjs'), 'throw Error("missing link must not execute")')
+  assert.equal(main(['link', broken, '--trust'], env), 0)
+  fs.rmSync(broken, { recursive: true })
+  const replaced = wireShell({ env })
+  const data = await replaced.ready()
+  assert.equal((await replaced.handlers.get('odk-weather-status')(null, {})).current.temperature, 24)
+  assert.equal((await data.control.dispatch({ command: 'read', readingId: 'odk.tile.weather' })).reading.value.temperatureC, 24)
+  replaced.app.emit('before-quit')
+  await new Promise(resolve => setImmediate(resolve))
+  fs.rmSync(marker)
+  fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, requires: [{ interface: 'odk:absent/v1' }] }))
+  const fallback = wireShell({ env })
+  await fallback.ready()
+  assert.equal((await fallback.handlers.get('odk-weather-status')(null, {})).status, 'unconfigured')
+  assert.equal(fs.existsSync(marker), false)
+  fallback.app.emit('before-quit')
+  await new Promise(resolve => setImmediate(resolve))
+})
+
+test('Main starts an installed signed revision and retains default features after corrupt revision rejection', async t => {
+  const crypto = require('node:crypto')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-main-native-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const source = path.join(root, 'source')
+  fs.mkdirSync(source)
+  const keys = crypto.generateKeyPairSync('ed25519')
+  const manifest = { schemaVersion: 1, id: 'odk.test.signed', name: 'Signed Main fixture', version: '1.0.0',
+    host: 'electron-main', kind: 'service', entry: 'entry.cjs', permissions: ['ipc'], provides: [], requires: [] }
+  const marker = path.join(root, 'executed')
+  fs.writeFileSync(path.join(source, 'manifest.json'), JSON.stringify(manifest))
+  fs.writeFileSync(path.join(source, 'entry.cjs'), `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed');
+    exports.create = ctx => { const ipc = ctx.capability('ipc'); ipc.handle('signed-fixture', () => 42);
+      ctx.onCleanup(() => ipc.removeHandler('signed-fixture')); return {}; };`)
+  const files = ['entry.cjs', 'manifest.json'].map(name => ({ path: name,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(source, name))).digest('hex') }))
+  const payload = { schemaVersion: 1, keyId: 'fixture', replace: false, files }
+  fs.writeFileSync(path.join(source, 'bundle.json'), JSON.stringify({ ...payload,
+    signature: crypto.sign(null, Buffer.from('Open DeskOS native bundle v1\n' + JSON.stringify(payload)), keys.privateKey).toString('base64') }))
+  const policy = path.join(root, 'publishers.json')
+  fs.writeFileSync(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
+    publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: [manifest.id], hosts: [manifest.host],
+  } } }))
+  const env = { OPEN_DESKOS_CONFIG_DIR: path.join(root, 'config'), XDG_STATE_HOME: path.join(root, 'state'),
+    LOCALAPPDATA: path.join(root, 'state'), OPEN_DESKOS_NATIVE_KEYRING: policy }
+  const { main: nativeCli } = require('../scripts/open-deskos-plugin-cli')
+  assert.equal(await nativeCli(['native', 'install', source, '--keyring', policy, '--trust', '--grant', 'ipc'], env), 0)
+  assert.equal(fs.existsSync(marker), false)
+  const shell = wireShell({ env })
+  await shell.ready()
+  assert.equal(shell.handlers.get('signed-fixture')(), 42)
+  assert.equal((await shell.handlers.get('odk-weather-status')(null, {})).status, 'unconfigured')
+  shell.app.emit('before-quit')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(shell.handlers.has('signed-fixture'), false)
+  fs.rmSync(marker)
+  const { readConfig, resolveConfigPath } = require('../src/plugin-config')
+  const revision = readConfig(resolveConfigPath(env)).plugins[manifest.id].native.revision
+  const { resolveShellHost } = require('../src/platform')
+  fs.writeFileSync(path.join(resolveShellHost({ env }).stateDir, 'plugins', 'native', 'revisions', revision, 'entry.cjs'), 'unverified')
+  const fallback = wireShell({ env })
+  await fallback.ready()
+  assert.equal(fallback.handlers.has('signed-fixture'), false)
+  assert.equal(fs.existsSync(marker), false)
+  assert.equal((await fallback.handlers.get('odk-weather-status')(null, {})).status, 'unconfigured')
+  fallback.app.emit('before-quit')
+  await new Promise(resolve => setImmediate(resolve))
+})
+
+test('quitting during native discovery cannot start factories or create a window', async () => {
+  const shell = wireShell({ holdNativeDiscovery: true })
+  for (let turn = 0; turn < 20 && !shell.nativeWaiting(); turn++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(shell.nativeWaiting(), true)
+  shell.app.emit('before-quit')
+  shell.releaseNative()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(shell.windowLoaded(), false)
+  assert.equal(shell.handlers.size, 0)
+  assert.equal(shell.intervalCount(), 0)
+})
+
+
+test('Main grants Hydra the raw MQTT connector alongside the existing factory', async () => {
+  const shell = wireShell()
+  await shell.ready()
+  assert.equal(shell.hydraCapability().connect, shell.hydraConnector)
+  assert.equal(typeof shell.hydraCapability().create, 'function')
+  assert.equal(typeof shell.hydraCapability().options.onUpdate, 'function')
+  shell.app.emit('before-quit')
+})
+
+test('Main grants Desk Link raw transport alongside the existing factory', async () => {
+  const shell = wireShell()
+  await shell.ready()
+  assert.equal(shell.deskLinkCapability().createTransport, shell.deskLinkTransport)
+  assert.equal(typeof shell.deskLinkCapability().create, 'function')
+  shell.app.emit('before-quit')
 })

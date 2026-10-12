@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { resolvePages } = require('./helpers/pages')

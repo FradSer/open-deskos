@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=1920, initial-scale=1, user-scalable=no" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; frame-src odk-user-app:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' odk-native-plugin:; style-src 'self' odk-native-plugin:; font-src 'self' odk-native-plugin:; img-src 'self' odk-native-plugin: data:; connect-src odk-native-plugin:; frame-src odk-user-app:" />
   <title>Open DeskOS</title>
   <link rel="stylesheet" href="uno.css" />
   <link rel="stylesheet" href="shell.css" />
@@ -11,6 +11,10 @@
   <link rel="stylesheet" href="user-app-desktop.css" />
   <link rel="stylesheet" href="themes/border-beam.css" />
   <link rel="stylesheet" href="themes/pixel.css" />
+  <script src="../plugin-host.js"></script>
+  <script src="core/appearance-plugins.js"></script>
+  <script src="core/development-plugins.js"></script>
+  <script src="core/native-appearance.js"></script>
   <script src="core/theme.js"></script>
 </head>
 <body>
@@ -92,6 +96,7 @@
   <script src="core/icons.js"></script>
   <script src="core/services.js"></script>
   <script src="core/composer.js"></script>
+  <script src="core/runtime-controller.js"></script>
   <script src="core/app-platform.js"></script>
   <script src="core/gamepad.js"></script>
   <script src="plugins/dashboard-page.js"></script>
@@ -116,7 +121,10 @@
   <script src="plugins/pi-sessions.js"></script>
   <script src="core/user-app-frame.js"></script>
   <script src="core/user-app-desktop.js"></script>
+  <script src="core/user-app-desktop-plugins.js"></script>
   <script src="config/desktop_layout.js"></script>
+  <script src="core/plugin-control.js"></script>
+  <script src="core/plugin-diagnostics.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

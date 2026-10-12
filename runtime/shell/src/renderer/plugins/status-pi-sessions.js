@@ -59,10 +59,13 @@
 
       let tickCount = 0
       let sourceLabel = 'Pi sessions'
+      let released = false
+      const active = () => !released && !ctx.signal?.aborted
       const publishBriefing = (summary) => {
         ctx.briefing.contribute({ id: BRIEFING_ID, order: 20, parts: briefingParts(summary) })
       }
       const unavailable = () => {
+        if (!active()) return
         count.textContent = '--'
         dot.className = 'sb-pi-dot'
         btn.classList.remove('has-running')
@@ -72,12 +75,14 @@
       }
 
       const refresh = async () => {
+        if (!active()) return
         if (typeof root.odkPlatform?.getPiSessions !== 'function') {
           unavailable()
           return
         }
         try {
           const res = await root.odkPlatform.getPiSessions()
+          if (!active()) return
           sourceLabel = res?.source?.label || 'Pi sessions'
           if (!res || res.ok === false) {
             unavailable()
@@ -101,8 +106,13 @@
         }
       }
 
-      btn.addEventListener('click', () => {
-        ctx.navigateToPage?.('pi-sessions')
+      const navigate = () => {
+        if (active()) ctx.navigateToPage?.('pi-sessions')
+      }
+      btn.addEventListener('click', navigate)
+      ctx.trackCleanup?.(() => {
+        released = true
+        btn.removeEventListener('click', navigate)
       })
 
       refresh()

@@ -64,11 +64,31 @@ when configuring owner-triggered suggestions.
 
 ## Install and manage
 
-Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged.
+Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged. At the deadline, the parent requests process termination and preserves a bounded failure from the runner's result file. Success still requires a matching normal process exit.
+
+The verifier sets private `userData` and `sessionData` paths before Electron readiness.
+Its hidden window disables background throttling and retains the existing sandbox and network restrictions.
+The parent owns temporary verification files and profile cleanup.
 
 Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/open-deskos/user-apps`, outside the runtime release.
 
 A fresh Shell process reads the installed catalog. Applications do not require modifying `index.html`, built-in layout or plugin registry, nor rebuilding the Shell release for each update. The runtime feature itself must first be deployed.
+
+### Runtime release
+
+Stopping the installed runtime refuses new requests and waits for accepted operations.
+Accepted installations keep their ordinary result; cleanup waits for actual verifier child closure.
+Cleanup also retains pending content requests and package data synchronization.
+Retained callbacks cannot publish changes after stopping begins.
+Failed resource release retains ownership for cleanup retry.
+
+The default runtime uses the selected package catalog for installed package operations.
+The catalog is a required plugin dependency; disabling it or failing its startup blocks the installed runtime.
+Recovery uses the selected catalog without constructing a fallback store or verifier.
+Catalog implementations must preserve validation, verification, persisted revisions, and document contracts.
+The default catalog owns its verifier; runtime cleanup waits for current verification without closing the catalog.
+Catalogs with verification resources retained after a verdict expose `waitForVerification()` to wait for their release.
+Standalone callers without a catalog retain their existing store and verifier lifecycle.
 
 ## Agent operations
 

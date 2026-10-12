@@ -2,6 +2,7 @@
 // IPC, owner writes and checkpoints belong to this fixture. The explicit actual
 // Widget mode reads live Desk Data without writing to any production source.
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')

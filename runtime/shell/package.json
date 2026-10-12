@@ -13,9 +13,9 @@
     "verify-release": "bash scripts/verify-release.sh",
     "preflight": "pnpm test && pnpm styles && pnpm verify-release",
     "e2e": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/e2e.js",
-    "test": "node --test --test-concurrency=4 tests/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
     "build:native": "node scripts/build-native.mjs",
-    "geometry": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/responsive-matrix.cjs && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs"
+    "geometry": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/responsive-matrix.cjs && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && node --test --test-concurrency=1 tests/camera-surface-electron.test.js && node --test --test-concurrency=1 tests/clock-surface-electron.test.js && node --test --test-concurrency=1 tests/calendar-surface-electron.test.js && node --test --test-concurrency=1 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=1 tests/quota-surface-electron.test.js && node --test --test-concurrency=1 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=1 tests/input-status-surface-electron.test.js && node --test --test-concurrency=1 tests/preorder-surface-electron.test.js"
   },
   "devDependencies": {
     "@tabler/icons": "^3.46.0",

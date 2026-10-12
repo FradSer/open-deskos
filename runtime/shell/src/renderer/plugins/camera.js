@@ -45,7 +45,11 @@
         <span class="w-state w-camera-state">Camera unavailable</span>
       </div>`
       if (!ctx?.camera) return
-      ctx.camera.subscribe((status) => render(el, status))
+      let released = false
+      ctx.trackCleanup(() => { released = true })
+      ctx.trackCleanup(ctx.camera.subscribe((status) => {
+        if (!released) render(el, status)
+      }))
       void ctx.camera.refresh?.()?.catch?.(() => {})
     },
   })

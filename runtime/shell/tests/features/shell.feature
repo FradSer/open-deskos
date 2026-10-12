@@ -200,6 +200,42 @@ Feature: Open DeskOS 跨平台 Display Shell
     And a missing camera or failed capture renders a truthful unavailable state instead of a frame
     And the tile keeps its framing marks and stays a filled instrument with or without a frame
 
+  Scenario: Camera surface replacement preserves readings and release ownership
+    Given the default or an independent Camera surface uses the same controlled Camera service
+    When the service reports live, unavailable, missing, or malformed frame metadata
+    Then both surfaces retain the same frame visibility, capture time, and display-only content
+    When the surface is disabled or replaced
+    Then its subscription releases before another mount subscribes
+    And late callbacks cannot change the released surface
+    And failed subscription cleanup remains owned for retry
+    When the built-in surface is restored
+    Then its existing container displays the current reading without navigation
+
+  Scenario: Signed Camera surface preserves capture consumers across revisions
+    Given independent Camera source and surface bundles have separate explicit publisher permissions
+    When the operator installs, updates, rolls back, and removes the signed surface selection
+    Then each new Shell process executes the selected surface with the same Camera source
+    And generated JPEG frames retain decoded regions, timestamps, and unavailable states through actual preload
+    And unsigned updates preserve configuration and stored revisions
+    And shutdown releases Camera IPC, discovery IPC, and captured asset routes
+
+  Scenario: Authenticated Camera surface replacement retains its source and document
+    Given the Shell uses the signed Camera source and a private authenticated Renderer management channel
+    When the operator activates signed Camera surfaces and restores the built-in surface
+    Then the same desktop container and document retain their current frame and capture time
+    And the same Camera source remains selected without another capture
+    And each replacement releases its subscription before another mount subscribes
+    And built-in recovery works with malformed external configuration and revoked publisher policy
+    And recovery preserves those configuration and policy bytes
+    And first activation can publish into an initially empty asset route
+
+  Scenario: Independent Camera surface retains desktop density across viewport changes
+    Given the default, independent, and restored Camera surfaces use the same controlled readings
+    When the desktop changes between five standard viewport sizes and three supported themes
+    Then live and unavailable surfaces retain equal density without clipping
+    And each surface meets the existing shared density limits without a Camera-specific exception
+    And the same document and desktop container remain mounted
+
   Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
     Given an ESP32-P4 sub-device runs the SC2336 camera firmware
     And the sub-device captures video over 2-lane MIPI CSI-2 with SCCB control
@@ -378,3 +414,73 @@ Feature: Open DeskOS 跨平台 Display Shell
     And a missing service renders Not configured without numbers
     And a missing trade unlock renders Trade unlock needed without numbers
     And a failed poll renders Holdings unavailable without numbers
+
+  Scenario: Shared service selection reaches Shell consumers
+    Given a replacement Camera or Quota service is registered before Shell consumers mount
+    When consumers read the named service and the shared refresh timer runs
+    Then both use the registered implementation
+    And the default provider does not receive replacement refresh requests
+    And a failed refresh does not stop other shared services
+    And removal prevents further scheduled refresh requests
+
+  Scenario: Remounted consumers use the selected shared service
+    Given the Shell has mounted its Camera Widget
+    And another Camera service is registered
+    When the Camera Widget is disabled and enabled
+    Then its new subscription uses the selected service
+    And restoring the original service and remounting restores its original readings
+    And each disabled Widget releases its previous subscription
+
+  Scenario: Hidden Camera comparisons use stable rendering inputs
+    Given Camera comparisons use synthetic frames in a hidden window
+    When the fixture starts on a supported Shell Host
+    Then the fixture renders frames offscreen without showing the window
+    And Linux selects software rendering before Electron becomes ready
+    And other hosts retain their existing rendering selection
+    And the first comparison waits for the requested viewport, scale, and fonts
+    And replacement and recovery use the same measurement inputs
+
+  Scenario: Service names identify one selected implementation
+    Given a shared service has a complete identifier and a short name
+    When a replacement is registered through either name
+    Then both names and the named consumer property select that replacement
+    And removal through either name removes that selection
+    And the service inventory contains each complete identifier once
+
+  Scenario: Shared Tick resources stop with their last consumer
+    Given multiple plugins use the shared Tick service
+    When one plugin releases its subscription
+    Then remaining consumers continue to receive Ticks
+    When the final consumer releases its subscription
+    Then the shared interval stops and sends no further refresh requests
+    And retained interval callbacks remain inactive after a new consumer subscribes
+    And releasing the final consumer during a Tick prevents that Tick from refreshing services
+
+  Scenario: Shared subscriptions retain separate plugin ownership
+    Given two plugins subscribe to a shared service with the same callback
+    When the service publishes a new value
+    Then each subscription receives the value
+    When one plugin releases its subscription
+    Then the other subscription continues to receive values
+    And repeated old cleanup cannot remove a later subscription using that callback
+
+  Scenario: Failed initial subscription replay releases its registration
+    Given a plugin subscribes to a service that propagates initial callback errors
+    When its initial callback throws
+    Then subscription creation reports the same error
+    And later service updates do not call the failed subscription
+    And existing peer subscriptions continue to receive updates
+
+  Scenario: Selected shared services own their upstream listeners
+    Given default Home Briefing, Remote Link, connection, and gamepad services are registered
+    When another implementation replaces a default service
+    Then the default service releases its upstream listeners
+    And retained callbacks and pending responses cannot change its readings
+    When the original implementation is restored
+    Then it acquires one new set of listeners
+    And only current callbacks can update its readings
+    And Home Briefing reads the current Personal Bot status
+    And repeated selection does not acquire duplicate listeners
+    And restored services read current input state after changes during replacement
+    And failed listener release retains ownership for a later retry
+    And synchronous selection during restoration releases the newly acquired listeners

@@ -20,7 +20,13 @@ function setup(list) {
   let changed; let pageChanges = 0
   const root = { document: { createElement: tag => new Element(tag) }, odkUserApps: { list, subscribe(callback) { changed = callback; return () => { changed = null } } }, odkUserAppFrame: { mount(host, options) { mounted.push(options); const frame = new Element('iframe'); host.append(frame); return { frame, ready: Promise.resolve(), dispose() { disposed.push(options); frame.remove() } } } } }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/user-app-desktop.js', 'utf8'), root)
-  const controller = root.odkUserAppDesktop.mount({ track, layout, status, onPagesChanged() { pageChanges++ } })
+  let selected = root.odkUserAppDesktop
+  if (process.env.ODK_TEST_INDEPENDENT_DESKTOP === '1') {
+    vm.runInNewContext(fs.readFileSync('tests/fixtures/user-app-desktop-replacement/entry.js', 'utf8'), root)
+    root.odkUserAppDesktop.mount = () => { throw Error('Default desktop delegation refused') }
+    selected = root.odkUserAppDesktopReplacements[0].create().ports['odk:system/user-app-desktop/v1']
+  }
+  const controller = selected.mount({ track, layout, status, onPagesChanged() { pageChanges++ } })
   return { root, track, status, mounted, disposed, controller, change: () => changed(), pageChanges: () => pageChanges }
 }
 test('mounts placed widgets without touching built-ins and reconciles only changed frames', async () => {
@@ -88,4 +94,34 @@ test('desktop composition no longer registers a collection page', () => {
   const source = fs.readFileSync('src/renderer/config/desktop_layout.js', 'utf8')
   assert.doesNotMatch(source, /odk\.page\.user-apps/)
   assert.equal(fs.existsSync('src/renderer/plugins/user-apps.js'), false)
+})
+
+test('failed frame disposal retains the entry for a later release attempt', async () => {
+  const env = setup(async () => ({ ok: true, apps: [widget()] }))
+  const mount = env.root.odkUserAppFrame.mount
+  let attempts = 0
+  env.root.odkUserAppFrame.mount = (...args) => {
+    const mounted = mount(...args)
+    return { ...mounted, dispose() {
+      if (++attempts === 1) throw Error('Controlled frame release failure')
+      mounted.dispose()
+    } }
+  }
+  await tick()
+  assert.throws(() => env.controller.dispose(), /Controlled frame release failure/)
+  env.controller.dispose()
+  assert.equal(attempts, 2)
+  assert.equal(env.disposed.length, 1)
+})
+
+test('refresh after disposal cannot modify the released catalog status', async () => {
+  let reads = 0
+  const env = setup(async () => { reads++; return { ok: true, apps: [] } })
+  await tick()
+  env.controller.dispose()
+  const state = env.status.dataset.state, text = env.status.textContent
+  await env.controller.refresh()
+  assert.equal(env.status.dataset.state, state)
+  assert.equal(env.status.textContent, text)
+  assert.equal(reads, 1)
 })

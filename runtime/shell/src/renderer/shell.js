@@ -12,6 +12,7 @@ const effectiveLayout = odkComposer.filterLayout(window.DESKTOP_LAYOUT, disabled
 
 let geometryRaf = 0
 let pagerRef = null
+let runtimeController = null
 
 function applyGeometry() {
   const grids = [...document.querySelectorAll('.widget-grid')]
@@ -39,6 +40,7 @@ window.addEventListener('resize', () => {
   cancelAnimationFrame(geometryRaf)
   geometryRaf = requestAnimationFrame(() => {
     applyGeometry()
+    odkComposer.placeGridTiles(document.getElementById('pages-track'))
     if (pagerRef) pagerRef.refresh()
   })
 })
@@ -167,11 +169,32 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 }
 
-function main() {
+async function main() {
+  await window.odkTheme.ready
+  odkPlugins.captureDefaults()
+  try {
+    const linked = await window.odkRendererDevelopment?.load() || []
+    await odkPlugins.start({ disabled: [...disabledPlugins], replacements: [...(window.odkRendererReplacements || []), ...linked] })
+  } catch (error) {
+    console.error('Renderer replacement composition rejected:', error)
+    await odkPlugins.start({ disabled: [...disabledPlugins] })
+  }
+  window.addEventListener('pagehide', (event) => {
+    if (!event.persisted) {
+      const stopped = runtimeController ? runtimeController.stop() : odkPlugins.stop()
+      stopped.catch(error => console.error('Renderer shutdown failed:', error))
+    }
+  })
   const params = new URLSearchParams(window.location.search)
   if (params.get('kiosk') === '1') document.body.classList.add('kiosk')
   applyGeometry()
-  odkServices.subscription.refresh()
+  try {
+    Promise.resolve(odkServices.subscription.refresh()).catch(error => {
+      console.error('Initial Quota refresh failed:', error)
+    })
+  } catch (error) {
+    console.error('Initial Quota refresh failed:', error)
+  }
 
   const appView = document.getElementById('app-view')
   const appTitle = document.getElementById('app-title')
@@ -374,12 +397,12 @@ function main() {
     NETWORK_LABELS: odkServices.NETWORK_LABELS,
     SUBSCRIPTION_LABELS: odkServices.SUBSCRIPTION_LABELS,
     REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
-    connection: odkServices.connection,
-    subscription: odkServices.subscription,
-    camera: odkServices.camera,
-    remoteLink: odkServices.remoteLink,
-    briefing: odkServices.briefing,
-    homeBriefing: odkServices.homeBriefing,
+    get connection() { return odkServices.connection },
+    get subscription() { return odkServices.subscription },
+    get camera() { return odkServices.camera },
+    get remoteLink() { return odkServices.remoteLink },
+    get briefing() { return odkServices.briefing },
+    get homeBriefing() { return odkServices.homeBriefing },
     services: odkServices,
     onTick: odkServices.onTick,
     openDialog: openInfoView,
@@ -395,7 +418,7 @@ function main() {
       appEmptySub.textContent = ''
     },
     navigateToPage(pageId) {
-      const index = effectiveLayout.pages.findIndex((page) => page.id === pageId)
+      const index = [...document.getElementById('pages-track').children].findIndex(page => page.dataset.pageId === pageId)
       if (index >= 0) pagerRef?.setIndex(index)
     },
     publishPageRemote(element, remote) {
@@ -403,12 +426,12 @@ function main() {
       const index = Number(page?.dataset?.page)
       if (!Number.isInteger(index)) return
       if (remote) {
-        publishedPageRemote.set(index, {
+        publishedPageRemote.set(page, {
           actions: Array.isArray(remote.actions) ? remote.actions : [],
           focus: remote.focus === 'items' ? 'items' : 'controls',
         })
       } else {
-        publishedPageRemote.delete(index)
+        publishedPageRemote.delete(page)
       }
       refreshPageRemote(index)
     },
@@ -436,19 +459,10 @@ function main() {
   uiCtx.platform = appPlatform
   uiCtx.appPlatform = appPlatform
   uiCtx.onPlatformState = appPlatform.subscribe
-  for (const def of odkPlugins.byKind('status').filter((candidate) => !disabledPlugins.has(candidate.id))) {
-    const slot = document.querySelector(`[data-slot="status-${def.slot}"]`)
-    const host = document.createElement('span')
-    host.className = `status-plugin status-${def.id.replace(/^odk\.status\./, '')}`
-    slot.append(host)
-    if (!odkPlugins.activate(def, host, uiCtx)) {
-      host.className += ' status-plugin-error'
-      host.textContent = 'Plugin error'
-      host.title = def.id
-    }
-  }
+  odkComposer.buildStatus(uiCtx, disabledPlugins)
 
   let currentPageState = null
+  let runtimeTransition = false
   const publishedPageRemote = new Map()
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
 
@@ -465,16 +479,17 @@ function main() {
   // Focus Mode moves on it. A page-published declaration always wins over the
   // static desktop layout one, and is scoped to the page that published it.
   function pageRemoteState(index) {
-    const published = publishedPageRemote.get(index)
+    const element = track.children[index]
+    const published = publishedPageRemote.get(element)
     if (published) return published
-    const pageDef = effectiveLayout.pages[index]
+    const pageDef = window.DESKTOP_LAYOUT.pages.find(page => page.id === element?.dataset.pageId)
     const declared = Array.isArray(pageDef?.actions) ? pageDef.actions
       : Array.isArray(pageDef?.remoteActions) ? pageDef.remoteActions : []
     return { actions: declared, focus: 'controls' }
   }
 
   function publishPageState() {
-    if (!currentPageState) return
+    if (!currentPageState || runtimeTransition) return
     const state = window.odkPersonalBotStatus?.visible()
       ? { ...currentPageState, canPrev: false, canNext: false, canFocus: false, mode: 'browse', actions: [] }
       : currentPageState
@@ -521,6 +536,83 @@ function main() {
   pagerRef.buildDots(document.getElementById('dots'))
   updatePageContext(0)
   let pageIds = [...track.children].map(page => page.dataset.pageId)
+  function syncDesktopPages() {
+    const currentId = pageIds[pagerRef.currentIndex()]
+    const nextIds = [...track.children].map((page, index) => {
+      page.dataset.page = String(index)
+      return page.dataset.pageId
+    })
+    const nextNames = [...track.children].map(page => page.getAttribute('aria-label'))
+    const changed = nextIds.some((id, index) => pageIds[index] !== id) || nextIds.length !== pageIds.length
+      || nextNames.some((name, index) => pageNames[index] !== name)
+    pageIds = nextIds
+    pageNames.splice(0, pageNames.length, ...nextNames)
+    for (const element of publishedPageRemote.keys()) {
+      if (element.parentNode !== track) publishedPageRemote.delete(element)
+    }
+    applyGeometry()
+    if (changed) {
+      pagerRef.buildDots(document.getElementById('dots'))
+      const next = pageIds.indexOf(currentId)
+      pagerRef.setIndex(next >= 0 ? next : Math.min(pagerRef.currentIndex(), pageIds.length - 1), false, true)
+    } else refreshPageRemote(pagerRef.currentIndex())
+  }
+  let desktopPlugins
+  let desktopClosing = false
+  let desktopRecovery = null
+  const desktopLoading = new AbortController()
+  try {
+    desktopPlugins = window.odkUserAppDesktopPlugins.create({ replacements: window.odkUserAppDesktopReplacements || [] })
+  } catch (error) {
+    console.error('Installed desktop replacement rejected:', error)
+    desktopPlugins = window.odkUserAppDesktopPlugins.create()
+  }
+  window.odkUserAppDesktopRuntime = desktopPlugins
+  runtimeController = window.odkRendererRuntimeController.create({
+    registry: odkPlugins, composer: odkComposer, layout: window.DESKTOP_LAYOUT, track, context: uiCtx,
+    onPlacementsChanged: syncDesktopPages,
+    async onStop() {
+      desktopClosing = true
+      desktopLoading.abort()
+      const results = await Promise.allSettled([desktopPlugins.stop(), desktopRecovery])
+      const failures = results.filter(result => result.status === 'rejected').map(result => result.reason)
+      if (failures.length) throw new AggregateError(failures, 'Installed desktop shutdown failed')
+    },
+    onTransition(active) {
+      runtimeTransition = active
+      if (!active) publishPageState()
+    },
+  })
+  window.odkRendererRuntime = runtimeController
+  desktopRecovery = window.odkUserAppDesktopLoading.load({ signal: desktopLoading.signal }).catch(error => {
+    if (!desktopClosing) console.error('Installed desktop entry unavailable:', error)
+    return []
+  })
+  const desktopEntries = await desktopRecovery
+  desktopRecovery = null
+  if (desktopClosing) return
+  if (desktopEntries.length) {
+    try {
+      desktopPlugins = window.odkUserAppDesktopPlugins.create({ replacements: [...(window.odkUserAppDesktopReplacements || []), ...desktopEntries] })
+    } catch (error) {
+      console.error('Installed desktop selection rejected:', error)
+      desktopPlugins = window.odkUserAppDesktopPlugins.create()
+    }
+  }
+  try {
+    await desktopPlugins.start()
+  } catch (error) {
+    if (desktopClosing) return
+    console.error('Installed desktop startup failed:', error)
+    try {
+      await desktopPlugins.stop()
+      if (desktopClosing) return
+      desktopPlugins = window.odkUserAppDesktopPlugins.create()
+      await desktopPlugins.start()
+    } catch (cleanupError) { console.error('Installed desktop recovery retained resources:', cleanupError) }
+  }
+  if (desktopClosing) return
+  window.odkUserAppDesktopRuntime = desktopPlugins
   const notice = document.createElement('aside')
   notice.id = 'user-app-desktop-notice'
   const catalogStatus = document.createElement('p')
@@ -532,23 +624,39 @@ function main() {
   retryCatalog.textContent = 'Refresh'
   notice.append(catalogStatus, retryCatalog)
   document.body.append(notice)
-  const desktop = window.odkUserAppDesktop.mount({
+  const desktopOptions = {
     track, layout: effectiveLayout, status: catalogStatus,
     onCatalogChanged: applyGeometry,
-    onPagesChanged() {
-      const currentId = pageIds[pagerRef.currentIndex()]
-      pageIds = [...track.children].map((page, index) => {
-        page.dataset.page = String(index)
-        return page.dataset.pageId
-      })
-      pageNames.splice(0, pageNames.length, ...[...track.children].map(page => page.getAttribute('aria-label')))
-      pagerRef.buildDots(document.getElementById('dots'))
-      const next = pageIds.indexOf(currentId)
-      pagerRef.setIndex(next >= 0 ? next : Math.min(pagerRef.currentIndex(), pageIds.length - 1), false, true)
-    },
-  })
-  retryCatalog.addEventListener('click', () => { void desktop.refresh() })
-  window.addEventListener('beforeunload', () => desktop.dispose(), { once: true })
+    onPagesChanged: syncDesktopPages,
+  }
+  const desktopUnavailable = error => {
+    console.error('Installed desktop unavailable:', error)
+    if (desktopClosing) return
+    catalogStatus.hidden = false
+    catalogStatus.dataset.state = 'unavailable'
+    catalogStatus.textContent = 'Installed applications unavailable. Try refreshing.'
+  }
+  let desktop
+  try { desktop = desktopPlugins.mount(desktopOptions) } catch (error) {
+    desktopUnavailable(error)
+    desktop = { refresh() {
+      if (desktopClosing) return Promise.resolve()
+      if (desktopRecovery) return desktopRecovery
+      desktopRecovery = (async () => {
+        await desktopPlugins.stop()
+        if (desktopClosing) return
+        desktopPlugins = window.odkUserAppDesktopPlugins.create()
+        await desktopPlugins.start()
+        if (desktopClosing) return
+        window.odkUserAppDesktopRuntime = desktopPlugins
+        desktop = desktopPlugins.mount(desktopOptions)
+      })()
+      const pending = desktopRecovery
+      pending.then(() => { desktopRecovery = null }, () => { desktopRecovery = null })
+      return pending
+    } }
+  }
+  retryCatalog.addEventListener('click', () => { Promise.resolve().then(() => desktop.refresh()).catch(desktopUnavailable) })
   setInterval(publishPageState, 5000)
   window.addEventListener('odk-personal-bot-visibility', publishPageState)
 
@@ -786,4 +894,5 @@ function main() {
   gamepad.poll()
 }
 
-main()
+window.odkShellReady = main()
+window.odkShellReady.catch((error) => console.error('Shell composition failed:', error))

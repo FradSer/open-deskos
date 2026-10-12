@@ -1,12 +1,16 @@
 const fs = require('node:fs/promises')
+const path = require('node:path')
 const { listenChannel } = require('./local-channel')
 
-const COMMANDS = new Set(['install', 'rollback', 'remove', 'place'])
+const COMMANDS = new Set(['install', 'update', 'rollback', 'remove', 'place'])
 
 function createUserAppControl(store, onChange = () => {}) {
   return {
     async dispatch(request) {
-      if (!['list', 'desktop'].includes(request?.command) && !COMMANDS.has(request?.command)) return { ok: false, error: 'invalid-command' }
+      if (!['list', 'desktop', 'add'].includes(request?.command) && !COMMANDS.has(request?.command)) return { ok: false, error: 'invalid-command' }
+      if (request.command === 'add' && (typeof request.sourcePath !== 'string' || !path.isAbsolute(request.sourcePath) || request.sourcePath.includes('\0'))) {
+        return { ok: false, error: 'invalid-package-path' }
+      }
       if (COMMANDS.has(request.command) && (typeof request.appId !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(request.appId))) {
         return { ok: false, error: 'invalid-app-id' }
       }
@@ -17,7 +21,8 @@ function createUserAppControl(store, onChange = () => {}) {
           if (!Array.isArray(apps)) return { ok: false, error: 'application-store-unavailable' }
           return { ok: true, apps }
         }
-        const result = await store[request.command](request.appId, request.placement)
+        const method = request.command === 'add' ? 'addFromPath' : request.command === 'update' ? 'updateInstalled' : request.command
+        const result = await store[method](request.command === 'add' ? request.sourcePath : request.appId, request.placement)
         if (result.ok) onChange()
         return result
       } catch {

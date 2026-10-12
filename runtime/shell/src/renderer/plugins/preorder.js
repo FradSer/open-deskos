@@ -42,10 +42,14 @@
       const count = el.querySelector('.preorder-count')
       const coverWrap = el.querySelector('.preorder-figure')
       const cover = el.querySelector('.preorder-cover')
+      let released = false
+      ctx.trackCleanup?.(() => { released = true })
       let currentTheme = ''
       const drawHero = () => {
+        if (released || ctx.signal?.aborted) return
         const img = new Image()
         img.onload = () => {
+          if (released || ctx.signal?.aborted) return
           const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
           currentTheme = theme
           const targetH = Math.max(1, Math.round(coverWrap.clientHeight || 434))
@@ -105,6 +109,7 @@
       drawHero()
       let shown = ''
       ctx.onTick((now) => {
+        if (released || ctx.signal?.aborted) return
         const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
         if (theme !== currentTheme) drawHero()
         const left = remaining(now instanceof Date ? now.getTime() : Date.now())

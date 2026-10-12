@@ -1,4 +1,10 @@
 Feature: Responsive summary widget interiors
+  Scenario: Resize applies placement after the new grid metrics
+    Given the desktop keeps multi-cell Widget spans in a wide window
+    When a hidden window resizes to a compact grid
+    Then placement uses the new cell dimensions and grid lines in the same geometry update
+    And obsolete wide spans cannot remain because an observer ran before that update
+
   Scenario: Pre-order remains readable in a compact square
     Given Home is rendered at 480 by 854 in every supported theme
     When the countdown has three day digits or has opened

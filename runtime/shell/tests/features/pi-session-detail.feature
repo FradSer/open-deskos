@@ -1,5 +1,89 @@
 Feature: Pi Sessions live session list with a Remote session reader
 
+  Scenario: Trusted external entries preserve separate App and Page behavior
+    Given the CLI links trusted external Pi App and Page entries
+    When the Shell loads those entries through authenticated discovery
+    Then both external factories execute without calling packaged default mounts
+    And session, event, isolation, and released-view scenarios retain their behavior
+
+  Scenario: Signed external entries preserve separate App and Page behavior
+    Given the CLI installs signed Pi App and Page bundles with explicit publisher trust
+    When the Shell loads their captured signed bytes through authenticated discovery
+    Then both external factories execute without calling packaged default mounts
+    And session, event, isolation, and released-view scenarios retain their behavior
+    And shutdown releases discovery and signed asset routes
+
+  Scenario: Pi App and Page comparisons render without a visible host window
+    Given the comparison uses private state and controlled session and event readings
+    When default and selected Pi views run on a supported host
+    Then the hidden window renders frames without taking focus
+    And Linux selects software rendering before application readiness
+    And loading, isolation, release, and recovery assertions remain unchanged
+
+  Scenario: Linux arm64 Pi view comparisons have a bounded complete matrix budget
+    Given the existing matrix compares both view kinds across three themes and two sizes
+    When the comparison runs on Linux arm64
+    Then its fixture has a fixed 150-second deadline inside its child and test deadlines
+    And negative entry guards can reach the selected implementation after the default matrix
+    And four-second reading waits and ten-second CLI operations remain unchanged
+    And other hosts retain their existing deadlines
+
+  Scenario: Production Main composes signed Pi views with their selected sources
+    Given production Main starts with signed Pi App, Page, session, and event entries
+    When the Page and App read the controlled Desk Link session
+    Then both views show the selected session and its reported event
+    And neither view mounts the packaged default implementation
+    And closing the App keeps the Page usable
+    And shutdown releases their IPC handlers and signed asset route
+
+  Scenario: Signed Pi view revisions preserve behavior and retained package bytes
+    Given signed Pi App and Page revisions are installed through the CLI
+    When the CLI updates both views and production Main starts again
+    Then the new view entry bytes execute and preserve session and event readings
+    When an unsigned edit is submitted as another update
+    Then the CLI rejects it and preserves saved selections
+    When the CLI rolls back and later removes both view selections
+    Then the former signed views and packaged defaults preserve those readings
+    And stored signed revisions and other plugin preferences remain unchanged
+
+  Scenario: Runtime Pi view selection respects foreground ownership
+    Given signed Pi views run through production Main with the Pi App open
+    When the authenticated CLI requests App restoration
+    Then the request fails and the running App remains unchanged
+    When the App closes and restoration is requested again
+    Then the packaged App can open with the same readings
+    And Page restoration and activation preserve the document, container, and unrelated foreground App
+    And signed App activation succeeds after that App closes
+    And runtime operations preserve saved configuration and other Main plugin instances
+
+  Scenario: Failed Tick release retains cleanup ownership without retaining write permission
+    Given a Pi App or Page has an observed active Tick subscription
+    When its first cancellation fails before releasing the subscription
+    Then its captured callback starts no new session read and changes no former nodes
+    And an explicit close or disable retry releases that same subscription
+    When a fresh instance opens
+    Then its own callback refreshes readings while the former callback remains inactive
+
+  Scenario: Startup selection preserves separate App and Page factories
+    Given trusted startup replacements capture their own Pi App and Page factories
+    When the existing browser scenarios use selected session and event sources
+    Then the selected factories preserve filters, session detail, events, and failure states
+    And the App and Page remain independently replaceable
+    And neither selected factory calls a packaged default mount function
+
+  Scenario: Released App and Page callbacks start no new reads
+    Given a Pi App or Page has released its Tick subscription
+    When a previously captured Tick callback runs again
+    Then it starts no session scan through preload
+    And the released view remains inactive
+
+  Scenario: A released view cannot consume its delayed response after reopening
+    Given a Pi App or Page has an unfinished session or event response
+    When the view closes and a fresh instance opens with current readings
+    And the former response completes
+    Then the former nodes remain unchanged
+    And the fresh instance keeps its current session and event readings
+
   Scenario: The Session Detail carries no page title or controls
     Given a session is shown in the Session Detail
     Then the page has one view heading and that heading is the session's Pi state

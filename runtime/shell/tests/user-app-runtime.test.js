@@ -39,9 +39,67 @@ test('verifier rejects oversized input before spawning a child', async () => {
   assert.deepEqual(result, { ok: false, error: 'html-too-large' })
 })
 
+test('verifier runner isolates both Electron profiles and hides its Dock entry before readiness', () => {
+  const paths = []
+  let hidden = false
+  const app = { setPath: (name, value) => paths.push([name, value]),
+    dock: { hide: () => { hidden = true } }, disableHardwareAcceleration() {} }
+  const profile = path.resolve('private-verifier-profile')
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/user-app-verifier-runner.js'), 'utf8'), {
+    module: { exports: {} }, process: { platform: 'darwin', argv: ['electron', '/fixture/user-app-verifier-runner.js', '/bundle', '/result', profile] },
+    require(name) {
+      if (name === 'electron') return { app, protocol: { registerSchemesAsPrivileged() {
+        assert.deepEqual(paths, [['userData', profile], ['sessionData', profile]])
+        assert.equal(hidden, true)
+      } } }
+      if (name === './user-app-content') return {}
+      if (name === './user-app-context') return {}
+      if (name === './user-app-system') return { USER_APP_SCHEME_PRIVILEGES: {} }
+      throw Error(`Unexpected runner import: ${name}`)
+    },
+  })
+  assert.deepEqual(paths, [['userData', profile], ['sessionData', profile]])
+  assert.equal(hidden, true)
+})
+
 // The runner is a GUI process on Windows, where a piped stdin is not a channel it
 // can read: the bundle travels as a file and the result comes back as a file, so
 // neither direction depends on the child's standard streams.
+test('verifier runner creates a hidden window without background throttling', { timeout: 1000 }, async () => {
+  let options
+  let done
+  const closed = new Promise(resolve => { done = resolve })
+  const app = { setPath() {}, disableHardwareAcceleration() {}, whenReady: async () => {}, exit: done }
+  const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
+    webRequest: { onBeforeRequest() {} } } }
+  const protocol = { registerSchemesAsPrivileged() {}, handle() {} }
+  class BrowserWindow {
+    constructor(value) {
+      options = value
+      this.webContents = { setWindowOpenHandler() {}, on() {}, executeJavaScript: async () => ({ visible: true, error: '' }) }
+    }
+    async loadURL() {}
+  }
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/user-app-verifier-runner.js'), 'utf8'), {
+    module: { exports: {} }, process: { platform: 'linux', argv: ['electron', '/fixture/user-app-verifier-runner.js', '/bundle', '/result', '/profile'],
+      pid: 1, stdout: { write() {} } }, Buffer, setTimeout: callback => callback(), setImmediate: callback => callback(),
+    require(name) {
+      if (name === 'electron') return { app, session, protocol, BrowserWindow }
+      if (name === './user-app-content') return { buildUserAppDocument: () => '<body>Fixture</body>' }
+      if (name === './user-app-context') return {}
+      if (name === './user-app-system') return { USER_APP_SCHEME_PRIVILEGES: {} }
+      if (name === 'node:fs') return { statSync: () => ({ size: 30 }), readFileSync: () => JSON.stringify({ html: '<body>Fixture</body>' }), writeFileSync() {} }
+      throw Error(`Unexpected runner import: ${name}`)
+    },
+  })
+  assert.equal(await closed, 0)
+  assert.equal(options.show, false)
+  assert.equal(options.webPreferences.backgroundThrottling, false)
+  assert.equal(options.webPreferences.contextIsolation, true)
+  assert.equal(options.webPreferences.nodeIntegration, false)
+  assert.equal(options.webPreferences.sandbox, true)
+})
+
 test('verifier hands the bundle over as a file and reads the result from one', async () => {
   const seen = []
   const spawnProcess = (command, args, options) => {
@@ -197,10 +255,18 @@ test('real Electron verifier rejects a bundle with a JavaScript exception', asyn
 
 test('real Electron verifier kills an infinite bundle by deadline', async () => {
   const started = Date.now()
-  const result = await verifier(1200).verify({ html: '<body><script>while (true) {}</script></body>' })
+  let childClosed = false
+  const owned = createUserAppVerifier({ electronPath, timeoutMs: 1200, spawnProcess(...args) {
+    const child = require('node:child_process').spawn(...args)
+    child.once('close', () => { childClosed = true })
+    return child
+  } })
+  const result = await owned.verify({ html: '<body><script>while (true) {}</script></body>' })
   assert.equal(result.ok, false)
   assert.equal(result.error, 'verification-timeout')
   assert.ok(Date.now() - started < 5000)
+  await owned.close()
+  assert.equal(childClosed, true, 'release requires actual hostile child closure')
 })
 
 test('real Electron verifier blocks hostile navigation without crashing', async () => {
@@ -235,4 +301,57 @@ test('the served package document publishes data through the system bridge it al
   assert.deepEqual(JSON.parse(JSON.stringify(dataMessages().at(-1))), { type: 'odk-user-app-data', token: 'secret-token', data: { remaining_seconds: 90 } })
   packageWindow.odkPackageData.publish('not-an-object')
   assert.equal(dataMessages().length, 1, 'the bridge sends only an object')
+})
+
+test('deadline preserves a committed failure when the verifier cannot exit', async t => {
+  const signals = []
+  const originalKill = process.kill
+  process.kill = (pid, signal) => { signals.push([pid, signal]); return true }
+  t.after(() => { process.kill = originalKill })
+  const result = await createUserAppVerifier({ timeoutMs: 20, spawnProcess: (_command, args) => {
+    fs.writeFileSync(args[3], JSON.stringify({ ok: false, error: 'broken app' }))
+    const child = fakeChild({ close: false })
+    child.kill = signal => signals.push([child.pid, signal])
+    return child
+  } }).verify({ html: '<body>fixture</body>' })
+  assert.deepEqual(signals, [[process.platform === 'win32' ? 4242 : -4242, 'SIGKILL']])
+  assert.deepEqual(result, { ok: false, error: 'broken app' })
+})
+
+test('deadline never accepts success or console claims before verifier exit', async () => {
+  for (const value of [null, { ok: true }, { ok: false, error: 42 }, { ok: false, error: '' }, { ok: false, error: 'x'.repeat(64 * 1024) }]) {
+    const result = await createUserAppVerifier({ timeoutMs: 20, spawnProcess: (_command, args) => {
+      fs.writeFileSync(args[3], JSON.stringify(value))
+      const child = fakeChild({ close: false })
+      child.pid = undefined
+      setImmediate(() => child.stdout.emit('data', JSON.stringify({ ok: false, error: 'console claim' })))
+      return child
+    } }).verify({ html: '<body>fixture</body>' })
+    assert.equal(result.error, 'verification-timeout')
+  }
+})
+
+test('verifier drain waits for child closure and permits subsequent verification', async t => {
+  let firstChild, count = 0
+  const controller = new AbortController()
+  const owned = createUserAppVerifier({ electronPath: 'fixture-electron', spawnProcess(_command, args) {
+    fs.writeFileSync(args[3], JSON.stringify({ ok: true }))
+    const child = fakeChild({ close: ++count > 1 })
+    child.pid = undefined
+    if (count === 1) firstChild = child
+    return child
+  } })
+  t.after(async () => { firstChild?.emit('close', 0); await owned.close() })
+  const verifying = owned.verify({ html: '<body>Fixture</body>' }, { signal: controller.signal })
+  controller.abort()
+  assert.equal((await verifying).error, 'verification-aborted')
+  assert.equal(typeof owned.drain, 'function')
+  let finished = false
+  const draining = owned.drain().then(() => { finished = true })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(finished, false)
+  firstChild.emit('close', 0)
+  await draining
+  assert.equal((await owned.verify({ html: '<body>Next fixture</body>' })).ok, true)
+  await owned.close()
 })

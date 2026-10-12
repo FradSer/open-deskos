@@ -1,5 +1,18 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+contextBridge.exposeInMainWorld('odkRendererControlBridge', {
+  onRequest(listener) {
+    const handler = (_event, request) => listener(request)
+    ipcRenderer.on('odk-renderer-control-request', handler)
+    return () => ipcRenderer.removeListener('odk-renderer-control-request', handler)
+  },
+  report: (requestId, result) => ipcRenderer.send('odk-renderer-control-report', { requestId, result }),
+})
+
+contextBridge.exposeInMainWorld('odkRendererPluginBridge', {
+  list: () => ipcRenderer.invoke('odk-renderer-development-plugins'),
+})
+
 contextBridge.exposeInMainWorld('odkPlatform', {
   getOpenCodeGoStatus: () => ipcRenderer.invoke('odk-opencode-go-status'),
   getCameraFrame: () => ipcRenderer.invoke('odk-camera-frame'),
@@ -47,9 +60,21 @@ contextBridge.exposeInMainWorld('odkPersonalBot', {
 contextBridge.exposeInMainWorld('odkRemote', {
   publishPageState: (state) => ipcRenderer.invoke('odk-remote-publish-page-state', state),
   subscribeLinkState(listener) {
-    const handler = (_event, update) => listener(update.state)
+    let active = true
+    let received = false
+    const handler = (_event, update) => {
+      if (!active) return
+      received = true
+      listener(update.state)
+    }
     ipcRenderer.on('odk-remote-link-state', handler)
-    return () => ipcRenderer.removeListener('odk-remote-link-state', handler)
+    ipcRenderer.invoke('odk-remote-link-state').then(update => {
+      if (active && !received) listener(update.state)
+    }, () => {}).catch(error => console.error('Remote Link callback failed:', error))
+    return () => {
+      active = false
+      ipcRenderer.removeListener('odk-remote-link-state', handler)
+    }
   },
   subscribeNavigation(listener) {
     const handler = (_event, navigation) => listener(navigation.direction)
@@ -67,4 +92,14 @@ contextBridge.exposeInMainWorld('odkRemote', {
     ipcRenderer.on('odk-remote-input', handler)
     return () => ipcRenderer.removeListener('odk-remote-input', handler)
   },
+})
+
+
+contextBridge.exposeInMainWorld('odkPluginDiagnosis', {
+  onRequest(listener) {
+    const handler = (_event, request) => listener(request)
+    ipcRenderer.on('odk-plugin-runtime-request', handler)
+    return () => ipcRenderer.removeListener('odk-plugin-runtime-request', handler)
+  },
+  report: (requestId, plugins) => ipcRenderer.send('odk-plugin-runtime-report', { requestId, plugins }),
 })

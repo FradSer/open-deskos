@@ -1,5 +1,6 @@
 const { execFile } = require('node:child_process')
 const { scanPiSessions } = require('./pi-sessions')
+const { createPiReadSource } = require('./pi-read-source')
 
 function quote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`
@@ -109,7 +110,7 @@ function dedupeSnapshot(data) {
   }
 }
 
-function scanRemote(config, source, execute) {
+function scanRemote(config, source, execute, signal) {
   const { host, node, collector } = config
   const validPath = (value) => typeof value === 'string' && value.startsWith('/') && !/[\r\n\0]/.test(value)
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$/.test(host || '') || !validPath(node) || !validPath(collector)) {
@@ -120,16 +121,39 @@ function scanRemote(config, source, execute) {
     '-o', 'ServerAliveCountMax=1', '-o', 'ClearAllForwardings=yes', host,
     `${quote(node)} ${quote(collector)}`]
   return new Promise((resolve) => {
-    execute('ssh', args, { encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024, killSignal: 'SIGKILL' }, (error, stdout, stderr) => {
+    let child
+    let launched = false
+    let closed = false
+    let completed = false
+    let settled = false
+    let result
+    const onClose = () => {
+      closed = true
+      if (completed) finish(result)
+    }
+    const finish = value => {
+      if (settled) return
+      result = value
+      completed = true
+      // execFile reports AbortError before the process and stdio close.
+      if (signal?.aborted && !closed && (!launched || typeof child?.once === 'function')) return
+      settled = true
+      child?.removeListener?.('close', onClose)
+      resolve(value)
+    }
+    child = execute('ssh', args, { encoding: 'utf8', timeout: 10000, maxBuffer: 2 * 1024 * 1024, killSignal: 'SIGKILL', signal }, (error, stdout, stderr) => {
       // A Windows host's ssh client can deliver the collector's line and then stay
       // alive until the deadline kills it, so the snapshot is read before the exit
       // status is considered: waiting for an exit would report a working remote
       // source as unavailable.
       const parsed = parseSnapshot(stdout)
-      if (parsed) return resolve({ ...parsed, source })
-      if (error) return resolve(unavailable(source, `SSH scan unavailable: ${failureDetail(stderr, error)}`))
-      resolve(unavailable(source, 'SSH collector returned an invalid or stale snapshot.'))
+      if (parsed) return finish({ ...parsed, source })
+      if (error) return finish(unavailable(source, `SSH scan unavailable: ${failureDetail(stderr, error)}`))
+      finish(unavailable(source, 'SSH collector returned an invalid or stale snapshot.'))
     })
+    launched = true
+    if (!settled) child?.once?.('close', onClose)
+    if (completed) finish(result)
   })
 }
 
@@ -150,20 +174,24 @@ function failureDetail(stderr, error) {
   return said ? `${guidance} It said: ${said.slice(-300)}` : guidance
 }
 
-function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions, execute = execFile, deskLink = null } = {}) {
+function createConfiguredPiSessionReader({ env = process.env, scanLocal = scanPiSessions, execute = execFile } = {}) {
   const config = { host: env.ODK_PI_SSH_HOST, node: env.ODK_PI_SSH_NODE, collector: env.ODK_PI_SSH_COLLECTOR }
   const remote = Object.values(config).some((value) => value !== undefined)
   const source = remote
     ? { kind: 'ssh', label: `Mac / SSH · ${config.host || 'unconfigured'}` }
     : { kind: 'local', label: 'Local' }
-  let pending
-  // A connected Desk Link answers first: its machine owns those sessions, so
-  // mixing it with a filesystem or SSH scan would report one list from two
-  // sources. With no connected link the configured SSH source, then the local
-  // collector, answer exactly as before.
-  const scanConfiguredSource = () => (remote
-    ? scanRemote(config, source, execute)
-    : Promise.resolve().then(scanLocal).then((data) => ({ ...data, source })))
+  const stopped = () => unavailable(source, 'Pi source stopped.')
+  return { source, read: ({ signal: active }) => (remote
+    ? scanRemote(config, source, execute, active)
+    : Promise.resolve().then(() => active.aborted ? stopped() : scanLocal()).then((data) => ({ ...data, source }))) }
+}
+
+function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions, execute = execFile, deskLink = null, signal } = {}) {
+  const configured = createConfiguredPiSessionReader({ env, scanLocal, execute })
+  const source = configured.source
+  const stopped = () => unavailable(source, 'Pi source stopped.')
+  // Connected reporting machines own their snapshot; Hosted Pi overlays it.
+  const scanConfiguredSource = active => configured.read({ signal: active })
 
   function overlayHosted(data, hosted) {
     if (data?.ok !== true || !Array.isArray(data.sessions) || hosted?.ok !== true || !Array.isArray(hosted.sessions) || hosted.sessions.length === 0) return data
@@ -177,21 +205,21 @@ function createPiSessionsSource({ env = process.env, scanLocal = scanPiSessions,
     return { ...data, sessions, workspaces: [...workspaces.values()], summary: summaryFor(sessions, workspaces.size) }
   }
 
-  function scan() {
+  function scan(active, own) {
+    if (active.aborted) return Promise.resolve(stopped())
     // Reported Sessions still replace only the scanned reporting source. Hosted
     // Pi is desk-owned and overlays whichever normal source answered.
-    if (!deskLink) return scanConfiguredSource().then((data) => data?.ok === true ? dedupeSnapshot(data) : data)
-    return Promise.all([deskLink.machines(), deskLink.hostedSessions?.() ?? { ok: false, sessions: [] }])
-      .then(([machines, hosted]) => Promise.resolve(machines.length === 0 ? scanConfiguredSource() : deskLink.snapshot())
-        .then((data) => overlayHosted(data?.ok === true ? dedupeSnapshot(data) : data, hosted)))
+    if (!deskLink) return scanConfiguredSource(active).then((data) => data?.ok === true ? dedupeSnapshot(data) : data)
+    return Promise.all([own(deskLink.machines({ signal: active })), own(deskLink.hostedSessions?.({ signal: active }) ?? { ok: false, sessions: [] })])
+      .then(([machines, hosted]) => {
+        if (active.aborted) return stopped()
+        return Promise.resolve(machines.length === 0 ? scanConfiguredSource(active) : deskLink.snapshot({ signal: active }))
+          .then((data) => overlayHosted(data?.ok === true ? dedupeSnapshot(data) : data, hosted))
+      })
   }
 
-  return () => {
-    if (!pending) {
-      pending = scan().catch(() => unavailable(source, 'Pi scan unavailable.')).finally(() => { pending = null })
-    }
-    return pending
-  }
+  return createPiReadSource({ signal, coalesce: true, unavailable: stopped,
+    read: (active, own) => scan(active, own).catch(() => unavailable(source, 'Pi scan unavailable.')) })
 }
 
-module.exports = { createPiSessionsSource, dedupeSessions, dedupeSnapshot }
+module.exports = { createPiSessionsSource, createConfiguredPiSessionReader, dedupeSessions, dedupeSnapshot }

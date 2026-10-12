@@ -158,7 +158,8 @@ test('a Windows voice connection presents the channel token before the protocol'
   client.start()
   await settled
   assert.deepEqual(handshakes, [{ v: 1, token }])
-  assert.deepEqual(commands, [{ v: 1, type: 'status' }])
+  assert.deepEqual(commands, [{ v: 1, type: 'status', runtimeDiagnosis: 1 }])
+  assert.equal((await client.diagnose())[0].reason, 'not-supported')
   // One host token file serves both ends, so neither side carries a second copy.
   assert.equal((await fs.readFile(host.localChannelTokenFile, 'utf8')).trim(), token)
 })
@@ -200,6 +201,7 @@ test('a Unix voice socket still receives the protocol with no handshake', async 
   client.start()
   await stateIs(client, 'recording', 'the service to report recording')
   assert.deepEqual(handshakes, [])
-  assert.deepEqual(commands, [{ v: 1, type: 'status' }])
+  assert.deepEqual(commands, [{ v: 1, type: 'status', runtimeDiagnosis: 1 }])
+  assert.equal((await client.diagnose())[0].reason, 'not-supported')
   assert.equal(client.toggle(), true)
 })

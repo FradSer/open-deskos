@@ -1,13 +1,24 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { scanPiSessions } = require('../src/pi-sessions')
+const { runFixture } = require('./helpers/electron-fixture')
 
 if (process.platform === 'darwin') app.dock.hide()
 const homeTestProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-e2e-'))
 app.setPath('userData', homeTestProfile)
-app.once('will-quit', () => fs.rmSync(homeTestProfile, { recursive: true, force: true }))
+app.setPath('sessionData', homeTestProfile)
+const cleanupProfile = () => {
+  try { fs.rmSync(homeTestProfile, { recursive: true, force: true }) }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error
+    console.warn('Temporary E2E profile remains locked after shutdown')
+  }
+}
+app.once('will-quit', cleanupProfile)
+process.once('exit', cleanupProfile)
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
@@ -41,6 +52,9 @@ const DRIVER_SCRIPT = `
 
   out.pluginIds = window.odkPlugins ? [...window.odkPlugins.ids()].sort() : []
   out.pluginsUseOdkIdentity = out.pluginIds.every((id) => id.startsWith('odk.'))
+  const catalog = window.odkPlugins.catalog()
+  out.rendererHostRunning = catalog.length === out.pluginIds.length
+    && catalog.every((entry) => entry.manifest.host === 'electron-renderer' && entry.state === 'running')
   out.pluginsHaveCompleteLifecycle = out.pluginIds.every((id) => {
     const lifecycle = window.odkPlugins.get(id).lifecycle
     return ['mount', 'unmount']
@@ -482,6 +496,7 @@ function check(results) {
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
+    ['renderer plugins run on the common host', results.rendererHostRunning],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
       ['odk.tile.almanac', 'odk.tile.clock', 'odk.tile.camera', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
@@ -735,6 +750,7 @@ async function main() {
   const piFixture = createPiFixture()
   const cleanupPiFixture = () => fs.rmSync(piFixture.root, { recursive: true, force: true })
   process.once('exit', cleanupPiFixture)
+  ipcMain.handle('odk-renderer-development-plugins', () => [])
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_CLIPROXY_MANAGEMENT_KEY or ODK_CLIPROXY_MANAGEMENT_KEY_FILE'] }))
   ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
   ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
@@ -801,8 +817,7 @@ async function main() {
     useContentSize: true,
     frame: false,
     // Runs behind other windows on purpose: backgroundThrottling off keeps rAF
-    // alive without the test window stealing desktop focus. Keyboard-path probes
-    // still work because the test focuses the window explicitly.
+    // alive without the test window requesting desktop focus.
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -891,20 +906,11 @@ async function main() {
   cleanupPiFixture()
 
   win.close()
-  const interiors = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-app-styles.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const interiors = runFixture('widget-app-styles.cjs')
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)
-  const sequential = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-sequential-refinement.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const sequential = runFixture('widget-sequential-refinement.cjs')
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
-  const hydraComposition = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'hydra-style.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const hydraComposition = runFixture('hydra-style.cjs')
   if (hydraComposition.error) console.error(`FAIL  hydra composition checks: ${hydraComposition.error.message}`)
   const densityRuns = [
     ['--state=unavailable', '--theme=instrument'],
@@ -913,14 +919,11 @@ async function main() {
     ['--date=2026-01-01T00:00:00', '--theme=instrument'],
     ['--theme=pixel'],
     ['--theme=border-beam'],
-  ].map(args => require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-density.cjs'), ...args], {
-    stdio: 'inherit',
-    timeout: 120000,
-  }))
+  ].map(args => runFixture('widget-density.cjs', args))
   const themeUiRuns = ['system-overlay-alerts-style.cjs', 'agent-home.cjs', 'page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
-    require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, file)], {
-      stdio: 'inherit',
-      timeout: process.arch === 'arm64' ? 300000 : 120000,
+    runFixture(file, [], {
+      timeout: file === 'page-indicator.cjs' && process.platform === 'win32'
+        ? 960000 : process.arch === 'arm64' ? 300000 : 120000,
     }))
   const subStatuses = {
     driverFailures, motionFailures, sweepFailures,

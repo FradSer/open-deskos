@@ -8,6 +8,13 @@ const { tokenFile } = require('../local-channel')
 // out. A Windows host keeps the same logical names and maps each to a named
 // pipe, so a ported link inherits the naming instead of inventing a transport.
 const LINK_ENDPOINTS = {
+  'plugin-control': ['open-deskos-plugins', 'control.sock'],
+  'renderer-plugin-control': ['open-deskos-plugins', 'renderer-control.sock'],
+  'remote-plugin-control': ['open-deskos-remote', 'bridge.sock.control'],
+  'personal-bot-control': ['open-deskos-personal-bot', 'control.sock'],
+  'hosted-pi-control': ['open-deskos-hosted-pi', 'control.sock'],
+  'futu-plugin-control': ['open-deskos-futu', 'control.sock'],
+  'plugin-diagnostics': ['open-deskos-plugins', 'diagnose.sock'],
   'user-app-control': ['open-deskos-apps', 'control.sock'],
   'remote-bridge': ['open-deskos-remote', 'bridge.sock'],
   'personal-bot': ['open-deskos-personal-bot', 'agent.sock'],

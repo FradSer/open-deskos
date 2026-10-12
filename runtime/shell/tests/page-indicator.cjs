@@ -3,10 +3,19 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { resolvePages } = require('./helpers/pages')
 
+if (process.platform === 'darwin') app.dock.hide()
 const root = path.resolve(__dirname, '..')
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-page-indicator-'))
+const cleanupProfile = () => {
+  try { fs.rmSync(profile, { recursive: true, force: true }) }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error
+    console.warn('Temporary indicator profile remains locked after shutdown')
+  }
+}
 app.setPath('userData', profile)
 const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
 const themes = ['instrument', 'border-beam', 'pixel']
@@ -22,6 +31,11 @@ function check(name, ok, detail) {
   }
 }
 
+ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
+ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
@@ -128,16 +142,11 @@ async function sizeChecks(win, theme, width, height) {
 }
 
 async function keyboardChecks(win, theme) {
-  win.focus()
-  win.webContents.focus()
   for (const [index, keyCode] of [[1, 'Enter'], [2, 'Space']]) {
     await js(win, `document.querySelectorAll('.dot')[${index - 1}].focus()`)
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
-    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
+    await key(win, 'Tab')
     await waitFor(win, `document.activeElement === document.querySelectorAll('.dot')[${index}] && document.activeElement.matches(':focus-visible')`)
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode })
-    if (keyCode === 'Enter') win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' })
-    win.webContents.sendInputEvent({ type: 'keyUp', keyCode })
+    await key(win, keyCode)
     await waitFor(win, `document.querySelectorAll('.dot')[${index}].getAttribute('aria-current') === 'page' && document.activeElement === document.querySelectorAll('.dot')[${index}] && document.activeElement.matches(':focus-visible')`)
     const result = await js(win, `(() => ({
       instant: getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s',
@@ -154,6 +163,16 @@ async function keyboardChecks(win, theme) {
   await waitFor(win, `document.querySelectorAll('.dot')[${target}].getAttribute('aria-current') === 'page'`)
   const announcement = `Pi Sessions · ${target + 1}/${total}`
   check(`${theme}: Remote selection updates marker and announcement`, await js(win, `document.querySelector('#page-context').textContent === '${announcement}' && getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s'`))
+}
+
+async function key(win, code) {
+  const windowsVirtualKeyCode = { Tab: 9, Enter: 13, Space: 32 }[code]
+  const key = code === 'Space' ? ' ' : code
+  await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode })
+  if (code !== 'Tab') await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', {
+    type: 'char', key, code, windowsVirtualKeyCode, text: code === 'Enter' ? '\r' : ' ',
+  })
+  await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode })
 }
 
 async function themeChecks(win) {
@@ -191,12 +210,11 @@ async function main() {
   const win = new BrowserWindow({ width: 1000, height: 800, show: false, frame: false, useContentSize: true,
     webPreferences: { preload: path.join(root, 'src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   })
-  win.focus()
-  win.webContents.focus()
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await js(win, 'document.fonts.ready')
   await waitFor(win, `document.querySelector('#sb-pi-count').textContent === '2'`)
   win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
   const initialTheme = await js(win, `odkTheme.set('pixel'), document.documentElement.dataset.theme`)
   assert.equal(initialTheme, 'pixel', 'display theme must default to pixel')
   for (const theme of themes) {
@@ -225,6 +243,7 @@ async function main() {
 // the CM5's arm64 a five-page budget killed the run mid-matrix, and app.exit
 // destroyed the window inside an await (surfacing as "Object has been
 // destroyed") before the gate could report a verdict.
-const timeout = setTimeout(() => { console.error('Page indicator timed out'); app.exit(1) }, process.arch === 'arm64' ? 900000 : 60000)
-process.once('exit', () => fs.rmSync(profile, { recursive: true, force: true }))
+// The Windows handheld also exhausted 60 seconds before finishing its first theme.
+const timeout = setTimeout(() => { console.error('Page indicator timed out'); app.exit(1) }, process.arch === 'arm64' || process.platform === 'win32' ? 900000 : 60000)
+process.once('exit', cleanupProfile)
 app.whenReady().then(main).then(() => { clearTimeout(timeout); app.exit(0) }).catch(error => { console.error(error); app.exit(1) })

@@ -200,3 +200,18 @@ test('a package declares the data it may publish and an invalid declaration is n
   await fs.writeFile(path.join(bad, 'manifest.json'), JSON.stringify({ ...declared, id: 'bad-data', name: 'Bad', data: { fields: { remaining_seconds: { type: 'number', extra: true } } } }))
   assert.equal((await store.install('bad-data')).error, 'invalid-manifest')
 })
+
+test('imports local packages without a workspace and serializes their verified snapshots', async () => {
+  const f = await fixture()
+  await draft(f.workspace, 'one', '1', '<p>one</p>')
+  await draft(f.workspace, 'two', '1', '<p>two</p>')
+  const store = createUserAppStore({ stateDir: f.stateDir, verify: () => true })
+  const results = await Promise.all(['one', 'two'].map(id => store.addFromPath(path.join(f.workspace, 'apps', id))))
+  assert.ok(results.every(result => result.ok))
+  assert.deepEqual((await store.list()).map(app => app.id).sort(), ['one', 'two'])
+  await fs.rm(f.workspace, { recursive: true })
+  const restarted = createUserAppStore({ stateDir: f.stateDir, verify: () => true })
+  assert.equal((await restarted.getContent('one')).html, '<p>one</p>')
+  assert.equal((await restarted.getContent('two')).html, '<p>two</p>')
+  assert.deepEqual(await restarted.addFromPath('../relative'), { ok: false, error: 'unsafe-package' })
+})

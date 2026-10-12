@@ -12,7 +12,7 @@ function loadSource(relative, root) {
 }
 
 function createShellRoot() {
-  const root = {}
+  const root = { odkPluginHost: require('../src/plugin-host') }
   loadSource('core/registry.js', root)
   return root
 }
@@ -38,7 +38,7 @@ test('a throwing mount is contained: activate returns false and cleans the eleme
   assert.equal(root.odkPlugins.has('odk.tile.broken'), true)
 })
 
-test('a throwing unmount does not break teardown and still runs cleanups', () => {
+test('a throwing unmount reports failed release and still runs cleanups', async () => {
   const root = createShellRoot()
   const cleaned = []
   const el = {}
@@ -55,13 +55,13 @@ test('a throwing unmount does not break teardown and still runs cleanups', () =>
   }
   root.odkPlugins.register(def)
   assert.equal(root.odkPlugins.activate(def, el, {}), true)
-  assert.doesNotThrow(() => root.odkPlugins.deactivate(def, el, {}))
+  await assert.rejects(root.odkPlugins.deactivate(def, el, {}), /surface release failed/)
   assert.deepEqual(cleaned, ['cleanup'])
 })
 
 test('one widget throwing in the shared tick does not starve the others', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] })
-  const root = {}
+  const root = { odkPluginHost: require('../src/plugin-host') }
   vm.runInContext(
     fs.readFileSync(path.join(RENDERER_DIR, 'core/services.js'), 'utf8'),
     vm.createContext({

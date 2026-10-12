@@ -31,6 +31,9 @@ app.whenReady().then(async () => {
     webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true,
       nodeIntegration: false, offscreen: true, backgroundThrottling: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
+  // Hidden windows can start at 1x1 before their first layout on Linux.
+  win.setContentSize(1920, 1280)
+  await evaluate(`window.dispatchEvent(new Event('resize'))`)
   await evaluate('document.fonts.ready')
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.source.hydra",
+  "name": "Hydra replacement acceptance fixture",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [
+    { "interface": "odk:source/hydra/v1" },
+    { "interface": "odk:desk-reading/hydra/v1" },
+    { "interface": "odk:plugin-health/odk.source.hydra/v1" }
+  ],
+  "requires": [],
+  "permissions": ["source.hydra", "ipc"]
+}

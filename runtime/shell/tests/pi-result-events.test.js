@@ -118,12 +118,36 @@ test('a result beyond the local tail limit is unavailable rather than a false em
   }
 })
 
-test('main IPC routes local and reported events through the tested source seam', () => {
-  const fs = require('node:fs')
-  const path = require('node:path')
-  const main = fs.readFileSync(path.join(__dirname, '../src/main.js'), 'utf8')
-  assert.match(main, /createPiSessionEventsSource\(\{ deskLink \}\)/)
-  assert.match(main, /return readPiSessionEvents\(\{ cwd, sessionId, hostedPi: request\?\.hostedPi === true \}\)/)
+test('plugin IPC routes local and reported events through the tested source seam', async () => {
+  const { createPluginHost } = require('../src/plugin-host')
+  const { createDataSourcePlugins } = require('../src/plugins/data-sources')
+  const { createPiSessionEventsSource } = require('../src/pi-session-events-source')
+  const handlers = new Map()
+  const calls = []
+  const reported = { ok: true, events: [{ kind: 'result', text: 'Reported result' }] }
+  const local = { ok: true, events: [{ kind: 'result', text: 'Local result' }] }
+  let reply = reported
+  const host = createPluginHost({ capabilities: {
+    ipc: { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name) },
+    'source.desk-link': { create: () => ({ sessionEvents: async (...args) => { calls.push(args); return reply } }) },
+    'source.pi-events': { create: options => createPiSessionEventsSource({ ...options, readLocal: request => { calls.push(request); return local } }) },
+  } })
+  for (const plugin of createDataSourcePlugins().filter(def => ['odk.source.desk-link', 'odk.source.pi-events'].includes(def.manifest.id))) host.register(plugin)
+  await host.start()
+  const invoke = handlers.get('odk-pi-session-events')
+  assert.equal(await invoke(null, { cwd: '/project', sessionId: 'reported', hostedPi: true }), reported)
+  assert.equal(calls[0][1].signal instanceof AbortSignal, true)
+  const { signal: reportedSignal, ...reportedOptions } = calls[0][1]
+  assert.deepEqual([calls[0][0], reportedOptions], ['reported', { hostedPi: true }])
+  reply = { ok: false, reason: 'desk-link-unavailable' }
+  assert.equal(await invoke(null, { cwd: '/project', sessionId: 'local', hostedPi: false }), local)
+  assert.equal(calls[1][1].signal instanceof AbortSignal, true)
+  const { signal: localSignal, ...localOptions } = calls[1][1]
+  assert.deepEqual([[calls[1][0], localOptions], calls[2]], [['local', { hostedPi: false }], { cwd: '/project', sessionId: 'local', hostedPi: false }])
+  await host.stop()
+  assert.equal(reportedSignal.aborted, true)
+  assert.equal(localSignal.aborted, true)
+  assert.equal(handlers.size, 0)
 })
 
 test('Desk Link result truncation is explicit and UTF-8 bounded', () => {

@@ -93,6 +93,9 @@
     state: 'Unconfigured',
     interaction: 'display-only',
     mount(el, ctx) {
+      let released = false
+      const alive = () => !released && !ctx.signal?.aborted
+      ctx.trackCleanup?.(() => { released = true })
       el.innerHTML = `
         <div class="widget-signal hydra-body odk-col">
           <div class="hydra-head">
@@ -156,6 +159,7 @@
       // on the reference panel and on a handheld and is something smaller in a
       // square cell, with no host named anywhere in it.
       const fitToCell = () => {
+        if (!alive()) return
         const box = el.getBoundingClientRect()
         const shape = shapeForCell(box.width, box.height)
         if (body.dataset.shape === shape) return
@@ -184,6 +188,7 @@
       }
 
       function render(snapshot) {
+        if (!alive()) return
         if (!snapshot || snapshot.configured === false) {
           body.classList.add('hydra-unconfigured')
           badge.textContent = 'Unconfigured'
@@ -220,6 +225,7 @@
       render(null)
       let tickCount = 0
       const refresh = async () => {
+        if (!alive()) return
         if (typeof root.odkPlatform?.getHydraStatus !== 'function') {
           render(null)
           return
@@ -231,6 +237,7 @@
         }
       }
       ctx.onTick(() => {
+        if (!alive()) return
         tickCount = (tickCount + 1) % REFRESH_EVERY_TICKS
         if (tickCount === 1) refresh()
       })

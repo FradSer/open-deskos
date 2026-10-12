@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.system.user-apps",
+  "name": "Independent installed package runtime",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [],
+  "requires": [{ "interface": "odk:system/desk-data/v1", "optional": true }, { "interface": "odk:system/package-catalog/v1" }],
+  "permissions": ["desk.user-apps"]
+}

@@ -45,10 +45,10 @@ function buildHandshake(token, theme, radius) {
   return `<script>/* Open DeskOS user-app readiness handshake */\n(()=>{const token=${escapeScriptValue(token)},theme0=${escapeScriptValue(theme)},radius0=${escapeScriptValue(tileRadius(radius) || '')},scope=typeof window!=='undefined'?window:globalThis;document.documentElement.dataset.theme=theme0;let sent=false;const fail=(error)=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-error',token,error:String(error||'script error')},'*')}catch{}};scope.addEventListener('error',event=>fail(event.message||'script error'),{once:true});scope.addEventListener('unhandledrejection',event=>fail(event.reason||'unhandled rejection'),{once:true});scope.addEventListener('message',event=>{const data=event.data;if(!data||data.token!==token||data.type!=='odk-user-app-theme')return;document.documentElement.dataset.theme=typeof data.theme==='string'?data.theme:theme0;const measured=typeof data.radius==='string'&&/^\\d{1,3}(\\.\\d{1,2})?px$/.test(data.radius)?data.radius:radius0;if(measured)document.documentElement.style.setProperty('--odk-radius-tile',measured)});/* Declared Data: a package publishes what its manifest declared, and the Shell decides what of that is a reading. The document only carries it, so publishing grants no capability the package did not already have. */scope.odkPackageData=Object.freeze({publish:(data)=>{if(!data||typeof data!=='object'||Array.isArray(data))return false;try{parent.postMessage({type:'odk-user-app-data',token,data},'*');return true}catch{return false}}});const ready=()=>{if(sent)return;sent=true;try{parent.postMessage({type:'odk-user-app-ready',token},'*')}catch{}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready()})()\n</script>`
 }
 
-function buildUserAppDocument(bundle, { token = '', theme = DEFAULT_THEME, radius } = {}) {
+function buildUserAppDocument(bundle, { token = '', theme = DEFAULT_THEME, radius, appearancePlugins } = {}) {
   const { html } = resolveBundle(bundle)
-  const appearance = normalizeTheme(theme)
-  const context = `<style id="odk-package-context">${buildContextStyle({ radius })}</style>`
+  const appearance = normalizeTheme(theme, { appearancePlugins })
+  const context = `<style id="odk-package-context">${buildContextStyle({ radius, appearancePlugins })}</style>`
   const handshake = buildHandshake(token, appearance, radius)
   const doctype = /^\s*<!doctype\s+html/i.test(html) ? '' : '<!doctype html>'
   if (/<head(?:\s[^>]*)?>/i.test(html)) {

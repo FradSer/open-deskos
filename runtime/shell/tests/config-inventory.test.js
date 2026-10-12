@@ -41,6 +41,7 @@ function readersByFile() {
       reader.lastIndex = 0
       let match
       while ((match = reader.exec(source))) {
+        if (match[1] === 'ODK_CDC_DRAIN_TIMEOUT') continue // Error code, not an environment setting.
         if (match[1].endsWith('_')) continue // Migration namespace prefixes are not settings.
         if (!found.has(match[1])) found.set(match[1], new Set())
         found.get(match[1]).add(path.relative(REPO_ROOT, file))

@@ -1,0 +1,552 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
+const { createRequire } = require('node:module')
+const { runFixture } = require('./helpers/electron-fixture')
+
+test('geometry includes isolated connection and gamepad status replacements', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/input-status-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('geometry includes the isolated Quota surface replacement matrix', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/quota-surface-electron\.test\.js(?:$| &&)/)
+
+})
+
+test('geometry includes the isolated Pi State Bar replacement matrix', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/pi-status-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('geometry includes the isolated desk tool replacement matrix', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/desk-tool-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('geometry includes the isolated calendar and State Bar replacement matrix', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/calendar-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('geometry includes the isolated Clock replacement comparison matrix', () => {
+  const { scripts } = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'))
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/clock-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('geometry includes the isolated Camera replacement density matrix', () => {
+  const { scripts } = require('../package.json')
+  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/camera-surface-electron\.test\.js(?:$| &&)/)
+})
+
+test('keyboard fixtures do not request desktop window focus', () => {
+  for (const file of ['page-indicator.cjs', 'pixel-font.cjs']) {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+    assert.doesNotMatch(source, /win(?:\.webContents)?\.focus\(/, file)
+    assert.match(source, /Emulation\.setFocusEmulationEnabled/, file)
+  }
+})
+
+test('E2E launches every child through the isolated fixture launcher', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
+  assert.doesNotMatch(source, /spawnSync\(/)
+  assert.match(source, /runFixture/)
+  assert.match(source, /process\.once\('exit', cleanupProfile\)/)
+  assert.match(source, /app\.setPath\('sessionData', homeTestProfile\)/)
+})
+
+test('Windows profile locks cannot prevent E2E or indicator termination', () => {
+  for (const file of ['e2e.js', 'page-indicator.cjs']) {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+    const start = source.indexOf('const cleanupProfile =')
+    const end = source.indexOf('\napp.', start)
+    assert.ok(start >= 0 && end > start, file)
+    for (const platform of ['win32', 'darwin']) {
+      const locked = Object.assign(Error('locked fixture profile'), { code: 'EBUSY' })
+      const context = { homeTestProfile: 'owned-profile', profile: 'owned-profile',
+        fs: { rmSync() { throw locked } }, process: { platform }, console: { warn() {} } }
+      const run = () => vm.runInNewContext(`${source.slice(start, end)}\ncleanupProfile()`, context)
+      if (platform === 'win32') assert.doesNotThrow(run, file)
+      else assert.throws(run, error => error === locked, file)
+    }
+  }
+})
+
+test('Shell fixtures provide explicit empty development discovery', () => {
+  for (const file of ['e2e.js', 'widget-app-styles.cjs', 'widget-sequential-refinement.cjs',
+    'page-indicator.cjs', 'pixel-font.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs', 'helpers/live-fixtures.js']) {
+    assert.match(fs.readFileSync(path.join(__dirname, file), 'utf8'), /odk-renderer-development-plugins/, file)
+  }
+})
+
+test('standalone Shell fixtures provide current Remote Link state', () => {
+  for (const file of ['e2e.js', 'page-indicator.cjs', 'personal-bot-status.cjs', 'personal-bot-floating-panel.cjs',
+    'pi-sessions-states.cjs', 'proactive-jev-e2e.cjs', 'pi-overview-markdown.cjs', 'pixel-font.cjs',
+    'user-app-desktop.cjs', 'pi-sessions-interaction.cjs', 'session-tabs-style.cjs', 'proactive-panel.cjs',
+    'widget-sequential-refinement.cjs', 'user-app-context.cjs', 'voice-input-ui.cjs', 'widget-app-styles.cjs', 'weather-layout.cjs']) {
+    assert.match(fs.readFileSync(path.join(__dirname, file), 'utf8'),
+      /ipcMain\.handle\('odk-remote-link-state', \(\) => \(\{ state: 'disconnected', sequence: 0 \}\)\)/, file)
+  }
+})
+
+test('desktop fixture registers each IPC handler once with its intended state', () => {
+  const handlers = new Map()
+  const file = path.join(__dirname, 'user-app-desktop.cjs')
+  const localRequire = createRequire(file)
+  const waiting = { then() { return this }, catch() { return this } }
+  vm.runInNewContext(fs.readFileSync(file, 'utf8'), {
+    __dirname, console, process, setTimeout: () => 0, clearTimeout() {},
+    require(name) {
+      if (name !== 'electron') return localRequire(name)
+      return { app: { on() {}, whenReady: () => waiting },
+        protocol: { registerSchemesAsPrivileged() {} }, ipcMain: { handle(channel, callback) {
+          assert.equal(handlers.has(channel), false, `duplicate ${channel}`)
+          handlers.set(channel, callback)
+        } } }
+    },
+  })
+  assert.equal(handlers.size, 12)
+  assert.equal(handlers.get('odk-remote-link-state')().state, 'disconnected')
+  assert.equal(handlers.get('odk-futu-holdings')().state, 'unavailable')
+  assert.equal(handlers.get('odk-weather-status')().status, 'unconfigured')
+  assert.equal(handlers.get('odk-camera-frame')().state, 'unavailable')
+  assert.equal(handlers.get('odk-renderer-development-plugins')().length, 0)
+})
+
+test('child launcher isolates profiles and cleans them after completion, timeout, or spawn failure', () => {
+  const profiles = []
+  for (const result of [{ status: 0 }, { status: 1 }, { status: null, error: Error('timed out') }, null]) {
+    let profile
+    const spawn = (executable, args, options) => {
+      assert.equal(executable, process.execPath)
+      assert.equal(path.basename(args[0]), 'electron-fixture-runner.cjs')
+      profile = args[1]
+      profiles.push(profile)
+      assert.equal(fs.existsSync(profile), true)
+      assert.equal(args[2], path.join(__dirname, 'widget-density.cjs'))
+      assert.equal(args[3], '--theme=pixel')
+      assert.equal(options.timeout, 1234)
+      fs.writeFileSync(path.join(profile, 'owned-state'), 'fixture')
+      if (result === null) throw Error('spawn failed')
+      return result
+    }
+    const run = () => runFixture('widget-density.cjs', ['--theme=pixel'], { timeout: 1234, spawn })
+    if (result === null) assert.throws(run, /spawn failed/)
+    else assert.equal(run(), result)
+    assert.equal(fs.existsSync(profile), false)
+  }
+  assert.equal(new Set(profiles).size, profiles.length)
+})
+
+test('child runner sets its profile and hides the dock before loading fixture code', () => {
+  const calls = []
+  const profile = path.join(__dirname, 'fixtures', 'temporary-profile')
+  const fixture = path.join(__dirname, 'widget-density.cjs')
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'helpers/electron-fixture-runner.cjs'), 'utf8'), {
+    process: { platform: 'darwin', argv: ['electron', 'runner', profile, fixture] },
+    require(name) {
+      if (name === 'electron') return { app: { dock: { hide() { calls.push('hide') } },
+        setPath(key, value) { calls.push([key, value]) } } }
+      if (name === 'node:path') return path
+      assert.equal(name, fixture)
+      calls.push('fixture')
+    },
+  })
+  assert.deepEqual(calls, ['hide', ['userData', profile], ['sessionData', profile], 'fixture'])
+})
+
+test('Home fixture establishes its requested viewport after hidden loading', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
+  const start = source.indexOf('  await win.loadFile(')
+  const end = source.indexOf('  const compactSegments', start)
+  assert.ok(start > 0 && end > start)
+  const calls = []
+  let width, height
+  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+    __dirname, path,
+    win: {
+      async loadFile() { width = height = 1; calls.push('load') },
+      setContentSize(w, h) { width = w; height = h; calls.push('size') },
+    },
+    async evaluate(script) {
+      assert.equal(width, 1920)
+      assert.equal(height, 1280)
+      if (script.includes('resize')) calls.push('resize')
+      else assert.equal(script, 'document.fonts.ready')
+    },
+  })
+  assert.deepEqual(calls, ['load', 'size', 'resize'])
+})
+
+test('first MIC check waits for control receipt without replaying input', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'voice-input-ui.cjs'), 'utf8')
+  const start = source.indexOf('    const before = toggleCount', source.indexOf('async function firstMic()'))
+  const end = source.indexOf('    assert.equal(await evaluate', start)
+  assert.ok(start > 0 && end > start)
+  let inputs = 0
+  const context = { assert, Date, state: 'idle', toggleCount: 0, toggleStatus: null,
+    async mic() { inputs++ }, async pause() { context.toggleCount++ } }
+  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, context)
+  assert.equal(inputs, 1)
+  assert.equal(context.toggleCount, 1)
+})
+
+test('installed Widget geometry waits for the requested renderer viewport', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'user-app-desktop.cjs'), 'utf8')
+  const start = source.indexOf('      win.setContentSize(width,')
+  const end = source.indexOf('      const geometry', start)
+  assert.ok(start > 0 && end > start)
+  const calls = []
+  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+    width: 320,
+    win: {
+      setContentSize(w, h) { assert.equal(w, 320); assert.equal(h, 480); calls.push('size') },
+      webContents: { debugger: { async sendCommand(name, metrics) {
+        assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+        assert.equal(metrics.width, 320); assert.equal(metrics.height, 480)
+        calls.push('metrics')
+      } } },
+    },
+    async delay() { calls.push('delay') },
+    async js(script) { assert.match(script, /resize/); calls.push('resize') },
+    async wait(script) { assert.match(script, /window\.__odkGrid.*320/); calls.push('settled') },
+  })
+  assert.deepEqual(calls, ['size', 'metrics', 'resize', 'settled'])
+})
+
+
+for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs']])
+  test(`${name} comparison establishes renderer metrics after hidden loading`, async () => {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+    const start = source.indexOf('  await win.loadFile(')
+    const end = source.indexOf('  const js = ', start)
+    assert.ok(start > 0 && end > start)
+    const calls = []
+    let width = 1280, height = 776, scale = 1.25
+    await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+      __dirname, path, checkpoint() {},
+      win: {
+        async loadFile() { calls.push('load') },
+        setContentSize(w, h) { assert.equal(w, 1920); assert.equal(h, 1280); calls.push('size') },
+        webContents: {
+          debugger: { async sendCommand(name, metrics) {
+            assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+            assert.equal(metrics.mobile, false)
+            width = metrics.width; height = metrics.height; scale = metrics.deviceScaleFactor
+            calls.push('metrics')
+          } },
+          setZoomFactor(value) { assert.equal(value, 1); calls.push('zoom') },
+        },
+      },
+    })
+    assert.deepEqual([width, height, scale], [1920, 1280, 1])
+    assert.deepEqual(calls, ['load', 'size', 'metrics', 'zoom'])
+  })
+
+
+for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Quota', 'quota-surface-electron.cjs'], ['Quota provider', 'quota-plugin-electron.cjs'], ['Input status', 'input-status-surface-electron.cjs'], ['Pre-order', 'preorder-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Camera', 'camera-surface-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']])
+  test(`${name} comparisons render frames without showing a host window`, () => {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+    const start = source.indexOf('new BrowserWindow(')
+    const end = source.indexOf("\n  win.webContents.setWindowOpenHandler", start)
+    assert.ok(start > 0 && end > start)
+    let options
+    vm.runInNewContext(source.slice(start, end), {
+      __dirname, path, checkpoint() {}, BrowserWindow: function(value) { options = value },
+    })
+    assert.equal(options.show, false)
+    assert.equal(options.webPreferences.backgroundThrottling, false)
+    assert.equal(options.webPreferences.offscreen, true)
+  })
+
+test('Quota consumer profile is independent of Electron command-line argument ordering', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'quota-plugin-electron.cjs'), 'utf8')
+  const prefix = source.slice(0, source.indexOf("const { fixture, channel }"))
+  const profile = path.join(require('node:os').tmpdir(), 'odk-quota-profile-contract')
+  for (const argv of [['electron', 'fixture.cjs', profile], ['electron', '--user-data-dir=' + profile, 'fixture.cjs', profile]]) {
+    const calls = []
+    vm.runInNewContext(prefix, {
+      process: { platform: 'linux', argv, env: { ODK_QUOTA_PLUGIN_PROFILE: profile } },
+      require: name => name === 'electron'
+        ? { app: { setPath: (key, value) => calls.push([key, value]) } }
+        : require(name),
+    })
+    assert.deepEqual(calls, [['userData', profile], ['sessionData', profile]])
+  }
+  const launcher = fs.readFileSync(path.join(__dirname, 'quota-electron.test.js'), 'utf8')
+  assert.match(launcher, /ODK_QUOTA_PLUGIN_PROFILE: profile/)
+})
+
+for (const size of [[960, 640], [320, 480]]) {
+  test(`Quota comparison establishes renderer metrics at ${size.join('x')}`, async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'quota-surface-electron.cjs'), 'utf8')
+    const start = source.indexOf('      win.setContentSize(...size)')
+    const end = source.indexOf('      await js(`window.odkTheme.set(', start)
+    assert.ok(start > 0 && end > start)
+    let viewport = [1280, 776], scale = 1.25
+    const calls = []
+    await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+      size,
+      win: {
+        setContentSize(...bounds) { assert.deepEqual(bounds, size); calls.push('size') },
+        webContents: { debugger: { async sendCommand(name, metrics) {
+          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+          assert.equal(metrics.mobile, false)
+          viewport = [metrics.width, metrics.height]; scale = metrics.deviceScaleFactor
+          calls.push('metrics')
+        } } },
+      },
+    })
+    assert.deepEqual(viewport, size)
+    assert.equal(scale, 1)
+    assert.deepEqual(calls, ['size', 'metrics'])
+  })
+}
+
+for (const size of [[320, 480], [960, 640], [1920, 1280]]) {
+  test(`Input status comparison establishes renderer metrics at ${size.join('x')}`, async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'input-status-surface-electron.cjs'), 'utf8')
+    const start = source.indexOf('      win.setContentSize(width,height)')
+    const end = source.indexOf('      await js(`window.odkTheme.set(', start)
+    assert.ok(start > 0 && end > start)
+    let viewport = [1280, 776], scale = 1.25
+    const calls = []
+    await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+      width: size[0], height: size[1],
+      win: {
+        setContentSize(...bounds) { assert.deepEqual(bounds, size); calls.push('size') },
+        webContents: { debugger: { async sendCommand(name, metrics) {
+          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+          assert.equal(metrics.mobile, false)
+          viewport = [metrics.width, metrics.height]; scale = metrics.deviceScaleFactor
+          calls.push('metrics')
+        } } },
+      },
+    })
+    assert.deepEqual(viewport, size)
+    assert.equal(scale, 1)
+    assert.deepEqual(calls, ['size', 'metrics'])
+  })
+}
+
+for (const size of [[320, 480], [960, 640], [1920, 1280]]) {
+  test(`Pre-order comparison establishes renderer metrics at ${size.join('x')}`, async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'preorder-surface-electron.cjs'), 'utf8')
+    const start = source.indexOf('      win.setContentSize(width, height)')
+    const end = source.indexOf('      await js(`(async()=>{', start)
+    assert.ok(start > 0 && end > start)
+    let viewport = [1280, 776], scale = 1.25
+    const calls = []
+    await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+      width: size[0], height: size[1],
+      win: {
+        setContentSize(...bounds) { assert.deepEqual(bounds, size); calls.push('size') },
+        webContents: { debugger: { async sendCommand(name, metrics) {
+          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+          assert.equal(metrics.mobile, false)
+          viewport = [metrics.width, metrics.height]; scale = metrics.deviceScaleFactor
+          calls.push('metrics')
+        } } },
+      },
+    })
+    assert.deepEqual(viewport, size)
+    assert.equal(scale, 1)
+    assert.deepEqual(calls, ['size', 'metrics'])
+  })
+}
+
+for (const count of [1, 7]) {
+  test(`built-in view key batch observes all ${count} native key releases`, async () => {
+    const source = fs.readFileSync(path.join(__dirname, 'builtin-view-replacement.cjs'), 'utf8')
+    const start = source.indexOf('  const key = async ')
+    const end = source.indexOf('  const focusBaseline = ', start)
+    const listeners = new Map(), events = [], calls = []
+    const window = { addEventListener(name, callback, options) { listeners.set(name, { callback, options }) },
+      removeEventListener(name, callback) { if (listeners.get(name)?.callback === callback) listeners.delete(name) } }
+    const context = { window }
+    await vm.runInNewContext(`(async()=>{${source.slice(start, end)};await key('Backspace', [], ${count})})()`, {
+      keySequence: 0,
+      async js(script) { calls.push('register'); return vm.runInNewContext(script, context) },
+      async wait(expression) { calls.push('wait'); assert.equal(vm.runInNewContext(expression, context), true) },
+      win: { webContents: { sendInputEvent(event) {
+        events.push(event.type)
+        if (event.type === 'keyUp') {
+          const listener = listeners.get('keyup'); listener?.callback()
+          if (listener?.options?.once) listeners.delete('keyup')
+        }
+      } } },
+    })
+    assert.equal(events.length, count * 2)
+    assert.equal(window.viewKeySequence, count)
+    assert.equal(listeners.size, 0)
+    assert.deepEqual(calls, ['register', 'wait'])
+  })
+}
+
+for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs']]) {
+  for (const size of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
+    test(`${name} hidden comparison restores renderer metrics after loading at ${size.join('x')}`, async () => {
+      const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+      const start = source.indexOf('      win.setContentSize(...size)')
+      const end = source.indexOf('      if (surfaceReplacement)', start)
+      assert.ok(start > 0 && end > start)
+      let viewport = [1280, 776], scale = 1.25, zoom = 1.25
+      const calls = []
+      await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+        size, __dirname, path, assert,
+        win: {
+          setContentSize(...bounds) { assert.deepEqual(bounds, size); calls.push('size') },
+          async loadFile() { viewport = [1280, 776]; scale = 1.25; calls.push('load') },
+          webContents: {
+            debugger: {
+              attach(version) { assert.equal(version, '1.3'); calls.push('attach') },
+              detach() { calls.push('detach') },
+              async sendCommand(name, metrics) {
+                assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+                assert.equal(metrics.mobile, false)
+                viewport = [metrics.width, metrics.height]; scale = metrics.deviceScaleFactor
+                calls.push('metrics')
+              },
+            },
+            setZoomFactor(value) { zoom = value; calls.push('zoom') },
+          },
+        },
+        async js(script) {
+          if (script === 'window.odkShellReady') { calls.push('ready'); return }
+          assert.equal(script, '[innerWidth, innerHeight, devicePixelRatio]')
+          return [...viewport, scale]
+        },
+      })
+      assert.deepEqual(viewport, size)
+      assert.equal(scale, 1)
+      assert.equal(zoom, 1)
+      assert.deepEqual(calls, ['size', 'load', 'attach', 'metrics', 'detach', 'zoom', 'ready'])
+    })
+  }
+}
+
+for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Camera', 'camera-surface-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']]) {
+  for (const platform of ['linux', 'win32', 'darwin']) {
+    test(`${name} comparison selects software rendering only on ${platform}`, () => {
+      const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
+      const statement = source.split('\n').find(line => line.includes('app.disableHardwareAcceleration()'))
+      assert.ok(statement, 'Software rendering must be selected before readiness')
+      assert.ok(source.indexOf(statement) < source.indexOf('app.whenReady()'))
+      let calls = 0
+      vm.runInNewContext(statement, { process: { platform }, app: { disableHardwareAcceleration() { calls++ } } })
+      assert.equal(calls, platform === 'linux' ? 1 : 0)
+    })
+  }
+}
+
+
+test('Camera establishes its viewport before the first rendered comparison', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'camera-surface-electron.cjs'), 'utf8')
+  const start = source.indexOf('  const viewport = async (width, height) => {')
+  const end = source.indexOf("  for (const phase of ['default', 'independent', 'restored'])", start)
+  assert.ok(start > 0 && end > start)
+  const calls = []
+  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+    win: {
+      setContentSize(width, height) {
+        assert.equal(width, 1920); assert.equal(height, 1280)
+        calls.push('size')
+      },
+      webContents: {
+        debugger: { async sendCommand(name, metrics) {
+          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
+          assert.deepEqual({ ...metrics }, { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
+          calls.push('metrics')
+        } },
+        async executeJavaScript(script) {
+          assert.match(script, /window\.__odkGrid/)
+          assert.match(script, /document\.fonts\.ready/)
+          assert.match(script, /devicePixelRatio !== 1/)
+          assert.match(script, /visualViewport\.scale !== 1/)
+          calls.push('settled')
+        },
+      },
+    },
+  })
+  assert.deepEqual(calls, ['size', 'metrics', 'settled'])
+})
+
+for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'x64']]) {
+  test(`Pi view matrix retains bounded deadlines on ${platform} ${arch}`, () => {
+    const { viewTimeouts } = require('./helpers/pi-view-selection')
+    assert.equal(typeof viewTimeouts, 'function')
+    const arm = platform === 'linux' && arch === 'arm64'
+    assert.deepEqual(viewTimeouts(platform, arch), {
+      fixture: arm ? 150000 : 45000, child: arm ? 160000 : 55000, test: arm ? 180000 : 60000,
+      guardChild: arm ? 60000 : 12000, guardTest: arm ? 65000 : 15000,
+      externalGuardChild: arm ? 60000 : 18000, externalGuardTest: arm ? 65000 : 20000,
+    })
+    const fixture = fs.readFileSync(path.join(__dirname, 'pi-plugin-electron.cjs'), 'utf8')
+    assert.match(fixture, /}, viewTimeouts\(\)\.fixture\)/)
+    assert.ok(fixture.includes('performance.now() + 4000'))
+    const parent = fs.readFileSync(path.join(__dirname, 'pi-electron.test.js'), 'utf8')
+    assert.equal((parent.match(/timeout: timeouts\.child/g) || []).length, 3)
+    assert.equal((parent.match(/timeout: timeouts\.test/g) || []).length, 3)
+    assert.equal((parent.match(/timeout: timeouts\.guardChild/g) || []).length, 2)
+    assert.equal((parent.match(/timeout: timeouts\.guardTest/g) || []).length, 2)
+    assert.ok(parent.includes('timeout: timeouts.externalGuardChild'))
+    assert.ok(parent.includes('timeout: timeouts.externalGuardTest'))
+  })
+}
+
+for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'x64']]) {
+  test(`Appearance Main comparison retains bounded deadlines on ${platform} ${arch}`, () => {
+    const fixture = fs.readFileSync(path.join(__dirname, 'appearance-main-bootstrap.cjs'), 'utf8')
+    const parent = fs.readFileSync(path.join(__dirname, 'appearance-main-bootstrap.test.js'), 'utf8')
+    const read = (source, name) => {
+      const statement = source.split('\n').find(line => line.startsWith(`const ${name} = `))
+      assert.ok(statement, `Missing ${name}`)
+      return vm.runInNewContext(`${statement}; ${name}`, { process: { platform, arch } })
+    }
+    const arm = platform === 'linux' && arch === 'arm64'
+    assert.equal(read(fixture, 'appearanceFixtureTimeout'), arm ? 90000 : 45000)
+    assert.equal(read(parent, 'appearanceChildTimeout'), arm ? 100000 : 55000)
+    assert.equal(read(parent, 'appearanceTestTimeout'), arm ? 110000 : 65000)
+    assert.match(fixture, /}, appearanceFixtureTimeout\)/)
+    assert.ok(parent.includes('timeout: appearanceTestTimeout'))
+    assert.ok(parent.includes('timeout: appearanceChildTimeout'))
+    assert.ok(fixture.includes('performance.now() + 8000'))
+    assert.ok(fixture.includes('performance.now() + 4000'))
+    assert.ok(fixture.includes('timeout: 10000'))
+    assert.ok(fixture.includes('createVerifier(options)'))
+  })
+}
+
+
+test('Clock Main hidden comparison preserves production preferences with an offscreen render target', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'clock-main-bootstrap.cjs'), 'utf8')
+  const start = source.indexOf('// Preserve production Main while giving its single hidden test window an offscreen render target.')
+  assert.ok(start >= 0, 'Clock Main hidden window needs its own render target')
+  const preferences = { preload: '/controlled/preload.js', sandbox: true, contextIsolation: true }
+  const options = { width: 1920, height: 1280, webPreferences: preferences }
+  let actual, selected
+  class NativeWindow { constructor(value) { actual = value } }
+  const original = () => { throw Error('Unexpected module load') }
+  const loader = { _load: original }
+  const electron = { BrowserWindow: NativeWindow, retainedExport: {} }
+  const fakeRequire = name => {
+    if (name === 'node:module') return loader
+    if (name === 'electron') return electron
+    assert.equal(name, '../src/main')
+    selected = loader._load('electron', { filename: '/controlled/main.js' })
+    new selected.BrowserWindow(options)
+  }
+  fakeRequire.resolve = name => { assert.equal(name, '../src/main'); return '/controlled/main.js' }
+  vm.runInNewContext(source.slice(start), { require: fakeRequire, BrowserWindow: NativeWindow })
+  assert.equal(actual.width, options.width)
+  assert.equal(actual.height, options.height)
+  assert.equal(actual.webPreferences.offscreen, true)
+  for (const [key, value] of Object.entries(preferences)) assert.equal(actual.webPreferences[key], value)
+  assert.equal(selected.retainedExport, electron.retainedExport)
+  assert.equal(loader._load, original)
+  assert.equal(options.webPreferences, preferences)
+  assert.equal(preferences.offscreen, undefined)
+})

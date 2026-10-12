@@ -68,8 +68,10 @@
     const list = el.querySelector('.app-list')
     let items = []
     let loaded = false
+    let released = false
+    ctx.trackCleanup?.(() => { released = true })
     const render = () => {
-      if (!loaded) return
+      if (released || !loaded) return
       const query = search.value.trim().toLowerCase()
       const entries = items.filter((item) =>
         !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
@@ -80,15 +82,19 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     const load = async () => {
+      if (released) return
       loaded = false
       status.textContent = 'Loading built-in views.'
       retry.hidden = true
       try {
-        items = await ctx.platform.listApps()
+        const next = await ctx.platform.listApps()
+        if (released) return
+        items = next
         loaded = true
         status.textContent = ''
         render()
       } catch (error) {
+        if (released) return
         items = []
         list.replaceChildren()
         status.textContent = `Unable to load built-in views: ${error.message || 'Unknown error'}`

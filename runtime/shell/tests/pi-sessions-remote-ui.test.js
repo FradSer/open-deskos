@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-function mount(file, id) {
+function mount(file, id, independent = false) {
   const plugins = []
   const nodes = new Map()
   const node = (selector) => {
@@ -17,6 +17,12 @@ function mount(file, id) {
   const cleanups = []
   const root = { odkPlugins: { register(p) { plugins.push(p) } }, odkPlatform: { getPiSessions: async () => response } }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins', file), 'utf8'), { window: root })
+  if (independent) {
+    const original = plugins.find(plugin => plugin.id === id)
+    original.mount = () => { throw Error('Default Pi Widget delegation refused') }
+    root.odkRendererDevelopment = { define(plugin) { plugins[plugins.indexOf(original)] = plugin } }
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'fixtures/pi-tile-surface-replacement/entry.js'), 'utf8'), { window: root })
+  }
   // A tile is a DOM element, and a Widget that adapts to its Cell measures the
   // one it was given: the double answers with a width the cell would have.
   const classes = new Set()
@@ -37,8 +43,22 @@ const source = { kind: 'ssh', label: 'Mac / SSH · test-mac' }
 const live = { ok: true, source, summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [], workspaces: [] }
 const failed = { ok: false, source, summary: null, sessions: [], workspaces: [], error: 'SSH unavailable' }
 
-test('widget identifies Mac source and cannot turn disconnected Mac into idle', async () => {
-  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+test('status bar identifies Mac and reports unavailable after a successful scan', async () => {
+  const view = mount('status-pi-sessions.js', 'odk.status.pi-sessions')
+  await view.show(live)
+  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
+  assert.equal(view.contributions.at(-1).id, 'odk.briefing.pi-sessions')
+  assert.match(view.statementText(), /You have 2 Pi sessions working across 1 workspace, today\./)
+  await view.show(failed)
+  assert.equal(view.node('#sb-pi-count').textContent, '--')
+  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /unavailable/i)
+  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
+  assert.deepEqual(view.statementText(), 'Pi session status is unavailable.')
+})
+
+for (const independent of [false, true]) {
+test(`${independent ? 'independent' : 'default'} widget identifies Mac source and cannot turn disconnected Mac into idle`, async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   await view.show(live)
   assert.match(view.node('.pi-widget-summary').textContent, /Mac \/ SSH/)
   await view.show(failed)
@@ -47,8 +67,8 @@ test('widget identifies Mac source and cannot turn disconnected Mac into idle', 
   assert.match(view.node('.pi-widget-summary').textContent, /Mac \/ SSH/)
 })
 
-test('tile summary reads source, workspace count, and live count while idle states stay truthful', async () => {
-  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+test(`${independent ? 'independent' : 'default'} tile summary reads source, workspace count, and live count while idle states stay truthful`, async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   const settled = (sessionId) => ({ sessionId, status: 'settled', cwd: '/workspace/desk', workspaceName: 'desk', startedAt: 0, updatedAt: 1 })
   const idle = { ok: true, source, summary: { running: 0, total: 2, workspacesCount: 1 }, sessions: [settled('a'), settled('b')], workspaces: [] }
   await view.show(idle)
@@ -70,23 +90,10 @@ test('tile summary reads source, workspace count, and live count while idle stat
   assert.equal(view.classes.has('pi-widget-wide-count'), false)
 })
 
-test('status bar identifies Mac and reports unavailable after a successful scan', async () => {
-  const view = mount('status-pi-sessions.js', 'odk.status.pi-sessions')
-  await view.show(live)
-  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
-  assert.equal(view.contributions.at(-1).id, 'odk.briefing.pi-sessions')
-  assert.match(view.statementText(), /You have 2 Pi sessions working across 1 workspace, today\./)
-  await view.show(failed)
-  assert.equal(view.node('#sb-pi-count').textContent, '--')
-  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /unavailable/i)
-  assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
-  assert.deepEqual(view.statementText(), 'Pi session status is unavailable.')
-})
-
-test('a late scan success or error cannot overwrite the newer idle Widget reading', async t => {
+test(`${independent ? 'independent' : 'default'} a late scan success or error cannot overwrite the newer idle Widget reading`, async t => {
   for (const outcome of ['success', 'error']) {
     await t.test(outcome, async () => {
-      const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+      const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
       const oldScan = Promise.withResolvers()
       const newScan = Promise.withResolvers()
       await view.show(oldScan.promise)
@@ -104,8 +111,8 @@ test('a late scan success or error cannot overwrite the newer idle Widget readin
   }
 })
 
-test('a scan finishing after Widget disposal cannot repaint it', async () => {
-  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+test(`${independent ? 'independent' : 'default'} a scan finishing after Widget disposal cannot repaint it`, async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   const scan = Promise.withResolvers()
   await view.show(scan.promise)
   const before = view.node('.pi-widget-count').textContent
@@ -115,8 +122,8 @@ test('a scan finishing after Widget disposal cannot repaint it', async () => {
   assert.equal(view.node('.pi-widget-count').textContent, before)
 })
 
-test('a slow completed scan is usable while the next poll is still pending', async () => {
-  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions')
+test(`${independent ? 'independent' : 'default'} a slow completed scan is usable while the next poll is still pending`, async () => {
+  const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   const oldScan = Promise.withResolvers()
   const nextScan = Promise.withResolvers()
   await view.show(oldScan.promise)
@@ -128,3 +135,5 @@ test('a slow completed scan is usable while the next poll is still pending', asy
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.node('.pi-widget-count').textContent, '0')
 })
+
+}

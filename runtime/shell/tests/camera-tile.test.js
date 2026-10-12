@@ -19,7 +19,7 @@ function mountWith(status, { camera = true } = {}) {
       return nodes.get(selector)
     },
   }
-  const root = {}
+  const root = { odkPluginHost: require('../src/plugin-host') }
   const sandbox = { window: root, globalThis: root }
   vm.runInContext(registrySource, vm.createContext(sandbox))
   vm.runInContext(tileSource, vm.createContext(sandbox))

@@ -243,3 +243,39 @@ Scenario: Slow scans still produce readings while the next poll is pending
   When that scan completes while a newer poll is still pending
   Then it may update the reading if no newer scan result has been applied
   And the newer result replaces it when available
+
+  Scenario: Pi App replacement does not change the separate Pi page
+    Given the Pi App and Pi page have separate plugin identities
+    When a replacement Pi App refuses mounting
+    And the Pi page is disabled and enabled through the Renderer controller
+    Then the Pi page retains session filters, detail, and navigation
+    And the page does not call the replacement App mount function
+
+  Scenario: Independent Pi Widget preserves readings and release
+    Given the default or independent Pi Widget is selected
+    When session scans report working, idle, empty, or unavailable data
+    Then the Widget retains its count, source, goal, and activity states
+    And an older scan cannot overwrite a newer applied reading
+    And a completed scan remains usable while a newer scan is pending
+    And released scan and size callbacks cannot change the Widget
+
+  Scenario: A linked Pi Widget preserves its external implementation
+    Given a trusted Pi Widget directory is linked in an isolated configuration
+    When the Shell discovers and loads its browser entry
+    Then the linked Widget becomes the selected implementation
+    And the shared Widget behavior scenarios pass after replacement and default restoration
+    And an external implementation with incorrect counts fails those scenarios
+
+  Scenario: Pi Widget comparison renders without a visible host window
+    Given the comparison uses isolated configuration and controlled session readings
+    When the default and selected Widgets run on a supported host
+    Then the hidden comparison window renders frames without taking focus
+    And Linux selects software rendering before application readiness
+    And the existing reading comparisons and deadlines remain unchanged
+
+  Scenario: Pi page replacement does not change the separate Pi App
+    Given the Pi App and Pi page have separate plugin identities
+    When a replacement Pi page refuses mounting while its plugin is disabled
+    And the Pi App opens through the public App platform and actual App Manager
+    Then the Pi App retains session filters, detail, and close behavior
+    And the App does not call the replacement page mount function

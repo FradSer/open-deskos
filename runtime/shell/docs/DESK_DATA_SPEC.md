@@ -17,6 +17,34 @@ The Futu tile and poller share one service reading. The tile IPC handler and reg
 
 `list` reports IDs, labels and kinds without reading any source. It cannot trigger scans/provider refreshes or claim an unread state. `read` obtains the current value and source state. It does not return an agent cache. Keep `live`, `stale`, `unavailable`, `unconfigured` and source-specific equivalents truthful. A nonlive Service Plugin presents no holdings.
 
+## Declared source readings
+
+Trusted Main source plugins provide reading arrays through `odk:desk-reading/<source>/v1` ports.
+Each entry uses the registry declaration contract and reads the same source instance as its IPC handler.
+Main discovers these ports from plugin manifests.
+Desk Data declares optional dependencies on the discovered ports.
+Disabling a provider withdraws its readings; enabling it binds the replacement instance.
+Source plugins supply their own reading factories through [createSourcePlugin](../src/plugins/data-sources.js).
+The factory receives the source instance used by its IPC handlers.
+The [reading modules](../src/plugins/readings/) preserve existing fields, scales, states, and refresh behavior.
+The common helpers contain no source names or projections.
+The [legacy adapter](../src/plugins/desk-readings.js) retains the previous named source arguments for direct callers.
+Service plugins provide `odk:desk-service-readings/<source>/v1` ports with a `readings()` factory and an optional `refresh()` method.
+The factory returns service registry declarations with read functions owned by that provider.
+Desk Data reconciles these declarations without service-specific projections.
+The refresh plugin calls available provider refresh methods, then reconciles declarations every minute.
+A refresh failure is reported and does not prevent other providers from refreshing.
+Repeated ticks share one active refresh operation.
+Shutdown and provider replacement wait for that operation before releasing provider resources.
+Futu retains its existing holdings projection, labels, state handling, and IPC channel.
+Direct callers can still supply the previous Futu arguments.
+
+Source, service, and package contributions cannot replace another owner's reading identity.
+Desk Data validates each incoming contribution set before changing retained entries.
+A failed declaration or identity collision leaves existing readings and package publications unchanged.
+Service refresh withdraws only readings owned by that service composition.
+These local factory ports grant no additional authority to installed HTML packages.
+
 ## Agent-facing values
 
 A source registers its projection with the state mapping. The projection can rename, drop or shorten fields. It must not infer measurements.
@@ -43,7 +71,13 @@ The `desk_data` tool is available to both bot profiles. Every question reads the
 
 Publishing uses the existing readiness/frame-token bridge. It grants no network, Shell DOM, preload or action authority. Reject undeclared fields, invalid types and sizes without replacing the previous value. Mark package content untrusted. Replacing/removing a revision removes its previous reading.
 
-The registry keeps a read-only catalog store separate from the verifier-owned lifecycle store. Both use the same catalog directory. Sharing one instance must not remove verification or grant mutation to a reader.
+Desk Data and the installed runtime use the selected package catalog.
+Desk Data uses the catalog's existing `list` operation.
+[Runtime release](USER_APPLICATIONS.md#runtime-release) defines catalog verification and resource ownership.
+
+Only the latest started package synchronization can change package readings.
+A failed or malformed catalog response preserves committed declarations and publications.
+An older response cannot restore removed packages or replace current publications.
 
 ## Proactive consumers
 

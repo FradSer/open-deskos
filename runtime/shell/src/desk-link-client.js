@@ -3,6 +3,7 @@ const path = require('node:path')
 const { StringDecoder } = require('node:string_decoder')
 const { isNamedPipe, readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
+const { createPiReadSource } = require('./pi-read-source')
 
 const DESK_LINK_PROTOCOL = 1
 // Runtime snapshots include workspace membership as well as the session list.
@@ -28,19 +29,22 @@ function resolveDeskLinkSocketPath(env = process.env, host = null) {
  */
 function request(socketPath, record, timeoutMs = 2000, channel = {}) {
   return new Promise((resolve) => {
+    if (channel.signal?.aborted) return resolve(null)
     let settled = false
+    let result = null
     let remainder = ''
     let receivedBytes = 0
     const decoder = new StringDecoder('utf8')
     const finish = (value) => {
       if (settled) return
       settled = true
+      result = value
       socket.destroy()
-      resolve(value)
     }
     const socket = net.createConnection(socketPath)
     socket.setTimeout(timeoutMs)
     socket.on('connect', () => {
+      if (settled || channel.signal?.aborted) return finish(null)
       // The token is only carried where the endpoint cannot be authenticated by
       // ownership, which keeps every Unix client that predates it byte-compatible.
       const endpoint = channel.endpoint ?? socketPath
@@ -64,15 +68,19 @@ function request(socketPath, record, timeoutMs = 2000, channel = {}) {
     })
     socket.on('timeout', () => finish(null))
     socket.on('error', () => finish(null))
-    socket.on('close', () => finish(null))
+    const abort = () => finish(null)
+    socket.on('close', () => {
+      channel.signal?.removeEventListener('abort', abort)
+      resolve(channel.signal?.aborted ? null : result)
+    })
+    channel.signal?.addEventListener('abort', abort, { once: true })
   })
 }
 
-function createDeskLinkClient({ socketPath, env = process.env, send = request, token = '', platform = process.platform, host = null } = {}) {
+function createDeskLinkTransport({ socketPath, env = process.env, send = request, token = '', platform = process.platform, host = null } = {}) {
   const resolvedHost = host || resolveShellHost({ env, platform })
   const resolved = socketPath ?? resolveDeskLinkSocketPath(env, resolvedHost)
   const needsToken = Boolean(resolved) && requiresToken({ endpoint: resolved, platform })
-  const unavailable = (reason) => ({ ok: false, reason, scannedAt: null, summary: null, sessions: [], workspaces: [] })
 
   // The token is read when the endpoint needs one, not when the client is
   // created, because the Shell builds its client before anything is listening.
@@ -84,39 +92,61 @@ function createDeskLinkClient({ socketPath, env = process.env, send = request, t
     return tokenPromise
   }
 
-  async function ask(record) {
-    return send(resolved, record, undefined, { endpoint: resolved, platform, token: await channelToken() })
-  }
+  return { socketPath: resolved, async request(record, { signal } = {}) {
+    if (signal?.aborted) return null
+    try {
+      const credential = await channelToken()
+      if (signal?.aborted) return null
+      const value = await send(resolved, record, undefined, { endpoint: resolved, platform, token: credential, signal })
+      return signal?.aborted ? null : value
+    } catch (error) {
+      if (signal?.aborted) return null
+      throw error
+    }
+  } }
+}
+
+function createDeskLinkClient({ signal, ...options } = {}) {
+  const transport = createDeskLinkTransport(options)
+  const resolved = transport.socketPath
+  const unavailable = (reason) => ({ ok: false, reason, scannedAt: null, summary: null, sessions: [], workspaces: [] })
+  const ask = createPiReadSource({ signal, unavailable: () => null, read: (ownerSignal, _own, record, requestSignal) => {
+    const active = requestSignal ? AbortSignal.any([ownerSignal, requestSignal]) : ownerSignal
+    return transport.request(record, { signal: active })
+  } })
+  let stopped = false
+  const response = (record, options) => stopped || signal?.aborted || options.signal?.aborted ? null : record
 
   return {
     socketPath: resolved,
-    async snapshot() {
+    async stop() { stopped = true; await ask.stop() },
+    async snapshot(options = {}) {
       if (!resolved) return unavailable('desk-link-unconfigured')
-      const record = await ask({ v: DESK_LINK_PROTOCOL, type: 'snapshot' })
+      const record = response(await ask({ v: DESK_LINK_PROTOCOL, type: 'snapshot' }, options.signal), options)
       if (!record || record.ok !== true || !Array.isArray(record.sessions)) {
         return unavailable(typeof record?.reason === 'string' && record.reason ? record.reason : 'desk-link-unavailable')
       }
       return record
     },
-    async hostedSessions() {
+    async hostedSessions(options = {}) {
       if (!resolved) return { ok: false, reason: 'desk-link-unconfigured', sessions: [], scannedAt: null }
-      const record = await ask({ v: DESK_LINK_PROTOCOL, type: 'hosted-sessions' })
+      const record = response(await ask({ v: DESK_LINK_PROTOCOL, type: 'hosted-sessions' }, options.signal), options)
       if (!record || record.ok !== true || !Array.isArray(record.sessions)) {
         return { ok: false, reason: record?.reason || 'pi host unavailable', sessions: [], scannedAt: record?.scannedAt ?? null }
       }
       return { ok: true, sessions: record.sessions, scannedAt: record.scannedAt }
     },
     /** The Reporting Machines currently connected. Empty when no link answers. */
-    async machines() {
+    async machines(options = {}) {
       if (!resolved) return []
-      const record = await ask({ v: DESK_LINK_PROTOCOL, type: 'machines' })
+      const record = response(await ask({ v: DESK_LINK_PROTOCOL, type: 'machines' }, options.signal), options)
       return Array.isArray(record?.machines) ? record.machines : []
     },
     async sessionEvents(sessionId, options = {}) {
       if (!resolved || typeof sessionId !== 'string' || sessionId.length === 0) {
         return { ok: false, reason: 'desk-link-unconfigured' }
       }
-      const record = await ask({ v: DESK_LINK_PROTOCOL, type: 'events', sessionId, ...(options.hostedPi === true ? { hostedPi: true } : {}) })
+      const record = response(await ask({ v: DESK_LINK_PROTOCOL, type: 'events', sessionId, ...(options.hostedPi === true ? { hostedPi: true } : {}) }, options.signal), options)
       if (!record || typeof record !== 'object') return { ok: false, reason: 'desk-link-unavailable' }
       return record.ok === true
         ? { ok: true, events: record.events ?? [], truncated: record.truncated === true }
@@ -125,4 +155,4 @@ function createDeskLinkClient({ socketPath, env = process.env, send = request, t
   }
 }
 
-module.exports = { createDeskLinkClient, resolveDeskLinkSocketPath, DESK_LINK_PROTOCOL }
+module.exports = { createDeskLinkClient, createDeskLinkTransport, resolveDeskLinkSocketPath, DESK_LINK_PROTOCOL }

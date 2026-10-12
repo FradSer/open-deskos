@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.p4.storage",
+  "name": "P4 storage",
+  "version": "1.0.0",
+  "host": "esp32-p4",
+  "kind": "service",
+  "lifecycle": "p4_storage_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:p4/storage/v1"
+    }
+  ],
+  "requires": []
+}

@@ -118,6 +118,11 @@ function createWeatherSource(options = {}) {
     locationUrl,
     onUpdate = () => {},
   } = options
+  const lifetime = new AbortController()
+  const cancel = () => lifetime.abort()
+  if (options.signal?.aborted) cancel()
+  else options.signal?.addEventListener('abort', cancel, { once: true })
+  const activeRefreshes = new Set()
   // An explicitly passed value wins, including an explicit null: that is how a smoke
   // run asks for no location instead of inheriting the desk's configured one.
   const lat = coordinate(options.latitude !== undefined ? options.latitude : process.env.ODK_WEATHER_LAT, 90)
@@ -130,7 +135,7 @@ function createWeatherSource(options = {}) {
   // the device where it is, and an explicit empty location (the smoke run) pins it off.
   const locationPinned = options.latitude !== undefined || options.longitude !== undefined
   const deviceLocation = !configured && !locationPinned && locationProvider !== null
-    ? (locationProvider || createDeviceLocation({ fetchImpl, now, timeoutMs: locationTimeoutMs, refreshMs: locationRefreshMs, providerUrl: locationUrl }))
+    ? (locationProvider || createDeviceLocation({ fetchImpl, now, timeoutMs: locationTimeoutMs, refreshMs: locationRefreshMs, providerUrl: locationUrl, signal: lifetime.signal }))
     : null
   let location = configured
     ? { latitude: lat, longitude: lon, place: namedPlace, source: 'configured' }
@@ -142,10 +147,13 @@ function createWeatherSource(options = {}) {
       ? { status: 'unavailable', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: null, error: null, locationSource: null }
       : { status: 'unconfigured', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null, locationSource: null }
   let inFlight = null
+  let inFlightLocation = null
+  let locationLookup = 0
+  let locationResolution = null
+  let requestGeneration = 0
 
-  function label() {
-    const position = location || { latitude: lat, longitude: lon }
-    const place = location ? location.place : namedPlace
+  function label(position = location || { latitude: lat, longitude: lon, place: namedPlace }) {
+    const place = position.place
     if (place) return place
     return `${position.latitude.toFixed(2)}, ${position.longitude.toFixed(2)}`
   }
@@ -167,11 +175,11 @@ function createWeatherSource(options = {}) {
     }
   }
 
-  function save(reading) {
+  function save(reading, position) {
     if (!cacheFile) return
     try {
       fsImpl.mkdirSync(pathImpl.dirname(cacheFile), { recursive: true })
-      fsImpl.writeFileSync(cacheFile, JSON.stringify({ version: CACHE_VERSION, location: { latitude: location.latitude, longitude: location.longitude }, reading }), { mode: 0o600 })
+      fsImpl.writeFileSync(cacheFile, JSON.stringify({ version: CACHE_VERSION, location: { latitude: position.latitude, longitude: position.longitude }, reading }), { mode: 0o600 })
     } catch {
       // A cache failure must not stop a live reading from displaying.
     }
@@ -192,14 +200,13 @@ function createWeatherSource(options = {}) {
     }
   }
 
-  async function request() {
-    const position = location || { latitude: lat, longitude: lon }
+  async function request(position) {
     const url = `${providerUrl}?latitude=${position.latitude}&longitude=${position.longitude}&current=temperature_2m,weather_code`
       + '&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1'
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      const response = await fetchImpl(url, { signal: controller.signal, headers: { accept: 'application/json' } })
+      const response = await fetchImpl(url, { signal: AbortSignal.any([controller.signal, lifetime.signal]), headers: { accept: 'application/json' } })
       if (!response?.ok) throw new Error(`provider responded ${response?.status ?? 'without a status'}`)
       const contentType = response.headers?.get?.('content-type') || ''
       if (contentType && !contentType.includes('json')) throw new Error(`provider responded ${contentType.split(';')[0]}`)
@@ -209,15 +216,17 @@ function createWeatherSource(options = {}) {
     }
   }
 
-  async function run() {
+  async function run(position) {
     const stamp = now()
     try {
-      const reading = await request()
+      const reading = await request(position)
+      if (lifetime.signal.aborted || position !== location) return state
       if (!reading) throw new Error('provider payload was not a usable reading')
-      state = { status: 'live', place: label(), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily, updatedAt: stamp, hint: null, error: null, locationSource: locationSource() }
-      save({ place: label(), current: reading.current, daily: reading.daily, updatedAt: stamp })
+      state = { status: 'live', place: label(position), unit: reading.current.unit || DEFAULT_UNIT, current: reading.current, daily: reading.daily, updatedAt: stamp, hint: null, error: null, locationSource: position.source }
+      save({ place: label(position), current: reading.current, daily: reading.daily, updatedAt: stamp }, position)
       onUpdate()
     } catch (error) {
+      if (lifetime.signal.aborted || position !== location) return state
       const message = error?.name === 'AbortError' ? `provider timed out after ${timeoutMs} ms` : (error?.message || 'provider unavailable')
       const kept = state.current
       state = kept
@@ -229,7 +238,9 @@ function createWeatherSource(options = {}) {
 
   function begin() {
     if (inFlight) return inFlight
-    inFlight = run().finally(() => { inFlight = null })
+    requestGeneration++
+    inFlightLocation = location
+    inFlight = run(location).finally(() => { inFlight = null; inFlightLocation = null })
     return inFlight
   }
 
@@ -238,7 +249,9 @@ function createWeatherSource(options = {}) {
   // already in force alone and, with none, publishes a reason instead of a guess.
   async function resolveLocation() {
     if (!deviceLocation) return true
+    const lookup = ++locationLookup
     const found = await deviceLocation.resolve()
+    if (lifetime.signal.aborted || lookup !== locationLookup) return false
     if (found.status !== 'located') {
       if (!location) {
         state = { status: 'unavailable', place: null, unit: DEFAULT_UNIT, current: null, daily: null, updatedAt: state.updatedAt, hint: null,
@@ -247,14 +260,37 @@ function createWeatherSource(options = {}) {
       }
       return true
     }
-    location = { latitude: found.latitude, longitude: found.longitude, place: boundPlace(found.place), source: 'device' }
+    const next = { latitude: found.latitude, longitude: found.longitude, place: boundPlace(found.place), source: 'device' }
+    if (!location || Object.keys(next).some(key => next[key] !== location[key])) {
+      location = next
+      if (state.current) state = { ...state, status: 'stale' }
+    }
     return true
   }
 
-  async function refresh({ force = false } = {}) {
+  async function refreshCurrent({ force = false } = {}) {
     if (!configured && !deviceLocation) return state
-    if (!(await resolveLocation())) return state
-    if (inFlight) return inFlight
+    const generation = requestGeneration
+    let joinedLookup = false
+    if (deviceLocation) {
+      let resolving = resolveLocation()
+      locationResolution = resolving
+      let located = await resolving
+      while (resolving !== locationResolution && !lifetime.signal.aborted) {
+        joinedLookup = true
+        resolving = locationResolution
+        located = await resolving
+      }
+      if (!located) return state
+    } else await Promise.resolve()
+    // Only an actual provider request can satisfy an earlier forced refresh.
+    if (joinedLookup && requestGeneration !== generation) force = false
+    if (lifetime.signal.aborted) return state
+    while (inFlight) {
+      if (inFlightLocation === location) return inFlight
+      await inFlight
+      if (lifetime.signal.aborted) return state
+    }
     if (!force && state.status === 'live' && state.updatedAt !== null && now() - state.updatedAt < refreshMs) {
       return state
     }
@@ -268,7 +304,22 @@ function createWeatherSource(options = {}) {
     return begin()
   }
 
-  return { refresh, snapshot: () => state, configured }
+  function refresh(options) {
+    if (lifetime.signal.aborted) return Promise.resolve(state)
+    const pending = refreshCurrent(options)
+    activeRefreshes.add(pending)
+    const release = () => activeRefreshes.delete(pending)
+    void pending.then(release, release)
+    return pending
+  }
+
+  async function stop() {
+    cancel()
+    options.signal?.removeEventListener('abort', cancel)
+    await Promise.allSettled([...activeRefreshes, ...(inFlight ? [inFlight] : [])])
+  }
+
+  return { refresh, snapshot: () => state, configured, stop }
 }
 
 module.exports = { createWeatherSource, describeWeatherCode, WEATHER_STATES, PROVIDER_URL, REFRESH_MS, TIMEOUT_MS, PLACE_COLUMNS, placeColumns, DEFAULT_UNIT }

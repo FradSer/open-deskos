@@ -14,10 +14,10 @@ function load(saved = undefined, blocked = false) {
     getItem() { if (blocked) throw Error('denied'); return stored },
     setItem(key, value) { if (blocked) throw Error('denied'); stored = value },
   }
-  const window = { localStorage: storage }
+  const window = { localStorage: storage, odkAppearancePlugins: require('../src/renderer/core/appearance-plugins') }
   const document = { documentElement: root, hidden: false,
     addEventListener(k, fn) { listeners[k] = fn } }
-  vm.runInNewContext(fs.readFileSync(path.join(renderer, 'core/theme.js'), 'utf8'), { window, document })
+  vm.runInNewContext(fs.readFileSync(path.join(renderer, 'core/theme.js'), 'utf8'), { window, document, AbortController })
   return { window, document, root, listeners, saved: () => stored }
 }
 

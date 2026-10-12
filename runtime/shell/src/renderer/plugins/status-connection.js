@@ -26,8 +26,10 @@
       const indicator = el.querySelector('#sb-net')
       const online = indicator.querySelector('[data-tabler="wifi"]')
       const offline = indicator.querySelector('[data-tabler="wifi-off"]')
+      let released = false
 
-      ctx.connection.subscribe((reachable) => {
+      const unsubscribe = ctx.connection.subscribe((reachable) => {
+        if (released || ctx.signal?.aborted) return
         // The reachability value carries the same truth as the status
         // announcement, so the indicator never disagrees with it.
         const label = ctx.connection.labelFor(reachable)
@@ -36,6 +38,10 @@
         indicator.dataset.online = String(reachable)
         indicator.setAttribute('aria-label', label)
         indicator.setAttribute('title', label)
+      })
+      ctx.trackCleanup?.(() => {
+        released = true
+        unsubscribe()
       })
     },
   })

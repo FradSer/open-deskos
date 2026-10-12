@@ -60,9 +60,13 @@ function createDeviceLocation(options = {}) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      const response = await fetchImpl(providerUrl, { signal: controller.signal, headers: { accept: 'application/json' } })
+      const signal = options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
+      signal.throwIfAborted()
+      const response = await fetchImpl(providerUrl, { signal, headers: { accept: 'application/json' } })
       if (!response?.ok) throw new Error(`location provider responded ${response?.status ?? 'without a status'}`)
-      return readLocation(await response.json())
+      const payload = await response.json()
+      signal.throwIfAborted()
+      return readLocation(payload)
     } catch (error) {
       if (controller.signal.aborted) throw new Error(`location provider timed out after ${timeoutMs} ms`)
       throw error
@@ -72,6 +76,7 @@ function createDeviceLocation(options = {}) {
   }
 
   async function resolve({ force = false } = {}) {
+    if (options.signal?.aborted) return { status: 'unavailable', error: 'location lookup stopped' }
     if (located && !force && now() - located.fetchedAt < refreshMs) {
       return { status: 'located', ...located, source: 'device' }
     }
@@ -80,6 +85,7 @@ function createDeviceLocation(options = {}) {
       const stamp = now()
       try {
         const found = await request()
+        options.signal?.throwIfAborted()
         if (!found) throw new Error('location provider returned no usable coordinates')
         located = { latitude: found.latitude, longitude: found.longitude, place: found.place, fetchedAt: stamp }
         return { status: 'located', ...located, source: 'device' }

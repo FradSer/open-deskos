@@ -51,6 +51,16 @@ Feature: A Service Plugin's data keeps arriving for as long as the service does
     When Electron emits before-quit
     Then each source stops exactly once
 
+  Scenario: Failed Futu listener release retains cleanup ownership
+    Given a default or signed selected Futu service with an active listener
+    When endpoint withdrawal fails during Host shutdown
+    Then the service retains its listener and required catalog for cleanup retry
+    And Host startup refuses to allocate another implementation
+    And concurrent listener stops wait for the same close operation
+    When endpoint withdrawal succeeds on retry
+    Then shutdown releases the listener and catalog
+    And a later Host start can listen again
+
   Scenario: A pending service listen cannot resurrect after quit
     Given the Shell is starting a declared service listener
     When the application stops before that listener finishes
@@ -66,3 +76,14 @@ Feature: A Service Plugin's data keeps arriving for as long as the service does
     Given the Shell has refreshed an installed service declaration
     When a later catalog read fails
     Then the last successfully read service declaration remains available
+
+  Scenario: Replacement coordinators preserve service delivery
+    Given default or independent refresh, notification, and frame status plugins
+    When the Shell selects them through its existing Main composition
+    Then refreshes retain provider order and reconcile Desk Data readings
+    And a failed provider or diagnostic does not silence another provider
+    And overlapping refresh requests share the active operation
+    And shutdown waits for that operation before releasing providers
+    And notifications retain reading identities and provider results
+    And initial frame messages retain their destinations and unavailable states
+    And stopped plugins reject updates from retained ports and callbacks

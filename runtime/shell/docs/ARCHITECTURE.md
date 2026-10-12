@@ -227,7 +227,7 @@ Session 0 service capture, coupling to the kiosk launcher and separate PowerShel
 
 Pass the bounded request to the helper as a private stdin file; remove it with the exchange. Prompts/projects must never enter process arguments. The correlated response completes the request; stop the helper after it arrives. A later nonzero exit cannot undo that answer. No answer remains a timeout.
 
-Remote project paths follow target admission: absolute POSIX paths without parent segments/control characters. Send them verbatim. Only local projects use local resolution. Waiting for helper exit caused valid answers to time out; requiring a Windows pipe client or repeating target root policy on the desk was rejected. [Personal Bot control documentation](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi) owns the transport contract.
+Remote project paths follow target admission: absolute POSIX paths without parent segments/control characters. Send them verbatim. Only local projects use local resolution. Waiting for helper exit caused valid answers to time out; requiring a Windows pipe client or repeating target root policy on the desk was rejected. [Personal Bot control documentation](../../../integrations/personal-bot/docs/CONTRACT.md#hosted-pi-setup) owns the transport contract.
 
 <a id="adr-0033"></a>
 ### ADR-0033: One read-only Desk Data registry
@@ -265,29 +265,275 @@ Touch and keyboard navigation remain independent of Agent availability.
 A future mail App uses the same declared data boundary.
 A home statement grants no execution authority.
 
+## Current Shell plugin composition
+
+The Electron main process, renderer surfaces, appearance plugins, and Remote Bridge use the local host from [plugin-host.js](../src/plugin-host.js).
+Trusted local factories declare versioned ports, required or optional dependencies, and capability names.
+The host checks the dependency graph before startup.
+It stops consumers before providers and cancels work during shutdown.
+Failed plugins attempt to release their resources.
+Cleanup failures retain ownership and block initialization over those resources.
+Stop failure prevents destroy and registered cleanup.
+Repeated shutdown retries incomplete phases without repeating successful operations.
+Retained consumers prevent provider cleanup and withdraw their public ports.
+Only consumer cleanup can resolve a retained provider port.
+Independent plugins can continue to run.
+
+The current composition includes these components:
+
+- The data sources in [data-sources.js](../src/plugins/data-sources.js)
+- Personal Bot, Remote Link, the built-in App manager, service notifications, and initial frame status in [system-channels.js](../src/plugins/system-channels.js)
+- The package catalog, Futu services, Desk Data, service refresh, installed Widget/App runtime, and Desk Data Link in [desk-runtime.js](../src/plugins/desk-runtime.js)
+- The appearance declarations in [appearance-plugins.js](../src/renderer/core/appearance-plugins.js)
+- The renderer surfaces in [registry.js](../src/renderer/core/registry.js).
+- The Remote Bridge listener and transports in [plugin-runtime.js](../../../integrations/remote-bridge/lib/plugin-runtime.js).
+- The resident Personal Bot components in [plugin-composition.mjs](../../../integrations/personal-bot/src/plugin-composition.mjs).
+- The Hosted Pi task components in [task-composition.mjs](../../../integrations/personal-bot/src/task-composition.mjs).
+
+The CLI can link [appearance declarations](CONFIGURATION.md#appearance-declarations) for existing packaged theme identities.
+Main passes the same validated selection to the renderer and installed package context.
+These declarations replace palette values while preserving packaged fonts, geometry, and assets.
+
+The read-only [diagnosis plugin](../src/plugin-diagnostics.js) exposes current Main lifecycle states through the authenticated local channel.
+The [renderer diagnosis plugin](../src/renderer-diagnostics.js) requests bounded snapshots from known Shell main frames.
+The Personal Bot diagnosis plugin reads the resident composition through its negotiated channel capability.
+The Remote Bridge diagnosis plugin reads listener and transport states through separate short connections.
+The Bridge entry accepts [trusted transport selections](../../../integrations/remote-bridge/README.md#trusted-external-transport-selections) and supports offline declaration inspection.
+The Hosted Pi diagnosis plugin reads the task composition through its existing discovered endpoint.
+The task daemon also accepts [trusted startup selections](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-hosted-pi-development-selections) for listener, service, and endpoint factories.
+Its named runtime port distinguishes Hosted Pi from the resident Personal Bot on the same host type.
+The shared [runtime report validator](../src/plugin-runtime-report.js) excludes private errors and data from runtime reports.
+The CLI reports renderer snapshots separately and treats unavailable runtime channels as failures.
+These states do not certify renderer, source, service, or hardware health.
+[Runtime replacement](RUNTIME_PLUGIN_REPLACEMENT.md) owns trusted Host replacement and explicit authenticated activation of saved signed Main selections.
+[CONFIGURATION](CONFIGURATION.md#plugin-diagnosis) owns endpoint requirements and diagnostic scope.
+
+Each plugin owns its IPC handlers, subscriptions, timers, or listeners.
+
+The separate [Main control plugin](../src/plugin-control.js) applies explicit runtime enable and disable commands through the existing host lifecycle.
+Its authenticated channel does not change startup preferences or the read-only diagnosis contract.
+It refuses self-disable, unknown identities, and successful receipts after lifecycle failure.
+The CLI marks malformed receipts and lost responses as unknown operation outcomes without automatic replay.
+The common dispatcher publishes a bounded, read-only component identity inventory without private errors or runtime data.
+The CLI resolves unique online ownership across registered management endpoints before it sends a mutation.
+Ambiguous identities and invalid online inventories prevent routing.
+Runtime identity prefixes do not determine the selected management channel.
+The Bridge transport control plugin uses the same dispatcher with its own authenticated endpoint and transport-only target set.
+Its listener dependency keeps transport cleanup separate from control and input channel ownership.
+Hosted Pi uses the same dispatcher through an independent management endpoint.
+Its partial service stop drains Console connections and their asynchronous disconnect operations while preserving its listener.
+Each connection retains its service owner until cleanup succeeds.
+Renderer management uses a separate authenticated Main-owned endpoint and a correlated Shell main-frame bridge.
+Its controller coordinates lifecycle, placements, pager state, and Remote publication before acknowledgement.
+Failed affected surface mounts prevent successful receipts even when the selected factory remains running.
+Frame identity checks, response limits, and unknown-outcome failures preserve the existing authorization boundary.
+Python and firmware still require applicable deployed-host or physical management acceptance.
+
+Weather owns cancellation of its provider requests and its default device-location requests.
+Its source stops new requests, suppresses late cache publication, and drains active refresh operations before cleanup completes.
+Legacy injected Weather sources can omit `stop`; the existing source contract remains accepted.
+Such sources do not establish cancellation support without separate acceptance evidence.
+
+The kernel publishes frame readiness through [frame-ready.js](../src/frame-ready.js).
+The frame status plugin broadcasts Personal Bot status and sends Remote Link status only to the new frame.
+Optional providers retain the existing unavailable and disconnected fallback states.
+The notification plugin forwards changed reading identities to the current Personal Bot instance.
+Stopping either consumer cancels its retained callbacks without stopping its providers.
+Desk Data Link retains its listener until close succeeds, including listeners returned after startup cancellation.
+A failed close retains the required data provider and prevents replacement until cleanup succeeds.
+Normal Electron exit waits for plugin shutdown before it resumes.
+Repeated exit requests share that shutdown operation.
+Shutdown failures enter diagnostics before exit resumes.
+Source replacement makes Desk Data use the new source instance.
+Desk Data checks the package catalog again after restart.
+It retains published values only when the package revision, name, data declaration, and home declaration stay the same.
+Default package registration still clears previous published values.
+
+The appearance plugins declare theme identifiers, local CSS, semantic tokens, and font faces.
+The Shell keeps Pixel as its default theme.
+Installed package documents use the same declarations.
+An unknown theme selection uses Instrument.
+
+Renderer surfaces keep their existing mount and unmount contracts.
+Trusted startup composition can select replacement definitions while preserving surface identity, role, dependencies, ports, and permissions.
+The registry validates the complete candidate before selecting it or executing factories.
+The [built-in guide](AI_PLUGIN_GUIDE.md#trusted-replacement-composition) owns preloaded definitions, trusted development entries, and distribution limits.
+Main separates renderer entries from native Main factories and authenticates entry requests against known Shell main frames.
+The renderer validates declarations before script loading and validates actual definitions before factory execution.
+Optional development stylesheets resolve inside their linked directory and receive an inactive availability check before entry execution.
+The registry associates each validated stylesheet URL with its selected definition without changing ordinary relative CSS declarations.
+
+Read [the runtime replacement contract](RUNTIME_PLUGIN_REPLACEMENT.md) when a trusted controller replaces a running JavaScript factory.
+Its Renderer programmatic section owns retained placements, App guards, unchanged stylesheet bindings, and shutdown fencing.
+
+The common host starts their declared dependencies before mounting.
+Shutdown releases each mounted surface before its factory resources.
+Cleanup failures cannot prevent other resources from releasing.
+
+An asynchronous surface release retains its element until cleanup completes.
+App transitions execute in request order and await the previous surface release.
+Failed activation waits for retained cleanup before the App endpoint and previous foreground are restored.
+
+The [plugin scenarios](../tests/features/plugin-host.feature) define the compatibility and lifecycle checks.
+This composition does not load third-party native code or change installed HTML package permissions.
+Remote Bridge stops its transports before its socket listener.
+Transport removal selects an available fallback and keeps the listener open.
+Source checkouts and immutable releases load the same Shell kernel.
+The [Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#plugin-composition) owns its component lifecycle.
+Resident runtime disable preserves its service and channel providers while voice work drains through reversible service suspension.
+The resident management plugin uses the common dispatcher through an independent authenticated endpoint.
+The unified CLI routes resident identities to this endpoint without changing startup preferences.
+Management remains available while service or voice channel dependencies restart.
+Its [development selection](../../../integrations/personal-bot/docs/CONTRACT.md#trusted-resident-development-selections) selects explicitly trusted native resident entries at startup.
+Inspection validates declarations without initializing components or preparing operational directories.
+The [Futu Python host](../../../integrations/futu-poller/plugin_host.py) implements synchronous local factory composition with the same versioned-port declarations.
+The [Futu integration](../../../integrations/futu-poller/README.md#local-component-plugins) owns its lifecycle and compatibility limits.
+Its [development selection](../../../integrations/futu-poller/README.md#trusted-development-replacements) loads explicitly trusted local Python replacements at startup.
+Inspection validates declarations without executing selected entry code.
+The default Python publisher requires a replaceable connection transport through `odk:futu/transport/v1`.
+The publisher owns connected resources and retains the provider after uncertain connection cleanup.
+Its local diagnosis API reports actual owned states through a bounded snapshot without provider work or private fields.
+The report matches the Shell validator.
+The default publisher answers negotiated requests through its existing connection on the owner thread.
+A separate Main plugin exposes reports without changing the Futu service port contract.
+The [Futu guide](../../../integrations/futu-poller/README.md#negotiated-runtime-diagnosis) owns protocol and transport limits.
+The [S3 Remote](../../../peripherals/esp32-s3-remote/README.md#native-component-plugins) uses the heap-free [native host](../../../peripherals/common/README.md).
+Its generated descriptors bind actual driver and surface lifecycle operations.
+The [P4 Camera](../../../peripherals/esp32-p4-camera/README.md#native-component-plugins) also starts through the native host.
+Its typed ports connect storage, I2C, camera, USB, microphone, and video plugins.
+Its runbook records cooperative TinyUSB cleanup, retained SDK initialization faults, and separate hardware gates.
+The native host exposes caller-owned lifecycle snapshots without driver callbacks, heap allocation, or private resource pointers.
+Snapshots retain resource ownership and completed cleanup phases; they do not certify hardware health or provide a firmware operator channel.
+Generated native descriptors retain public manifest JSON for bounded runtime reports that match the Shell validator.
+Native report serialization preserves lifecycle behavior and does not execute drivers or allocate heap memory.
+The full cross-host design below remains a target.
+[Plugin coverage](PLUGIN_COVERAGE.md) records current boundaries, local evidence, and remaining completion gates.
+
+Trusted local compositions can pass `replacementPlugins` to [createMainPlugins](../src/plugins/main-composition.js).
+Each replacement keeps its built-in identity, host, and kind.
+Its provided ports match the current contract or an explicitly retained earlier contract.
+The composition checks replacement dependencies before any factory runs.
+Invalid replacements fail composition instead of silently selecting the original implementation.
+Rejected development additions preserve valid replacements.
+
+The CLI links development replacements with explicit `--replace` and capability grants.
+Port checks do not prove method signatures, IPC compatibility, or feature behavior.
+Replacement acceptance requires the affected feature scenarios.
+
+The [Weather parity checks](../tests/weather-plugin-parity.test.js) compare default, development-linked, and signed independent source implementations.
+The replacement owns provider requests, response decoding, cache handling, and cancellation without importing the default source.
+Device-location and reading projection helpers remain explicit shared dependencies.
+The [Weather contract](WEATHER_PLUGIN_CONTRACT.md) owns current source, rendered consumer, revision, and cross-process cache evidence.
+That contract also records production bootstrap checks and their limits.
+Alternative providers and supported-device acceptance remain separate gates.
+
+Quota owns each active provider read through its plugin lifecycle.
+Stop cancels native requests and waits for their settlement before a new instance starts.
+Cancelled reads return unavailable instead of late quota values.
+The [Quota parity checks](../tests/quota-plugin-parity.test.js) compare default and replacement compositions with the same IPC and Desk Data scenarios.
+The signed independent source owns provider requests and lifecycle behavior without default source imports.
+The [Quota contract](QUOTA_PLUGIN_CONTRACT.md) owns shared dependencies and current consumer evidence.
+Alternative provider compatibility and supported-device acceptance remain unverified.
+
+Pi Sessions and Session Events sources retain callable versioned ports.
+Each source owns its pending reads, including parallel requests after another request fails.
+Stop prevents new reads and fallback scans, then waits for owned requests to finish.
+Cancellation suppresses results while their returned Promise remains pending.
+Already completed Promises retain their values.
+The SSH source passes its cancellation signal to the native child process.
+Stop retains the child until its close event confirms process and stream release.
+The [Node child process contract](https://nodejs.org/api/child_process.html#event-close) defines this completion boundary.
+Pi sources pass their cancellation signals to individual Desk Link requests.
+Each cancelled request closes its connection without stopping independent requests.
+The shared Desk Link client retains request ownership until socket close.
+Client stop cancels all its requests and waits for their connections to close.
+Cancellation signals remain local and do not change protocol records or authentication.
+
+The [Pi replacement checks](../tests/pi-plugin-parity.test.js) compare default, development-linked, and signed independent Sessions and Events implementations.
+The independent sources own aggregation, projection, parsing, and request lifetime through explicit collection capabilities.
+The [Sessions contract](PI_SESSIONS_PLUGIN_CONTRACT.md) and [Events contract](PI_EVENTS_PLUGIN_CONTRACT.md) own shared dependencies and current consumer evidence.
+Those contracts also record production bootstrap checks and their limits.
+Live collector behavior and supported-device acceptance remain separate gates.
+
 ## Proposed target
 
-This is an approved design target, not a shipped API or device certificate. It does not expand HTML package authority or include preserved P4+C6 research. The Host Kernel would own startup, validation, dependencies, lifecycle, grants, configuration and faults. Features, drivers, services and transports would use separate plugins. The host keeps windows, State Bar pager, App frames, Back and overlays.
+This approved design target does not certify a shipped API or device behavior.
+It does not expand HTML package authority or include preserved P4+C6 research.
+The Host Kernel owns startup, validation, dependencies, lifecycle, grants, configuration, and faults.
+Features, drivers, services, and transports use separate plugins.
+The host keeps windows, State Bar pager, App frames, Back, and overlays.
+The [current composition](#current-shell-plugin-composition) describes implemented boundaries.
+The replacement acceptance rules below apply to feature conversion.
+Later proposals do not require new product capabilities to complete that conversion.
+
+### Replacement acceptance
+
+Use a plugin boundary for a feature, service, transport, or driver with an independent replacement requirement.
+Keep internal helpers inside their owning plugin unless they have a separate replacement requirement.
+Reuse existing selection and lifecycle interfaces before adding another management mechanism.
+Replaceability alone does not require replacement during operation, automatic reload, or new state migration.
+Preserve existing management and recovery behavior when selecting another implementation.
+
+Each feature must have an explicit implementation boundary and a working selection path.
+The selected implementation must preserve the feature contract, persisted data, and public consumer behavior.
+Startup selection establishes replaceability when the feature has no requirement for replacement during operation.
+Existing runtime management, authorization, recovery, and package update contracts remain required where applicable.
+A minimal alternative implementation can prove selection and consumer compatibility without duplicating the complete default implementation.
+Shared behavior checks must cover the applicable contract; a selection marker alone cannot establish functional preservation.
 
 ### Proposed Core Manifest v1
+
+This table retains the target vocabulary; it is not the schema for every current host.
+Use [Native plugins](NATIVE_PLUGINS.md) for current Shell manifests, trust, distribution, and selection.
+Use the [native host contract](../../../peripherals/common/README.md) for firmware descriptors and lifecycle operations.
+Fields in this proposal do not independently require implementation during feature conversion.
 
 | Field | Target contract |
 | --- | --- |
 | `$schema`, `schemaVersion` | Version 1; `https://open-deskos.org/schemas/plugin-manifest.v1.json` |
 | `id`, `name`, `version`, `entry` | Stable identity, display name, semantic version, module/factory |
 | `kind` | `surface`, `application`, `service`, `transport`, `device-driver`, `processor`, `protocol`, `integration`, `system` |
-| `host` | `electron-main`, `electron-renderer`, `remote-bridge`, `esp32-s3`, `esp32-p4`, `python-agent` |
+| `host` | `electron-main`, `electron-renderer`, `remote-bridge`, `esp32-s3`, `esp32-p4`, `python-agent`, `personal-agent` |
 | `dependsOn`, `provides`, `requires` | Versioned dependencies/ports; required or optional |
 | `permissions`, `configSchema` | Requested capabilities and configuration |
 | `health` | Probe mode/interval/timeout; example 5000 ms/1500 ms |
 | `distribution` | `system`, `user`, `dev` origin and signature metadata |
 
-Reject cycles/missing required ports before startup. Inject only grants. Lifecycle: register → init → start, pause/resume, stop → destroy; visual surfaces also mount/unmount. Health reports `healthy`, `degraded`, `failed`, not lifecycle transitions. Stop cancels active work; destroy releases resources/ports. Faults must preserve neighboring surfaces and direct input.
+Reject cycles and missing required ports before startup.
+Inject only granted capabilities.
+Stop cancels active work; destroy releases owned resources and ports.
+Visual surfaces also mount and unmount.
+Faults must preserve neighboring surfaces and direct input.
+Health reports remain separate from lifecycle states.
+Generic pause, resume, and configurable health probes remain proposals unless an existing host contract defines them.
 
-Proposed `ctx.services.get(serviceId)` resolves services. Backend RPC authenticates callers and allows only declared/granted actions; renderer IDs cannot authorize requests. Manifest grid contributions preserve explicit placement and reject overlap. Themes validate semantic tokens and preserve state. Structured alerts leave display/focus/dismissal to the host. `ctx.callBackend` and `kind: 'theme'` remain sketches; use current guidance for code.
+The existing `ctx.services.get(serviceId)` resolves selected Renderer services.
+Read [the current service guidance](AI_PLUGIN_GUIDE.md#supplied-context) before implementing a consumer.
+Backend RPC must authenticate callers and allow only declared, granted actions.
+Renderer identities cannot authorize requests.
+Grid contributions must preserve explicit placement and reject overlap.
+Themes must validate semantic tokens and preserve state.
+Structured alerts leave display, focus, and dismissal to the host.
+`ctx.callBackend` and `kind: 'theme'` remain sketches.
+The [appearance declaration contract](CONFIGURATION.md#appearance-declarations) defines current theme implementation guidance.
 
-Main owns windows/CSP/grants/registry/IPC; preload proxies capabilities without domain decisions; renderer orders verified modules and routes intents. Remote Bridge would prefer USB CDC priority 100 over accepted wireless priority 50 and retain client sockets through handover. ESP-IDF would generate heap-free `.rodata` descriptors and startup order before build. C descriptors contain identity/version/kind/lifecycle and provides/requires port arrays with interface URI, major/minor and optional flag. Pure algorithms remain host-testable.
+Main owns windows, CSP, grants, registry, and IPC.
+Preload proxies capabilities without domain decisions.
+Renderer orders verified modules and routes intents.
+The [Remote Bridge contract](../../../integrations/remote-bridge/README.md) owns transport priority and client continuity during handover.
+The firmware build generates immutable descriptors and dependency order before compilation.
+The [native host contract](../../../peripherals/common/README.md) owns descriptor fields and supported lifecycle operations.
+Pure algorithms remain testable on the development host.
 
-CLI targets: list, validate, add, remove, link, enable, disable, diagnose, update. Discovery: `plugins.dev/` → user → system. `add <git-url-or-path>` would disclose permissions and require explicit default-deny `y/N` trust consent for third-party/unsigned content. State/config and `trustAcknowledgedAt` would use `~/.config/open-deskos/plugins.json`; signatures would use `/etc/open-deskos/keyring.pub`. Checksums are not trust/signatures. System signature enforcement and development reload need implementation evidence; the former 200 ms reload goal is not a guarantee.
+The [Native plugin contract](NATIVE_PLUGINS.md) owns implemented CLI commands, discovery, configuration paths, publisher keyrings, and signature enforcement.
+Its selection and activation paths retain their existing trust and revision requirements.
+Checksums do not establish publisher trust or replace signatures.
+Git URL installation, automatic development reload, and a uniform discovery directory remain proposals.
+The former 200 ms reload goal is not a guarantee or a feature conversion requirement.
 
-Open work: production versus development reload; inter-plugin events/IPC permissions; verification matrix; wireless after hardware acceptance. These targets authorize no native code, downloads, live capture or production changes. ADR-0004's Face Agent withdrawal still applies.
+The [feature matrix](PLUGIN_FEATURE_MATRIX.md) maps current replacement requirements and unverified evidence.
+It does not require every proposal in this section to become a shipped feature.
+Additional reload and event interfaces need a concrete feature requirement before implementation.
+Wireless behavior retains its existing hardware acceptance requirements.
+These targets authorize no native code execution, downloads, live capture, or production changes.
+ADR-0004's Face Agent withdrawal still applies.

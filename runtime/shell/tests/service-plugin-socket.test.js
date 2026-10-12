@@ -10,6 +10,29 @@ const os = require('node:os')
 const path = require('node:path')
 const { createServicePluginSocket } = require('../src/service-plugin-socket')
 
+test('concurrent service socket stops wait for one retained channel close', async t => {
+  const socketPath = endpoint()
+  t.after(() => fs.rmSync(path.dirname(socketPath), { recursive: true, force: true }))
+  const service = createServicePluginSocket({ socketPath })
+  const channel = await service.start()
+  const close = channel.close.bind(channel)
+  let entered, release
+  const closing = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  let closes = 0
+  t.mock.method(channel, 'close', async () => { closes++; entered(); await gate; await close() })
+  const first = service.stop()
+  await closing
+  let secondFinished = false
+  const second = service.stop().then(() => { secondFinished = true })
+  await new Promise(setImmediate)
+  const finishedWhilePending = secondFinished
+  release()
+  await Promise.all([first, second])
+  assert.equal(finishedWhilePending, false)
+  assert.equal(closes, 1)
+})
+
 function endpoint() {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'odesk-sock-')), 'svc.sock')
 }

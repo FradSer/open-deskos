@@ -74,3 +74,19 @@ test('exposes platform actions and only narrow remote state APIs to the sandboxe
   assert.equal(listeners.has('odk-remote-navigation'), false)
   assert.equal(listeners.has('odk-remote-input'), false)
 })
+
+
+test('Remote Link subscriptions read current state and fence initial replies after release', async () => {
+  const { exposed, invokes } = loadPreload()
+  const states = []
+  const release = exposed.odkRemote.subscribeLinkState(state => states.push(state))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(invokes, [['odk-remote-link-state', undefined]])
+  assert.deepEqual(states, ['disconnected'])
+  release()
+  const cancelled = []
+  const stop = exposed.odkRemote.subscribeLinkState(state => cancelled.push(state))
+  stop()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(cancelled, [])
+})

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.p4.usb",
+  "name": "P4 usb",
+  "version": "1.0.0",
+  "host": "esp32-p4",
+  "kind": "transport",
+  "lifecycle": "p4_usb_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:p4/usb/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:p4/camera/v1"
+    }
+  ]
+}

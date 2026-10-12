@@ -3,6 +3,15 @@ Feature: Desk Data is read through the plugin system
   Background:
     Given the Shell holds a Hydra reading, a weather instrument, a Futu Service Plugin, and one installed package
 
+  Scenario: A selected Link implementation serves the existing Personal Bot
+    Given the default or an alternative Desk Data Link uses the selected registry
+    When the Personal Bot lists and reads through the existing client
+    Then both implementations return current readings and untrusted package values
+    And the Link rejects mutation requests
+    And disabling the Link releases its listener without discarding published values
+    And enabling the Link restores the same readings
+    And the alternative never starts the default listener
+
   Scenario: A spoken question about a plant is answered from the tile's own reading
     Given the Hydra source is connected and one plant's soil is 30 percent
     When the Personal Bot reads the Hydra Desk Data
@@ -154,3 +163,47 @@ Feature: Desk Data is read through the plugin system
     When the Personal Bot reads that Desk Data
     Then the reading carries the time each measurement was taken
     And the reading is reported as the source reported itself
+
+
+  Scenario: An older catalog synchronization cannot restore a removed package
+    Given an installed package has published data
+    And its catalog synchronization is waiting for an older snapshot
+    When a newer synchronization removes that package
+    And the older catalog snapshot arrives
+    Then the package remains absent from Desk Data
+    And its previous publication does not return
+
+  Scenario: An older catalog synchronization cannot overwrite a new revision
+    Given a package catalog synchronization is waiting for an older revision
+    When a newer synchronization registers the current revision
+    And the current revision publishes data
+    And the older catalog snapshot arrives
+    Then readers still receive the current revision's published data
+    And source and service readings remain available
+
+  Scenario: An unreadable current catalog retains committed package state
+    Given a package has published data
+    And an older catalog synchronization is waiting
+    When a newer synchronization cannot read the catalog or receives a malformed catalog
+    And the older catalog snapshot arrives
+    Then the last committed package declaration and publication remain unchanged
+    And the older pending synchronization does not regain authority
+
+  Scenario: Windows replacement Links use private authenticated pipes
+    Given the default or alternative Link uses a unique test pipe and private token
+    When the actual Personal Bot reads the selected registry
+    Then both Links preserve the same reading and mutation-refusal behavior
+    And disabling either Link prevents new connections
+    And enabling either Link restores its retained readings
+    And the test never connects to a product pipe or token
+
+
+  Scenario: Selected registries retain source read errors and byte bounds
+    Given the default or signed selected registry serves a controlled source
+    When control and the actual Personal Bot read a value at the UTF-8 byte limit
+    Then both return the complete value without truncation
+    When the source exceeds that limit or fails
+    Then both refuse that reading with the existing error
+    And another source remains readable
+    When the source recovers
+    Then both read the new value without a cached substitute
