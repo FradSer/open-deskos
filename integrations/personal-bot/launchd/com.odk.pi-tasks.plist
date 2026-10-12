@@ -3,20 +3,20 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.open-deskos.pi-tasks</string>
+  <string>com.odk.pi-tasks</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__OPEN_DESKOS_NODE_BIN__/node</string>
-    <string>__OPEN_DESKOS_PERSONAL_BOT_DIR__/src/task-daemon.mjs</string>
+    <string>__ODK_NODE_BIN__/node</string>
+    <string>__ODK_PERSONAL_BOT_DIR__/src/task-daemon.mjs</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>__OPEN_DESKOS_PERSONAL_BOT_DIR__</string>
+  <string>__ODK_PERSONAL_BOT_DIR__</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>ODESK_TASK_CONFIG</key>
-    <string>__OPEN_DESKOS_HOME__/.config/open-deskos/pi-tasks.json</string>
+    <key>ODK_TASK_CONFIG</key>
+    <string>__ODK_HOME__/.config/odk/pi-tasks.json</string>
     <key>PATH</key>
-    <string>__OPEN_DESKOS_NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>__ODK_NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

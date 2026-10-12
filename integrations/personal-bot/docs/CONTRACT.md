@@ -58,7 +58,7 @@ The selection file must be regular and contain at most 16 KiB.
 Each manifest preserves the component identity, host, kind, provided ports, and required ports.
 Current resident components declare no injectable capabilities; replacements must retain an empty permissions list.
 The composition rejects duplicate identities and replacements for inactive optional components.
-The watcher remains available only when `ODESK_PROACTIVE_CONFIG` selects that feature.
+The watcher remains available only when `ODK_PROACTIVE_CONFIG` selects that feature.
 
 Export `create(context)` from each entry.
 Return the raw service, channel, Agent runtime, home briefing, or watcher component.
@@ -203,16 +203,16 @@ Reviewed custom capabilities have service-user permissions, without an OS sandbo
 
 The personal profile adds protected memory and reviewed DiDi tools.
 It loads no project instructions, discovered extensions, or operator coding modules.
-Set `ODESK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
+Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
 
 ```json
 {
   "profile": "personal",
   "skillPaths": [],
-  "memoryFile": "/home/orangepi/.local/state/open-deskos-personal-bot/personal/MEMORY.md",
+  "memoryFile": "/home/orangepi/.local/state/odk-personal-bot/personal/MEMORY.md",
   "didi": {
     "environment": "sandbox",
-    "keyFile": "/home/orangepi/.config/open-deskos/didi.key"
+    "keyFile": "/home/orangepi/.config/odk/didi.key"
   }
 }
 ```
@@ -292,7 +292,7 @@ Private memory files, credentials, and live readings are excluded.
 | `app_manage` | Explicit existing package lifecycle/placement changes |
 | `suggestions` | Read private proposals without conversation inference |
 | `proposal_response` | Validate the displayed phrase and subsequent turn |
-| `desk_data` | Read current measurements, state, and time |
+| `odk_data` | Read current measurements, state, and time |
 | `memory` | Apply explicit current-turn remember/forget policy |
 | `ride` | Use the reviewed quote/order transaction |
 | `extension` | Invoke reviewed operator-added capabilities |
@@ -324,12 +324,12 @@ Unknown tools and invalid arguments are call errors, not proof of service unavai
 Historical readings do not establish current conditions.
 Raw metrics cannot establish assessments without applicable thresholds or source assessments.
 
-Both profiles require private `TYPESAFE_API_KEY` or protected `ODESK_JEV_KEY_FILE`, even with proposals disabled.
-`ODESK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
-`ODESK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
-`ODESK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
+Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`, even with proposals disabled.
+`ODK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
+`ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
+`ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
 Selected probability and confidence must both meet the threshold.
-Proposals use the separate `ODESK_JEV_THRESHOLD` setting.
+Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
 Missing credentials stop initialization.
 Failed, malformed, or oversized inference never falls back to regexes or Pi routing.
@@ -353,7 +353,7 @@ There is no global second confirmation or edit/test-only worker restriction.
 This permits model mistakes to execute with that capability.
 Available tools do not authorize unrelated production operations.
 
-Host configuration is private `~/.config/open-deskos/pi-tasks.json`, mode 0600:
+Host configuration is private `~/.config/odk/pi-tasks.json`, mode 0600:
 
 ```json
 {
@@ -366,27 +366,27 @@ Host configuration is private `~/.config/open-deskos/pi-tasks.json`, mode 0600:
 Optional `model` uses `provider/model-id`.
 Use a dedicated private socket parent; never a shared system directory.
 Pi uses its normal user credential store; this file contains no keys.
-The Linux installer stages `systemd/open-deskos-pi-tasks.service` with the stable `/opt/open-deskos/current/integrations/personal-bot` path.
+The Linux installer stages `systemd/odk-pi-tasks.service` with the stable `/opt/odk/current/integrations/personal-bot` path.
 It starts the unit only when configuration exists.
 The daemon resolves its entry through the symlink; `--preserve-symlinks-main` is unnecessary.
-Mac uses `launchd/com.open-deskos.pi-tasks.plist` with substituted stable installation, Node bin, and home paths.
+Mac uses `launchd/com.odk.pi-tasks.plist` with substituted stable installation, Node bin, and home paths.
 Validate the substituted plist with `plutil -lint` before authorized loading.
 Neither template activates merely by existing.
-Keep the daemon separate from the Desk Link Service so service restarts do not end sessions.
+Keep the daemon separate from the Open DeskOS Link Service so service restarts do not end sessions.
 The voice daemon is also independent.
-Linux keeps `/opt/open-deskos` read-only.
+Linux keeps `/opt/odk` read-only.
 
 A fixed executable helper carries one bounded v1 JSON request on stdin and one correlated response:
 
 ```sh
 #!/bin/sh
-export ODESK_TASK_CONFIG=/absolute/path/pi-tasks.json
+export ODK_TASK_CONFIG=/absolute/path/pi-tasks.json
 exec /absolute/node/bin/node /absolute/personal-bot/src/task-cli.mjs
 ```
 
 The daemon must already run.
 Never append prompts, projects, passwords, or shell commands to the launcher.
-Set `ODESK_TASK_TARGETS_FILE` to a private absolute target file in one service configuration source:
+Set `ODK_TASK_TARGETS_FILE` to a private absolute target file in one service configuration source:
 
 ```json
 {
@@ -511,9 +511,9 @@ Protect session logs under `stateDir` and arrange retention explicitly.
 
 ## Proposal configuration and judgments
 
-The watch reads owner-selected Desk Data and configured Hosted Pi sessions.
-It adds no capture, provider connector, Desk Data write verb, TTS, wake word, or automatic action.
-`ODESK_PROACTIVE_CONFIG` selects a reviewed private absolute JSON file without symlink components.
+The watch reads owner-selected Open DeskOS Data and configured Hosted Pi sessions.
+It adds no capture, provider connector, Open DeskOS Data write verb, TTS, wake word, or automatic action.
+`ODK_PROACTIVE_CONFIG` selects a reviewed private absolute JSON file without symlink components.
 With no file configured, owner suggestions have no polling or proactive model request.
 The separate [home briefing](#home-briefing) remains enabled.
 Invalid configuration disables suggestions while ordinary voice remains available.
@@ -525,7 +525,7 @@ Use [proactive-goals.example.json](proactive-goals.example.json) for version 2.
 Owners select goals and bounded observation fields.
 An isolated configured-model session generates zero or more candidates.
 It has no tools, skills, extensions, memory, or durable history.
-`ODESK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
+`ODK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
 The deadline covers the entire generation lifecycle, including at most one format correction.
 Provider errors are not retried.
 Timeout/cancellation ends waiting even if the provider ignores abort; late-created sessions are disposed.
@@ -534,7 +534,7 @@ Invalid or invented evidence leaves generation unavailable.
 
 Each candidate receives independent Jev usefulness, factual-support, and unsupported-assertion judgments in one request.
 Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
-Usefulness and effective support must both meet `ODESK_JEV_THRESHOLD`, default 0.8.
+Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
 Owner preferences do not add facts.
 Sort qualifying candidates by usefulness and select at most `maxPush`.
@@ -653,8 +653,8 @@ Proposal replies use an 8192-character bound within the 131072-byte escaped-fram
 ## Naming migration
 
 Current tool names use `personal_bot`; service/channel names use `personal-bot`; Windows uses `OdkPersonalBot`.
-Old `ODESK_VOICE_*` settings and `voice-agent.env` are accepted only at upgrade.
-Canonical `ODESK_PERSONAL_BOT_*` values win.
+Old `ODK_VOICE_*` settings and `voice-agent.env` are accepted only at upgrade.
+Canonical `ODK_PERSONAL_BOT_*` values win.
 Move old private state once, retaining checkpoint/history bytes.
 Protect Windows ACLs before moving.
 Two existing histories or unsafe links fail; never merge them silently.
@@ -711,7 +711,7 @@ A test tool grants no live-run authorization.
 
 ## Home selection
 
-A source can declare bounded `home` metadata in its Desk Data catalog entry.
+A source can declare bounded `home` metadata in its Open DeskOS Data catalog entry.
 Installed packages declare the same object in their verified manifest.
 
 ```json
@@ -744,7 +744,7 @@ Too many required sources fail generation instead of publishing partial coverage
 
 ## Home briefing
 
-Personal Agent generates the first Shell page from the Desk Data registry.
+Personal Agent generates the first Shell page from the Open DeskOS Data registry.
 It reads the same Widget, App, and package sources that answer desk questions.
 Home generation starts after Personal Agent initialization.
 It does not require an owner suggestion configuration.
@@ -761,7 +761,7 @@ Source content is untrusted data and grants no execution authority.
 The input includes at most 64 sources, 8 KiB per source, and 48,000 bytes of source data.
 The Shell states the omitted source count.
 One unavailable source does not remove other readings.
-Future mail Apps can publish declared content through Desk Data without a separate home integration.
+Future mail Apps can publish declared content through Open DeskOS Data without a separate home integration.
 This contract does not implement a mail provider.
 
 Resolved display JSON contains at most two connected sentences and 240 total characters.

@@ -8,7 +8,7 @@ import { createConnection } from 'node:net'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { acceptanceEndpoint, acceptanceTools, assertResidentIdentity, cleanupAcceptance, observePersonalTurn } from './real-acceptance-support.mjs'
 
-if (process.env.ODESK_REAL_PERSONAL_ACCEPTANCE !== '1') throw Error('Explicit ODESK_REAL_PERSONAL_ACCEPTANCE=1 required')
+if (process.env.ODK_REAL_PERSONAL_ACCEPTANCE !== '1') throw Error('Explicit ODK_REAL_PERSONAL_ACCEPTANCE=1 required')
 let input = ''
 process.stdin.setEncoding('utf8')
 for await (const chunk of process.stdin) {
@@ -21,7 +21,7 @@ if (!request || typeof request.prompt !== 'string' || !request.prompt.trim() || 
   || typeof request.taskId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.taskId)
   || request.taskId === '01a0f0ba-8e8b-750f-aaae-c29d6fd8e743') throw Error('Exact disposable native fixture required')
 
-let integrationDir = process.env.ODESK_ACCEPTANCE_INTEGRATION_DIR
+let integrationDir = process.env.ODK_ACCEPTANCE_INTEGRATION_DIR
 if (process.platform === 'linux') {
   if (!Number.isSafeInteger(request.residentPid) || request.residentPid < 1) throw Error('Current resident process ID required')
   assertResidentIdentity((await stat(`/proc/${request.residentPid}`)).uid, process.getuid())
@@ -41,7 +41,7 @@ const { PersonalBotService } = await import(pathToFileURL(join(integrationDir, '
 const { listen, channelHandshake } = await import(pathToFileURL(join(integrationDir, 'src', 'socket.mjs')).href)
 const { createAgentSession } = await import(pathToFileURL(join(integrationDir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'index.js')).href)
 const configured = await loadPersonalConfig(process.env)
-const expectedProfile = process.env.ODESK_ACCEPTANCE_EXPECTED_PROFILE || 'personal'
+const expectedProfile = process.env.ODK_ACCEPTANCE_EXPECTED_PROFILE || 'personal'
 if (!['coding', 'personal'].includes(expectedProfile) || configured.profile !== expectedProfile) throw Error('Expected resident Personal Agent profile required')
 const dir = await mkdtemp(join(tmpdir(), 'odk-real-pa-'))
 const startedAt = new Date().toISOString()
@@ -60,8 +60,8 @@ async function saveReceipt(receipt) {
   return evidenceFile
 }
 try {
-  agent = await createPersonalBot({ workspace: process.env.ODESK_WORKSPACE, stateDir: dir,
-    model: process.env.ODESK_PERSONAL_BOT_MODEL,
+  agent = await createPersonalBot({ workspace: process.env.ODK_WORKSPACE, stateDir: dir,
+    model: process.env.ODK_PERSONAL_BOT_MODEL,
     personal: { ...configured, memoryFile: join(dir, 'memory.json') }, env: process.env }, {
     createSession: async options => {
       const tools = acceptanceTools(options.customTools || [], request, trace)

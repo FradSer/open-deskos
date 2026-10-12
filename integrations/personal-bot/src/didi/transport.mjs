@@ -37,7 +37,7 @@ export function boundedDidiFetch(fetchImpl = globalThis.fetch, timeoutMs = 20000
 }
 
 /** Credentials never enter returned errors, logs, or persisted state. */
-export async function createDidiTransport({ keyFile, sandbox = true, connectTimeoutMs = 15000, clientFactory = () => new Client({name:'open-deskos-rides',version:'1.0.0'}), transportFactory = (url, signal) => new StreamableHTTPClientTransport(url, {fetch:boundedDidiFetch(),reconnectionOptions:{maxRetries:0,initialReconnectionDelay:1000,maxReconnectionDelay:1000,reconnectionDelayGrowFactor:1}, requestInit:{redirect:'error',signal}}) }) {
+export async function createDidiTransport({ keyFile, sandbox = true, connectTimeoutMs = 15000, clientFactory = () => new Client({name:'odk-rides',version:'1.0.0'}), transportFactory = (url, signal) => new StreamableHTTPClientTransport(url, {fetch:boundedDidiFetch(),reconnectionOptions:{maxRetries:0,initialReconnectionDelay:1000,maxReconnectionDelay:1000,reconnectionDelayGrowFactor:1}, requestInit:{redirect:'error',signal}}) }) {
   let client;
   try {
     let key;

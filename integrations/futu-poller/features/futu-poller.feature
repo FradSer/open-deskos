@@ -1,4 +1,4 @@
-Feature: Futu poller desk links
+Feature: Futu poller Open DeskOS Links
   Scenario: Windows management uses authenticated overlapped pipe operations
     Given a Windows management listener has the shared channel token
     When clients submit bounded newline-delimited commands
