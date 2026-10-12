@@ -1,13 +1,13 @@
 ---
-name: open-deskos-widget-reflect
+name: odk-widget-reflect
 description: >-
-  Reflect on the current conversation and improve this project's open-deskos-widget skill.
+  Reflect on the current conversation and improve this project's odk-widget skill.
   Use when asked to capture Widget/App development lessons, learn from user corrections,
   or update the Widget skill from session evidence; not for ordinary UI implementation.
 ---
 # Reflect on Widget development
 
-Improve `.agents/skills/open-deskos-widget/` from evidence in the current conversation.
+Improve `.agents/skills/odk-widget/` from evidence in the current conversation.
 The deliverable is a focused skill-documentation change, not another product implementation or deployment.
 
 ## 1. Recover the evidence
@@ -51,7 +51,7 @@ Keep incident evidence in the report, not as permanent machine-specific defaults
 
 ## 3. Patch the right layer
 
-Edit `.agents/skills/open-deskos-widget/SKILL.md` for universal rules or short conditional pointers.
+Edit `.agents/skills/odk-widget/SKILL.md` for universal rules or short conditional pointers.
 Put branch-specific reasoning frameworks and acceptance criteria in its `references/` tree.
 Add concrete recipes only for stable technical contracts that actually require them, not merely because a recent incident supplied details.
 Make new references reachable under the exact conditions that need them; keep each rule in one authoritative place.

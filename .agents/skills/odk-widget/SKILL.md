@@ -1,5 +1,5 @@
 ---
-name: open-deskos-widget
+name: odk-widget
 description: >-
   Design and develop Open DeskOS CM5 Widgets and Apps on the Linux Electron runtime. Use whenever a request creates,
   redesigns, styles, refactors, debugs, or verifies a built-in tile/page/app/status plugin or an installable user Widget/App,
@@ -17,7 +17,7 @@ Use separate workflows for commits, worktree recovery, release staging, service 
 | Surface | Required guide | Implementation |
 | --- | --- | --- |
 | Shell-owned tile, page, status, or App | `runtime/shell/docs/AI_PLUGIN_GUIDE.md` | `runtime/shell/src/renderer/plugins/`; register with `odkPlugins`; place through `config/desktop_layout.js` |
-| Installable user Widget or App | `runtime/shell/docs/USER_APPLICATIONS.md` | `ODESK_WORKSPACE/apps/<id>/manifest.json` and self-contained `index.html` |
+| Installable user Widget or App | `runtime/shell/docs/USER_APPLICATIONS.md` | `ODK_WORKSPACE/apps/<id>/manifest.json` and self-contained `index.html` |
 
 Read the selected guide in full before implementation.
 Prefer an installable package for standalone user-created features.
