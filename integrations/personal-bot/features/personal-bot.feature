@@ -23,7 +23,9 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
   Scenario: Memory is bounded private data rather than authorization
     Given a configured private memory path
     When explicitly requested notes are persisted
-    Then writes are atomic with directory mode 0700 and file mode 0600
+    Then writes are atomic with directory mode 0700 and file mode 0600 on POSIX hosts
+    And Windows writes use private owner ACLs for new directories and files
+    And existing broad ACLs are rejected without changing their permissions
     And common credential patterns are rejected by a heuristic sensitive-data check
     And saved text is treated as untrusted data, never instructions or authorization
     And files larger than 16 KiB, links and insecure existing files are rejected

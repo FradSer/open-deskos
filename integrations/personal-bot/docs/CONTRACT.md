@@ -5,6 +5,192 @@ This file owns authorization, intent routing, Hosted Pi control, proposals, and 
 Read the host deployment runbook before activation or service operations.
 Git history preserves past plans and acceptance runs.
 
+## Plugin composition
+
+[plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
+The voice service, channel, Agent runtime, home briefing, and optional suggestion watcher use the common Shell plugin host.
+Each component has a versioned port and a local factory.
+Agent configuration failure leaves the resident channel available with the existing configuration report.
+Briefing and suggestions require a running Agent.
+
+The local composition exposes `setEnabled(id, enabled)` through the common host lifecycle.
+Runtime disable suspends active voice work without closing the service or channel providers.
+Runtime restart resumes the service with a new cancellation signal before it publishes the Agent runtime.
+Service suspension retains failed recording cleanup and retries it before reopening voice work.
+Permanent close prevents later resume operations from reopening the service.
+Capture identity guards prevent old recording completion from submitting a later capture.
+Partial service, channel, or runtime changes require service methods `suspend` and `resume`.
+Older service replacements retain their startup and complete shutdown contracts.
+They reject unsupported partial lifecycle changes before the host changes its dependency graph.
+The resident provides an independent authenticated plugin management channel.
+The unified Plugin CLI selects this channel from its authenticated component identity inventory.
+Runtime operations do not change saved startup preferences or the voice protocol.
+Service and voice channel changes leave the management channel available for recovery.
+Management starts before component initialization and remains available after provider startup failure or saved disable preferences.
+Runtime disable cancels cooperative initialization through its existing cancellation signal.
+Default Agent initialization passes this signal to model setup and credential availability checks.
+Cancellation checks stop later startup stages after pending acquisition settles.
+Late session acquisition and failed extension binding abort and dispose the acquired session before initialization rejects.
+Session cancellation requests do not establish immediate interruption of SDK extension binding.
+The management plugin refuses self-disable and unknown component identities.
+Failed lifecycle operations return bounded errors without private component details.
+
+Shutdown cancels the briefing before it waits for suggestion work.
+It closes the channel before Agent cancellation.
+It closes the voice service before Agent resources.
+Successful cleanup operations run once.
+Failed cleanup operations remain owned and can retry on a later shutdown request.
+Retained consumers prevent provider cleanup.
+Cleanup failure does not skip independent resources.
+The composition reports cleanup failure after shutdown, so the entry point retains its failed exit status.
+
+Source checkouts and immutable releases load the same Shell kernel.
+The composition uses the `personal-agent` host identity.
+[Plugin scenarios](../features/plugin-composition.feature) define its startup and shutdown checks.
+
+### Trusted resident development selections
+
+[development-plugins.mjs](../src/development-plugins.mjs) reads explicit startup selections for resident component replacements.
+The selection has schema version 1 and a `replacements` array with at most five entries.
+Each entry contains `manifest` and an absolute `.cjs` file path named `entry`.
+Copy the component manifest from `--plugins list` before you set its replacement version.
+The selection file must be regular and contain at most 16 KiB.
+Each manifest preserves the component identity, host, kind, provided ports, and required ports.
+Current resident components declare no injectable capabilities; replacements must retain an empty permissions list.
+The composition rejects duplicate identities and replacements for inactive optional components.
+The watcher remains available only when `ODESK_PROACTIVE_CONFIG` selects that feature.
+
+Export `create(context)` from each entry.
+Return the raw service, channel, Agent runtime, home briefing, or watcher component.
+Preserve its existing method contract.
+Read the [resident entry point](../src/main.mjs) when implementing runtime replacements; its voice, Home, and watcher factories define required consumers.
+Read declared dependencies through `context.get()`.
+Register cleanup through `context.onCleanup()` before allocations that can survive factory failure.
+The resident adapters retain runtime observers, home attachment, watcher attachment, cancellation, and cleanup order.
+
+This command validates declarations without loading external entries or preparing operational directories:
+
+```sh
+node integrations/personal-bot/src/main.mjs \
+  --plugin-selection /absolute/path/resident-selection.json \
+  --trust-plugins --plugins validate
+```
+
+`--plugins list` reports the selected declarations.
+Omit `--plugins validate` to start the selected resident composition.
+Explicit native trust is required before the selection file is read.
+The loader validates every declaration before any external factory initializes.
+CommonJS entries load lazily during their selected component initialization.
+The loader requires a regular entry file before module loading.
+Configuration failure retains the existing resident channel behavior.
+Failed feature initialization releases registered resources and leaves independent components running.
+
+Selections refer to explicitly trusted absolute entry paths.
+Entries retain native process access and can import other local modules.
+The loader uses normal CommonJS module caching within the resident process.
+Selections apply to startup and do not provide persistent development links or hot replacement.
+Native trust provides no sandbox, signed distribution, immutable revision, update, or rollback guarantee.
+Port compatibility still requires shared feature acceptance and device evidence.
+
+### Resident runtime diagnosis
+
+The existing authenticated channel accepts read-only `runtime_diagnose` requests with a bounded `requestId`.
+The entry point supplies the current composition catalog.
+Responses contain plugin declarations and lifecycle states without private errors, voice replies, readings, or Agent data.
+The shared Shell report validator checks identities, host declarations, states, and report bounds.
+Asynchronous or invalid snapshots report unavailable without exposing exceptions.
+
+A client requests diagnosis capability with `runtimeDiagnosis: 1` in its existing status request.
+The server includes that marker only in status frames for clients that requested it.
+Other clients retain their existing status frames.
+The Shell sends diagnosis commands only after receiving the marker.
+Older residents report unsupported diagnosis without losing their voice connection.
+Diagnosis starts no recording or Agent work.
+
+### Hosted Pi task plugins
+
+[task-composition.mjs](../src/task-composition.mjs) owns the task listener, service, and endpoint publisher.
+The listener starts before task service initialization.
+Endpoint publication follows successful initialization.
+An independent authenticated management plugin starts before task components when its local endpoint is available.
+The unified Plugin CLI selects Hosted Pi components through their identity inventory.
+Management remains available after provider startup failure or saved disable preferences.
+Runtime changes do not write startup preferences or change task protocol records.
+The management plugin refuses self-disable.
+Partial service stop withdraws its endpoint and drains its existing Console connections without closing the listener.
+Connection cleanup waits for asynchronous disconnect operations and retains failed operations for retry.
+Each connection retains its owning service until disconnect cleanup succeeds.
+Restart creates a fresh service and republishes its endpoint through the retained listener.
+Older listeners without connection draining reject partial listener and service changes before graph mutation.
+Endpoint withdrawal failure retains its service provider and reports lifecycle failure.
+Publication failure retains task control and reports the existing warning.
+Shutdown withdraws the endpoint before it closes the listener and task service.
+Listener cleanup failure does not skip service cleanup.
+The host reports shutdown failure after it attempts independent cleanup operations.
+Repeated close requests share the current attempt and can retry after failure.
+Completed service and endpoint cleanup do not run again.
+
+`createTaskDaemon()` constructs the composition without starting resources.
+`startTaskDaemon()` retains the existing start and close interface.
+The CLI registers shutdown signals before it starts the plugins.
+Late service initialization and publication release their resources after cancellation.
+[Task host scenarios](../features/task-host-installation.feature) define these checks.
+
+### Trusted Hosted Pi development selections
+
+Hosted Pi uses the [startup selection format](#trusted-resident-development-selections) through the shared loader.
+Its selection accepts at most three replacements: listener, service, and endpoint.
+Each declaration retains its Hosted Pi identity, host, kind, provided ports, required ports, and empty permissions list.
+Resident identities cannot replace Hosted Pi components.
+Current component manifests come from the task daemon's `--plugins list` output.
+
+```sh
+node integrations/personal-bot/src/task-daemon.mjs \
+  --plugin-selection /absolute/path/hosted-pi-selection.json \
+  --trust-plugins --plugins validate
+```
+
+Inspection reads declarations without loading task configuration, external entries, listeners, or state directories.
+Omit `--plugins validate` to start the selected task daemon.
+The default command and task configuration remain unchanged.
+
+Entries export `create(context, bindings)` and return raw components.
+The listener receives frozen `handleRequest` and `disconnect` bindings.
+It must pass requests and connection identifiers to these callbacks and return a channel with callable `close`.
+The host retains task dispatch, startup responses, and runtime diagnosis validation through these callbacks.
+The service receives its declared listener through `context.get()`.
+It must provide callable `handle`, `disconnect`, and `close` operations.
+The endpoint receives frozen `file`, `publish`, `remove`, and `reportPublicationFailure` bindings.
+Publication uses the configured descriptor path and existing task configuration.
+Return `{ file, published: true, close }` after successful publication.
+The returned `file` must match the configured path.
+Return `{ file: null, published: false }` when no descriptor is published.
+Published endpoints must provide callable `close` that withdraws their descriptor.
+Register cleanup before allocations or publication that can survive factory failure.
+
+Selected components with missing operations fail startup before task control is offered.
+Registered factory cleanup runs after failed initialization.
+Completed cleanup, cancellation, and shutdown order retain the task composition contract.
+Startup selections use the same native trust, mutable entry, CommonJS caching, and distribution limits as resident selections.
+Real task execution and supported-host acceptance still require separate evidence.
+
+### Hosted Pi task diagnosis
+
+The existing task listener accepts `runtime_diagnose` before dispatching ordinary task commands.
+Requests contain only `version: 1`, `command: "runtime_diagnose"`, and a canonical lowercase UUID `requestId`.
+Invalid requests return `ok: false` with `invalid-diagnosis-request`.
+Successful responses contain `version: 1`, the matching `requestId`, `ok: true`, and `runtime`.
+The runtime identifies the `personal-agent` host and the `hosted-pi` instance.
+It reports the actual composition catalog, including initialization states.
+
+Invalid catalogs report unavailable diagnosis with `invalid-report`.
+
+The shared runtime validator removes private errors and undeclared metadata.
+Reports contain no prompts, task history, endpoint paths, or Agent data.
+Task initialization failure retains the existing listener shutdown behavior.
+Diagnosis does not extend task service availability or alter ordinary task responses.
+[Composition scenarios](../features/plugin-composition.feature) define diagnosis compatibility checks.
+
 ## Profiles and memory
 
 Both resident profiles use mandatory Jev routing and Pi 1.0.0 Code Mode.

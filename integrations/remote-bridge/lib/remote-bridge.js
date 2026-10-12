@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const net = require('node:net')
 const path = require('node:path')
 const { createJsonLineReader } = require('./json-line-reader')
+const { createBridgePluginRuntime, respondRuntimeDiagnosis, resolveBridgeControlEndpoint } = require('./plugin-runtime')
 const {
   createLinkState,
   encodeJsonLine,
@@ -17,7 +18,7 @@ const SOCKET_DIRECTORY = 'open-deskos-remote'
 const SOCKET_NAME = 'bridge.sock'
 
 class RemoteBridge {
-  constructor({ adapter, socketPath = resolveSocketPath(), logger = console } = {}) {
+  constructor({ adapter, socketPath = resolveSocketPath(), logger = console, replacementPlugins = [], disabled = [] } = {}) {
     if (!adapter) throw new Error('RemoteBridge requires a Remote Link adapter')
     this.adapter = adapter
     this.socketPath = socketPath
@@ -28,58 +29,101 @@ class RemoteBridge {
     this.linkState = createLinkState('disconnected')
     this.activeTransport = null
     this.started = false
-    this.adapter.on('connected', (details) => {
-      void this.#onAdapterConnected(details)
+    this.generation = 0
+    this.linkRevision = 0
+    this.ownsSocket = false
+    this.runtime = createBridgePluginRuntime({
+      controlEndpoint: resolveBridgeControlEndpoint(socketPath),
+      transports: [adapter],
+      replacementPlugins,
+      disabled,
+      onTransportCreated: (_previous, actual) => { this.adapter = actual },
+      logger,
+      initialize: false,
+      open: (signal) => this.#open(signal),
+      close: () => this.#close(),
+      handlers: {
+        connected: (transport, details) => this.#onAdapterConnected(details),
+        disconnected: (transport, details) => this.#onAdapterDisconnected(details),
+        message: (_transport, record) => this.#onAdapterMessage(record),
+        'adapter-error': (_transport, error) => this.logger.error('Remote Link adapter error', error),
+      },
+      withdrawn: () => this.#onAdapterDisconnected(),
     })
-    this.adapter.on('disconnected', (details) => {
-      this.#onAdapterDisconnected(details)
-    })
-    this.adapter.on('message', (record) => this.#onAdapterMessage(record))
-    this.adapter.on('adapter-error', (error) => this.logger.error('Remote Link adapter error', error))
   }
 
   async start() {
-    if (this.started) return
-    await fs.promises.mkdir(path.dirname(this.socketPath), { recursive: true, mode: 0o700 })
-    await removeStaleSocket(this.socketPath)
-    this.server = net.createServer((socket) => this.#attachClient(socket))
-    await listen(this.server, this.socketPath)
-    await fs.promises.chmod(this.socketPath, 0o600)
-    this.started = true
-    try {
-      await this.adapter.start()
-    } catch (error) {
+    const epoch = this.generation
+    const catalog = await this.runtime.host.start()
+    if (epoch !== this.generation) return
+    const failed = catalog.find(entry => entry.manifest.id === this.runtime.listenerId && entry.state !== 'running')
+    const adapterFailure = catalog.find(entry => entry.manifest.kind === 'transport'
+      && ['failed', 'cleanup-failed', 'cleanup-blocked'].includes(entry.state))
+    if (adapterFailure) {
       await this.stop()
-      throw error
+      throw this.runtime.errors.get(adapterFailure.manifest.id) || Error(adapterFailure.error)
+    }
+    if (failed) {
+      await this.stop()
+      throw this.runtime.errors.get(failed.manifest.id) || Error(failed.error || 'Remote Bridge startup cancelled')
     }
   }
 
   async stop() {
-    if (!this.server && !this.started) return
+    this.generation++
+    this.linkRevision++
+    this.started = false
+    await this.runtime.host.stop()
+    this.activeTransport = null
+
+    this.linkState = createLinkState('disconnected')
+  }
+
+  pluginCatalog() { return this.runtime.host.list() }
+
+  setTransportEnabled(id, enabled) { return this.runtime.setEnabled(id, enabled) }
+
+  async #open(signal) {
+    await fs.promises.mkdir(path.dirname(this.socketPath), { recursive: true, mode: 0o700 })
+    if (signal.aborted) return
+    await removeStaleSocket(this.socketPath)
+    if (signal.aborted) return
+    this.server = net.createServer((socket) => this.#attachClient(socket))
+    await listen(this.server, this.socketPath)
+    this.ownsSocket = true
+    await fs.promises.chmod(this.socketPath, 0o600)
+    this.started = !signal.aborted
+  }
+
+  async #close() {
     this.started = false
     for (const client of this.clients) client.destroy()
     this.clients.clear()
-    await this.adapter.stop()
     if (this.server) {
-      await closeServer(this.server)
+      const server = this.server
+      if (server.listening) await closeServer(server)
       this.server = null
     }
-    await removeSocketIfPresent(this.socketPath)
+    if (this.ownsSocket) {
+      await removeSocketIfPresent(this.socketPath)
+      this.ownsSocket = false
+    }
   }
 
   #attachClient(socket) {
     this.clients.add(socket)
     socket.write(encodeJsonLine(this.linkState))
-    const reader = createJsonLineReader((line) => this.#onClientLine(line))
+    const reader = createJsonLineReader((line) => this.#onClientLine(line, socket))
     socket.on('data', (chunk) => reader.push(chunk))
     socket.once('end', () => reader.end())
     socket.once('close', () => this.clients.delete(socket))
     socket.once('error', () => this.clients.delete(socket))
   }
 
-  async #onClientLine(line) {
+  async #onClientLine(line, socket) {
     const parsed = parseJsonLine(line)
     if (!parsed.ok) return
+    if (respondRuntimeDiagnosis(socket, parsed.record, () => this.pluginCatalog())) return
     const validation = validateShellState(parsed.record)
     if (!validation.ok) return
     const changed = JSON.stringify(this.latestShellState) !== JSON.stringify(parsed.record)
@@ -89,6 +133,7 @@ class RemoteBridge {
 
   async #onAdapterConnected({ transport }) {
     if (!this.started) return
+    this.linkRevision++
     this.activeTransport = transport
     this.#publishLinkState('syncing')
     await this.#synchronizeActiveLink()
@@ -97,6 +142,7 @@ class RemoteBridge {
   #onAdapterDisconnected({ transport, reason } = {}) {
     if (!this.started) return
     if (transport && transport !== this.activeTransport) return
+    this.linkRevision++
     this.activeTransport = null
     this.#publishLinkState('disconnected')
   }
@@ -108,13 +154,15 @@ class RemoteBridge {
 
   async #synchronizeActiveLink() {
     if (!this.activeTransport || !this.latestShellState) return
+    const revision = this.linkRevision
+    const epoch = this.generation
     try {
       await this.adapter.send(createAdapterState(this.latestShellState, this.activeTransport))
     } catch (error) {
       this.logger.error('Remote Link state synchronization failed', error)
       return
     }
-    if (this.activeTransport) this.#publishLinkState(linkStateForTransport(this.activeTransport))
+    if (this.started && epoch === this.generation && revision === this.linkRevision && this.activeTransport && this.runtime.isAvailable(this.adapter)) this.#publishLinkState(linkStateForTransport(this.activeTransport))
   }
 
   #publishLinkState(state) {

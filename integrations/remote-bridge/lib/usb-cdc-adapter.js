@@ -20,6 +20,15 @@ class UsbCdcAdapter extends RemoteLinkAdapter {
     createConnection = createCdcConnection,
   } = {}) {
     super()
+    this.manifest = {
+      schemaVersion: 1,
+      id: 'odk.remote.transport.usb-cdc',
+      name: 'USB CDC Remote transport',
+      version: '1.0.0',
+      kind: 'transport',
+    }
+    this.priority = 100
+    this.transport = 'usb-cdc'
     this.serialDirectory = serialDirectory
     this.scanIntervalMs = scanIntervalMs
     this.discoverDevice = discoverDevice
@@ -29,32 +38,46 @@ class UsbCdcAdapter extends RemoteLinkAdapter {
     this.running = false
     this.scanTimer = null
     this.scanning = null
+    this.stopping = null
   }
 
   get isConnected() {
-    return this.connection !== null
+    return this.running && this.connection !== null && !this.connection.closed
   }
 
   async start() {
     if (this.running) return
+    if (this.stopping) await this.stopping
+    if (this.connection) throw Error('USB CDC adapter still owns a connection; retry stop before restart')
     this.running = true
     await this.scan()
+    if (!this.running) return
     this.scanTimer = setInterval(() => {
       void this.scan().catch((error) => this.emit('adapter-error', error))
     }, this.scanIntervalMs)
   }
 
-  async stop() {
+  stop() {
+    if (this.stopping) return this.stopping
     this.running = false
     clearInterval(this.scanTimer)
     this.scanTimer = null
-    const connection = this.connection
-    this.connection = null
-    if (connection) await connection.close()
+    const operation = (async () => {
+      await this.scanning
+      const connection = this.connection
+      if (connection) {
+        await connection.close()
+        if (this.connection === connection) this.connection = null
+      }
+    })()
+    this.stopping = operation
+    const clear = () => { if (this.stopping === operation) this.stopping = null }
+    void operation.then(clear, clear)
+    return operation
   }
 
   async send(record) {
-    if (!this.connection) throw new Error('USB CDC Remote Control is disconnected')
+    if (!this.isConnected) throw new Error('USB CDC Remote Control is disconnected')
     await this.connection.send(record)
   }
 
@@ -79,13 +102,21 @@ class UsbCdcAdapter extends RemoteLinkAdapter {
     await this.#disconnect('device-replaced')
     try {
       const connection = await this.createConnection(discovery.devicePath)
+      this.connection = connection
       if (!this.running) {
         await connection.close()
+        this.connection = null
         return
       }
-      this.connection = connection
       this.disconnectedReason = null
-      connection.on('message', (record) => this.emit('message', record))
+      connection.on('message', (record) => {
+        if (this.running && this.connection === connection && !connection.closed) this.emit('message', record)
+      })
+      connection.on('close-error', error => {
+        if (this.connection !== connection) return
+        this.emit('disconnected', { transport: 'usb-cdc', reason: 'cleanup-failed' })
+        this.emit('adapter-error', error)
+      })
       connection.once('disconnect', (reason) => {
         if (this.connection !== connection) return
         this.connection = null
@@ -102,8 +133,8 @@ class UsbCdcAdapter extends RemoteLinkAdapter {
   async #disconnect(reason) {
     const connection = this.connection
     if (connection) {
-      this.connection = null
       await connection.close()
+      this.connection = null
     } else if (this.disconnectedReason === reason) {
       return
     }
@@ -147,6 +178,7 @@ class CdcConnection extends EventEmitter {
     this.closeTimeoutMs = closeTimeoutMs
     this.closed = false
     this.closing = null
+    this.descriptorCloseStarted = false
     this.pollTimer = null
     this.readPending = false
     this.writeQueue = Promise.resolve()
@@ -168,13 +200,36 @@ class CdcConnection extends EventEmitter {
     this.closed = true
     clearTimeout(this.pollTimer)
     this.pollTimer = null
-    this.closing = this.readPending
-      ? Promise.race([
-        new Promise((resolve) => this.once('read-idle', resolve)),
-        new Promise((resolve) => setTimeout(resolve, this.closeTimeoutMs)),
-      ]).then(() => this.#closeFd())
-      : this.#closeFd()
-    return this.closing
+    const operation = this.#drain().then(() => {
+      this.descriptorCloseStarted = true
+      return this.#closeFd()
+    })
+    this.closing = operation
+    void operation.catch(() => {
+      if (!this.descriptorCloseStarted && this.closing === operation) this.closing = null
+    })
+    return operation
+  }
+
+  #drain() {
+    return new Promise((resolve, reject) => {
+      let writesDone = false
+      const clear = () => {
+        clearTimeout(timeout)
+        this.off('read-idle', finish)
+      }
+      const finish = () => {
+        if (this.readPending || !writesDone) return
+        clear()
+        resolve()
+      }
+      const timeout = setTimeout(() => {
+        clear()
+        reject(Object.assign(Error('USB CDC operations did not finish before cleanup'), { code: 'ODK_CDC_DRAIN_TIMEOUT' }))
+      }, this.closeTimeoutMs)
+      this.on('read-idle', finish)
+      void this.writeQueue.then(() => { writesDone = true; finish() })
+    })
   }
 
   #scheduleRead(delay = this.pollIntervalMs) {
@@ -204,6 +259,10 @@ class CdcConnection extends EventEmitter {
     if (this.closed) return Promise.reject(new Error('USB CDC Remote Control is disconnected'))
     return new Promise((resolve, reject) => {
       this.io.write(this.fd, data, offset, data.length - offset, null, (error, written) => {
+        if (this.closed && (isRetryable(error) || (!error && offset + written < data.length))) {
+          reject(new Error('USB CDC Remote Control is disconnected'))
+          return
+        }
         if (error && isRetryable(error)) {
           setTimeout(() => this.#writeAll(data, offset).then(resolve, reject), this.pollIntervalMs).unref?.()
           return
@@ -216,8 +275,10 @@ class CdcConnection extends EventEmitter {
   }
 
   #closeFd() {
-    return new Promise((resolve) => {
-      this.io.close(this.fd, () => resolve())
+    // A close error can leave descriptor ownership unknown. Cache that failure;
+    // retrying the numeric descriptor could close a subsequently reused handle.
+    return new Promise((resolve, reject) => {
+      this.io.close(this.fd, error => error ? reject(error) : resolve())
     })
   }
 
@@ -228,7 +289,7 @@ class CdcConnection extends EventEmitter {
 
   #end(reason) {
     if (this.closed) return
-    void this.close().then(() => this.emit('disconnect', reason))
+    void this.close().then(() => this.emit('disconnect', reason), error => this.emit('close-error', error))
   }
 }
 
