@@ -136,6 +136,13 @@
   line-height: 1.35;
 }
 
+/* The compact square reserves room for both the bitmap glyph and summary. */
+@container (max-width: 240px) {
+  [data-theme='pixel'] .w-pi-sessions:not(.pi-widget-detailed):not(.pi-widget-wide-count) .pi-widget-body:has(.pi-widget-summary:not([hidden])) .pi-widget-count {
+    font-size: clamp(80px, 76cqi, 380px);
+  }
+}
+
 [data-theme='pixel'] .pi-widget-context .w-state {
   font-size: clamp(14px, 4.6cqi, 20px);
 }

@@ -151,7 +151,10 @@
   let lastDetail
   let lastTranscript
 
+  const residentHome = () => Boolean(document.querySelector('#personal-agent .agent-panel') && document.getElementById('app-view')?.hidden)
   function setVisible(visible) {
+    // The resident panel owns home feedback. Keep modal voice feedback inside Apps.
+    if (residentHome() && !proactive) visible = false
     if (visible === !surface.hidden) return
     if (!visible) savedScrollTop = elements.content.scrollTop
     surface.hidden = !visible
@@ -188,7 +191,7 @@
     return true
   }
   async function mic() {
-    if (active && surface.hidden) {
+    if (active && surface.hidden && !residentHome()) {
       dismissed = false
       setVisible(true)
       return

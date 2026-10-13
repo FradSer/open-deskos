@@ -17,11 +17,14 @@ let runtimeController = null
 function applyGeometry() {
   const grids = [...document.querySelectorAll('.widget-grid')]
   const count = grids.length ? Math.max(...grids.map(grid => grid.children.length)) : odkLayout.gridWidgetCount(effectiveLayout)
-  const m = odkLayout.compute(window.innerWidth, window.innerHeight, count)
+  const desk = document.getElementById('pages-viewport')
+  const m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
+    desk?.clientWidth || window.innerWidth, desk?.clientHeight || window.innerHeight, count)
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
+  root.setProperty('--widget-gap', `${m.widgetGap}px`)
   root.setProperty('--cols', `${m.cols}`)
   root.setProperty('--rows', `${m.rows}`)
   root.setProperty('--cell-w', `${m.cellW}px`)
@@ -181,6 +184,7 @@ async function main() {
   }
   window.addEventListener('pagehide', (event) => {
     if (!event.persisted) {
+      deskObserver.disconnect()
       const stopped = runtimeController ? runtimeController.stop() : odkPlugins.stop()
       stopped.catch(error => console.error('Renderer shutdown failed:', error))
     }
@@ -207,7 +211,7 @@ async function main() {
   let activeFrame = null
 
   function setBackgroundInert(inert) {
-    for (const element of [document.getElementById('status-bar'), document.getElementById('pages-viewport'), document.getElementById('user-app-desktop-notice')].filter(Boolean)) {
+    for (const element of [document.getElementById('status-bar'), document.getElementById('home-desk'), document.getElementById('user-app-desktop-notice')].filter(Boolean)) {
       element.inert = inert
       if (inert) element.setAttribute('aria-hidden', 'true')
       else element.removeAttribute('aria-hidden')
@@ -464,14 +468,21 @@ async function main() {
   let currentPageState = null
   let runtimeTransition = false
   const publishedPageRemote = new Map()
+  applyGeometry()
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
+  const deskObserver = new ResizeObserver(() => {
+    applyGeometry()
+    odkComposer.placeGridTiles(document.getElementById('pages-track'))
+    pagerRef?.refresh()
+  })
+  deskObserver.observe(document.getElementById('pages-viewport'))
 
   document.getElementById('app-back').addEventListener('click', async () => {
     if (appView.dataset.infoView) closeInfoView()
     else if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
   })
-  const pageNames = effectiveLayout.pages.map((page) => page.name)
+  const pageNames = effectiveLayout.pages.filter(page => !page.persistent).map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
 

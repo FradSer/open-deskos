@@ -1217,6 +1217,7 @@ body.kiosk {
 
 /* Pomodoro keeps its state above a proportionate, static focus dial. */
 .w-pomodoro {
+  --pomodoro-time-size: clamp(28px, 20cqi, 110px);
   position: relative;
   align-items: stretch;
   justify-content: center;
@@ -1237,16 +1238,15 @@ body.kiosk {
 }
 
 .pomodoro-ring-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2cqi;
+  position: relative;
+  display: grid;
+  place-items: center;
 }
 
 .pomodoro-ring-wrap svg {
-  width: 76cqi;
-  height: 76cqi;
+  grid-area: 1 / 1;
+  width: 70cqi;
+  height: 70cqi;
   flex-shrink: 0;
   aspect-ratio: 1;
   transform: rotate(-90deg);
@@ -1268,9 +1268,10 @@ body.kiosk {
 }
 
 .ring-mmss {
+  grid-area: 1 / 1;
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(28px, 24cqi, 120px);
+  font-size: var(--pomodoro-time-size);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -1286,6 +1287,13 @@ body.kiosk {
 }
 
 .pomodoro-context {
+  position: absolute;
+  top: calc(50% + var(--pomodoro-time-size) / 2 + 2cqi);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 100%;
+  font-size: clamp(14px, 6cqi, 22px);
   white-space: nowrap;
   text-align: center;
 }
@@ -3157,21 +3165,6 @@ body.kiosk {
   }
 }
 
-@media (max-width: 999px) {
-  .pomodoro-ring-wrap svg {
-    width: 55cqi;
-    height: 55cqi;
-  }
-
-  .ring-mmss {
-    font-size: clamp(16px, 12cqi, 30px);
-  }
-
-  .pomodoro-ring-wrap {
-    gap: 1.5cqi;
-  }
-}
-
 .hydra-meter-fill.hydra-meter-dry {
   background: var(--odk-accent-red);
 }
@@ -3201,18 +3194,6 @@ body.kiosk {
 
 .hydra-stale .hydra-env {
   opacity: 0.55;
-}
-
-/* Widescreen: Pomodoro is a 1x2 tall slot, so its ring is drawn at full size. */
-@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  .pomodoro-ring-wrap svg {
-    width: 62cqi;
-    height: 62cqi;
-  }
-
-  .ring-mmss {
-    font-size: clamp(28px, 20cqi, 110px);
-  }
 }
 
 /* Hydra composes from the cell it is drawn in, so the shapes below are chosen by

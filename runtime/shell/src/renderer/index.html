@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="user-app-desktop.css" />
   <link rel="stylesheet" href="themes/border-beam.css" />
   <link rel="stylesheet" href="themes/pixel.css" />
+  <link rel="stylesheet" href="home-desk.css" />
   <script src="../plugin-host.js"></script>
   <script src="core/appearance-plugins.js"></script>
   <script src="core/development-plugins.js"></script>
@@ -25,16 +26,20 @@
        pages and #app-view own all controls. -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
-    <div id="page-center" class="flex items-center">
-      <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true">Today · 1/4</span>
-      <nav id="dots" class="flex items-center" aria-label="Page indicator"></nav>
-    </div>
     <span data-slot="status-right"></span>
     <span id="status-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
   </header>
 
-  <main id="pages-viewport">
-    <div id="pages-track"></div>
+  <main id="home-desk">
+    <aside id="personal-agent" aria-label="Personal Agent"></aside>
+    <section id="desk-content" aria-label="Desk">
+      <section id="home-summary" aria-label="Desk briefing"></section>
+      <div id="pages-viewport"><div id="pages-track"></div></div>
+      <div id="page-center" class="flex items-center">
+        <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true"></span>
+        <nav id="dots" class="flex items-center" aria-label="Page indicator"></nav>
+      </div>
+    </section>
   </main>
 
   <div id="system-overlay-root" class="system-overlay-container" aria-live="polite"></div>
@@ -100,6 +105,8 @@
   <script src="core/app-platform.js"></script>
   <script src="core/gamepad.js"></script>
   <script src="plugins/dashboard-page.js"></script>
+  <script src="plugins/personal-agent.js"></script>
+  <script src="plugins/status-peripherals.js"></script>
   <script src="plugins/almanac.js"></script>
   <script src="plugins/clock.js"></script>
   <script src="plugins/chat.js"></script>

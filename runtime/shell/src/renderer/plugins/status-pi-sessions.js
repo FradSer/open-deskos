@@ -50,7 +50,7 @@
         <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Pi sessions">
           <span class="sb-pi-dot"></span>
           <span class="sb-pi-label">PI</span>
-          <span class="sb-pi-count" id="sb-pi-count">0</span>
+          <span class="sb-pi-count" id="sb-pi-count">Unknown</span>
         </button>`
 
       const btn = el.querySelector('#sb-pi-status')
@@ -66,7 +66,7 @@
       }
       const unavailable = () => {
         if (!active()) return
-        count.textContent = '--'
+        count.textContent = 'Unavailable'
         dot.className = 'sb-pi-dot'
         btn.classList.remove('has-running')
         btn.setAttribute('aria-label', `${sourceLabel} unavailable`)
@@ -84,7 +84,7 @@
           const res = await root.odkPlatform.getPiSessions()
           if (!active()) return
           sourceLabel = res?.source?.label || 'Pi sessions'
-          if (!res || res.ok === false) {
+          if (!res || res.ok === false || !Number.isSafeInteger(res.summary?.running) || res.summary.running < 0) {
             unavailable()
             return
           }

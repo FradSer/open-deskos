@@ -65,12 +65,30 @@
     }
   }
 
+  function computeDesk(width, height, viewportWidth, viewportHeight, widgetCount = 6) {
+    // State Bar and theme metrics still belong to the whole Shell. Only the
+    // Widget grid is measured from the right pane, including its scroll rails.
+    const metrics = compute(width, height, widgetCount)
+    const widgetGap = 12
+    const availableWidth = Math.max(24, viewportWidth - 2 * widgetGap - 32)
+    const cols = Math.max(1, Math.min(3, Math.floor((availableWidth + widgetGap) / (200 + widgetGap))))
+    const widthCell = Math.floor((availableWidth - (cols - 1) * widgetGap) / cols)
+    // Overview owns the first row. Widgets occupy the next two square rows;
+    // compact panes scroll before reducing the existing 200px reading floor.
+    const rows = Math.max(2, Math.ceil(widgetCount / cols))
+    const heightCell = Math.max(200, Math.floor((viewportHeight - 3 * widgetGap) / 2))
+    const cellDim = Math.min(widthCell, heightCell)
+    return { ...metrics, widgetGap, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
+      colW: cellDim, gridW: cols * cellDim + (cols - 1) * widgetGap,
+      gridH: rows * cellDim + (rows - 1) * widgetGap }
+  }
+
   function gridWidgetCount(layout) {
     const grid = layout?.pages?.find((page) => page.kind === 'grid')
     return grid?.widgets?.length ?? 0
   }
 
-  const api = { REF, compute, gridWidgetCount }
+  const api = { REF, compute, computeDesk, gridWidgetCount }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api
   } else {

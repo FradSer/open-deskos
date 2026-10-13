@@ -7,6 +7,8 @@
     disconnected: 'Network disconnected',
   }
   const REMOTE_LINK_LABELS = {
+    unknown: 'Unknown',
+    unavailable: 'Unavailable',
     disconnected: 'Disconnected',
     usb: 'Connected by USB',
     wireless: 'Connected wirelessly',
@@ -22,7 +24,7 @@
   let checkInFlight = false
   let checkPromise = null
   let lastCheckAt = null
-  let remoteLinkState = 'disconnected'
+  let remoteLinkState = 'unknown'
   const unavailableCameraFrame = () => ({ status: 'unavailable', frame: null, capturedAt: null })
   let cameraFrame = unavailableCameraFrame()
   let cameraCheckInFlight = false

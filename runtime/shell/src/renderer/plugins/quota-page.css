@@ -32,7 +32,7 @@
   justify-content: space-between;
   gap: var(--odk-space-2) var(--odk-space-4);
   color: var(--odk-secondary-strong);
-  font-size: var(--odk-text-label);
+  font-size: max(14px, var(--odk-text-label));
   line-height: 1.5;
 }
 
@@ -85,7 +85,7 @@
 .provider-plan,
 .provider-quota-account,
 .provider-quota-file {
-  font-size: var(--odk-text-label);
+  font-size: max(14px, var(--odk-text-label));
   line-height: 1.5;
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
@@ -167,7 +167,7 @@
 .provider-details {
   border-top: 1px solid var(--odk-stroke);
   color: var(--odk-secondary-strong);
-  font-size: var(--odk-text-label);
+  font-size: max(14px, var(--odk-text-label));
 }
 
 .provider-details summary {

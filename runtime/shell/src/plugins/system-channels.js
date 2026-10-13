@@ -126,6 +126,10 @@ function createSystemChannelPlugins() {
           } else broadcast('odk-personal-bot-status', { ...current, activated: true })
           return { accepted: sent }
         })
+        bind(ctx, 'odk-personal-bot-text', async (_event, text) => {
+          if (pendingToggle || typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000) return { accepted: false }
+          return { accepted: await client.sendText(text) }
+        })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
           if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
