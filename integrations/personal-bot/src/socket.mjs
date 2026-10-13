@@ -151,7 +151,7 @@ export async function listen(path, service, options = {}) {
         pending = pending.slice(newline + 1)
         let command
         try { command = JSON.parse(line) } catch { return client.destroy() }
-        if (command?.v !== 1 || !['runtime_diagnose', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
+        if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
         if (command.type === 'status' && command.runtimeDiagnosis === 1) diagnosisClients.add(client)
         if (command.type === 'runtime_diagnose') {
           if (Object.keys(command).some(key => !['v', 'type', 'requestId'].includes(key))
@@ -173,6 +173,14 @@ export async function listen(path, service, options = {}) {
           const frame = `${JSON.stringify({ v: 1, type: 'runtime_diagnosis', requestId: command.requestId, runtime })}\n`
           if (client.writableLength + Buffer.byteLength(frame) > MAX_QUEUED_BYTES) client.destroy()
           else client.write(frame)
+          continue
+        }
+        if (command.type === 'text') {
+          if (Object.keys(command).some(key => !['v', 'type', 'text', 'requestId'].includes(key))
+            || typeof command.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(command.requestId)
+            || typeof command.text !== 'string' || !command.text.trim() || Buffer.byteLength(command.text, 'utf8') > 3000) return client.destroy()
+          const accepted = service.sendText(command.text)
+          client.write(`${JSON.stringify({ v: 1, type: 'text_receipt', requestId: command.requestId, accepted })}\n`)
           continue
         }
         if (command.type === 'proactive_event') {

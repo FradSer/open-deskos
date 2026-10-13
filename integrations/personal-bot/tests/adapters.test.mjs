@@ -103,7 +103,10 @@ test('status transport preserves maximally escaped bounded replies and transcrip
   assert.equal(status.message, reply)
   assert.equal(status.transcript, transcript)
   assert.equal(status.level, 0)
-  assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 123_000)
+  const { textInput, ...boundedStatus } = status
+  assert.equal(textInput, true)
+  assert.ok(Buffer.byteLength(`${JSON.stringify(boundedStatus)}\n`) < 123_000)
+  assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 131_072)
 })
 
 test('Chinese transcription preserves mixed project names and configurable languages', async t => {

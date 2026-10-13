@@ -12,7 +12,7 @@ export class PersonalBotService {
   /** @param {Dependencies} dependencies */
   constructor(dependencies) {
     this.dependencies = dependencies
-    this.status = { v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
+    this.status = { textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
     this.terminated = false
@@ -81,7 +81,7 @@ export class PersonalBotService {
       this.notification = ''
     }
     this.status = {
-      ...this.proposalFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
       message: boundedText(message, this.proposalFrame.proposals.length ? 8192 : 16384, 'Response'),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -157,6 +157,27 @@ export class PersonalBotService {
         this.setState(failure ? 'error' : 'idle', failure || response)
         if (!failure) this.watch?.interact()
       }
+    }
+  }
+
+  /** Submit a typed turn through the same resident session as voice. */
+  sendText(text) {
+    if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
+      || this.closed || this.starting || this.watch?.responding || !['idle', 'error'].includes(this.status.state)) return false
+    this.watch?.setBusy(true)
+    this.setState('thinking', '', text.trim())
+    this.pending = this.submitText(text.trim())
+    return true
+  }
+
+  async submitText(text) {
+    try {
+      const response = await this.promptResponse(text)
+      if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
+    } catch {
+      if (!this.closed) this.setState('error', this.dependencies.failureMessage || 'Personal Bot request failed; try again')
+    } finally {
+      this.watch?.setBusy(false)
     }
   }
 
