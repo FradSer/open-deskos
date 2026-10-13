@@ -31,7 +31,7 @@
   #home-summary .dash { padding: 12px 0 4px; gap: 8px; }
   #home-summary .dash-wd { font-size: 32px; }
   #home-summary .dash-date { font-size: 14px; }
-  #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); }
+  #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); line-height: 1.4; }
 }
 #pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
@@ -39,6 +39,8 @@
 #home-desk .widget[data-interaction="display-only"] { border: 1px solid color-mix(in srgb, var(--odk-stroke) 70%, var(--odk-secondary)); background: transparent; }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
+html[data-fit-canvas="true"] #home-desk .page:has(.widget-grid),
+html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 /* App frames identify interactive surfaces without changing their footprint. */
 :is(#pages-track > .page-app, #app-runtime) > :is(.runtime-app, .card, .user-app-frame) {
   border: 2px solid var(--odk-secondary-strong);

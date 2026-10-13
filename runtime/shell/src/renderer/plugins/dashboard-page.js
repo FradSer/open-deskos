@@ -176,7 +176,8 @@
         const available = host.clientHeight - (narrative.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop) - bottom
         if (available <= 0) return
         // Fit only the copy. The date row and the 3x1 card keep their geometry.
-        for (let size = 48; size >= 16; size--) {
+        const minimum = root.getComputedStyle(host).overflowY === 'clip' ? 14 : 16
+        for (let size = 48; size >= minimum; size--) {
           narrative.style.setProperty('--overview-copy-size', `${size}px`)
           if (narrative.scrollHeight <= available && narrative.scrollWidth <= narrative.clientWidth) break
         }

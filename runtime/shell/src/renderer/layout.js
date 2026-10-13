@@ -74,12 +74,15 @@
     const cols = Math.max(1, Math.min(3, Math.floor((availableWidth + widgetGap) / (minCell + widgetGap))))
     const widthCell = Math.floor((availableWidth - (cols - 1) * widgetGap) / cols)
     // Home has one full-width Overview card above two square Widget rows.
-    // Fit all three rows together; compact panes retain the readable floor and scroll.
+    // Desktop panels show the complete canvas. Single-cell Widgets use their
+    // compact composition when the display height is below their full-size minimum.
     const rows = Math.max(2, Math.ceil(widgetCount / cols))
     const canvasHeight = Number.isFinite(deskHeight) ? deskHeight - 48 : viewportHeight
-    const heightCell = Math.max(minCell, Math.floor((canvasHeight - 4 * widgetGap) / 3))
+    const fitCell = Math.floor((canvasHeight - (rows + 2) * widgetGap) / (rows + 1))
+    const fitCanvas = width >= 1280 && cols === 3 && rows === 2 && fitCell >= 186
+    const heightCell = Math.max(fitCanvas ? 186 : minCell, fitCell)
     const cellDim = Math.min(widthCell, heightCell)
-    return { ...metrics, widgetGap, minCell, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
+    return { ...metrics, widgetGap, minCell, fitCanvas, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
       colW: cellDim, gridW: cols * cellDim + (cols - 1) * widgetGap,
       gridH: rows * cellDim + (rows - 1) * widgetGap,
       widgetViewportH: null }

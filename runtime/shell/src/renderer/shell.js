@@ -51,6 +51,7 @@ function applyGeometry() {
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
   root.setProperty('--bar-icon', `${m.barIcon}px`)
+  document.documentElement.dataset.fitCanvas = String(m.fitCanvas)
   window.__odkGrid = m
   return m
 }

@@ -11,12 +11,8 @@ test('Home fits one Overview row and two Widget rows in the same square canvas',
     assert.equal(metrics.rows, 2)
     assert.equal(metrics.cellW, metrics.cellH)
     assert.equal(metrics.widgetViewportH, null, 'paging owns the entire right pane')
-    assert.ok(metrics.cellDim >= 200)
-    if (deskHeight - 48 >= 3 * metrics.minCell + 64) {
-      assert.ok(3 * metrics.cellDim + 64 <= deskHeight - 48)
-    } else {
-      assert.equal(metrics.cellDim, metrics.minCell, 'short panels scroll at the reading floor')
-    }
+    assert.ok(metrics.cellDim >= 186)
+    assert.ok(3 * metrics.cellDim + 64 <= deskHeight - 48)
     assert.ok(metrics.gridW <= deskWidth - 32)
     assert.deepEqual(computeDesk(width, height, deskWidth, 720, 6, deskHeight), metrics)
   }
@@ -33,10 +29,13 @@ test('compact panes retain their scrollable layout and installed Widget row coun
   assert.equal(installed.widgetViewportH, null)
 })
 
-test('a short three-row canvas scrolls before violating a Widget reading floor', () => {
-  const metrics = computeDesk(1280, 776, 857, 652, 6, 700, 217)
-  assert.equal(metrics.cellDim, 217)
-  assert.ok(3 * metrics.cellDim + 64 > 652)
+test('the handheld fits the complete three-row canvas without vertical scrolling', () => {
+  for (const [height, deskHeight] of [[800, 724], [776, 700]]) {
+    const metrics = computeDesk(1280, height, 857, deskHeight - 48, 6, deskHeight, 217)
+    assert.equal(metrics.cols, 3)
+    assert.equal(metrics.cellW, metrics.cellH)
+    assert.ok(3 * metrics.cellDim + 64 <= deskHeight - 48)
+  }
 })
 
 test('intermediate pane widths choose fewer columns before violating published minimums', () => {
@@ -46,4 +45,13 @@ test('intermediate pane widths choose fewer columns before violating published m
     assert.ok(metrics.cellDim >= 217)
   }
   assert.equal(computeDesk(1000, 800, 715, 676, 6, 724, 217).cols, 3)
+})
+
+// Extra installed packages and unusually short windows retain their readable fallback.
+test('unsupported canvas sizes cannot shrink every Widget below its reading floor', () => {
+  for (const args of [[1280, 776, 857, 652, 8, 700, 217], [1280, 480, 857, 356, 6, 404, 217]]) {
+    const metrics = computeDesk(...args)
+    assert.equal(metrics.fitCanvas, false)
+    assert.ok(metrics.cellDim >= metrics.minCell)
+  }
 })

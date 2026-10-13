@@ -307,7 +307,8 @@ Feature: Personal Agent home briefing
     And Overview and Widgets use the largest three-row square canvas that fits the pane
     And Overview occupies one square unit of height across all three columns
     And six complete Widgets and pagination remain visible on the reference panel
-    And short panels scroll before violating a Widget reading floor
+    And handheld panels fit all six Widgets without vertical canvas scrolling
+    And every handheld Widget remains square and uses its compact composition
     And intermediate pane widths reduce columns before violating that floor
     And paging moves Overview with Home so later pages do not display it
 

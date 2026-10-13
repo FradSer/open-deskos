@@ -16,7 +16,11 @@ function finish(code, error) {
   clearTimeout(timeout)
   if (error) console.error(error)
   win?.destroy()
-  fs.rmSync(profile, { recursive: true, force: true })
+  try { fs.rmSync(profile, { recursive: true, force: true }) } catch (cleanupError) {
+    // Windows can retain the Chromium profile lock until this process exits.
+    // Cleanup must not replace the assertion's outcome or reject this handler.
+    console.error('Preview profile cleanup deferred:', cleanupError.code)
+  }
   app.exit(code)
 }
 
@@ -72,6 +76,9 @@ app.whenReady().then(async () => {
       webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true,
         contextIsolation: true, backgroundThrottling: false, offscreen: true } })
     previous?.destroy()
+    // Windows constrains the initial window to its work area, even offscreen.
+    // Apply the requested content size after creation, before loading the page.
+    win.setContentSize(width, height)
     assert.equal(win.webContents.isOffscreen(), true)
     assert.equal(win.webContents.isPainting(), true)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -166,16 +173,18 @@ app.whenReady().then(async () => {
   }
   const longCopy = 'You have 3 active sessions across 3 workspaces, while 2 plants report 63% moisture. Taipei is 26°C and overcast; your focus session is in progress, and portfolio readings are available from the latest synchronized snapshot.'
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    win.setContentSize(1280, 776)
+    await js("window.dispatchEvent(new Event('resize')); document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))")
     const originalStyle = await js("document.querySelector('#home-summary').getAttribute('style')")
     let probeRevision = 0
-    const probe = async (width, height, text) => {
-      const frame = { ...preview.briefing, generatedAt: preview.briefing.generatedAt + ++probeRevision, items: [{ ...preview.briefing.items[0], text, segments: [{ text, icon: 'sessions' }] }] }
+    const probe = async (width, height, text, state = 'live') => {
+      const frame = { ...preview.briefing, state, generatedAt: preview.briefing.generatedAt + ++probeRevision, items: [{ ...preview.briefing.items[0], text, segments: [{ text, icon: 'sessions' }] }] }
       await js("odkTheme.set('" + theme + "'); Object.assign(document.querySelector('#home-summary').style, { width: '" + width + "px', height: '" + height + "px', maxWidth: 'none' })")
       win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: frame })
       return js('(async () => {' +
         'const host = document.querySelector("#home-summary"), paragraph = host.querySelector("#dash-narrative");' +
         'const deadline = performance.now() + 3000;' +
-        'while (paragraph.textContent !== ' + JSON.stringify(text) + ') { if (performance.now() > deadline) throw Error("Briefing probe not delivered"); await new Promise(resolve => setTimeout(resolve, 10)); }' +
+        'while (!paragraph.textContent.endsWith(' + JSON.stringify(text) + ')) { if (performance.now() > deadline) throw Error("Briefing probe not delivered"); await new Promise(resolve => setTimeout(resolve, 10)); }' +
         'await document.fonts.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));' +
         'const header = host.querySelector(".dash-head").getBoundingClientRect(), rect = host.getBoundingClientRect();' +
         'const fits = host.scrollHeight <= host.clientHeight + 1 && host.scrollWidth <= host.clientWidth + 1;' +
@@ -188,16 +197,23 @@ app.whenReady().then(async () => {
     }
     const typography = []
     try {
-      for (const [width, height] of [[660, 300], [760, 300], [760, 180]]) typography.push(await probe(width, height, longCopy))
+      for (const [width, height] of [[400, 300], [760, 300], [760, 180]]) typography.push(await probe(width, height, longCopy))
       const short = await probe(760, 240, '3 active sessions.')
       const long = await probe(760, 240, longCopy)
       assert.ok(short.font > long.font, theme + ' only copy size adapts to content length: ' + JSON.stringify({ short, long }))
       assert.ok(short.icon > long.icon, theme + ' inline icons follow the fitted copy')
       for (const key of ['width', 'height', 'weekday', 'date', 'headerHeight']) assert.equal(short[key], long[key], theme + ' preserves ' + key)
       assert.deepEqual(short.grid, long.grid, theme + ' preserves Widget geometry')
-      assert.ok(typography[1].font > typography[0].font, theme + ' copy uses available width')
+      assert.ok(typography[1].font > typography[0].font, theme + ' copy uses available width: ' + JSON.stringify(typography))
       assert.ok(typography[2].font < typography[1].font, theme + ' copy uses available height')
       assert.ok([...typography, short, long].every(row => row.fits && row.font >= 16 && row.font <= 48 && Math.abs(row.icon - row.font * 0.78) < 1), theme + ' copy and inline icons fit together: ' + JSON.stringify(typography))
+      const cjk = await probe(620, 196, '完整桌面数据与会话状态'.repeat(24).slice(0, 240))
+      assert.ok(cjk.fits && cjk.font >= 14, theme + ' maximum-length CJK briefing fits the non-scrolling handheld card: ' + JSON.stringify(cjk))
+      const staleCjk = await probe(620, 196, '完整桌面数据与会话状态'.repeat(24).slice(0, 240), 'stale')
+      assert.ok(staleCjk.fits && staleCjk.font >= 14, theme + ' stale CJK briefing and its availability remain fully visible: ' + JSON.stringify(staleCjk))
+      // The deliberately undersized copy fixture uses the narrow-window fallback.
+      win.setContentSize(960, 640)
+      await js("window.dispatchEvent(new Event('resize'))")
       const floor = await probe(260, 180, longCopy)
       const scrolledRefit = await probe(260, 180, longCopy)
       assert.equal(floor.font, 16, theme + ' long copy keeps its readable floor')

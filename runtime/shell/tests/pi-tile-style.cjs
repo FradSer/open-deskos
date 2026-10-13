@@ -22,7 +22,7 @@ const timer = setTimeout(() => { console.error('PI_TILE_STYLE_TIMEOUT'); app.exi
 // case about a cell the layout never produces would silently test nothing. The
 // small cell comes from a compact layout, where the page's composition cannot
 // be placed and every tile gets a single cell.
-const CASES = [['reference panel', 357, 1920, 1280], ['handheld panel', 217, 1280, 776], ['small cell', 217, 480, 854], ['below-floor cell', 217, 480, 854, 206]]
+const CASES = [['reference panel', 357, 1920, 1280], ['handheld panel', 196, 1280, 776], ['small cell', 217, 480, 854], ['below-floor cell', 217, 480, 854, 206]]
 const THEMES = ['instrument', 'pixel', 'border-beam']
 const GOAL_FLOOR = 14
 
@@ -126,7 +126,7 @@ async function main() {
     assert.equal(reading.countContained, true, `${where}: every count digit stays inside its metric row`)
     // The summary is the line that goes when the cell is smaller than the tile
     // declared it reads at; the primary reading never goes.
-    if (reading.panel !== 'below-floor cell') assert.equal(reading.summaryVisible, true, `${where}: the summary stays visible`)
+    assert.equal(reading.summaryVisible, reading.cell >= 217, `${where}: the full summary follows the measured Cell while compact primary readings stay visible`)
   }
   // Below the declared minimum the tile drops its least essential line rather
   // than letting the cell cut it off.

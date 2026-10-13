@@ -19,7 +19,7 @@ test('resize repositions Widgets after applying the new geometry without an obse
     DESKTOP_LAYOUT: { pages: [{ kind: 'grid', widgets: [{}] }] },
     addEventListener(name, callback) { assert.equal(name, 'resize'); resize = callback } }
   vm.runInNewContext(source, { window, URLSearchParams, odkLayout: layout,
-    document: { documentElement: { style: { setProperty(name, value) { properties.set(name, value) } } },
+    document: { documentElement: { dataset: {}, style: { setProperty(name, value) { properties.set(name, value) } } },
       querySelectorAll() { return grids }, getElementById(id) { if (id === 'pages-viewport') return pane; if (id === 'desk-content') return content; assert.equal(id, 'pages-track'); return track } },
     requestAnimationFrame(callback) { frame = callback; return 1 }, cancelAnimationFrame() {},
     odkComposer: { filterLayout(value) { return value }, placeGridTiles(element) {

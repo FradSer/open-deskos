@@ -140,3 +140,16 @@ Feature: 64-bit Windows as a Shell Host
     Then they use unique named pipes and private token files
     And authenticated commands preserve the same behavior as Unix checks
     And every test client and process closes before cleanup
+
+  Scenario: A hidden preview keeps its requested canvas on a small display
+    Given a Windows display with a smaller work area than the preview canvas
+    When the populated Home preview creates its hidden window
+    Then its content size matches the requested preview canvas before loading
+    And every saved frame has the requested canvas dimensions
+
+  Scenario: A locked preview profile cannot hide a failed assertion
+    Given a populated Home preview with a failed assertion
+    And Windows still holds a temporary profile file
+    When the preview closes
+    Then the process exits with failure
+    And cleanup does not cause an unhandled promise rejection

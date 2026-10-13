@@ -88,7 +88,12 @@ const READ = `(() => { try {
     if (!Number.isFinite(minCell) || minCell <= 0) continue
     const box = node.getBoundingClientRect()
     const smallest = Math.min(box.width, box.height)
-    if (smallest < minCell - 1) underDeclared.push({ label: node.dataset.widget, minCell, cell: Math.round(smallest) })
+    const single = odkGridPlacement.spanCells(node.style.gridColumn) === 1 && odkGridPlacement.spanCells(node.style.gridRow) === 1
+    // Full composition minimums still govern spans. The fixed handheld canvas
+    // uses the existing compact single-cell composition, also checked for text
+    // size, clipping, and density by this gate and widget-density.cjs.
+    const compact = window.__odkGrid.fitCanvas && single && smallest >= 186
+    if (!compact && smallest < minCell - 1) underDeclared.push({ label: node.dataset.widget, minCell, cell: Math.round(smallest) })
   }
   // The promise is that the desk is right at these two sizes, which includes
   // keeping the composition the layout declares: a tile the promised cells can

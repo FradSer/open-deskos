@@ -147,12 +147,12 @@ app.whenReady().then(async () => {
             return r.left >= pane.left && r.right <= pane.right && r.top >= pane.top && r.bottom <= pane.bottom
           }).length
         })()`)
-        if (width === 1920) assert.equal(visibleHome, 6, 'reference Home shows six complete Widgets in the lower two rows')
-        else assert.ok(await evaluate(`(() => { const page = document.querySelector('[data-page-id="home"]'); page.scrollTop = page.scrollHeight; const bottom = Math.max(...[...page.querySelectorAll('.widget')].map(tile => tile.getBoundingClientRect().bottom)); const reachable = bottom <= page.getBoundingClientRect().bottom; page.scrollTop = 0; return reachable && getComputedStyle(page).overflowY === 'auto' })()`), 'short panels keep the complete square canvas reachable by scrolling')
+        assert.equal(visibleHome, 6, 'all six Home Widgets are fully visible on desktop panels')
+        assert.ok(await evaluate(`(() => { const page=document.querySelector('[data-page-id="home"]'); page.scrollTop=100; return page.scrollTop===0 && getComputedStyle(page).overflowY==='clip' })()`), 'Home cannot scroll vertically')
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
-        assert.ok(geometry.unit >= 200, 'home uses readable square units')
+        assert.ok(geometry.unit >= 186, 'home uses readable square units')
         assert.equal(await evaluate(`window.__odkGrid.rows`), 2, 'Widget region has two rows')
-        assert.ok(await evaluate(`window.__odkGrid.cellDim === window.__odkGrid.minCell || document.querySelector('#pages-viewport').clientHeight >= 3 * window.__odkGrid.cellDim + 64 && document.querySelector('#pages-viewport').clientHeight < 3 * window.__odkGrid.cellDim + 67`), 'Overview and two Widget rows fit the three-row canvas')
+        assert.ok(await evaluate(`document.querySelector('#pages-viewport').clientHeight >= 3 * window.__odkGrid.cellDim + 64 && document.querySelector('#pages-viewport').clientHeight < 3 * window.__odkGrid.cellDim + 67`), 'Overview and two Widget rows fit the three-row canvas')
         assert.deepEqual(geometry.spans, ['kept', 'kept'], 'original instrument proportions survive')
         if (width === 1920) assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'reference panel shows complete Widget pages')
       }
