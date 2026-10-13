@@ -114,6 +114,7 @@ async function widgets(win, label) {
       }
     }
     const page = tiles[0].closest('.page')
+    if (innerWidth < 640) document.getElementById('home-desk').scrollTop = document.getElementById('home-desk').scrollHeight
     const indicators = [...document.querySelectorAll('.dot')].every(dot => {
       const r = dot.getBoundingClientRect()
       return [r.top + r.height / 2, r.top + 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === dot)
@@ -127,6 +128,32 @@ async function widgets(win, label) {
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
   check(`${label}: page indicators have distinct pointer targets`, result.indicators)
+}
+
+async function pomodoroCentering(win) {
+  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
+      await resize(win, width, height)
+      await page(win, PAGES.dot('home'))
+      await win.webContents.executeJavaScript(`window.odkTheme.set('${theme}'); void document.body.offsetHeight; document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
+      const reading = await win.webContents.executeJavaScript(`(() => {
+        const tile = document.querySelector('.w-pomodoro')
+        const frame = tile.getBoundingClientRect()
+        const dial = tile.querySelector('svg').getBoundingClientRect()
+        const ring = tile.querySelector('.ring-track').getBoundingClientRect()
+        const time = tile.querySelector('.ring-mmss').getBoundingClientRect()
+        const label = tile.querySelector('.pomodoro-context').getBoundingClientRect()
+        const state = tile.querySelector('.pomodoro-state').getBoundingClientRect()
+        const center = r => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
+        const a = center(frame), b = center(dial), c = center(time)
+        return { centered: Math.abs(a.x-b.x) < 1 && Math.abs(a.y-b.y) < 1 && Math.abs(b.x-c.x) < 1 && Math.abs(b.y-c.y) < 1,
+          labelInside: label.top >= time.bottom && label.bottom <= ring.bottom + 1 && label.left >= ring.left && label.right <= ring.right,
+          stateAbove: state.bottom <= ring.top && Math.abs(center(state).x-a.x) < 1,
+          offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
+      })()`)
+      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateAbove, reading)
+    }
+  }
 }
 
 async function appPage(win, index, label) {
@@ -733,6 +760,7 @@ async function main() {
   await remoteScrollingIsolation(win)
   await remoteStripControls(win)
   await scannerRecovery(win)
+  await pomodoroCentering(win)
   assert.equal(failures, 0, `${failures} interior checks failed`)
   console.log('WIDGET_APP_STYLES_PASS')
 }

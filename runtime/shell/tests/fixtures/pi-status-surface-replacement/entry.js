@@ -25,7 +25,7 @@
         <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Pi sessions">
           <span class="sb-pi-dot"></span>
           <span class="sb-pi-label">PI</span>
-          <span class="sb-pi-count" id="sb-pi-count">0</span>
+          <span class="sb-pi-count" id="sb-pi-count">Unknown</span>
         </button>`
       const button = element.querySelector('#sb-pi-status')
       const dot = element.querySelector('.sb-pi-dot')
@@ -34,10 +34,10 @@
       const active = () => !released && !context.signal?.aborted
       function render(response, updateLabel = true) {
         if (!active()) return
-        const available = response && response.ok !== false
+        const available = response && response.ok !== false && Number.isSafeInteger(response.summary?.running) && response.summary.running >= 0
         if (updateLabel) label = response?.source?.label || 'Pi sessions'
         const working = available ? response.summary?.running ?? 0 : null
-        count.textContent = available ? String(working) : '--'
+        count.textContent = available ? String(working) : 'Unavailable'
         dot.className = `sb-pi-dot${working > 0 ? ' active' : ''}`
         if (working > 0) button.classList.add('has-running')
         else button.classList.remove('has-running')

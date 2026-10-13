@@ -8,7 +8,7 @@
     id:'odk.status.connection',manifest:{schemaVersion:1,version:'2.0.0'},kind:'status',slot:'left',
     mount(element,context){
       element.innerHTML=`
-        <span class="sb-net" id="sb-net" role="img">${ONLINE_ICON}${OFFLINE_ICON}</span>`
+        <span class="sb-net" id="sb-net" role="img">${ONLINE_ICON}${OFFLINE_ICON}<span class="sb-network-label">Wi-Fi unknown</span></span>`
       let released=false
       const active=()=>!released && !context.signal?.aborted
       const indicator=element.querySelector('#sb-net')
@@ -16,7 +16,7 @@
       const offline=indicator.querySelector('[data-tabler="wifi-off"]')
       const callback=reachable=>{
         if(!active()) return
-        const label=context.connection.labelFor(reachable)
+        const label=`Wi-Fi status unknown; ${context.connection.labelFor(reachable)}`
         for(const [node,visible] of [[online,reachable],[offline,!reachable]]) {
           if(visible) node.removeAttribute('hidden')
           else node.setAttribute('hidden','')

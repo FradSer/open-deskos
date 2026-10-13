@@ -161,7 +161,7 @@ test('child runner sets its profile and hides the dock before loading fixture co
 test('Home fixture establishes its requested viewport after hidden loading', async () => {
   const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
   const start = source.indexOf('  await win.loadFile(')
-  const end = source.indexOf('  const compactSegments', start)
+  const end = source.indexOf('  assert.equal(await evaluate', start)
   assert.ok(start > 0 && end > start)
   const calls = []
   let width, height

@@ -155,7 +155,7 @@ app.whenReady().then(async () => {
       })
       await js(`window.odkTheme.set(${JSON.stringify(theme)});window.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`)
       await js(`(async()=>{await Promise.all([document.fonts.load('700 32px "Montserrat"'),document.fonts.load('400 16px "Noto Sans SC"'),document.fonts.load('400 16px "Zpix"')]);await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))})()`)
-      const geometry = await js(`(()=>{
+      const geometry = await js(`(()=>{try{
         if(innerWidth!==${size[0]}||innerHeight!==${size[1]}||devicePixelRatio!==1||visualViewport.scale!==1||document.fonts.status!=='loaded'||document.documentElement.dataset.theme!==${JSON.stringify(theme)})throw Error('Quota measurement inputs changed');
         return window.quotaContainers().map(container=>{
           const card=container.querySelector('.quota-card'),bounds=card.getBoundingClientRect();if(bounds.width<=0||bounds.height<=0)throw Error('Quota geometry absent');
@@ -167,7 +167,8 @@ app.whenReady().then(async () => {
             return {text:node.textContent,width:box.width,height:box.height,left:box.left-bounds.left,top:box.top-bounds.top,font:style.fontFamily,size:style.fontSize,color:style.color};
           });
         });
-      })()`)
+      }catch(error){return {error:error.message}}})()`)
+      assert.ok(!geometry.error, JSON.stringify({size,theme,geometry}))
       const view = await collect()
       if (phase === 'default') baseline.push({ geometry, view })
       else assert.deepEqual({ geometry, view }, baseline[index])

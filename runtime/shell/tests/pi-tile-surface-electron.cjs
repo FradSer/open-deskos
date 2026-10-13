@@ -57,7 +57,7 @@ app.whenReady().then(async () => {
   await js('odkShellReady')
   rendererReady = true
   assert.equal(await js('piTileTicks.size>0'), true)
-  await js(`(()=>{window.piTileDocument=document;window.piTilePeer=document.querySelector('[data-widget="odk.tile.clock"]');
+  await js(`(()=>{window.piTileDocument=document;window.piTilePeer=document.querySelector('[data-widget="odk.tile.year"]');
     window.piTileElement=document.querySelector('[data-widget="odk.tile.pi-sessions"]')})()`)
   if (mode === 'development') {
     assert.equal(await js("odkPlugins.get('odk.tile.pi-sessions').manifest.version"), '2.0.0')
@@ -104,7 +104,7 @@ app.whenReady().then(async () => {
         assert.equal(await js("piTileElement.querySelectorAll('button,a,input,script').length"), 0)
       }
     }
-    assert.equal(await js("document===piTileDocument&&piTileElement===document.querySelector('[data-widget=\"odk.tile.pi-sessions\"]')&&piTilePeer===document.querySelector('[data-widget=\"odk.tile.clock\"]')"), true)
+    assert.equal(await js("document===piTileDocument&&piTileElement===document.querySelector('[data-widget=\"odk.tile.pi-sessions\"]')&&piTilePeer===document.querySelector('[data-widget=\"odk.tile.year\"]')"), true)
   }
   await js('odkRendererRuntime.stop()'); assert.equal(await js('piTileTicks.size'), 0)
   await host.stop()

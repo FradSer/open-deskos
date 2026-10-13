@@ -173,7 +173,7 @@ async function exercise() {
         sheet.replaceSync('[data-plugin="odk.page.dashboard"], [data-plugin="odk.page.dashboard"] * {transition:none!important;animation:none!important}');
         document.adoptedStyleSheets=[...document.adoptedStyleSheets,sheet];
         try {
-          await Promise.all([document.fonts.load('700 32px "Montserrat"'),document.fonts.load('400 16px "Noto Sans SC"'),document.fonts.load('400 16px "Zpix"')]);
+          await Promise.all([document.fonts.load('700 32px "Montserrat"'),document.fonts.load('400 28px "Montserrat"'),document.fonts.load('400 16px "Noto Sans SC"'),document.fonts.load('400 16px "Zpix"')]);
           await document.fonts.ready;
           if(JSON.stringify(odkServices.homeBriefing.snapshot())!==JSON.stringify(expected))throw Error('Dashboard controlled briefing was displaced during measurement');
           if(devicePixelRatio!==1||visualViewport.scale!==1||innerWidth!==1920||innerHeight!==1280)throw Error('Dashboard measurement inputs changed');

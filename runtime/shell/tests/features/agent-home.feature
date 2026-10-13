@@ -77,7 +77,7 @@ Feature: Personal Agent home briefing
     And zero and retained percentages use neutral color
 
   Scenario: Weekday and date share a visual center
-    Given the home header has room for the weekday and two-line date
+    Given the home header has room for the weekday and date
     When the home renders in a supported theme
     Then the weekday and date align vertically at their centers
 
@@ -163,3 +163,103 @@ Feature: Personal Agent home briefing
     And offscreen rendering supplies frames without showing the window
     And Linux uses isolated software rendering
     And briefing, placement, pointer, release, recovery, and deadline assertions remain required
+
+  Scenario: Agent and briefing stay beside paged Widgets
+    Given the Shell has current desk readings and a Personal Bot session
+    When the user changes a Widget page by touch or keyboard
+    Then the Agent stays on the left and the briefing stays above the Widgets
+    And only the bottom page dots change
+    And the date stays on the same line as the weekday
+    And display-only Widgets have no outer card border
+
+  Scenario: Text and voice share the resident conversation
+    Given Personal Bot is available
+    When the user sends text or records a spoken request
+    Then the resident session streams its reply into one conversation scroll area
+    And the composer stays at the bottom
+    And the configured name and icon identify the header, replies, and composer
+    And unavailable or uncertain delivery keeps the draft with an explicit error
+    And typing arrow keys does not change the Widget page
+
+  Scenario: State Bar distinguishes missing evidence
+    Given a peripheral source has not reported its state
+    When the State Bar renders
+    Then it shows Unknown rather than Disconnected
+    And unavailable and disconnected sources have distinct text
+    And network reachability does not claim a confirmed Wi-Fi connection
+
+  Scenario: A streaming turn survives transport recovery
+    Given the resident Agent has a partial response
+    When the service becomes unavailable and resumes the same response
+    Then the conversation keeps one user message and one response
+    And a completed turn permits the same question in a new turn
+
+  Scenario: A late text receipt preserves the final service state
+    Given a typed request completes before its receipt arrives
+    When the receipt confirms delivery
+    Then the Agent keeps the completed response and Ready state
+
+  Scenario: The resident microphone stops and starts voice turns
+    Given the Agent is recording a voice request
+    When the user selects Stop recording
+    Then the Shell invokes the existing recording control once
+    And the next microphone action can start another voice turn
+
+  Scenario: App account values remain readable beside the Agent
+    Given the Agent occupies the left side of a compact desk
+    When the user opens the Usage page on the right
+    Then account values have a font size of at least 14 pixels
+    And all account details remain reachable by scrolling
+
+  Scenario: A long Agent name leaves room for conversation
+    Given the Agent name contains 40 CJK characters
+    When the desk is 320 pixels wide in a supported theme
+    Then the name wraps without hiding the composer
+    And the conversation retains a usable scroll area
+
+  Scenario: A connected gamepad stays visible in the compact State Bar
+    Given a gamepad is connected
+    When the desk is 320 pixels wide
+    Then the presence icon stays inside the State Bar
+    And Pi status retains space beside the icon
+
+  Scenario: Agent recovery feedback remains readable
+    Given a Personal Bot request fails
+    When the resident Agent shows recovery feedback
+    Then the feedback uses at least 14 pixel text
+    And its live status region announces the available recovery action
+
+  Scenario: Home retains the established State Bar design
+    Given the resident Agent is beside the previous Overview
+    When the Shell renders in a supported theme
+    Then the State Bar retains its original height, icon scale, Pi capsule, and clock typography
+    And peripheral availability remains identifiable without a row of device descriptions
+
+  Scenario: The right grid shows more instruments without oversized hero tiles
+    Given Overview stays above the Widget pages
+    When the right pane changes width
+    Then the grid derives its columns and square unit size from that pane
+    And the right side has three columns and three rows
+    And Overview spans the three columns in the first row
+    And the target panel shows six home Widgets in the remaining two rows
+    And each Widget unit remains square and at least 200 pixels on the target panel
+    And Pi sessions and Pomodoro each use one square unit
+    And Hydra retains two rows for its plant readings on the next page
+    And compact pages keep all Widgets reachable without horizontal overflow
+    And Pixel Pi readings stay inside a compact square when the summary is visible
+
+  Scenario: Home omits the separate time and date Widgets
+    Given the right side keeps Overview above a three-column two-row Widget grid
+    When Home renders
+    Then no page contains the clock or almanac Widget
+    And the State Bar time and Overview date remain visible
+    And existing portfolio and camera Widgets fill the released Home cells
+
+  Scenario: The resident Agent leaves more room for a tightly fitted grid
+    Given the desk has room for a three-column two-row Widget grid
+    When Home renders or the window changes size in a supported theme
+    Then the Agent occupies at most 35 percent of the wide desk
+    And square Widget units use the available width and height
+    And the last Widget row leaves one outer margin above pagination with integer-cell rounding
+    And Widget gaps and outer vertical margins are 12 pixels
+    And Overview stays above the grid and the composer stays reachable

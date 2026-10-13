@@ -96,11 +96,11 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
     await win.webContents.executeJavaScript(`(async () => {
       window.dispatchEvent(new Event('resize'));
-      const home = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'home');
+      const home = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'home');
       document.querySelectorAll('.dot')[home].click();
       const deadline = performance.now() + 5000;
       while (window.__odkGrid?.width !== ${width} || window.__odkGrid?.height !== ${height}
-        || Math.abs(document.querySelector('.page[data-page="' + home + '"]').getBoundingClientRect().left) >= 1) {
+        || Math.abs(document.querySelector('.page[data-page="' + home + '"]').getBoundingClientRect().left - document.querySelector('#pages-viewport').getBoundingClientRect().left) >= 1) {
         if (performance.now() > deadline) throw Error('Camera desktop viewport did not settle');
         await new Promise(resolve => setTimeout(resolve, 10));
       }

@@ -43,8 +43,8 @@ async function measureSize(win, width, height) {
   await waitFor(win, `window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)
   const home = (await resolvePages(win)).dot('home')
   await win.webContents.executeJavaScript(`document.querySelectorAll('.dot')[${home}].click(); document.querySelector('.page[data-page="${home}"]').scrollTop = 0`)
-  await waitFor(win, `Math.abs(document.querySelector('.page[data-page="${home}"]').getBoundingClientRect().left) < 1`)
-  await waitFor(win, `Math.abs(document.querySelector('.widget').getBoundingClientRect().width - window.__odkGrid.cellW) < 2`)
+  await waitFor(win, `Math.abs(document.querySelector('.page[data-page="${home}"]').getBoundingClientRect().left - document.querySelector('#pages-viewport').getBoundingClientRect().left) < 1`)
+  await waitFor(win, `Math.abs(document.querySelector('[data-widget="odk.tile.weather"]').getBoundingClientRect().width - window.__odkGrid.cellW) < 2`)
   await win.webContents.executeJavaScript(`Promise.all([
       document.fonts.load('700 32px "Montserrat"'),
       document.fonts.load('400 16px "Noto Sans SC"'),

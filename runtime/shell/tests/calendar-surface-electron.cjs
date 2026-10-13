@@ -58,6 +58,7 @@ app.whenReady().then(async () => {
   await win.loadURL('about:blank')
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')
+  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
     const ActualDate = Date;
     window.calendarTime = new ActualDate(2026, 0, 1, 12, 34).getTime();

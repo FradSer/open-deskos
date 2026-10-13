@@ -17,7 +17,7 @@ test('resize repositions Widgets after applying the new geometry without an obse
     addEventListener(name, callback) { assert.equal(name, 'resize'); resize = callback } }
   vm.runInNewContext(source, { window, URLSearchParams, odkLayout: layout,
     document: { documentElement: { style: { setProperty(name, value) { properties.set(name, value) } } },
-      querySelectorAll() { return [] }, getElementById(id) { assert.equal(id, 'pages-track'); return track } },
+      querySelectorAll() { return [] }, getElementById(id) { if (id === 'pages-viewport') return { clientWidth: 528, clientHeight: 420 }; assert.equal(id, 'pages-track'); return track } },
     requestAnimationFrame(callback) { frame = callback; return 1 }, cancelAnimationFrame() {},
     odkComposer: { filterLayout(value) { return value }, placeGridTiles(element) {
       assert.equal(element, track)
@@ -27,6 +27,6 @@ test('resize repositions Widgets after applying the new geometry without an obse
   resize()
   assert.deepEqual(observed, [])
   frame()
-  const expected = layout.compute(960, 640, 1)
+  const expected = layout.computeDesk(960, 640, 528, 420, 1)
   assert.deepEqual(observed, [{ columns: String(expected.cols), cell: `${expected.cellW}px`, width: 960 }])
 })

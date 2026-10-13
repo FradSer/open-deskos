@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
   await js(`(() => {
     window.dashboardDocument = document;
     window.dashboardPage = document.querySelector('[data-plugin="odk.page.dashboard"]');
-    window.dashboardPeer = document.querySelector('[data-widget="odk.tile.clock"]');
+    window.dashboardPeer = document.querySelector('[data-widget="odk.tile.year"]');
     if (!dashboardPage || !dashboardPeer) throw Error('Dashboard placement absent');
     const element = document.createElement('section'); element.id = 'dashboard-acceptance';
     element.style.cssText = 'position:fixed;left:0;top:0;width:960px;height:640px';
@@ -150,7 +150,7 @@ app.whenReady().then(async () => {
     assert.equal(await js("window.odkPlugins.get('odk.page.dashboard').manifest.version || '1.0.0'"), phase === 'independent' ? '2.0.0' : '1.0.0')
     assert.equal(await js(`document === dashboardDocument && dashboardSubscriptions === 1
       && document.querySelector('[data-plugin="odk.page.dashboard"]') === dashboardPage
-      && document.querySelector('[data-widget="odk.tile.clock"]') === dashboardPeer
+      && document.querySelector('[data-widget="odk.tile.year"]') === dashboardPeer
       && document.querySelector('#app-runtime').firstElementChild === dashboardForeground
       && window.odkAppPlatform.active()?.appId === 'clock'
       && document.querySelector('#page-context').textContent === dashboardPageContext

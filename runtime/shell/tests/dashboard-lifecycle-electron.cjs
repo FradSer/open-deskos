@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
     const check = (value, message) => { if (!value) throw Error(message) };
     const registry = window.odkPlugins, id = 'odk.page.dashboard';
     const originalDocument = document;
-    const peer = document.querySelector('[data-widget="odk.tile.clock"]');
+    const peer = document.querySelector('[data-widget="odk.tile.year"]');
     check(peer, 'Peer Clock placement absent');
     for (const failUnsubscribe of [false, true]) {
       const element = document.createElement('section'); document.body.append(element);
@@ -124,7 +124,7 @@ app.whenReady().then(async () => {
       const currentHTML = element.innerHTML;
       briefings[0](frame('error')); ticks[0](new Date(2099, 0, 1));
       check(element.innerHTML === currentHTML, 'Old callback overwrote the new placement');
-      check(document === originalDocument && peer === document.querySelector('[data-widget="odk.tile.clock"]'), 'Document or peer replaced');
+      check(document === originalDocument && peer === document.querySelector('[data-widget="odk.tile.year"]'), 'Document or peer replaced');
       const currentYear = element.querySelector('#dash-y');
       await registry.deactivate(registry.get(id), element, ui);
       check(activeBriefings.size === 0 && activeTicks.size === 0, 'Final surface release leaked subscriptions');

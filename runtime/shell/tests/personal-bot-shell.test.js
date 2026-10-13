@@ -73,7 +73,7 @@ function feedbackHarness(toggle = async () => ({ accepted: true })) {
     },
   }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/personal-bot-status.js', 'utf8'), {
-    document: { getElementById: () => node, body: { children: [] } },
+    document: { querySelector: () => null, getElementById: () => node, body: { children: [] } },
     CustomEvent: class {},
     window,
   })

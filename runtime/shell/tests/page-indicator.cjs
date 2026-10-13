@@ -59,6 +59,7 @@ async function resize(win, width, height) {
 }
 
 async function pointerSelect(win, index) {
+  await js(win, `document.querySelector('#page-center').scrollIntoView({ block: 'end' })`)
   const point = await js(win, `(() => {
     const r = document.querySelectorAll('.dot')[${index}].getBoundingClientRect()
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
@@ -72,6 +73,8 @@ async function pointerSelect(win, index) {
 async function inspect(win) {
   return js(win, `(() => {
     const buttons = [...document.querySelectorAll('#dots .dot')]
+    const pages = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent)
+    const viewport = document.querySelector('#pages-viewport').getBoundingClientRect()
     const center = document.querySelector('#page-center').getBoundingClientRect()
     const nav = document.querySelector('#dots').getBoundingClientRect()
     const left = document.querySelector('#sb-pi-status').getBoundingClientRect()
@@ -99,13 +102,13 @@ async function inspect(win) {
         [r.top + 4, r.top + r.height / 2, r.bottom - 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === button) &&
         (!i || buttons[i - 1].getBoundingClientRect().right <= r.left)
     })
-    const contained = center.left >= left.right + 4 && center.right <= right.left - 4 && center.top >= bar.top - 1 && center.bottom <= bar.bottom + 1 && Math.abs((nav.left + nav.right) / 2 - innerWidth / 2) < 1
+    const contained = center.left >= viewport.left - 1 && center.right <= viewport.right + 1 && center.top >= viewport.bottom - 1 && Math.abs((nav.left + nav.right) / 2 - (viewport.left + viewport.right) / 2) < 1
     return {
-      named: buttons.length === window.DESKTOP_LAYOUT.pages.length && buttons.every((button, i) => button.getAttribute('aria-label') === 'Page ' + (i + 1) + ', ' + window.DESKTOP_LAYOUT.pages[i].name),
+      named: buttons.length === pages.length && buttons.every((button, i) => button.getAttribute('aria-label') === 'Page ' + (i + 1) + ', ' + pages[i].name),
       quiet: buttons.every(button => !button.textContent.trim()) && document.querySelector('#page-context').classList.contains('sr-only'),
       selected: buttons.filter(button => button.getAttribute('aria-current') === 'page').length === 1 && marker(active, '::before').backgroundColor === color && marker(active, '::before').opacity === '1' && marker(active).opacity === '0' && marker(idle).opacity === '1' && marker(idle, '::before').opacity === '0',
       shape, hits, contained,
-      equalCapsules: Math.abs(left.height - 44) < 1 && Math.abs(nav.height - left.height) < 1 && Math.abs(capsuleHeight - left.height) < 1 && Math.abs(capsuleTop - left.top) < 1 && Math.abs(capsuleTop + capsuleHeight - left.bottom) < 1,
+      equalCapsules: Math.abs(nav.height - 44) < 1 && capsule.backgroundColor === 'rgba(0, 0, 0, 0)' && parseFloat(capsule.borderTopWidth) === 0,
       stationary: buttons.every(button => ['::before', '::after'].every(part => marker(button, part).animationName === 'none')),
       transitions: buttons.every(button => ['::before', '::after'].every(part => !/all|width|height/.test(marker(button, part).transitionProperty))),
       footprint: [nav.x, nav.y, nav.width, nav.height],
@@ -127,14 +130,14 @@ async function sizeChecks(win, theme, width, height) {
   let footprint
   // Walk every declared page: a hardcoded count silently stops covering the
   // indicator once a page is added to the layout.
-  const pageCount = await js(win, `window.DESKTOP_LAYOUT.pages.length`)
+  const pageCount = await js(win, `window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).length`)
   for (let index = 0; index < pageCount; index += 1) {
     await pointerSelect(win, index)
     const result = await inspect(win)
     const label = `${theme} ${width}x${height} page ${index + 1}`
     check(`${label}: quiet themed markers with accessible names`, result.quiet && result.shape && result.selected && result.named, result)
     check(`${label}: distinct centered targets`, result.hits && result.contained, result.diagnostics)
-    check(`${label}: Pi and page capsules share aligned 44px edges`, result.equalCapsules, result.diagnostics)
+    check(`${label}: bottom pagination has 44px targets without a card`, result.equalCapsules, result.diagnostics)
     check(`${label}: stable footprint and restrained feedback`, result.stationary && result.transitions && (!footprint || result.footprint.every((v, i) => Math.abs(v - footprint[i]) < 1)))
     footprint = result.footprint
   }
@@ -156,7 +159,10 @@ async function keyboardChecks(win, theme) {
     }))()`)
     check(`${theme} ${keyCode}: immediate activation with focus`, result.instant && result.focused && result.visible && parseFloat(result.outline) >= 2, result)
   }
-  win.webContents.send('odk-remote-input', { input: 'right' })
+  await js(win, `document.querySelectorAll('.dot')[1].click()`)
+  win.webContents.send('odk-remote-input', { input: 'page-next' })
+  await waitFor(win, `document.querySelectorAll('.dot')[2].getAttribute('aria-current') === 'page'`)
+  win.webContents.send('odk-remote-input', { input: 'page-next' })
   const pages = await resolvePages(win)
   const total = Object.keys(pages.index).length
   const target = pages.dot('pi-sessions')
@@ -180,13 +186,14 @@ async function themeChecks(win) {
   await js(win, `document.querySelectorAll('.dot')[2].click(); document.querySelectorAll('.dot')[2].focus()`)
   const stable = await js(win, `(() => {
     const buttons = [...document.querySelectorAll('.dot')]
-    const bounds = buttons.map(button => button.getBoundingClientRect().toJSON())
+    const bounds = buttons.map(button => { const r = button.getBoundingClientRect(), n = document.querySelector('#dots').getBoundingClientRect(); return { x: r.x - n.x, y: r.y - n.y, width: r.width, height: r.height } })
     const page = document.querySelector('#page-context').textContent
     const focus = document.activeElement
     return ['instrument', 'pixel', 'border-beam', 'instrument'].every(theme => {
       odkTheme.set(theme)
       return document.activeElement === focus && document.querySelector('#page-context').textContent === page && buttons.every((button, i) => {
-        const r = button.getBoundingClientRect()
+        const box = button.getBoundingClientRect(), nav = document.querySelector('#dots').getBoundingClientRect()
+        const r = { x: box.x - nav.x, y: box.y - nav.y, width: box.width, height: box.height }
         return button === document.querySelectorAll('.dot')[i] && ['x', 'y', 'width', 'height'].every(key => Math.abs(r[key] - bounds[i][key]) < 1)
       })
     })
@@ -230,6 +237,7 @@ async function main() {
   win.webContents.setZoomFactor(2)
   await win.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
   await waitFor(win, `window.__odkGrid?.width === innerWidth`)
+  await js(win, `document.querySelector('#page-center').scrollIntoView({ block: 'end' })`)
   const result = await inspect(win)
   check('200% zoom retains centered reachable markers', result.hits && result.contained)
   const finalTheme = await js(win, `document.documentElement.dataset.theme`)

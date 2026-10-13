@@ -251,6 +251,7 @@ app.whenReady().then(async () => {
     ...(runtimeController ? ['odk.page.dashboard'] : []), ...resolveStartupDisabled(developmentEnv)]
   const appearances = loadAppearanceReplacements(readConfig(resolveConfigPath(developmentEnv)))
   const query = { disabledPlugins: disabled.join(','), ...(appearances.length ? { appearanceReplacements: JSON.stringify(appearances) } : {}) }
+  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query })
   await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkRendererDiagnosis.ready, window.odkTheme.ready])')
   if (bridgeDiagnosisProof) {

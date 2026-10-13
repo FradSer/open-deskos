@@ -166,7 +166,7 @@ app.on('browser-window-created', (_event, win) => {
         assert.ok(counterFrame, 'Production protocol must load the installed App document')
         await counterFrame.executeJavaScript('counter.click()')
         await js(`window.desktopRetainedDocument=document;window.desktopRetainedCounter=document.querySelector('[data-user-app-id="counter"] iframe');
-          window.desktopRetainedClock=document.querySelector('[data-widget="odk.tile.clock"]');`)
+          window.desktopRetainedClock=document.querySelector('[data-widget="odk.tile.year"]');`)
         assert.equal(await js(`odkAppPlatform.openApp({appId:'clock'})`), true)
         await js('window.desktopRetainedForeground=document.querySelector("#app-runtime").firstElementChild')
         const managerState = host.get('odk:system/app-manager/v1').captureState()

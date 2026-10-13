@@ -74,6 +74,7 @@ BrowserWindow.prototype.loadFile = async function (...args) {
     stage = 'install-time-observation'
     this.webContents.debugger.attach('1.3')
     await this.webContents.debugger.sendCommand('Page.enable')
+    await require('./helpers/time-widget-layout').installTimeWidgetLayout(this)
     await this.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
       const ActualDate=Date;
       window.clockFixedTime=new ActualDate(2026,0,1,12,34).getTime();

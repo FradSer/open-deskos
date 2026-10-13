@@ -39,7 +39,7 @@ const signed = version !== '1.0.0'
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.camera').join(',')
+process.env.ODK_DISABLED_PLUGINS += ',odk.status.peripherals,' + surfaces.filter(id => !surfaceVersion || id !== 'odk.tile.camera').join(',')
 let jpeg = Buffer.concat([Buffer.from([255, 216]), Buffer.alloc(8192), Buffer.from([255, 217])])
 if (surfaceVersion) {
   const pixels = Buffer.alloc(1280 * 720 * 4)

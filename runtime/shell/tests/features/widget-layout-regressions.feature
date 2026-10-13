@@ -1,4 +1,11 @@
 Feature: Responsive summary widget interiors
+  Scenario: Pomodoro readings stay centered in their dial
+    Given Home uses a square Pomodoro Widget in any supported theme
+    When the window changes between compact and widescreen sizes
+    Then the countdown shares the center of the dial and Widget
+    And the Focus label stays inside the dial below the countdown
+    And the truthful state remains centered above the dial
+
   Scenario: Resize applies placement after the new grid metrics
     Given the desktop keeps multi-cell Widget spans in a wide window
     When a hidden window resizes to a compact grid

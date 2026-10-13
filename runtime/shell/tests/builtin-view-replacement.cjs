@@ -97,7 +97,7 @@ app.whenReady().then(async () => {
   if (process.env.ODK_BUILTIN_VIEWS_FOCUS_INVALID) await win.webContents.insertCSS('#app-back:focus-visible{outline:none!important;box-shadow:none!important}')
   assert.equal(await js('viewTicks.size>0'), true, 'Tick observations missed initial acquisition')
   assert.equal(await js('viewTickIntervals.size'), 1, 'Shared Tick interval acquisition was not observed')
-  await js(`(()=>{window.viewDocument=document;window.viewPeer=document.querySelector('[data-widget="odk.tile.clock"]');
+  await js(`(()=>{window.viewDocument=document;window.viewPeer=document.querySelector('[data-widget="odk.tile.year"]');
     window.viewPageContext=document.querySelector('#page-context').textContent;
     window.viewStateSubscriptions=0;const subscribe=odkAppPlatform.subscribeAppState;
     odkAppPlatform.subscribeAppState=callback=>{const cancel=subscribe(callback);viewStateSubscriptions++;return()=>{cancel();viewStateSubscriptions--}};
@@ -312,7 +312,7 @@ app.whenReady().then(async () => {
       assert.equal(await js('viewTicks.size'), subscriptions)
       assert.equal(await js('viewStateSubscriptions'), 0)
       assert.equal(await js("document.querySelector('#page-context').textContent===viewPageContext"), true)
-      assert.equal(await js("document===viewDocument&&viewPeer===document.querySelector('[data-widget=\"odk.tile.clock\"]')"), true)
+      assert.equal(await js("document===viewDocument&&viewPeer===document.querySelector('[data-widget=\"odk.tile.year\"]')"), true)
     }
   }
   await js('odkRendererRuntime.stop()'); assert.equal(await js('viewTicks.size'), 0)
