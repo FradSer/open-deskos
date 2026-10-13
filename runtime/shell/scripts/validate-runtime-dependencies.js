@@ -14,6 +14,56 @@ function validateModuleTree(loaded, releasePath, seen = new Set()) {
   for (const child of loaded.children) validateModuleTree(child, releasePath, seen)
 }
 
+function findPackageManifest(requireFromRelease, name) {
+  for (const modulesPath of requireFromRelease.resolve.paths(name) || []) {
+    const manifestPath = path.join(modulesPath, ...name.split('/'), 'package.json')
+    try {
+      return fs.realpathSync(manifestPath)
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error
+    }
+  }
+  return null
+}
+
+function importTargets(exportsMap) {
+  const targets = []
+  function visit(value, isImportTarget = false) {
+    if (typeof value === 'string') {
+      if (isImportTarget && value.startsWith('./')) targets.push(value)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, isImportTarget)
+      return
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (key === 'import') visit(child, true)
+      else if (key.startsWith('.')) visit(child)
+      else if (isImportTarget) visit(child, true)
+    }
+  }
+  visit(exportsMap)
+  return [...new Set(targets)]
+}
+
+function resolveImportOnlyAsset(requireFromRelease, name) {
+  const manifestPath = findPackageManifest(requireFromRelease, name)
+  if (!manifestPath) return null
+  const packageManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  const targets = importTargets(packageManifest.exports)
+  if (targets.length === 0) return null
+  const packagePath = path.dirname(manifestPath)
+  for (const target of targets) {
+    const resolved = fs.realpathSync(path.resolve(packagePath, target))
+    if (!resolved.startsWith(`${packagePath}${path.sep}`) && resolved !== packagePath) {
+      throw new Error(`${name} import export resolves outside its package: ${resolved}`)
+    }
+  }
+  return { kind: 'asset', entry: manifestPath }
+}
+
 function resolveDependency(requireFromRelease, name) {
   try {
     return { kind: 'module', entry: requireFromRelease.resolve(name) }
@@ -25,6 +75,8 @@ function resolveDependency(requireFromRelease, name) {
     try {
       return { kind: 'asset', entry: requireFromRelease.resolve(`${name}/package.json`) }
     } catch {
+      const importOnlyAsset = resolveImportOnlyAsset(requireFromRelease, name)
+      if (importOnlyAsset) return importOnlyAsset
       throw error
     }
   }

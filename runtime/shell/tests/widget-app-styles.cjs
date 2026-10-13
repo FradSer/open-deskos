@@ -133,7 +133,7 @@ async function widgets(win, label) {
 }
 
 async function pomodoroCentering(win) {
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
       await resize(win, width, height)
       await page(win, PAGES.dot('home'))
@@ -159,7 +159,7 @@ async function pomodoroCentering(win) {
 }
 
 async function surfaceAffordances(win) {
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [960, 640], [320, 480]]) {
       await resize(win, width, height)
       await page(win, PAGES.dot('home'))

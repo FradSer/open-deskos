@@ -189,7 +189,7 @@ async function themeChecks(win) {
     const bounds = buttons.map(button => { const r = button.getBoundingClientRect(), n = document.querySelector('#dots').getBoundingClientRect(); return { x: r.x - n.x, y: r.y - n.y, width: r.width, height: r.height } })
     const page = document.querySelector('#page-context').textContent
     const focus = document.activeElement
-    return ['instrument', 'pixel', 'border-beam', 'instrument'].every(theme => {
+    return ['instrument', 'pixel', 'border-beam', 'liquid-glass', 'instrument'].every(theme => {
       odkTheme.set(theme)
       return document.activeElement === focus && document.querySelector('#page-context').textContent === page && buttons.every((button, i) => {
         const box = button.getBoundingClientRect(), nav = document.querySelector('#dots').getBoundingClientRect()

@@ -68,6 +68,24 @@
       tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
       faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
     },
+    'liquid-glass': {
+      tokens: {
+        ...SHARED_TOKENS,
+        ...CELL_TOKENS,
+        '--odk-bg': '#080b11',
+        '--odk-surface': '#131a25',
+        '--odk-elevated': '#1b2635',
+        '--odk-button': '#2c3849',
+        '--odk-stroke': '#4d5f75',
+        '--odk-stroke-focus': '#e4edf8',
+        '--odk-primary': '#f3f7fc',
+        '--odk-secondary': '#a6b3c3',
+        '--odk-secondary-strong': '#d4deea',
+        '--odk-radius-card': '24px',
+        '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif',
+      },
+      faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
+    },
   }
 
 
@@ -97,7 +115,7 @@
 
   function createAppearancePlugins() {
     return Object.entries(THEME_RULES).map(([theme, rule]) => createAppearancePlugin({
-      theme, name: { instrument: 'Instrument', pixel: 'Pixel', 'border-beam': 'Border Beam' }[theme],
+      theme, name: { instrument: 'Instrument', pixel: 'Pixel', 'border-beam': 'Border Beam', 'liquid-glass': 'Liquid Glass' }[theme],
       ...(theme === 'instrument' ? {} : { css: `themes/${theme}.css` }), ...rule,
     }))
   }
@@ -122,7 +140,7 @@
   }
 
   function selectAppearancePlugins(replacements = []) {
-    if (!Array.isArray(replacements) || replacements.length > 3) throw Error('invalid appearance selections')
+    if (!Array.isArray(replacements) || replacements.length > 4) throw Error('invalid appearance selections')
     const selected = new Map()
     for (const raw of replacements) {
       const manifest = validateAppearanceReplacement(raw)

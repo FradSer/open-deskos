@@ -131,7 +131,7 @@ app.on('browser-window-created', (_event, win) => {
       await appFrame.executeJavaScript('counter.click()')
       const measure = async () => {
         const results = {}
-        for (const theme of ['pixel', 'instrument', 'border-beam']) {
+        for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
           const shell = await js(`(async () => {
             document.querySelector('#dots .dot[aria-label$="Home"]').click();
             odkTheme.set(${JSON.stringify(theme)});
