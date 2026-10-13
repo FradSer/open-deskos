@@ -74,6 +74,7 @@ Project guides override general advice.
 ### Phase A: Design and implement
 
 Read [design](references/design.md) for information, layout, typography, color, writing, accessibility, icons, and implementation patterns.
+For composition changes, reconcile current user constraints before changing shared geometry.
 Use existing product contracts and nearby implementations.
 Preserve source meaning and recovery behavior.
 For installable packages, follow the selected platform guide.
@@ -84,6 +85,8 @@ In an installable package, do not reference unresolved Shell `--odk-*` propertie
 
 Read [verification](references/verification.md) for stress states, density, font settling, IPC fixtures, safety, and evidence limits.
 Run deterministic assertions against the final candidate.
+For design review, capture a populated normal preview before using failure-state screenshots as evidence.
+Apply the preview consistency and capability checks in the verification reference.
 
 ## 5. Verification
 

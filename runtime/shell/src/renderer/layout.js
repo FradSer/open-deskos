@@ -65,22 +65,24 @@
     }
   }
 
-  function computeDesk(width, height, viewportWidth, viewportHeight, widgetCount = 6) {
+  function computeDesk(width, height, viewportWidth, viewportHeight, widgetCount = 6, deskHeight, minCell = 200) {
     // State Bar and theme metrics still belong to the whole Shell. Only the
     // Widget grid is measured from the right pane, including its scroll rails.
     const metrics = compute(width, height, widgetCount)
-    const widgetGap = 12
-    const availableWidth = Math.max(24, viewportWidth - 2 * widgetGap - 32)
-    const cols = Math.max(1, Math.min(3, Math.floor((availableWidth + widgetGap) / (200 + widgetGap))))
+    const widgetGap = 16
+    const availableWidth = Math.max(24, viewportWidth - 2 * widgetGap - (width < 640 ? 32 : 0))
+    const cols = Math.max(1, Math.min(3, Math.floor((availableWidth + widgetGap) / (minCell + widgetGap))))
     const widthCell = Math.floor((availableWidth - (cols - 1) * widgetGap) / cols)
-    // Overview owns the first row. Widgets occupy the next two square rows;
-    // compact panes scroll before reducing the existing 200px reading floor.
+    // Home has one full-width Overview card above two square Widget rows.
+    // Fit all three rows together; compact panes retain the readable floor and scroll.
     const rows = Math.max(2, Math.ceil(widgetCount / cols))
-    const heightCell = Math.max(200, Math.floor((viewportHeight - 3 * widgetGap) / 2))
+    const canvasHeight = Number.isFinite(deskHeight) ? deskHeight - 48 : viewportHeight
+    const heightCell = Math.max(minCell, Math.floor((canvasHeight - 4 * widgetGap) / 3))
     const cellDim = Math.min(widthCell, heightCell)
-    return { ...metrics, widgetGap, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
+    return { ...metrics, widgetGap, minCell, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
       colW: cellDim, gridW: cols * cellDim + (cols - 1) * widgetGap,
-      gridH: rows * cellDim + (rows - 1) * widgetGap }
+      gridH: rows * cellDim + (rows - 1) * widgetGap,
+      widgetViewportH: null }
   }
 
   function gridWidgetCount(layout) {

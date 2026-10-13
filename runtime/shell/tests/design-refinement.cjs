@@ -82,16 +82,15 @@ async function briefing(win, check) {
     const unchanged = narrative.textContent === before;
     window.odkServices.briefing.withdraw('odk.briefing.harness');
     return { texts: clauses.map(c => c.textContent),
-      sourceTexts: [...document.querySelectorAll('#dash-source-list .dash-sources')].map(c => c.textContent),
-      sourceFonts: [...document.querySelectorAll('#dash-source-list .dash-sources')].map(c => parseFloat(getComputedStyle(c).fontSize)),
+      noMetadata: !document.querySelector('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list'),
       safe: !narrative.querySelector('script'), unchanged,
-      status: document.querySelector('#dash-agent-status').textContent };
+      live: narrative.getAttribute('aria-live') };
   })()`)
   check('Today renders Agent statements in generated order', JSON.stringify(result.texts) === JSON.stringify(frame.items.map(i => i.text)))
-  check('Agent statements retain source states and measurement provenance', /Weather.*live/.test(result.sourceTexts[0]) && /Mail.*unconfigured/.test(result.sourceTexts[1]))
-  check('Agent text remains literal and source metadata remains readable', result.safe && result.sourceFonts.every(size => size >= 14))
+  check('Overview omits metadata and source controls', result.noMetadata)
+  check('Agent text remains literal', result.safe)
   check('fixed plugin statements cannot replace the Agent briefing', result.unchanged)
-  check('Today identifies Personal Agent ownership', /Personal Agent/.test(result.status))
+  check('Today announces briefing changes', result.live === 'polite')
   win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: before })
 }
 

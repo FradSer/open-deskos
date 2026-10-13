@@ -101,8 +101,10 @@ const READ = `(() => { try {
 async function main() {
   const win = new BrowserWindow({
     width: SIZES[0][1], height: SIZES[0][2], frame: false, show: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, offscreen: true },
   })
+  assert.equal(win.webContents.isOffscreen(), true, 'hidden geometry fixtures render offscreen')
+  assert.equal(win.webContents.isPainting(), true, 'layout callbacks have an active frame source')
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')

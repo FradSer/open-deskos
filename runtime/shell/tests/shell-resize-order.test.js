@@ -9,6 +9,9 @@ test('resize repositions Widgets after applying the new geometry without an obse
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/shell.js'), 'utf8').split('function createPager(')[0]
   const properties = new Map()
   const track = {}
+  const pane = { clientWidth: 528, clientHeight: 420 }
+  const content = { clientHeight: 552 }
+  let grids = []
   let resize
   let frame
   const observed = []
@@ -17,7 +20,7 @@ test('resize repositions Widgets after applying the new geometry without an obse
     addEventListener(name, callback) { assert.equal(name, 'resize'); resize = callback } }
   vm.runInNewContext(source, { window, URLSearchParams, odkLayout: layout,
     document: { documentElement: { style: { setProperty(name, value) { properties.set(name, value) } } },
-      querySelectorAll() { return [] }, getElementById(id) { if (id === 'pages-viewport') return { clientWidth: 528, clientHeight: 420 }; assert.equal(id, 'pages-track'); return track } },
+      querySelectorAll() { return grids }, getElementById(id) { if (id === 'pages-viewport') return pane; if (id === 'desk-content') return content; assert.equal(id, 'pages-track'); return track } },
     requestAnimationFrame(callback) { frame = callback; return 1 }, cancelAnimationFrame() {},
     odkComposer: { filterLayout(value) { return value }, placeGridTiles(element) {
       assert.equal(element, track)
@@ -27,6 +30,14 @@ test('resize repositions Widgets after applying the new geometry without an obse
   resize()
   assert.deepEqual(observed, [])
   frame()
-  const expected = layout.computeDesk(960, 640, 528, 420, 1)
+  const expected = layout.computeDesk(960, 640, 608, 420, 1, 552)
   assert.deepEqual(observed, [{ columns: String(expected.cols), cell: `${expected.cellW}px`, width: 960 }])
+  window.innerWidth = 1920
+  window.innerHeight = 1280
+  content.clientHeight = 1184
+  grids = [{ children: [{ dataset: { minCell: '217' } }], closest() { return { offsetWidth: 528, clientWidth: 518 } } }]
+  resize()
+  frame()
+  assert.deepEqual(observed[1], { columns: '3', cell: '357px', width: 1920 })
+  assert.equal(properties.get('--desk-pane-w'), '1177px', 'pane includes 32 pixel side margins and measured scroll rail')
 })

@@ -56,4 +56,4 @@ Feature: E2E validates the current declarative desktop
     Given a hidden Electron window starts with one-pixel content bounds
     When the Home fixture loads the desktop before pointer checks
     Then it sets the requested content size and dispatches resize
-    And the Sources disclosure receives browser pointer input inside that viewport
+    And the Overview accepts page swipes without source controls

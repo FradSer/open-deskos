@@ -123,6 +123,10 @@
   font-size: clamp(80px, 42cqi, 380px);
 }
 
+@container (max-width: 230px) {
+  [data-theme='pixel'] .pi-widget-detailed .pi-widget-count { font-size: clamp(64px, 40cqi, 380px); }
+}
+
 [data-theme='pixel'] .pi-widget-unit {
   font-size: max(12px, 6.5cqi);
   letter-spacing: 0.04em;
@@ -218,6 +222,13 @@
 
 [data-theme='pixel'] .hydra-title {
   font-size: clamp(12px, 11cqi, 24px);
+}
+
+@container (min-width: 300px) {
+  [data-theme='pixel'] .hydra-env-value,
+  [data-theme='pixel'] .hydra-plant-soil {
+    font-size: clamp(14px, 20cqi, 36px);
+  }
 }
 
 [data-theme='pixel'] .hydra-badge {

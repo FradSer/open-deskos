@@ -1,4 +1,5 @@
 const { test } = require('node:test')
+const { integrationURL } = require('./helpers/repo-root')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
 const os = require('node:os')
@@ -6,8 +7,8 @@ const path = require('node:path')
 const { createPersonalBotClient } = require('../src/personal-bot-client')
 
 test('typed input is acknowledged by the resident service and never replayed', async t => {
-  const { PersonalBotService } = await import('../../../integrations/personal-bot/src/service.mjs')
-  const { listen } = await import('../../../integrations/personal-bot/src/socket.mjs')
+  const { PersonalBotService } = await import(integrationURL('personal-bot/src/service.mjs'))
+  const { listen } = await import(integrationURL('personal-bot/src/socket.mjs'))
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-text-'))
   let complete
   let calls = 0

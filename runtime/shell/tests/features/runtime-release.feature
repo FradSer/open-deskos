@@ -2,6 +2,12 @@ Feature: Immutable runtime release deployment
   Device preflight must validate a staged candidate exactly as the kiosk
   session will run it, without depending on ambient installer environment.
 
+  Scenario: Preflight uses integrations inside its own artifact
+    Given a checkout or a sealed CM5 release with integration sources
+    When runtime contract tests load an integration module or publisher
+    Then they resolve that integration inside the same artifact
+    And they do not depend on an ambient checkout outside the release
+
   Scenario: Candidate production dependencies load before activation
     Given a release with pnpm-linked production dependencies
     When a required transitive package is missing from the candidate

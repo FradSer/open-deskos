@@ -1,4 +1,5 @@
 'use strict'
+const { integrationPath } = require('./helpers/repo-root')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -113,7 +114,7 @@ test('actual Python publisher answers diagnosis with its owned plugin lifecycle'
     'finally: runtime.close()',
   ].join('\n')
   await promisify(execFile)(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], {
-    cwd: path.resolve(__dirname, '../../../integrations/futu-poller'), timeout: 10000,
+    cwd: integrationPath('futu-poller'), timeout: 10000,
   })
   const actual = await observed
   assert.equal(actual.host, 'python-agent')
@@ -143,7 +144,7 @@ test('Python owner receives diagnosis while waiting after publication', async t 
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: integrationPath('futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''

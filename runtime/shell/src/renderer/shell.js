@@ -18,19 +18,35 @@ function applyGeometry() {
   const grids = [...document.querySelectorAll('.widget-grid')]
   const count = grids.length ? Math.max(...grids.map(grid => grid.children.length)) : odkLayout.gridWidgetCount(effectiveLayout)
   const desk = document.getElementById('pages-viewport')
+  const content = document.getElementById('desk-content')
+  const minCell = Math.max(200, ...grids.flatMap(grid => [...grid.children].map(tile => Number(tile.dataset.minCell) || 0)))
+  const scrollInset = Math.max(0, ...grids.map(grid => {
+    const page = grid.closest('.page')
+    return page ? page.offsetWidth - page.clientWidth : 0
+  }))
+  // Fit the square canvas from the full budget; the conversation takes spare width.
+  // Measuring only the previous pane would keep an initial narrow column count.
+  const sideInset = window.innerWidth >= 960 ? 32 : 20
+  const fullPaneBudget = window.innerWidth >= 640
+    ? window.innerWidth - (window.innerWidth < 960 ? 290 : 320) - scrollInset
+    : desk?.clientWidth || window.innerWidth
+  // computeDesk already reserves one Widget gap at each horizontal edge.
+  const paneBudget = fullPaneBudget - 2 * (sideInset - 16)
   const m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
-    desk?.clientWidth || window.innerWidth, desk?.clientHeight || window.innerHeight, count)
+    paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
   root.setProperty('--gutter', `${m.gutter}px`)
   root.setProperty('--widget-gap', `${m.widgetGap}px`)
+  root.setProperty('--desk-side-inset', `${sideInset}px`)
   root.setProperty('--cols', `${m.cols}`)
   root.setProperty('--rows', `${m.rows}`)
   root.setProperty('--cell-w', `${m.cellW}px`)
   root.setProperty('--cell-h', `${m.cellH}px`)
   root.setProperty('--cell-dim', `${cellDim}px`)
   root.setProperty('--grid-w', `${m.gridW}px`)
+  root.setProperty('--desk-pane-w', `${m.gridW + 2 * sideInset + scrollInset}px`)
   root.setProperty('--grid-h', `${m.gridH}px`)
   root.setProperty('--radius', `${m.radius}px`)
   root.setProperty('--stroke-w', `${m.stroke}px`)
@@ -470,6 +486,9 @@ async function main() {
   const publishedPageRemote = new Map()
   applyGeometry()
   odkComposer.build(effectiveLayout, document.getElementById('pages-track'), uiCtx)
+  const homePage = document.querySelector('#pages-track > [data-page-id="home"]')
+  homePage.classList.add('home-canvas')
+  homePage.prepend(document.getElementById('home-summary'))
   const deskObserver = new ResizeObserver(() => {
     applyGeometry()
     odkComposer.placeGridTiles(document.getElementById('pages-track'))
@@ -485,6 +504,23 @@ async function main() {
   const pageNames = effectiveLayout.pages.filter(page => !page.persistent).map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
+
+  // A sandbox's focused element appears as its iframe to this document, but
+  // :focus-within does not cross that boundary. Keep the frame feedback local.
+  function syncInstalledAppFocus() {
+    for (const page of track.querySelectorAll('.installed-app')) {
+      const frame = page.querySelector('.user-app-frame')
+      page.toggleAttribute('data-frame-focused', Boolean(frame && document.activeElement === frame))
+    }
+  }
+  document.addEventListener('focusin', syncInstalledAppFocus)
+  window.addEventListener('blur', syncInstalledAppFocus)
+  window.addEventListener('focus', syncInstalledAppFocus)
+  window.addEventListener('pagehide', () => {
+    document.removeEventListener('focusin', syncInstalledAppFocus)
+    window.removeEventListener('blur', syncInstalledAppFocus)
+    window.removeEventListener('focus', syncInstalledAppFocus)
+  }, { once: true })
 
   // A page may publish its own Remote Control Strip buttons and declare how App
   // Focus Mode moves on it. A page-published declaration always wins over the

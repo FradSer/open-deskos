@@ -94,7 +94,7 @@ const DRIVER_SCRIPT = `
   out.clockRightOfDots = timeRect.left >= dotsRect.right
 
 
-  out.pageCount = document.querySelectorAll('#pages-track .page').length
+  out.pageCount = document.querySelectorAll('#pages-track > .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
   out.noUserAppsPage = !document.querySelector('.user-apps') && window.DESKTOP_LAYOUT.pages.every(page => page.id !== 'user-apps')
   out.pageContext = text('#page-context')
@@ -114,8 +114,8 @@ const DRIVER_SCRIPT = `
   out.todayBriefsFromAgent =
     narrative.querySelector('[data-briefing="agent-0"]') !== null &&
     /Review the current desk readings/.test(out.narrativeText) &&
-    /Weather/.test($('#dash-source-list .dash-sources').textContent) &&
-    /Personal Agent/.test(text('#dash-agent-status'))
+    !$('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list') &&
+    narrative.getAttribute('aria-live') === 'polite'
   out.todayOmitsDeskStatus =
     !/Network (connected|disconnected)/.test(out.narrativeText) &&
     !/Focus is not started/.test(out.narrativeText) &&
@@ -614,8 +614,8 @@ async function runGeometrySweep(win) {
     // The renderer recomputes geometry on resize via requestAnimationFrame;
     // a blind sleep races cold-start rAF throttling in hidden windows, so
     // poll until the applied metrics match the layout module (bounded).
-    const viewportSize = await win.webContents.executeJavaScript('({ width: document.getElementById("pages-viewport").clientWidth, height: document.getElementById("pages-viewport").clientHeight })', true)
-    const expectedMetrics = layout.computeDesk(width, height, viewportSize.width, viewportSize.height, layout.gridWidgetCount(desktopLayout))
+    const viewportSize = await win.webContents.executeJavaScript('({ width: document.getElementById("pages-viewport").clientWidth, height: document.getElementById("pages-viewport").clientHeight, deskHeight: document.getElementById("desk-content").clientHeight, minCell: window.__odkGrid.minCell })', true)
+    const expectedMetrics = layout.computeDesk(width, height, viewportSize.width, viewportSize.height, layout.gridWidgetCount(desktopLayout), viewportSize.deskHeight, viewportSize.minCell)
     const expectedCell = expectedMetrics.cellW
     const deadline = Date.now() + 5000
     let settled = false

@@ -351,14 +351,15 @@ Read [the Open DeskOS Link contract](ODK_LINK_PLUGIN_CONTRACT.md) when implement
 
 Personal Agent supplies Today content through `ctx.homeBriefing`.
 [The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns generation, source limits, and update rules.
-Today shows source states and measurement times.
+The briefing frame retains source states and measurement times.
 Today reports loading, empty, unavailable, error, and stale states.
 It does not replace unavailable Agent output with fixed plugin sentences.
 
 New home items contain ordered literal segments.
 Context segments contain text; fact segments contain text and an approved icon name.
 The client validates the joined text and the 240-character paragraph limit.
-The page displays source states and measurement times through the Sources disclosure.
+The page has no attribution footer, update timestamp, or Sources controls.
+The briefing paragraph announces availability changes.
 
 ## Home selection declarations
 

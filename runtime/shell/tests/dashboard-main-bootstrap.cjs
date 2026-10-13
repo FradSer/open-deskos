@@ -179,14 +179,14 @@ async function exercise() {
           if(devicePixelRatio!==1||visualViewport.scale!==1||innerWidth!==1920||innerHeight!==1280)throw Error('Dashboard measurement inputs changed');
           const narrative=dashboardPlacement.querySelector('#dash-narrative');
           if(!narrative||narrative.querySelector('img,script'))throw Error('Dashboard literal rendering failed');
-          if(expected.items.length&&narrative.textContent!==expected.items.map(item=>item.text).join(' '))throw Error('Dashboard literal text changed');
+          if(expected.items.length&&[...narrative.querySelectorAll('[data-briefing]')].map(node=>node.textContent).join(' ')!==expected.items.map(item=>item.text).join(' '))throw Error('Dashboard literal text changed');
           const bounds=narrative.getBoundingClientRect(),box=dashboardPlacement.getBoundingClientRect();
           if(bounds.width<=0||bounds.height<=0||bounds.left<box.left||bounds.right>box.right||bounds.top<box.top||bounds.bottom>box.bottom)throw Error('Dashboard narrative clipped');
           for(const change of dashboardPlacement.querySelectorAll('.dash-change')){
             const value=parseFloat(change.textContent),direction=expected.state==='live'&&value&&/^[+-]/.test(change.textContent)?(value>0?'up':'down'):undefined;
             if(change.dataset.direction!==direction)throw Error('Dashboard portfolio state changed');
           }
-          if(dashboardPlacement.querySelector('.dash-provenance').hidden!==(!expected.items.length&&!expected.omittedSources))throw Error('Dashboard Sources availability changed');
+          if(dashboardPlacement.querySelector('.dash-foot,details,summary,#dash-agent-status,#dash-source-list'))throw Error('Removed metadata controls returned');
           return [...dashboardPlacement.querySelectorAll('.dash, .dash *')].map(node=>{
             const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
             return {tag:node.tagName,className:node.getAttribute('class')||'',

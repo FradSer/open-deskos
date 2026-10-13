@@ -1,4 +1,5 @@
 'use strict'
+const { integrationURL } = require('./helpers/repo-root')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs/promises')
@@ -10,7 +11,7 @@ const { createOdkDataLinkReplacement } = require('./fixtures/odk-data-link-repla
 // Load the Bot SDK once before timed Link scenarios; transport deadlines remain unchanged.
 let odkDataRequest
 test.before(async () => {
-  ;({ odkDataRequest } = await import('../../../integrations/personal-bot/src/odk-data.mjs'))
+  ;({ odkDataRequest } = await import(integrationURL('personal-bot/src/odk-data.mjs')))
 }, { timeout: 30000 })
 
 for (const alternative of [false, true]) {

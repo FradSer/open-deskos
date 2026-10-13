@@ -1,4 +1,5 @@
 'use strict'
+const { integrationPath } = require('./helpers/repo-root')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createMainPlugins } = require('../src/plugins/main-composition')
@@ -77,7 +78,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: integrationPath('futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''

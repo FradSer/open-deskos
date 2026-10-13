@@ -6,8 +6,8 @@
     id: 'odk.page.personal-agent', manifest: { schemaVersion: 1 }, kind: 'page', surface: 'app',
     mount(el, ctx) {
       el.innerHTML = `<div class="agent-panel">
-        <header class="agent-head"><span class="agent-avatar"></span><div><h1 class="agent-name"></h1><span class="agent-caption">Personal Agent</span></div>
-          <details class="agent-identity"><summary aria-label="Edit Agent identity"><svg data-tabler="edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415" /><path d="M16 5l3 3" /></svg></summary><form class="agent-identity-form">
+        <header class="agent-head"><span class="agent-avatar"></span><h1 class="agent-name"></h1>
+          <details class="agent-identity" hidden><summary aria-label="Edit Agent identity"><svg data-tabler="edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415" /><path d="M16 5l3 3" /></svg></summary><form class="agent-identity-form">
             <label>Name<input name="name" maxlength="40" required /></label>
             <label>Icon<select name="icon"><option value="message">Message</option><option value="leaf">Leaf</option><option value="terminal">Terminal</option></select></label>
             <button type="submit">Save</button></form></details></header>
@@ -30,11 +30,10 @@
       let pending = false
       function applyIdentity() {
         $('.agent-name').textContent = identity.name
-        $('.agent-caption').hidden = identity.name === 'Personal Agent'
-        for (const node of el.querySelectorAll('.agent-avatar, .agent-input-avatar, .agent-message-avatar')) node.innerHTML = glyph(identity.icon)
-        for (const node of el.querySelectorAll('.agent-message-name')) node.textContent = identity.name
+        for (const node of el.querySelectorAll('.agent-avatar, .agent-input-avatar')) node.innerHTML = glyph(identity.icon)
+        for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
-        input.placeholder = `Ask ${identity.name} anything…`
+        input.placeholder = 'Message…'
         input.setAttribute('aria-label', `Message ${identity.name}`)
         $('.agent-identity-form [name="name"]').value = identity.name
         $('.agent-identity-form [name="icon"]').value = identity.icon
@@ -46,17 +45,11 @@
         const article = document.createElement('article')
         article.className = `agent-message agent-message-${role}`
         if (role === 'assistant') {
-          article.innerHTML = '<header><span class="agent-message-avatar"></span><strong class="agent-message-name"></strong></header><div class="agent-message-body"></div>'
-          article.querySelector('.agent-message-avatar').innerHTML = glyph(identity.icon)
-          article.querySelector('.agent-message-name').textContent = identity.name
+          article.innerHTML = '<div class="agent-message-bubble"><div class="agent-message-body"></div></div>'
+          article.setAttribute('aria-label', identity.name)
         } else article.innerHTML = '<div class="agent-message-body"></div>'
         const body = article.querySelector('.agent-message-body')
         body.textContent = text
-        const time = document.createElement('time')
-        const now = new Date()
-        time.dateTime = now.toISOString()
-        time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        article.append(time)
         conversation.append(article)
         root.odkIcons?.apply?.(article)
         return body

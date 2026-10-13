@@ -50,7 +50,8 @@ app.whenReady().then(async () => {
   await evaluate(`window.dispatchEvent(new Event('resize'))`)
   await evaluate('document.fonts.ready')
   assert.equal(await evaluate(`!!document.querySelector('#personal-agent textarea')`), true, 'resident Agent has a composer')
-  assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing is outside paging')
+  assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing retains its plugin host')
+  assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
@@ -72,7 +73,7 @@ app.whenReady().then(async () => {
   await evaluate(`window.odkTheme.set('instrument')`)
   await send(compact)
   assert.equal(await evaluate(`document.querySelector('#dash-narrative').tagName`), 'P')
-  assert.equal(await evaluate(`document.querySelector('.dash-provenance').open`), false)
+  assert.equal(await evaluate(`document.querySelector('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list')`), null)
   assert.ok(await evaluate(`(() => { const n=document.querySelector('#dash-narrative'), d=document.querySelector('.dash'), c=getComputedStyle(d); return Math.abs(n.getBoundingClientRect().width-(d.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight))) < 2 })()`), 'home uses full content width')
 
   for (const [change, direction] of [['+1.23%', 'up'], ['-0.63%', 'down'], ['-100.00%', 'down'], ['0.00%', undefined]]) {
@@ -87,15 +88,8 @@ app.whenReady().then(async () => {
   }
   await send(compact)
 
-  const sourcePoint = await evaluate(`(() => { const r = document.querySelector('.dash-provenance summary').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } })()` )
-  win.webContents.sendInputEvent({ type: 'mouseDown', ...sourcePoint, button: 'left', clickCount: 1 })
-  win.webContents.sendInputEvent({ type: 'mouseUp', ...sourcePoint, button: 'left', clickCount: 1 })
-  await evaluate(`new Promise(r => setTimeout(r, 50))`)
-  assert.equal(await evaluate(`document.querySelector('.dash-provenance').open`), true, 'real pointer opens Sources')
-  await evaluate(`document.querySelector('.dash-provenance').open = false`)
-
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
-    for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
+    for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [1280, 776], [960, 640], [480, 854], [320, 480]]) {
       win.setContentSize(width, height)
       await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 80))`)
       await send(compact)
@@ -108,6 +102,8 @@ app.whenReady().then(async () => {
           icon: parseFloat(getComputedStyle(document.querySelector('#sb-net svg')).width), expectedIcon: metrics.barIcon,
           capsule: parseFloat(getComputedStyle(pi).borderTopWidth),
           time: parseFloat(getComputedStyle(document.querySelector('.sb-time')).fontSize),
+          summaryBorder: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth),
+          squares: [...document.querySelectorAll('.widget')].filter(tile => odkGridPlacement.spanCells(tile.style.gridColumn) === 1 && odkGridPlacement.spanCells(tile.style.gridRow) === 1).map(tile => { const r = tile.getBoundingClientRect(); return Math.abs(r.width - r.height) }),
           cell: [cell.width, cell.height], columns: window.__odkGrid.cols, unit: window.__odkGrid.cellDim,
           paneWidth: pane.clientWidth, spans: ['odk.tile.pi-sessions','odk.tile.pomodoro'].map(id => document.querySelector('[data-widget="'+id+'"]').dataset.span),
           overflow: document.querySelector('.widget-grid').scrollWidth > pane.clientWidth }
@@ -117,6 +113,8 @@ app.whenReady().then(async () => {
       assert.ok(geometry.capsule >= 1, 'Pi retains its outlined capsule')
       assert.ok(geometry.time >= 20, 'clock retains original display typography')
       assert.ok(Math.abs(geometry.cell[0] - geometry.cell[1]) < 1, '1x1 is square')
+      assert.ok(geometry.squares.every(delta => delta < 1), 'every 1x1 Widget is square')
+      assert.equal(geometry.summaryBorder, 0, 'Overview has no border in any theme')
       assert.equal(geometry.overflow, false, 'right grid has no horizontal overflow')
       assert.ok(geometry.columns <= 3, 'right grid never exceeds three columns')
       if (width >= 1280) {
@@ -125,13 +123,23 @@ app.whenReady().then(async () => {
           const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')].map(tile => tile.getBoundingClientRect())
           const gap = parseFloat(getComputedStyle(document.querySelector('[data-page-id="home"] .widget-grid')).gap)
           return { agentWidth: document.querySelector('#personal-agent').getBoundingClientRect().width,
+            leftMargin: Math.min(...tiles.map(r => r.left)) - pane.left,
+            rightMargin: pane.right - Math.max(...tiles.map(r => r.right)),
+            overviewLeft: document.querySelector('#home-summary').getBoundingClientRect().left,
+            overviewRight: document.querySelector('#home-summary').getBoundingClientRect().right,
+            gridLeft: Math.min(...tiles.map(r => r.left)), gridRight: Math.max(...tiles.map(r => r.right)),
             bottomMargin: pane.bottom - Math.max(...tiles.map(r => r.bottom)),
             topMargin: Math.min(...tiles.map(r => r.top)) - pane.top, gap }
         })()`)
-        assert.ok(fit.agentWidth <= width * 0.35, 'resident Agent leaves at least 65 percent for the desk: ' + JSON.stringify(fit))
-        assert.ok(fit.bottomMargin >= 12 && fit.bottomMargin < 14, 'last Widget row leaves one margin plus less than two pixels of cell rounding: ' + JSON.stringify(fit))
-        assert.equal(fit.topMargin, 12, 'Widget grid has a small top margin')
-        assert.equal(fit.gap, 12, 'Widget grid uses compact consistent spacing')
+        assert.ok(fit.agentWidth >= width * 0.35 && fit.agentWidth < width * 0.6, 'Agent uses spare width beside the square canvas: ' + JSON.stringify(fit))
+        if (width === 1920) assert.ok(Math.abs(fit.leftMargin - 32) <= 1 && Math.abs(fit.rightMargin - 32) <= 1, 'square canvas has balanced 32 pixel side margins: ' + JSON.stringify(fit))
+        if (width === 1920) assert.ok(fit.bottomMargin >= 16 && fit.bottomMargin < 19, 'reference canvas leaves one margin plus integer-cell rounding: ' + JSON.stringify(fit))
+        assert.equal(fit.topMargin, geometry.unit + 32, 'Overview occupies the first row with one gap before Widgets')
+        assert.equal(fit.gap, 16, 'Widget grid uses consistent expanded spacing')
+        assert.ok(Math.abs(fit.overviewLeft - fit.gridLeft) <= 1 && Math.abs(fit.overviewRight - fit.gridRight) <= 1, 'Overview spans the same three columns as Widgets: ' + JSON.stringify(fit))
+        if (width === 1920 && height === 1280) {
+          assert.ok(await evaluate(`document.querySelector('#home-summary').scrollHeight <= document.querySelector('#home-summary').clientHeight + 1`), 'reference Overview shows its short briefing without scrolling')
+        }
         const visibleHome = await evaluate(`(() => {
           const pane = document.querySelector('#pages-viewport').getBoundingClientRect()
           return Array.from(document.querySelectorAll('[data-page-id="home"] .widget')).filter(tile => {
@@ -139,13 +147,14 @@ app.whenReady().then(async () => {
             return r.left >= pane.left && r.right <= pane.right && r.top >= pane.top && r.bottom <= pane.bottom
           }).length
         })()`)
-        assert.equal(visibleHome, 6, 'home shows six complete Widgets in the lower two rows')
+        if (width === 1920) assert.equal(visibleHome, 6, 'reference Home shows six complete Widgets in the lower two rows')
+        else assert.ok(await evaluate(`(() => { const page = document.querySelector('[data-page-id="home"]'); page.scrollTop = page.scrollHeight; const bottom = Math.max(...[...page.querySelectorAll('.widget')].map(tile => tile.getBoundingClientRect().bottom)); const reachable = bottom <= page.getBoundingClientRect().bottom; page.scrollTop = 0; return reachable && getComputedStyle(page).overflowY === 'auto' })()`), 'short panels keep the complete square canvas reachable by scrolling')
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
         assert.ok(geometry.unit >= 200, 'home uses readable square units')
         assert.equal(await evaluate(`window.__odkGrid.rows`), 2, 'Widget region has two rows')
-        assert.ok(await evaluate(`Math.abs(document.querySelector('#pages-viewport').clientHeight - 2 * document.querySelector('#home-summary').clientHeight) <= 2`), 'Overview is one row above two Widget rows')
+        assert.ok(await evaluate(`window.__odkGrid.cellDim === window.__odkGrid.minCell || document.querySelector('#pages-viewport').clientHeight >= 3 * window.__odkGrid.cellDim + 64 && document.querySelector('#pages-viewport').clientHeight < 3 * window.__odkGrid.cellDim + 67`), 'Overview and two Widget rows fit the three-row canvas')
         assert.deepEqual(geometry.spans, ['kept', 'kept'], 'original instrument proportions survive')
-        assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'target panel shows complete Widget pages below Overview')
+        if (width === 1920) assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'reference panel shows complete Widget pages')
       }
       const header = await evaluate(`(() => {
         const day = document.querySelector('.dash-wd').getBoundingClientRect()
@@ -182,9 +191,6 @@ app.whenReady().then(async () => {
       assert.ok(sentence.facts.every(color => color !== sentence.context))
       if (width >= 960) assert.equal(sentence.fits, true, theme + ' ' + width + ' compact sentence fits')
       assert.equal(sentence.pixel, theme === 'pixel')
-      await evaluate(`document.querySelector('.dash-provenance').open = true`)
-      assert.equal(await evaluate(`document.querySelector('#dash-source-list').innerText.includes('Desk readings')`), true)
-      await evaluate(`document.querySelector('.dash-provenance').open = false`)
       await send({ ...compact, state: 'loading' })
       assert.equal(await evaluate(`document.querySelectorAll('.dash-icon[data-state="live"]').length`), 0, 'retained values have no live color')
       assert.equal(await evaluate(`new Set([...document.querySelectorAll('.dash-icon')].map(n => getComputedStyle(n).color)).size`), 3, 'retained source icons retain their category colors')
@@ -195,34 +201,31 @@ app.whenReady().then(async () => {
       const result = await evaluate(`(() => {
         const dash = document.querySelector('.dash');
         const text = document.querySelector('[data-briefing="agent-0"]');
-        const sources = document.querySelector('.dash-sources');
-        const status = document.querySelector('#dash-agent-status');
+        const status = document.querySelector('#dash-narrative');
         return { literal: text.textContent, script: !!text.querySelector('script'),
           overflow: dash.scrollWidth > dash.clientWidth + 1,
-          sourceFont: parseFloat(getComputedStyle(sources).fontSize),
-          sourceState: sources.textContent.includes('stale'), live: status.getAttribute('aria-live'),
-          omitted: dash.textContent.includes('1 source was outside'),
+          controls: dash.querySelectorAll('details, summary, button, a, [tabindex]').length,
+          footer: !!dash.querySelector('.dash-foot, #dash-agent-status, #dash-source-list'), live: status.getAttribute('aria-live'),
           storedFallback: dash.textContent.includes('You have') };
       })()`)
       assert.equal(result.literal, statement)
       assert.equal(result.script, false)
       assert.equal(result.overflow, false, `${theme} ${width}: no horizontal overflow`)
-      assert.ok(result.sourceFont >= 14)
-      assert.equal(result.sourceState, true)
+      assert.equal(result.controls, 0)
+      assert.equal(result.footer, false)
       assert.equal(result.live, 'polite')
-      assert.equal(result.omitted, true)
       assert.equal(result.storedFallback, false)
       for (const state of ['loading', 'empty', 'unavailable', 'error', 'stale']) {
         await send({ ...frame, state, items: ['loading', 'stale'].includes(state) ? frame.items : [] })
         assert.equal(await evaluate(`document.querySelector('#dash-narrative').dataset.state`), state)
-        assert.ok(await evaluate(`document.querySelector('#dash-agent-status').textContent.length > 0`))
+        assert.ok(await evaluate(`document.querySelector('#dash-narrative').textContent.length > 0`))
       }
       win.webContents.send('odk-personal-bot-status', { state: 'error', message: '' })
       await evaluate(`new Promise(r => setTimeout(r, 30))`)
       assert.ok(await evaluate(`parseFloat(getComputedStyle(document.querySelector('.agent-state')).fontSize) >= 14`), 'Agent recovery feedback clears the text floor')
       assert.equal(await evaluate(`document.querySelector('.agent-state').getAttribute('role')`), 'status')
       assert.match(await evaluate(`document.querySelector('.agent-state').textContent`), /try again/)
-      console.log(`PASS Agent home: ${theme} ${width}x${height} literal text, sources, availability, wrapping`)
+      console.log(`PASS Agent home: ${theme} ${width}x${height} literal text, no metadata controls, availability, wrapping`)
     }
   }
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); new Promise(r => setTimeout(r, 80))`)
@@ -238,14 +241,26 @@ app.whenReady().then(async () => {
   win.setContentSize(1536, 1024)
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
   await send(compact)
-  const pinned = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return [r.x, r.y] })()`)
-  await evaluate(`document.querySelectorAll('.dot')[1].click()`)
-  assert.deepEqual(await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return [r.x, r.y] })()`), pinned)
-  assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 0)
+  const firstCard = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, height: r.height, unit: window.__odkGrid.cellDim, border: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth) } })()` )
+  assert.equal(firstCard.height, firstCard.unit, 'Overview is exactly one grid row high')
+  assert.equal(firstCard.border, 0, 'Overview stays borderless')
+  const swipe = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: Math.round(r.right - 30), y: Math.round(r.top + 24), end: Math.round(r.left + 30) } })()`)
+  win.webContents.sendInputEvent({ type: 'mouseDown', x: swipe.x, y: swipe.y, button: 'left', clickCount: 1 })
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: swipe.end, y: swipe.y, button: 'left' })
+  win.webContents.sendInputEvent({ type: 'mouseUp', x: swipe.end, y: swipe.y, button: 'left', clickCount: 1 })
+  await evaluate(`new Promise(r => setTimeout(r, 280))`)
+  assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true, 'swiping Overview changes the whole Home page')
+  assert.ok(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().right <= document.querySelector('#pages-viewport').getBoundingClientRect().left`), 'next page excludes Overview')
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track > .page:not([data-page-id="home"]) #home-summary').length`), 0)
+  await evaluate(`document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 280))`)
+  assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'Overview returns with Home')
+  assert.equal(await evaluate(`document.querySelector('#home-summary details, #home-summary summary')`), null, 'paging never restores source controls')
+  assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.widget[data-interaction="display-only"]')).backgroundColor`), 'rgba(0, 0, 0, 0)')
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form [name="icon"]').value = 'leaf'; document.querySelector('.agent-identity-form').requestSubmit()`)
   win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
+  await evaluate(`window.agentStreamBubble = document.querySelector('.agent-message-bubble'); window.agentStreamBody = document.querySelector('.agent-message-assistant .agent-message-body')`)
   win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
   win.webContents.send('odk-personal-bot-status', { state: 'unavailable', message: '' })
   win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Reconnected response' })
@@ -256,8 +271,11 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`), 1)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 1)
   assert.equal(await evaluate(`document.querySelector('.agent-message-assistant .agent-message-body').textContent.includes('Final response')`), true)
-  assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-name').textContent === 'Mori 中文' && document.querySelector('.agent-composer textarea').placeholder.includes('Mori 中文')`), true)
-  assert.equal(await evaluate(`document.querySelector('.agent-avatar').innerHTML === document.querySelector('.agent-message-avatar').innerHTML && document.querySelector('.agent-avatar').innerHTML === document.querySelector('.agent-input-avatar').innerHTML`), true)
+  assert.equal(await evaluate(`document.querySelector('.agent-message-bubble') === window.agentStreamBubble && document.querySelector('.agent-message-assistant .agent-message-body') === window.agentStreamBody && getComputedStyle(window.agentStreamBubble).backgroundColor !== 'rgba(0, 0, 0, 0)'`), true, 'streaming and reconnect retain the same message background and body')
+  await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
+  assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')
+  assert.equal(await evaluate(`document.querySelector('.agent-avatar').innerHTML === document.querySelector('.agent-input-avatar').innerHTML`), true)
   assert.equal(await evaluate(`document.querySelector('#personal-bot-status').hidden && !document.querySelector('#home-desk').inert`), true)
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.deepEqual(sentText, ['Typed question'])
@@ -289,20 +307,21 @@ app.whenReady().then(async () => {
   }
   win.setContentSize(1536, 1024)
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = ${JSON.stringify(identity)}; document.querySelector('.agent-identity-form').requestSubmit(); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 60))`)
+  await evaluate(`document.querySelectorAll('.dot')[1].click()` )
   await evaluate(`document.querySelector('.agent-composer textarea').focus(); document.querySelector('.agent-composer textarea').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))`)
   assert.equal(await evaluate(`document.querySelectorAll('.dot')[1].classList.contains('active')`), true)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}'); document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 100))`)
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent`), identity)
-    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-final-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-stress-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
   }
   win.setContentSize(1920, 1280)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); void document.body.offsetHeight; document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
     await send(compact)
-    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-grid-preview-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-failure-grid-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
   }
-  console.log('PASS resident Agent identity, typed input, streaming, retained draft, fixed briefing and independent paging')
+  console.log('PASS resident Agent identity, typed input, streaming, retained draft, first-page briefing and independent Agent')
   console.log('PASS keyboard and pointer paging remain usable; fixture capture saved')
   finish(0)
 }).catch(error => { console.error(error); finish(1) })

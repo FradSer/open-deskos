@@ -2,6 +2,7 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
+const { pathToFileURL } = require('node:url')
 
 function isRepositoryRoot(dir) {
   const hasPeripherals = fs.existsSync(path.join(dir, 'peripherals', 'esp32-p4-camera'))
@@ -20,4 +21,12 @@ function findRepositoryRoot(start = __dirname) {
   }
 }
 
-module.exports = { findRepositoryRoot }
+function integrationPath(relative, start = __dirname) {
+  return path.join(findRepositoryRoot(start), 'integrations', relative)
+}
+
+function integrationURL(relative, start = __dirname) {
+  return pathToFileURL(integrationPath(relative, start)).href
+}
+
+module.exports = { findRepositoryRoot, integrationPath, integrationURL }

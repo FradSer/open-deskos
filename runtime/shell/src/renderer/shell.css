@@ -543,21 +543,6 @@ body.kiosk {
   vertical-align: -0.13em;
 }
 
-.dash-foot { display: grid; gap: 8px; }
-.dash-agent-status,
-.dash-sources,
-.dash-provenance summary {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--odk-secondary-strong);
-  letter-spacing: normal;
-  overflow-wrap: anywhere;
-}
-.dash-agent-status { margin: 0; }
-.dash-provenance summary { cursor: pointer; min-height: 44px; align-content: center; width: fit-content; }
-.dash-provenance summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 4px; }
-.dash-sources { margin: 0 0 8px; }
-
 .dash-narrative b {
   color: var(--odk-primary);
   font-weight: 700;
@@ -1217,7 +1202,7 @@ body.kiosk {
 
 /* Pomodoro keeps its state above a proportionate, static focus dial. */
 .w-pomodoro {
-  --pomodoro-time-size: clamp(28px, 20cqi, 110px);
+  --pomodoro-time-size: clamp(24px, 16cqi, 88px);
   position: relative;
   align-items: stretch;
   justify-content: center;
@@ -1403,6 +1388,16 @@ body.kiosk {
   margin: 0;
   font-size: clamp(14px, 8cqi, 26px);
   line-height: 1.4;
+}
+
+@container (min-width: 300px) {
+  .widget-status-layout .widget-corner-icon { width: 36cqi; height: 36cqi; }
+  .widget-status-layout .widget-status-value { font-size: clamp(32px, 22cqi, 80px); }
+}
+
+/* Distributed readings keep their inset proportional in larger square cells. */
+.widget:is(.w-futu, .w-weather) {
+  --odk-widget-inset: clamp(16px, calc(var(--cell-dim) * 0.08), 40px);
 }
 
 .widget-status-name {
@@ -1942,6 +1937,11 @@ body.kiosk {
   line-height: 1.4;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+@container (max-width: 230px) {
+  .w-pi-sessions.pi-widget-detailed .pi-widget-body { gap: 5px; }
+  .pi-widget-detailed .pi-widget-count { font-size: clamp(64px, 40cqi, 380px); }
 }
 
 .pi-app-wrapper {

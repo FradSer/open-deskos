@@ -1,5 +1,7 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
+const fs = require('node:fs')
+const os = require('node:os')
 const { app, BrowserWindow, ipcMain } = require('electron')
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
@@ -153,6 +155,62 @@ async function pomodoroCentering(win) {
       })()`)
       check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateAbove, reading)
     }
+  }
+}
+
+async function surfaceAffordances(win) {
+  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    for (const [width, height] of [[1920, 1280], [960, 640], [320, 480]]) {
+      await resize(win, width, height)
+      await page(win, PAGES.dot('home'))
+      await win.webContents.executeJavaScript(`odkTheme.set('${theme}'); document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
+      const widgets = await win.webContents.executeJavaScript(`(() => {
+        const nodes = [...document.querySelectorAll('.widget[data-interaction="display-only"]')]
+        const css = getComputedStyle(nodes[0])
+        return { static: nodes.every(node => {
+          const style = getComputedStyle(node)
+          return style.borderTopStyle === 'solid' && style.borderTopWidth === '1px'
+            && style.borderTopColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(node, '::after').content === 'none'
+            && !node.matches('[tabindex],button') && !node.querySelector('button,input,select,textarea,a[href]')
+        }), color: css.borderTopColor }
+      })()`)
+      check(`Read-only Widget frame: ${theme} ${width}x${height}`, widgets.static, widgets)
+      await page(win, PAGES.dot('quota'))
+      const rest = await win.webContents.executeJavaScript(`(() => {
+        document.querySelector('.dot.active').focus()
+        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        return { color: css.borderTopColor, width: css.borderTopWidth, outline: css.outlineStyle, size: [rect.width, rect.height] }
+      })()`)
+      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '2px' && rest.color !== widgets.color && rest.outline === 'none', rest)
+      const active = await win.webContents.executeJavaScript(`(() => {
+        document.querySelector('#quota-refresh').focus()
+        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, offset: parseFloat(css.outlineOffset), size: [rect.width, rect.height] }
+      })()`)
+      check(`App active frame: ${theme} ${width}x${height}`, active.color !== rest.color && active.outline === 'solid' && parseFloat(active.width) >= 2 && active.offset === 2 && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
+      if (width === 1920) {
+        await win.webContents.executeJavaScript(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`)
+        fs.writeFileSync(path.join(os.tmpdir(), `odk-app-frame-active-${theme}.png`), (await win.webContents.capturePage()).toPNG())
+      }
+      const restored = await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); getComputedStyle(document.querySelector('.quota-card')).borderTopColor`)
+      check(`App frame restores after focus leaves: ${theme} ${width}x${height}`, restored === rest.color)
+      if (width === 1920) {
+        const point = await win.webContents.executeJavaScript(`(() => { const r = document.querySelector('.quota-card').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 6) } })()`)
+        win.webContents.debugger.attach('1.3')
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
+        const pressed = await win.webContents.executeJavaScript(`(() => { const card = document.querySelector('.quota-card'), css = getComputedStyle(card); return { active: card.matches(':active'), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
+        win.webContents.debugger.detach()
+        check(`Pointer press activates the App frame: ${theme}`, pressed.active && pressed.color !== rest.color && pressed.outline === 'solid', pressed)
+      }
+    }
+    const foreground = await win.webContents.executeJavaScript(`(async () => {
+      await odkAppPlatform.openApp({ appId: 'clock' })
+      const css = getComputedStyle(document.querySelector('#app-runtime .runtime-app'))
+      return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
+    })()`)
+    check(`Opened App retains its active frame: ${theme}`, foreground.width === '2px' && foreground.outline === 'solid' && foreground.outlineWidth === '2px' && foreground.offset === 2, foreground)
+    await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
   }
 }
 
@@ -714,6 +772,12 @@ async function main() {
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.executeJavaScript('document.fonts.ready')
   PAGES = await resolvePages(win)
+  if (process.argv.includes('--surface-frames')) {
+    await surfaceAffordances(win)
+    assert.equal(failures, 0, `${failures} frame checks failed`)
+    console.log('SURFACE_FRAMES_PASS')
+    return
+  }
   for (const [width, height] of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
     await resize(win, width, height)
     const label = `${width}x${height}`
@@ -761,6 +825,7 @@ async function main() {
   await remoteStripControls(win)
   await scannerRecovery(win)
   await pomodoroCentering(win)
+  await surfaceAffordances(win)
   assert.equal(failures, 0, `${failures} interior checks failed`)
   console.log('WIDGET_APP_STYLES_PASS')
 }

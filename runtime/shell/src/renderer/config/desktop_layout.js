@@ -4,7 +4,7 @@
 
   /*
    * Declarative desktop layout — the single place where pages exist and tiles
-   * are placed. The Agent and briefing have persistent hosts. Widget pages share measured
+   * are placed. The Agent has a resident host. Home contains its briefing host. Widget pages share measured
    * cells; App pages keep their existing interactive surfaces.
    */
   root.DESKTOP_LAYOUT = {

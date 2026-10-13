@@ -56,9 +56,11 @@ app.whenReady().then(async () => {
     const html = '<style>body{margin:0;color:white;font:20px sans-serif}</style><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script>'
     return new Response(buildUserAppDocument(html, { token: url.searchParams.get('token') }), { headers: { 'content-type': 'text/html', 'content-security-policy': USER_APP_CSP } })
   })
-  win = new BrowserWindow({ width: 1920, height: 1280, show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
+  win = new BrowserWindow({ width: 1920, height: 1280, show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: process.platform === 'linux', backgroundThrottling: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
+  assert.equal(await js('document.hasFocus()'), true, 'hidden fixture receives focus without activating a desktop window')
   await wait(`document.querySelector('#user-app-desktop-status')?.dataset.state === 'ready'`)
   await js(`window.originalBuiltin=document.querySelector('[data-widget="odk.tile.year"]'); window.originalPage=document.querySelector('[data-page-id="home"]')`)
   await update([persisted, interactive])
@@ -93,6 +95,28 @@ app.whenReady().then(async () => {
       assert.equal(geometry.row, '')
       assert.equal(geometry.sameFrame, true)
       assert.equal(geometry.overlaps, false)
+      const rest = await js(`(() => {
+        const widget = getComputedStyle(document.querySelector('[data-user-app-id="note"]'))
+        const app = document.querySelector('[data-user-app-id="counter"]'), frame = app.querySelector('iframe')
+        document.querySelectorAll('#dots .dot')[[...app.parentElement.children].indexOf(app)].click()
+        document.querySelector('.dot.active').focus()
+        const css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
+        return { widgetWidth: widget.borderTopWidth, widgetColor: widget.borderTopColor, width: css.borderTopWidth, color: css.borderTopColor, size: [rect.width, rect.height] }
+      })()`)
+      assert.equal(rest.widgetWidth, '1px', 'installed Widget keeps a subtle static frame')
+      assert.equal(rest.width, '2px', 'installed App has a stronger frame')
+      assert.notEqual(rest.color, rest.widgetColor)
+      await appFrame.executeJavaScript('counter.focus()')
+      const active = await js(`(() => {
+        const frame = document.querySelector('[data-user-app-id="counter"] iframe'), css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
+        return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, size: [rect.width, rect.height], focused: document.activeElement === frame }
+      })()`)
+      assert.notEqual(active.color, rest.color, 'focus inside the sandbox activates the App frame: ' + JSON.stringify(active))
+      assert.equal(active.outline, 'solid')
+      assert.equal(active.width, '2px')
+      assert.deepEqual(active.size, rest.size, 'activation does not resize the sandbox')
+      await js(`document.querySelector('.dot.active').focus()`)
+      assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="counter"] iframe')).borderTopColor`), rest.color, 'leaving the sandbox restores its resting frame')
     }
   }
   await update([widget('r2', 'reading', '5'), { ...interactive, id: 'earlier', name: 'Earlier' }, interactive])

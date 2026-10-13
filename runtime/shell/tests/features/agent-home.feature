@@ -1,4 +1,38 @@
 Feature: Personal Agent home briefing
+  Scenario: Overview copy fits inside the established card
+    Given Overview has a fixed grid-row footprint
+    When briefing length or the available copy area changes
+    Then only briefing text and inline icons resize together
+    And weekday, date, card geometry, and Widget placement stay unchanged
+    And copy fits within the remaining area above its readable floor
+    And longer content remains reachable at that floor
+
+  Scenario: Home hides the identity editing entry
+    Given the Agent has a saved name and icon
+    When the Agent panel renders
+    Then the title has no visible or focusable pencil entry
+    And saved identity data and editing logic remain intact
+
+  Scenario: Conversation uses quiet message bubbles
+    Given the Agent has a name and a conversation with replies
+    When messages render or the identity changes
+    Then the name appears visually only in the panel heading
+    And each Agent reply has a background container
+    And the heading and input icons stay synchronized with the accessible identity
+    And conversation messages have no avatars or timestamps
+    And streaming updates preserve the message containers
+
+  Scenario: Normal design previews contain consistent populated readings
+    Given an isolated preview uses synthetic desk data
+    When the preview captures a supported theme
+    Then every Home Widget shows representative content
+    And Overview facts agree with the Widget readings
+    And Camera uses a decoded synthetic frame without hardware capture
+    And a fixture-only Pomodoro reading is identified as simulated
+    And the complete timer reading stays centered with space inside its dial
+    And the Agent shows one representative conversation
+    And failure scenarios remain separate from normal preview captures
+
   Scenario: Home follows Widget and App state
     Given Open DeskOS Data exposes current Widget and App readings
     When Personal Agent starts or a reading changes
@@ -37,13 +71,15 @@ Feature: Personal Agent home briefing
     Then it returns at most two connected sentences with at most 240 characters
     And contextual words connect icon-labelled facts in reading order
     And the renderer shows one paragraph with muted context and bright facts
-    And source states and measurement times remain available in a disclosure
+    And source states still govern truthful facts and availability
     And only approved icons can be rendered
 
-  Scenario: Source disclosure accepts pointer input
+  Scenario: Overview has no attribution metadata or source controls
     Given the home shows a generated briefing
-    When the user clicks Sources
-    Then its source details open without starting a page swipe
+    When Overview renders in a supported theme
+    Then it has no Personal Agent attribution or update timestamp
+    And it has no Sources disclosure or focusable source controls
+    And the briefing paragraph announces availability changes
 
   Scenario: Restrained source color and changing readings
     Given the home contains temperature and Pi session facts
@@ -125,11 +161,11 @@ Feature: Personal Agent home briefing
     And failed unsubscribe retains cleanup ownership until retry
 
   Scenario: An independent Dashboard preserves briefing behavior during runtime replacement
-    Given Today displays literal briefing segments and source provenance
+    Given Today displays literal briefing segments and truthful availability
     When a development or signed independent Dashboard replaces the default page
     Then the same page container displays equivalent values and source states
     And Instrument, Pixel, and Border Beam retain equivalent rendered content
-    And date updates and Sources disclosure remain available
+    And date updates and briefing availability remain available
     And the foreground App stays mounted and Back returns to the same selected page
     And built-in recovery preserves the document and neighboring placements
 
@@ -167,10 +203,10 @@ Feature: Personal Agent home briefing
   Scenario: Agent and briefing stay beside paged Widgets
     Given the Shell has current desk readings and a Personal Bot session
     When the user changes a Widget page by touch or keyboard
-    Then the Agent stays on the left and the briefing stays above the Widgets
+    Then the Agent stays on the left and the briefing moves with the first Widget page
     And only the bottom page dots change
     And the date stays on the same line as the weekday
-    And display-only Widgets have no outer card border
+    And display-only Widgets have a subtle outer border
 
   Scenario: Text and voice share the resident conversation
     Given Personal Bot is available
@@ -241,7 +277,7 @@ Feature: Personal Agent home briefing
     Then the grid derives its columns and square unit size from that pane
     And the right side has three columns and three rows
     And Overview spans the three columns in the first row
-    And the target panel shows six home Widgets in the remaining two rows
+    And the reference panel shows six home Widgets in the remaining two rows
     And each Widget unit remains square and at least 200 pixels on the target panel
     And Pi sessions and Pomodoro each use one square unit
     And Hydra retains two rows for its plant readings on the next page
@@ -258,8 +294,36 @@ Feature: Personal Agent home briefing
   Scenario: The resident Agent leaves more room for a tightly fitted grid
     Given the desk has room for a three-column two-row Widget grid
     When Home renders or the window changes size in a supported theme
-    Then the Agent occupies at most 35 percent of the wide desk
+    Then the Agent uses the width left by the fitted square canvas
     And square Widget units use the available width and height
-    And the last Widget row leaves one outer margin above pagination with integer-cell rounding
-    And Widget gaps and outer vertical margins are 12 pixels
+    And the reference panel leaves one outer margin above pagination with integer-cell rounding
+    And Widget gaps and outer vertical margins are 16 pixels
     And Overview stays above the grid and the composer stays reachable
+
+  Scenario: Overview and Widgets share one three-column canvas
+    Given the reference panel has room for three square columns and two Widget rows
+    When Home renders in Instrument, Pixel, or Border Beam
+    Then Overview spans the same left and right edges as the Widget grid
+    And Overview and Widgets use the largest three-row square canvas that fits the pane
+    And Overview occupies one square unit of height across all three columns
+    And six complete Widgets and pagination remain visible on the reference panel
+    And short panels scroll before violating a Widget reading floor
+    And intermediate pane widths reduce columns before violating that floor
+    And paging moves Overview with Home so later pages do not display it
+
+  Scenario: Overview is the first card of Home
+    Given Home has a three-column three-row canvas
+    When the user swipes or selects the next page
+    Then Overview moves by the same distance as the Home Widgets
+    And only Home contains the Overview card
+    And returning to Home preserves briefing content without source controls
+    And Overview has no border and keeps one grid-row height
+
+  Scenario: The conversation uses spare width beside a square canvas
+    Given Home has a three-column three-row canvas
+    When a wide window has more width than the square canvas needs
+    Then the Personal Agent grows instead of adding empty bands beside Widgets
+    And the Widget canvas keeps 32 pixel horizontal margins in wide windows
+    And compact windows keep 20 pixel horizontal canvas margins
+    And every one-by-one Widget stays square in all three themes
+    And Overview stays borderless and moves only with Home

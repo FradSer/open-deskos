@@ -130,7 +130,7 @@ app.whenReady().then(async () => {
   for (const phase of ['default', 'independent', 'restored']) {
     if (phase !== 'default') await js(`(() => {
       for (const placement of [dashboardElement, dashboardPage]) {
-        for (const node of placement.querySelectorAll('#dash-wd,#dash-md,#dash-y,#dash-narrative,#dash-agent-status,#dash-source-list')) {
+        for (const node of placement.querySelectorAll('#dash-wd,#dash-md,#dash-y,#dash-narrative')) {
           dashboardFormerNodes.push({ node, text: node.textContent });
         }
       }
@@ -178,13 +178,13 @@ app.whenReady().then(async () => {
         const element = dashboardElement;
         const narrative = element.querySelector('#dash-narrative');
         if (narrative.querySelector('img,script')) throw Error('Briefing text became executable markup');
-        if (expected.items.length && narrative.textContent !== expected.items.map(item => item.text).join(' ')) throw Error('Briefing literal text changed');
+        if (expected.items.length && [...narrative.querySelectorAll('[data-briefing]')].map(node => node.textContent).join(' ') !== expected.items.map(item => item.text).join(' ')) throw Error('Briefing literal text changed');
         for (const change of element.querySelectorAll('.dash-change')) {
           const value = parseFloat(change.textContent);
           const direction = expected.state === 'live' && value && /^[+-]/.test(change.textContent) ? (value > 0 ? 'up' : 'down') : undefined;
           if (change.dataset.direction !== direction) throw Error('Portfolio state changed');
         }
-        if (element.querySelector('.dash-provenance').hidden !== (!expected.items.length && !expected.omittedSources)) throw Error('Sources availability changed');
+        if (element.querySelector('.dash-foot, details, summary, #dash-agent-status, #dash-source-list')) throw Error('Removed metadata controls returned');
         if (innerWidth !== 1920 || innerHeight !== 1280 || devicePixelRatio !== 1 || document.fonts.status !== 'loaded') throw Error('Measurement inputs changed');
         const box = element.getBoundingClientRect();
         const semantic = placement => [...placement.querySelectorAll('.dash, .dash *')].map(node => ({
@@ -223,26 +223,9 @@ app.whenReady().then(async () => {
       }
       if (document.querySelector('#page-context').textContent !== dashboardPageContext) throw Error('Back changed selected page');
     })()`)
-    const summary = await js(`(() => {
-      dashboardElement.style.visibility = 'hidden';
-      const target = dashboardPage.querySelector('summary');
-      const rect = target.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) throw Error('Sources target absent');
-      const point = { x: Math.round(rect.x + rect.width/2), y: Math.round(rect.y + rect.height/2) };
-      if (!target.contains(document.elementFromPoint(point.x,point.y))) throw Error('Sources pointer target is obscured');
-      return point;
-    })()`)
-    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...summary })
-    win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...summary })
     await js(`(async () => {
       const deadline = performance.now()+3000;
-      while (!dashboardPage.querySelector('details').open) {
-        if (performance.now()>deadline) throw Error('Sources pointer did not open disclosure');
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      dashboardPage.querySelector('details').open = false;
-      dashboardElement.style.removeProperty('visibility');
-      if (dashboardElement.style.visibility) throw Error('Sources fixture visibility control remained applied');
+      if (dashboardPage.querySelector('details, summary, .dash-foot')) throw Error('Removed source controls returned');
       dashboardFixedTime = new Date(2027, 1, 2, 12, 34).getTime();
       while ([dashboardElement,dashboardPage].some(element => element.querySelector('#dash-y').textContent !== '2027')) {
         if (performance.now()>deadline) throw Error('Shared Tick did not update Dashboard');
@@ -276,7 +259,7 @@ app.whenReady().then(async () => {
   clearTimeout(timeout)
   console.log(JSON.stringify({ actualPreload: true, mode: signed ? 'native' : 'development', documentLoads: loads,
     themes: 3, frames: 10, comparisons: 60, retainedPage: true, retainedForeground: true,
-    pointerBack: 3, sourcesDisclosure: 3, dateTransitions: 6, restored: true,
+    pointerBack: 3, noSourceControls: 3, dateTransitions: 6, restored: true,
     discoveryReleased: true, assetLeaseReleased: signed }))
   app.quit()
 }).catch(error => { void finish(1, error) })
