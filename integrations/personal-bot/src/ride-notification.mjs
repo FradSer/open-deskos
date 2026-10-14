@@ -15,3 +15,25 @@ export function rideNotification(snapshot) {
   if (typeof order.map?.eta === 'string') fields.push(`预计 ${order.map.eta.slice(0, 20)} 分钟`)
   return `${prefix}：${state}${fields.length ? '\n' + fields.join(' · ') : ''}`
 }
+
+/** Notify on state changes while keeping repeated uncertain-order polls quiet. */
+export function createRideNotifier(notify) {
+  if (typeof notify !== 'function') throw Error('Ride notifier callback required')
+  let previousKey = ''
+  return snapshot => {
+    const message = rideNotification(snapshot)
+    if (!message) {
+      previousKey = ''
+      return false
+    }
+    const identity = snapshot.order?.orderId || snapshot.quote?.id || snapshot.reconciliation?.currentOrder?.orderId || ''
+    const uncertain = ['unknown', 'submitting', 'cancel_unknown', 'cancelling'].includes(snapshot.phase)
+    const key = uncertain
+      ? JSON.stringify([snapshot.phase, identity])
+      : JSON.stringify([snapshot.phase, identity, message])
+    if (key === previousKey) return false
+    previousKey = key
+    notify(message)
+    return true
+  }
+}

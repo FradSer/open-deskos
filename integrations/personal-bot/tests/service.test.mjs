@@ -15,6 +15,24 @@ function fixture(overrides = {}) {
   return { service, calls }
 }
 
+test('notifications stay separate from replies and flush one message per event', () => {
+  const { service } = fixture()
+  service.setState('thinking', 'Partial answer', 'Ride status?')
+  service.notify('订单状态仍待确认')
+  service.notify('订单状态已更新')
+  service.setState('idle', 'Final answer', 'Ride status?')
+
+  assert.equal(service.status.message, 'Final answer')
+  assert.equal(service.status.notifications.length, 2)
+  assert.deepEqual(service.status.notifications.map(item => item.message), ['订单状态仍待确认', '订单状态已更新'])
+  assert.equal(new Set(service.status.notifications.map(item => item.id)).size, 2)
+
+  service.notify('后续状态')
+  assert.equal(service.status.message, 'Final answer')
+  assert.equal(service.status.notifications.length, 1)
+  assert.equal(service.status.notifications[0].message, '后续状态')
+})
+
 test('service suspension drains capture and restores work without accepting late recording completion', async () => {
   let done
   let cleaned = 0

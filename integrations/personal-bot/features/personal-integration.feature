@@ -23,3 +23,9 @@ Feature: Personal assistant integration with the resident personal bot service
     Given a request might have reached a remote transaction service
     When voice processing fails
     Then recovery asks the user to query order status before another order
+
+  Scenario: Briefing failures expose safe diagnostics
+    Given a Personal Agent briefing update fails
+    When the background generator reports the failure
+    Then the service records its stage and safe error classification
+    And the diagnostic excludes prompts, plugin readings, provider response text and credentials
