@@ -20,15 +20,12 @@
           { id: 'odk.tile.pi-sessions', col: '1', row: '1' },
           { id: 'odk.tile.pomodoro', col: '2', row: '1' },
           { id: 'odk.tile.futu', col: '3', row: '1' },
-          { id: 'odk.tile.camera', col: '1', row: '2' },
           { id: 'odk.tile.weather', col: '2', row: '2' },
-          { id: 'odk.tile.year', col: '3', row: '2' },
+          { id: 'odk.tile.year', col: '1', row: '2' },
         ],
       },
       { id: 'desk', name: 'Desk', kind: 'grid', surface: 'display', widgets: [
-        { id: 'odk.tile.chat', col: '1', row: '1' },
-        { id: 'odk.tile.settings', col: '2', row: '1' },
-        { id: 'odk.tile.hydra', col: '3', row: '1 / 3' },
+        { id: 'odk.tile.hydra', col: '1', row: '1 / 3' },
       ] },
       { id: 'reading', name: 'Reading', kind: 'grid', surface: 'display', widgets: [
         { id: 'odk.tile.weread', col: '1 / 3', row: '1 / 3' },

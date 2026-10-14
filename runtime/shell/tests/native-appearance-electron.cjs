@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
   await host.start()
   assert.ok(host.list().every(plugin => plugin.state === 'running'), JSON.stringify(host.list()))
   const load = async () => {
-    await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.tile.camera' } })
+    await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
     await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkTheme.ready, window.odkRendererDiagnosis.ready])')
   }
   await load()

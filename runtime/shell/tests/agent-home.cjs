@@ -39,6 +39,28 @@ async function send(briefing) {
   win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
+async function assertNotificationMessagesAreIndependent() {
+  const notification = message => ({ state: 'idle', transcript: 'Question 中文', message: 'Final response', notifications: [{ id: message, message }] })
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单结果尚未确认'))
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  await evaluate(`new Promise(r => setTimeout(r, 30))`)
+  const messageLayout = await evaluate(`(() => {
+    const conversation = document.querySelector('.agent-conversation')
+    const replies = [...conversation.querySelectorAll('.agent-message-assistant')]
+    const last = replies.slice(-2)
+    return { display: getComputedStyle(conversation).display, gap: getComputedStyle(conversation).rowGap,
+      texts: replies.map(node => node.querySelector('.agent-message-body').textContent),
+      visibleGap: last.length === 2 ? last[1].getBoundingClientRect().top - last[0].getBoundingClientRect().bottom : 0 }
+  })()`)
+  assert.equal(messageLayout.display, 'grid', 'conversation lays out independent messages as separate rows')
+  assert.equal(messageLayout.gap, '20px', 'conversation visibly separates messages')
+  assert.ok(messageLayout.visibleGap >= 20, 'the latest two messages have visible space between them')
+  assert.deepEqual(messageLayout.texts.slice(-3), ['Final response', '滴滴订单结果尚未确认', '滴滴订单状态已更新'])
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'each notification creates one assistant message')
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  await evaluate(`new Promise(r => setTimeout(r, 20))`)
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'replayed notification events do not duplicate messages')
+}
 
 app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
@@ -54,6 +76,16 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--personal-agent-messages-only')) {
+    win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
+    await evaluate(`new Promise(r => setTimeout(r, 30))`)
+    win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
+    await evaluate(`new Promise(r => setTimeout(r, 30))`)
+    await assertNotificationMessagesAreIndependent()
+    console.log('PASS Personal Agent keeps each reply and notification separate with a 20px gap')
+    finish(0)
+    return
+  }
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
     { text: ' today. Taipei is ' }, { text: '26°C and overcast', icon: 'weather' }, { text: '.' }]
@@ -147,7 +179,8 @@ app.whenReady().then(async () => {
             return r.left >= pane.left && r.right <= pane.right && r.top >= pane.top && r.bottom <= pane.bottom
           }).length
         })()`)
-        assert.equal(visibleHome, 6, 'all six Home Widgets are fully visible on desktop panels')
+        const homeWidgetCount = await evaluate(`window.DESKTOP_LAYOUT.pages.find(page => page.id === 'home').widgets.length`)
+        assert.equal(visibleHome, homeWidgetCount, `all ${homeWidgetCount} Home Widgets are fully visible on desktop panels`)
         assert.ok(await evaluate(`(() => { const page=document.querySelector('[data-page-id="home"]'); page.scrollTop=100; return page.scrollTop===0 && getComputedStyle(page).overflowY==='clip' })()`), 'Home cannot scroll vertically')
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
         assert.ok(geometry.unit >= 186, 'home uses readable square units')
@@ -272,6 +305,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 1)
   assert.equal(await evaluate(`document.querySelector('.agent-message-assistant .agent-message-body').textContent.includes('Final response')`), true)
   assert.equal(await evaluate(`document.querySelector('.agent-message-bubble') === window.agentStreamBubble && document.querySelector('.agent-message-assistant .agent-message-body') === window.agentStreamBody && getComputedStyle(window.agentStreamBubble).backgroundColor !== 'rgba(0, 0, 0, 0)'`), true, 'streaming and reconnect retain the same message background and body')
+  await assertNotificationMessagesAreIndependent()
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')

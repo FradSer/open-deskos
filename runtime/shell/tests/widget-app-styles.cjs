@@ -49,12 +49,6 @@ ipcMain.handle('odk-opencode-go-status', () => completeQuotaRefresh
   ? new Promise(resolve => { completeQuotaRefresh = () => resolve(quota) })
   : quota)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
-// A 1x1 PNG keeps the camera tile's frame live without a camera peripheral, so
-// the framing marks can be checked against real painted content.
-const CAMERA_FRAME_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAAH/q842iQAAAABJRU5ErkJggg=='
-let cameraFrame = { status: 'live', frame: CAMERA_FRAME_DATA_URL, capturedAt: Date.now() }
-ipcMain.handle('odk-camera-frame', () => cameraFrame)
-
 ipcMain.handle('odk-pi-sessions', () => {
   if (scanFails) throw new Error('Scanner test failure')
   return sessions
@@ -107,7 +101,7 @@ async function widgets(win, label) {
     const tiles = [...document.querySelectorAll('.widget')]
     for (const tile of tiles) {
       const rect = tile.getBoundingClientRect()
-      if (Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
+      if (tile.closest('.page')?.dataset.pageId === 'home' && Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
       for (const el of tile.querySelectorAll('span, strong')) {
         if (!el.textContent.trim() || !el.getClientRects().length) continue
         const r = el.getBoundingClientRect()
@@ -261,25 +255,6 @@ async function appPage(win, index, label) {
     })
   })()`)
 
-}
-
-// The density harness measures boxes, so it cannot see a frame painting over the
-// marks. Hit testing follows paint order, which is what this asserts.
-async function cameraInstrument(win) {
-  await page(win, PAGES.dot('home'))
-  const live = await win.webContents.executeJavaScript(`(() => {
-    const tile = document.querySelector('.widget[data-widget="odk.tile.camera"]')
-    const frame = tile.querySelector('.w-camera-frame')
-    const marks = tile.querySelector('.w-camera-marks')
-    const rect = marks.getBoundingClientRect()
-    const probe = document.elementFromPoint(rect.left + rect.width * 0.14, rect.top + rect.height * 0.14)
-    return {
-      frameLive: frame.hidden === false && frame.getAttribute('src') !== null,
-      marksAboveFrame: probe === marks || marks.contains(probe),
-      hit: probe ? probe.tagName.toLowerCase() : null,
-    }
-  })()`)
-  check('Camera: a live frame does not paint over the framing marks', live.frameLive && live.marksAboveFrame, live)
 }
 
 async function contrastAndMotion(win) {
@@ -794,7 +769,6 @@ async function main() {
   await require('./pi-reading-stability.cjs').run(win, check, value => { sessions = value })
   sessions = savedSessions
   await processIdentityContinuity(win)
-  await cameraInstrument(win)
   await contrastAndMotion(win)
   await builtinApps(win)
   await resize(win, 1920, 1280)

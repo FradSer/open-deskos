@@ -26,6 +26,7 @@
       let released = false
       let revision = 0
       let turn = null
+      const seenNotifications = new Set()
       let lastStatus = 'unknown'
       let pending = false
       function applyIdentity() {
@@ -61,9 +62,15 @@
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
         const newTurn = status.transcript && (!turn || status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking'))
         if (newTurn) turn = { prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
-        if (status.message && ['thinking', 'idle', 'error'].includes(status.state)) {
+        const reply = status.message
+        if (reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
-          root.odkPersonalBotReply.render(turn.response, status.message)
+          root.odkPersonalBotReply.render(turn.response, reply)
+        }
+        for (const notification of Array.isArray(status.notifications) ? status.notifications : []) {
+          if (!notification || typeof notification.id !== 'string' || !notification.id || typeof notification.message !== 'string' || !notification.message || seenNotifications.has(notification.id)) continue
+          seenNotifications.add(notification.id)
+          message('assistant', notification.message)
         }
         if (turn) {
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))

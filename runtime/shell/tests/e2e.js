@@ -148,7 +148,7 @@ const DRIVER_SCRIPT = `
   )
   const hydraTile = document.querySelector('[data-widget="odk.tile.hydra"]')
   out.hydraTileMounted = Boolean(hydraTile?.querySelector('.hydra-head'))
-  out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '3' &&
+  out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '1' &&
     getComputedStyle(hydraTile).gridRowStart === '1' && getComputedStyle(hydraTile).gridRowEnd === '3'
   out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Offline', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
   out.widgetsAreDisplayOnly =
@@ -461,7 +461,7 @@ const GEOMETRY_PROBE = `
     const $ = (selector) => document.querySelector(selector)
     const m = window.__odkGrid
     let widgetsInside = 0
-    const widgets = [...document.querySelectorAll('.widget')]
+    const widgets = [...document.querySelectorAll('[data-page-id="home"] .widget')]
     for (const el of widgets) {
       const r = el.getBoundingClientRect()
       const page = el.closest('.page')
@@ -501,7 +501,7 @@ function check(results) {
     ['renderer plugins run on the common host', results.rendererHostRunning],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.clock', 'odk.tile.camera', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.clock', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],

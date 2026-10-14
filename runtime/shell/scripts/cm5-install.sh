@@ -290,9 +290,9 @@ if [ -d "${REMOTE_BRIDGE_RELEASE}" ]; then
   chown "${TARGET_UID}:${TARGET_GID}" "$BRIDGE_UNIT_DIR/odk-remote-bridge.service"
   chmod 0644 "$BRIDGE_UNIT_DIR/odk-remote-bridge.service"
   if ! run_as_target_user systemctl --user daemon-reload \
-    || ! run_as_target_user systemctl --user enable --now odk-remote-bridge.service; then
+    || ! enable_user_unit odk-remote-bridge.service --now; then
     echo "Remote Bridge user service could not be activated for ${TARGET_USER}; verify the graphical user session and retry:" >&2
-    echo "  systemctl --user enable --now odk-remote-bridge.service" >&2
+    echo "  check the unit with 'systemctl --user status odk-remote-bridge.service', then re-run the CM5 installer" >&2
   fi
 fi
 

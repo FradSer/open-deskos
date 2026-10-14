@@ -44,6 +44,12 @@ test('active sources and launchers contain no retired technical prefixes', () =>
   const root = findRepositoryRoot(__dirname)
   const shell = fs.existsSync(path.join(root, 'runtime/shell/src')) ? 'runtime/shell/' : ''
   const retired = new RegExp(['ODES' + 'K_', 'OPEN_' + 'DESKOS', 'open-' + 'deskos', 'odes' + 'k-'].join('|'))
+  const legacyCm5UnitAliases = [
+    ['open', 'deskos', 'personal-bot.service'].join('-'),
+    ['open', 'deskos', 'desk-link.service'].join('-'),
+    ['open', 'deskos', 'remote-bridge.service'].join('-'),
+    ['open', 'deskos', 'pi-tasks.service'].join('-'),
+  ]
   for (const directory of [
     shell + 'src', shell + 'scripts', shell + 'systemd',
     'integrations/personal-bot/src', 'integrations/personal-bot/scripts',
@@ -55,7 +61,12 @@ test('active sources and launchers contain no retired technical prefixes', () =>
     for (const entry of fs.readdirSync(base, { recursive: true, withFileTypes: true })) {
       if (!entry.isFile() || !/\.(?:js|mjs|cjs|py|ps1|sh|service|plist)$/.test(entry.name)) continue
       const file = path.join(entry.parentPath, entry.name)
-      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), retired, path.relative(root, file))
+      let source = fs.readFileSync(file, 'utf8')
+      if (path.relative(root, file) === `${shell}scripts/cm5-personal-bot.sh`) {
+        // Existing CM5 systemd alias targets remain accepted during service migration.
+        for (const alias of legacyCm5UnitAliases) source = source.replaceAll(alias, '')
+      }
+      assert.doesNotMatch(source, retired, path.relative(root, file))
     }
   }
 })

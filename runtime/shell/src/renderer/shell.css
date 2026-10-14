@@ -1157,49 +1157,6 @@ body.kiosk {
 }
 
 
-.w-camera-body {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--cell-dim) * 0.035);
-}
-
-/* The framing marks are the instrument: they stay whether or not a frame has
-   arrived, and the state line below says truthfully which of the two it is. */
-.w-camera-figure {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--odk-stroke);
-  border-radius: calc(var(--radius) * 0.5);
-  background: var(--odk-bg);
-}
-
-.w-camera-frame {
-  position: absolute;
-  inset: 0;
-  /* The frame is content beneath the marks, not above them: a positioned
-     element paints over a static sibling, which hid the viewfinder. */
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.w-camera-frame[hidden] {
-  display: none;
-}
-
-.w-camera-marks {
-  position: relative;
-  z-index: 1;
-  width: 76%;
-  height: 76%;
-  color: var(--odk-secondary-strong);
-}
-
 /* Pomodoro keeps its state above a proportionate, static focus dial. */
 .w-pomodoro {
   --pomodoro-time-size: clamp(24px, 16cqi, 88px);

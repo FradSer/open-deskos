@@ -129,7 +129,7 @@ app.whenReady().then(async () => {
       await js(`(async () => {
         for (const {spec} of window.toolConsumers) window.odkPlugins.get(spec.id).lifecycle.mount = () => { throw Error('Default desk tool delegation refused'); };
         const definitions = await window.odkRendererDevelopment.load({ runtime: true });
-        if (definitions.length !== 3) throw Error('Desk tool entries absent');
+        if (definitions.length !== ${specs.length}) throw Error('Desk tool entries absent');
         for (const definition of definitions) {
           definition.mount = window.guardToolMount(definition.mount);
           await window.odkRendererRuntime.replace(definition);
@@ -221,6 +221,6 @@ app.whenReady().then(async () => {
   if (signed) for (const entry of entries) assert.equal(assets.response({url:entry.entryUrl}).status,410)
   clearTimeout(timeout)
   console.log(JSON.stringify({ actualPreload:true, mode:signed?'native':'development', identities:specs.map(spec=>spec.id), documentLoads:loads,
-    themes:3, sizes:3, comparisons:54, lifecycleChanges, retainedConsumers:true, restored:true, discoveryReleased:true, assetLeaseReleased:signed }))
+    themes:3, sizes:3, comparisons:specs.length * 18, lifecycleChanges, retainedConsumers:true, restored:true, discoveryReleased:true, assetLeaseReleased:signed }))
   app.quit()
 }).catch(error => { void finish(1,error) })

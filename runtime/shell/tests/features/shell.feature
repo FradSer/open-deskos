@@ -192,50 +192,6 @@ Feature: Open DeskOS 跨平台 Display Shell
     Then Today, Home, Pi Sessions, Usage, direct touch, and keyboard navigation remain available
     And no peripheral integration gates the shell
 
-  Scenario: Home shows the latest camera frame on a 1x1 tile
-    Given the ESP32-P4 camera is accepted as a generic UVC webcam
-    When the Home page mounts its 1x1 camera tile
-    Then the tile shows the latest captured frame with its capture time
-    And it refreshes the frame on a bounded interval without blocking shell input
-    And a missing camera or failed capture renders a truthful unavailable state instead of a frame
-    And the tile keeps its framing marks and stays a filled instrument with or without a frame
-
-  Scenario: Camera surface replacement preserves readings and release ownership
-    Given the default or an independent Camera surface uses the same controlled Camera service
-    When the service reports live, unavailable, missing, or malformed frame metadata
-    Then both surfaces retain the same frame visibility, capture time, and display-only content
-    When the surface is disabled or replaced
-    Then its subscription releases before another mount subscribes
-    And late callbacks cannot change the released surface
-    And failed subscription cleanup remains owned for retry
-    When the built-in surface is restored
-    Then its existing container displays the current reading without navigation
-
-  Scenario: Signed Camera surface preserves capture consumers across revisions
-    Given independent Camera source and surface bundles have separate explicit publisher permissions
-    When the operator installs, updates, rolls back, and removes the signed surface selection
-    Then each new Shell process executes the selected surface with the same Camera source
-    And generated JPEG frames retain decoded regions, timestamps, and unavailable states through actual preload
-    And unsigned updates preserve configuration and stored revisions
-    And shutdown releases Camera IPC, discovery IPC, and captured asset routes
-
-  Scenario: Authenticated Camera surface replacement retains its source and document
-    Given the Shell uses the signed Camera source and a private authenticated Renderer management channel
-    When the operator activates signed Camera surfaces and restores the built-in surface
-    Then the same desktop container and document retain their current frame and capture time
-    And the same Camera source remains selected without another capture
-    And each replacement releases its subscription before another mount subscribes
-    And built-in recovery works with malformed external configuration and revoked publisher policy
-    And recovery preserves those configuration and policy bytes
-    And first activation can publish into an initially empty asset route
-
-  Scenario: Independent Camera surface retains desktop density across viewport changes
-    Given the default, independent, and restored Camera surfaces use the same controlled readings
-    When the desktop changes between five standard viewport sizes and three supported themes
-    Then live and unavailable surfaces retain equal density without clipping
-    And each surface meets the existing shared density limits without a Camera-specific exception
-    And the same document and desktop container remain mounted
-
   Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
     Given an ESP32-P4 sub-device runs the SC2336 camera firmware
     And the sub-device captures video over 2-lane MIPI CSI-2 with SCCB control
@@ -423,19 +379,6 @@ Feature: Open DeskOS 跨平台 Display Shell
     And a failed refresh does not stop other shared services
     And removal prevents further scheduled refresh requests
 
-  Scenario: Remounted consumers use the selected shared service
-    Given the Shell has mounted its Camera Widget
-    And another Camera service is registered
-    When the Camera Widget is disabled and enabled
-    Then its new subscription uses the selected service
-    And restoring the original service and remounting restores its original readings
-    And each disabled Widget releases its previous subscription
-
-  Scenario: Hidden Camera comparisons use stable rendering inputs
-    Given Camera comparisons use synthetic frames in a hidden window
-    When the fixture starts on a supported Shell Host
-    Then the fixture renders frames offscreen without showing the window
-    And Linux selects software rendering before Electron becomes ready
     And other hosts retain their existing rendering selection
     And the first comparison waits for the requested viewport, scale, and fonts
     And replacement and recovery use the same measurement inputs

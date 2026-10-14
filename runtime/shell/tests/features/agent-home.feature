@@ -13,11 +13,13 @@ Feature: Personal Agent home briefing
     Then the title has no visible or focusable pencil entry
     And saved identity data and editing logic remain intact
 
-  Scenario: Conversation uses quiet message bubbles
+  Scenario: Conversation uses separate spaced message bubbles
     Given the Agent has a name and a conversation with replies
-    When messages render or the identity changes
+    When replies stream, notifications arrive, or the identity changes
     Then the name appears visually only in the panel heading
     And each Agent reply has a background container
+    And each independent notification has its own message container
+    And consecutive messages have a visible 20 pixel gap
     And the heading and input icons stay synchronized with the accessible identity
     And conversation messages have no avatars or timestamps
     And streaming updates preserve the message containers

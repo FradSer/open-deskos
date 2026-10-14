@@ -30,7 +30,7 @@ for (const mode of ['development', 'native']) for (const dependencyViolation of 
       for (const spec of specs) {
         const directory = path.join(profile, spec.file)
         await fs.cp(path.join(__dirname, `fixtures/${spec.file}-surface-replacement`), directory, { recursive: true })
-        if (dependencyViolation && spec.file === 'settings') {
+        if (dependencyViolation && spec.file === 'pomodoro') {
           const entry = path.join(directory, 'entry.js')
           const source = await fs.readFile(entry, 'utf8')
           assert.ok(source.includes('mount(element) {'))
@@ -58,7 +58,7 @@ for (const mode of ['development', 'native']) for (const dependencyViolation of 
       const result = await run()
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
         actualPreload: true, mode, identities: specs.map(spec => spec.id), documentLoads: 1,
-        themes: 3, sizes: 3, comparisons: 54, lifecycleChanges: 18,
+        themes: 3, sizes: 3, comparisons: specs.length * 18, lifecycleChanges: specs.length * 6,
         retainedConsumers: true, restored: true, discoveryReleased: true, assetLeaseReleased: mode === 'native',
       })
     } finally { await fs.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }

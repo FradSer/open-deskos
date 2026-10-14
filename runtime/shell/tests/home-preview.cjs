@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, session, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, session } = require('electron')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -43,29 +43,10 @@ function capturePaintedFrame() {
   })
 }
 
-// A generated desk illustration, never a captured camera or private photograph.
-function syntheticCamera() {
-  const width = 640, height = 360, pixels = Buffer.alloc(width * height * 4)
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    let rgb = y < 250 ? [202 - Math.floor(y / 15), 205 - Math.floor(y / 15), 195 - Math.floor(y / 15)] : [147, 117, 88]
-    if (x > 40 && x < 235 && y > 28 && y < 198) rgb = [221, 230, 222]
-    if (x > 255 && x < 485 && y > 125 && y < 272) rgb = [36, 43, 43]
-    if (x > 268 && x < 472 && y > 138 && y < 251) rgb = [91, 110, 108]
-    if (x > 240 && x < 500 && y >= 272 && y < 286) rgb = [162, 171, 166]
-    if (x > 65 && x < 177 && y > 281 && y < 325) rgb = [224, 215, 190]
-    if (x > 540 && x < 592 && y > 224 && y < 284) rgb = [173, 139, 111]
-    if (x > 563 && x < 568 && y > 132 && y <= 225) rgb = [70, 104, 68]
-    if (((x - 547) / 29) ** 2 + ((y - 176) / 15) ** 2 < 1 || ((x - 583) / 27) ** 2 + ((y - 148) / 16) ** 2 < 1) rgb = [83, 124, 78]
-    const i = (y * width + x) * 4
-    pixels[i] = rgb[2]; pixels[i + 1] = rgb[1]; pixels[i + 2] = rgb[0]; pixels[i + 3] = 255
-  }
-  return nativeImage.createFromBitmap(pixels, { width, height }).toDataURL()
-}
-
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
-  const preview = installHomePreviewFixtures(ipcMain, { cameraFrame: syntheticCamera() })
+  const preview = installHomePreviewFixtures(ipcMain)
   const js = source => win.webContents.executeJavaScript(source)
   const captures = []
   for (const theme of ['instrument', 'pixel', 'border-beam']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
@@ -92,9 +73,6 @@ app.whenReady().then(async () => {
       }
       await Promise.all([document.fonts.load('700 48px Montserrat'), document.fonts.load('400 16px "Noto Sans SC"'), document.fonts.load('400 16px Zpix')]);
       await document.fonts.ready;
-      const image = document.querySelector('.w-camera-frame');
-      await image.decode();
-      if (image.naturalWidth !== 640 || image.hidden) throw Error('Synthetic Camera did not decode');
     })()`)
     // These surfaces have no product data channel yet. Scope their simulated
     // display to this fixture, expose it explicitly, and restore it after capture.
@@ -121,7 +99,6 @@ app.whenReady().then(async () => {
       const home = document.querySelector('[data-page-id="home"]');
       const tiles = [...home.querySelectorAll('.widget')];
       const square = tiles.every(tile => { const r = tile.getBoundingClientRect(); return Math.abs(r.width - r.height) < 1; });
-      const camera = document.querySelector('.w-camera-frame');
       const time = document.querySelector('.ring-mmss').getBoundingClientRect();
       const dial = document.querySelector('.ring-track').getBoundingClientRect();
       const bubble = document.querySelector('.agent-message-assistant .agent-message-bubble');
@@ -131,7 +108,6 @@ app.whenReady().then(async () => {
         weather: document.querySelector('[data-widget="odk.tile.weather"]').textContent,
         holdings: document.querySelector('[data-widget="odk.tile.futu"]').textContent,
         narrative: document.querySelector('#dash-narrative').textContent,
-        camera: camera.complete && camera.naturalWidth === 640 && !camera.hidden,
         placeholder: /unavailable|not started|--:--/.test(home.textContent.toLowerCase()),
         paragraphs: document.querySelectorAll('.agent-message').length,
         repeatedNames: document.querySelectorAll('.agent-message-name, .agent-caption').length,
@@ -153,7 +129,6 @@ app.whenReady().then(async () => {
     assert.match(state.weather, /26/)
     assert.match(state.holdings, /62\.15/)
     assert.equal(state.narrative, preview.briefing.items[0].text)
-    assert.equal(state.camera, true)
     assert.equal(state.placeholder, false)
     assert.equal(state.paragraphs, 2)
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
@@ -236,6 +211,6 @@ app.whenReady().then(async () => {
     if (document.querySelector('.ring-mmss').textContent !== '--:--') throw Error('Pomodoro fixture did not restore the product state');
     delete window.previewRestore; delete window.previewSheet;
   })()`)
-  console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, cameraCapture: false, liveProviders: false, fixtureControlsRestored: true, captures }))
+  console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, liveProviders: false, fixtureControlsRestored: true, captures }))
   finish(0)
 }).catch(error => finish(1, error))
