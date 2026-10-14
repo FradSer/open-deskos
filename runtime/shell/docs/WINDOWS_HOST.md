@@ -16,6 +16,8 @@ pwsh -File run.ps1
 pwsh -File run.ps1 -Kiosk
 ```
 
+Electron downloads its binary on first launch. `run.ps1` performs this download when the binary is missing.
+
 `run.ps1` reads `.env.local`. Its format is one `KEY=VALUE` per line with `#` comments. Keep the file out of Git and release artifacts. The default content size is 1920×1280. To set another development size:
 
 ```powershell
@@ -287,7 +289,7 @@ Put long commands in a background task with a log so an SSH disconnect does not 
 Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "$env:USERPROFILE\step.cmd" -PassThru -NoNewWindow
 ```
 
-Task settings must allow battery start and must not stop on a battery transition. `pnpm install --ignore-scripts` skips the Electron download for Node-only checks; install Electron before GUI checks. If the normal download is blocked, an approved mirror can supply the binary. Extract it to `node_modules/electron/dist` and write `path.txt` as `electron.exe`.
+Task settings must allow battery start and must not stop on a battery transition. Electron does not download its binary during `pnpm install`. `run.ps1` downloads it on first launch and writes `node_modules/electron/path.txt`. If network access blocks the download, configure an approved mirror.
 
 ## Remaining device limits
 

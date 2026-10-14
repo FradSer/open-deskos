@@ -45,6 +45,8 @@ test('the Windows Shell Host has executable scenarios', () => {
   assert.match(feature, /the panel geometry equals the display bounds/)
   assert.match(feature, /it is asked again while the window is short of the display/)
   assert.match(feature, /it is not movable, resizable, maximizable or minimizable/)
+  assert.match(feature, /the launcher downloads the Electron binary before it starts the shell/)
+  assert.match(feature, /the launcher reports an installation failure before starting the shell/)
 })
 
 test('the Windows runbook states which surfaces are ported and which are not', () => {
@@ -102,6 +104,15 @@ test('the Windows entry points do not require bash', () => {
   const smoke = read(RUNTIME, 'tests/smoke.mjs')
   assert.match(smoke, /check_tokens\.mjs/)
   assert.match(smoke, /layout-harness\.mjs/)
+})
+
+test('the Windows launcher downloads Electron before starting when the binary is absent', () => {
+  const launcher = read(RUNTIME, 'run.ps1')
+
+  assert.match(launcher, /node_modules\\electron\\install\.js/)
+  assert.match(launcher, /Start-Process -FilePath 'node'.*?-NoNewWindow -Wait -PassThru/)
+  assert.match(launcher, /if \(\$install\.ExitCode -ne 0\)/)
+  assert.match(launcher, /exit \$install\.ExitCode/)
 })
 
 test('the supported-host decision is recorded where a reader looks for it', repositoryOnly, () => {
