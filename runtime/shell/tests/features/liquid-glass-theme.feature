@@ -14,6 +14,13 @@ Feature: Optional Liquid Glass theme
     Then the local static glass style remains readable
     And theme switching and keyboard input remain available
 
+  Scenario: Keep widget content clear above refractive glass surfaces
+    Given the home desk contains text and data inside Liquid Glass surfaces
+    When the SDK prepares its glass material maps
+    Then the SDK uses a separate ambient layer as its refracted content
+    And widget text and icons remain outside that filtered layer
+    And the glass surfaces refract the ambient layer without blurring their content
+
   Scenario: Keep the narrow home desk scrollable while the glass scene is active
     Given the home desk is 320 pixels wide and its content exceeds the viewport height
     And the Liquid Glass scene is active

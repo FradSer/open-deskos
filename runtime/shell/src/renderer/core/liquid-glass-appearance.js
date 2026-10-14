@@ -17,6 +17,7 @@
     let glassSdk
     let rootElement
     let contentElement
+    let backdropElement
     let resizeObserver
     let mutationObserver
     let observing = false
@@ -73,7 +74,7 @@
         material: 'regular',
         appearance: 'dark',
         radius: Math.min(Number.parseFloat(root.getComputedStyle?.(surface.target)?.borderTopLeftRadius) || 24, 32),
-        refraction: 10,
+        refraction: 24,
         interactive: false,
         motion: 'none',
       })
@@ -144,8 +145,10 @@
       stopObservers()
       stopScene(true)
       surfaces.clear()
+      if (backdropElement) backdropElement.hidden = true
       rootElement = undefined
       contentElement = undefined
+      backdropElement = undefined
       setStatus('inactive')
     }
 
@@ -202,13 +205,16 @@
       if (!active || token !== generation) return
       rootElement = doc.getElementById('home-desk')
       contentElement = doc.getElementById('desk-content')
-      if (!rootElement || !contentElement) {
+      backdropElement = doc.getElementById('liquid-glass-backdrop')
+      if (!rootElement || !contentElement || !backdropElement) {
         setStatus('fallback')
         return
       }
+      backdropElement.hidden = false
       observeContent()
       reconcile()
       if (hasReducedTransparency()) {
+        backdropElement.hidden = true
         setStatus('fallback')
         return
       }
@@ -246,7 +252,7 @@
           },
         })
         rootElement.classList.add('lg-scene')
-        glassScene.setContent(contentElement)
+        glassScene.setContent(backdropElement)
         for (const surface of surfaces.values()) registerSurface(surface)
         if (sceneFailed) return
         if (glassReady) setStatus('sdk')

@@ -19,7 +19,7 @@
 #home-summary { container-type: inline-size; width: var(--grid-w); max-width: calc(100% - 2 * var(--desk-side-inset)); height: var(--cell-h); flex: none; margin-inline: auto; min-width: 0; min-height: 0; overflow-y: auto; border: 0; border-radius: 0; background: transparent; }
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
-#home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px 0 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+#home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 #home-summary .dash-head { flex-wrap: nowrap; gap: 12px; }
 #home-summary .dash-wd { font-size: clamp(32px, 6cqw, 96px); }
 #home-summary .dash-presence { width: 12px; height: 12px; }
@@ -28,7 +28,7 @@
 #home-summary #dash-y::before { content: ', '; }
 #home-summary .dash-narrative { font-size: var(--overview-copy-size, clamp(16px, 3.6cqw, 48px)); line-height: 1.5; letter-spacing: normal; }
 @container (max-width: 800px) {
-  #home-summary .dash { padding: 12px 0 4px; gap: 8px; }
+  #home-summary .dash { padding: 12px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 4px; gap: 8px; }
   #home-summary .dash-wd { font-size: 32px; }
   #home-summary .dash-date { font-size: 14px; }
   #home-summary .dash-narrative { font-size: var(--overview-copy-size, 16px); line-height: 1.4; }
@@ -86,7 +86,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 @media (max-width: 959px) {
   #home-desk { grid-template-columns: minmax(290px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
   .agent-panel { padding: 12px; }
-  #home-summary .dash { padding: 12px 0 4px; }
+  #home-summary .dash { padding: 12px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 4px; }
   .agent-input-avatar { display: none; }
   #status-bar { gap: 8px; }
 }
@@ -123,3 +123,7 @@ html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 }
 
 .agent-head > div { min-width: 0; }
+
+html[data-theme='pixel'] #home-summary .dash {
+  padding-inline: clamp(6px, calc(var(--cell-dim) * 0.03), 10px);
+}

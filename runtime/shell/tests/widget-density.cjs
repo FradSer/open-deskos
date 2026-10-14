@@ -52,6 +52,77 @@ async function measureSize(win, width, height) {
     ]).then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
   await new Promise(resolve => setTimeout(resolve, 300))
   const widgets = await win.webContents.executeJavaScript(`(${collectWidgetContent.toString()})()`)
+  const padding = await win.webContents.executeJavaScript(`(() => {
+    const inset = Math.max(16, Math.min(window.__odkGrid.cellDim * 0.08, 28))
+    const selectors = {
+      'odk.tile.pi-sessions': '.pi-widget-body',
+      'odk.tile.pomodoro': '.pomodoro-body',
+      'odk.tile.futu': '.futu-body',
+      'odk.tile.camera': '.w-camera-body',
+      'odk.tile.weather': '.w-weather-content',
+      'odk.tile.year': '.year-row',
+      'odk.tile.chat': '.widget-status-layout',
+      'odk.tile.settings': '.widget-status-layout',
+      'odk.tile.hydra': '.hydra-body',
+      'odk.tile.weread': '.weread-copy',
+      'odk.tile.preorder': '.preorder-panel',
+    }
+    const sides = style => ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(style['padding' + side]))
+    const rounded = style => sides(style).map(value => Math.round(value * 10) / 10)
+    const tiles = Object.fromEntries([...document.querySelectorAll('.widget[data-widget]')].map(tile => {
+      const id = tile.dataset.widget
+      const content = tile.querySelector(selectors[id])
+      return [id, {
+        expected: inset,
+        frame: rounded(getComputedStyle(tile)),
+        content: content ? rounded(getComputedStyle(content)) : null,
+      }]
+    }))
+    const hydra = document.querySelector('[data-widget="odk.tile.hydra"]')
+    const hydraBody = hydra?.querySelector('.hydra-body')
+    let hydraPlants = null
+    if (hydraBody) {
+      const originalShape = hydraBody.dataset.shape
+      hydraBody.dataset.shape = 'plants'
+      hydraPlants = rounded(getComputedStyle(hydra))
+      if (originalShape === undefined) delete hydraBody.dataset.shape
+      else hydraBody.dataset.shape = originalShape
+    }
+    const hydraPlantsInset = Math.max(12, Math.min(window.__odkGrid.cellDim * 0.08, 28))
+    const summary = document.querySelector('#home-summary .dash')
+    const summaryStyle = summary ? getComputedStyle(summary) : null
+    const summaryInset = document.documentElement.dataset.theme === 'pixel'
+      ? Math.max(6, Math.min(window.__odkGrid.cellDim * 0.03, 10))
+      : Math.max(16, Math.min(window.__odkGrid.cellDim * 0.06, 24))
+    return { tiles, hydraPlants, hydraPlantsInset, summary: summaryStyle ? [parseFloat(summaryStyle.paddingLeft), parseFloat(summaryStyle.paddingRight)] : null, summaryInset, expected: inset }
+  })()`)
+  const insetIssues = []
+  for (const [id, measurement] of Object.entries(padding.tiles)) {
+    if (!measurement.content) {
+      insetIssues.push(`${id}: missing content frame`)
+      continue
+    }
+    const matches = value => Math.abs(value - measurement.expected) < 1
+    if (id === 'odk.tile.weread') {
+      if (!measurement.content.every(matches)) insetIssues.push(`${id}: excerpt inset ${measurement.content.join('/')}, expected ${measurement.expected}`)
+    } else if (id === 'odk.tile.preorder') {
+      if (!matches(measurement.content[1]) || !matches(measurement.content[3])) insetIssues.push(`${id}: panel inline inset ${measurement.content[1]}/${measurement.content[3]}, expected ${measurement.expected}`)
+    } else if (id === 'odk.tile.weather') {
+      if (!measurement.frame.every(matches)) insetIssues.push(`${id}: frame inset ${measurement.frame.join('/')}, expected ${measurement.expected}`)
+      if (measurement.content[1] >= 1 || measurement.content[3] >= 1 || measurement.content[0] > 1 || measurement.content[2] > 1) {
+        insetIssues.push(`${id}: inner clearance ${measurement.content.join('/')}, expected at most 1px on the block axis`)
+      }
+    } else {
+      if (!measurement.frame.every(matches)) insetIssues.push(`${id}: frame inset ${measurement.frame.join('/')}, expected ${measurement.expected}`)
+      if (measurement.content.some(value => Math.abs(value) >= 1)) insetIssues.push(`${id}: duplicate content padding ${measurement.content.join('/')}`)
+    }
+  }
+  if (!padding.hydraPlants || padding.hydraPlants.some(value => Math.abs(value - padding.hydraPlantsInset) >= 1)) {
+    insetIssues.push(`odk.tile.hydra: plant-layout frame inset ${padding.hydraPlants?.join('/') ?? 'missing'}, expected ${padding.hydraPlantsInset}`)
+  }
+  if (!padding.summary || padding.summary.some(value => Math.abs(value - padding.summaryInset) >= 1)) {
+    insetIssues.push(`Home summary inline inset ${padding.summary?.join('/') ?? 'missing'}, expected ${padding.summaryInset}`)
+  }
   // Tiles from every grid page are present in the DOM, so the expected set is
   // their union: a page beyond the first grid page must not read as missing.
   const expected = await win.webContents.executeJavaScript(`window.DESKTOP_LAYOUT.pages.filter(page => page.kind === 'grid').flatMap(page => page.widgets.map(widget => widget.id))`)
@@ -102,7 +173,7 @@ async function measureSize(win, width, height) {
     return { ...widget, ...result }
   })
   if (captureDir) await captureWidgets(win, results, width, height)
-  return { width, height, missing, widgets: results }
+  return { width, height, missing, padding, insetIssues, widgets: results }
 }
 
 async function saveCapture(win, file, bounds) {
@@ -177,7 +248,7 @@ async function main() {
   await require('./widget-density-dom.cjs').verifyCollector(win)
   const runs = []
   for (const [width, height] of sizes) runs.push(await measureSize(win, width, height))
-  const ok = runs.every(run => run.missing.length === 0 && run.widgets.every(widget => widget.violations.length === 0))
+  const ok = runs.every(run => run.missing.length === 0 && run.insetIssues.length === 0 && run.widgets.every(widget => widget.violations.length === 0))
   const report = { schemaVersion: 1, metric: 'content-envelope / inner-frame', settings: DEFAULTS, fixtureState, fixtureDate, ok, runs }
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`)
   for (const run of runs) {
@@ -185,8 +256,12 @@ async function main() {
       console.log(`${widget.violations.length ? 'FAIL' : 'PASS'} ${run.width}x${run.height} ${widget.name}: fill=${(widget.fill * 100).toFixed(1)}% occupied=${(widget.occupied * 100).toFixed(1)}% empty-band=${(widget.emptyBand * 100).toFixed(1)}% ${widget.violations.join(', ')}`)
     }
     if (run.missing.length) console.error(`FAIL missing widgets: ${run.missing.join(', ')}`)
+    for (const issue of run.insetIssues) console.error(`FAIL ${run.width}x${run.height} ${issue}`)
   }
-  console.log(`WIDGET_DENSITY_RESULT ${JSON.stringify({ ok, reportOnly, runs: runs.length, violations: runs.flatMap(run => run.widgets).filter(widget => widget.violations.length).length })}`)
+  const violations = runs.reduce((total, run) => total + run.missing.length
+    + run.insetIssues.length
+    + run.widgets.filter(widget => widget.violations.length).length, 0)
+  console.log(`WIDGET_DENSITY_RESULT ${JSON.stringify({ ok, reportOnly, runs: runs.length, violations })}`)
   clearTimeout(timeout)
   app.exit(ok || reportOnly ? 0 : 1)
 }
