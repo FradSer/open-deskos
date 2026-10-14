@@ -22,6 +22,6 @@ Feature: Consistent widget content insets
   Scenario: Home summary aligns with widget content
     Given the Home summary and its widgets are visible
     When the summary is rendered above the widget grid
-    Then its leading and trailing content use a compact adaptive inset
-    And Pixel uses a smaller inset when Zpix needs the extra CJK line width
+    Then its leading and trailing content keep a 16 to 24 pixel adaptive inset
+    And Pixel keeps a 6 to 10 pixel inset when Zpix needs extra CJK line width
     And long CJK summaries still fit the handheld card

@@ -92,8 +92,8 @@ async function measureSize(win, width, height) {
     const summary = document.querySelector('#home-summary .dash')
     const summaryStyle = summary ? getComputedStyle(summary) : null
     const summaryInset = document.documentElement.dataset.theme === 'pixel'
-      ? Math.min(window.__odkGrid.cellDim * 0.02, 4)
-      : Math.max(8, Math.min(window.__odkGrid.cellDim * 0.04, 14))
+      ? Math.max(6, Math.min(window.__odkGrid.cellDim * 0.03, 10))
+      : Math.max(16, Math.min(window.__odkGrid.cellDim * 0.06, 24))
     return { tiles, hydraPlants, hydraPlantsInset, summary: summaryStyle ? [parseFloat(summaryStyle.paddingLeft), parseFloat(summaryStyle.paddingRight)] : null, summaryInset, expected: inset }
   })()`)
   const insetIssues = []
