@@ -124,8 +124,12 @@ app.whenReady().then(async () => {
     const unconfigured = []
     for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
       const host = await mount('instrument', width, height, SNAPSHOTS.unconfigured)
+      const body = host.querySelector('.hydra-body')
+      const padding = getComputedStyle(host)
       unconfigured.push({
         name, cell: width + 'x' + height,
+        shape: body?.dataset.shape,
+        padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
         badge: host.querySelector('.hydra-badge').textContent,
         readings: [...new Set([...host.querySelectorAll('.hydra-env-value, .hydra-plant-soil')]
           .filter(node => node.getBoundingClientRect().height > 0)
@@ -203,6 +207,11 @@ app.whenReady().then(async () => {
   for (const row of result.unconfigured) {
     const where = JSON.stringify(row)
     assert.equal(row.badge, 'Unconfigured', where)
+    if (row.shape === 'plants') {
+      const [width, height] = row.cell.split('x').map(Number)
+      const inset = Math.max(12, Math.min(Math.min(width, height) * 0.08, 28))
+      assert.ok(row.padding.every(value => Math.abs(value - inset) < 1), where + ` plant inset should be ${inset}px`)
+    }
     // No reading is invented in any shape; a shape too small to draw a reading
     // draws none at all rather than a fabricated one.
     assert.deepEqual(row.readings, row.readings.length === 0 ? [] : ['--'], where)

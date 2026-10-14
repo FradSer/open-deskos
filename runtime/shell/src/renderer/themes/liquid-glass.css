@@ -15,10 +15,21 @@ html[data-theme='liquid-glass'] {
   --odk-font: "Noto Sans SC", "Montserrat", "Zpix", sans-serif;
 }
 
-html[data-theme='liquid-glass'] #home-desk.lg-scene {
+html[data-theme='liquid-glass'] #home-desk {
   position: absolute;
   inset: var(--status-h) 0 0;
   isolation: isolate;
+}
+
+html[data-theme='liquid-glass'] #liquid-glass-backdrop {
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 44% 38% at 72% 20%, rgba(72, 139, 255, 0.32), transparent 76%),
+    radial-gradient(ellipse 36% 40% at 86% 76%, rgba(150, 101, 255, 0.23), transparent 78%),
+    radial-gradient(ellipse 42% 32% at 30% 82%, rgba(45, 195, 216, 0.2), transparent 78%),
+    linear-gradient(132deg, #101827 0%, #0a101a 56%, #141323 100%);
 }
 
 html[data-theme='liquid-glass'] #home-summary .dash {
@@ -42,6 +53,14 @@ html[data-theme='liquid-glass'] #home-desk .widget.lg-surface,
 html[data-theme='liquid-glass'] #home-summary .dash.lg-surface {
   box-sizing: border-box;
   color: var(--odk-primary);
+}
+
+html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-desk .widget.lg-surface,
+html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-summary .dash.lg-surface {
+  background: transparent;
+  box-shadow: inset 0 1px 0 rgba(246, 250, 255, 0.16);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {

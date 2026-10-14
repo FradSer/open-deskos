@@ -1395,11 +1395,6 @@ body.kiosk {
   .widget-status-layout .widget-status-value { font-size: clamp(32px, 22cqi, 80px); }
 }
 
-/* Distributed readings keep their inset proportional in larger square cells. */
-.widget:is(.w-futu, .w-weather) {
-  --odk-widget-inset: clamp(16px, calc(var(--cell-dim) * 0.08), 40px);
-}
-
 .widget-status-name {
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
@@ -3227,7 +3222,9 @@ body.kiosk {
 }
 
 .widget.w-hydra:has(.hydra-body[data-shape='plants']) {
-  padding: 12px;
+  /* A narrow plant-only cell needs the caption floor, then follows the shared
+     inset as the cell grows. */
+  padding: clamp(12px, calc(var(--cell-dim) * 0.08), var(--odk-widget-inset));
 }
 
 .hydra-body[data-shape='plants'] {
