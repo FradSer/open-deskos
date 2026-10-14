@@ -9,7 +9,7 @@
   gap: 3cqi;
   min-width: 0;
   min-height: 0;
-  padding-block: 1.5cqi;
+  padding-block: 1px;
 }
 
 .w-weather-head {
@@ -184,7 +184,6 @@
   .w-weather-content {
     --w-weather-reading: 28cqi;
     gap: 2cqi;
-    padding-block: 1.5cqi;
   }
 
   [data-widget='odk.tile.weather'][data-reading-length='3'] .w-weather-content {

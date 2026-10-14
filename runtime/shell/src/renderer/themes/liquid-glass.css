@@ -32,14 +32,6 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
     linear-gradient(132deg, #101827 0%, #0a101a 56%, #141323 100%);
 }
 
-html[data-theme='liquid-glass'] #home-summary .dash {
-  border-radius: var(--odk-radius-card);
-  background: rgba(19, 26, 37, 0.42);
-  box-shadow: inset 0 1px 0 rgba(246, 250, 255, 0.12);
-  backdrop-filter: blur(14px) saturate(1.25);
-  -webkit-backdrop-filter: blur(14px) saturate(1.25);
-}
-
 html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-only'] {
   border: 1px solid rgba(214, 230, 250, 0.2);
   border-radius: var(--odk-radius-card);
@@ -49,8 +41,7 @@ html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-onl
   -webkit-backdrop-filter: blur(14px) saturate(1.25);
 }
 
-html[data-theme='liquid-glass'] #home-desk .widget.lg-surface,
-html[data-theme='liquid-glass'] #home-summary .dash.lg-surface {
+html[data-theme='liquid-glass'] #home-desk .widget.lg-surface {
   box-sizing: border-box;
   color: var(--odk-primary);
 }
@@ -64,8 +55,7 @@ html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-summary .dash.lg-
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-only'],
-  html[data-theme='liquid-glass'] #home-summary .dash {
+  html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-only'] {
     border-color: var(--odk-stroke-focus);
     background: var(--odk-surface);
     box-shadow: none;
@@ -75,8 +65,7 @@ html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-summary .dash.lg-
 }
 
 @media (forced-colors: active) {
-  html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-only'],
-  html[data-theme='liquid-glass'] #home-summary .dash {
+  html[data-theme='liquid-glass'] #home-desk .widget[data-interaction='display-only'] {
     border-color: CanvasText;
     background: Canvas;
     color: CanvasText;

@@ -83,7 +83,7 @@ function fakeAppearanceEnvironment({ sdk, adapter = true } = {}) {
     documentElement: { dataset: { theme: 'liquid-glass' } },
     head: { appendChild() {} },
     getElementById(id) { return ({ 'home-desk': desk, 'desk-content': content, 'liquid-glass-backdrop': backdrop, 'home-summary': summary, 'pages-viewport': viewport })[id] },
-    querySelectorAll() { return [dash, widget] },
+    querySelectorAll(selector) { return selector.includes('#home-summary') ? [dash, widget] : [widget] },
     createElement() { return fakeElement('unused', { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }) },
     addEventListener() {},
   }
@@ -113,7 +113,8 @@ test('Liquid Glass registers bounded SDK surfaces and disposes them on theme swi
         setContent(content) { events.push(['content', content.id]) },
         addSurface(surface, options) {
           events.push(['surface', options, surface.id])
-          if (events.filter(item => item[0] === 'surface').length === 2) configuration.options.onDiagnostic({ surfaces: 2, maps: 2 })
+          const surfaces = events.filter(item => item[0] === 'surface').length
+          configuration.options.onDiagnostic({ surfaces, maps: surfaces })
           return () => events.push(['remove', surface.id])
         },
         dispose() { events.push(['dispose']) },
@@ -131,9 +132,10 @@ test('Liquid Glass registers bounded SDK surfaces and disposes them on theme swi
   assert.equal(configuration.options.maxSurfaces, 10)
   assert.deepEqual(events.filter(item => item[0] === 'content').map(item => item[1]), ['liquid-glass-backdrop'])
   assert.equal(environment.backdrop.hidden, false)
-  assert.deepEqual(events.filter(item => item[0] === 'surface').map(item => item[1].refraction), [24, 24])
-  assert.deepEqual(events.filter(item => item[0] === 'surface').map(item => item[2]), ['dash', 'widget'])
-  assert.ok(environment.targets().every(surface => surface.classList.contains('lg-surface')))
+  assert.deepEqual(events.filter(item => item[0] === 'surface').map(item => item[1].refraction), [24])
+  assert.deepEqual(events.filter(item => item[0] === 'surface').map(item => item[2]), ['widget'])
+  assert.equal(environment.dash.classList.contains('lg-surface'), false)
+  assert.equal(environment.widget.classList.contains('lg-surface'), true)
   assert.ok(environment.targets().every(surface => surface.style.pointerEvents === undefined))
 
   await controller.setActive(false)
@@ -141,7 +143,7 @@ test('Liquid Glass registers bounded SDK surfaces and disposes them on theme swi
   assert.equal(environment.backdrop.hidden, true)
   assert.ok(environment.targets().every(surface => !surface.classList.contains('lg-surface')))
   assert.ok(events.some(item => item[0] === 'dispose'))
-  assert.equal(events.filter(item => item[0] === 'remove').length, 2)
+  assert.equal(events.filter(item => item[0] === 'remove').length, 1)
   assert.ok(events.some(item => item[0] === 'clear-cache'))
 })
 

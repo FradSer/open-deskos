@@ -21,6 +21,12 @@ Feature: Optional Liquid Glass theme
     And widget text and icons remain outside that filtered layer
     And the glass surfaces refract the ambient layer without blurring their content
 
+  Scenario: Keep Overview content outside a separate glass card
+    Given the home Overview shares its canvas with Liquid Glass Widgets
+    When the SDK prepares glass surfaces or uses the static fallback
+    Then Overview keeps its existing content and insets without a card frame
+    And Widget cards retain their glass treatment and readable content
+
   Scenario: Keep the narrow home desk scrollable while the glass scene is active
     Given the home desk is 320 pixels wide and its content exceeds the viewport height
     And the Liquid Glass scene is active

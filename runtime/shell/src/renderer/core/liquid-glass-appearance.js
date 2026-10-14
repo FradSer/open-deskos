@@ -5,7 +5,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict'
 
-  const TARGETS = '#home-summary .dash, #pages-viewport .widget[data-interaction="display-only"]'
+  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"]'
   const MAX_SURFACES = 10
 
   function createLiquidGlassAppearance(root, doc) {

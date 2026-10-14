@@ -119,6 +119,10 @@ app.whenReady().then(async () => {
       const dial = document.querySelector('.ring-track').getBoundingClientRect();
       const bubble = document.querySelector('.agent-message-assistant .agent-message-bubble');
       const summary = document.querySelector('#home-summary');
+      const overview = summary.querySelector('.dash');
+      const overviewStyle = getComputedStyle(overview);
+      const glassWidget = home.querySelector('.widget[data-interaction="display-only"]');
+      const glassWidgetStyle = glassWidget ? getComputedStyle(glassWidget) : null;
       return { square, columns: window.__odkGrid.cols, rows: window.__odkGrid.rows, cell: window.__odkGrid.cellDim,
         pi: document.querySelector('.pi-widget-count').textContent,
         weather: document.querySelector('[data-widget="odk.tile.weather"]').textContent,
@@ -134,6 +138,14 @@ app.whenReady().then(async () => {
         timerBounds: { text: time.width, dial: dial.width, centerDelta: Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2), font: getComputedStyle(document.querySelector('.ring-mmss')).fontSize },
         noFooter: !home.querySelector('.dash-foot, details, summary'),
         summaryFit: { height: summary.clientHeight, content: summary.scrollHeight, font: getComputedStyle(summary.querySelector('.dash-narrative')).fontSize },
+        liquidGlass: document.documentElement.dataset.liquidGlass,
+        overviewCard: { borderWidth: overviewStyle.borderTopWidth, borderStyle: overviewStyle.borderTopStyle,
+          borderRadius: overviewStyle.borderTopLeftRadius, background: overviewStyle.backgroundColor,
+          shadow: overviewStyle.boxShadow, backdrop: overviewStyle.backdropFilter,
+          liquidGlassSurface: overview.classList.contains('lg-surface'),
+          paddingInline: overviewStyle.paddingInlineStart },
+        glassWidget: glassWidgetStyle && { borderWidth: glassWidgetStyle.borderTopWidth,
+          backgroundImage: glassWidgetStyle.backgroundImage, liquidGlassSurface: glassWidget.classList.contains('lg-surface') },
         temperature: document.querySelector('.w-temp')?.textContent,
         viewport: [innerWidth, innerHeight, devicePixelRatio, document.fonts.status] };
     })()`)
@@ -155,6 +167,18 @@ app.whenReady().then(async () => {
     assert.equal(state.timerFits, true, theme + ' complete timer reading has space inside the dial: ' + JSON.stringify(state.timerBounds))
     assert.equal(state.noFooter, true)
     assert.ok(state.summaryFit.content <= state.summaryFit.height, 'normal summary fits without an inner scrollbar: ' + JSON.stringify(state.summaryFit))
+    if (theme === 'liquid-glass') {
+      assert.equal(state.overviewCard.liquidGlassSurface, false, 'Overview has no separate Liquid Glass card surface')
+      assert.equal(state.overviewCard.borderWidth, '0px', 'Overview has no card border')
+      assert.equal(state.overviewCard.borderRadius, '0px', 'Overview has no card frame')
+      assert.equal(state.overviewCard.background, 'rgba(0, 0, 0, 0)', 'Overview stays on the shared canvas')
+      assert.equal(state.overviewCard.shadow, 'none', 'Overview has no card edge highlight')
+      assert.equal(state.overviewCard.backdrop, 'none', 'Overview has no separate card blur')
+      assert.ok(Number.parseFloat(state.overviewCard.paddingInline) >= 16, 'Overview retains the wider content inset')
+      assert.equal(state.glassWidget.borderWidth, '1px', 'Widget card keeps its own Liquid Glass border')
+      if (state.liquidGlass === 'sdk') assert.equal(state.glassWidget.liquidGlassSurface, true, 'Widget card retains its SDK glass surface')
+      else assert.notEqual(state.glassWidget.backgroundImage, 'none', 'Widget card keeps its static glass tint')
+    }
     assert.deepEqual(state.viewport, [width, height, 1, 'loaded'])
     const file = path.join(os.tmpdir(), `odk-populated-home-${theme}-${width}.png`)
     // Acknowledge one native frame before requesting the capture frame. The
