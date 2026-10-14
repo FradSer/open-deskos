@@ -19,7 +19,6 @@ html[data-theme='liquid-glass'] #home-desk.lg-scene {
   position: absolute;
   inset: var(--status-h) 0 0;
   isolation: isolate;
-  overflow: visible;
 }
 
 html[data-theme='liquid-glass'] #home-summary .dash {
