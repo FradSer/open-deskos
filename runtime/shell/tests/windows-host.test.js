@@ -115,6 +115,11 @@ test('the Windows launcher downloads Electron before starting when the binary is
   assert.match(launcher, /exit \$install\.ExitCode/)
 })
 
+test('pnpm permits the Electron package build on Windows', () => {
+  const workspace = read(RUNTIME, 'pnpm-workspace.yaml')
+  assert.match(workspace, /^  electron: true$/m)
+})
+
 test('the supported-host decision is recorded where a reader looks for it', repositoryOnly, () => {
   const adr = readDecision('0023')
   assert.match(adr, /64-bit Windows is a supported host/)
