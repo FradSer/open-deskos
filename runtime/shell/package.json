@@ -6,25 +6,27 @@
   "description": "Open DeskOS Electron Shell for Linux, Windows, and macOS; CM5 reference panel",
   "main": "src/main.js",
   "scripts": {
-    "styles": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify",
-    "styles:watch": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --watch",
-    "start": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron .",
-    "smoke": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron . --smoke",
+    "styles": "node scripts/build-liquid-glass.mjs && unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" \"!src/renderer/themes/liquid-glass-sdk.js\" -c uno.config.mjs -o src/renderer/uno.css --minify",
+    "styles:watch": "node scripts/build-liquid-glass.mjs && unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" \"!src/renderer/themes/liquid-glass-sdk.js\" -c uno.config.mjs -o src/renderer/uno.css --watch",
+    "start": "pnpm styles && electron .",
+    "smoke": "pnpm styles && electron . --smoke",
     "verify-release": "bash scripts/verify-release.sh",
     "preflight": "pnpm test && pnpm styles && pnpm verify-release",
-    "e2e": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/e2e.js",
+    "e2e": "pnpm styles && electron tests/e2e.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "build:native": "node scripts/build-native.mjs",
-    "geometry": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/responsive-matrix.cjs && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && node --test --test-concurrency=1 tests/clock-surface-electron.test.js && node --test --test-concurrency=1 tests/calendar-surface-electron.test.js && node --test --test-concurrency=1 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=1 tests/quota-surface-electron.test.js && node --test --test-concurrency=1 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=1 tests/input-status-surface-electron.test.js && node --test --test-concurrency=1 tests/preorder-surface-electron.test.js",
-    "preview:home": "unocss \"src/renderer/**/*.html\" \"src/renderer/**/*.js\" -c uno.config.mjs -o src/renderer/uno.css --minify && electron tests/home-preview.cjs"
+    "geometry": "pnpm styles && electron tests/responsive-matrix.cjs && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && node --test --test-concurrency=1 tests/clock-surface-electron.test.js && node --test --test-concurrency=1 tests/calendar-surface-electron.test.js && node --test --test-concurrency=1 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=1 tests/quota-surface-electron.test.js && node --test --test-concurrency=1 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=1 tests/input-status-surface-electron.test.js && node --test --test-concurrency=1 tests/preorder-surface-electron.test.js",
+    "preview:home": "pnpm styles && electron tests/home-preview.cjs"
   },
   "devDependencies": {
     "@tabler/icons": "^3.46.0",
     "@unocss/cli": "^66.8.1",
     "electron": "^43.4.1",
+    "esbuild": "^0.28.2",
     "unocss": "^66.8.1"
   },
   "dependencies": {
+    "@glass-sdk/liquid-glass": "~0.0.2",
     "@highlightjs/cdn-assets": "^11.12.0",
     "markdown-it": "^15.0.2",
     "mqtt": "^5.15.2"

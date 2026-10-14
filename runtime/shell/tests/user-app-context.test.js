@@ -35,7 +35,7 @@ test('the package scheme is fetchable and CORS-checked so fonts can load', () =>
 })
 
 test('an unknown or missing theme falls back to the base appearance', () => {
-  assert.deepEqual(THEMES, ['instrument', 'pixel', 'border-beam'])
+  assert.deepEqual(THEMES, ['instrument', 'pixel', 'border-beam', 'liquid-glass'])
   assert.equal(normalizeTheme('pixel'), 'pixel')
   assert.equal(normalizeTheme('midnight'), DEFAULT_THEME)
   assert.equal(normalizeTheme(undefined), DEFAULT_THEME)

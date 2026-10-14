@@ -15,7 +15,7 @@ function customPlugin() {
 test('appearance declarations use the common host and preserve packaged identities', async () => {
   const runtime = createAppearanceHost()
   await runtime.start()
-  assert.deepEqual(runtime.list().map(entry => entry.manifest.id), ['odk.theme.instrument', 'odk.theme.pixel', 'odk.theme.border-beam'])
+  assert.deepEqual(runtime.list().map(entry => entry.manifest.id), ['odk.theme.instrument', 'odk.theme.pixel', 'odk.theme.border-beam', 'odk.theme.liquid-glass'])
   assert.ok(runtime.list().every(entry => entry.state === 'running'))
   assert.equal(runtime.resolve('pixel').theme, 'pixel')
   assert.equal(runtime.resolve('unknown').theme, 'instrument')
@@ -260,7 +260,7 @@ test('the actual browser scripts preserve first paint, live selection and port d
   for (const file of files) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context)
   assert.equal(window.odkTheme.get(), 'pixel', 'theme must be selected synchronously before body content')
   await window.odkTheme.ready
-  assert.equal(window.odkTheme.catalog().map(entry => entry.state).join(','), 'running,running,running')
+  assert.equal(window.odkTheme.catalog().map(entry => entry.state).join(','), 'running,running,running,running')
   window.odkTheme.set('border-beam')
   assert.equal(stored, 'border-beam')
   window.odkTheme.set('pixel')

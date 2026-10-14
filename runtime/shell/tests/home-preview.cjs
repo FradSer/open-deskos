@@ -49,7 +49,7 @@ app.whenReady().then(async () => {
   const preview = installHomePreviewFixtures(ipcMain)
   const js = source => win.webContents.executeJavaScript(source)
   const captures = []
-  for (const theme of ['instrument', 'pixel', 'border-beam']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
     // Start each native surface at its target size. On Linux a resized offscreen
     // surface can emit a correctly sized crop of its previous compositor frame.
     const previous = win
@@ -94,7 +94,23 @@ app.whenReady().then(async () => {
     assert.equal(controls.timer, '18:42')
     assert.equal(controls.simulated, 'true')
     assert.equal(controls.wifi, 'none')
-    await js(`(async () => { odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); await document.fonts.ready; await new Promise(resolve => setTimeout(resolve, 100)); })()`)
+    await js(`(async () => {
+      await odkTheme.set('${theme}');
+      window.dispatchEvent(new Event('resize'));
+      await document.fonts.ready;
+      if ('${theme}' === 'liquid-glass' && !['sdk', 'fallback'].includes(document.documentElement.dataset.liquidGlass)) {
+        await new Promise((resolve, reject) => {
+          const observer = new MutationObserver(() => {
+            if (!['sdk', 'fallback'].includes(document.documentElement.dataset.liquidGlass)) return;
+            clearTimeout(timer);
+            observer.disconnect();
+            resolve();
+          });
+          const timer = setTimeout(() => { observer.disconnect(); reject(Error('Liquid Glass did not finish map setup')); }, 12000);
+          observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-liquid-glass'] });
+        });
+      }
+    })()`)
     const state = await js(`(() => {
       const home = document.querySelector('[data-page-id="home"]');
       const tiles = [...home.querySelectorAll('.widget')];
@@ -122,6 +138,7 @@ app.whenReady().then(async () => {
         viewport: [innerWidth, innerHeight, devicePixelRatio, document.fonts.status] };
     })()`)
     assert.equal(state.square, true)
+    if (theme === 'liquid-glass') assert.ok(['sdk', 'fallback'].includes(await js('document.documentElement.dataset.liquidGlass')))
     assert.equal(state.columns, 3)
     assert.equal(state.rows, 2)
     assert.equal(state.pi, '3')
@@ -144,17 +161,18 @@ app.whenReady().then(async () => {
     // first paint can still contain pixels from before the fixture update.
     await capturePaintedFrame()
     fs.writeFileSync(file, await capturePaintedFrame())
-    captures.push({ theme, width, height, cell: state.cell, file })
+    captures.push({ theme, width, height, cell: state.cell,
+      ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
   }
   const longCopy = 'You have 3 active sessions across 3 workspaces, while 2 plants report 63% moisture. Taipei is 26°C and overcast; your focus session is in progress, and portfolio readings are available from the latest synchronized snapshot.'
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     win.setContentSize(1280, 776)
     await js("window.dispatchEvent(new Event('resize')); document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))")
     const originalStyle = await js("document.querySelector('#home-summary').getAttribute('style')")
     let probeRevision = 0
     const probe = async (width, height, text, state = 'live') => {
       const frame = { ...preview.briefing, state, generatedAt: preview.briefing.generatedAt + ++probeRevision, items: [{ ...preview.briefing.items[0], text, segments: [{ text, icon: 'sessions' }] }] }
-      await js("odkTheme.set('" + theme + "'); Object.assign(document.querySelector('#home-summary').style, { width: '" + width + "px', height: '" + height + "px', maxWidth: 'none' })")
+      await js("odkTheme.set('" + theme + "').then(() => Object.assign(document.querySelector('#home-summary').style, { width: '" + width + "px', height: '" + height + "px', maxWidth: 'none' }))")
       win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: frame })
       return js('(async () => {' +
         'const host = document.querySelector("#home-summary"), paragraph = host.querySelector("#dash-narrative");' +

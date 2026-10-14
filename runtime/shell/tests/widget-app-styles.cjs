@@ -127,7 +127,7 @@ async function widgets(win, label) {
 }
 
 async function pomodoroCentering(win) {
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
       await resize(win, width, height)
       await page(win, PAGES.dot('home'))
@@ -152,8 +152,47 @@ async function pomodoroCentering(win) {
   }
 }
 
+async function liquidGlassNarrowDeskScroll(win) {
+  await resize(win, 320, 480)
+  await page(win, PAGES.dot('home'))
+  await win.webContents.executeJavaScript('window.odkTheme.ready')
+  const originalTheme = await win.webContents.executeJavaScript('window.odkTheme.get()')
+  try {
+    await win.webContents.executeJavaScript("window.odkTheme.set('liquid-glass')")
+    const stylesLoaded = await win.webContents.executeJavaScript(`new Promise(resolve => {
+      const link = document.querySelector('link[data-plugin="odk.theme.liquid-glass"]')
+      if (!link) return resolve(false)
+      if (link.sheet) return resolve(true)
+      link.addEventListener('load', () => resolve(Boolean(link.sheet)), { once: true })
+      link.addEventListener('error', () => resolve(false), { once: true })
+      setTimeout(() => resolve(Boolean(link.sheet)), 5000)
+    })`)
+    const desk = await win.webContents.executeJavaScript(`(() => {
+      const desk = document.getElementById('home-desk')
+      desk.classList.add('lg-scene')
+      const maxScrollTop = desk.scrollHeight - desk.clientHeight
+      desk.scrollTop = maxScrollTop
+      return {
+        theme: document.documentElement.dataset.theme,
+        scene: desk.classList.contains('lg-scene'),
+        overflowY: getComputedStyle(desk).overflowY,
+        scrollHeight: desk.scrollHeight,
+        clientHeight: desk.clientHeight,
+        maxScrollTop,
+        scrollTop: desk.scrollTop,
+      }
+    })()`)
+    check('Liquid Glass scene keeps the 320x480 home desk scrollable',
+      stylesLoaded && desk.theme === 'liquid-glass' && desk.scene && desk.overflowY === 'auto'
+        && desk.maxScrollTop > 0 && desk.scrollTop >= desk.maxScrollTop - 1,
+      { stylesLoaded, ...desk })
+  } finally {
+    await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(originalTheme)})`)
+  }
+}
+
 async function surfaceAffordances(win) {
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [960, 640], [320, 480]]) {
       await resize(win, width, height)
       await page(win, PAGES.dot('home'))
@@ -753,6 +792,12 @@ async function main() {
     console.log('SURFACE_FRAMES_PASS')
     return
   }
+  if (process.argv.includes('--liquid-glass-narrow-scroll-only')) {
+    await liquidGlassNarrowDeskScroll(win)
+    assert.equal(failures, 0, `${failures} narrow scroll checks failed`)
+    console.log('LIQUID_GLASS_NARROW_SCROLL_PASS')
+    return
+  }
   for (const [width, height] of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
     await resize(win, width, height)
     const label = `${width}x${height}`
@@ -760,6 +805,7 @@ async function main() {
     await appPage(win, PAGES.dot('pi-sessions'), label)
     await appPage(win, PAGES.dot('quota'), label)
   }
+  await liquidGlassNarrowDeskScroll(win)
   await resize(win, 1920, 1280)
   const savedSessions = sessions
   const savedSessionEvents = sessionEvents

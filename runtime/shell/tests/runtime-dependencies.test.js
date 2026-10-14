@@ -58,6 +58,38 @@ function assetCandidate(t, { external = false } = {}) {
   return root
 }
 
+function importOnlyCandidate(t, { external = false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-import-only-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { '@glass-sdk/liquid-glass': '0.0.2' } }))
+  const modules = path.join(root, 'node_modules')
+  fs.mkdirSync(modules, { recursive: true })
+  let packageDir
+  if (external) {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-import-only-external-'))
+    t.after(() => fs.rmSync(outside, { recursive: true, force: true }))
+    packageDir = path.join(outside, 'liquid-glass')
+  } else {
+    packageDir = path.join(modules, '.pnpm/@glass-sdk+liquid-glass@0.0.2/node_modules/@glass-sdk/liquid-glass')
+  }
+  fs.mkdirSync(path.join(packageDir, 'dist'), { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({
+    name: '@glass-sdk/liquid-glass',
+    version: '0.0.2',
+    type: 'module',
+    exports: {
+      '.': { types: './dist/types/index.d.ts', import: './dist/index.js' },
+      './dom': { types: './dist/types/dom/index.d.ts', import: './dist/dom.js' },
+    },
+  }))
+  fs.writeFileSync(path.join(packageDir, 'dist/index.js'), 'export const glass = true\n')
+  fs.writeFileSync(path.join(packageDir, 'dist/dom.js'), 'export const scene = true\n')
+  const link = path.join(modules, '@glass-sdk/liquid-glass')
+  fs.mkdirSync(path.dirname(link), { recursive: true })
+  fs.symlinkSync(packageDir, link)
+  return root
+}
+
 test('accepts an asset-only dependency shipped inside the candidate', (t) => {
   const result = validate(assetCandidate(t))
   assert.equal(result.status, 0, result.stderr)
@@ -67,6 +99,17 @@ test('still rejects an asset-only dependency that resolves outside the candidate
   const result = validate(assetCandidate(t, { external: true }))
   assert.equal(result.status, 1, result.stderr)
   assert.match(result.stderr, /@highlightjs\/cdn-assets resolves outside the candidate release/)
+})
+
+test('accepts an import-only dependency shipped inside the candidate', (t) => {
+  const result = validate(importOnlyCandidate(t))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects an import-only dependency that resolves outside the candidate', (t) => {
+  const result = validate(importOnlyCandidate(t, { external: true }))
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /@glass-sdk\/liquid-glass resolves outside the candidate release/)
 })
 
 test('rejects a declared dependency that is not installed at all', (t) => {

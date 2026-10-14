@@ -55,13 +55,16 @@
     ensureStyles(appearance)
     const theme = appearance?.theme || api.DEFAULT_THEME
     html.dataset.theme = theme
+    const glassSetup = root.odkLiquidGlassAppearance?.setActive(theme === 'liquid-glass')
+    glassSetup?.catch(error => console.error(`Liquid Glass setup failed: ${error.message}`))
     try {
       if (persist) root.localStorage.setItem(key, themes.has(value) ? value : theme)
     } catch {
       // Preferences may be unavailable; appearance still works in this session.
     }
+    return glassSetup || Promise.resolve()
   }
-  function set(value) { requested = value; render(value) }
+  function set(value) { requested = value; return render(value) }
 
   let saved = api.SHELL_DEFAULT_THEME
   try {
