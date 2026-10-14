@@ -595,3 +595,5 @@ research/esp32-p4-c6-deskos/apple/OpenDeskOS/Resources/plugins/wispr/bun
 # Keep the Remote Bridge executable despite global bin exclusions.
 !integrations/remote-bridge/bin/
 !integrations/remote-bridge/bin/odk-remote-bridge.js
+
+/runtime/shell/src/renderer/themes/liquid-glass-sdk.js

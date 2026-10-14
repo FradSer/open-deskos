@@ -33,7 +33,7 @@ const captureDir = value('--capture-dir')
 const PROMISED = [['reference panel', 1920, 1280], ['handheld panel', 1280, 776]]
 const wanted = (value('--sizes') || '').split(',').filter(Boolean)
 const SIZES = wanted.length ? PROMISED.filter((size) => wanted.includes(size[0])) : PROMISED
-const THEMES = ['instrument', 'pixel', 'border-beam']
+const THEMES = ['instrument', 'pixel', 'border-beam', 'liquid-glass']
 const CAPTION_FLOOR = 12
 const reportOnly = process.argv.includes('--report-only')
 
