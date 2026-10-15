@@ -10,6 +10,7 @@ import { Connection, localDaemon } from '@earendil-works/pi-env'
 import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from '../src/durable-runtime.mjs'
 import { guardIntentTools } from '../src/intent-routing.mjs'
+import { protectProactivePath } from '../src/proactive-private.mjs'
 
 function models(reply) {
   const requests = []
@@ -77,6 +78,10 @@ test('storage recovery and registry setup failures release exclusive ownership',
   await mkdir(directory, { mode: 0o700 })
   const main = join(directory, 'main.jsonl')
   await writeFile(main, 'invalid fixture JSON\n', { mode: 0o600 })
+  if (process.platform === 'win32') {
+    protectProactivePath(directory)
+    protectProactivePath(main)
+  }
   const config = { directory, models: models(() => assistant('fixture')), model, codeMode: false }
   await assert.rejects(openDurableRuntime(config), /malformed/i)
   await writeFile(main, '')
