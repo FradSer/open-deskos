@@ -5,6 +5,7 @@ const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 test('ships English names for every built-in view', () => {
   const endpoint = createAppManagerEndpoint()
   assert.deepEqual(endpoint.list().map((app) => app.name), [
+    'Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pre-order',
     'Calendar', 'Clock', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions',
   ])
 })

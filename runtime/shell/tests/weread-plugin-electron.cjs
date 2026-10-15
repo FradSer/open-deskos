@@ -183,7 +183,7 @@ app.whenReady().then(async () => {
         samples: [0.1, 0.9].map(ratio => [...canvas.getContext('2d')
           .getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height * ratio), 1, 1).data]) },
       unsafe: Boolean(window.fixtureUnsafe),
-      controls: tile.querySelectorAll('button, input, a').length,
+      controls: tile.querySelectorAll('button:not(.widget-launch), input, a').length,
     };
     } catch (error) { return { fixtureError: error.message }; }
   })()`)

@@ -102,7 +102,25 @@
     if (Number.isFinite(Number(plugin.manifest?.minCell))) tile.dataset.minCell = String(plugin.manifest.minCell)
     placeTile(page, tile, widgetDef, plugin)
     if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
+    attachTileLauncher(tile, widgetDef, plugin, uiCtx)
     return tile
+  }
+
+  function attachTileLauncher(tile, widgetDef, plugin, uiCtx) {
+    const appId = widgetDef.opensApp || tile.dataset.openApp || plugin.opensApp
+    if (appId && !tile.querySelector('.widget-launch')) {
+      const launch = document.createElement('button')
+      launch.type = 'button'
+      launch.className = 'widget-launch'
+      launch.setAttribute('aria-label', `Open ${plugin.app}`)
+      launch.title = `Open ${plugin.app}`
+      tile.dataset.openApp = appId
+      launch.addEventListener('click', () => {
+        Promise.resolve(uiCtx.platform.openApp({ appId, widgetId: plugin.id, route: 'home' }))
+          .catch(error => console.error('Widget App failed:', error))
+      })
+      tile.append(launch)
+    }
   }
 
   // The geometry the layout model has just produced: the cell every tile is given,
@@ -125,7 +143,8 @@
     if (!widgetDef.col) return
     if (!widgetDef.row) return
     const { spanCells, honorsSpan, gridHasLines, pageFitsGrid } = root.odkGridPlacement
-    const { cellWidth, cellHeight, columns, rows } = gridMetrics()
+    const { cellWidth, cellHeight, columns, rows: defaultRows } = gridMetrics()
+    const rows = page.gridRows || defaultRows
     // The grid has to be able to give the span its lines, the page has to be a
     // grid its composition was drawn for, and the cell the span produces has to
     // reach what the instrument declared it reads at. Failing any of those leaves
@@ -339,6 +358,7 @@
             tile.replaceChildren()
             if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
           }
+          attachTileLauncher(tile, widget, plugin, uiCtx)
           placeTile(page, tile, widget, plugin)
           tileCursor = tile.nextSibling
         }

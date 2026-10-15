@@ -158,7 +158,7 @@ app.whenReady().then(async () => {
         return window.toolConsumers.map(({spec,actual,sample}) => {
           const frame = sample.getBoundingClientRect();
           const collect = (container, relative) => {
-            if (container.querySelector('button,input,select,textarea,a[href],[tabindex],[contenteditable="true"]')) throw Error('Display-only tool gained controls');
+            if (container.querySelector('button:not(.widget-launch),input,select,textarea,a[href],[tabindex],[contenteditable="true"]')) throw Error('Display-only tool gained controls');
             const readings = spec.readings.map((selector,index) => {
               const node = container.querySelector(selector), box = node.getBoundingClientRect(), style = getComputedStyle(node);
               if (node.textContent !== spec.text[index]) throw Error('Tool state changed: ' + spec.id);

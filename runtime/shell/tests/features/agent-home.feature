@@ -1,4 +1,20 @@
 Feature: Personal Agent home briefing
+  Scenario: The Agent identity capsule stays on one line
+    Given the Agent uses its default name and Ready status
+    When the capsule renders at desktop or compact widths
+    Then the complete default name stays on one line
+    And the capsule keeps its 44 pixel control height
+    When a long name or status is displayed
+    Then each label truncates inside the capsule without wrapping
+    And the accessible name retains the complete Agent name and status
+
+  Scenario: Text input focus follows the composer capsule
+    Given the resident Agent composer is visible in a supported theme
+    When the user focuses its text input with the keyboard or pointer
+    Then a visible focus outline follows the outer composer shape
+    And the text input has no separate rectangular outline
+    And the microphone and send buttons retain their own keyboard focus indicators
+
   Scenario: Overview copy fits inside the established card
     Given Overview has a fixed grid-row footprint
     When briefing length or the available copy area changes
@@ -330,3 +346,25 @@ Feature: Personal Agent home briefing
     And compact windows keep 20 pixel horizontal canvas margins
     And every one-by-one Widget stays square in all three themes
     And Overview stays borderless and moves only with Home
+
+  Scenario: The resident conversation follows the reference layout
+    Given the Agent has real conversation messages
+    When the left pane renders in a supported theme
+    Then one avatar is centered above a compact name and status capsule
+    And the capsule opens the existing identity form with keyboard or pointer input
+    And assistant replies use rounded bubbles without repeated avatars
+    And the composer stays below the single conversation scroll region
+    And scrolling earlier messages preserves the composer position
+    And Jump to latest restores the newest message
+    And narrow windows and long names retain usable input and recovery text
+    And the open identity editor and Save button remain inside the Agent pane
+    And the interface does not add the reference image sample questions
+
+  Scenario: Long service errors keep the Agent capsule compact
+    Given the resident service reports a long suggestions error
+    When the Agent shows its status
+    Then the capsule shows a short unavailable caption
+    And its accessible name contains the visible Agent name and status
+    When the user opens the capsule
+    Then the complete status is readable in the contained editor
+    And keyboard navigation reveals Save without scrolling the desk

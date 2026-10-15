@@ -96,6 +96,7 @@ const DRIVER_SCRIPT = `
 
   out.pageCount = document.querySelectorAll('#pages-track > .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
+  out.visibleHandles = [...document.querySelectorAll('#dots .dot')].filter(n=>n.getClientRects().length).length
   out.noUserAppsPage = !document.querySelector('.user-apps') && window.DESKTOP_LAYOUT.pages.every(page => page.id !== 'user-apps')
   out.pageContext = text('#page-context')
   out.surfaceSeparation =
@@ -295,16 +296,17 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 50))
   // Browsers emit a compatibility click after a real pointer release; synthetic
   // PointerEvents do not, so emit it explicitly to mirror device behavior.
-  viewport.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  viewport.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
   await new Promise((resolve) => setTimeout(resolve, 300))
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
   const tile = document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')
-  tile.click()
+  tile.querySelector('.widget-launch').click()
   await new Promise((resolve) => setTimeout(resolve, 100))
-  out.displayWidgetDoesNotOpenApp = $('#app-view').hidden
-  out.displayWidgetHasNoAction = tile.tagName === 'DIV' && !tile.matches(':focus')
+  out.widgetOpensApp = !$('#app-view').hidden && window.odkAppPlatform.active()?.sourceWidget === tile.dataset.widget
+  await window.odkAppPlatform.closeApp()
+  out.widgetHasNativeContinuation = tile.querySelector('.widget-launch')?.tagName === 'BUTTON'
   out.platformAppStillOpensSeparately = await window.odkAppPlatform.openApp({
     appId: 'pomodoro', widgetId: 'e2e-separate-app', route: 'home',
   })
@@ -325,8 +327,12 @@ const DRIVER_SCRIPT = `
   if (search) { search.value = 'Pomodoro'; search.dispatchEvent(new Event('input', { bubbles: true })) }
   out.appManagerSearchFilters = countBeforeSearch > 1 && appList.querySelectorAll('li').length === 1
   $('#app-back').click()
+  const closeDeadline = performance.now() + 5000
+  while (!$('#app-view').hidden) {
+    if (performance.now() > closeDeadline) throw new Error('App manager did not close before Home navigation')
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
-  $('#app-back').click()
   out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
   document.querySelectorAll('#dots .dot')[2].click()
@@ -512,7 +518,7 @@ function check(results) {
     ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
     ['five paged surfaces', results.pageCount === 5],
-    ['five bottom dots', results.dotCount === 5],
+    ['one bottom Home handle with five page identities', results.dotCount === 5 && results.visibleHandles === 1],
     ['no separate User Applications page', results.noUserAppsPage],
     ['page context is tracked', results.pageContext === 'Home · 1/5'],
     ['bundled fonts are loaded', results.fontsLoaded],
@@ -567,7 +573,7 @@ function check(results) {
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
-    ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
+    ['Widget opens its App and the platform path remains available', results.widgetOpensApp && results.widgetHasNativeContinuation && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
     ['Pi Sessions is a direct live-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
@@ -910,8 +916,16 @@ async function main() {
   cleanupPiFixture()
 
   win.close()
+  const homeHandle = runFixture('home-handle.cjs')
+  if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
+  const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
+  if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
+  const navigation = runFixture('widget-navigation.cjs')
+  if (navigation.error) console.error(`FAIL  Widget continuations: ${navigation.error.message}`)
   const interiors = runFixture('widget-app-styles.cjs')
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)
+  const appGallery = runFixture('app-gallery.cjs', ['--verify', '--single'])
+  if (appGallery.error) console.error(`FAIL  App gallery: ${appGallery.error.message}`)
   const sequential = runFixture('widget-sequential-refinement.cjs')
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
   const hydraComposition = runFixture('hydra-style.cjs')
@@ -931,7 +945,11 @@ async function main() {
     }))
   const subStatuses = {
     driverFailures, motionFailures, sweepFailures,
+    homeHandle: homeHandle.status,
+    agentReference: agentReference.status,
+    navigation: navigation.status,
     interiors: interiors.status,
+    appGallery: appGallery.status,
     sequential: sequential.status,
     hydraComposition: hydraComposition.status,
     density: densityRuns.map(r => r.status),

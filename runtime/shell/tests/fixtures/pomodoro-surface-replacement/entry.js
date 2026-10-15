@@ -4,7 +4,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.pomodoro', manifest: { schemaVersion: 1, version: '2.0.0', minCell: 186 },
-    kind: 'tile', app: 'Pomodoro', state: 'Not started', interaction: 'display-only',
+    kind: 'tile', app: 'Pomodoro', state: 'Not started', interaction: 'display-only', opensApp: 'pomodoro',
     mount(element) {
       const make = (tag, className, text) => {
         const node = document.createElement(tag)

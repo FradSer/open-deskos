@@ -112,6 +112,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `USERPROFILE` | Environment | Windows user session | runtime/shell/src/plugin-config.js | — | Find the plugin configuration directory when HOME is absent. |
 | `PATH` | Environment | Unit / installer | runtime/shell/scripts/cm5-install.sh | — | Units pin Node and shim directories. Do not depend on an interactive version manager PATH. |
 | `PI_AGENT_DIR` | Environment | Pi runtime | runtime/shell/src/pi-sessions.js | ~/.pi/agent | Pi session and authentication directory. |
+| `PI_CODING_AGENT_DIR` | Environment | Personal Bot verifier | integrations/personal-bot/scripts/test-proactive-docker-live.mjs | ~/.pi/agent | Pi settings and authentication directory for the isolated live verifier. |
 | `ODK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
 | `SystemRoot` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
 | `WINDIR` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |

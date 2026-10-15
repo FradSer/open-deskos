@@ -193,7 +193,7 @@ app.whenReady().then(async () => {
             const floor = node.matches('.hydra-env-value,.hydra-plant-soil') ? 14 : 12;
             return Number.parseFloat(getComputedStyle(node).fontSize) < floor;
           }).map(node => node.className);
-          const controls = tile.querySelectorAll('button,input,select,textarea,a').length;
+          const controls = tile.querySelectorAll('button:not(.widget-launch),input,select,textarea,a').length;
           return { nodes, escaping, belowFloor, controls, shape:tile.querySelector('.hydra-body').dataset.shape };
         })()`)
         assert.equal(view.controls, 0)

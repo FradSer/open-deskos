@@ -137,7 +137,7 @@ app.whenReady().then(async () => {
       condition: text('.w-weather-condition'), detail: text('.w-weather-detail'), low: text('#w-weather-low'), high: text('#w-weather-high'),
       labels: [...tile.querySelectorAll('.w-weather-range-label')].map(node => node.textContent),
       title: tile.title, glyph: glyph.getAttribute('data-tabler'), glyphMarkup: glyph.innerHTML,
-      controls: tile.querySelectorAll('button, input, select, textarea, a').length,
+      controls: tile.querySelectorAll('button:not(.widget-launch), input, select, textarea, a').length,
       font: getComputedStyle(tile.querySelector('.w-weather-number')).fontFamily,
       theme: document.documentElement.dataset.theme,
       zpixLoaded: [...document.fonts].some(face => face.family.replace(/["']/g, '') === 'Zpix' && face.status === 'loaded') };

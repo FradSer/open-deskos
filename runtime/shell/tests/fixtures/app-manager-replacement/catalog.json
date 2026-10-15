@@ -1,5 +1,45 @@
 [
   {
+    "appId": "futu",
+    "name": "Futu holdings",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
+    "appId": "weather",
+    "name": "Weather",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
+    "appId": "hydra",
+    "name": "Hydra plants",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
+    "appId": "weread",
+    "name": "WeRead",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
+    "appId": "preorder",
+    "name": "Pre-order",
+    "kind": "ui",
+    "version": "builtin",
+    "source": "builtin",
+    "capabilities": []
+  },
+  {
     "appId": "calendar",
     "name": "Calendar",
     "kind": "ui",

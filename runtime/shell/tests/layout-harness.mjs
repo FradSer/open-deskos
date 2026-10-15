@@ -82,9 +82,10 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 }
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
-check('reading page hosts WeRead and pre-order', readingPage?.widgets?.length === 2 && readingPage.widgets.map((tile) => tile.id).join(',') === 'odk.tile.weread,odk.tile.preorder', JSON.stringify(readingPage?.widgets))
-check('weread anchors top-left', readingPage?.widgets?.[0]?.col === '1 / 3' && readingPage?.widgets?.[0]?.row === '1 / 3')
-check('preorder sits beside weread', readingPage?.widgets?.[1]?.col === '3' && readingPage?.widgets?.[1]?.row === '1')
+check('reading page hosts the three-by-three WeRead canvas', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
+check('weread fills three rows and three columns from top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
+const deskPreorder = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.preorder')
+check('preorder sits on Desk beside Hydra', deskPreorder?.col === '2' && deskPreorder?.row === '1')
 const market = DESKTOP_LAYOUT.pages.find(p => p.id === 'home')?.widgets?.find(tile => tile.id === 'odk.tile.futu')
 check('market fills the former Home clock cell', market?.col === '3' && market?.row === '1')
 
@@ -92,7 +93,7 @@ check('market fills the former Home clock cell', market?.col === '3' && market?.
 // underline, and the cover is a narrow right rail instead of a half panel.
 const wereadCssPath = require('node:path').join(harnessDirectory, '../src/renderer/plugins/weread.css')
 const wereadCss = require('node:fs').readFileSync(wereadCssPath, 'utf8')
-const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(12px,\\s*)?([\\d.]+)cqi')) || [])[1])
+const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(\\d+px,\\s*)?([\\d.]+)cqi')) || [])[1])
 const wereadTitleCqi = wereadSize('\\.weread-title')
 const wereadAuthorCqi = wereadSize('\\.weread-author')
 const wereadDateCqi = wereadSize('\\.weread-date')
