@@ -1,6 +1,19 @@
 Feature: Owner controlled proactive Personal Bot proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
 
+  Scenario: Recommendations do not assert that an action already happened
+    Given fresh observations explicitly report a pending need and its deadline
+    When generated advice recommends addressing that need without adding facts
+    Then Jev evaluates the recommendation separately from factual assertions
+    And invented deadlines, causes, permissions and completed actions remain unsupported
+
+  Scenario: A judgment fluctuation cannot repeat an acknowledged suggestion
+    Given the Shell acknowledged a generated suggestion
+    When Jev rejects it once and later accepts the same intent and observations
+    Then the previous proposal identity and acknowledgement are preserved
+    And no automatic popup repeats after a service restart
+    But materially changed observations can create a new suggestion
+
   Scenario: Generate several suggestions before Jev selects what to push
     Given owner goals and fresh observations from arbitrary subscribed services
     When a heartbeat or selected service event arrives
