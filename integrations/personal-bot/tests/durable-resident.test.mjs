@@ -174,7 +174,6 @@ test('a proactive heartbeat uses production Durable generation and preserves ded
   const owner = { version: 2, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 4, maxPush: 2,
     suppressed: [], snoozed: {}, rules: [{ id: 'deliveries', goal: '及时领取待取物品。',
       observations: [{ readingId: 'thirdparty.parcels', fields: ['ready', 'count'] }], delivery: 'immediate', urgent: false }] }
-  await mkdir(join(dir, 'private'), { mode: 0o700 })
   const state = proposalStateStore(join(dir, 'private', 'proposals.json'))
   let watch
   let bot = await createPersonalBot({ ...config, getWatch: () => watch }, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
