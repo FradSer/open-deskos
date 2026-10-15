@@ -225,6 +225,20 @@
       const refs = { value: el.querySelector('#futu-value'), detail: el.querySelector('#futu-detail'), rows: el.querySelector('#futu-rows') }
       let active = true
       ctx.trackCleanup?.(() => { active = false })
+      if (expanded) {
+        let hideScrollbar
+        const showScrollbar = () => {
+          refs.rows.dataset.scrolling = 'true'
+          clearTimeout(hideScrollbar)
+          hideScrollbar = setTimeout(() => { delete refs.rows.dataset.scrolling }, 900)
+        }
+        refs.rows.addEventListener('scroll', showScrollbar, { passive: true })
+        ctx.trackCleanup?.(() => {
+          clearTimeout(hideScrollbar)
+          refs.rows.removeEventListener('scroll', showScrollbar)
+          delete refs.rows.dataset.scrolling
+        })
+      }
       const refreshButton = expanded ? el.querySelector('.reading-refresh') : null
       let pending = false
       let lastReading = null

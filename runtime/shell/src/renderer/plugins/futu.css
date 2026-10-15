@@ -152,6 +152,18 @@
 .futu-app .futu-holdings { flex: 1; min-height: 0; gap: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .futu-app .futu-columns, .futu-app .futu-holding { grid-template-columns: minmax(0, 1fr) 6em 6em; }
 .futu-app .futu-columns { display: grid; gap: 8px; flex: none; overflow-y: auto; scrollbar-gutter: stable; font-size: clamp(14px, 3cqi, 20px); color: var(--odk-secondary-strong); }
+/* Keep the header aligned with the list, with room between values and thumb.
+   Reset standard scrollbar colors so Chromium uses the scoped pseudo styles. */
+.futu-app :is(.futu-holdings, .futu-columns) { padding-inline-end: 8px; scrollbar-width: auto; scrollbar-color: auto; }
+.futu-app :is(.futu-holdings, .futu-columns)::-webkit-scrollbar { width: 8px; height: 8px; }
+.futu-app :is(.futu-holdings, .futu-columns)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.futu-app :is(.futu-holdings, .futu-columns)::-webkit-scrollbar-track,
+.futu-app :is(.futu-holdings, .futu-columns)::-webkit-scrollbar-corner { background: transparent; }
+.futu-app .futu-holdings::-webkit-scrollbar-thumb { background: transparent; border: 2px solid transparent; background-clip: content-box; border-radius: var(--odk-radius-pill); }
+.futu-app .futu-holdings[data-scrolling="true"]::-webkit-scrollbar-thumb { background-color: var(--odk-secondary-strong); }
+@media (forced-colors: active) {
+  .futu-app .futu-holdings[data-scrolling="true"]::-webkit-scrollbar-thumb { background-color: CanvasText; }
+}
 .futu-app .futu-columns > :not(:first-child) { text-align: end; }
 .futu-app .futu-holding { display: grid; gap: 8px; padding-block: 12px; border-bottom: 0; min-height: 56px; flex: none; color: var(--odk-primary); font-size: clamp(14px, 3cqi, 20px); white-space: normal; }
 .futu-app .futu-sym { overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }

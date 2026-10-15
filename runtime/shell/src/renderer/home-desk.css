@@ -70,8 +70,8 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
 .agent-input-avatar { display: none; }
 .agent-avatar svg { width: 32px; height: 32px; }
-.agent-name { margin: 0; min-width: 0; max-width: 60%; font-size: 18px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
-.agent-identity { position: relative; max-width: 100%; min-width: 0; }
+.agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: 18px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-identity { position: relative; width: max-content; max-width: 100%; min-width: 0; }
 .agent-identity summary { min-height: 44px; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--odk-stroke) 55%, transparent); border-radius: 28px; background: color-mix(in srgb, var(--odk-surface) 90%, transparent); }
 .agent-identity summary::-webkit-details-marker { display: none; }
 .agent-identity summary > svg { width: 16px; height: 16px; flex: none; transform: rotate(-90deg); color: var(--odk-secondary-strong); }
@@ -92,7 +92,7 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-message-body pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .agent-message-body a { color: var(--odk-primary); text-decoration: underline; }
 .agent-message-user { margin-left: 8%; padding: 14px 20px; background: var(--odk-surface); border-radius: 28px; width: fit-content; max-width: 92%; justify-self: end; }
-.agent-state { flex: 1 1 80px; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; color: var(--odk-secondary-strong); }
+.agent-state { flex: 0 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; color: var(--odk-secondary-strong); }
 .agent-composer { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--odk-stroke); border-radius: 32px; background: var(--odk-surface); box-shadow: 0 4px 16px color-mix(in srgb, var(--odk-bg) 20%, transparent); }
 .agent-composer textarea { min-width: 0; flex: 1; max-height: 120px; resize: none; padding: 8px 12px; font: inherit; font-size: 18px; color: var(--odk-primary); background: transparent; border: 0; }
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
@@ -101,6 +101,9 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-latest { align-self: center; padding-inline: 16px; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+/* The capsule owns text focus; action buttons keep their individual rings. */
+.agent-composer:has(textarea:focus) { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.agent-panel .agent-composer textarea:focus-visible { outline: none; }
 @media (max-width: 959px) {
   #home-desk { grid-template-columns: minmax(290px, 1fr) minmax(0, var(--desk-pane-w, 67%)); }
   .agent-panel { padding: 12px; }

@@ -1,4 +1,20 @@
 Feature: Personal Agent home briefing
+  Scenario: The Agent identity capsule stays on one line
+    Given the Agent uses its default name and Ready status
+    When the capsule renders at desktop or compact widths
+    Then the complete default name stays on one line
+    And the capsule keeps its 44 pixel control height
+    When a long name or status is displayed
+    Then each label truncates inside the capsule without wrapping
+    And the accessible name retains the complete Agent name and status
+
+  Scenario: Text input focus follows the composer capsule
+    Given the resident Agent composer is visible in a supported theme
+    When the user focuses its text input with the keyboard or pointer
+    Then a visible focus outline follows the outer composer shape
+    And the text input has no separate rectangular outline
+    And the microphone and send buttons retain their own keyboard focus indicators
+
   Scenario: Overview copy fits inside the established card
     Given Overview has a fixed grid-row footprint
     When briefing length or the available copy area changes
