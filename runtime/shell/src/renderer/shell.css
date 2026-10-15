@@ -1578,11 +1578,6 @@ body.kiosk {
   aspect-ratio: 1;
 }
 
-#app-title {
-  font-size: clamp(22px, calc(var(--cell-dim) * 0.16), 30px);
-  font-weight: 400;
-}
-
 .app-body {
   flex: 1;
   min-height: 0;
@@ -3130,22 +3125,22 @@ body.kiosk {
 .hydra-offline .hydra-plant-name,
 .hydra-plant.hydra-stale .hydra-plant-soil,
 .hydra-plant.hydra-stale .hydra-plant-name {
-  color: var(--odk-secondary);
+  color: var(--odk-secondary-strong);
 }
 
 .hydra-plant.hydra-stale .hydra-plant-soil,
 .hydra-plant.hydra-stale .hydra-plant-name,
 .hydra-plant.hydra-stale .hydra-meter {
-  opacity: 0.58;
+  opacity: 1;
 }
 
 .hydra-unconfigured .hydra-env,
 .hydra-unconfigured .hydra-plants {
-  opacity: 0.45;
+  opacity: 1;
 }
 
 .hydra-stale .hydra-env {
-  opacity: 0.55;
+  opacity: 1;
 }
 
 /* Hydra composes from the cell it is drawn in, so the shapes below are chosen by

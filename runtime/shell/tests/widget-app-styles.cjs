@@ -111,7 +111,7 @@ async function widgets(win, label) {
     }
     const page = tiles[0].closest('.page')
     if (innerWidth < 640) document.getElementById('home-desk').scrollTop = document.getElementById('home-desk').scrollHeight
-    const indicators = [...document.querySelectorAll('.dot')].every(dot => {
+    const indicators = [...document.querySelectorAll('.dot')].filter(dot => dot.getClientRects().length).every(dot => {
       const r = dot.getBoundingClientRect()
       return [r.top + r.height / 2, r.top + 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === dot)
     })
@@ -123,7 +123,7 @@ async function widgets(win, label) {
   })()`)
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
-  check(`${label}: page indicators have distinct pointer targets`, result.indicators)
+  check(`${label}: Home handle has a reachable pointer target`, result.indicators)
 }
 
 async function pomodoroCentering(win) {
@@ -204,23 +204,24 @@ async function surfaceAffordances(win) {
           const style = getComputedStyle(node)
           return style.borderTopStyle === 'solid' && style.borderTopWidth === '1px'
             && style.borderTopColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(node, '::after').content === 'none'
-            && !node.matches('[tabindex],button') && !node.querySelector('button,input,select,textarea,a[href]')
+            && !node.matches('[tabindex],button') && !node.querySelector('button:not(.widget-launch),input,select,textarea,a[href]')
+            && node.querySelector('.widget-launch')?.tagName === 'BUTTON'
         }), color: css.borderTopColor }
       })()`)
-      check(`Read-only Widget frame: ${theme} ${width}x${height}`, widgets.static, widgets)
+      check(`Widget reading and App continuation frame: ${theme} ${width}x${height}`, widgets.static, widgets)
       await page(win, PAGES.dot('quota'))
       const rest = await win.webContents.executeJavaScript(`(() => {
         document.querySelector('.dot.active').focus()
         const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
         return { color: css.borderTopColor, width: css.borderTopWidth, outline: css.outlineStyle, size: [rect.width, rect.height] }
       })()`)
-      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '2px' && rest.color !== widgets.color && rest.outline === 'none', rest)
+      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '1px' && rest.color === widgets.color && rest.outline === 'none', rest)
       const active = await win.webContents.executeJavaScript(`(() => {
         document.querySelector('#quota-refresh').focus()
         const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
         return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, offset: parseFloat(css.outlineOffset), size: [rect.width, rect.height] }
       })()`)
-      check(`App active frame: ${theme} ${width}x${height}`, active.color !== rest.color && active.outline === 'solid' && parseFloat(active.width) >= 2 && active.offset === 2 && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
+      check(`App frame stays consistent during control focus: ${theme} ${width}x${height}`, active.color === rest.color && active.outline === 'none' && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
       if (width === 1920) {
         await win.webContents.executeJavaScript(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`)
         fs.writeFileSync(path.join(os.tmpdir(), `odk-app-frame-active-${theme}.png`), (await win.webContents.capturePage()).toPNG())
@@ -234,15 +235,15 @@ async function surfaceAffordances(win) {
         const pressed = await win.webContents.executeJavaScript(`(() => { const card = document.querySelector('.quota-card'), css = getComputedStyle(card); return { active: card.matches(':active'), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
         win.webContents.debugger.detach()
-        check(`Pointer press activates the App frame: ${theme}`, pressed.active && pressed.color !== rest.color && pressed.outline === 'solid', pressed)
+        check(`Pointer press preserves the Widget frame: ${theme}`, pressed.active && pressed.color === rest.color && pressed.outline === 'none', pressed)
       }
     }
     const foreground = await win.webContents.executeJavaScript(`(async () => {
       await odkAppPlatform.openApp({ appId: 'clock' })
-      const css = getComputedStyle(document.querySelector('#app-runtime .runtime-app'))
+      const css = getComputedStyle(document.querySelector('#app-view'))
       return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
     })()`)
-    check(`Opened App retains its active frame: ${theme}`, foreground.width === '2px' && foreground.outline === 'solid' && foreground.outlineWidth === '2px' && foreground.offset === 2, foreground)
+    check(`Opened App retains the shared Widget frame: ${theme}`, foreground.width === '1px' && foreground.outline === 'none', foreground)
     await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
   }
 }

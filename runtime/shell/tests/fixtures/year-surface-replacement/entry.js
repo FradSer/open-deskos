@@ -3,7 +3,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.year', manifest: { schemaVersion: 1, version: '2.0.0' },
-    kind: 'tile', app: 'Year progress', state: 'Live', interaction: 'display-only',
+    kind: 'tile', app: 'Year progress', state: 'Live', interaction: 'display-only', opensApp: 'year',
     mount(element, context) {
       // Static markup and Shell styles are shared; elapsed-time projection is independent.
       element.innerHTML = `

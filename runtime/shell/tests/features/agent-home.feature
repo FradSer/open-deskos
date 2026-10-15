@@ -330,3 +330,25 @@ Feature: Personal Agent home briefing
     And compact windows keep 20 pixel horizontal canvas margins
     And every one-by-one Widget stays square in all three themes
     And Overview stays borderless and moves only with Home
+
+  Scenario: The resident conversation follows the reference layout
+    Given the Agent has real conversation messages
+    When the left pane renders in a supported theme
+    Then one avatar is centered above a compact name and status capsule
+    And the capsule opens the existing identity form with keyboard or pointer input
+    And assistant replies use rounded bubbles without repeated avatars
+    And the composer stays below the single conversation scroll region
+    And scrolling earlier messages preserves the composer position
+    And Jump to latest restores the newest message
+    And narrow windows and long names retain usable input and recovery text
+    And the open identity editor and Save button remain inside the Agent pane
+    And the interface does not add the reference image sample questions
+
+  Scenario: Long service errors keep the Agent capsule compact
+    Given the resident service reports a long suggestions error
+    When the Agent shows its status
+    Then the capsule shows a short unavailable caption
+    And its accessible name contains the visible Agent name and status
+    When the user opens the capsule
+    Then the complete status is readable in the contained editor
+    And keyboard navigation reveals Save without scrolling the desk

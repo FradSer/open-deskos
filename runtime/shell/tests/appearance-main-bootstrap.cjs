@@ -133,7 +133,7 @@ app.on('browser-window-created', (_event, win) => {
         const results = {}
         for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
           const shell = await js(`(async () => {
-            document.querySelector('#dots .dot[aria-label$="Home"]').click();
+            document.querySelector('#dots .dot[aria-label^="Home, page "]').click();
             odkTheme.set(${JSON.stringify(theme)});
             await document.fonts.ready;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -144,7 +144,7 @@ app.on('browser-window-created', (_event, win) => {
               radius: getComputedStyle(document.documentElement).getPropertyValue('--odk-radius-card').trim() };
           })()`)
           assert.ok(shell.width > 0 && shell.height > 0, JSON.stringify(shell))
-          await js(`document.querySelector('#dots .dot[aria-label$="Counter"]').click()`)
+          await js(`document.querySelector('#dots .dot[aria-label^="Counter, page "]').click()`)
           const installedApp = await appFrame.executeJavaScript(`(async () => {
             const until = performance.now() + 4000;
             while (document.documentElement.dataset.theme !== ${JSON.stringify(theme)}) {

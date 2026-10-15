@@ -96,8 +96,17 @@ app.whenReady().then(async () => {
     assert.equal(controls.wifi, 'none')
     await js(`(async () => {
       await odkTheme.set('${theme}');
+      // Theme activation can finish before its stylesheet imports have loaded.
+      // Wait for the shared material to apply before measuring or capturing it.
+      const styleDeadline = performance.now() + 5000;
+      while ([...document.querySelectorAll('link[rel="stylesheet"]')].some(link => !link.sheet)
+        || ('${theme}' === 'liquid-glass' && !getComputedStyle(document.documentElement).getPropertyValue('--odk-glass-material').trim())) {
+        if (performance.now() > styleDeadline) throw Error('Preview theme styles did not load');
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
       window.dispatchEvent(new Event('resize'));
       await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       if ('${theme}' === 'liquid-glass' && !['sdk', 'fallback'].includes(document.documentElement.dataset.liquidGlass)) {
         await new Promise((resolve, reject) => {
           const observer = new MutationObserver(() => {
@@ -132,7 +141,7 @@ app.whenReady().then(async () => {
         paragraphs: document.querySelectorAll('.agent-message').length,
         repeatedNames: document.querySelectorAll('.agent-message-name, .agent-caption').length,
         messageMetadata: document.querySelectorAll('.agent-message time, .agent-message-avatar').length,
-        identityEntryHidden: getComputedStyle(document.querySelector('.agent-identity')).display === 'none' && document.querySelector('.agent-identity summary').getClientRects().length === 0,
+        identityCapsule: document.querySelector('.agent-identity summary').getBoundingClientRect().height >= 44 && document.querySelector('.agent-head .agent-state') !== null,
         agentBubble: !!bubble && getComputedStyle(bubble).backgroundColor !== 'rgba(0, 0, 0, 0)',
         timerFits: time.width <= dial.width * 0.84 && Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2) < 1,
         timerBounds: { text: time.width, dial: dial.width, centerDelta: Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2), font: getComputedStyle(document.querySelector('.ring-mmss')).fontSize },
@@ -162,7 +171,7 @@ app.whenReady().then(async () => {
     assert.equal(state.paragraphs, 2)
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
     assert.equal(state.messageMetadata, 0, 'conversation messages have no avatars or timestamps')
-    assert.equal(state.identityEntryHidden, true, 'the pencil entry is absent from layout and keyboard navigation')
+    assert.equal(state.identityCapsule, true, 'the name and status capsule exposes the existing identity editor')
     assert.equal(state.agentBubble, true, 'Agent messages have a background container')
     assert.equal(state.timerFits, true, theme + ' complete timer reading has space inside the dial: ' + JSON.stringify(state.timerBounds))
     assert.equal(state.noFooter, true)
@@ -181,10 +190,15 @@ app.whenReady().then(async () => {
     }
     assert.deepEqual(state.viewport, [width, height, 1, 'loaded'])
     const file = path.join(os.tmpdir(), `odk-populated-home-${theme}-${width}.png`)
-    // Acknowledge one native frame before requesting the capture frame. The
-    // first paint can still contain pixels from before the fixture update.
+    // Acknowledge a native frame, then request the current compositor surface.
+    // Paint events can still carry pixels from before the fixture update.
     await capturePaintedFrame()
-    fs.writeFileSync(file, await capturePaintedFrame())
+    const capture = await win.webContents.capturePage()
+    const bitmap = capture.getSize()
+    const backingScale = bitmap.width / width
+    assert.ok(backingScale >= 1 && backingScale <= 2)
+    assert.equal(bitmap.height / height, backingScale, 'Preview capture must not crop the viewport')
+    fs.writeFileSync(file, capture.toPNG())
     captures.push({ theme, width, height, cell: state.cell,
       ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
   }

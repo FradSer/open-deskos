@@ -5,7 +5,7 @@
   const REFRESH_EVERY_TICKS = 30
 
   function formatRatio(value) {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return '--'
+    if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '--'
     const pct = Number(value) * 100
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
   }
@@ -80,14 +80,14 @@
   }
 
   function maxRows(el) {
-    return 3
+    return el.dataset?.expanded === 'true' ? Infinity : 3
   }
 
   // A tile that draws a subset says so. A shortened list that looks like the whole
   // list is the one way a glanceable instrument can be quietly wrong, so the count
   // of what it is not showing belongs in the tile's own text.
   function shownCountLabel(reading, shown) {
-    const held = (reading?.snapshot?.positions || []).length
+    const held = Array.isArray(reading?.snapshot?.positions) ? reading.snapshot.positions.length : 0
     return held <= shown ? '' : ` · ${held - shown} more`
   }
 
@@ -145,10 +145,27 @@
     }
   }
 
+  function writeRows(list, positions) {
+    const html = positions.map(holdingRow).join('')
+    if (list.innerHTML === html) return
+    const scroll = list.scrollTop
+    list.innerHTML = html
+    list.scrollTop = scroll
+  }
+
   function render(el, refs, reading) {
+    const positions = Array.isArray(reading?.snapshot?.positions) ? reading.snapshot.positions.filter(position => position && typeof position.code === 'string') : []
     const state = reading?.state || 'syncing'
+    if (state === 'live' && reading.snapshot && !Array.isArray(reading.snapshot.positions)) {
+      writeText(refs.value, '--')
+      refs.value.className = 'w-state futu-ratio'
+      refs.value.setAttribute('aria-label', 'Holdings unavailable')
+      writeText(refs.detail, 'Malformed holdings')
+      refs.rows.innerHTML = ''
+      return
+    }
     if (state === 'live' && reading.snapshot) {
-      const leaders = (reading.snapshot.positions || []).slice(0, maxRows(el))
+      const leaders = positions.slice(0, maxRows(el))
       if (!leaders.length) {
         writeText(refs.value, '--')
         refs.value.className = 'w-state futu-ratio'
@@ -162,9 +179,9 @@
       refs.value.className = `w-state futu-ratio is-${direction(plRatio)}`
       refs.value.setAttribute('aria-label', `Today ${formatRatio(plRatio)}`)
       refs.rows.className = 'futu-holdings'
-      refs.rows.innerHTML = leaders.map(holdingRow).join('')
-      writeText(refs.detail, `Today${shownCountLabel(reading, leaders.length)}`)
-      fitRows(refs.rows)
+      writeRows(refs.rows, leaders)
+      writeText(refs.detail, el.dataset?.expanded === 'true' ? (formatTime(reading.updatedAt) ? `Updated ${formatTime(reading.updatedAt)}` : '') : `Today${shownCountLabel(reading, leaders.length)}`)
+      if (el.dataset?.expanded !== 'true') fitRows(refs.rows)
       fitValue(refs.value)
       return
     }
@@ -172,21 +189,21 @@
     refs.value.className = 'w-state futu-ratio'
     refs.value.setAttribute('aria-label', 'Holdings unavailable')
     refs.rows.className = 'futu-holdings'
-    refs.rows.innerHTML = ''
-    if (reading?.snapshot?.positions?.length) {
+    if (positions.length) {
       const stale = reading.snapshot
       const plRatio = stale.totals?.plRatio
       writeText(refs.value, formatRatio(plRatio))
       refs.value.className = `w-state futu-ratio is-stale is-${direction(plRatio)}`
       refs.value.setAttribute('aria-label', `Stale holdings ${formatRatio(plRatio)}`)
       refs.rows.className = 'futu-holdings is-stale'
-      const staleRows = stale.positions.slice(0, maxRows(el))
-      refs.rows.innerHTML = staleRows.map(holdingRow).join('')
+      const staleRows = positions.slice(0, maxRows(el))
+      writeRows(refs.rows, staleRows)
       writeText(refs.detail, `Stale · ${formatTime(reading.updatedAt)}${shownCountLabel({ snapshot: stale }, staleRows.length)}`)
-      fitRows(refs.rows)
+      if (el.dataset?.expanded !== 'true') fitRows(refs.rows)
       fitValue(refs.value)
       return
     }
+    refs.rows.innerHTML = ''
     // Captions stay short enough to render whole in the narrowest cell the Shell
     // computes, so a state is never announced as an ellipsis.
     if (state === 'unconfigured') writeText(refs.detail, 'Not configured')
@@ -195,40 +212,47 @@
     else writeText(refs.detail, 'Syncing')
   }
 
-  root.odkPlugins.register({
-    id: 'odk.tile.futu',
-    manifest: { schemaVersion: 1 },
-    kind: 'tile',
-    css: 'plugins/futu.css',
-    app: 'Futu holdings',
-    state: 'Syncing',
-    interaction: 'display-only',
-    mount(el, ctx) {
+  function mountHoldings(el, ctx, expanded = false) {
+      el.dataset.expanded = String(expanded)
       el.innerHTML = `
-        <div class="widget-signal futu-body odk-col">
-          <div class="futu-name" id="futu-name">Holdings</div>
+        <div class="widget-signal futu-body odk-col ${expanded ? 'runtime-app futu-app' : ''}">
+          ${expanded ? '<header class="reading-head"><h2>Daily return</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header>' : '<div class="futu-name" id="futu-name">Holdings</div>'}
           <div class="w-state futu-ratio" id="futu-value" aria-label="Holdings unavailable">--</div>
-          <ul class="futu-holdings" id="futu-rows"></ul>
-          <div class="futu-note" id="futu-detail">Syncing holdings</div>
+          ${expanded ? '<div class="futu-columns" aria-hidden="true"><span>Symbol</span><span>Price</span><span>Today</span></div>' : ''}
+          <ul class="futu-holdings" id="futu-rows" ${expanded ? 'tabindex="0" aria-label="All holdings"' : ''}></ul>
+          <div class="futu-note" id="futu-detail" ${expanded ? 'role="status"' : ''}>Syncing holdings</div>
         </div>`
       const refs = { value: el.querySelector('#futu-value'), detail: el.querySelector('#futu-detail'), rows: el.querySelector('#futu-rows') }
+      let active = true
+      ctx.trackCleanup?.(() => { active = false })
+      const refreshButton = expanded ? el.querySelector('.reading-refresh') : null
+      let pending = false
       let lastReading = null
       render(el, refs, null)
-      const refresh = () => {
-        const platform = root.odkPlatform
-        if (!platform?.getFutuHoldings) {
-          lastReading = { state: 'unconfigured' }
+      const refresh = async () => {
+        if (!active || pending) return
+        pending = true
+        if (refreshButton) refreshButton.disabled = true
+        try {
+          const reading = root.odkPlatform?.getFutuHoldings
+            ? await root.odkPlatform.getFutuHoldings({ service: 'futu-poller' }) : { state: 'unconfigured' }
+          if (!active) return
+          lastReading = reading
+          render(el, refs, reading)
+        } catch {
+          if (!active) return
+          lastReading = { ...lastReading, state: 'unavailable' }
           render(el, refs, lastReading)
-          return Promise.resolve()
+        } finally {
+          pending = false
+          if (active && refreshButton) refreshButton.disabled = false
         }
-        return platform.getFutuHoldings({ service: 'futu-poller' })
-          .then((reading) => { lastReading = reading; render(el, refs, reading) })
-          .catch(() => { lastReading = { state: 'unavailable', error: 'sync failed' }; render(el, refs, lastReading) })
       }
+      refreshButton?.addEventListener('click', refresh)
       refresh()
-      const refit = () => fitValue(el.querySelector('#futu-value'))
+      const refit = () => { if (active) fitValue(el.querySelector('#futu-value')) }
       let refitQueued = false
-      const relayout = () => { if (lastReading) render(el, refs, lastReading); else refit() }
+      const relayout = () => { if (!active) return; if (lastReading) render(el, refs, lastReading); else refit() }
       const queueRefit = () => {
         if (refitQueued || typeof requestAnimationFrame !== 'function') { relayout(); return }
         refitQueued = true
@@ -247,6 +271,23 @@
         tickCount = (tickCount + 1) % REFRESH_EVERY_TICKS
         if (tickCount === 1) refresh()
       })
-    },
+  }
+
+  root.odkPlugins.register({
+    id: 'odk.tile.futu',
+    manifest: { schemaVersion: 1 },
+    kind: 'tile',
+    css: 'plugins/futu.css',
+    app: 'Futu holdings',
+    state: 'Syncing',
+    interaction: 'display-only',
+    opensApp: 'futu',
+    mount: mountHoldings,
+  })
+  root.odkPlugins.register({
+    id: 'odk.app.futu', manifest: { schemaVersion: 1 }, kind: 'app', appId: 'futu',
+    app: 'Futu holdings', name: 'Futu holdings', appKind: 'ui', source: 'builtin', capabilities: [],
+    css: 'plugins/futu.css',
+    mount(el, ctx) { mountHoldings(el, ctx, true) },
   })
 })(typeof window !== 'undefined' ? window : globalThis)

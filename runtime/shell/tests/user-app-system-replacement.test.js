@@ -41,11 +41,11 @@ for (const signed of [false, true]) {
       const html = '<p>Imported Widget content</p>'
       await fs.writeFile(path.join(sourcePath, 'index.html'), html)
       const dispatch = request => f.handlers.get('odk-user-apps-dispatch')(null, request)
-      const first = { pageId: 'reading', col: '2', row: '3' }
+      const first = { pageId: 'desk', col: '2', row: '3' }
       const imported = await f.request({ command: 'add', sourcePath, placement: first })
       assert.equal(imported.ok, true)
       assert.deepEqual(imported.app.placement, first)
-      const moved = { pageId: 'reading', col: '3 / 5', row: '3' }
+      const moved = { pageId: 'desk', col: '3 / 5', row: '3' }
       const placed = await dispatch({ command: 'place', appId: 'note', placement: moved })
       assert.equal(placed.ok, true)
       assert.equal(placed.app.revision, imported.app.revision)
@@ -59,7 +59,7 @@ for (const signed of [false, true]) {
         assert.equal(desktop.ok, true)
         // The layout originates in a VM; compare its public JSON representation.
         assert.deepEqual(desktop.pages, JSON.parse(JSON.stringify(await f.store.desktop())))
-        assert.deepEqual(desktop.pages.find(page => page.id === 'reading').occupied.find(item => item.id === 'note'),
+        assert.deepEqual(desktop.pages.find(page => page.id === 'desk').occupied.find(item => item.id === 'note'),
           { id: 'note', col: moved.col, row: moved.row })
         const response = await f.routes.get('odk-user-app')({ url: `odk-user-app://app/note/${imported.app.revision}` })
         assert.equal(response.status, 200)

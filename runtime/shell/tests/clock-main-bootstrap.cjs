@@ -330,7 +330,7 @@ async function exercise() {
           text:[...node.childNodes].filter(child=>child.nodeType===Node.TEXT_NODE).map(child=>child.textContent.trim()).filter(Boolean).join(''),children:[...node.children].map(tree)});
         return productionToolConsumers.map(({spec,node})=>{
           if(document.querySelector('[data-widget="'+spec.id+'"]')!==node||!odkPlugins.isActive(odkPlugins.get(spec.id),node))throw Error('Production tool ownership changed');
-          if(node.querySelector('button,input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production tool gained controls');
+          if(node.querySelector('button:not(.widget-launch),input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production tool gained controls');
           if(spec.readings.some((selector,index)=>node.querySelector(selector)?.textContent!==spec.text[index]))throw Error('Production tool state changed');
           return [...node.children].map(tree);
         });
@@ -377,7 +377,7 @@ async function exercise() {
           if(count.classList.contains('is-open')!==${opened}||count.getAttribute('aria-live')!=='off')throw Error('Production Pre-order state changed');
           const label=productionPreorder.querySelector('.preorder-label').textContent;
           if(label!=='Pre-order · 5:00 a.m. PT 10.16')throw Error('Production Pre-order caption changed');
-          if(productionPreorder.querySelector('button,input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production Pre-order gained controls');
+          if(productionPreorder.querySelector('button:not(.widget-launch),input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production Pre-order gained controls');
           return {count:count.innerHTML,classes:count.className,label,width:canvas.width,height:canvas.height,pixels:canvas.toDataURL()};
         })()`)
         view.pixels = crypto.createHash('sha256').update(view.pixels).digest('hex')

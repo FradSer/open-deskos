@@ -34,6 +34,9 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
   assert.match(css, /html\[data-theme='liquid-glass'\]\[data-liquid-glass='sdk'\][\s\S]*?backdrop-filter: none;/)
   assert.match(css, /--odk-primary:\s*#f3f7fc/)
   assert.match(css, /--odk-radius-card:\s*24px/)
+  assert.match(css, /#liquid-glass-backdrop\s*\{\s*position:\s*absolute;\s*inset:\s*0;/)
+  assert.doesNotMatch(css, /#status-bar::before/)
+  assert.match(css, /#home-desk :is\(\.widget\[data-interaction='display-only'\], :where\(#app-view\)\)\s*\{[^}]*background:\s*var\(--odk-glass-material\)/)
   assert.match(css, /prefers-reduced-transparency/)
   assert.match(css, /forced-colors/)
   assert.match(appearance, /requestAdapter/)
@@ -161,4 +164,15 @@ test('Liquid Glass uses local static surfaces when WebGPU is unavailable', async
   await controller.setActive(false)
   assert.equal(environment.backdrop.hidden, true)
   assert.ok(environment.targets().every(surface => !surface.classList.contains('lg-surface')))
+})
+
+test('Liquid Glass uses the static frame when the user requests more contrast', async () => {
+  let scenes=0
+  const environment=fakeAppearanceEnvironment({sdk:{createGlassScene(){scenes++;throw Error('SDK must remain inactive')}}})
+  environment.root.matchMedia=query=>({matches:query==='(prefers-contrast: more)',addEventListener(){},removeEventListener(){}})
+  const controller=createLiquidGlassAppearance(environment.root,environment.doc)
+  await controller.setActive(true)
+  assert.equal(scenes,0)
+  assert.equal(environment.doc.documentElement.dataset.liquidGlass,'fallback')
+  await controller.setActive(false)
 })

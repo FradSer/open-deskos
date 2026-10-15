@@ -3,7 +3,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.preorder', manifest: { schemaVersion: 1, version: '2.0.0', minCell: 186 },
-    kind: 'tile', app: 'Pre-order', state: 'Live', interaction: 'display-only',
+    kind: 'tile', app: 'Pre-order', state: 'Live', interaction: 'display-only', opensApp: 'preorder',
     mount(element, context) {
       // Static markup, artwork, and Shell styles are shared. Rendering is independent.
       element.innerHTML = `

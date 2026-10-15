@@ -68,6 +68,8 @@ window.addEventListener('resize', () => {
 function createPager(viewport, track, pageNames, onIndexChange) {
   let index = 0
   let startX = null
+  let startY = null
+  let dragSurface = null
   let dx = 0
   let suppressClick = false
   let activePointerId = null
@@ -81,13 +83,15 @@ function createPager(viewport, track, pageNames, onIndexChange) {
   }
 
   function setIndex(next, animate = true, reconcile = false) {
-    if (!reconcile && window.odkPersonalBotStatus?.visible() && next !== index) return
+    if (!reconcile && next !== index && (window.odkPersonalBotStatus?.visible() || !document.getElementById('app-view').hidden)) return
     cancelDrag()
     track.classList.toggle('instant', !animate)
     document.getElementById('dots').classList.toggle('instant', !animate)
+    const handleFocused = document.activeElement?.matches?.('#dots .dot')
     index = Math.max(0, Math.min(pageCount() - 1, next))
     track.style.transform = `translateX(${-index * pageWidth()}px)`
     renderDots()
+    if (handleFocused) document.querySelector('#dots .dot.active')?.focus({ preventScroll: true })
     onIndexChange(index)
   }
 
@@ -99,6 +103,11 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     for (const [i, dot] of [...document.querySelectorAll('#dots .dot')].entries()) {
       const active = i === index
       dot.classList.toggle('active', active)
+      dot.hidden = !active
+      dot.tabIndex = active ? 0 : -1
+      const returning = !document.getElementById('app-view').hidden
+      dot.setAttribute('aria-label', returning ? `Swipe up to return to ${pageNames[index] ?? 'the desk'}` : `${pageNames[i] ?? 'Page'}, page ${i + 1} of ${pageCount()}. Swipe left or right to change page.`)
+      dot.setAttribute('aria-keyshortcuts', returning ? 'ArrowUp Enter Space' : 'ArrowLeft ArrowRight Home End')
       if (active) dot.setAttribute('aria-current', 'page')
       else dot.removeAttribute('aria-current')
     }
@@ -117,24 +126,41 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     renderDots()
   }
 
-  viewport.addEventListener('pointerdown', (event) => {
-    if (event.target?.closest?.('summary') || window.odkPersonalBotStatus?.visible() || !event.isPrimary || track.children[index]?.dataset.surface === 'app') return
+  function startDrag(event, surface) {
+    if (event.target?.closest?.('summary') || window.odkPersonalBotStatus?.visible() || !document.getElementById('app-view').hidden || !event.isPrimary || event.button !== 0
+      || (surface === viewport && track.children[index]?.dataset.surface === 'app')) return
+    dragSurface = surface
     activePointerId = event.pointerId
     startX = event.clientX
+    startY = event.clientY
     dx = 0
-    track.classList.add('dragging')
-    try {
-      viewport.setPointerCapture(event.pointerId)
-    } catch {
-      /* synthetic pointers (tests) cannot be captured */
+    if (surface === handle) {
+      try { surface.setPointerCapture(event.pointerId) } catch { /* Synthetic pointers have no native capture. */ }
     }
-  })
+  }
 
-  viewport.addEventListener('pointermove', (event) => {
+  function moveDrag(event) {
     if (startX === null || !event.isPrimary || event.pointerId !== activePointerId) return
-    dx = event.clientX - startX
+    const distance = event.clientX - startX
+    if (!track.classList.contains('dragging') && (Math.abs(distance) <= DRAG_SUPPRESS_PX || Math.abs(distance) <= Math.abs(event.clientY - startY))) return
+    dx = distance
+    track.classList.add('dragging')
+    if (!dragSurface.hasPointerCapture(event.pointerId)) {
+      try { dragSurface.setPointerCapture(event.pointerId) } catch { /* Synthetic pointers have no native capture. */ }
+    }
     track.style.transform = `translateX(${dx - index * pageWidth()}px)`
-  })
+  }
+
+  const handle = document.getElementById('dots')
+  for (const surface of [viewport, handle]) {
+    surface.addEventListener('pointerdown', event => startDrag(event, surface))
+    surface.addEventListener('pointermove', moveDrag)
+    surface.addEventListener('pointerup', event => { if (event.pointerId === activePointerId) endDrag(false) })
+    surface.addEventListener('pointercancel', event => { if (event.pointerId === activePointerId) endDrag(true) })
+    surface.addEventListener('lostpointercapture', event => {
+      if (event.target === surface && event.pointerId === activePointerId) endDrag(true)
+    })
+  }
 
   function cancelDrag() {
     if (startX === null) return
@@ -143,27 +169,22 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     startX = null
     dx = 0
     activePointerId = null
-    if (viewport.hasPointerCapture(pointerId)) viewport.releasePointerCapture(pointerId)
+    const surface = dragSurface
+    dragSurface = null
+    startY = null
+    if (surface?.hasPointerCapture(pointerId)) surface.releasePointerCapture(pointerId)
   }
 
   function endDrag(wasCancelled) {
     if (startX === null) return
     suppressClick = !wasCancelled && Math.abs(dx) > DRAG_SUPPRESS_PX
-    const threshold = pageWidth() * SWIPE_THRESHOLD_RATIO
-    const target = dx < -threshold ? index + 1 : dx > threshold ? index - 1 : index
+    const threshold = dragSurface === handle ? 48 : pageWidth() * SWIPE_THRESHOLD_RATIO
+    const target = wasCancelled ? index : dx < -threshold ? index + 1 : dx > threshold ? index - 1 : index
     cancelDrag()
     setIndex(target)
   }
 
-  viewport.addEventListener('pointerup', (event) => {
-    if (event.pointerId === activePointerId) endDrag(false)
-  })
-  viewport.addEventListener('pointercancel', (event) => {
-    if (event.pointerId === activePointerId) endDrag(true)
-  })
-  viewport.addEventListener('lostpointercapture', (event) => {
-    if (event.pointerId === activePointerId) endDrag(true)
-  })
+  window.addEventListener('pointerup', event => { if (event.pointerId === activePointerId) endDrag(true) })
   window.addEventListener('blur', () => endDrag(true))
   window.addEventListener('odk-personal-bot-visibility', () => {
     if (!window.odkPersonalBotStatus?.visible()) return
@@ -174,8 +195,8 @@ function createPager(viewport, track, pageNames, onIndexChange) {
 
   window.addEventListener('pointerdown', () => { suppressClick = false }, true)
 
-  viewport.addEventListener('click', (event) => {
-    if (!suppressClick) return
+  for (const surface of [viewport, handle]) surface.addEventListener('click', event => {
+    if (!suppressClick || event.detail === 0) return
     suppressClick = false
     event.stopPropagation()
     event.preventDefault()
@@ -186,6 +207,7 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     buildDots,
     currentIndex: () => index,
     refresh,
+    updateHandle: renderDots,
   }
 }
 
@@ -226,9 +248,10 @@ async function main() {
   const appActionStatus = document.getElementById('app-action-status')
   let lastFocusedElement = null
   let activeFrame = null
+  let homeHandle = null
 
   function setBackgroundInert(inert) {
-    for (const element of [document.getElementById('status-bar'), document.getElementById('home-desk'), document.getElementById('user-app-desktop-notice')].filter(Boolean)) {
+    for (const element of [document.getElementById('pages-viewport'), document.getElementById('user-app-desktop-notice')].filter(Boolean)) {
       element.inert = inert
       if (inert) element.setAttribute('aria-hidden', 'true')
       else element.removeAttribute('aria-hidden')
@@ -239,6 +262,9 @@ async function main() {
     const preservesActiveApp = Boolean(appPlatform?.active())
     setBackgroundInert(true)
     if (appView.hidden) lastFocusedElement = document.activeElement
+    homeHandle?.cancel()
+    appView.dataset.returnGesture = String(preservesActiveApp && activeFrame?.source.widgetId?.startsWith('odk.tile.'))
+    document.getElementById('app-back').hidden = appView.dataset.returnGesture === 'true'
     appView.dataset.infoView = preservesActiveApp ? 'active-error' : 'standalone'
     appView.removeAttribute('data-source-widget')
     appView.removeAttribute('data-route')
@@ -273,15 +299,22 @@ async function main() {
   }
 
   function focusDialogBack() {
-    const back = document.getElementById('app-back')
-    back.focus()
+    pagerRef?.updateHandle()
+    const back = appView.dataset.returnGesture === 'true'
+      ? document.querySelector('#dots .dot.active')
+      : document.getElementById('app-back')
+    if (!back) return
+    back.focus({ preventScroll: true })
     if (document.activeElement !== back) {
       back.setAttribute('tabindex', '0')
-      back.focus()
+      back.focus({ preventScroll: true })
     }
   }
 
   function renderAppFrame({ plugin, source }) {
+    homeHandle?.cancel()
+    appView.dataset.returnGesture = String(Boolean(source.widgetId?.startsWith('odk.tile.')))
+    document.getElementById('app-back').hidden = appView.dataset.returnGesture === 'true'
     appTitle.textContent = plugin.app || plugin.name || plugin.id
     appView.dataset.sourceWidget = source.widgetId || ''
     appView.dataset.route = source.route || ''
@@ -294,6 +327,7 @@ async function main() {
   }
 
   function closeInfoView() {
+    homeHandle?.cancel()
     setBackgroundInert(false)
     const restoringActiveApp = appView.dataset.infoView === 'active-error' && appPlatform?.active() && activeFrame
     appView.hidden = true
@@ -312,15 +346,33 @@ async function main() {
     appView.removeAttribute('data-source-widget')
     appView.removeAttribute('data-route')
     setBackgroundInert(false)
-    if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus()
+    if (lastFocusedElement instanceof HTMLElement) {
+      const target = lastFocusedElement
+      target.focus({ preventScroll: true })
+      if (document.activeElement !== target) {
+        // Retry after the pane's inert state reaches the next task.
+        setTimeout(() => {
+          if (appView.hidden && target.isConnected &&
+            [document.body, document.getElementById('app-back')].includes(document.activeElement)) {
+            target.focus({ preventScroll: true })
+          }
+        }, 0)
+      }
+    }
     lastFocusedElement = null
+    appView.removeAttribute('data-return-gesture')
+    pagerRef?.updateHandle()
   }
 
   function openAppFrame({ plugin, source }) {
     activeFrame = { plugin, source }
-    if (appView.hidden) lastFocusedElement = document.activeElement
+    if (appView.hidden) {
+      const sourceTile = [...document.querySelectorAll('.widget')].find(tile => tile.dataset.widget === source.widgetId)
+      lastFocusedElement = sourceTile?.querySelector('.widget-launch') || document.activeElement
+    }
     appView.removeAttribute('data-info-view')
     renderAppFrame({ plugin, source })
+    setBackgroundInert(true)
     appView.hidden = false
     focusDialogBack()
   }
@@ -381,26 +433,6 @@ async function main() {
 
   function runtimeRoot() {
     return document.getElementById('app-runtime')
-  }
-
-  function dialogControls() {
-    return [...appView.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
-      .filter((control) => !control.hidden && control.getClientRects().length > 0)
-  }
-
-  function trapDialogFocus(event) {
-    if (appView.hidden || event.key !== 'Tab') return
-    const controls = dialogControls()
-    if (controls.length === 0) return
-    const first = controls[0]
-    const last = controls[controls.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
   }
 
   // System overlay alert manager
@@ -497,11 +529,22 @@ async function main() {
   })
   deskObserver.observe(document.getElementById('pages-viewport'))
 
-  document.getElementById('app-back').addEventListener('click', async () => {
+  async function returnFromApp() {
     if (appView.dataset.infoView) closeInfoView()
     else if (appPlatform.active()) await appPlatform.closeApp()
     else closeInfoView()
+  }
+  document.getElementById('app-back').addEventListener('click', () => {
+    if (appView.dataset.returnGesture !== 'true') returnFromApp().catch(error => console.error('App return failed:', error))
   })
+  homeHandle = window.odkHomeHandle.bind({
+    handle: document.getElementById('dots'), card: appView,
+    isOpen: () => !appView.hidden,
+    blocked: () => Boolean(window.odkPersonalBotStatus?.visible()),
+    returnHome: returnFromApp,
+    reportError: error => console.error('App return failed:', error),
+  })
+  window.addEventListener('pagehide', () => homeHandle.destroy(), { once: true })
   const pageNames = effectiveLayout.pages.filter(page => !page.persistent).map((page) => page.name)
   const viewport = document.getElementById('pages-viewport')
   const track = document.getElementById('pages-track')
@@ -801,7 +844,7 @@ async function main() {
     if (input === 'back') {
       if (window.odkPersonalBotStatus?.close()) return
       if (!appView.hidden) {
-        document.getElementById('app-back').click()
+        returnFromApp().catch(error => console.error('App return failed:', error))
         return
       }
       // A page that owns its input can hold its own surface open in either
@@ -867,15 +910,12 @@ async function main() {
       event.preventDefault()
       return
     }
-    if (!appView.hidden) {
+    if (!appView.hidden && (appView.contains(document.activeElement) || document.activeElement?.matches?.('#dots .dot'))) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        if (appView.dataset.infoView) closeInfoView()
-        else if (appPlatform.active()) appPlatform.closeApp()
-        else closeInfoView()
+        if (appView.dataset.returnGesture !== 'true') returnFromApp().catch(error => console.error('App return failed:', error))
         return
       }
-      trapDialogFocus(event)
       return
     }
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return

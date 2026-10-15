@@ -41,6 +41,7 @@
 
     function hasReducedTransparency() {
       return root.matchMedia?.('(prefers-reduced-transparency: reduce)').matches
+        || root.matchMedia?.('(prefers-contrast: more)').matches
         || root.matchMedia?.('(forced-colors: active)').matches
     }
 
@@ -291,7 +292,7 @@
       })
     }
 
-    for (const query of ['(prefers-reduced-transparency: reduce)', '(forced-colors: active)']) {
+    for (const query of ['(prefers-reduced-transparency: reduce)', '(prefers-contrast: more)', '(forced-colors: active)']) {
       const media = root.matchMedia?.(query)
       addListener(media, 'change', refreshForPreference, undefined, true)
     }

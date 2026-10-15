@@ -101,7 +101,7 @@ app.whenReady().then(async () => {
         const key = `${size.join('x')}/${theme}/${index}`
         if (phase === 'default') baseline.set(key, snapshot)
         else { assert.deepEqual(snapshot, baseline.get(key), `${phase} Pi Widget behavior changed: ${key}`); comparisons++ }
-        assert.equal(await js("piTileElement.querySelectorAll('button,a,input,script').length"), 0)
+        assert.equal(await js("piTileElement.querySelectorAll('button:not(.widget-launch),a,input,script').length"), 0)
       }
     }
     assert.equal(await js("document===piTileDocument&&piTileElement===document.querySelector('[data-widget=\"odk.tile.pi-sessions\"]')&&piTilePeer===document.querySelector('[data-widget=\"odk.tile.year\"]')"), true)

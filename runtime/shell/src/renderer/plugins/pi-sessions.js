@@ -209,6 +209,7 @@
     app: 'Pi Sessions',
     state: 'Live',
     interaction: 'display-only',
+    opensApp: 'pi-sessions',
     mount(el, ctx) {
       // Before the first scan answers, the tile knows nothing: it states that, and
       // claims no workspace, session or state it has not read.
@@ -1399,8 +1400,8 @@
     capabilities: [],
     lifecycle: lifecycleFor(mountPiSessions),
   })
-  // The page is the direct interactive surface; the Home tile remains a
-  // display-only summary and never opens an App.
+  // The page is a direct interactive surface. The Home summary opens the
+  // same App through the Shell-owned Widget button.
   root.odkPlugins.register({
     id: 'odk.page.pi-sessions',
     manifest: { schemaVersion: 1 },

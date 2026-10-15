@@ -138,10 +138,10 @@ Feature: Open DeskOS 跨平台 Display Shell
 
   Scenario: Display widgets and App pages remain separate surfaces
     Given the Home grid displays registered widgets
-    Then every Home widget renders as a non-interactive instrument without an App action affordance
+    Then every Home widget displays a reading with a native App continuation button
     And the Pi Sessions page is a full interactive App surface on page three
     And the OpenCode Go Usage page is a full interactive App surface on page four
-    And App controls never appear inside the Home widget grid
+    And App task controls stay inside App surfaces
 
   Scenario: Pi Sessions App page exposes every local process
     Given the local Pi session scanner reports running, settled, and exited processes
@@ -206,8 +206,10 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the user opens that App
     Then the UI emits an open-app intent through preload
     And the main-process built-in view endpoint and renderer runtime handle the intent
-    And the modal makes its background inert and exposes a tabbable Back action
-    And Back or Escape returns to the source page and route
+    And the App makes its covered pages inert and exposes a tabbable return control
+    And the resident Agent and State Bar remain usable
+    And the bottom handle returns Widget Apps to their source page and route
+    And other App entry points retain Back and Escape
 
   Scenario: Shell keeps the renderer sandboxed
     Given the shell is loaded
@@ -315,7 +317,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     When release preflight validates the composition contract
     Then every plugin has a unique supported identity, kind, and lifecycle
     And every layout entry references a compatible plugin surface
-    And display grid tiles cannot reference an App continuation
+    And display grid tiles use Shell-owned continuation buttons to open Apps
     And no System App or bottom Peek surface is registered
     And interactive App pages remain repository-controlled
     But no third-party plugin or theme code is loaded
@@ -427,3 +429,8 @@ Feature: Open DeskOS 跨平台 Display Shell
     And restored services read current input state after changes during replacement
     And failed listener release retains ownership for a later retry
     And synchronous selection during restoration releases the newly acquired listeners
+
+  Scenario: Escape remains available for other App entry points
+    Given a non-Widget entry has opened an App
+    When the user focuses the bottom handle and presses Escape
+    Then the App closes and restores its source focus

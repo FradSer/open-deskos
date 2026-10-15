@@ -224,7 +224,11 @@ app.whenReady().then(async () => {
       assert.equal(await js("document.activeElement===document.querySelector('#app-back')"), true)
       if (id === 'app-manager') await wait("document.querySelector('#app-runtime .app-list li')")
       await key('Tab', ['shift'])
-      assert.equal(await js(`document.activeElement===document.querySelector(${JSON.stringify(id === 'app-manager' ? '#app-search' : '#app-back')})`), true)
+      assert.equal(await js("document.activeElement===document.querySelector('#dots .dot.active')"), true)
+      await key('Tab', ['shift'])
+      assert.equal(await js(`document.querySelector('#personal-agent').contains(document.activeElement)`), true)
+      await key('Tab')
+      assert.equal(await js("document.activeElement===document.querySelector('#dots .dot.active')"), true)
       await key('Tab')
       assert.equal(await js("document.activeElement===document.querySelector('#app-back')"), true)
       await focus('#app-back', phase, id)
@@ -245,7 +249,10 @@ app.whenReady().then(async () => {
         await key('Backspace', [], ' CLOCK '.length)
         await wait("document.querySelector('#app-search').value===''&&document.querySelectorAll('#app-runtime .app-list li').length>1")
         await key('Tab')
-        assert.equal(await js("document.activeElement===document.querySelector('#app-back')"), true)
+        assert.equal(await js("!document.querySelector('#app-view').contains(document.activeElement)"), true)
+        // A native document boundary can receive one Tab before the first control.
+        if (await js('document.activeElement===document.body')) await key('Tab')
+        assert.equal(await js("document.querySelector('#status-bar').contains(document.activeElement)"), true)
         keyboardSearches++
         for (const query of [' CLOCK ', 'missing', '']) {
           await js(`(()=>{const input=document.querySelector('#app-search');input.value=${JSON.stringify(query)};input.dispatchEvent(new Event('input'))})()`)
@@ -256,7 +263,9 @@ app.whenReady().then(async () => {
         await wait("!document.querySelector('.app-manager-retry').hidden")
         states.push(await snapshot())
         catalogFailure = false; catalogEmpty = true
-        await key('Tab', ['shift'])
+        await js("document.querySelector('#app-back').focus()")
+        await key('Tab')
+        await key('Tab')
         assert.equal(await js("document.activeElement===document.querySelector('.app-manager-retry')"), true)
         await focus('.app-manager-retry', phase, id)
         await key('Enter')
@@ -278,6 +287,7 @@ app.whenReady().then(async () => {
       assert.equal(await js('document.activeElement===viewFocusOrigin'), true)
       assert.equal(await js(`odkAppPlatform.openApp({appId:${JSON.stringify(id)}})`), true)
       if (id === 'app-manager') await wait("document.querySelector('#app-runtime .app-list li')")
+      if (id === 'clock') await js("document.querySelector('#dots .dot.active').focus()")
       await key('Escape')
       await wait("!odkAppPlatform.active()&&document.querySelector('#app-view').hidden")
       assert.equal(await js('document.activeElement===viewFocusOrigin'), true)

@@ -145,3 +145,26 @@
 .futu-holdings.is-stale .futu-pill {
   color: var(--odk-secondary-strong);
 }
+
+/* A continuation keeps all rows; the Widget retains its three-row summary. */
+.futu-app { padding: var(--odk-app-inset); flex: 1; min-height: 0; gap: var(--odk-space-3); container-type: inline-size; }
+.futu-app .futu-ratio { font-size: clamp(28px, 9cqi, 72px) !important; flex: none; }
+.futu-app .futu-holdings { flex: 1; min-height: 0; gap: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.futu-app .futu-columns, .futu-app .futu-holding { grid-template-columns: minmax(0, 1fr) 6em 6em; }
+.futu-app .futu-columns { display: grid; gap: 8px; flex: none; overflow-y: auto; scrollbar-gutter: stable; font-size: clamp(14px, 3cqi, 20px); color: var(--odk-secondary-strong); }
+.futu-app .futu-columns > :not(:first-child) { text-align: end; }
+.futu-app .futu-holding { display: grid; gap: 8px; padding-block: 12px; border-bottom: 0; min-height: 56px; flex: none; color: var(--odk-primary); font-size: clamp(14px, 3cqi, 20px); white-space: normal; }
+.futu-app .futu-sym { overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
+.futu-app .futu-note { flex: none; font-size: 14px; white-space: normal; }
+.futu-app .futu-holdings:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.futu-app .reading-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--odk-space-3); align-items: center; }
+.futu-app .reading-head h2 { margin: 0; font-family: inherit; font-size: 14px; font-weight: 400; line-height: 1.5; color: var(--odk-secondary-strong); }
+.futu-app .futu-note:empty { display: none; }
+@container (max-width: 400px) {
+  .futu-app .futu-columns { grid-template-columns: 1fr auto; }
+  .futu-app .futu-columns > :nth-child(2) { display: none; }
+  .futu-app .futu-holding { grid-template-columns: minmax(0, 1fr) auto; }
+  .futu-app .futu-price { grid-column: 1; grid-row: 2; text-align: start; }
+  .futu-app .futu-pill { grid-column: 2; grid-row: 1 / 3; }
+  .futu-app .futu-holdings.is-compact .futu-price { display: block; }
+}
