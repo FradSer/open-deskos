@@ -4,6 +4,7 @@ import { closeSync, mkdtempSync, openSync, writeFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, normalize, posix } from 'node:path'
+import { sshEnvironment } from './ssh-environment.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cleanPath = value => typeof value === 'string' && isAbsolute(value) && !/[\x00-\x1f\x7f]/.test(value)
@@ -94,7 +95,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     : message)
   const input = `${JSON.stringify(payload)}\n`
   if (Buffer.byteLength(input) > 65_536) throw Error('Task request too large')
-  const response = await exchange(command, input, signal, timeout, failure)
+  const response = await exchange(command, input, signal, timeout, failure, target.host !== undefined)
   if (!response || response.version !== 1 || response.requestId !== payload.requestId || typeof response.ok !== 'boolean') throw failure('Invalid task response correlation')
   if (!response.ok) {
     // Only the daemon's own fixed refusals are reflected. A reason an operator can act on is
@@ -116,7 +117,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
  * would report a request that is already answered as a timeout. One file handoff
  * and one answered frame work the same on every host.
  */
-function exchange(command, input, signal, timeout, failure) {
+function exchange(command, input, signal, timeout, failure, remote) {
   return new Promise((resolve, reject) => {
     let settled = false
     let output = ''
@@ -126,7 +127,8 @@ function exchange(command, input, signal, timeout, failure) {
     const stdin = openSync(file, 'r')
     // The request is a file on the child's standard input, so there is no pipe to
     // write, drain, or fail; the abort signal is what still tears the process down.
-    const child = spawn(command.executable, command.args, { stdio: [stdin, 'pipe', 'pipe'], signal })
+    const child = spawn(command.executable, command.args, { stdio: [stdin, 'pipe', 'pipe'], signal,
+      ...(remote ? { env: sshEnvironment() } : {}) })
     closeSync(stdin)
     const discard = () => { void rm(directory, { recursive: true, force: true }).catch(() => {}) }
     const finish = (error, value = undefined) => {

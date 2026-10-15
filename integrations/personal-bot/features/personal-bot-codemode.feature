@@ -1,4 +1,4 @@
-Feature: Pi v1.0 codemode is the voice orchestration entry point
+Feature: Pi v1.2 codemode is the voice orchestration entry point
   Scenario: One model tool orchestrates a fixed reviewed surface
     Given a coding coordinator with readonly inspection and reviewed system capabilities
     When a Spoken Turn invokes codemode
@@ -15,7 +15,7 @@ Feature: Pi v1.0 codemode is the voice orchestration entry point
     And session startup does not persist a cache-warming override to operator settings
 
   Scenario: Unknown tool probes use membership without aborting a useful script
-    Given Pi v1.0 guards unknown tool members with actionable errors
+    Given Pi v1.2 guards unknown tool members with actionable errors
     When the coordinator checks an optional or excluded tool before calling it
     Then it uses membership or tool discovery rather than typeof property access
     And unavailable tools remain absent from the callable registry

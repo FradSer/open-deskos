@@ -159,7 +159,7 @@ export async function createHostedSession(input, { createSession = createAgentSe
     noSkills: true,
     noPromptTemplates: true,
     extensionFactories: [createCodemodeExtension({ mode: 'on', models: false }), checkHistoryExtension()],
-    appendSystemPrompt: ['Use codemode to batch independent inspection with awaited Promise.allSettled; keep dependent operations and mutations sequential. Full coding tools remain available. Pi v1.0 guards unknown tool members; use "name" in tools or discovery, not typeof tools.name, for optional tools. A typo suggestion does not authorize replay of earlier mutations. Prefer coding_check for test/typecheck/lint/build commands so host-observed process outcomes and source samples accompany them. A failed script does not undo side effects or authorize retry. Matching source samples and exit zero are not independent verification.'],
+    appendSystemPrompt: ['Use codemode to batch independent inspection with awaited Promise.allSettled; keep dependent operations and mutations sequential. Full coding tools remain available. Pi v1.2 guards unknown tool members; use "name" in tools or discovery, not typeof tools.name, for optional tools. A typo suggestion does not authorize replay of earlier mutations. Prefer coding_check for test/typecheck/lint/build commands so host-observed process outcomes and source samples accompany them. A failed script does not undo side effects or authorize retry. Matching source samples and exit zero are not independent verification.'],
   })
   await resourceLoader.reload()
   const modelRuntime = await createRuntime({ signal: AbortSignal.timeout(15000) })

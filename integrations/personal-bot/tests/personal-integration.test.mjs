@@ -56,11 +56,13 @@ test('transaction-aware failure text does not invite another order', async () =>
 
 test('adapter grants only the accepted transcript and clears on completion, rejection and failure', async () => {
   const turns = []
-  let resolve
+  let resolve, entered
+  const started = new Promise(r => { entered = r })
   const session = { isStreaming: false, subscribe: () => () => {},
-    prompt: () => new Promise(r => { resolve = r }), dispose() {}, abort() {} }
+    prompt: () => new Promise(r => { resolve = r; entered() }), dispose() {}, abort() {} }
   const adapter = sessionAdapter(session, { beginTurn: text => turns.push(text) })
   const pending = adapter.prompt('确认叫车')
+  await started
   await assert.rejects(adapter.prompt('other'), /progress/)
   assert.deepEqual(turns, ['确认叫车'])
   resolve()

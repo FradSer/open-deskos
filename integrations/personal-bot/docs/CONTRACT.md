@@ -193,7 +193,7 @@ Diagnosis does not extend task service availability or alter ordinary task respo
 
 ## Profiles and memory
 
-Both resident profiles use mandatory Jev routing and Pi 1.0.0 Code Mode.
+Both resident profiles use mandatory Jev routing and Pi Durable 1.2.0 Code Mode.
 Neither profile has TTS.
 The coding coordinator has `read`, `grep`, `find`, and `ls` plus reviewed system capabilities.
 It has no generic `write`, `edit`, `bash`, or `powershell`, including after resume.
@@ -304,9 +304,10 @@ The `extension` handler receives registered names and bounded descriptions.
 It cannot substitute core mutations; other workflows cannot invoke extension tools.
 Hosted Pi retains its separate full coding capability.
 
-Register each reviewed capability once as an initially inactive direct SDK tool.
+Register each reviewed capability once as an initially inactive Durable tool.
 Activate the current intent's execution allowlist.
-Code Mode `only` hides separate schemas and exposes `codemode` to the model.
+The provider transport advertises only `codemode`.
+The persisted execution configuration retains active reviewed names for historical direct calls.
 Exact historical direct calls use the same parameter validation and executor as nested calls.
 Inactive tools cannot be discovered or executed.
 Completion, failure, and cancellation deactivate the selected entries.
@@ -320,6 +321,7 @@ Reviewed `readOnlyHint: true` queries remain repeatable.
 Absent hints conservatively mark mutations.
 A new explicit turn resets reservations but preserves tool-specific authorization and unknown-outcome gates.
 A failed script does not undo completed effects.
+
 Unknown tools and invalid arguments are call errors, not proof of service unavailability.
 Historical readings do not establish current conditions.
 Raw metrics cannot establish assessments without applicable thresholds or source assessments.
@@ -336,6 +338,51 @@ Failed, malformed, or oversized inference never falls back to regexes or Pi rout
 Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
+
+## Durable runtime
+
+[durable-agent-session.mjs](../src/durable-agent-session.mjs) implements the resident session port through the Pi Durable Harness.
+Each profile owns private JSONL state in `<stateDir>/durable/<profile>`.
+[durable-storage.mjs](../src/durable-storage.mjs) rejects linked files and holds one writer lease until Harness shutdown.
+A stopped process's lease expires after 120 seconds.
+All hosts must retain this lease policy.
+
+[durable-legacy-context.mjs](../src/durable-legacy-context.mjs) imports legacy context only into an empty Durable conversation.
+It uses the Coding Agent projection, including retained compaction summaries.
+It excludes old system messages and normalizes incomplete history through Pi AI.
+Import and its checkpoint commit together.
+Existing Durable history takes precedence. Later starts do not repeat the import.
+Legacy session files remain unchanged.
+Imported messages create no submissions, tasks, tools, or authorization.
+
+The coordinator recovers pending Durable work before routing the next owner request.
+Tool admission matches the persisted submission identity against a new host-only request nonce.
+Recovered work cannot use a later request's intent, confirmation, or mutation reservations.
+Reviewed capabilities retain their argument validation and exact-turn guards.
+They use sequential execution and unsafe replay declarations, including capabilities with read-only catalog hints.
+An uncertain mutation result does not authorize automatic repetition.
+
+The coding profile uses LocalExecutionEnv for Durable file reads and Pi daemon file inventory.
+File searches include hidden paths and exclude `.git` and `node_modules` directories.
+Truncated inventories report an incomplete search.
+The remaining inspection adapters retain the Coding Agent implementations.
+RemoteExecutionEnv construction exists as a tested primitive; resident inspection has no remote execution selector.
+Configured remote Pi control continues through the existing authenticated task endpoints.
+`createPiSshConnection` connects to an explicitly provisioned daemon through Pi's strict host-key arguments.
+It starts SSH with connection-related environment values only.
+Provider environment values cannot reach SSH through a configured `SendEnv` pattern.
+The operator supplies the daemon command and its target-shell quoting.
+This factory accepts no host keys and deploys no daemon.
+The caller closes its returned connection.
+Read the [SSH acceptance procedure](PERSONAL_AGENT_RESEARCH.md#ssh-acceptance) to verify this transport independently of a device.
+Direct SSH task-control targets use the same environment allowlist.
+Local control helpers retain their application environment for existing endpoint configuration.
+
+The public session port emits assistant text from committed entries and partial generation views.
+Tool results and thinking do not become spoken replies.
+Closing a session releases its views, Harness, storage lease, sandbox, and owned environment connection.
+Normal isolated generation awaits Harness disposal.
+Timeout and cancellation retain their response deadline while cleanup failures remain observed.
 
 <a id="hosted-pi"></a>
 
@@ -523,8 +570,9 @@ Concurrent owner edits cause suppression writes to refuse overwrite.
 
 Use [proactive-goals.example.json](proactive-goals.example.json) for version 2.
 Owners select goals and bounded observation fields.
-An isolated configured-model session generates zero or more candidates.
-It has no tools, skills, extensions, memory, or durable history.
+An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
+It has no tools, Skills, project context, owner memory, execution environment, or persisted transcript.
+It loads no operator or project extensions.
 `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
 The deadline covers the entire generation lifecycle, including at most one format correction.
 Provider errors are not retried.

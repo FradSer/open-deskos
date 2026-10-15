@@ -132,17 +132,22 @@ Slow consumers are disconnected.
 
 Temporary audio lives only in private `capture-*` directories beside the socket.
 It is removed on success/failure/shutdown; a replacement socket owner also removes captures left by an interrupted process.
-Pi transcripts, tool calls and results persist independently under `$XDG_STATE_HOME/odk-personal-bot/sessions` (default `~/.local/state`).
+Resident transcripts, tool calls, and results persist under `$XDG_STATE_HOME/odk-personal-bot/durable/<profile>` (default state root: `~/.local/state`).
+Legacy Coding Agent files remain in their original `sessions` directories.
 These contain user speech and coding context: protect and retain/delete them according to local privacy policy.
 
 ## Pi runtime
 
-Pi SDK is pinned to `@earendil-works/pi-coding-agent` 1.0.0.
-Both resident profiles use the SDK's codemode extension.
+Both resident profiles use Pi Durable 1.2.0 with its Code Mode extension.
+Proposals, home briefings, and proposal phrasing use isolated in-memory Durable conversations.
+Hosted Pi workers retain Coding Agent 1.2.0 and their existing task-control contract.
+The [runtime contract](docs/CONTRACT.md#durable-runtime) owns storage, legacy context, recovery authority, and provider tool visibility.
+The [design research](docs/PERSONAL_AGENT_RESEARCH.md) records 24 surveyed repositories, Pi integration choices, and remaining host acceptance.
+Read its [SSH acceptance procedure](docs/PERSONAL_AGENT_RESEARCH.md#ssh-acceptance) to test the isolated real SSH transport.
 Project settings are untrusted; only the operator agent directory supplies session configuration.
 Generic write/edit/bash/powershell definitions are denied even on resume. [Managed sessions](docs/CONTRACT.md) owns discovery, batching, partial-effect recovery, loader settings and check-history details; [intent routing](docs/CONTRACT.md) owns active/direct tool behavior.
 
-Pi cache warming reads global settings; this integration does not rewrite them.
+Coding Agent worker cache warming reads global settings; this integration does not rewrite them.
 An operator who wants no idle provider refresh sets `"cacheWarming": "off"`; session overrides cannot disable it.
 
 ## Transcription language and context

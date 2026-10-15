@@ -44,3 +44,20 @@ test('persistent malformed JSON stops after one correction and disposes', async 
  await assert.rejects(generateWithinDeadline({create:async()=>({dispose:()=>{disposed++},abort:async()=>{}}),prompt:async()=>{calls++;return 'invalid JSON'}},{}))
  assert.equal(calls,2);assert.equal(disposed,1)
 })
+
+test('a successful generation waits for asynchronous Harness disposal', async () => {
+ let release, entered
+ const disposal = new Promise(resolve => {release=resolve})
+ const started = new Promise(resolve => {entered=resolve})
+ let settled=false
+ const work=generateWithinDeadline({create:async()=>({dispose:async()=>{entered();await disposal},abort:async()=>{}}),prompt:async()=>'{"suggestions":[]}'},{})
+ work.then(()=>{settled=true})
+ await started
+ await new Promise(resolve=>setImmediate(resolve))
+ assert.equal(settled,false)
+ release();assert.deepEqual(await work,{suggestions:[]})
+})
+
+test('asynchronous Harness disposal failure rejects a successful generation', async () => {
+ await assert.rejects(generateWithinDeadline({create:async()=>({dispose:async()=>{throw Error('fixture cleanup failure')},abort:async()=>{}}),prompt:async()=>'{"suggestions":[]}'},{}),/cleanup failure/)
+})
