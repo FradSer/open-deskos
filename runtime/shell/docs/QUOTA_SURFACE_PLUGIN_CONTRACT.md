@@ -60,8 +60,8 @@ Static provider artwork, Shell styles, fonts, and the public subscription servic
 This evidence does not establish independent provider access or arbitrary stylesheet replacement.
 
 The entry replaces `odk.page.quota` only.
-`odk.app.quota` and `odk.tile.quota` mount through the same shared function and the same contract, but no independent entry replaces either identity yet, so replacement of the App or the Widget is unproven.
-That gap is recorded rather than implied by the shared function.
+The App and page share the content mount; the Widget has its own mount.
+No independent entry replaces `odk.app.quota` or `odk.tile.quota`, so their independent replacement remains unproven.
 
 [Scenarios](../tests/features/quota-surface-replacement.feature) define the shared behavior.
 [Browser checks](../tests/quota-surface-electron.test.js) exercise actual preload, private Main IPC, development links, signed loading, and the public Renderer controller.
