@@ -50,6 +50,14 @@ if ! $SUDO fc-cache -f >/dev/null 2>&1; then
   echo "warning: fc-cache failed; restart the session before expecting the CJK face" >&2
 fi
 
+echo "== provisioning the Personal Bot browser infrastructure =="
+# Browser binaries are host tools. Never put them in an immutable release.
+# A missing browser degrades one capability without blocking the Shell.
+if ! $SUDO "${DIR}/scripts/cm5-agent-browser.sh" install; then
+  echo "warning: agent-browser was not provisioned; the Personal Bot browser capability stays unavailable" >&2
+  echo "  remedy: run 'sudo ${DIR}/scripts/cm5-agent-browser.sh install' and read its diagnostics" >&2
+fi
+
 resolve_target_user() {
   if [ "$(id -u)" -ne 0 ]; then
     id -un
