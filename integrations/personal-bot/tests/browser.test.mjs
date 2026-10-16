@@ -121,6 +121,9 @@ test('Given a refused page When later actions run Then its session is retired ev
       const tools = createBrowserTools(browser)
       const refused = await tools.find(tool => tool.name === readName).execute('read', readName === 'browser_open' ? { url: 'https://example.com/' } : {})
       assert.equal(refused.isError, true)
+      assert.match(refused.structuredContent.error, /本机|内网/, 'cleanup cannot replace the policy refusal')
+      assert.equal(refused.structuredContent.outcomeUnknown, !cleanupSucceeds)
+      if (!cleanupSucceeds) assert.match(refused.structuredContent.error, /关闭未获确认/)
       assert.equal(calls[1]?.args[0], 'close', 'refusal joins cleanup before returning')
       const refusedSession = calls[0].sessionName
       assert.equal(calls[1].sessionName, refusedSession)
