@@ -9,14 +9,17 @@ const CHECK_ENTRY = 'odk-coding-check'
 function checkHistoryExtension() {
   return pi => {
     // Pi persists nested-call arguments/status, never their results. Preserve
-    // only host-produced check metadata even if a script omits it or fails.
+    // host-produced check metadata and bounded output even if a script omits it or fails.
     pi.on('tool_result', event => {
       if (event.toolName !== 'coding_check' || !event.parentToolCallId) return
       const evidence = event.details && typeof event.details === 'object' && 'codingCheck' in event.details
         ? event.details.codingCheck : undefined
       if (!evidence || Buffer.byteLength(JSON.stringify(evidence)) > 8 * 1024) return
+      const structured = event.structuredContent && typeof event.structuredContent === 'object' && !Array.isArray(event.structuredContent) ? event.structuredContent : {}
+      const raw = 'output' in structured && typeof structured.output === 'string' ? structured.output : undefined
+      const output = raw === undefined ? '' : boundedText(raw, 8192)
       pi.appendEntry(CHECK_ENTRY, { toolCallId: event.toolCallId, parentToolCallId: event.parentToolCallId,
-        isError: event.isError, codingCheck: evidence })
+        isError: event.isError, codingCheck: evidence, output, outputTruncated: raw === undefined || output !== raw || ('truncated' in structured && structured.truncated === true) })
     })
   }
 }
@@ -56,14 +59,15 @@ export function sessionEventsFromEntry(entry) {
   if (entry?.type === 'custom' && entry.customType === CHECK_ENTRY && entry.data?.codingCheck) {
     const serialized = JSON.stringify({ codingCheck: entry.data.codingCheck })
     if (Buffer.byteLength(serialized) > 8 * 1024) return []
-    const event = boundedEvent('result', serialized, { toolName: 'coding_check',
+    const event = boundedEvent('result', [serialized, entry.data.output].filter(Boolean).join('\n\n'), { toolName: 'coding_check',
       toolCallId: boundedText(String(entry.data.toolCallId), 256),
-      parentToolCallId: boundedText(String(entry.data.parentToolCallId), 256), isError: entry.data.isError === true })
+      parentToolCallId: boundedText(String(entry.data.parentToolCallId), 256), isError: entry.data.isError === true, codingCheck: entry.data.codingCheck,
+      ...(entry.data.outputTruncated === true || typeof entry.data.output !== 'string' ? { truncated: true } : {}) })
     return event ? [event] : []
   }
   if (!entry || entry.type !== 'message' || !entry.message || typeof entry.message !== 'object') return []
   const message = entry.message
-  const content = Array.isArray(message.content) ? message.content : []
+  const content = Array.isArray(message.content) ? message.content : typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : []
   if (message.role === 'toolResult') {
     const output = content.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n')
     const toolName = typeof message.toolName === 'string' && message.toolName.trim() ? boundedText(message.toolName.trim(), 256) : undefined
@@ -75,9 +79,14 @@ export function sessionEventsFromEntry(entry) {
       if (Buffer.byteLength(serialized) <= 8 * 1024) header = serialized
     }
     const toolCallId = typeof message.toolCallId === 'string' ? boundedText(message.toolCallId, 256) : undefined
+    const nestedCalls = message.nestedCalls ? { complete: message.nestedCalls.complete === true,
+      calls: message.nestedCalls.calls?.map(({ id, name, status }) => ({ id, name, status })) } : undefined
     const event = boundedEvent('result', [header, output].filter(Boolean).join('\n\n'), {
       ...(toolName ? { toolName } : {}), ...(toolCallId ? { toolCallId } : {}),
       ...(typeof message.isError === 'boolean' ? { isError: message.isError } : {}),
+      ...(header ? { codingCheck: message.details.codingCheck } : {}),
+      ...(header && message.structuredContent?.truncated === true ? { truncated: true } : {}),
+      ...(nestedCalls ? { nestedCalls } : {}),
     })
     return event ? [event] : []
   }
@@ -94,7 +103,7 @@ export function sessionEventsFromEntry(entry) {
       const event = boundedEvent('thinking', part.thinking)
       if (event) events.push(event)
     } else if (part?.type === 'toolCall') {
-      const event = boundedEvent('tool', formatToolCall(part.name, part.arguments))
+      const event = boundedEvent('tool', formatToolCall(part.name, part.arguments), { toolName: boundedText(String(part.name), 256), toolCallId: boundedText(String(part.id), 256) })
       if (event) events.push(event)
     }
   }
