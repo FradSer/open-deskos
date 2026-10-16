@@ -255,7 +255,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
 }
 
 /** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
- * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void}} hooks */
+ * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
@@ -269,21 +269,24 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
       let unsubscribe
       const response = responseSnapshots(onResponseSnapshot)
       try {
-        await session.recover?.(controller.signal)
-        controller.signal.throwIfAborted()
         const prepared = await hooks.prepareTurn?.(text, controller.signal)
         controller.signal.throwIfAborted()
-        await hooks.beginTurn(text)
         const answer = prepared?.answer ?? await hooks.answer?.(text)
         controller.signal.throwIfAborted()
         if (answer !== undefined) { hooks.completeTurn?.(text, answer); onResponseSnapshot?.(answer); return answer }
+        await session.recover?.(controller.signal)
+        controller.signal.throwIfAborted()
+        await hooks.beginTurn(text)
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()
         await session.prompt(`${prepared?.context ?? ''}${context}Personal Bot request:\n${text}`, { expandPromptTemplates: false })
         controller.signal.throwIfAborted()
-        const result = response.result()
+        const draft = response.result()
+        const result = hooks.afterTurn ? await hooks.afterTurn(text, draft, controller.signal) : draft
+        controller.signal.throwIfAborted()
         hooks.completeTurn?.(text, result)
+        if (result !== draft) onResponseSnapshot?.(result)
         return result
       } finally {
         active = false
