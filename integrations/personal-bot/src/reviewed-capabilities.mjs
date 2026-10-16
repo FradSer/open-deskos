@@ -85,13 +85,11 @@ export async function createReviewedCapabilities({ declarations = {}, stateDir, 
   const checked = normalizeCapabilityDeclarations({ profile: 'personal', capabilities: declarations });
   if (!localPath(stateDir)) throw invalid();
   const active = [];
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
+  let closing;
+  const close = () => closing ??= (async () => {
     const results = await Promise.allSettled(active.map(({ runtime }) => runtime.close()));
     if (results.some(result => result.status === 'rejected')) throw new Error('Reviewed capability cleanup failed.');
-  };
+  })();
   try {
     for (const [id, declaration] of Object.entries(checked)) {
       signal?.throwIfAborted();

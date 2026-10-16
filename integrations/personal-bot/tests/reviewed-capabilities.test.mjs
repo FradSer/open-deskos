@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { normalizeCapabilityDeclarations, childCapabilityDeclarations, capabilityIntentDefinitions, capabilityIntentAllows, isReviewedCapabilityTool, createReviewedCapabilities } from '../src/reviewed-capabilities.mjs';
 
 const didi = { environment: 'sandbox', keyFile: '/private/didi.key' };
@@ -68,4 +70,17 @@ test('Given declared browser When composed Then its codemode tools and bundled S
   assert.equal(capabilities.rideStatus(), undefined);
   await capabilities.close();
   await capabilities.close();
+});
+
+test('Given unconfirmed cleanup When close repeats Then every caller retains the failure', async () => {
+  // Node rejects browser CLI arguments, so neither opening nor cleanup can produce a successful browser receipt.
+  const capabilities = await createReviewedCapabilities({
+    declarations: { browser: { executablePath: process.execPath } }, stateDir: join(tmpdir(), 'odk-reviewed-cleanup'),
+  });
+  const opened = await capabilities.tools.find(tool => tool.name === 'browser_open').execute('fixture', { url: 'https://example.com/' });
+  assert.equal(opened.isError, true);
+  const first = capabilities.close();
+  const concurrent = capabilities.close();
+  await Promise.all([assert.rejects(first, /Reviewed capability cleanup failed/), assert.rejects(concurrent, /Reviewed capability cleanup failed/)]);
+  await assert.rejects(capabilities.close(), /Reviewed capability cleanup failed/);
 });
