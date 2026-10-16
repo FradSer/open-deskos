@@ -112,3 +112,78 @@ test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
   assert.doesNotMatch(migrator, /experimental:\s*true/)
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8'), /ODK_KIOSK_UID="\$\{TARGET_UID\}"/)
 })
+
+test('stalled verifier fails, rolls back, and releases its lock without leaving its child running', {
+  skip: require('./not-ported').posixOnlyReason('cm5-tooling'),
+}, async () => {
+  const os = require('node:os')
+  const vm = require('node:vm')
+  const { spawnSync } = require('node:child_process')
+  const { activateRelease, readRuntimeState } = require('../scripts/lib/runtime-release')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-bounded-verify-'))
+  const context = vm.createContext({ fs, path, process, spawnSync })
+  vm.runInContext(updater.slice(updater.indexOf('function runtimePaths('), updater.indexOf('function restartUserService(')), context)
+  const runtime = context.runtimePaths(root)
+  const stable = path.join(root, 'releases', 'stable')
+  const candidate = path.join(root, 'releases', 'candidate')
+  fs.mkdirSync(stable, { recursive: true })
+  fs.mkdirSync(candidate, { recursive: true })
+  fs.symlinkSync(stable, runtime.activeLink)
+  const marker = path.join(root, 'surviving-child')
+  const ready = path.join(root, 'child-ready')
+  const parentReady = path.join(root, 'parent-ready')
+  const parentMarker = path.join(root, 'surviving-parent')
+  // Both processes terminate themselves even against the broken updater, so RED cannot hang the suite.
+  const child = `process.on('SIGTERM', () => {}); require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready'); setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'alive'), 2000); setTimeout(() => process.exit(0), 2500)`
+  const fixture = `process.on('SIGTERM', () => {}); require('node:fs').writeFileSync(${JSON.stringify(parentReady)}, 'ready'); setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(parentMarker)}, 'alive'), 2000); require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(child)}], {stdio:'inherit'}); setTimeout(() => process.exit(0), 3000)`
+  let verifications = 0
+  const restarted = []
+  try {
+    const started = Date.now()
+    const result = context.withLock(runtime.lockPath, () => activateRelease({
+      runtime, candidatePath: candidate,
+      preflight: () => ({ ok: true }),
+      restart: id => { restarted.push(id); return { ok: true } },
+      verify: () => {
+        verifications++
+        const command = context.runReleaseCommand(candidate, [process.execPath, '-e', fixture], null, 1)
+        return { ok: command.status === 0, reason: 'post-activation smoke failed' }
+      },
+    }))
+    assert.equal(result.ok, false)
+    assert.ok(Date.now() - started < 2500, 'the command deadline must terminate a SIGTERM-resistant verifier')
+    assert.equal(verifications, 1)
+    assert.deepEqual(restarted, ['candidate', 'stable'])
+    assert.equal(fs.realpathSync(runtime.activeLink), fs.realpathSync(stable))
+    assert.equal(fs.existsSync(parentReady), true, 'the SIGTERM-resistant parent started before the deadline')
+    assert.equal(fs.existsSync(ready), true, 'the SIGTERM-resistant child started before the deadline')
+    assert.equal(readRuntimeState(runtime).lastUpdate.ok, false)
+    assert.equal(fs.existsSync(runtime.lockPath), false)
+    await new Promise(resolve => setTimeout(resolve, 2100))
+    assert.equal(fs.existsSync(parentMarker), false, 'the deadline must terminate the owned parent')
+    assert.equal(fs.existsSync(marker), false, 'the deadline must also terminate the owned child')
+    assert.equal(context.runReleaseCommand(candidate, [process.execPath, '-e', 'process.exit(7)'], null, 2).status, 7)
+    assert.equal(context.runReleaseCommand(candidate, [process.execPath, '-e', ''], null, 2).status, 0)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('release command supervision encloses runuser and fails closed when timeout cannot start', () => {
+  const vm = require('node:vm')
+  const calls = []
+  const context = vm.createContext({
+    process,
+    spawnSync: (...args) => { calls.push(args); return { status: null, error: new Error('unavailable') } },
+  })
+  vm.runInContext(updater.slice(updater.indexOf('function runReleaseCommand('), updater.indexOf('function restartUserService(')), context)
+  const result = context.runReleaseCommand('/candidate', ['bash', 'scripts/verify-release.sh'], {
+    user: 'kiosk', uid: '1000', home: '/home/kiosk', nodeBin: '/node/bin', binDir: '/kiosk/bin', display: ':0',
+  })
+  assert.equal(result.status, 1)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0][0], 'timeout')
+  assert.deepEqual(Array.from(calls[0][1].slice(0, 7)), ['--signal=KILL', '60s', 'runuser', '-u', 'kiosk', '--', 'env'])
+  assert.ok(calls[0][1].includes('DISPLAY=:0'))
+  assert.equal(calls[0][2].cwd, '/candidate')
+})

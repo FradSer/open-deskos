@@ -76,3 +76,15 @@ Feature: Immutable runtime release deployment
     And device preflight resolves repository sources from inside the candidate
     And release commands use the candidate as ODK_RUNTIME_ROOT
     And preflight never reads ambient copies outside the candidate
+
+  Scenario: A stalled verifier cannot retain the update lock
+    Given a candidate verifier and its child ignore SIGTERM
+    When the command deadline expires
+    Then the updater kills only the verifier process group
+    And verification fails without a retry
+    And the previous release is restored and the update lock is released
+
+  Scenario: A late window load cannot replace a smoke timeout
+    Given the smoke window has exceeded its 15-second load deadline
+    When its load event arrives before Electron exits
+    Then smoke reports only the original failure

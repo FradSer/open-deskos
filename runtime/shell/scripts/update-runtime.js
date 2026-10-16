@@ -56,7 +56,7 @@ function withLock(lockPath, work) {
   }
 }
 
-function runReleaseCommand(releasePath, command, runAs = null) {
+function runReleaseCommand(releasePath, command, runAs = null, timeoutSeconds = 60) {
   const [file, ...args] = command
   const executable = runAs ? 'runuser' : file
   const sessionDisplay = runAs && runAs.display ? [`DISPLAY=${runAs.display}`] : []
@@ -70,7 +70,9 @@ function runReleaseCommand(releasePath, command, runAs = null) {
       `PATH=${runAs.binDir}:${runAs.nodeBin}:/usr/local/bin:/usr/bin:/bin`, 'COREPACK_ENABLE_PROJECT_SPEC=1',
       ...sessionDisplay, ...sessionAuthority, file, ...args]
     : args
-  const result = spawnSync(executable, executableArgs, {
+  // GNU timeout owns this command's process group. KILL also stops descendants that ignore TERM.
+  // A spawnSync timeout alone kills only its direct child and can leave the verifier running.
+  const result = spawnSync('timeout', ['--signal=KILL', `${timeoutSeconds}s`, executable, ...executableArgs], {
     cwd: releasePath,
     stdio: 'inherit',
     env: { ...process.env, ODK_RELEASE_PATH: releasePath },
@@ -161,7 +163,7 @@ function main() {
       const composition = validateRuntimeComposition(releasePath)
       if (!composition.ok) return composition
       const preflight = preflightRelease(releasePath, {
-        run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk),
+        run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk, 900),
       })
       return preflight.ok ? sealRelease(releasePath) : preflight
     },
