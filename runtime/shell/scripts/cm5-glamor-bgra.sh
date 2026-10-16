@@ -7,6 +7,7 @@ GLAMOR_MODULE_DIR="/usr/local/lib/odk-xorg-bgra-21.1.7/modules"
 GLAMOR_STATE_DIR="/var/lib/odk-glamor-bgra"
 GLAMOR_CONFIG="/etc/X11/xorg.conf.d/10-odk-glamor-bgra.conf"
 GLAMOR_XORG_LOG="/var/log/Xorg.0.log"
+GLAMOR_PROC_DIR="/proc"
 MODESETTING_CONFIG="/etc/X11/xorg.conf.d/20-modesetting.conf"
 GLAMOR_PATCH="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/patches/xorg-glamor-bgra.patch"
 
@@ -135,16 +136,29 @@ install_glamor() (
 )
 
 verify_glamor() {
+  local sessions boot_id pid
   check_glamor_version || return 1
   if ! glamor_module_current || ! cmp -s <(glamor_module_config) "$GLAMOR_CONFIG"; then
     echo "  BGRA glamor module is missing or changed; run cm5-gpu-userspace.sh install." >&2
     return 1
   fi
+  sessions="$(glamor_session_ids)"
+  if [ -z "$sessions" ]; then
+    echo "  No running Xorg session can confirm the BGRA module; start the graphical session before verification." >&2
+    return 1
+  fi
   if [ -f "${GLAMOR_STATE_DIR}/previous-xorg-sessions" ] &&
-     grep -Fxf <(glamor_session_ids) "${GLAMOR_STATE_DIR}/previous-xorg-sessions" >/dev/null; then
+     grep -Fxf <(printf '%s\n' "$sessions") "${GLAMOR_STATE_DIR}/previous-xorg-sessions" >/dev/null; then
     echo "  Xorg still uses the previous module; restart the graphical session." >&2
     return 1
   fi
+  while read -r boot_id pid; do
+    if ! $SUDO awk -v module="${GLAMOR_MODULE_DIR}/libglamoregl.so" \
+      '$6 == module && NF == 6 { loaded=1 } END { exit !loaded }' "${GLAMOR_PROC_DIR}/${pid}/maps"; then
+      echo "  Xorg ${pid} does not map the installed BGRA module; restart the graphical session." >&2
+      return 1
+    fi
+  done <<< "$sessions"
   if ! grep -Fq "Loading ${GLAMOR_MODULE_DIR}/libglamoregl.so" "$GLAMOR_XORG_LOG"; then
     echo "  Xorg has not loaded the BGRA module; restart the graphical session." >&2
     return 1

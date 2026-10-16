@@ -16,7 +16,7 @@ function fixture(t) {
   const config = path.join(root, '20-modesetting.conf')
   const original = 'Section "Device"\n    Identifier "Rockchip Graphics"\n    Driver "modesetting"\n    Option "AccelMethod" "none"\n    Option "ShadowFB" "true"\n    Option "DRI" "2"\nEndSection\n'
   fs.writeFileSync(config, original)
-  const vars = `SUDO=''; GLAMOR_STATE_DIR='${root}/state'; GLAMOR_MODULE_DIR='${root}/modules'; GLAMOR_CONFIG='${root}/10-odk-glamor-bgra.conf'; MODESETTING_CONFIG='${config}'`
+  const vars = `SUDO=''; GLAMOR_STATE_DIR='${root}/state'; GLAMOR_MODULE_DIR='${root}/modules'; GLAMOR_CONFIG='${root}/10-odk-glamor-bgra.conf'; MODESETTING_CONFIG='${config}'; GLAMOR_PROC_DIR='${root}/proc'`
   return { root, config, original, vars }
 }
 
@@ -80,7 +80,7 @@ test('verification rejects a replaced module until Xorg starts a new session', t
   const stale = run(f, `${setup} verify_glamor`)
   assert.notEqual(stale.status, 0)
   assert.match(stale.stderr, /restart the graphical session/)
-  const fresh = run(f, `${setup} glamor_session_ids() { echo 'boot 456'; }; verify_glamor`)
+  const fresh = run(f, `${setup} glamor_session_ids() { echo 'boot 456'; }; mkdir -p "$GLAMOR_PROC_DIR/456"; printf '1000-2000 r-xp 0 00:00 1 %s\\n' "$GLAMOR_MODULE_DIR/libglamoregl.so" > "$GLAMOR_PROC_DIR/456/maps"; verify_glamor`)
   assert.equal(fresh.status, 0, fresh.stderr)
 })
 
@@ -88,6 +88,29 @@ test('a module changed after installation is rejected by its manifest', t => {
   const f = fixture(t)
   const result = run(f, 'mkdir -p "$GLAMOR_MODULE_DIR" "$GLAMOR_STATE_DIR"; printf module > "$GLAMOR_MODULE_DIR/libglamoregl.so"; glamor_manifest > "$GLAMOR_STATE_DIR/manifest"; glamor_module_current; printf changed >> "$GLAMOR_MODULE_DIR/libglamoregl.so"; glamor_module_current')
   assert.notEqual(result.status, 0)
+})
+
+test('a historical module load cannot prove a running Xorg session', t => {
+  const f = fixture(t)
+  const result = run(f, `mkdir -p "$GLAMOR_MODULE_DIR" "$GLAMOR_STATE_DIR"; printf module > "$GLAMOR_MODULE_DIR/libglamoregl.so"; glamor_manifest > "$GLAMOR_STATE_DIR/manifest"; install_glamor_config; xorg_source_version() { echo "$XORG_SOURCE_VERSION"; }; glamor_session_ids() { :; }; echo 'old-boot 123' > "$GLAMOR_STATE_DIR/previous-xorg-sessions"; GLAMOR_XORG_LOG='${f.root}/Xorg.log'; echo "Loading $GLAMOR_MODULE_DIR/libglamoregl.so" > "$GLAMOR_XORG_LOG"; verify_glamor`)
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /No running Xorg session/)
+})
+
+test('current Xorg mappings must identify the installed module instead of a historical log', t => {
+  const f = fixture(t)
+  const setup = `mkdir -p "$GLAMOR_MODULE_DIR" "$GLAMOR_STATE_DIR" "$GLAMOR_PROC_DIR/456"; printf module > "$GLAMOR_MODULE_DIR/libglamoregl.so"; glamor_manifest > "$GLAMOR_STATE_DIR/manifest"; install_glamor_config; xorg_source_version() { echo "$XORG_SOURCE_VERSION"; }; glamor_session_ids() { echo 'boot 456'; }; GLAMOR_XORG_LOG='${f.root}/Xorg.log'; echo "Loading $GLAMOR_MODULE_DIR/libglamoregl.so" > "$GLAMOR_XORG_LOG";`
+  for (const mapped of ['/usr/lib/xorg/modules/libglamoregl.so', `${f.root}/modules/libglamoregl.so (deleted)`, `${f.root}/modules/libglamoregl.so-other`]) {
+    const result = run(f, `${setup} printf '1000-2000 r-xp 0 00:00 1 %s\\n' '${mapped}' > "$GLAMOR_PROC_DIR/456/maps"; verify_glamor`)
+    assert.notEqual(result.status, 0, mapped)
+    assert.match(result.stderr, /does not map the installed BGRA module/)
+  }
+  const missing = run(f, `${setup} rm -f "$GLAMOR_PROC_DIR/456/maps"; verify_glamor`)
+  assert.notEqual(missing.status, 0)
+  assert.match(missing.stderr, /does not map the installed BGRA module/)
+  const mixed = run(f, `${setup} mkdir -p "$GLAMOR_PROC_DIR/789"; printf '1000-2000 r-xp 0 00:00 1 %s\\n' "$GLAMOR_MODULE_DIR/libglamoregl.so" > "$GLAMOR_PROC_DIR/456/maps"; printf '1000-2000 r-xp 0 00:00 1 /usr/lib/xorg/modules/libglamoregl.so\\n' > "$GLAMOR_PROC_DIR/789/maps"; glamor_session_ids() { printf 'boot 456\\nboot 789\\n'; }; verify_glamor`)
+  assert.notEqual(mixed.status, 0)
+  assert.match(mixed.stderr, /Xorg 789 does not map/)
 })
 
 test('the channel patch changes both GLES formats without changing the desktop GL format', t => {

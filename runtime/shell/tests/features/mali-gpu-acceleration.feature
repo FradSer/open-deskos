@@ -25,6 +25,26 @@ Feature: Mali GPU acceleration for the CM5 shell
     When the operator installs or verifies Mali userspace
     Then verification fails before a module from another version is accepted
 
+  Scenario: A historical Xorg log cannot prove a running module
+    Given no current Xorg session exists
+    And a previous log records the corrected module
+    When the operator verifies Mali userspace
+    Then verification requires a running Xorg session
+
+  Scenario: A different running module cannot reuse a historical load message
+    Given a current Xorg process exists
+    And its mapped files do not include the installed corrected module
+    When the operator verifies Mali userspace
+    Then the historical load message cannot pass verification
+
+  Scenario: Installation finds the kiosk graphical session after terminal sessions
+    Given the kiosk user's first session has no Display
+    And an inactive closing session still publishes an old Display
+    And a later session publishes a Display
+    When installation selects the graphical environment
+    Then it uses the first nonempty Display from that user's active X11 sessions
+    And it does not invent a Display when none is published
+
   Scenario: The CM5 launcher resets HDMI color conversion
     Given the Shell runs on an X11 CM5 with Mali userspace
     And HDMI-1 supports the Rockchip color properties

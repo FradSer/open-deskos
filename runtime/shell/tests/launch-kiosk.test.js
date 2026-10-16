@@ -9,6 +9,46 @@ const { posixOnlyReason } = require('./not-ported')
 const launcherPath = path.join(__dirname, '..', 'scripts', 'start-kiosk.sh')
 const launcher = fs.readFileSync(launcherPath, 'utf8')
 
+test('CM5 installer selects an active kiosk X11 Display and leaves an absent Display unset', { skip: posixOnlyReason('cm5-tooling') }, t => {
+  const installer = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
+  const selection = installer.split('run_as_target_user systemctl --user daemon-reload\n')[1]?.split('if [ -n "${GRAPHICAL_DISPLAY}" ]; then')[0]
+  assert(selection, 'Exercise the installer selection without executing installation')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-graphical-display-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  for (const available of [true, false]) {
+    const log = path.join(root, 'calls')
+    fs.writeFileSync(log, '')
+    const result = spawnSync('bash', ['-c', `set -euo pipefail
+TARGET_USER=kiosk
+loginctl() {
+  if [ "$1" = list-sessions ]; then
+    printf '%s\\n' 'serial 1000 kiosk - ttyS2' 'foreign 1001 other - tty1' 'stale 1000 kiosk - -' 'closing 1000 kiosk seat0 tty7' 'nongraphical 1000 kiosk - tty2' 'inactive 1000 kiosk seat0 tty3' 'graphical 1000 kiosk seat0 tty8' 'later 1000 kiosk seat0 tty9'
+  else
+    printf '%s\\n' "$2" >> '${log}'
+    local display='' type=x11 active=yes state=active
+    case "$2" in
+      serial) type=tty;;
+      stale) return 1;;
+      closing) display=:0; active=no; state=closing;;
+      nongraphical) display=:22; type=tty;;
+      inactive) display=:33; active=no; state=online;;
+      graphical) ${available ? 'display=:1' : ':'};;
+      later) ${available ? 'display=:2' : ':'};;
+      *) return 2;;
+    esac
+    if [[ "$*" == *--value* ]]; then printf '%s' "$display"; else
+      printf '%s\\n' "Display=$display" "Type=$type" "Active=$active" "State=$state"
+    fi
+  fi
+}
+${selection}
+printf '%s' "$GRAPHICAL_DISPLAY"`], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, available ? ':1' : '')
+    assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), available ? ['serial', 'stale', 'closing', 'nongraphical', 'inactive', 'graphical'] : ['serial', 'stale', 'closing', 'nongraphical', 'inactive', 'graphical', 'later'])
+  }
+})
+
 test('kiosk launcher resolves the active immutable release before falling back to its source directory', () => {
   assert.match(launcher, /ODK_RUNTIME_ROOT:-\/opt\/odk/)
   assert.match(launcher, /ACTIVE_RELEASE="\$\{RUNTIME_ROOT\}\/current"/)

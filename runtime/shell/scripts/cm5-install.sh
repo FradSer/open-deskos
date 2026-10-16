@@ -232,7 +232,28 @@ EOF
 chown "${TARGET_UID}:${TARGET_GID}" "$KIOSK_UNIT_DIR/odk-shell.service"
 chmod 0644 "$KIOSK_UNIT_DIR/odk-shell.service"
 run_as_target_user systemctl --user daemon-reload
-GRAPHICAL_DISPLAY="$(loginctl show-session "$(loginctl list-sessions --no-legend | awk -v user="${TARGET_USER}" '$3 == user && $2 >= 1000 { print $1; exit }')" -p Display --value 2>/dev/null || true)"
+# Ignore terminal, closing and inactive sessions; use the first active X11 display.
+# Read all properties together so they describe one session snapshot.
+graphical_display() {
+  local session properties display type active state key value
+  for session in $(loginctl list-sessions --no-legend | awk -v user="${TARGET_USER}" '$3 == user && $2 >= 1000 { print $1 }'); do
+    properties="$(loginctl show-session "${session}" -p Display -p Type -p Active -p State 2>/dev/null || true)"
+    display=''; type=''; active=''; state=''
+    while IFS='=' read -r key value; do
+      case "$key" in
+        Display) display="$value";;
+        Type) type="$value";;
+        Active) active="$value";;
+        State) state="$value";;
+      esac
+    done <<< "$properties"
+    if [ -n "$display" ] && [ "$type" = x11 ] && [ "$active" = yes ] && [ "$state" = active ]; then
+      printf '%s' "$display"; return 0
+    fi
+  done
+  return 0
+}
+GRAPHICAL_DISPLAY="$(graphical_display)"
 if [ -n "${GRAPHICAL_DISPLAY}" ]; then
   run_as_target_user env DISPLAY="${GRAPHICAL_DISPLAY}" systemctl --user import-environment DISPLAY
 fi
