@@ -268,7 +268,7 @@ scenario('the resting Home Widget makes no stale session-state claim', () => {
   const el = { innerHTML: '' }
   app.tile.mount(el)
   assert.equal(app.tile.state, 'App timer')
-  assert.match(el.innerHTML, /Open Pomodoro/)
+  assert.match(el.innerHTML, /pomodoro-context">Focus/)
   assert.doesNotMatch(el.innerHTML, /Not started/)
 })
 }

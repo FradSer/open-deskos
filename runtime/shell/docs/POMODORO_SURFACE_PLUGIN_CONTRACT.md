@@ -8,7 +8,7 @@ The [runtime contract](RUNTIME_PLUGIN_REPLACEMENT.md) owns selection and recover
 
 | Identity | App | State | Displayed content | Minimum Readable Cell |
 | --- | --- | --- | --- | --- |
-| `odk.tile.pomodoro` | `Pomodoro` | `App timer` | `App timer`, `--:--`, `Open Pomodoro` | `186` |
+| `odk.tile.pomodoro` | `Pomodoro` | `App timer` | `App timer`, `--:--`, `Focus` | `186` |
 
 The surface is display-only. It shows a neutral ring without a running timer or controls.
 The Widget does not acquire provider, Tick, connection, or input subscriptions.

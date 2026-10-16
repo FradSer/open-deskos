@@ -7485,6 +7485,8 @@ Desk retains Hydra.
 Focused Node checks passed 60 tests on 2026-10-17.
 The style build generated 45 utilities.
 Full Linux and rendered acceptance are pending for this candidate.
+The density fixture measures the unavailable Quota placeholder.
+It does not establish the density of a live account reading.
 
 No device deployment is included in this change.
 Physical input, device pixels, and screen-reader output remain unverified.

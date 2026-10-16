@@ -22,7 +22,7 @@
               <circle class="ring-arc" cx="60" cy="60" r="50"/>
             </svg>
             <span class="ring-mmss">--:--</span>
-            <span class="pomodoro-context">Open Pomodoro</span>
+            <span class="pomodoro-context">Focus</span>
           </div>
         </div>`
     },

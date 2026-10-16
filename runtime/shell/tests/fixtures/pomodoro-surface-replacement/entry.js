@@ -23,7 +23,7 @@
       for (const className of ['ring-track', 'ring-arc']) {
         artwork.append(vector('circle', { class: className, cx: '60', cy: '60', r: '50' }))
       }
-      ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Open Pomodoro'))
+      ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Focus'))
       body.append(ring)
       element.replaceChildren(make('span', 'pomodoro-state w-state', 'App timer'), body)
     },
