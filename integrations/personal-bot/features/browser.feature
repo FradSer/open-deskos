@@ -10,6 +10,7 @@ Feature: The Personal Bot reads and drives a web page through a bounded capabili
     Then it retires that page session before returning the refusal
     And later click, fill, and press commands cannot use the refused session
     And an unconfirmed cleanup still fences the refused session
+    And its error preserves both the policy refusal and the unconfirmed release
 
   Scenario: Page delimiters remain unpredictable without CLI boundary metadata
     Given page text contains the previous fallback closing delimiter
