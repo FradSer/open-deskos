@@ -2,6 +2,7 @@ const net = require('node:net')
 const { randomUUID } = require('node:crypto')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { parseHomeBriefing } = require('./home-briefing-frame')
+const { parseAgentTasks } = require('./agent-task-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
 
@@ -133,6 +134,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
           level,
+          agents: parseAgentTasks(record.agents),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
@@ -149,6 +151,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       cancelDiagnoses('disconnected')
       for (const id of textRequests.keys()) finishText(id, false)
       publish({ state: 'unavailable', message: 'Personal Bot service unavailable',
+        agents: { state: 'unavailable', tasks: [] },
         ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })
       if (running) timer = setTimeout(connect, reconnectDelayMs)
     })

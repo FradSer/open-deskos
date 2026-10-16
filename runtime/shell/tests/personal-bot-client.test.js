@@ -33,10 +33,12 @@ test('separate home frames preserve voice replies and stale content across recon
   let [peer] = await connection
   await once(peer, 'data')
   const reply = '\u0000'.repeat(16384)
+  const agents = { state: 'live', tasks: [{ taskId: '64a7f377-3169-447c-9b85-547a2454c28f', identity: { id: 'reporter', name: 'Reporter', avatar: 'book', revision: 'a'.repeat(64) }, state: 'running', updatedAt: '2026-10-16T00:00:00.000Z' }] }
   const briefing = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Mail content', sources: [{ id: 'mail', label: 'Mail', state: 'live' }] }] }
   let update = next(frame => frame.briefing?.state === 'live')
-  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply }) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents }) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
   assert.equal((await update).message, reply)
+  assert.deepEqual(client.snapshot().agents, agents)
   update = next(frame => frame.state === 'recording')
   peer.write('{"v":1,"type":"status","state":"recording","message":""}\n')
   assert.equal((await update).briefing.items[0].text, 'Mail content')
@@ -44,6 +46,7 @@ test('separate home frames preserve voice replies and stale content across recon
   connection = once(server, 'connection')
   peer.destroy()
   assert.equal((await update).briefing.state, 'stale')
+  assert.equal(client.snapshot().agents.state, 'unavailable')
   ;[peer] = await connection
   await once(peer, 'data')
   update = next(frame => frame.state === 'idle')

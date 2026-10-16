@@ -1,4 +1,22 @@
 Feature: Personal Agent home briefing
+  Scenario: Actual child execution reaches the conversation through the resident channel
+    Given an isolated resident uses Durable execution with an offline provider
+    And a saved reporter has a book avatar
+    When the user submits a task through the composer
+    Then the service socket and Shell client deliver the running identity to the conversation
+    And interrupted transport shows unavailable activity until the channel recovers
+    And cancellation and completion remove inactive activity
+    And a resident restart preserves the saved identity for another task
+
+  Scenario: Running saved children have identities in the conversation
+    Given the resident reports saved child tasks with built-in avatars
+    When a child starts, runs, or receives cancellation
+    Then the conversation shows its saved name, avatar, and actual state
+    And the composer remains outside the single conversation scroll region
+    And long names wrap in narrow windows and large text
+    And unavailable transport cannot leave an old task labelled Running
+    And released status callbacks cannot change the conversation
+
   Scenario: The Agent identity capsule stays on one line
     Given the Agent uses its default name and Ready status
     When the capsule renders at desktop or compact widths

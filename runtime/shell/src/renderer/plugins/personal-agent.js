@@ -2,6 +2,12 @@
   'use strict'
   const GLYPHS = {"message": "<svg data-tabler=\"message\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1\" /></svg>", "leaf": "<svg data-tabler=\"leaf\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M5 21c.5 -4.5 2.5 -8 7 -10\" /><path d=\"M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0\" /></svg>", "terminal": "<svg data-tabler=\"terminal-2\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M8 9l3 3l-3 3\" /><path d=\"M13 15l3 0\" /><path d=\"M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12\" /></svg>"}
   function glyph(key) { return Object.hasOwn(GLYPHS, key) ? GLYPHS[key] : GLYPHS.message }
+  const CHILD_GLYPHS = {
+    agent: GLYPHS.message, code: GLYPHS.terminal,
+    book: '<svg data-tabler="book-open" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></svg>',
+    compass: '<svg data-tabler="compass" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M8 16l2 -6l6 -2l-2 6l-6 2" /><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 3l0 2" /><path d="M12 19l0 2" /><path d="M3 12l2 0" /><path d="M19 12l2 0" /></svg>',
+    spark: '<svg data-tabler="sparkles" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6" /></svg>',
+  }
   root.odkPlugins.register({
     id: 'odk.page.personal-agent', manifest: { schemaVersion: 1 }, kind: 'page', surface: 'app',
     mount(el, ctx) {
@@ -26,6 +32,7 @@
       let revision = 0
       let turn = null
       const seenNotifications = new Set()
+      const children = new Map()
       let lastStatus = 'unknown'
       let pending = false
       function setState(message, caption = message) {
@@ -60,10 +67,35 @@
         root.odkIcons?.apply?.(article)
         return body
       }
+      function renderAgents(frame) {
+        if (frame?.state !== 'live' || !Array.isArray(frame.tasks)) {
+          for (const row of children.values()) row.querySelector('.agent-child-state').textContent = 'Status unavailable'
+          return
+        }
+        const active = new Set()
+        for (const task of frame.tasks) {
+          active.add(task.taskId)
+          let row = children.get(task.taskId)
+          if (!row) {
+            $('.agent-empty')?.remove()
+            row = document.createElement('article')
+            row.className = 'agent-child'
+            row.innerHTML = '<span class="agent-child-avatar" aria-hidden="true"></span><div class="agent-child-details"><span class="agent-child-name"></span><span class="agent-child-state"></span></div>'
+            children.set(task.taskId, row)
+            conversation.append(row)
+          }
+          const avatar = Object.hasOwn(CHILD_GLYPHS, task.identity?.avatar) ? task.identity.avatar : 'agent'
+          if (row.dataset.avatar !== avatar) { row.dataset.avatar = avatar; row.querySelector('.agent-child-avatar').innerHTML = CHILD_GLYPHS[avatar]; root.odkIcons?.apply?.(row) }
+          row.querySelector('.agent-child-name').textContent = task.identity?.name || 'Temporary agent'
+          row.querySelector('.agent-child-state').textContent = { starting: 'Starting', running: 'Running', cancelling: 'Cancelling' }[task.state] || 'Status unavailable'
+        }
+        for (const [id, row] of children) if (!active.has(id)) { row.remove(); children.delete(id) }
+      }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
+        renderAgents(status.agents)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
         const newTurn = status.transcript && (!turn || status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking'))
         if (newTurn) turn = { prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
