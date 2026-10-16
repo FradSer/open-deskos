@@ -103,11 +103,17 @@ test('default system plugins preserve Remote events and App manager endpoints', 
 
 test('Personal Bot preserves busy, pending, and stale acknowledgement guards', async () => {
   const f = fixture()
+  const current = { agents: { state: 'live', tasks: [{ taskId: 'fixture-child', state: 'running' }] }, transcript: 'Current input', activated: true }
+  f.bot.snapshot = () => ({ ...current, state: 'idle' })
   await f.host.start()
   f.broadcasts.length = 0
   const toggle = f.handlers.get('odk-personal-bot-toggle')
   assert.deepEqual(toggle(), { accepted: true })
   assert.equal(f.broadcasts[0][1].state, 'starting')
+  assert.deepEqual(f.broadcasts[0][1].agents, current.agents)
+  assert.equal(f.broadcasts[0][1].transcript, current.transcript)
+  assert.equal(f.broadcasts[0][1].activated, true)
+  f.bot.snapshot = () => ({ ...current, state: 'recording' })
   assert.deepEqual(toggle(), { accepted: false })
   f.callbacks.get('bot')({ state: 'idle' })
   assert.equal(f.broadcasts.length, 1)
@@ -115,6 +121,8 @@ test('Personal Bot preserves busy, pending, and stale acknowledgement guards', a
   f.callbacks.get('bot')({ state: 'recording' })
   assert.deepEqual(toggle(), { accepted: true })
   assert.equal(f.broadcasts.at(-1)[1].state, 'sending')
+  assert.deepEqual(f.broadcasts.at(-1)[1].agents, current.agents)
+  f.bot.snapshot = () => ({ ...current, state: 'thinking' })
   const count = f.broadcasts.length
   f.callbacks.get('bot')({ state: 'recording' })
   assert.equal(f.broadcasts.length, count)
@@ -122,6 +130,7 @@ test('Personal Bot preserves busy, pending, and stale acknowledgement guards', a
   f.callbacks.get('bot')({ state: 'thinking' })
   assert.deepEqual(toggle(), { accepted: false })
   f.setState('unavailable')
+  f.bot.snapshot = () => ({ state: 'unavailable', agents: { state: 'unavailable', tasks: [] } })
   f.setConnected(false)
   f.callbacks.get('bot')({ state: 'unavailable' })
   assert.deepEqual(toggle(), { accepted: false })

@@ -6,6 +6,12 @@ Feature: Voice feedback status transport
     And it does not expose requests, role text, memory, or responses in activity metadata
     And disconnect marks retained activity unavailable
 
+  Scenario: Pending microphone feedback preserves current child activity
+    Given the authenticated client has live child activity
+    When a microphone toggle waits for its service acknowledgement
+    Then the pending status retains that child activity
+    And only a transport failure marks the retained activity unavailable
+
   Scenario: Source updates wake the Jev judgment path
     Given a Hydra message, Service Plugin snapshot or declared package publication
     When the trusted Shell commits the source update

@@ -122,7 +122,7 @@ function createSystemChannelPlugins() {
           const sent = client.toggle()
           if (sent) {
             pendingToggle = current.state === 'recording' ? 'sending' : 'starting'
-            broadcast('odk-personal-bot-status', { state: pendingToggle, message: '' })
+            broadcast('odk-personal-bot-status', { ...current, state: pendingToggle, message: '' })
           } else broadcast('odk-personal-bot-status', { ...current, activated: true })
           return { accepted: sent }
         })
