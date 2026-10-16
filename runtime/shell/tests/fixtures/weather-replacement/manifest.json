@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.source.weather",
+  "name": "Weather replacement acceptance fixture",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [
+    { "interface": "odk:source/weather/v1" },
+    { "interface": "odk:desk-reading/weather/v1" },
+    { "interface": "odk:plugin-health/odk.source.weather/v1" }
+  ],
+  "requires": [],
+  "permissions": ["source.weather", "ipc"]
+}

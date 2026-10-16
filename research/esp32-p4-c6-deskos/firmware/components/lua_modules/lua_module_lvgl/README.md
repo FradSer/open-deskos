@@ -1811,7 +1811,7 @@ also janks, the bottleneck is in the scroll container / render path itself.
 
 On device: `cerb ui "swipe"`
 
-In sim: `./build/open_deskos_sim "@lib/minimal_swipe.lua"`
+In sim: `./build/odk_sim "@lib/minimal_swipe.lua"`
 
 ### Output
 

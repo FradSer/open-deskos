@@ -14,9 +14,9 @@ for (const profile of ['personal', 'coding']) {
     const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-routed-tools-')))
     t.after(() => rm(dir, { recursive: true, force: true }))
     await isolateAgentDirectory(t, dir)
-    const targets = process.env.ODESK_TASK_TARGETS_FILE
-    delete process.env.ODESK_TASK_TARGETS_FILE
-    t.after(() => { if (targets !== undefined) process.env.ODESK_TASK_TARGETS_FILE = targets })
+    const targets = process.env.ODK_TASK_TARGETS_FILE
+    delete process.env.ODK_TASK_TARGETS_FILE
+    t.after(() => { if (targets !== undefined) process.env.ODK_TASK_TARGETS_FILE = targets })
     let intent = 'task_query', call, session, turn = 0
     const events = []
     const agent = await createPersonalBot({ stateDir: dir, workspace: repository, personal: { profile, skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {

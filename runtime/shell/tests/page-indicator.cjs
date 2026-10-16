@@ -3,10 +3,19 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { resolvePages } = require('./helpers/pages')
 
+if (process.platform === 'darwin') app.dock.hide()
 const root = path.resolve(__dirname, '..')
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-page-indicator-'))
+const cleanupProfile = () => {
+  try { fs.rmSync(profile, { recursive: true, force: true }) }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error
+    console.warn('Temporary indicator profile remains locked after shutdown')
+  }
+}
 app.setPath('userData', profile)
 const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
 const themes = ['instrument', 'border-beam', 'pixel']
@@ -22,6 +31,11 @@ function check(name, ok, detail) {
   }
 }
 
+ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
+ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
 ipcMain.handle('odk-pi-sessions', () => ({ summary: { running: 2, total: 2, workspacesCount: 1 }, sessions: [] }))
 ipcMain.handle('odk-remote-publish-page-state', () => true)
@@ -35,196 +49,107 @@ async function waitFor(win, expression) {
     if (await js(win, expression)) return
     await delay(20)
   }
-  throw new Error(`Indicator did not settle: ${expression}`)
+  throw new Error(`Handle did not settle: ${expression}`)
 }
-
+async function key(win, code) {
+  const windowsVirtualKeyCode = { ArrowLeft:37, ArrowRight:39, Home:36, End:35, Enter:13, Space:32 }[code]
+  const value = code === 'Space' ? ' ' : code
+  await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type:'keyDown', key:value, code, windowsVirtualKeyCode })
+  await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type:'keyUp', key:value, code, windowsVirtualKeyCode })
+}
 async function resize(win, width, height) {
-  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
-  await js(win, `window.dispatchEvent(new Event('resize'))`)
+  win.setContentSize(width, height)
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor:1, mobile:false })
+  await js(win, 'window.dispatchEvent(new Event("resize"))')
   await waitFor(win, `window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)
+  await js(win, 'document.querySelector("#page-center").scrollIntoView({block:"end"}); new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
 }
-
 async function pointerSelect(win, index) {
-  const point = await js(win, `(() => {
-    const r = document.querySelectorAll('.dot')[${index}].getBoundingClientRect()
-    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
-  })()`)
-  win.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 })
-  win.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 })
-  await waitFor(win, `document.querySelectorAll('.dot')[${index}].getAttribute('aria-current') === 'page'`)
-  await waitFor(win, `document.querySelectorAll('#dots .dot').length > 0 && !document.querySelector('#dots').getAnimations({ subtree: true }).length`)
+  let current = await js(win, '[...document.querySelectorAll(".dot")].findIndex(n=>n.classList.contains("active"))')
+  while (current !== index) {
+    const point = await js(win, '(()=>{const r=document.querySelector(".dot.active").getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()')
+    const dx = current < index ? -90 : 90
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type:'mouseMoved', ...point })
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type:'mousePressed', ...point, button:'left', clickCount:1 })
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type:'mouseMoved', x:point.x+dx, y:point.y, button:'left', buttons:1 })
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type:'mouseReleased', x:point.x+dx, y:point.y, button:'left', clickCount:1 })
+    current += Math.sign(index-current)
+    await waitFor(win, `document.querySelectorAll('.dot')[${current}].getAttribute('aria-current') === 'page'`)
+  }
 }
-
+async function cancelledSwipe(win) {
+  const point = await js(win, '(()=>{const r=document.querySelector(".dot.active").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,id:1}})()')
+  await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[point] })
+  await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchMove', touchPoints:[{...point,x:point.x-90}] })
+  await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchCancel', touchPoints:[] })
+  assert.equal(await js(win, 'document.querySelectorAll(".dot")[0].getAttribute("aria-current")'), 'page', 'Cancelled Home handle swipe must preserve the current page')
+}
 async function inspect(win) {
-  return js(win, `(() => {
-    const buttons = [...document.querySelectorAll('#dots .dot')]
-    const center = document.querySelector('#page-center').getBoundingClientRect()
-    const nav = document.querySelector('#dots').getBoundingClientRect()
-    const left = document.querySelector('#sb-pi-status').getBoundingClientRect()
-    const right = document.querySelector('.sb-time').getBoundingClientRect()
-    const bar = document.querySelector('#status-bar').getBoundingClientRect()
-    const capsule = getComputedStyle(document.querySelector('#dots'), '::before')
-    const capsuleTop = nav.top + parseFloat(capsule.top)
-    const capsuleHeight = parseFloat(capsule.height) + (capsule.boxSizing === 'border-box' ? 0
-      : parseFloat(capsule.borderTopWidth) + parseFloat(capsule.borderBottomWidth) + parseFloat(capsule.paddingTop) + parseFloat(capsule.paddingBottom))
-    const marker = (button, part = '::after') => getComputedStyle(button, part)
-    const active = buttons.find(button => button.getAttribute('aria-current') === 'page')
-    const idle = buttons.find(button => button !== active)
-    const theme = document.documentElement.dataset.theme
-    const color = theme === 'pixel' ? 'rgb(52, 199, 89)' : 'rgb(255, 255, 255)'
-    const shape = buttons.every(button => ['::before', '::after'].every(part => {
-      const style = marker(button, part)
-      const m = new DOMMatrix(style.transform)
-      const width = parseFloat(style.width)
-      const height = parseFloat(style.height)
-      return style.content !== 'none' && style.display !== 'none' && height >= 6 && height <= 10 && (part === '::before' ? width >= height * 2 : width === height) && m.a === 1 && m.d === 1 && (theme === 'pixel' ? parseFloat(style.borderRadius) === 0 : parseFloat(style.borderRadius) > 0)
-    }))
-    const hits = buttons.every((button, i) => {
-      const r = button.getBoundingClientRect()
-      return r.width >= 28 && r.height >= 44 && getComputedStyle(button).transform === 'none' &&
-        [r.top + 4, r.top + r.height / 2, r.bottom - 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === button) &&
-        (!i || buttons[i - 1].getBoundingClientRect().right <= r.left)
-    })
-    const contained = center.left >= left.right + 4 && center.right <= right.left - 4 && center.top >= bar.top - 1 && center.bottom <= bar.bottom + 1 && Math.abs((nav.left + nav.right) / 2 - innerWidth / 2) < 1
-    return {
-      named: buttons.length === window.DESKTOP_LAYOUT.pages.length && buttons.every((button, i) => button.getAttribute('aria-label') === 'Page ' + (i + 1) + ', ' + window.DESKTOP_LAYOUT.pages[i].name),
-      quiet: buttons.every(button => !button.textContent.trim()) && document.querySelector('#page-context').classList.contains('sr-only'),
-      selected: buttons.filter(button => button.getAttribute('aria-current') === 'page').length === 1 && marker(active, '::before').backgroundColor === color && marker(active, '::before').opacity === '1' && marker(active).opacity === '0' && marker(idle).opacity === '1' && marker(idle, '::before').opacity === '0',
-      shape, hits, contained,
-      equalCapsules: Math.abs(left.height - 44) < 1 && Math.abs(nav.height - left.height) < 1 && Math.abs(capsuleHeight - left.height) < 1 && Math.abs(capsuleTop - left.top) < 1 && Math.abs(capsuleTop + capsuleHeight - left.bottom) < 1,
-      stationary: buttons.every(button => ['::before', '::after'].every(part => marker(button, part).animationName === 'none')),
-      transitions: buttons.every(button => ['::before', '::after'].every(part => !/all|width|height/.test(marker(button, part).transitionProperty))),
-      footprint: [nav.x, nav.y, nav.width, nav.height],
-      diagnostics: { theme, center: center.toJSON(), left: left.toJSON(), right: right.toJSON(), marker: marker(active).backgroundColor },
-    }
+  return js(win, `(()=>{
+    const buttons=[...document.querySelectorAll('#dots .dot')], visible=buttons.filter(n=>n.getClientRects().length), active=buttons.find(n=>n.classList.contains('active'));
+    const index=buttons.indexOf(active), names=window.DESKTOP_LAYOUT.pages.filter(p=>!p.persistent).map(p=>p.name);
+    const r=active.getBoundingClientRect(), nav=document.getElementById('dots').getBoundingClientRect(), v=document.getElementById('pages-viewport').getBoundingClientRect();
+    const marker=getComputedStyle(active,'::before'), after=getComputedStyle(active,'::after');
+    return {count:visible.length,named:active.getAttribute('aria-label').includes(names[index])&&active.getAttribute('aria-label').includes('page '+(index+1)+' of '+names.length),
+      quiet:!active.textContent.trim()&&document.getElementById('page-context').classList.contains('sr-only'),
+      selected:visible.length===1&&visible[0]===active&&active.getAttribute('aria-current')==='page'&&buttons.filter(n=>n!==active).every(n=>n.hidden&&n.tabIndex===-1),
+      shape:parseFloat(marker.width)===104&&parseFloat(marker.height)===5&&marker.opacity==='1'&&after.content==='none',
+      hits:r.width>=100&&r.height===44&&[r.top+4,r.top+r.height/2,r.bottom-4].every(y=>document.elementFromPoint(r.x+r.width/2,y)===active),
+      contained:r.left>=v.left&&r.right<=v.right&&Math.abs((nav.left+nav.right)/2-(v.left+v.right)/2)<1&&nav.bottom<=innerHeight+1,
+      noCard:getComputedStyle(document.getElementById('dots'),'::before').content==='none'&&getComputedStyle(active).backgroundColor==='rgba(0, 0, 0, 0)',
+      stationary:marker.animationName==='none'&&!/all|width|height/.test(marker.transitionProperty),footprint:[nav.x,nav.y,nav.width,nav.height]};
   })()`)
 }
-
-async function capture(win, theme, width, height) {
-  if (!captureDir) return
-  fs.mkdirSync(captureDir, { recursive: true })
-  const statusHeight = await js(win, `Math.ceil(document.querySelector('#status-bar').getBoundingClientRect().height)`)
-  const image = await win.webContents.capturePage({ x: 0, y: 0, width, height: statusHeight })
-  fs.writeFileSync(path.join(captureDir, `${theme}-${width}x${height}.png`), image.resize({ width, height: statusHeight }).toPNG())
-}
-
-async function sizeChecks(win, theme, width, height) {
-  await resize(win, width, height)
-  let footprint
-  // Walk every declared page: a hardcoded count silently stops covering the
-  // indicator once a page is added to the layout.
-  const pageCount = await js(win, `window.DESKTOP_LAYOUT.pages.length`)
-  for (let index = 0; index < pageCount; index += 1) {
-    await pointerSelect(win, index)
-    const result = await inspect(win)
-    const label = `${theme} ${width}x${height} page ${index + 1}`
-    check(`${label}: quiet themed markers with accessible names`, result.quiet && result.shape && result.selected && result.named, result)
-    check(`${label}: distinct centered targets`, result.hits && result.contained, result.diagnostics)
-    check(`${label}: Pi and page capsules share aligned 44px edges`, result.equalCapsules, result.diagnostics)
-    check(`${label}: stable footprint and restrained feedback`, result.stationary && result.transitions && (!footprint || result.footprint.every((v, i) => Math.abs(v - footprint[i]) < 1)))
-    footprint = result.footprint
-  }
-  await capture(win, theme, width, height)
-}
-
-async function keyboardChecks(win, theme) {
-  win.focus()
-  win.webContents.focus()
-  for (const [index, keyCode] of [[1, 'Enter'], [2, 'Space']]) {
-    await js(win, `document.querySelectorAll('.dot')[${index - 1}].focus()`)
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' })
-    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' })
-    await waitFor(win, `document.activeElement === document.querySelectorAll('.dot')[${index}] && document.activeElement.matches(':focus-visible')`)
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode })
-    if (keyCode === 'Enter') win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' })
-    win.webContents.sendInputEvent({ type: 'keyUp', keyCode })
-    await waitFor(win, `document.querySelectorAll('.dot')[${index}].getAttribute('aria-current') === 'page' && document.activeElement === document.querySelectorAll('.dot')[${index}] && document.activeElement.matches(':focus-visible')`)
-    const result = await js(win, `(() => ({
-      instant: getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s',
-      focused: document.activeElement === document.querySelectorAll('.dot')[${index}],
-      visible: document.activeElement.matches(':focus-visible'),
-      outline: getComputedStyle(document.activeElement).outlineWidth,
-    }))()`)
-    check(`${theme} ${keyCode}: immediate activation with focus`, result.instant && result.focused && result.visible && parseFloat(result.outline) >= 2, result)
-  }
-  win.webContents.send('odk-remote-input', { input: 'right' })
-  const pages = await resolvePages(win)
-  const total = Object.keys(pages.index).length
-  const target = pages.dot('pi-sessions')
-  await waitFor(win, `document.querySelectorAll('.dot')[${target}].getAttribute('aria-current') === 'page'`)
-  const announcement = `Pi Sessions · ${target + 1}/${total}`
-  check(`${theme}: Remote selection updates marker and announcement`, await js(win, `document.querySelector('#page-context').textContent === '${announcement}' && getComputedStyle(document.querySelector('#pages-track')).transitionDuration === '0s'`))
-}
-
-async function themeChecks(win) {
-  await resize(win, 480, 854)
-  await js(win, `document.querySelectorAll('.dot')[2].click(); document.querySelectorAll('.dot')[2].focus()`)
-  const stable = await js(win, `(() => {
-    const buttons = [...document.querySelectorAll('.dot')]
-    const bounds = buttons.map(button => button.getBoundingClientRect().toJSON())
-    const page = document.querySelector('#page-context').textContent
-    const focus = document.activeElement
-    return ['instrument', 'pixel', 'border-beam', 'instrument'].every(theme => {
-      odkTheme.set(theme)
-      return document.activeElement === focus && document.querySelector('#page-context').textContent === page && buttons.every((button, i) => {
-        const r = button.getBoundingClientRect()
-        return button === document.querySelectorAll('.dot')[i] && ['x', 'y', 'width', 'height'].every(key => Math.abs(r[key] - bounds[i][key]) < 1)
-      })
-    })
-  })()`)
-  check('live theme switching retains page, DOM, focus and target geometry', stable)
-}
-
-async function motionChecks(win, theme) {
-  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
-  await pointerSelect(win, 1)
-  check(`${theme}: reduced motion keeps feedback static`, await js(win, `[...document.querySelectorAll('.dot')].every(button => {
-    return ['::before', '::after'].every(part => {
-      const style = getComputedStyle(button, part)
-      return style.transitionDuration.split(', ').every(value => parseFloat(value) === 0) && new DOMMatrix(style.transform).a === 1
-    })
-  })`))
-  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] })
-}
-
 async function main() {
-  const win = new BrowserWindow({ width: 1000, height: 800, show: false, frame: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
-  })
-  win.focus()
-  win.webContents.focus()
-  await win.loadFile(path.join(root, 'src/renderer/index.html'))
-  await js(win, 'document.fonts.ready')
-  await waitFor(win, `document.querySelector('#sb-pi-count').textContent === '2'`)
+  const win = new BrowserWindow({ width:1000, height:800, show:false, frame:false, useContentSize:true,
+    webPreferences:{preload:path.join(root,'src/preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false,offscreen:true} })
+  await win.loadFile(path.join(root,'src/renderer/index.html'))
+  await js(win,'window.odkShellReady'); await js(win,'document.fonts.ready')
   win.webContents.debugger.attach('1.3')
-  const initialTheme = await js(win, `odkTheme.set('pixel'), document.documentElement.dataset.theme`)
-  assert.equal(initialTheme, 'pixel', 'display theme must default to pixel')
-  for (const theme of themes) {
-    await js(win, `odkTheme.set('${theme}'); document.fonts.ready`)
-    const shown = await js(win, `document.documentElement.dataset.theme`)
-    assert.equal(shown, theme, `active theme must display as ${theme}`)
-    for (const size of sizes) await sizeChecks(win, theme, ...size)
-    await keyboardChecks(win, theme)
-    await motionChecks(win, theme)
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2})
+  const count=await js(win,'document.querySelectorAll(".dot").length')
+  await cancelledSwipe(win)
+  for(const theme of [...themes,'liquid-glass']) {
+    await js(win,`odkTheme.set('${theme}')`)
+    await js(win,'document.fonts.ready')
+    for(const [width,height] of sizes) {
+      await resize(win,width,height)
+      let footprint
+      for(let index=0;index<count;index++) {
+        await pointerSelect(win,index)
+        const value=await inspect(win), label=`${theme} ${width}x${height} page ${index+1}`
+        check(`${label}: one named neutral handle`,value.count===1&&value.named&&value.quiet&&value.selected&&value.shape,value)
+        check(`${label}: centered reachable 44px target without a card`,value.hits&&value.contained&&value.noCard,value)
+        check(`${label}: stable footprint and restrained feedback`,value.stationary&&(!footprint||value.footprint.every((n,i)=>Math.abs(n-footprint[i])<1)),value)
+        footprint=value.footprint
+      }
+      if(captureDir){fs.mkdirSync(captureDir,{recursive:true});fs.writeFileSync(path.join(captureDir,`${theme}-${width}x${height}.png`),(await win.webContents.capturePage()).toPNG())}
+    }
+    await js(win,'document.querySelector(".dot.active").focus()')
+    await key(win,'Home');await key(win,'ArrowRight')
+    check(`${theme}: arrow navigation retains focus`,await js(win,'document.activeElement===document.querySelectorAll(".dot")[1]&&document.activeElement.matches(":focus-visible")'))
+    await key(win,'End');await key(win,'ArrowLeft')
+    check(`${theme}: End and previous page retain focus`,await js(win,`document.activeElement===document.querySelectorAll('.dot')[${count-2}]`))
+    await key(win,'Enter');await key(win,'Space')
+    check(`${theme}: Home handle taps do not change page`,await js(win,`document.querySelectorAll('.dot')[${count-2}].classList.contains('active')`))
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    await pointerSelect(win,0)
+    check(`${theme}: reduced motion retains static feedback`,(await inspect(win)).stationary)
+    await cancelledSwipe(win)
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
   }
-  await themeChecks(win)
-  await js(win, `odkTheme.set('pixel')`)
+  await js(win,'odkTheme.set("pixel")')
   win.webContents.setZoomFactor(2)
   await win.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
-  await waitFor(win, `window.__odkGrid?.width === innerWidth`)
-  const result = await inspect(win)
-  check('200% zoom retains centered reachable markers', result.hits && result.contained)
-  const finalTheme = await js(win, `document.documentElement.dataset.theme`)
-  assert.equal(finalTheme, 'pixel', 'run must end displaying the Pixel theme')
-  assert.equal(failures, 0, `${failures} page-indicator checks failed`)
-  console.log('PASS final displayed theme is pixel')
+  await waitFor(win,'window.__odkGrid?.width===innerWidth')
+  await js(win,'document.querySelector("#page-center").scrollIntoView({block:"end"})')
+  const zoom=await inspect(win)
+  check('200% zoom retains one reachable handle',zoom.count===1&&zoom.hits&&zoom.contained,zoom)
+  assert.equal(failures,0,`${failures} home handle checks failed`)
   console.log('PAGE_INDICATOR_PASS')
+  app.exit(0)
 }
-
-// The matrix is themes x sizes x pages, so its cost grows with the layout. On
-// the CM5's arm64 a five-page budget killed the run mid-matrix, and app.exit
-// destroyed the window inside an await (surfacing as "Object has been
-// destroyed") before the gate could report a verdict.
-const timeout = setTimeout(() => { console.error('Page indicator timed out'); app.exit(1) }, process.arch === 'arm64' ? 900000 : 60000)
-process.once('exit', () => fs.rmSync(profile, { recursive: true, force: true }))
-app.whenReady().then(main).then(() => { clearTimeout(timeout); app.exit(0) }).catch(error => { console.error(error); app.exit(1) })
+const timeout=setTimeout(()=>{console.error('Home handle matrix timed out');app.exit(1)},process.arch==='arm64'||process.platform==='win32'?900000:120000)
+process.once('exit',cleanupProfile)
+app.whenReady().then(main).then(()=>clearTimeout(timeout)).catch(error=>{console.error(error);app.exit(1)})

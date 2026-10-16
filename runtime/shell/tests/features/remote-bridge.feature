@@ -6,7 +6,7 @@ Feature: Open DeskOS Remote Bridge
 
   Scenario: Display Shell receives factual link state through its private local socket
     Given Remote Bridge starts in a user session with XDG_RUNTIME_DIR set
-    When a Display Shell client connects to XDG_RUNTIME_DIR/open-deskos-remote/bridge.sock
+    When a Display Shell client connects to XDG_RUNTIME_DIR/odk-remote/bridge.sock
     Then the socket is located below XDG_RUNTIME_DIR with mode 0600
     And the client receives a versioned JSON Lines link record
     And link state is disconnected, syncing, usb, or wireless

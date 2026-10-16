@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." >/dev/null && pwd -P)"
 TARGET="${ODK_CM5_TARGET:-cm5}"
-REMOTE_ROOT="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+REMOTE_ROOT="${ODK_RUNTIME_ROOT:-/opt/odk}"
 STAGING_ID="${ODK_STAGING_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
 STAGING_DIR="${REMOTE_ROOT}/staging/${STAGING_ID}"
 STAGING_ROOT="${STAGING_DIR}/repo"

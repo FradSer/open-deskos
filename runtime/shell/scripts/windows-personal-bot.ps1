@@ -3,7 +3,7 @@
 # The Personal Bot is a system component of the desk, not a Shell plugin: it owns
 # microphone capture, transcription and the Pi run, and the Shell reaches it
 # through the personal-bot named pipe. This script is the Windows counterpart of
-# systemd's open-deskos-personal-bot.service: it reads the same two device-local
+# systemd's odk-personal-bot.service: it reads the same two device-local
 # environment files, then supervises the same entry point
 # (integrations/personal-bot/src/main.mjs) and restarts it the way the unit's
 # Restart=on-failure does.
@@ -46,7 +46,7 @@ if (-not $PersonalBotRoot) {
   if (-not $PersonalBotRoot) { $PersonalBotRoot = $personalBotCandidates[0] }
 }
 
-$configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'open-deskos' } else { $env:TEMP }
+$configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'odk' } else { $env:TEMP }
 $log = Join-Path $configDir 'personal-bot.log'
 $entryPoint = Join-Path $PersonalBotRoot 'src\main.mjs'
 
@@ -84,7 +84,7 @@ function Import-DeviceEnv([string]$file) {
 }
 
 if ($Status) {
-  $listening = Test-Path -LiteralPath '\\.\pipe\open-deskos-personal-bot'
+  $listening = Test-Path -LiteralPath '\\.\pipe\odk-personal-bot'
   $ffmpeg = (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue) -ne $null
   "personal-bot: entry=$entryPoint exists=$(Test-Path -LiteralPath $entryPoint) pipe=$listening ffmpeg=$ffmpeg log=$log"
   if (-not (Test-Path -LiteralPath $entryPoint)) { exit 1 }

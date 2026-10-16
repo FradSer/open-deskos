@@ -13,6 +13,7 @@
     app: 'Clock',
     state: 'Available',
     interaction: 'display-only',
+    opensApp: 'clock',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="widget-signal clock-body">

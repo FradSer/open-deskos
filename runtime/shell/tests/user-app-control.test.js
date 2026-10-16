@@ -38,4 +38,7 @@ test('invalid lifecycle intents cannot invoke store or become fake success', asy
   const control = createUserAppControl({})
   assert.deepEqual(await control.dispatch({ command: 'execute', appId: 'x' }), { ok: false, error: 'invalid-command' })
   assert.deepEqual(await control.dispatch({ command: 'install', appId: '../x' }), { ok: false, error: 'invalid-app-id' })
+  for (const sourcePath of [undefined, 42, '../x', 'relative', '\0']) {
+    assert.deepEqual(await control.dispatch({ command: 'add', sourcePath }), { ok: false, error: 'invalid-package-path' })
+  }
 })

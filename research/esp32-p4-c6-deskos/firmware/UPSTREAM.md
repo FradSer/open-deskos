@@ -40,7 +40,7 @@ from that same `managed_components/georgik__lua/` tree — see
 Every change Open DeskOS makes to the fork is appended here.
 
 - 2026-07-10 — Added headless board entry
-  `application/edge_agent/boards/open-deskos/open_deskos_p4_headless/`
+  `application/edge_agent/boards/odk/odk_p4_headless/`
   (`board_info.yaml`, `board_peripherals.yaml`, `board_devices.yaml`,
   `sdkconfig.defaults.board`, `setup_device.c`). Targets `esp32p4`. Declares no
   `display_lcd` / `lcd_touch` and provides no DSI panel factory entry, so the
@@ -86,7 +86,7 @@ Every change Open DeskOS makes to the fork is appended here.
     for `display_arbiter` (required by the LVGL display path), and for
     `georgik/lua` (odk_sandbox's
     Lua VM; cap_lua, which normally pulls it, is not in the headless build).
-  - `application/edge_agent/boards/open-deskos/open_deskos_p4_headless/sdkconfig.defaults.board`:
+  - `application/edge_agent/boards/odk/odk_p4_headless/sdkconfig.defaults.board`:
     added `CONFIG_PARTITION_TABLE_CUSTOM` + `CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_odk_16MB.csv"`.
   - `application/edge_agent/tools/cmake/flash_partition_defaults.cmake`: the fork
     auto-selects `partitions_<flashsize>.csv` and strips/overrides any
@@ -123,7 +123,7 @@ not an OTA partition write; installer delivery stays file-copy-and-verify.
   lcd_touch declared (ST7701S RGB panel driver + 3-wire-SPI panel-IO not
   vendored; Guition RGB/control pin map pending — panel bring-up is a
   follow-up). sdkconfig adds the key C6 fix missing from
-  open_deskos_p4_headless: CONFIG_SLAVE_IDF_TARGET_ESP32C6=y (without it
+  odk_p4_headless: CONFIG_SLAVE_IDF_TARGET_ESP32C6=y (without it
   esp-hosted never identifies the slave and wifi_manager_init boot-loops),
   plus CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=100, and the Open DeskOS
   packages partition table.
@@ -206,22 +206,22 @@ not an OTA partition write; installer delivery stays file-copy-and-verify.
   triaged (separate).
 
 - 2026-08-20 — Added M5Stack PaperColor (ESP32-S3) e-paper board support.
-  Added board definition `application/open_deskos/boards/m5stack/m5papercolor/`
+  Added board definition `application/odk/boards/m5stack/m5papercolor/`
   (`board_info.yaml`, `board_devices.yaml`, `board_peripherals.yaml`,
   `sdkconfig.defaults.board`, `README.md`), ED2208 EPD driver component
-  `application/open_deskos/components/esp_lcd_m5paper_epd/` (`CMakeLists.txt`,
+  `application/odk/components/esp_lcd_m5paper_epd/` (`CMakeLists.txt`,
   `idf_component.yml`, `include/esp_lcd_m5paper_epd.h`,
   `src/esp_lcd_m5paper_epd.c`), direct bring-up
-  `application/open_deskos/main/odk_m5paper_display_bringup.{c,h}`, board
-  selection `application/open_deskos/Kconfig.projbuild`, BDD feature
+  `application/odk/main/odk_m5paper_display_bringup.{c,h}`, board
+  selection `application/odk/Kconfig.projbuild`, BDD feature
   `tests/features/m5papercolor-board.feature`, and host contract
   `tests/host/m5papercolor_board_contract.cmake`.
   Modified fork files:
-  - `application/open_deskos/main/main.c`: added `odk_m5paper_display_bringup`
+  - `application/odk/main/main.c`: added `odk_m5paper_display_bringup`
     branch under `CONFIG_ODK_BOARD_M5PAPERCOLOR`.
-  - `application/open_deskos/main/odk_voice_ui.c`: added 6 branch points for
+  - `application/odk/main/odk_voice_ui.c`: added 6 branch points for
     `CONFIG_ODK_BOARD_M5PAPERCOLOR` (panel, IO, touch, size, PANEL_IF_IO).
-  - `application/open_deskos/main/CMakeLists.txt`: added source filtering for
+  - `application/odk/main/CMakeLists.txt`: added source filtering for
     M5PaperColor and `PRIV_REQUIRES esp_lcd_m5paper_epd`.
   - `tests/features/firmware-scope.feature` and `tests/host/firmware_scope_contract.cmake`:
     updated production board count from two to three.
@@ -239,7 +239,7 @@ This is the historical ESP-Claw fork used by P4+C6 research. Supported board-man
 
 ## Removed upstream surfaces
 
-- Standalone MCP sample application and the upstream application identity (renamed to `open_deskos`).
+- Standalone MCP sample application and the upstream application identity (renamed to `odk`).
 - Upstream Astro documentation, web simulator, emsdk simulator and GitLab CI. The [native SDL simulator](sim/native_sdl/README.md) preserves the host UI path.
 - Standalone CO6300 AMOLED bring-up archive; hardware conclusions remain in the historical specifications.
 
@@ -250,9 +250,9 @@ The LLM HTTP transport and anthropic/openai-compatible/custom backends under `co
 Consult [UPSTREAM.md](UPSTREAM.md) for dependency provenance and local deltas. This boundary describes the preserved tree, not proof that a feature has passed hardware acceptance.
 
 
-<a id="application-open-deskos-components-cmake-utilities-readme"></a>
+<a id="application-odk-components-cmake-utilities-readme"></a>
 
-## application/open_deskos/components/cmake_utilities/README.md
+## application/odk/components/cmake_utilities/README.md
 
 # Cmake utilities
 
@@ -286,9 +286,9 @@ This component is aiming to provide some useful CMake utilities outside of ESP-I
 2. [gen_compressed_ota](https://github.com/espressif/esp-iot-solution/blob/master/tools/cmake_utilities/docs/gen_compressed_ota.md)
 3. [GCC Optimization](https://github.com/espressif/esp-iot-solution/blob/master/tools/cmake_utilities/docs/gcc.md)
 
-<a id="application-open-deskos-components-cmake-utilities-docs-relinker"></a>
+<a id="application-odk-components-cmake-utilities-docs-relinker"></a>
 
-## application/open_deskos/components/cmake_utilities/docs/relinker.md
+## application/odk/components/cmake_utilities/docs/relinker.md
 
 # Relinker
 
@@ -357,9 +357,9 @@ This means library `libfreertos.a`'s location is `./esp-idf/freertos/libfreertos
 
 If above related data has exists in corresponding files, please don't add this repeatedly.
 
-<a id="application-open-deskos-components-esp-lcd-st7701-readme"></a>
+<a id="application-odk-components-esp-lcd-st7701-readme"></a>
 
-## application/open_deskos/components/esp_lcd_st7701/README.md
+## application/odk/components/esp_lcd_st7701/README.md
 
 # ESP LCD ST7701(S)
 
@@ -541,9 +541,9 @@ It's recommended to use the [esp_lcd_panel_io_additions](https://components.espr
 ```
 
 
-<a id="application-open-deskos-components-esp-lcd-touch-readme"></a>
+<a id="application-odk-components-esp-lcd-touch-readme"></a>
 
-## application/open_deskos/components/esp_lcd_touch/README.md
+## application/odk/components/esp_lcd_touch/README.md
 
 # ESP LCD Touch Component
 
@@ -563,9 +563,9 @@ This componnent is main esp_lcd_touch component which defines main functions and
 
 
 
-<a id="application-open-deskos-components-esp-lcd-touch-gt911-readme"></a>
+<a id="application-odk-components-esp-lcd-touch-gt911-readme"></a>
 
-## application/open_deskos/components/esp_lcd_touch_gt911/README.md
+## application/odk/components/esp_lcd_touch_gt911/README.md
 
 # ESP LCD Touch GT911 Controller
 
@@ -646,9 +646,9 @@ Small dependency-light helpers shared by ESP-Claw modules and capabilities.
 Functions here should not depend on any ESP-Claw components.
 
 
-<a id="application-open-deskos-components-cmake-utilities-docs-gcc"></a>
+<a id="application-odk-components-cmake-utilities-docs-gcc"></a>
 
-## application/open_deskos/components/cmake_utilities/docs/gcc.md
+## application/odk/components/cmake_utilities/docs/gcc.md
 
 # Link Time Optimization(LTO)
 
@@ -760,9 +760,9 @@ Option | Firmware size |
  -Os + LTO + string 1-byte align | 1,018,340 |
 
 
-<a id="application-open-deskos-components-cmake-utilities-docs-gen-compressed-ota"></a>
+<a id="application-odk-components-cmake-utilities-docs-gen-compressed-ota"></a>
 
-## application/open_deskos/components/cmake_utilities/docs/gen_compressed_ota.md
+## application/odk/components/cmake_utilities/docs/gen_compressed_ota.md
 
 # Gen Compressed OTA
 

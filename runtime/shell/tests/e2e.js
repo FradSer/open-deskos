@@ -1,8 +1,24 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { scanPiSessions } = require('../src/pi-sessions')
+const { runFixture } = require('./helpers/electron-fixture')
+
+if (process.platform === 'darwin') app.dock.hide()
+const homeTestProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-e2e-'))
+app.setPath('userData', homeTestProfile)
+app.setPath('sessionData', homeTestProfile)
+const cleanupProfile = () => {
+  try { fs.rmSync(homeTestProfile, { recursive: true, force: true }) }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error
+    console.warn('Temporary E2E profile remains locked after shutdown')
+  }
+}
+app.once('will-quit', cleanupProfile)
+process.once('exit', cleanupProfile)
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
@@ -36,6 +52,9 @@ const DRIVER_SCRIPT = `
 
   out.pluginIds = window.odkPlugins ? [...window.odkPlugins.ids()].sort() : []
   out.pluginsUseOdkIdentity = out.pluginIds.every((id) => id.startsWith('odk.'))
+  const catalog = window.odkPlugins.catalog()
+  out.rendererHostRunning = catalog.length === out.pluginIds.length
+    && catalog.every((entry) => entry.manifest.host === 'electron-renderer' && entry.state === 'running')
   out.pluginsHaveCompleteLifecycle = out.pluginIds.every((id) => {
     const lifecycle = window.odkPlugins.get(id).lifecycle
     return ['mount', 'unmount']
@@ -70,18 +89,19 @@ const DRIVER_SCRIPT = `
   const timeRect = $('.sb-time').getBoundingClientRect()
   out.statusBarRects = { statusBar: statusBarRect.toJSON(), dots: dotsRect.toJSON(), net: netRect.toJSON(), time: timeRect.toJSON() }
   out.dotsInsideStatusBar =
-    dotsRect.top >= statusBarRect.top && dotsRect.bottom <= statusBarRect.bottom
-  out.netIndicatorLeftOfDots = netRect.right <= dotsRect.left
+    dotsRect.top >= $('#pages-viewport').getBoundingClientRect().bottom && dotsRect.bottom <= innerHeight
+  out.netIndicatorLeftOfDots = netRect.right <= timeRect.left && netRect.top < statusBarRect.bottom
   out.clockRightOfDots = timeRect.left >= dotsRect.right
 
 
-  out.pageCount = document.querySelectorAll('#pages-track .page').length
+  out.pageCount = document.querySelectorAll('#pages-track > .page').length
   out.dotCount = document.querySelectorAll('#dots .dot').length
+  out.visibleHandles = [...document.querySelectorAll('#dots .dot')].filter(n=>n.getClientRects().length).length
   out.noUserAppsPage = !document.querySelector('.user-apps') && window.DESKTOP_LAYOUT.pages.every(page => page.id !== 'user-apps')
   out.pageContext = text('#page-context')
   out.surfaceSeparation =
     document.querySelector('#pages-track .page[data-page-id="home"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page-id="today"]')?.dataset.surface === 'display' &&
+    document.querySelector('#home-summary .page[data-page-id="today"]')?.dataset.surface === 'display' &&
     document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.dataset.surface === 'app' &&
     document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app'
   out.fontsLoaded = document.fonts.check('400 20px Zpix') || (document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"'))
@@ -91,24 +111,18 @@ const DRIVER_SCRIPT = `
   out.dashDateFormatted = /^(January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}$/.test(text('#dash-md'))
   out.dashYearCurrent = text('#dash-y') === String(new Date().getFullYear())
   const narrative = $('#dash-narrative')
-  const briefingDeadline = Date.now() + 3000
-  while (Date.now() < briefingDeadline && !narrative.querySelector('[data-briefing]')) {
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-  out.narrativeStatements = [...narrative.querySelectorAll('.dash-clause')].map((clause) => clause.textContent)
   out.narrativeText = text('.dash-narrative')
-  out.todayBriefsFromPlugins =
-    out.narrativeStatements.length === 1 &&
-    narrative.querySelector('[data-briefing="odk.briefing.pi-sessions"]') !== null &&
-    /Pi session/.test(out.narrativeText) &&
-    narrative.querySelectorAll('b').length === 2 &&
-    narrative.querySelectorAll('b svg[data-tabler]').length === 2
+  out.todayBriefsFromAgent =
+    narrative.querySelector('[data-briefing="agent-0"]') !== null &&
+    /Review the current desk readings/.test(out.narrativeText) &&
+    !$('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list') &&
+    narrative.getAttribute('aria-live') === 'polite'
   out.todayOmitsDeskStatus =
     !/Network (connected|disconnected)/.test(out.narrativeText) &&
     !/Focus is not started/.test(out.narrativeText) &&
     !/Quota|OpenCode/.test(out.narrativeText)
   out.todayClaimsNoPersonalData = !/\b(?:\d+ meetings|\d+ tasks|\d+ habits|steps|sleep|hours)\b/.test(out.narrativeText)
-  const requiredIcons = ['wifi', 'wifi-off', 'chevron-left', 'folder']
+  const requiredIcons = ['wifi', 'wifi-off', 'chevron-left']
   const presentIcons = [...document.querySelectorAll('svg[data-tabler]')].map((s) => s.dataset.tabler)
   out.tablerSetComplete = requiredIcons.every((name) => presentIcons.includes(name))
   out.tablerCount = presentIcons.length
@@ -125,10 +139,8 @@ const DRIVER_SCRIPT = `
     !$('#pages-viewport').inert &&
     !$('#status-bar').inert
   out.widgetStatesAreHonest =
-    /^[0-9]{1,2}$/.test($('.w-almanac .al-day')?.textContent || '') &&
     $('.w-pomodoro .w-state')?.textContent === 'Not started'
   out.widgetsUseFlexibleAnatomy = Boolean(
-    $('.w-almanac .al-day') &&
     $('.w-year .year-signal-line') &&
     $('.w-pomodoro .pomodoro-state') &&
     $('.w-weread .weread-body') &&
@@ -137,8 +149,8 @@ const DRIVER_SCRIPT = `
   )
   const hydraTile = document.querySelector('[data-widget="odk.tile.hydra"]')
   out.hydraTileMounted = Boolean(hydraTile?.querySelector('.hydra-head'))
-  out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '5' &&
-    getComputedStyle(hydraTile).gridRowStart === '2' && getComputedStyle(hydraTile).gridRowEnd === '4'
+  out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '1' &&
+    getComputedStyle(hydraTile).gridRowStart === '1' && getComputedStyle(hydraTile).gridRowEnd === '3'
   out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Offline', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
   out.widgetsAreDisplayOnly =
     [...document.querySelectorAll('.widget')].every((widget) =>
@@ -149,11 +161,11 @@ const DRIVER_SCRIPT = `
   out.preloadExposesSubscriptionEndpoint = typeof window.odkPlatform?.getOpenCodeGoStatus === 'function'
   out.preloadExposesCameraEndpoint = typeof window.odkPlatform?.getCameraFrame === 'function'
   out.remotePreloadIsNarrow = JSON.stringify(Object.keys(window.odkRemote || {}).sort()) === JSON.stringify(['publishPageState', 'subscribeInput', 'subscribeLinkState', 'subscribeNavigation'])
-  const clockPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.clock"]'))
-  out.clockPlacementFromConfig = clockPlacement.gridColumnStart === '2'
+  const marketPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.futu"]'))
+  out.marketPlacementFromConfig = marketPlacement.gridColumnStart === '3' && marketPlacement.gridRowStart === '1'
   const pomodoroPlacement = getComputedStyle(document.querySelector('[data-widget="odk.tile.pomodoro"]'))
   out.pomodoroPlacementFromConfig =
-    pomodoroPlacement.gridRowStart === '2' && pomodoroPlacement.gridRowEnd === '4'
+    pomodoroPlacement.gridRowStart === '1' && pomodoroPlacement.gridColumnStart === '2'
   const dots = [...document.querySelectorAll('#dots .dot')]
   out.dotsAreButtons = dots.length > 0 && dots.every((d) => d.tagName === 'BUTTON')
   out.dotLabelsPresent = dots.every((d) => (d.getAttribute('aria-label') ?? '').length > 0)
@@ -163,23 +175,24 @@ const DRIVER_SCRIPT = `
   const dotTransform = getComputedStyle(dots[0]).transform
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
-  const signalSelector = '.w-state, .al-day, .w-clock-time, .year-pct, .widget-status-value, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .preorder-count'
+  const signalSelector = '.w-state, .al-day, .w-clock-time, .year-pct, .widget-status-value, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .preorder-count, .weather-temp, .weather-state, .futu-total, .w-settings .widget-status-value'
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
-  out.clockIsAvailable = /^\\d{2}:\\d{2}$/.test(text('.w-clock-time'))
+  out.timeAndDateWidgetsRemoved = !document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')
+  out.overviewDateRetained = Boolean(text('.dash-wd') && text('.dash-date'))
   out.pomodoroNotRunning = text('.ring-mmss') === '--:--' && text('.w-pomodoro .w-state') === 'Not started'
   window.dispatchEvent(new Event('offline'))
   out.netIndicatorOffline =
     $('#sb-net').dataset.online === 'false' &&
     $('#sb-net [data-tabler="wifi-off"]').hasAttribute('hidden') === false &&
     $('#sb-net [data-tabler="wifi"]').hasAttribute('hidden') === true &&
-    $('#sb-net').getAttribute('aria-label') === 'Network disconnected'
+    $('#sb-net').getAttribute('aria-label') === 'Wi-Fi status unknown; Network disconnected'
   out.offlineAnnounced = text('#status-announcement').includes('Network disconnected')
   window.dispatchEvent(new Event('online'))
   out.netIndicatorOnline =
     $('#sb-net').dataset.online === 'true' &&
     $('#sb-net [data-tabler="wifi"]').hasAttribute('hidden') === false &&
     $('#sb-net [data-tabler="wifi-off"]').hasAttribute('hidden') === true &&
-    $('#sb-net').getAttribute('aria-label') === 'Network connected'
+    $('#sb-net').getAttribute('aria-label') === 'Wi-Fi status unknown; Network connected'
   out.onlineAnnounced = text('#status-announcement').includes('Network connected')
 
   const grid = $('.widget-grid')
@@ -194,12 +207,14 @@ const DRIVER_SCRIPT = `
   // positional selector onto the wrong surface (see tests/helpers/pages.js).
   const piAppRect = document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-app-wrapper').getBoundingClientRect()
   const quotaCardRect = document.querySelector('#pages-track .page[data-page-id="quota"] .quota-card').getBoundingClientRect()
-  const appSurfaceWidth = Math.min(metrics.gridW, window.innerWidth)
+  const appPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
+  const appSurfaceWidth = Math.min(metrics.gridW, appPage.clientWidth)
+  const appSurfaceHeight = Math.min(metrics.gridH, appPage.clientHeight - 2 * metrics.gutter)
   out.appSurfacesMatchGridFootprint =
     approx(piAppRect.width, appSurfaceWidth) &&
-    approx(piAppRect.height, metrics.gridH) &&
+    approx(piAppRect.height, appSurfaceHeight) &&
     approx(quotaCardRect.width, appSurfaceWidth) &&
-    approx(quotaCardRect.height, metrics.gridH)
+    approx(quotaCardRect.height, appSurfaceHeight)
   out.cardsHaveNoStateEdgeBars = [...document.querySelectorAll('.widget, .pi-overview-cell')].every((card) => {
     const before = getComputedStyle(card, '::before')
     const border = getComputedStyle(card)
@@ -215,24 +230,24 @@ const DRIVER_SCRIPT = `
     ...document.querySelectorAll('.widget'),
     ...document.querySelectorAll('#pages-track .page[data-surface="app"] > div'),
   ]
-  out.monitoredSurfacesStayInBounds = monitoredSurfaces.length === declaredWidgets.length + window.DESKTOP_LAYOUT.pages.filter(page => page.surface === 'app').length && monitoredSurfaces.every((surface) => {
+  out.monitoredSurfacesStayInBounds = monitoredSurfaces.length === declaredWidgets.length + window.DESKTOP_LAYOUT.pages.filter(page => page.surface === 'app' && !page.persistent).length && monitoredSurfaces.every((surface) => {
     const rect = surface.getBoundingClientRect()
     const page = surface.closest('.page').getBoundingClientRect()
     return rect.left >= page.left - 2 && rect.right <= page.right + 2 && rect.top >= page.top - 2 && rect.bottom <= page.bottom + 2
   })
 
-  const clockRect = $('.w-clock').getBoundingClientRect()
-  out.clockSpansOneSquare = approx(clockRect.width, metrics.cellW) && approx(clockRect.height, metrics.cellH)
+  const marketRect = $('.w-futu').getBoundingClientRect()
+  out.marketSpansOneSquare = approx(marketRect.width, metrics.cellW) && approx(marketRect.height, metrics.cellH)
 
   const pomodoroRect = $('.w-pomodoro').getBoundingClientRect()
   out.pomodoroSpansTwoSquare =
-    approx(pomodoroRect.height, 2 * metrics.cellH + metrics.gutter)
+    approx(pomodoroRect.height, metrics.cellH)
 
   out.subscriptionInitialStatus = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const pageIndex = (index) => document.querySelectorAll('#dots .dot')[index].click()
-  const jumpToPage = (id) => document.querySelectorAll('#dots .dot')[window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === id)].click()
+  const jumpToPage = (id) => document.querySelectorAll('#dots .dot')[window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === id)].click()
   pageIndex(0)
   await new Promise((resolve) => setTimeout(resolve, 300))
   window.odkRemote.subscribeInput((input) => {})
@@ -281,16 +296,17 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 50))
   // Browsers emit a compatibility click after a real pointer release; synthetic
   // PointerEvents do not, so emit it explicitly to mirror device behavior.
-  viewport.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  viewport.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
   await new Promise((resolve) => setTimeout(resolve, 300))
   out.transformAfterTileDrag = track.style.transform
   out.appHiddenAfterTileDrag = $('#app-view').hidden
 
   const tile = document.querySelector('.widget[data-widget="odk.tile.pomodoro"]')
-  tile.click()
+  tile.querySelector('.widget-launch').click()
   await new Promise((resolve) => setTimeout(resolve, 100))
-  out.displayWidgetDoesNotOpenApp = $('#app-view').hidden
-  out.displayWidgetHasNoAction = tile.tagName === 'DIV' && !tile.matches(':focus')
+  out.widgetOpensApp = !$('#app-view').hidden && window.odkAppPlatform.active()?.sourceWidget === tile.dataset.widget
+  await window.odkAppPlatform.closeApp()
+  out.widgetHasNativeContinuation = tile.querySelector('.widget-launch')?.tagName === 'BUTTON'
   out.platformAppStillOpensSeparately = await window.odkAppPlatform.openApp({
     appId: 'pomodoro', widgetId: 'e2e-separate-app', route: 'home',
   })
@@ -311,8 +327,12 @@ const DRIVER_SCRIPT = `
   if (search) { search.value = 'Pomodoro'; search.dispatchEvent(new Event('input', { bubbles: true })) }
   out.appManagerSearchFilters = countBeforeSearch > 1 && appList.querySelectorAll('li').length === 1
   $('#app-back').click()
+  const closeDeadline = performance.now() + 5000
+  while (!$('#app-view').hidden) {
+    if (performance.now() > closeDeadline) throw new Error('App manager did not close before Home navigation')
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
   out.appEndpointTrace = window.odkAppPlatform?.endpoint === 'main-process'
-  $('#app-back').click()
   out.pagePreservedAfterWidgetApp = document.querySelectorAll('#dots .dot')[1].classList.contains('active')
 
   document.querySelectorAll('#dots .dot')[2].click()
@@ -406,14 +426,15 @@ const DRIVER_SCRIPT = `
     return opened && piPage.querySelector('#pi-overview').hidden === false && detail.inert === true
   })()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = text('#page-context') === 'Home · 2/5'
+  out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
   out.endJumpsToUsage = text('#page-context') === 'Usage · 5/5'
   out.usageIsInteractiveAppSurface =
     document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app' &&
     Boolean(document.querySelector('#pages-track .page[data-page-id="quota"] #quota-refresh'))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = text('#page-context') === 'Today · 1/5'
+  out.homeJumpsToToday = text('#page-context') === 'Home · 1/5'
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
@@ -446,7 +467,7 @@ const GEOMETRY_PROBE = `
     const $ = (selector) => document.querySelector(selector)
     const m = window.__odkGrid
     let widgetsInside = 0
-    const widgets = [...document.querySelectorAll('.widget')]
+    const widgets = [...document.querySelectorAll('[data-page-id="home"] .widget')]
     for (const el of widgets) {
       const r = el.getBoundingClientRect()
       const page = el.closest('.page')
@@ -483,28 +504,29 @@ function check(results) {
     ['app view hidden on load', results.appViewDisplayOnLoad === 'none'],
     ['plugins expose complete lifecycle', results.pluginsHaveCompleteLifecycle],
     ['plugins use Open DeskOS identities', results.pluginsUseOdkIdentity],
+    ['renderer plugins run on the common host', results.rendererHostRunning],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.clock', 'odk.tile.camera', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.clock', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
     ['all pages built by composer', results.pagesBuiltByComposer],
     ['status bar slots mounted by plugins', results.statusSlotsMounted],
     ['State Bar omits textual connection summaries and bottom Peek', results.statusSlotsMounted && results.noBottomPeek && results.noRemovedLegacySurfaces && results.stateSummaryRemoved],
-    ['status bar holds dots', results.dotsInsideStatusBar],
-    ['network indicator left of dots', results.netIndicatorLeftOfDots],
+    ['dots stay below the Widget viewport', results.dotsInsideStatusBar],
+    ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
-    ['five pages', results.pageCount === 5],
-    ['five dots', results.dotCount === 5],
+    ['five paged surfaces', results.pageCount === 5],
+    ['one bottom Home handle with five page identities', results.dotCount === 5 && results.visibleHandles === 1],
     ['no separate User Applications page', results.noUserAppsPage],
-    ['page context is tracked', results.pageContext === 'Today · 1/5'],
+    ['page context is tracked', results.pageContext === 'Home · 1/5'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
     ['dashboard month-day format', results.dashDateFormatted],
     ['dashboard year is current', results.dashYearCurrent],
-    ['Today briefs only from plugin contributions', results.todayBriefsFromPlugins],
+    ['Today briefs from Personal Agent with source provenance', results.todayBriefsFromAgent],
     ['Today omits network, focus, and quota-service status', results.todayOmitsDeskStatus],
     ['Today claims no personal data without a provider', results.todayClaimsNoPersonalData],
     ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
@@ -513,7 +535,7 @@ function check(results) {
     ['declared state widgets have unique identities', results.widgetIdentitiesMatch && results.uniqueApps],
     ['shell boots without peripheral gates', results.shellBootsWithoutPeripheralGates],
     ['widgets declare truthful signals without forced template anatomy', results.widgetStatesAreHonest && results.widgetsUseFlexibleAnatomy && results.widgetsAreDisplayOnly && results.surfaceSeparation],
-    ['Hydra plants widget mounts truthfully on the Home grid', results.hydraTileMounted && results.hydraTilePlacement && results.hydraStateIsHonest],
+    ['Hydra plants widget mounts truthfully on the Desk grid', results.hydraTileMounted && results.hydraTilePlacement && results.hydraStateIsHonest],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesCameraEndpoint && results.endpointListCalled && results.endpointIntentCalled],
     ['preload exposes only narrow Remote Link API', results.remotePreloadIsNarrow],
@@ -525,33 +547,33 @@ function check(results) {
     ['Remote Touchpad establishes App focus with primary input', results.remoteAppPrimaryEstablishesFocus],
     ['Remote Touchpad directions retain App Focus Mode', results.remoteAppDirectionStaysOnPage],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
-    ['clock placement comes from desktop layout config', results.clockPlacementFromConfig],
+    ['market fills the former clock cell from layout config', results.marketPlacementFromConfig],
     ['pomodoro placement comes from desktop layout config', results.pomodoroPlacementFromConfig],
     ['dots are labeled buttons', results.dotsAreButtons && results.dotLabelsPresent],
     ['dot hit area extends above the pill', results.dotHitAreaAbovePill],
     ['dot button itself is not transformed', results.dotButtonNotTransformed],
     ['widgets expose honest state labels', results.widgetsHaveState],
-    ['clock widget is visibly available', results.clockIsAvailable],
+    ['time and date Widgets are removed while Overview keeps its date', results.timeAndDateWidgetsRemoved && results.overviewDateRetained],
     ['pomodoro is visibly not running', results.pomodoroNotRunning],
     ['network indicator draws struck wifi while offline', results.netIndicatorOffline],
     ['offline status is announced', results.offlineAnnounced],
     ['network indicator draws wifi and emphasis while online', results.netIndicatorOnline],
     ['online status is announced', results.onlineAnnounced],
-    ['grid has 5 columns', results.gridColumns === 5],
-    ['grid has 3 rows', results.gridRows === 3],
+    ['wide right grid has at most three columns', results.gridColumns === 3],
+    ['home grid has two rows below Overview', results.gridRows === 2],
     ['grid flush to screen edges', results.gridFlushEdges],
     ['App surfaces match the widget grid footprint', results.appSurfacesMatchGridFootprint],
     ['cards have no colored top or left state bars', results.cardsHaveNoStateEdgeBars],
     ['essential Widget and App text wraps without ellipsis', results.essentialTextDoesNotUseEllipsis && results.piRawIdentifiersHidden],
     ['all Widgets and direct App surfaces stay within their pages', results.monitoredSurfacesStayInBounds],
-    ['clock widget spans 1x1 square', results.clockSpansOneSquare],
-    ['pomodoro widget spans 2x2 square', results.pomodoroSpansTwoSquare],
+    ['market widget spans 1x1 square', results.marketSpansOneSquare],
+    ['pomodoro widget spans one square unit', results.pomodoroSpansTwoSquare],
     ['State Bar omits subscription, network, and Remote Link text', results.stateSummaryRemoved && results.noBottomPeek],
     ['swipe moves to page 2', results.transformAfterSwipe === `translateX(-${results.viewportWidth}px)`],
     ['second dot active', results.secondDotActive],
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
-    ['display widget stays read-only and separate App still opens', results.displayWidgetDoesNotOpenApp && results.displayWidgetHasNoAction && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
+    ['Widget opens its App and the platform path remains available', results.widgetOpensApp && results.widgetHasNativeContinuation && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
     ['Pi Sessions is a direct live-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
     ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
@@ -598,7 +620,9 @@ async function runGeometrySweep(win) {
     // The renderer recomputes geometry on resize via requestAnimationFrame;
     // a blind sleep races cold-start rAF throttling in hidden windows, so
     // poll until the applied metrics match the layout module (bounded).
-    const expectedCell = layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).cellW
+    const viewportSize = await win.webContents.executeJavaScript('({ width: document.getElementById("pages-viewport").clientWidth, height: document.getElementById("pages-viewport").clientHeight, deskHeight: document.getElementById("desk-content").clientHeight, minCell: window.__odkGrid.minCell })', true)
+    const expectedMetrics = layout.computeDesk(width, height, viewportSize.width, viewportSize.height, layout.gridWidgetCount(desktopLayout), viewportSize.deskHeight, viewportSize.minCell)
+    const expectedCell = expectedMetrics.cellW
     const deadline = Date.now() + 5000
     let settled = false
     let lastApplied = null
@@ -618,7 +642,7 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
     await win.webContents.executeJavaScript(`(() => {
-      const index = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const index = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
       document.querySelectorAll('#dots .dot')[index].click()
     })()`, true)
     await new Promise((resolve) => setTimeout(resolve, 350))
@@ -646,9 +670,9 @@ async function runGeometrySweep(win) {
       ['Pi App controls wrap inside the scrollable portrait page', piProbe.controlsPresent && piProbe.controlsInside && piProbe.rowsInside && piProbe.filtersInside && piProbe.retiredControlsAbsent],
       ['widget text fits tiles', probe.textsFit],
       ['runtime metrics match layout module', probe.cellW === expectedCell],
-      ['responsive grid columns match layout', probe.gridColumns === layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).cols],
-      ['responsive grid rows remain bounded', probe.gridRows <= layout.compute(width, height, layout.gridWidgetCount(desktopLayout)).rows],
-      ['responsive widgets reflow explicit desktop coordinates', probe.widgetsReflowed || width >= 1000],
+      ['responsive grid columns match layout', probe.gridColumns === expectedMetrics.cols],
+      ['responsive grid rows remain bounded', probe.gridRows <= expectedMetrics.rows],
+      ['responsive widgets reflow explicit desktop coordinates', probe.widgetsReflowed || expectedMetrics.cols >= 2],
     ]
     if (!probe.textsFit) console.log(`INFO  ${label} ${width}x${height} — overflowing text: ${probe.overflowingTexts.join(', ')}`)
     for (const [name, ok] of checks) {
@@ -694,14 +718,14 @@ async function runMotionChecks(win) {
 }
 
 function createPiFixture() {
-  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-pi-e2e-'))
-  const workspaceDir = path.join(fixtureRoot, 'directory-sessions', '--workspace-open-deskos--')
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-e2e-'))
+  const workspaceDir = path.join(fixtureRoot, 'directory-sessions', '--workspace-odk--')
   fs.mkdirSync(workspaceDir, { recursive: true })
   const now = Date.now()
   fs.writeFileSync(path.join(workspaceDir, 'running.json'), JSON.stringify({
     sessionId: 'e2e-running-4102',
     pid: 4102,
-    cwd: '/workspace/open-deskos',
+    cwd: '/workspace/odk',
     startedAt: now - 7 * 60 * 1000,
     updatedAt: now - 20 * 1000,
     status: 'running',
@@ -736,6 +760,7 @@ async function main() {
   const piFixture = createPiFixture()
   const cleanupPiFixture = () => fs.rmSync(piFixture.root, { recursive: true, force: true })
   process.once('exit', cleanupPiFixture)
+  ipcMain.handle('odk-renderer-development-plugins', () => [])
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured', missing: ['ODK_CLIPROXY_MANAGEMENT_KEY or ODK_CLIPROXY_MANAGEMENT_KEY_FILE'] }))
   ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
   ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
@@ -745,7 +770,7 @@ async function main() {
     listProcesses: (scanNow) => [
       {
         pid: 4102,
-        cwd: '/workspace/open-deskos',
+        cwd: '/workspace/odk',
         command: 'pi',
         startedAt: piFixture.startedAt - 7 * 60 * 1000,
         isAlive: true,
@@ -779,6 +804,11 @@ async function main() {
   ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
   ipcMain.handle('odk-futu-holdings', () => ({ state: 'live', service: 'futu-poller', snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [ { code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 }, { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 }, { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 } ] }, updatedAt: Date.now() }))
   ipcMain.handle('odk-weather-status', () => ({ status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }))
+  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'idle', message: '', briefing: {
+    state: 'live', generatedAt: Date.now(), omittedSources: 0,
+    items: [{ text: 'Review the current desk readings before planning your next step.',
+      sources: [{ id: 'odk.tile.weather', label: 'Weather', state: 'live', updatedAt: Date.now() }] }],
+  } }))
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'fixture does not install applications' }))
   ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
@@ -797,8 +827,7 @@ async function main() {
     useContentSize: true,
     frame: false,
     // Runs behind other windows on purpose: backgroundThrottling off keeps rAF
-    // alive without the test window stealing desktop focus. Keyboard-path probes
-    // still work because the test focuses the window explicitly.
+    // alive without the test window requesting desktop focus.
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -820,8 +849,6 @@ async function main() {
     if (level >= 2) console.error(`renderer[${sourceId}:${line}] ${message}`)
   })
 
-  win.focus()
-  win.webContents.focus()
   await win.loadFile(path.join(APP_ROOT, 'src/renderer/index.html'), { search: '?e2e=1' })
   // Hidden headless windows may be born at 1x1 before their first layout.
   // Set the intended content size after loading, as the geometry sweep does.
@@ -840,7 +867,7 @@ async function main() {
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
-    remotePageStates.some((state) => state.page === 1 && state.pages === 5 && state.name === 'Today' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 1 && state.pages === 5 && state.name === 'Home' && !state.canPrev && state.canNext) &&
     remotePageStates.some((state) => state.page === 3 && state.pages === 5 && state.name === 'Reading' && state.canPrev && state.canNext) &&
     remotePageStates.some((state) => state.page === 4 && state.pages === 5 && state.name === 'Pi Sessions' && state.canPrev && state.canNext) &&
     remotePageStates.some((state) => state.page === 5 && state.pages === 5 && state.name === 'Usage' && state.canPrev && !state.canNext)
@@ -869,13 +896,13 @@ async function main() {
   )
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToToday = await pageContext() === 'Today · 1/5'
+  const movedToToday = await pageContext() === 'Home · 1/5'
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const heldAtFirstPage = await pageContext() === 'Today · 1/5'
+  const heldAtFirstPage = await pageContext() === 'Home · 1/5'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToHome = await pageContext() === 'Home · 2/5'
+  const movedToHome = await pageContext() === 'Desk · 2/5'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
@@ -889,20 +916,19 @@ async function main() {
   cleanupPiFixture()
 
   win.close()
-  const interiors = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-app-styles.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const homeHandle = runFixture('home-handle.cjs')
+  if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
+  const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
+  if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
+  const navigation = runFixture('widget-navigation.cjs')
+  if (navigation.error) console.error(`FAIL  Widget continuations: ${navigation.error.message}`)
+  const interiors = runFixture('widget-app-styles.cjs')
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)
-  const sequential = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-sequential-refinement.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const appGallery = runFixture('app-gallery.cjs', ['--verify', '--single'])
+  if (appGallery.error) console.error(`FAIL  App gallery: ${appGallery.error.message}`)
+  const sequential = runFixture('widget-sequential-refinement.cjs')
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
-  const hydraComposition = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'hydra-style.cjs')], {
-    stdio: 'inherit',
-    timeout: 120000,
-  })
+  const hydraComposition = runFixture('hydra-style.cjs')
   if (hydraComposition.error) console.error(`FAIL  hydra composition checks: ${hydraComposition.error.message}`)
   const densityRuns = [
     ['--state=unavailable', '--theme=instrument'],
@@ -911,18 +937,19 @@ async function main() {
     ['--date=2026-01-01T00:00:00', '--theme=instrument'],
     ['--theme=pixel'],
     ['--theme=border-beam'],
-  ].map(args => require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'widget-density.cjs'), ...args], {
-    stdio: 'inherit',
-    timeout: 120000,
-  }))
-  const themeUiRuns = ['page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
-    require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, file)], {
-      stdio: 'inherit',
-      timeout: process.arch === 'arm64' ? 300000 : 120000,
+  ].map(args => runFixture('widget-density.cjs', args))
+  const themeUiRuns = ['system-overlay-alerts-style.cjs', 'agent-home.cjs', 'page-indicator.cjs', 'pixel-font.cjs', 'pixel-icons.cjs', 'voice-input-ui.cjs', 'user-app-desktop.cjs'].map(file =>
+    runFixture(file, [], {
+      timeout: file === 'page-indicator.cjs' && process.platform === 'win32'
+        ? 960000 : process.arch === 'arm64' ? 300000 : 120000,
     }))
   const subStatuses = {
     driverFailures, motionFailures, sweepFailures,
+    homeHandle: homeHandle.status,
+    agentReference: agentReference.status,
+    navigation: navigation.status,
     interiors: interiors.status,
+    appGallery: appGallery.status,
     sequential: sequential.status,
     hydraComposition: hydraComposition.status,
     density: densityRuns.map(r => r.status),

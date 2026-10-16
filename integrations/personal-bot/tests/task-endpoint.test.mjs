@@ -9,7 +9,7 @@ import { ENDPOINT_VERSION, endpointFile, publishEndpoint, readEndpoint, removeEn
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'task-endpoint-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  return { dir, file: join(dir, 'run/open-deskos/hosted-pi/endpoint.json') }
+  return { dir, file: join(dir, 'run/odk/hosted-pi/endpoint.json') }
 }
 
 // The descriptor is the published fact a client reads instead of the host's private configuration, so
@@ -17,12 +17,21 @@ async function fixture(t) {
 // socket rather than a recomputed guess.
 test('the endpoint path is derived from the session and is absent without one', async t => {
   const { dir } = await fixture(t)
-  assert.equal(endpointFile(dir), join(dir, 'open-deskos/hosted-pi/endpoint.json'))
+  assert.equal(endpointFile(dir), join(dir, 'odk/hosted-pi/endpoint.json'))
   assert.equal(endpointFile('relative/run'), undefined)
-  assert.equal(endpointFile(undefined), undefined)
+  const previous = process.env.XDG_RUNTIME_DIR
+  try {
+    delete process.env.XDG_RUNTIME_DIR
+    assert.equal(endpointFile(undefined), undefined)
+    process.env.XDG_RUNTIME_DIR = dir
+    assert.equal(endpointFile(), join(dir, 'odk/hosted-pi/endpoint.json'))
+  } finally {
+    if (previous === undefined) delete process.env.XDG_RUNTIME_DIR
+    else process.env.XDG_RUNTIME_DIR = previous
+  }
 })
 
-test('publishing records the bound socket privately and removing it is idempotent', async t => {
+test('publishing records the bound socket privately and removing it is idempotent', { skip: process.platform === 'win32' ? 'Unix Hosted Pi descriptor ownership fixture; Windows clients run separately' : false }, async t => {
   const { file } = await fixture(t)
   const config = { socketPath: '/run/user/1000/pi-tasks/control.sock', stateDir: '/home/kiosk/.local/state/pi-tasks' }
   await publishEndpoint(file, config)

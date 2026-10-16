@@ -19,8 +19,18 @@ function killGroup(child) {
 }
 
 function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TIMEOUT_MS, spawnProcess = spawn } = {}) {
+  // A failure verdict can settle before the terminated child actually closes.
+  const children = new Set()
+  let stopped = false
+  const drain = () => Promise.all([...children])
   return {
+    drain,
+    async close() {
+      stopped = true
+      await drain()
+    },
     verify(bundle, { signal } = {}) {
+      if (stopped) return Promise.resolve({ ok: false, error: 'verification-aborted' })
       const semanticBundle = bundle && typeof bundle === 'object' ? {
         html: bundle.html,
         manifest: bundle.manifest,
@@ -93,12 +103,28 @@ function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TI
           } catch {}
           return output.trim().split('\n').filter(Boolean).pop()
         }
+        // A failure file is written by the trusted runner. Success still requires
+        // its normal exit; stdout cannot establish a failure before process exit.
+        const reportedFailure = () => {
+          try {
+            if (fs.statSync(resultPath).size > MAX_OUTPUT_BYTES) return null
+            const result = JSON.parse(fs.readFileSync(resultPath, 'utf8'))
+            if (result?.ok === false && typeof result.error === 'string' && result.error.trim()) {
+              return { ok: false, error: result.error }
+            }
+          } catch { /* Missing or incomplete result files do not prove failure. */ }
+          return null
+        }
         const detail = () => errors.trim().slice(-MAX_DETAIL_CHARACTERS)
         abortHandler = () => {
           killGroup(child)
           finish({ ok: false, error: 'verification-aborted' })
         }
         if (signal) signal.addEventListener('abort', abortHandler, { once: true })
+        let releaseChild
+        const closure = new Promise(resolve => { releaseChild = resolve })
+        children.add(closure)
+        const childClosed = () => { children.delete(closure); releaseChild() }
         try {
           const runnerPath = path.join(__dirname, 'user-app-verifier-runner.js')
           child = spawnProcess(electronPath, [`--user-data-dir=${profilePath}`, runnerPath, bundlePath, resultPath, profilePath], {
@@ -106,6 +132,8 @@ function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TI
             detached: process.platform !== 'win32',
             env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },
           })
+          if (child && typeof child.once === 'function') child.once('close', childClosed)
+          else childClosed()
           if (!child || typeof child.on !== 'function' || !child.stdout?.on) throw new Error('verifier spawn failed')
           if (settled) {
             killGroup(child)
@@ -114,7 +142,7 @@ function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TI
           }
           timer = setTimeout(() => {
             killGroup(child)
-            finish({ ok: false, error: 'verification-timeout', ...(detail() ? { detail: detail() } : {}) })
+            finish(reportedFailure() || { ok: false, error: 'verification-timeout', ...(detail() ? { detail: detail() } : {}) })
           }, timeoutMs)
           child.stdout.on('data', (chunk) => {
             if (outputTooLarge) return
@@ -141,6 +169,7 @@ function createUserAppVerifier({ electronPath = process.execPath, timeoutMs = TI
           })
           if (signal?.aborted) abortHandler()
         } catch (error) {
+          if (!child) childClosed()
           killGroup(child)
           finish({ ok: false, error: error.message })
         }

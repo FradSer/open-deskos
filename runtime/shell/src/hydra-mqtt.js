@@ -186,7 +186,13 @@ function createHydraStore({ topicPrefix = 'hydra', onUpdate = () => {} } = {}) {
   }
 }
 
-function createHydraSource({ url, topicPrefix, onUpdate = () => {} } = {}) {
+function connectMqtt(url, options) {
+  const mqttEntry = require.resolve('mqtt')
+  const mqtt = require(require('node:fs').realpathSync(mqttEntry))
+  return mqtt.connect(url, options)
+}
+
+function createHydraSource({ url, topicPrefix, onUpdate = () => {}, connectImpl = connectMqtt, now = () => Date.now() } = {}) {
   if (!url) {
     return {
       configured: false,
@@ -197,32 +203,35 @@ function createHydraSource({ url, topicPrefix, onUpdate = () => {} } = {}) {
 
   const store = createHydraStore({ topicPrefix, onUpdate })
   let client = null
+  let stopped = false
+  let ending = null
   let lastAttempt = 0
   const RETRY_MS = 30000
   function ensureClient() {
-    if (client) return
-    const now = Date.now()
-    if (now - lastAttempt < RETRY_MS) return
-    lastAttempt = now
+    if (stopped || client) return
+    const time = now()
+    if (time - lastAttempt < RETRY_MS) return
+    lastAttempt = time
     try {
-      const mqttEntry = require.resolve('mqtt')
-      const mqtt = require(require('node:fs').realpathSync(mqttEntry))
-      client = mqtt.connect(url, {
-        clientId: `open-deskos-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
+      client = connectImpl(url, {
+        clientId: `odk-shell-${process.pid}-${Math.random().toString(16).slice(2, 8)}`,
         reconnectPeriod: 5000,
         connectTimeout: 10000,
       })
       client.on('connect', () => {
+        if (stopped) return
         store.markConnected(true)
         client.subscribe(`${(topicPrefix || 'hydra').split('/')[0]}/#`)
       })
-      client.on('reconnect', () => store.markConnected(false))
-      client.on('close', () => store.markConnected(false))
+      client.on('reconnect', () => { if (!stopped) store.markConnected(false) })
+      client.on('close', () => { if (!stopped) store.markConnected(false) })
       client.on('error', (error) => {
+        if (stopped) return
         console.error(`hydra mqtt: ${error.message}`)
       })
       client.on('message', (topic, payload, packet) => {
-        store.applyMessage(topic, payload.toString(), Date.now(), { retained: packet?.retain === true })
+        if (stopped) return
+        store.applyMessage(topic, payload.toString(), now(), { retained: packet?.retain === true })
       })
     } catch (error) {
       console.error(`hydra mqtt unavailable, retrying: ${error.message}`)
@@ -233,12 +242,31 @@ function createHydraSource({ url, topicPrefix, onUpdate = () => {} } = {}) {
 
   return {
     configured: true,
-    snapshot: (now = Date.now()) => {
+    cachedSnapshot: (time = now()) => store.snapshot(time),
+    snapshot: (time = now()) => {
       ensureClient()
-      return store.snapshot(now)
+      return store.snapshot(time)
     },
-    stop: () => client?.end(true),
+    stop() {
+      stopped = true
+      if (ending) return ending
+      if (!client) return Promise.resolve()
+      const owned = client
+      ending = new Promise((resolve, reject) => {
+        try {
+          owned.end(true, error => {
+            if (error) { reject(error); return }
+            client = null
+            resolve()
+          })
+        } catch (error) { reject(error) }
+      })
+      // MQTT can acknowledge a repeated end while disconnecting without retrying cleanup.
+      // A rejected close therefore remains uncertain until process shutdown.
+      void ending.catch(() => {})
+      return ending
+    },
   }
 }
 
-module.exports = { createHydraStore, createHydraSource, ENV_STALE_MS, MAIN_ONLINE_STALE_MS, NODE_STALE_MS }
+module.exports = { createHydraStore, createHydraSource, connectHydraMqtt: connectMqtt, ENV_STALE_MS, MAIN_ONLINE_STALE_MS, NODE_STALE_MS }

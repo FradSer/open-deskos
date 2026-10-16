@@ -1,4 +1,71 @@
 Feature: Installed packages belong on the desktop
+  Scenario: Production Main selects installed desktop composition
+    Given private installed Widget and App snapshots and a default or trusted alternative desktop factory
+    When production Main starts all Shell plugins
+    Then authenticated discovery executes the selected desktop factory through actual preload
+    And real catalog documents mount in their saved Widget Cell and installed App page
+    When a public package command moves or removes the Widget
+    Then the unchanged App frame retains its counter state
+    And the built-in foreground and neighboring surfaces remain mounted
+    And shutdown releases installed surfaces and Main handlers
+
+  Scenario: External desktop factories use trusted Renderer discovery
+    Given an explicitly trusted development link or authorized signed desktop revision
+    When the Shell discovers its browser entry during startup
+    Then the selected script defines exactly its declared desktop factory
+    And the common Host mounts installed surfaces through that factory
+    And surface plugins and installed package authority remain unchanged
+
+  Scenario: Desktop entry declarations reject invalid candidates before execution
+    Given an external desktop declaration changes ports or adds permissions
+    When trusted discovery validates that declaration
+    Then its browser entry does not execute
+    And the default desktop remains available
+
+  Scenario: Shutdown cancels a pending desktop discovery reply
+    Given desktop startup is waiting for read-only discovery
+    When Renderer shutdown cancels startup before discovery replies
+    Then discovery cancellation settles without waiting for that reply
+    And a late reply cannot execute its entry
+    And a late rejection is handled
+
+  Scenario: Page shutdown cancels initial desktop startup
+    Given the selected desktop factory is still starting
+    When the Shell page shuts down
+    Then startup cannot mount installed surfaces
+    And the Host releases acquired resources
+
+  Scenario: Shutdown drains pending desktop recovery
+    Given startup failed and manual recovery waits for retained resource cleanup
+    When Renderer shutdown begins before cleanup completes
+    Then recovery cannot create or mount another implementation
+    And shutdown waits for recovery to settle
+
+  Scenario: Rejected mounted controllers retain cleanup ownership
+    Given a mounted controller provides dispose but lacks refresh
+    When the Host rejects its public interface
+    Then shutdown still releases that controller
+    And failed cleanup remains available for explicit retry
+
+  Scenario: Invalid factory results allow recovery after cleanup
+    Given a selected factory returns no instance after registering cleanup
+    When startup rejects that result
+    Then the Host runs its registered cleanup
+    And a missing instance does not retain false cleanup ownership
+
+  Scenario: Rejected asynchronous mounts retain settlement ownership
+    Given a factory violates the synchronous mount contract with a pending result
+    When shutdown follows interface rejection
+    Then shutdown waits for that result and releases its eventual controller
+    And a rejected result cannot cause an unhandled promise rejection
+
+  Scenario: Installed desktop composition uses a replaceable Renderer plugin
+    Given the Shell receives a trusted startup replacement for installed desktop composition
+    When the Renderer starts the selected factory through the common Host
+    Then the selected public port mounts installed Widgets and App pages
+    And the Shell retains pager and Back authority
+    And shutdown waits for mounted controllers and retains failed cleanup for retry
+
   Scenario: Widgets appear in their saved desktop cells
     Given Home and Reading already contain mounted built-in widgets
     When the installed catalog contains a widget placed on Reading
@@ -73,3 +140,11 @@ Feature: Installed packages belong on the desktop
     When the desktop shrinks to a one-column viewport
     Then the Widget receives one available cell instead of creating a narrow implicit column
     And expanding the desktop restores its persisted placement without reloading its frame
+
+  Scenario: Hidden desktop composition retains declared rendering inputs
+    Given a hidden host window has different native bounds or display scaling
+    When the fixture prepares its desktop document
+    Then its renderer viewport is 1920 by 1280 at unit scale before pointer interaction
+    And offscreen rendering supplies frames without showing the window
+    And Linux uses isolated software rendering
+    And catalog, frame state, recovery, shutdown, and deadline assertions remain required

@@ -11,7 +11,7 @@ const layout = { pages: [
   { id: 'reading', kind: 'grid', name: 'Reading', widgets: [] },
 ] }
 async function setup(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-placement-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-placement-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
   const options = { workspace: root, stateDir: path.join(root, 'state'), layout, verify: () => true }
   async function draft(id, version = '1', kind = 'widget') {

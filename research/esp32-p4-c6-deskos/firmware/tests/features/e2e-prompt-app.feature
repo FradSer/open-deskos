@@ -7,7 +7,7 @@
 Feature: Open DeskOS OS 无屏端到端:一条 prompt 创建 app 并持久化
 
   Scenario: 固件无屏启动并挂载 packages 分区
-    Given open-deskos_p4_headless 固件已烧录
+    Given odk_p4_headless 固件已烧录
     When 设备上电
     Then 串口 banner 列出 sandbox/installer/runtime/manager/svc_llm/gen 四个平台服务已注册
     And "/packages" 分区挂载成功

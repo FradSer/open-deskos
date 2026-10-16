@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.p4.microphone",
+  "name": "P4 microphone",
+  "version": "1.0.0",
+  "host": "esp32-p4",
+  "kind": "device-driver",
+  "lifecycle": "p4_microphone_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:p4/audio/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:p4/i2c/v1"
+    },
+    {
+      "interface": "odk:p4/usb/v1"
+    }
+  ]
+}

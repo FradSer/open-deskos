@@ -1,4 +1,10 @@
 Feature: Bounded requests over runtime channels
+  Scenario: Concurrent services publish only complete authentication tokens
+    Given a service has opened its candidate token but has not written its bytes
+    When another service requests the same host token
+    Then both services receive the same complete token
+    And neither service overwrites a published token
+
   Scenario: Authenticate a named pipe override
     Given a named pipe endpoint supplied on a Unix host
     When a client decides whether ownership authenticates the endpoint

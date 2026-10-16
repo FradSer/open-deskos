@@ -76,8 +76,8 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
   async function stopServer(id) {
     const running = servers.get(id)
     if (!running) return
-    servers.delete(id)
     await running.server.stop()
+    servers.delete(id)
   }
 
   async function refreshServicesNow() {
@@ -151,7 +151,13 @@ function createFutuSource({ runtimeDir = '', services = () => ({}), channelToken
     })
   }
 
-  return { start, stop, snapshot, refreshServices }
+  function diagnoseRuntime(service, options) {
+    const running = servers.get(service)
+    if (!running) return Promise.reject(Error('provider-unavailable'))
+    return running.server.diagnoseRuntime(service, options)
+  }
+
+  return { start, stop, snapshot, refreshServices, diagnoseRuntime }
 }
 
 module.exports = { createFutuSource, resolveEndpoint, STALE_MS }

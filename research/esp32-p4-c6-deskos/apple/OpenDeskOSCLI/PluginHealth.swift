@@ -7,7 +7,7 @@ struct PluginHealthResult {
 
 enum PluginHealth {
     static let defaultPort = 8_787
-    static let daemonLabel = "dev.fradser.open-deskos.wispr-health"
+    static let daemonLabel = "dev.fradser.odk.wispr-health"
 
     static func endpoint(
         environment: [String: String] = ProcessInfo.processInfo.environment

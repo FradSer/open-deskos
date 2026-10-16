@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
@@ -33,6 +34,9 @@ for (const [channel, value] of Object.entries({
   'odk-remote-publish-page-state': true, 'odk-camera-frame': { state: 'unavailable' },
   'odk-weather-status': { status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: 'ODK_WEATHER_LAT', error: null },
 })) ipcMain.handle(channel, () => value)
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-user-apps-list', () => failure ? { ok: false, error: 'offline' } : { ok: true, apps })
 const deadline = setTimeout(() => { console.error('USER_APP_DESKTOP_TIMEOUT'); app.exit(1) }, 30000)
 app.whenReady().then(async () => {
@@ -52,10 +56,13 @@ app.whenReady().then(async () => {
     const html = '<style>body{margin:0;color:white;font:20px sans-serif}</style><button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script>'
     return new Response(buildUserAppDocument(html, { token: url.searchParams.get('token') }), { headers: { 'content-type': 'text/html', 'content-security-policy': USER_APP_CSP } })
   })
-  win = new BrowserWindow({ width: 1920, height: 1280, show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
+  win = new BrowserWindow({ width: 1920, height: 1280, show: false, webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: process.platform === 'linux', backgroundThrottling: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
+  win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
+  assert.equal(await js('document.hasFocus()'), true, 'hidden fixture receives focus without activating a desktop window')
   await wait(`document.querySelector('#user-app-desktop-status')?.dataset.state === 'ready'`)
-  await js(`window.originalBuiltin=document.querySelector('[data-widget="odk.tile.clock"]'); window.originalPage=document.querySelector('[data-page-id="home"]')`)
+  await js(`window.originalBuiltin=document.querySelector('[data-widget="odk.tile.year"]'); window.originalPage=document.querySelector('[data-page-id="home"]')`)
   await update([persisted, interactive])
   await wait(`document.querySelectorAll('[data-user-app-id][data-state="ready"]').length === 2`)
   assert.equal(await js(`document.querySelector('[data-user-app-id="note"]').parentElement.parentElement.dataset.pageId`), 'reading')
@@ -69,21 +76,47 @@ app.whenReady().then(async () => {
   await update([widget('r2', 'reading', '5'), interactive])
   await wait(`document.querySelector('[data-user-app-id="note"] iframe')?.dataset.revision === 'r2'`)
   assert.equal(await js(`oldWidget.isConnected`), false)
-  assert.equal(await js(`originalBuiltin === document.querySelector('[data-widget="odk.tile.clock"]') && originalPage === document.querySelector('[data-page-id="home"]')`), true)
+  assert.equal(await js(`originalBuiltin === document.querySelector('[data-widget="odk.tile.year"]') && originalPage === document.querySelector('[data-page-id="home"]')`), true)
   assert.equal(await appFrame.executeJavaScript('counter.textContent'), '1')
-  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Page 3, Reading')
+  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Reading, page 3 of 6. Swipe left or right to change page.')
   await js(`window.responsiveWidget=document.querySelector('[data-user-app-id="note"] iframe')`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await js(`odkTheme.set('${theme}'); document.querySelectorAll('#dots .dot')[2].click()`)
     for (const width of [1920, 320]) {
       win.setContentSize(width, width === 1920 ? 1280 : 480)
-      await delay(150)
+      await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width, height: width === 1920 ? 1280 : 480, deviceScaleFactor: 1, mobile: false,
+      })
+      await js(`window.dispatchEvent(new Event('resize'))`)
+      await wait(`window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${width === 1920 ? 1280 : 480}`)
       const geometry = await js(`(()=>{const tile=document.querySelector('[data-user-app-id="note"]');const frame=tile.querySelector('iframe');const r=frame.getBoundingClientRect();const t=tile.getBoundingClientRect();return {width:r.width,height:r.height,contained:r.left>=t.left&&r.right<=t.right+1,horizontal:document.querySelector('[data-page-id="reading"]').scrollWidth<=innerWidth+1,col:tile.style.gridColumn,row:tile.style.gridRow,sameFrame:frame===responsiveWidget,overlaps:[...tile.parentElement.querySelectorAll('[data-widget]')].some(other=>{const b=other.getBoundingClientRect();return Math.min(t.right,b.right)-Math.max(t.left,b.left)>1&&Math.min(t.bottom,b.bottom)-Math.max(t.top,b.top)>1})}})()`)
       assert.ok(geometry.width > 100 && geometry.height > 100 && geometry.contained && geometry.horizontal, JSON.stringify({ theme, width, geometry }))
-      assert.equal(geometry.col, width === 1920 ? '5' : '')
-      assert.equal(geometry.row, width === 1920 ? '3' : '')
+      assert.equal(geometry.col, '')
+      assert.equal(geometry.row, '')
       assert.equal(geometry.sameFrame, true)
       assert.equal(geometry.overlaps, false)
+      const rest = await js(`(() => {
+        const widget = getComputedStyle(document.querySelector('[data-user-app-id="note"]'))
+        const app = document.querySelector('[data-user-app-id="counter"]'), frame = app.querySelector('iframe')
+        document.querySelectorAll('#dots .dot')[[...app.parentElement.children].indexOf(app)].click()
+        document.querySelector('.dot.active').focus()
+        const css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
+        return { widgetWidth: widget.borderTopWidth, widgetColor: widget.borderTopColor, width: css.borderTopWidth, color: css.borderTopColor, size: [rect.width, rect.height] }
+      })()`)
+      assert.equal(rest.widgetWidth, '1px', 'installed Widget keeps a subtle static frame')
+      assert.equal(rest.width, '1px', 'installed App shares the Widget frame')
+      assert.equal(rest.color, rest.widgetColor)
+      await appFrame.executeJavaScript('counter.focus()')
+      const active = await js(`(() => {
+        const frame = document.querySelector('[data-user-app-id="counter"] iframe'), css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
+        return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, size: [rect.width, rect.height], focused: document.activeElement === frame }
+      })()`)
+      assert.equal(active.color, rest.color, 'sandbox focus preserves the shared frame: ' + JSON.stringify(active))
+      assert.equal(active.outline, 'none')
+      assert.equal(active.width, '0px')
+      assert.deepEqual(active.size, rest.size, 'activation does not resize the sandbox')
+      await js(`document.querySelector('.dot.active').focus()`)
+      assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="counter"] iframe')).borderTopColor`), rest.color, 'leaving the sandbox restores its resting frame')
     }
   }
   await update([widget('r2', 'reading', '5'), { ...interactive, id: 'earlier', name: 'Earlier' }, interactive])
@@ -92,7 +125,7 @@ app.whenReady().then(async () => {
   await wait(`document.querySelectorAll('#dots .dot').length === 8`)
   await js(`document.querySelectorAll('#dots .dot')[7].click(); window.savedVoice=odkPersonalBotStatus; window.odkPersonalBotStatus={visible:()=>true}; true`)
   await update([widget('r2', 'reading', '5'), interactive, { ...interactive, id: 'later', name: 'Later' }])
-  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Page 7, Later')
+  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Later, page 7 of 7. Swipe left or right to change page.')
   await js(`window.odkPersonalBotStatus=window.savedVoice; true`)
   failure = true; await update(apps)
   await wait(`document.querySelector('#user-app-desktop-status').dataset.state === 'unavailable'`)

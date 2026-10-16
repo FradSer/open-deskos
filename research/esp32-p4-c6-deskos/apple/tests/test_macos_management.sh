@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." >/dev/null && pwd -P)
-derived_data=$(mktemp -d "${TMPDIR:-/tmp}/open-deskos-management.XXXXXX")
+derived_data=$(mktemp -d "${TMPDIR:-/tmp}/odk-management.XXXXXX")
 cleanup() {
     rm -rf "$derived_data"
 }
@@ -41,10 +41,10 @@ check_agent() {
     fi
 }
 
-check_agent 'dev.fradser.open-deskos.wispr-health.app.5m.plist' 300
-check_agent 'dev.fradser.open-deskos.wispr-health.app.15m.plist' 900
-check_agent 'dev.fradser.open-deskos.wispr-health.app.30m.plist' 1800
-check_agent 'dev.fradser.open-deskos.wispr-health.app.60m.plist' 3600
+check_agent 'dev.fradser.odk.wispr-health.app.5m.plist' 300
+check_agent 'dev.fradser.odk.wispr-health.app.15m.plist' 900
+check_agent 'dev.fradser.odk.wispr-health.app.30m.plist' 1800
+check_agent 'dev.fradser.odk.wispr-health.app.60m.plist' 3600
 
 rg -q 'WisprFlowManagementView' "$project_dir/OpenDeskOS/ContentView.swift"
 rg -q 'BackgroundHealthManagementView' "$project_dir/OpenDeskOS/ContentView.swift"

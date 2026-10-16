@@ -140,7 +140,7 @@ def isolate_home(monkeypatch, tmp_path):
     """Point the default targets file at an empty home and clear the env form."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    for name in ("ODESK_FUTU_SOCKET", "ODESK_FUTU_TARGETS_FILE", "ODK_CHANNEL_TOKEN_FILE"):
+    for name in ("ODK_FUTU_SOCKET", "ODK_FUTU_TARGETS_FILE", "ODK_CHANNEL_TOKEN_FILE"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -161,7 +161,7 @@ def test_a_unix_socket_target_sends_hello_without_a_handshake(monkeypatch, tmp_p
     isolate_home(monkeypatch, tmp_path)
     socket_path = socket_dir / "futu-poller.sock"
     server = unix_server(socket_path)
-    monkeypatch.setenv("ODESK_FUTU_SOCKET", str(socket_path))
+    monkeypatch.setenv("ODK_FUTU_SOCKET", str(socket_path))
 
     links = links_from_env()
     assert len(links.links) == 1
@@ -189,7 +189,7 @@ def test_a_tcp_target_sends_the_handshake_before_hello(monkeypatch, tmp_path):
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert len(links.links) == 1
@@ -212,7 +212,7 @@ def test_a_tcp_target_falls_back_to_the_shared_token_file(monkeypatch, tmp_path)
     targets_file = write_targets(tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
     monkeypatch.setenv("ODK_CHANNEL_TOKEN_FILE", str(token_file))
 
     links = links_from_env()
@@ -234,7 +234,7 @@ def test_a_missing_token_file_is_refused_instead_of_sending_a_bad_handshake(
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(missing)},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert len(links.links) == 1
@@ -259,7 +259,7 @@ def test_an_empty_token_file_is_refused_instead_of_sending_a_bad_handshake(
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert len(links.links) == 1
@@ -280,7 +280,7 @@ def test_a_token_endpoint_with_no_token_configured_is_refused_by_name(
     targets_file = write_targets(tmp_path, [
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:8790"},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert links.links == []
@@ -305,7 +305,7 @@ def test_two_targets_receive_the_same_records_and_a_refused_one_does_not_stop_th
         {"name": "handheld", "endpoint": "tcp://127.0.0.1:%d" % port,
          "tokenFile": str(token_file)},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert len(links.links) == 3
@@ -339,7 +339,7 @@ def test_a_malformed_target_is_refused_by_name_while_the_others_run(
         {"name": "broken", "endpoint": "udp://127.0.0.1:9999"},
         {"name": "second", "endpoint": str(second_path)},
     ])
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", targets_file)
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", targets_file)
 
     links = links_from_env()
     assert len(links.links) == 2, "the malformed entry is dropped, the others load"
@@ -359,7 +359,7 @@ def test_a_targets_file_that_is_not_a_targets_object_is_refused(
     isolate_home(monkeypatch, tmp_path)
     path = tmp_path / "futu-targets.json"
     path.write_text('{"desks": []}', encoding="utf-8")
-    monkeypatch.setenv("ODESK_FUTU_TARGETS_FILE", str(path))
+    monkeypatch.setenv("ODK_FUTU_TARGETS_FILE", str(path))
 
     links = links_from_env()
     assert links.links == []
@@ -368,10 +368,10 @@ def test_a_targets_file_that_is_not_a_targets_object_is_refused(
 
 
 def test_endpoint_forms_require_a_token_exactly_where_the_desk_does():
-    unix = poller.parse_endpoint("/run/user/1000/open-deskos/futu-poller.sock")
+    unix = poller.parse_endpoint("/run/user/1000/odk/futu-poller.sock")
     assert unix.kind == "unix" and unix.requires_token is False
 
-    pipe = poller.parse_endpoint(r"\\.\pipe\open-deskos-futu-poller")
+    pipe = poller.parse_endpoint(r"\\.\pipe\odk-futu-poller")
     assert pipe.kind == "pipe" and pipe.requires_token is True
 
     tcp = poller.parse_endpoint("tcp://100.82.50.70:8790")
@@ -401,7 +401,7 @@ def test_a_named_pipe_connection_writes_every_byte_through_partial_writes():
             self.flushed = True
 
     conn = poller.PipeConnection.__new__(poller.PipeConnection)
-    conn.path = r"\\.\pipe\open-deskos-futu-poller"
+    conn.path = r"\\.\pipe\odk-futu-poller"
     conn.stream = PartialStream()
     conn.sendall(b"abcdef")
 
@@ -420,3 +420,10 @@ def test_with_no_target_configured_records_go_to_stdout(monkeypatch, tmp_path):
     line = json.loads(links.stdout.getvalue().strip())
     assert line == {"type": "auth-required", "secrets": ["futu-trade-password"],
                     "v": 1, "service": SERVICE}
+
+def test_single_endpoint_fallback_retains_the_configured_token(monkeypatch, tmp_path):
+    isolate_home(monkeypatch, tmp_path)
+    targets = poller.load_targets({"ODK_FUTU_SOCKET": "tcp://127.0.0.1:9876",
+                                   poller.TOKEN_ENV: str(tmp_path / "token")})
+    assert len(targets) == 1
+    assert targets[0].token_file == str(tmp_path / "token")

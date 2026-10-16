@@ -76,3 +76,14 @@ test('overlay alerts manager rejects malformed or empty payloads', () => {
   assert.throws(() => manager.postAlert(null), /invalid-alert-payload/)
   assert.throws(() => manager.postAlert({ message: '' }), /invalid-alert-payload/)
 })
+
+test('overlay severity uses a uniform thin outline', () => {
+  const css = fs.readFileSync('src/renderer/shell.css', 'utf8')
+  const base = css.match(/\.system-overlay-alert \{([^}]+)\}/)[1]
+  assert.match(base, /border:\s*1px solid/)
+  assert.doesNotMatch(base, /border-left:/)
+  for (const level of ['warning', 'critical']) {
+    const rule = css.match(new RegExp('\\.system-overlay-alert\\.alert-' + level + ' \\{([^}]+)\\}'))[1]
+    assert.match(rule, /border-color:\s*var\(--odk-accent-red\)/)
+  }
+})

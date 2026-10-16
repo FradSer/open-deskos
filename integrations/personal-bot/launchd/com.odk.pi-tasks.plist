@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.odk.pi-tasks</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__ODK_NODE_BIN__/node</string>
+    <string>__ODK_PERSONAL_BOT_DIR__/src/task-daemon.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__ODK_PERSONAL_BOT_DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ODK_TASK_CONFIG</key>
+    <string>__ODK_HOME__/.config/odk/pi-tasks.json</string>
+    <key>PATH</key>
+    <string>__ODK_NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>Umask</key>
+  <integer>63</integer>
+</dict>
+</plist>

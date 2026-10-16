@@ -33,7 +33,7 @@ const captureDir = value('--capture-dir')
 const PROMISED = [['reference panel', 1920, 1280], ['handheld panel', 1280, 776]]
 const wanted = (value('--sizes') || '').split(',').filter(Boolean)
 const SIZES = wanted.length ? PROMISED.filter((size) => wanted.includes(size[0])) : PROMISED
-const THEMES = ['instrument', 'pixel', 'border-beam']
+const THEMES = ['instrument', 'pixel', 'border-beam', 'liquid-glass']
 const CAPTION_FLOOR = 12
 const reportOnly = process.argv.includes('--report-only')
 
@@ -88,7 +88,12 @@ const READ = `(() => { try {
     if (!Number.isFinite(minCell) || minCell <= 0) continue
     const box = node.getBoundingClientRect()
     const smallest = Math.min(box.width, box.height)
-    if (smallest < minCell - 1) underDeclared.push({ label: node.dataset.widget, minCell, cell: Math.round(smallest) })
+    const single = odkGridPlacement.spanCells(node.style.gridColumn) === 1 && odkGridPlacement.spanCells(node.style.gridRow) === 1
+    // Full composition minimums still govern spans. The fixed handheld canvas
+    // uses the existing compact single-cell composition, also checked for text
+    // size, clipping, and density by this gate and widget-density.cjs.
+    const compact = window.__odkGrid.fitCanvas && single && smallest >= 186
+    if (!compact && smallest < minCell - 1) underDeclared.push({ label: node.dataset.widget, minCell, cell: Math.round(smallest) })
   }
   // The promise is that the desk is right at these two sizes, which includes
   // keeping the composition the layout declares: a tile the promised cells can
@@ -101,8 +106,10 @@ const READ = `(() => { try {
 async function main() {
   const win = new BrowserWindow({
     width: SIZES[0][1], height: SIZES[0][2], frame: false, show: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, offscreen: true },
   })
+  assert.equal(win.webContents.isOffscreen(), true, 'hidden geometry fixtures render offscreen')
+  assert.equal(win.webContents.isPainting(), true, 'layout callbacks have an active frame source')
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')

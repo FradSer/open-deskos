@@ -12,9 +12,13 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const os = require('node:os')
+
+app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'odk-user-app-context-')))
 
 const { buildUserAppDocument, USER_APP_CSP } = require('../src/user-app-content')
 const { USER_APP_SCHEME_PRIVILEGES } = require('../src/user-app-system')

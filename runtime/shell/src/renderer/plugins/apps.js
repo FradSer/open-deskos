@@ -44,17 +44,25 @@
     })
   }))
   root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><p class="runtime-state app-detail">Timer unavailable</p><p class="app-detail">This view does not provide a countdown timer.</p></div>'
+    el.innerHTML = '<div class="runtime-app" data-view="pomodoro"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><div class="app-empty-state"><span class="pomodoro-empty-dial" aria-hidden="true">--:--</span><p class="runtime-state app-detail">Timer unavailable</p><p class="app-detail">This view does not provide a countdown timer.</p></div></div>'
   }))
   root.odkPlugins.register(app('year', 'Year progress', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Year progress</h2></header><p class="runtime-value">--%</p><p class="runtime-state app-detail"></p></div>'
+    el.innerHTML = '<div class="runtime-app" data-view="year"><header class="app-surface-header"><h2 class="app-surface-heading">Year progress</h2></header><div class="year-reading"><p class="runtime-value">--%</p><progress class="year-meter" max="100" value="0" aria-label="Year elapsed"></progress><p class="runtime-state app-detail"></p></div><dl class="year-calendar"><div><dt>Days completed</dt><dd class="year-days-completed">--</dd></div><div><dt>Days left</dt><dd class="year-days-left">--</dd></div></dl></div>'
     const value = el.querySelector('.runtime-value')
     const status = el.querySelector('.runtime-state')
     ctx.onTick((now) => {
       const year = now.getFullYear()
       const start = new Date(year, 0, 1)
       const end = new Date(year + 1, 0, 1)
-      const reading = `${Math.round((now - start) / (end - start) * 100)}%`
+      const ratio = (now - start) / (end - start)
+      const reading = `${Math.round(ratio * 100)}%`
+      el.querySelector('.year-meter').value = ratio * 100
+      const today = Date.UTC(year, now.getMonth(), now.getDate())
+      const first = Date.UTC(year, 0, 1)
+      const completed = (today - first) / 86400000
+      const total = (Date.UTC(year + 1, 0, 1) - first) / 86400000
+      el.querySelector('.year-days-completed').textContent = String(completed)
+      el.querySelector('.year-days-left').textContent = String(total - completed)
       const detail = `of ${year} elapsed · Local time`
       if (value.textContent !== reading) value.textContent = reading
       if (status.textContent !== detail) status.textContent = detail
@@ -68,8 +76,10 @@
     const list = el.querySelector('.app-list')
     let items = []
     let loaded = false
+    let released = false
+    ctx.trackCleanup?.(() => { released = true })
     const render = () => {
-      if (!loaded) return
+      if (released || !loaded) return
       const query = search.value.trim().toLowerCase()
       const entries = items.filter((item) =>
         !query || item.name.toLowerCase().includes(query) || item.appId.toLowerCase().includes(query))
@@ -80,15 +90,19 @@
         `<li><strong>${item.name}</strong><span>${item.kind} · ${item.version} · ${item.source} · ${item.state}</span></li>`).join('')
     }
     const load = async () => {
+      if (released) return
       loaded = false
       status.textContent = 'Loading built-in views.'
       retry.hidden = true
       try {
-        items = await ctx.platform.listApps()
+        const next = await ctx.platform.listApps()
+        if (released) return
+        items = next
         loaded = true
         status.textContent = ''
         render()
       } catch (error) {
+        if (released) return
         items = []
         list.replaceChildren()
         status.textContent = `Unable to load built-in views: ${error.message || 'Unknown error'}`

@@ -11,6 +11,7 @@
     app: 'Calendar',
     state: 'Available',
     interaction: 'display-only',
+    opensApp: 'calendar',
     mount(el, ctx) {
       el.innerHTML = `
         <span class="al-weekday"></span>

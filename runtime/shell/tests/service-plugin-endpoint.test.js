@@ -33,7 +33,7 @@ function freePort() {
 /** One plugin connection: optional handshake, then the records it would push. */
 // `hold` keeps the plugin's connection open, because a connection that closes is
 // a reading that stops being live; the caller destroys the returned socket.
-function push(endpoint, records, { token, hold = false } = {}) {
+function push(endpoint, records, { token, hold = false, expectRefusal = false } = {}) {
   const target = endpoint.startsWith('tcp://')
     ? (() => { const [host, port] = endpoint.slice('tcp://'.length).split(':'); return { host, port: Number.parseInt(port, 10) } })()
     : endpoint
@@ -46,7 +46,11 @@ function push(endpoint, records, { token, hold = false } = {}) {
       setTimeout(() => { if (hold) resolve(socket); else { socket.end(); resolve() } }, 250)
     })
     socket.on('timeout', () => { socket.destroy(); resolve() })
-    socket.on('error', reject)
+    socket.on('error', error => {
+      // Authentication refusal can close TCP with a reset before queued writes drain.
+      if (expectRefusal && error.code === 'ECONNRESET') resolve()
+      else reject(error)
+    })
   })
 }
 
@@ -104,8 +108,8 @@ test('a tcp endpoint refuses a plugin that presents no token or the wrong one', 
   await server.start()
   t.after(() => server.stop())
 
-  await push(endpoint, [HELLO, DATA])
-  await push(endpoint, [HELLO, DATA], { token: 'not-the-token' })
+  await push(endpoint, [HELLO, DATA], { expectRefusal: true })
+  await push(endpoint, [HELLO, DATA], { token: 'not-the-token', expectRefusal: true })
   await new Promise((resolve) => setTimeout(resolve, 150))
 
   assert.deepEqual(sink.snapshots, [], 'a plugin that cannot prove the token never reaches the protocol')
@@ -129,7 +133,7 @@ test('a tcp endpoint that is already bound is refused rather than taken over', a
 test('a socket endpoint still accepts the plugin that predates the token', { skip: posixOnlyReason('unix-socket') }, async (t) => {
   const dir = await temporaryDir(t)
   const token = await readOrCreateToken({ stateDir: dir })
-  const endpoint = path.join(dir, 'open-deskos', 'futu-poller.sock')
+  const endpoint = path.join(dir, 'odk', 'futu-poller.sock')
   const sink = collect()
   const server = createServicePluginSocket({
     endpoint,
@@ -152,7 +156,7 @@ test('a socket endpoint still accepts the plugin that predates the token', { ski
 test('a socket endpoint is created private, unlike the world-readable socket it replaces', { skip: posixOnlyReason('posix-modes') }, async (t) => {
   const dir = await temporaryDir(t)
   const token = await readOrCreateToken({ stateDir: dir })
-  const endpoint = path.join(dir, 'open-deskos', 'futu-poller.sock')
+  const endpoint = path.join(dir, 'odk', 'futu-poller.sock')
   const server = createServicePluginSocket({ endpoint, channelToken: token, services: { 'futu-poller': { revision: 'r1' } }, onSnapshot: () => {} })
   await server.start()
   t.after(() => server.stop())
@@ -199,10 +203,10 @@ test('a declared endpoint wins over the historical socket field', () => {
   const { resolveEndpoint } = require('../src/futu-source')
 
   // What counts as an absolute path is the platform's rule, not this test's.
-  const absolute = path.join(path.sep, 'run', 'user', '1000', 'open-deskos', 'futu-poller.sock')
+  const absolute = path.join(path.sep, 'run', 'user', '1000', 'odk', 'futu-poller.sock')
   assert.equal(resolveEndpoint({ endpoint: 'tcp://127.0.0.1:8790', socket: '/run/ignored.sock' }, '/run'), 'tcp://127.0.0.1:8790')
   assert.equal(resolveEndpoint({ socket: absolute }, '/run'), absolute)
-  assert.equal(resolveEndpoint({ socket: 'futu-poller.sock' }, path.join(path.sep, 'run', 'open-deskos')), path.join(path.sep, 'run', 'open-deskos', 'futu-poller.sock'))
-  assert.equal(resolveEndpoint({ socket: '\\\\.\\pipe\\open-deskos-futu' }, '/run'), '\\\\.\\pipe\\open-deskos-futu')
+  assert.equal(resolveEndpoint({ socket: 'futu-poller.sock' }, path.join(path.sep, 'run', 'odk')), path.join(path.sep, 'run', 'odk', 'futu-poller.sock'))
+  assert.equal(resolveEndpoint({ socket: '\\\\.\\pipe\\odk-futu' }, '/run'), '\\\\.\\pipe\\odk-futu')
   assert.equal(resolveEndpoint({}, '/run'), null)
 })

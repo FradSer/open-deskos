@@ -4,13 +4,13 @@ import { clientChannelToken, channelRequiresToken, channelRequest, requestId, re
  * The application control endpoint on this host: a named pipe the Shell Host
  * names for the link, or the runtime directory socket on a Unix host. The
  * override exists for tests; production takes the host's own naming, which is why
- * a Windows desk needs no `ODESK_APPS_CONTROL_SOCKET` to reach the Shell.
+ * a Windows desk needs no `ODK_APPS_CONTROL_SOCKET` to reach the Shell.
  */
 export function appsControlEndpoint(env = process.env, platform = process.platform) {
   return resolveChannelEndpoint({
     name: 'user-app-control',
-    override: env.ODESK_APPS_CONTROL_SOCKET,
-    unixSubdirectory: 'open-deskos-apps',
+    override: env.ODK_APPS_CONTROL_SOCKET,
+    unixSubdirectory: 'odk-apps',
     unixFilename: 'control.sock',
     env,
     platform,

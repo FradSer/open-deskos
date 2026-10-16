@@ -324,7 +324,7 @@ async function run(win, check, setSessions, setEvents = () => {}) {
       { kind: 'result', toolName: 'bash', toolCallId: 'call-bad', isError: true, text: 'exit code 1' },
       { kind: 'tool', text: 'bash: pnpm build', toolCallId: 'call-waiting' },
       { kind: 'result', toolName: 'read', text: 'result Pi recorded on its own' },
-      // A source that reports no call identity — today's Desk Link — is read by
+      // A source that reports no call identity — today's Open DeskOS Link — is read by
       // the order Pi wrote. A thought Pi wrote between a call and its result, and
       // calls Pi ran in parallel, are both ordinary streams: neither may leave a
       // finished call on Pi's pending surface, nor hand one call another's outcome.

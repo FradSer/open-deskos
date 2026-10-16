@@ -7,13 +7,13 @@ import { createInterface } from 'node:readline'
 import { cleanupAcceptance } from './real-acceptance-support.mjs'
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, getAgentDir } from '@earendil-works/pi-coding-agent'
 
-if (process.env.ODESK_REAL_NATIVE_ACCEPTANCE !== '1') throw Error('Explicit ODESK_REAL_NATIVE_ACCEPTANCE=1 required')
-const modelSpec = process.env.ODESK_REAL_NATIVE_MODEL
+if (process.env.ODK_REAL_NATIVE_ACCEPTANCE !== '1') throw Error('Explicit ODK_REAL_NATIVE_ACCEPTANCE=1 required')
+const modelSpec = process.env.ODK_REAL_NATIVE_MODEL
 if (typeof modelSpec !== 'string' || !modelSpec.includes('/')) throw Error('Explicit available provider/model required')
 const repository = fileURLToPath(new URL('../../../..', import.meta.url))
 const packageDir = join(dirname(repository), 'pi-packages/packages/open-deskos')
 const root = '/private/tmp/odk-session-demo'
-const runtimeDir = '/Users/FradSer/.local/run/open-deskos/sessions'
+const runtimeDir = '/Users/FradSer/.local/run/odk/sessions'
 const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
 const operatorAgentDir = getAgentDir()
 let project, session, originalId, originalFile, closing = false
@@ -104,8 +104,8 @@ try {
   const agentDir = join(project, 'agent')
   const desks = join(project, 'desks.json')
   await writeFile(desks, JSON.stringify({ desks: [] }), { mode: 0o600 })
-  for (const [key, value] of Object.entries({ ODK_SESSION_HOST_SOCKET: runtimeDir, ODK_DESK_LINK_DESKS_FILE: desks,
-    PI_DIRECTORY_SESSIONS_DIR: join(project, 'registry'), ODK_DESK_LINK_ADDRESS: '', ODK_DESK_LINK_TOKEN: '', ODK_DESK_LINK_CONTROL_TOKEN: '' })) {
+  for (const [key, value] of Object.entries({ ODK_SESSION_HOST_SOCKET: runtimeDir, ODK_LINK_DESKS_FILE: desks,
+    PI_DIRECTORY_SESSIONS_DIR: join(project, 'registry'), ODK_LINK_ADDRESS: '', ODK_LINK_TOKEN: '', ODK_LINK_CONTROL_TOKEN: '' })) {
     savedEnv.set(key, process.env[key]); process.env[key] = value
   }
   const { default: extension } = await import(pathToFileURL(join(packageDir, 'index.ts')).href)

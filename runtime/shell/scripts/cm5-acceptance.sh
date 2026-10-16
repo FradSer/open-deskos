@@ -31,7 +31,7 @@ check() { # name ok(bool) required(bool) class detail
 }
 
 release_evidence() {
-  local root="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+  local root="${ODK_RUNTIME_ROOT:-/opt/odk}"
   local current="${root}/current"
   local previous="${root}/previous"
   local state_file="${root}/state/runtime-state.json"
@@ -45,10 +45,10 @@ release_evidence() {
   fi
   if command -v systemctl >/dev/null 2>&1; then
     local kiosk_state kiosk_unit
-    kiosk_state="$(systemctl --user is-active open-deskos-shell.service 2>/dev/null || true)"
-    kiosk_unit="${HOME}/.config/systemd/user/open-deskos-shell.service"
+    kiosk_state="$(systemctl --user is-active odk-shell.service 2>/dev/null || true)"
+    kiosk_unit="${HOME}/.config/systemd/user/odk-shell.service"
     if [ "$kiosk_state" = "active" ] && [ -r "$kiosk_unit" ] && grep -q "${current}/scripts/start-kiosk.sh" "$kiosk_unit"; then
-      check "kiosk-release-launcher" "true" "true" "runtime" "open-deskos-shell.service is active and resolves ${current} on restart"
+      check "kiosk-release-launcher" "true" "true" "runtime" "odk-shell.service is active and resolves ${current} on restart"
     else
       check "kiosk-release-launcher" "false" "true" "runtime" "service=${kiosk_state:-unknown}; unit=${kiosk_unit}"
     fi
@@ -92,7 +92,7 @@ service_evidence() {
 # decides, and no second installation of the runtime outside the immutable release. A host test
 # cannot make these checks, because they are about what this machine actually declares.
 configuration_evidence() {
-  local config="${HOME}/.config/open-deskos"
+  local config="${HOME}/.config/odk"
   local units="${HOME}/.config/systemd/user"
   if [ ! -d "$config" ]; then
     check "device-configuration" "false" "false" "runtime" "no ${config}; run this as the kiosk user to inspect device-local configuration"
@@ -105,13 +105,13 @@ configuration_evidence() {
   stt_port="$(sed -n 's/^ODK_STT_PORT=\([0-9]\{1,5\}\)$/\1/p' "$runtime_env" 2>/dev/null | tail -n1)"
   [ -n "$stt_port" ] || stt_port="17840"
   local declared
-  declared="$(sed -En 's#^ODESK_(PERSONAL_BOT|VOICE)_STT_URL=http://127\.0\.0\.1:([0-9]{1,5})/.*#\2#p' "$bot_env" 2>/dev/null | tail -n1)"
+  declared="$(sed -En 's#^ODK_(PERSONAL_BOT|VOICE)_STT_URL=http://127\.0\.0\.1:([0-9]{1,5})/.*#\2#p' "$bot_env" 2>/dev/null | tail -n1)"
   if [ -z "$declared" ]; then
     check "stt-endpoint-consistency" "true" "false" "runtime" "no explicit loopback STT URL; the personal bot derives port ${stt_port}"
   elif [ "$declared" = "$stt_port" ]; then
     check "stt-endpoint-consistency" "true" "false" "runtime" "the declared loopback endpoint and the bridge agree on port ${stt_port}"
   else
-    check "stt-endpoint-consistency" "false" "true" "runtime" "ODESK_PERSONAL_BOT_STT_URL declares port ${declared} while the bridge declares ${stt_port}"
+    check "stt-endpoint-consistency" "false" "true" "runtime" "ODK_PERSONAL_BOT_STT_URL declares port ${declared} while the bridge declares ${stt_port}"
   fi
   if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q "127.0.0.1:${stt_port}"; then
     check "stt-bridge-listening" "true" "false" "runtime" "the device-local bridge listens on 127.0.0.1:${stt_port}"
@@ -123,7 +123,7 @@ configuration_evidence() {
   local shadowed="" conf name
   for conf in "${units}"/*.service.d/*.conf; do
     [ -f "$conf" ] || continue
-    for name in $(sed -n 's/^Environment=//p' "$conf" 2>/dev/null | tr ' ' '\n' | sed -n 's/=.*//p' | grep -E '^(ODK|ODESK)_'); do
+    for name in $(sed -n 's/^Environment=//p' "$conf" 2>/dev/null | tr ' ' '\n' | sed -n 's/=.*//p' | grep -E '^ODK_'); do
       if grep -qE "^${name}=" "$bot_env" "$runtime_env" 2>/dev/null; then shadowed="${shadowed} ${name}"; fi
     done
   done
@@ -140,13 +140,13 @@ configuration_evidence() {
     check "no-zombie-config" "false" "false" "runtime" "leftover configuration: ${zombies}"
   fi
   # The immutable release is the only source of runtime code. A second installation elsewhere can
-  # bypass release rollback and the unit's read-only view of /opt/open-deskos.
-  if [ -e "${HOME}/.local/share/open-deskos/personal-bot-releases" ]; then
+  # bypass release rollback and the unit's read-only view of /opt/odk.
+  if [ -e "${HOME}/.local/share/odk/personal-bot-releases" ]; then
     check "single-bot-installation" "false" "true" "runtime" "a personal bot is installed outside the immutable release"
   else
     check "single-bot-installation" "true" "false" "runtime" "runtime code exists only under the active release"
   fi
-  local root="${ODK_RUNTIME_ROOT:-/opt/open-deskos}"
+  local root="${ODK_RUNTIME_ROOT:-/opt/odk}"
   local strays="" candidate
   for candidate in "$root"/integrations "$root"/src "$root"/scripts; do
     [ -e "$candidate" ] && strays="${strays} ${candidate}"
@@ -156,7 +156,7 @@ configuration_evidence() {
   # reason nothing names, so the report states whether the configured host actually answers.
   local pi_host=""
   if command -v systemctl >/dev/null 2>&1; then
-    pi_host="$(systemctl --user show -p Environment open-deskos-shell.service 2>/dev/null | tr ' ' '\n' | sed -n 's/^ODK_PI_SSH_HOST=//p' | head -n1)"
+    pi_host="$(systemctl --user show -p Environment odk-shell.service 2>/dev/null | tr ' ' '\n' | sed -n 's/^ODK_PI_SSH_HOST=//p' | head -n1)"
   fi
   if [ -z "$pi_host" ]; then
     check "pi-sessions-remote-source" "false" "false" "peripheral" "no ODK_PI_SSH_HOST declared, so Pi Sessions has no remote source"
@@ -168,9 +168,9 @@ configuration_evidence() {
   # The Console path finds the desk's own Pi host through the descriptor the daemon publishes, so a
   # running host without one is a Console that reports no host for a reason nothing names.
   local runtime_dir="${XDG_RUNTIME_DIR:-}"
-  local endpoint="${runtime_dir}/open-deskos/hosted-pi/endpoint.json"
+  local endpoint="${runtime_dir}/odk/hosted-pi/endpoint.json"
   local tasks_state=""
-  command -v systemctl >/dev/null 2>&1 && tasks_state="$(systemctl --user is-active open-deskos-pi-tasks.service 2>/dev/null || true)"
+  command -v systemctl >/dev/null 2>&1 && tasks_state="$(systemctl --user is-active odk-pi-tasks.service 2>/dev/null || true)"
   if [ "$tasks_state" != "active" ]; then
     check "hosted-pi-endpoint" "false" "false" "runtime" "the Hosted Pi service is not active, so it publishes no endpoint"
   elif [ ! -r "$endpoint" ]; then
@@ -299,9 +299,9 @@ if [ -x "$ELECTRON_BIN" ]; then
 
   if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
     if command -v timeout >/dev/null 2>&1; then
-      SMOKE="$(timeout 60 env ODESK_SKIP_STYLE_BUILD=1 ./run.sh --smoke 2>/dev/null | tail -n1 || true)"
+      SMOKE="$(timeout 60 env ODK_SKIP_STYLE_BUILD=1 ./run.sh --smoke 2>/dev/null | tail -n1 || true)"
     else
-      SMOKE="$(env ODESK_SKIP_STYLE_BUILD=1 ./run.sh --smoke 2>/dev/null | tail -n1 || true)"
+      SMOKE="$(env ODK_SKIP_STYLE_BUILD=1 ./run.sh --smoke 2>/dev/null | tail -n1 || true)"
     fi
     case "$SMOKE" in
       *'"ok":true'*) check "smoke-run" "true" "true" "runtime" "$SMOKE" ;;
@@ -328,20 +328,20 @@ else
   check "smoke-run" "false" "true" "runtime" "skipped: electron not installed"
 fi
 
-DESKTOP_FILE="${HOME}/.config/autostart/open-deskos-shell.desktop"
+DESKTOP_FILE="${HOME}/.config/autostart/odk-shell.desktop"
 if [ -r "$DESKTOP_FILE" ] && grep -q "import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY" "$DESKTOP_FILE"; then
   check "graphical-session-autostart" "true" "true" "runtime" "${DESKTOP_FILE} imports active display environment before restarting kiosk service"
 else
   check "graphical-session-autostart" "false" "true" "runtime" "${DESKTOP_FILE} is missing or does not import display environment"
 fi
 
-service_evidence "open-deskos-shell.service" "true" "runtime"
+service_evidence "odk-shell.service" "true" "runtime"
 if pgrep -u "$(id -u)" -f 'node_modules/.pnpm/electron.*--kiosk' >/dev/null 2>&1; then
   check "kiosk-process" "true" "true" "runtime" "active release Electron kiosk process is running"
 else
   check "kiosk-process" "false" "true" "runtime" "no active Electron kiosk process found"
 fi
-service_evidence "open-deskos-remote-bridge.service" "false" "peripheral"
+service_evidence "odk-remote-bridge.service" "false" "peripheral"
 configuration_evidence
 
 MEM_TOTAL="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"

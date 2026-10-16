@@ -1,7 +1,8 @@
 // Explicit opt-in device E2E. Reads deployed modules and a protected Jev key;
 // IPC, owner writes and checkpoints belong to this fixture. The explicit actual
-// Widget mode reads live Desk Data without writing to any production source.
+// Widget mode reads live Open DeskOS Data without writing to any production source.
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -26,7 +27,7 @@ if (generated) {
   for (let i = 0; i < process.argv.length; i++) if (process.argv[i] === '--env-file') {
     for (const line of fs.readFileSync(process.argv[++i], 'utf8').split(/\r?\n/)) {
       const m = line.match(/^([A-Z][A-Z0-9_]+)=(.*)$/)
-      if (!m || /^(HOME|DISPLAY|XDG_|APPDATA|LOCALAPPDATA)/.test(m[1]) || (m[1].startsWith('ODESK_') && m[1] !== 'ODESK_PERSONAL_BOT_MODEL')) continue
+      if (!m || /^(HOME|DISPLAY|XDG_|APPDATA|LOCALAPPDATA)/.test(m[1]) || (m[1].startsWith('ODK_') && m[1] !== 'ODK_PERSONAL_BOT_MODEL')) continue
       process.env[m[1]] = m[2].replace(/^"(.*)"$/, '$1')
     }
   }
@@ -74,7 +75,7 @@ app.whenReady().then(async () => {
   ])
   const { createPersonalBotClient } = require(path.join(runtime, 'src/personal-bot-client.js'))
   const { createHydraStore } = require(path.join(runtime, 'src/hydra-mqtt.js'))
-  const { createShellDeskData } = require(path.join(runtime, 'src/desk-data.js'))
+  const { createShellOdkData } = require(path.join(runtime, 'src/odk-data.js'))
   const { protectProactivePath } = await load('proactive-private.mjs')
   const { privateReceipt } = require('./helpers/private-receipt')
   receiptWriter = privateReceipt(receipt, protectProactivePath)
@@ -88,15 +89,14 @@ app.whenReady().then(async () => {
     }
   }
   soil(60)
-  const { createDeskDataRegistry } = require(path.join(runtime, 'src/desk-data-registry.js'))
-  const registry = generated ? createDeskDataRegistry({ onPublish: id => { if (forward) client.servicePush([id]) } }) : createShellDeskData({ hydra: { snapshot: () => hydra.snapshot(Date.now()) } }).registry
+  const { createOdkDataRegistry } = require(path.join(runtime, 'src/odk-data-registry.js'))
+  const registry = generated ? createOdkDataRegistry({ onPublish: id => { if (forward) client.servicePush([id]) } }) : createShellOdkData({ hydra: { snapshot: () => hydra.snapshot(Date.now()) } }).registry
   if (generated) {
     const { createPersonalBot } = await load('agent.mjs')
-    const {createAgentSession}=await import(pathToFileURL(path.join(personalBotRoot,'node_modules/@earendil-works/pi-coding-agent/dist/index.js')))
-    generator = await createPersonalBot({ stateDir: path.join(profile, 'generator'), model: process.env.ODESK_PERSONAL_BOT_MODEL, personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } }, {createSession:async options=>{const r=await createAgentSession(options);r.session.subscribe(e=>{if(e.type==='message_end' && e.message.role==='assistant' && ['error','aborted'].includes(e.message.stopReason))record({case:'generation_provider_failure',stopReason:e.message.stopReason})});return r}})
+    generator = await createPersonalBot({ stateDir: path.join(profile, 'generator'), model: process.env.ODK_PERSONAL_BOT_MODEL, personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } })
     for (const id of ['example.parcels', 'example.ci']) registry.register({ id, label: id, kind: 'package', declaration: { fields: { status: { type: 'string' }, measured_at: { type: 'string' } } } })
   }
-  const judge = createJevJudge({ env: { ODESK_JEV_KEY_FILE: option('--jev-key') } })
+  const judge = createJevJudge({ env: { ODK_JEV_KEY_FILE: option('--jev-key') } })
   service = new PersonalBotService({ record: async () => assert.fail('No microphone capture'), transcribe: async () => assert.fail('No transcription'), prompt: async () => assert.fail('No conversation call') })
   const endpoint = process.platform === 'win32' ? `\\\\.\\pipe\\odk-jev-e2e-${randomBytes(8).toString('hex')}` : path.join(profile, 'personal-bot/agent.sock')
   const token = process.platform === 'win32' ? randomBytes(32).toString('base64url') : ''
@@ -118,11 +118,11 @@ app.whenReady().then(async () => {
   const snapshot = () => run(`(() => { const panel=document.getElementById('personal-bot-status'); return {hidden:panel.hidden,proactive:panel.dataset.proactive,modal:panel.getAttribute('aria-modal'),focus:document.activeElement?.id,overflow:document.documentElement.scrollWidth>innerWidth,rows:[...panel.querySelectorAll('.personal-bot-proposal')].map(n=>({state:n.querySelector('.personal-bot-proposal-state').textContent,evidence:[...n.querySelectorAll('.personal-bot-proposal-evidence')].map(e=>e.textContent),advice:n.textContent,buttons:[...n.querySelectorAll('button')].map(b=>({text:b.textContent,height:b.getBoundingClientRect().height}))}))} })()`)
   if(actual) {
  const {readProactiveFile}=await load('proactive-private.mjs')
- const {deskDataRequest}=await load('desk-data.mjs')
+ const {odkDataRequest}=await load('odk-data.mjs')
  actualConfig=JSON.parse(readProactiveFile(option('--owner'),65536))
  assert.equal(actualConfig.version,2)
- const listed=await deskDataRequest('list');record({case:'actual_widget_inventory',readings:listed.readings})
- actualRead=async id=>{const {reading}=await deskDataRequest('read',{id});record({case:'actual_widget_read',reading});return reading}
+ const listed=await odkDataRequest('list');record({case:'actual_widget_inventory',readings:listed.readings})
+ actualRead=async id=>{const {reading}=await odkDataRequest('read',{id});record({case:'actual_widget_read',reading});return reading}
 }
   const config = () => actual ? actualConfig : generated ? { version: 2, pollMs: 1000, maxAgeMs: 1800000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, suppressed: [], snoozed: {}, rules: [
     { id: 'parcels', goal: '及时领取确实已到达且即将超过保管期限的包裹。', observations: [{ readingId: 'example.parcels', fields: ['status'] }], delivery: 'immediate', urgent: false },
@@ -258,7 +258,7 @@ app.whenReady().then(async () => {
   await watch.close()
 
   // A controlled transport fault exercises the actual adapter's error path.
-  const unavailableJudge = createJevJudge({ env: { ODESK_JEV_KEY_FILE: option('--jev-key') }, fetchImpl: async () => { throw Error('E2E transport unavailable') } })
+  const unavailableJudge = createJevJudge({ env: { ODK_JEV_KEY_FILE: option('--jev-key') }, fetchImpl: async () => { throw Error('E2E transport unavailable') } })
   await setup('unavailable', unavailableJudge)
   await watch.tick()
   await until(() => !!client.snapshot().proposalError, 'unavailable status crossing channel')

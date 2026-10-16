@@ -16,13 +16,13 @@ test('v1 discovery and typo recovery do not replay earlier completed calls', asy
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   const calls = []
-  const capability = defineTool({ name: 'desk_fixture', label: 'Fixture', description: 'A reviewed fixture capability',
+  const capability = defineTool({ name: 'odk_fixture', label: 'Fixture', description: 'A reviewed fixture capability',
     parameters: Type.Object({}), outputSchema: Type.Object({ ok: Type.Boolean() }),
     execute: async () => { calls.push('called'); return { content: [], details: undefined, structuredContent: { ok: true } } } })
   const resourceLoader = await createResourceLoader(dir, join(dir, 'agent'))
   const { session } = await offlineSession({ ...agentOptions(dir, dir, [capability]), resourceLoader }, (_context, count) =>
     count === 1 ? assistant([{ type: 'toolCall', id: 'v1-probe', name: 'codemode', arguments: { code:
-      'text({known:"desk_fixture" in tools,excluded:"bash" in tools}); await tools.desk_fixture({}); try {tools.desk_fixtur;} catch(e){text({typoCaught:true,error:e.message});} text(await describeTool("desk_fixture"));' } }], 'toolUse') : assistant('fixture done'))
+      'text({known:"odk_fixture" in tools,excluded:"bash" in tools}); await tools.odk_fixture({}); try {tools.odk_fixtur;} catch(e){text({typoCaught:true,error:e.message});} text(await describeTool("odk_fixture"));' } }], 'toolUse') : assistant('fixture done'))
   t.after(() => session.dispose())
   await session.prompt('probe')
   const result = session.messages.find(message => message.role === 'toolResult')
@@ -31,8 +31,8 @@ test('v1 discovery and typo recovery do not replay earlier completed calls', asy
   assert.match(body, /"known":true/)
   assert.match(body, /"excluded":false/)
   assert.match(body, /"typoCaught":true/)
-  assert.match(body, /tools\.desk_fixtur\b/)
-  assert.match(body, /[Dd]id you mean[^\n]*desk_fixture/)
+  assert.match(body, /tools\.odk_fixtur\b/)
+  assert.match(body, /[Dd]id you mean[^\n]*odk_fixture/)
   assert.deepEqual(calls, ['called'])
   assert.equal(result.nestedCalls.calls.length, 1)
 })

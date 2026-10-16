@@ -4,10 +4,10 @@ export const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9
 
 /** Shared bounded, server-side TypeSafe transport for intent and proactive judgments. */
 export function createJevClient({ env = process.env, fetchImpl = fetch } = {}) {
-  const key = env.TYPESAFE_API_KEY?.trim() || (env.ODESK_JEV_KEY_FILE ? readProactiveFile(env.ODESK_JEV_KEY_FILE, 4096).trim() : '')
+  const key = env.TYPESAFE_API_KEY?.trim() || (env.ODK_JEV_KEY_FILE ? readProactiveFile(env.ODK_JEV_KEY_FILE, 4096).trim() : '')
   if (!key || /[\r\n]/.test(key)) throw Error('Jev credential missing or invalid')
-  const model = env.ODESK_JEV_MODEL || 'jev-latest'
-  const timeout = Number(env.ODESK_JEV_TIMEOUT_MS ?? 10000)
+  const model = env.ODK_JEV_MODEL || 'jev-latest'
+  const timeout = Number(env.ODK_JEV_TIMEOUT_MS ?? 10000)
   if (!isJevModel(model) || !Number.isInteger(timeout) || timeout < 1000 || timeout > 30000) throw Error('Invalid Jev configuration')
   return async ({ state, questions, signal = undefined }) => {
     try {

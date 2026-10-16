@@ -16,6 +16,7 @@ const REASONS = {
   symlinks: 'Creating a symlink needs elevation or Developer Mode on a Windows Shell Host, so a link-based attack cannot be staged there',
   'cm5-tooling': 'CM5 deployment and acceptance tooling does not run on a Windows Shell Host',
   'process-inspection': 'A Windows Shell Host reports process inspection through its own source, so this unavailable-inspection simulation does not apply',
+  'isolated-native-activation': 'Actual Main activation needs private Windows named pipes before it can run beside an existing Shell',
 }
 
 function isWindowsHost() {

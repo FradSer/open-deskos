@@ -20,7 +20,7 @@ import {
  */
 export function resolveChannelEndpoint({ name, override, unixSubdirectory, unixFilename = 'service.sock', env = process.env, platform = process.platform }) {
   if (typeof override === 'string' && override.trim()) return override.trim()
-  if (platform === 'win32') return `\\\\.\\pipe\\open-deskos-${name}`
+  if (platform === 'win32') return `\\\\.\\pipe\\odk-${name.replace(/^odk-/, '')}`
   const runtimeDir = typeof env.XDG_RUNTIME_DIR === 'string' && isAbsolute(env.XDG_RUNTIME_DIR) ? env.XDG_RUNTIME_DIR : null
   if (!runtimeDir) return null
   return join(runtimeDir, unixSubdirectory, unixFilename)

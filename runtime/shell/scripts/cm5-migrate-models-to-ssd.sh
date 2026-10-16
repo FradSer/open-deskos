@@ -7,10 +7,10 @@ if [ "${ODK_MODEL_MIGRATION_LIBRARY:-0}" != "1" ] && [ "$(id -u)" -ne 0 ]; then
 fi
 
 SSD_MOUNT="${ODK_MODEL_SSD_MOUNT:-/mnt/ssd}"
-SSD_ROOT="${ODK_MODEL_SSD_ROOT:-${SSD_MOUNT}/open-deskos/models}"
+SSD_ROOT="${ODK_MODEL_SSD_ROOT:-${SSD_MOUNT}/odk/models}"
 FSTAB="${ODK_MODEL_FSTAB:-/etc/fstab}"
-MARKER_BEGIN="# BEGIN open-deskos model storage"
-MARKER_END="# END open-deskos model storage"
+MARKER_BEGIN="# BEGIN odk model storage"
+MARKER_END="# END odk model storage"
 
 patch_ssd_fstab() {
   python3 - "$FSTAB" "$SSD_MOUNT" <<'PY'

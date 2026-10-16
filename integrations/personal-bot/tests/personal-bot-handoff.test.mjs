@@ -11,7 +11,7 @@ import { PersonalBotService } from '../src/service.mjs'
 
 // The coordinator is a fixture, not a model. Real capability/helper/host boundaries
 // pin the handoff lifecycle; this is not provider routing or microphone acceptance.
-test('a coding handoff frees the next Spoken Turn while the Hosted Pi remains working', async t => {
+test('a coding handoff frees the next Spoken Turn while the Hosted Pi remains working', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'personal-bot-handoff-')))
   const project = join(dir, 'project')
   await mkdir(project)
@@ -31,11 +31,11 @@ test('a coding handoff frees the next Spoken Turn while the Hosted Pi remains wo
     'console.log(JSON.stringify(await requestTask(' + JSON.stringify(config.socketPath) + ',JSON.parse(text))));})', { mode: 0o700 })
   const targets = join(dir, 'targets.json')
   await writeFile(targets, JSON.stringify({ targets: [{ id: 'cm5', name: 'Fixture host', roots: [project], executable: helper }] }))
-  const previous = process.env.ODESK_TASK_TARGETS_FILE
-  process.env.ODESK_TASK_TARGETS_FILE = targets
+  const previous = process.env.ODK_TASK_TARGETS_FILE
+  process.env.ODK_TASK_TARGETS_FILE = targets
   t.after(async () => {
-    if (previous === undefined) delete process.env.ODESK_TASK_TARGETS_FILE
-    else process.env.ODESK_TASK_TARGETS_FILE = previous
+    if (previous === undefined) delete process.env.ODK_TASK_TARGETS_FILE
+    else process.env.ODK_TASK_TARGETS_FILE = previous
     await server.close()
     await host.close()
     await rm(dir, { recursive: true, force: true })

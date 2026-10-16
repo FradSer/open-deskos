@@ -1,4 +1,79 @@
 Feature: Weather instrument on the Home grid
+  Scenario: Hidden weather acceptance renders at each requested viewport
+    Given the comparison window stays hidden on a supported Shell Host
+    When each of the five standard sizes loads a new Shell document
+    Then rendering continues without showing the host window
+    And the document uses the requested width and height after loading
+    And its device scale and page zoom are one before measurements
+    And Linux comparisons select software rendering before Electron is ready
+    And existing per-operation deadlines and density tolerances remain unchanged
+
+  Scenario: Weather replacement preserves measured density
+    Given the default and trusted selected surfaces show the same Weather state
+    When the existing collector measures both surfaces after fonts settle
+    Then both use the shared Weather density profile
+    And measurements cover all five standard viewport sizes
+    And density, clipping, and content remain compatible across the existing state, theme, and size matrix
+
+  Scenario: Actual Main starts signed Weather sources and surfaces together
+    Given signed independent source and surface selections share one publisher policy
+    When production Main starts after surface update, rollback, or removal
+    Then actual preload and Renderer discovery load the selected source and surface
+    And selected and executed surface revisions agree
+    And source readings and visible Weather content remain unchanged
+    And normal quit removes source handlers and signed surface protocol leases
+
+  Scenario: Signed Weather surface revisions preserve separate process consumers
+    Given independent source and surface selections share an external publisher policy
+    When the Native CLI updates, rolls back, and removes the surface selection
+    Then each selection executes in a different Electron process
+    And the executed surface revision matches the selected signed entry
+    And all rendered Weather states remain equal to the default surface
+    And invalid updates preserve configuration and unaffected source preferences
+    And removal restores the default surface while retaining signed revisions
+
+  Scenario: Weather acceptance keeps CLI processes under parent ownership
+    Given the parent prepares trusted source and surface selections
+    When the Electron consumer attempts to launch a CLI subprocess
+    Then the fixture refuses that launch
+    And cancellation joins parent-owned CLI processes before removing private state
+
+  Scenario: Signed independent Weather surfaces use captured verified assets
+    Given the Native CLI installs an independent Weather surface with publisher policy and explicit trust
+    When actual Renderer discovery captures its signed entry and stylesheet
+    And the stored entry and stylesheet change before browser loading
+    Then actual preload consumers retain the same rendered Weather state matrix
+    And the selected surface executes without the default mount
+    And discovery shutdown releases its signed asset protocol lease
+
+  Scenario: Independent Weather surfaces preserve shared display and release behavior
+    Given default and independently loaded Weather surfaces use the same visual assets
+    When controlled status responses cover waiting, live, stale, unavailable, unconfigured, and malformed states
+    Then place, readings, units, conditions, daily range, glyphs, and status notices remain unchanged
+    And both surfaces request cached status before forced refresh and use the shared tick cadence
+    And released responses cannot write or start another request
+    And a trusted development entry mounts through actual Renderer discovery and the registry
+    And supported themes and compact or wide cells preserve complete content and readable geometry
+
+  Scenario: Released Weather surfaces cannot publish late readings
+    Given a mounted Weather Widget has a pending cached or forced status request
+    When the Renderer registry releases or disables that surface
+    Then later successful or rejected responses cannot change the released element
+    And a released cached request cannot start the chained forced refresh
+    And stale tick callbacks cannot start new requests
+    And enable restores a fresh Widget while the old response remains isolated
+
+  Scenario: Device relocation preserves the identity of Weather readings
+    Given a Weather request is pending for the first device location
+    When a refresh resolves a different device location
+    Then the earlier response cannot publish or persist a reading for the new location
+    And the new request waits for the earlier request to settle
+    And its result and cache use the coordinates and label that started that request
+    And an older location lookup cannot replace a newer lookup result
+    And cancellation while waiting prevents the new request from starting
+    And concurrent device lookups preserve a shared reading
+    And a later ordinary refresh cannot suppress an explicitly forced refresh
+
 
   Scenario: A place-led instrument separates the reading from its supporting sky
     Given the Home grid shows weather for Shenzhen
@@ -198,3 +273,27 @@ Feature: Weather instrument on the Home grid
     Given the weather source publishes any snapshot
     Then the snapshot names configured or device as the location origin
     And an unconfigured host reports no location origin
+
+  Scenario: An explicit desk location overrides an IP exit city
+    Given the desk location is configured as Wuhan
+    And the IP location provider would return Taipei
+    When the weather source refreshes
+    Then the weather request uses the Wuhan coordinates
+    And the device-location provider is never called
+
+  Scenario: Weather cache belongs to its coordinates
+    Given a cached weather reading for Taipei
+    When the desk location changes to Wuhan
+    Then the Taipei reading is not shown as Wuhan weather
+    And a provider failure leaves Wuhan unavailable
+
+  Scenario: Linux complete weather comparison has a bounded workload budget
+    Given the complete comparison loads thirty size and theme combinations
+    When it runs on Linux
+    Then its fixture has a 75 second aggregate watchdog
+    And its child process has a 85 second deadline
+    And its ordinary parent has a 120 second deadline including preparation
+    And its four-process surface revision parent has a 360 second deadline
+    And source-only revision fixtures retain their 45 second watchdog
+    And each readiness check retains its four second deadline
+    And other hosts retain their existing aggregate deadlines

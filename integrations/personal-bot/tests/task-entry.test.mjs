@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
@@ -25,9 +25,9 @@ async function host(t) {
   return { dir, config, socket, entry: join(dir, 'current/src/task-daemon.mjs') }
 }
 
-function start(entry, { dir, config }) {
-  return spawn(process.execPath, [entry], {
-    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODESK_TASK_CONFIG: config },
+function start(entry, { dir, config }, preload = undefined) {
+  return spawn(process.execPath, [...(preload ? ['--import', preload] : []), entry], {
+    env: { PATH: process.env.PATH, HOME: dir, XDG_RUNTIME_DIR: dir, ODK_TASK_CONFIG: config },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 }
@@ -53,7 +53,7 @@ async function waitForPublished(descriptor) {
   throw new Error(`the running host published no endpoint descriptor at ${descriptor}`)
 }
 
-test('the task daemon serves its socket when started through a release symlink', async t => {
+test('the task daemon serves its socket when started through a release symlink', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
   const child = start(paths.entry, paths)
   t.after(() => child.kill())
@@ -79,9 +79,9 @@ test('the task daemon serves its socket when started through a release symlink',
 // The desk's Console path discovers this host through the published descriptor, and a descriptor left
 // behind by a stopped host claims a socket that is not there — the same lie either way for an
 // operator looking at a Console that reports no host.
-test('the running daemon publishes its endpoint and withdraws it on shutdown', async t => {
+test('the running daemon publishes its endpoint and withdraws it on shutdown', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const paths = await host(t)
-  const descriptor = join(paths.dir, 'open-deskos/hosted-pi/endpoint.json')
+  const descriptor = join(paths.dir, 'odk/hosted-pi/endpoint.json')
   const child = start(paths.entry, paths)
   t.after(() => child.kill())
   let client
@@ -107,7 +107,7 @@ test('the running daemon publishes its endpoint and withdraws it on shutdown', a
 test('importing the task daemon without running it starts no daemon', async t => {
   const paths = await host(t)
   const wrapper = join(paths.dir, 'wrapper.mjs')
-  await writeFile(wrapper, `await import(${JSON.stringify(paths.entry)})\n`)
+  await writeFile(wrapper, `await import(${JSON.stringify(pathToFileURL(paths.entry).href)})\n`)
   const child = start(wrapper, paths)
   t.after(() => child.kill())
   const exit = await Promise.race([
@@ -117,4 +117,49 @@ test('importing the task daemon without running it starts no daemon', async t =>
   child.kill()
   assert.equal(exit, 0, 'importing the module must not start a daemon')
   assert.ok(!existsSync(paths.socket), 'importing the module created a control socket')
+})
+
+test('CLI shutdown during service initialization cleans the late service without publishing', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
+  const paths = await host(t)
+  const serviceUrl = new URL('../src/task-service.mjs', import.meta.url).href
+  const mockSource = `export async function createTaskService() {
+    process.stdout.write('TASK_INIT_PENDING\\n');
+    await new Promise(resolve => process.once('SIGTERM', resolve));
+    return { handle() {}, disconnect() {}, close() { process.stdout.write('TASK_SERVICE_CLOSED\\n'); } };
+  }`
+  const preload = 'data:text/javascript,' + encodeURIComponent(`
+    import { registerHooks } from 'node:module';
+    registerHooks({ load(url, context, next) {
+      const result = next(url, context);
+      if (url !== ${JSON.stringify(serviceUrl)}) return result;
+      const original = typeof result.source === 'string' ? result.source : Buffer.from(result.source).toString('utf8');
+      return { ...result, source: original.replace('export async function createTaskService(', 'async function originalTaskService(') + ${JSON.stringify(mockSource)} };
+    } });
+  `)
+  const child = start(paths.entry, paths, preload)
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL') })
+  let stdout = ''
+  let stderr = ''
+  child.stderr.on('data', chunk => { stderr += chunk.toString() })
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })))
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error(`Initialization marker missing: ${stderr}`)), 15000)
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString()
+      if (stdout.includes('TASK_INIT_PENDING')) { clearTimeout(timer); resolve(undefined) }
+    })
+  })
+  assert.equal(existsSync(paths.socket), true)
+  child.kill('SIGTERM')
+  let deadline
+  const exit = await Promise.race([
+    exited,
+    new Promise((_, reject) => { deadline = setTimeout(() => reject(Error(`Shutdown did not finish: ${stderr}`)), 15000) }),
+  ]).finally(() => clearTimeout(deadline))
+  assert.deepEqual(exit, { code: 0, signal: null })
+  assert.equal(stdout.split('TASK_SERVICE_CLOSED').length - 1, 1)
+  assert.equal(existsSync(join(paths.dir, 'odk/hosted-pi/endpoint.json')), false)
+  const client = await connector(paths.socket)
+  client?.destroy()
+  assert.equal(client, undefined, 'a stopped daemon must not accept clients')
 })

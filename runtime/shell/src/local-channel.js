@@ -103,20 +103,23 @@ async function readOrCreateToken({ stateDir, fsModule = fs } = {}) {
 
   const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url')
   await fsModule.mkdir(path.dirname(file), { recursive: true, mode: 0o700 })
+  const candidateDir = await fsModule.mkdtemp(path.join(path.dirname(file), '.local-channel-token-'))
+  const candidate = path.join(candidateDir, TOKEN_FILENAME)
   try {
-    await fsModule.writeFile(file, `${token}\n`, { mode: 0o600, flag: 'wx' })
-  } catch (error) {
-    // Every service on a cold host can start at once, so they race. The file
-    // decides which token is in use, and the loser adopts the winner's rather
-    // than leaving the host holding two.
-    if (error.code !== 'EEXIST') throw error
-    const raced = await readToken(file, fsModule)
-    if (raced) return raced
-    await fsModule.writeFile(file, `${token}\n`, { mode: 0o600 })
+    await fsModule.writeFile(candidate, `${token}\n`, { mode: 0o600, flag: 'wx' })
+    // Publish complete bytes without replacing another process's token.
+    try { await fsModule.link(candidate, file) } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+      const raced = await readToken(file, fsModule)
+      if (!raced) throw new Error('runtime channel token file is empty')
+      return raced
+    }
+    // A host without mode bits has nothing to set.
+    await fsModule.chmod(file, 0o600).catch(() => {})
+    return token
+  } finally {
+    await fsModule.rm(candidateDir, { recursive: true, force: true })
   }
-  // A host without mode bits has nothing to set, and nothing to leak by failing.
-  await fsModule.chmod(file, 0o600).catch(() => {})
-  return token
 }
 
 function handshakeFrame(token) {
@@ -205,6 +208,7 @@ async function listenChannel({
   stateDir = '',
   onConnection,
   onReject = () => {},
+  connectionTimeoutMs = 0,
   platform = process.platform,
   fsModule = fs,
   probe = probeEndpoint,
@@ -226,7 +230,10 @@ async function listenChannel({
   }
 
   const sockets = new Set()
-  const server = net.createServer((socket) => gate(socket))
+  const server = net.createServer((socket) => {
+    if (connectionTimeoutMs > 0) socket.setTimeout(connectionTimeoutMs, () => socket.destroy())
+    gate(socket)
+  })
 
   function gate(socket) {
     sockets.add(socket)

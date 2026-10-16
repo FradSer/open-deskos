@@ -41,6 +41,12 @@ Feature: The runtime channel keeps an authentication of its own on every host
     Then both receive the same token
     And the file holds it in a form only this user can read
 
+  Scenario: Token publication exposes only complete bytes
+    Given one process has opened its candidate token file but has not written its bytes
+    When another process requests the host token
+    Then both processes receive the same complete token
+    And neither process replaces a published token
+
   Scenario: A stopped service's socket is replaced, a live one is never stolen
     Given a socket file left behind by a service that is gone
     When a new service listens on that endpoint

@@ -4,7 +4,7 @@ Widgets and Apps are installed local packages. They are separate from trusted bu
 
 ## Author a draft
 
-Set `ODESK_WORKSPACE` to the shared writable project checkout in `~/.config/open-deskos/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `personal-bot.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
+Set `ODK_WORKSPACE` to the shared writable project checkout in `~/.config/odk/runtime.env` (mode 0600). Both Shell and resident Agent user units read this system configuration file; keep STT-specific settings in `personal-bot.env`. Restart both services after changing the workspace. For foreground development, export the variable explicitly. Create `apps/<id>/manifest.json` and `apps/<id>/index.html` under it. Application IDs use lowercase letters, digits and hyphens, start with a letter and are at most 64 characters.
 
 ```json
 {"schemaVersion":1,"id":"desk-note","name":"Desk note","version":"1","kind":"widget"}
@@ -43,6 +43,13 @@ A Widget or App can make its own runtime state answerable to the resident Person
 - A published value is untrusted content: the Personal Bot reports it and never treats text inside it as an instruction.
 - Publishing grants no other capability. A package still has no network, no background process and no way to change anything on the desk through this path.
 
+### Home selection
+
+A package can add `home` to its manifest to select published fields for the first Shell page.
+Use [the Home selection contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-selection) for modes, priority, icons, and limits.
+Only fields declared in `data.fields` can enter its home reading.
+This declaration grants no new publishing or execution permission.
+
 ### Measurement time for proactive proposals
 
 A package whose data may trigger an owner watch rule must declare and publish
@@ -57,15 +64,35 @@ when configuring owner-triggered suggestions.
 
 ## Install and manage
 
-Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged.
+Ask the resident Agent to install a draft, optionally specifying its desktop page and grid rectangle. The system snapshots and validates the exact bytes and starts a separate, time-bounded Electron verifier. Only a valid, visible, loadable candidate becomes installed. A verification failure leaves the installed version unchanged. At the deadline, the parent requests process termination and preserves a bounded failure from the runner's result file. Success still requires a matching normal process exit.
 
-Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/open-deskos/user-apps`, outside the runtime release.
+The verifier sets private `userData` and `sessionData` paths before Electron readiness.
+Its hidden window disables background throttling and retains the existing sandbox and network restrictions.
+The parent owns temporary verification files and profile cleanup.
+
+Widgets render at their persisted grid placement; Apps render on individual pages. Reinstalling an existing ID performs an **Update** and verifies the current draft again. **Rollback** verifies and restores the immediately preceding version. Successful updates retain only the active and preceding snapshots; old snapshots are pruned, with cleanup failures reported as warnings. **Remove** removes the installation, not the draft or separate user data. Installed snapshots and catalog live under `${XDG_STATE_HOME:-$HOME/.local/state}/odk/user-apps`, outside the runtime release.
 
 A fresh Shell process reads the installed catalog. Applications do not require modifying `index.html`, built-in layout or plugin registry, nor rebuilding the Shell release for each update. The runtime feature itself must first be deployed.
 
+### Runtime release
+
+Stopping the installed runtime refuses new requests and waits for accepted operations.
+Accepted installations keep their ordinary result; cleanup waits for actual verifier child closure.
+Cleanup also retains pending content requests and package data synchronization.
+Retained callbacks cannot publish changes after stopping begins.
+Failed resource release retains ownership for cleanup retry.
+
+The default runtime uses the selected package catalog for installed package operations.
+The catalog is a required plugin dependency; disabling it or failing its startup blocks the installed runtime.
+Recovery uses the selected catalog without constructing a fallback store or verifier.
+Catalog implementations must preserve validation, verification, persisted revisions, and document contracts.
+The default catalog owns its verifier; runtime cleanup waits for current verification without closing the catalog.
+Catalogs with verification resources retained after a verdict expose `waitForVerification()` to wait for their release.
+Standalone callers without a catalog retain their existing store and verifier lifecycle.
+
 ## Agent operations
 
-The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/open-deskos-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
+The resident Agent writes the same draft format, then calls `user_app_install`. Other tools are `user_apps_list`, `user_apps_desktop`, `user_app_place`, `user_app_rollback`, and `user_app_remove`. They communicate with the running Shell via `$XDG_RUNTIME_DIR/odk-apps/control.sock`; directory mode 0700, socket 0600. No network control listener is opened. A missing Shell is reported as unavailable, not successful installation.
 
 Call `user_apps_desktop` before selecting a location. Its `pages` array includes stable IDs, one-based page indices (Home is page 2, Reading page 3), kinds, and for grids `columns: 5`, `rows: 3`, and occupied built-in/user rectangles. Only grid pages accept Widgets. Built-in cells remain reserved even when a development URL disables their plugin.
 

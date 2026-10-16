@@ -24,3 +24,36 @@ Feature: Managed Pi host installation
     When its launch agent starts
     Then it launches the same task daemon independently of SSH client lifetime
     And task configuration and executable locations are explicit operator substitutions
+
+  Scenario: Task host resources use the common plugin lifecycle
+    Given the task listener, service, and endpoint publisher plugins
+    When the host starts
+    Then the listener starts before service initialization
+    And the endpoint publishes only after service initialization
+    When the host stops
+    Then the endpoint is withdrawn before the listener closes
+    And the listener closes before the task service
+    And each resource closes once
+    And cleanup failure cannot skip remaining resources
+
+  Scenario: Endpoint publication failure preserves task control
+    Given a running listener and task service
+    When endpoint publication fails
+    Then task requests remain available
+    And the existing publication warning is reported
+
+  Scenario: Stop cancels pending task initialization
+    Given task service initialization is pending
+    When the host stops
+    Then the late service closes without publishing an endpoint
+    And the CLI accepts shutdown signals before plugin startup
+    And constructing a daemon does not start its resources
+
+  Scenario: Selected task service retains cancelled tasks across disable and enable
+    Given the default or selected service runs a task with the existing task engine
+    When the service plugin is disabled
+    Then the active task is cancelled and its record is saved
+    And the listener remains available without a task service
+    When the service plugin is enabled again
+    Then status reads the saved cancelled task without executing it again
+    And endpoint publication follows service availability

@@ -1,5 +1,5 @@
 /*
- * sdl_driver.c — native SDL2 display surface for the open-deskos simulator.
+ * sdl_driver.c — native SDL2 display surface for the odk simulator.
  *
  * The firmware's real lua_lvgl_flush_cb (lua_lvgl_runtime.c) calls
  * esp_lcd_panel_draw_bitmap; the host impl (sim_esp_compat.c) forwards here,
@@ -48,7 +48,7 @@ bool sim_sdl_init(void)
 
     /* Window scale vs the 480x800 logical panel. Was 1.5x; shrunk to 0.75 of
      * that → 1.125x (9/8) so it fits smaller desktop space. */
-    s_win = SDL_CreateWindow("open-deskos simulator",
+    s_win = SDL_CreateWindow("odk simulator",
                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              ODK_SIM_WIDTH * 9 / 8, ODK_SIM_HEIGHT * 9 / 8, 0);
     if (!s_win) {

@@ -67,56 +67,31 @@ async function pagerMotion(win, check) {
 }
 
 async function briefing(win, check) {
+  const before = await win.webContents.executeJavaScript('window.odkServices.homeBriefing.snapshot()')
+  const frame = { state: 'live', generatedAt: Date.now(), omittedSources: 0, items: [
+    { text: 'First Agent statement <script>literal</script>.', sources: [{ id: 'odk.tile.weather', label: 'Weather', state: 'live', updatedAt: Date.now() }] },
+    { text: 'Second Agent statement.', sources: [{ id: 'mail', label: 'Mail', state: 'unconfigured' }] },
+  ] }
+  win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: frame })
+  await new Promise(resolve => setTimeout(resolve, 30))
   const result = await win.webContents.executeJavaScript(`(() => {
-    const services = window.odkServices.briefing
-    const narrative = () => document.querySelector('#dash-narrative')
-    const clauses = () => [...narrative().querySelectorAll('.dash-clause')].map(clause => ({
-      id: clause.dataset.briefing || null,
-      text: clause.textContent,
-      signalText: [...clause.querySelectorAll('b')].map(signal => signal.textContent),
-      signalIcons: [...clause.querySelectorAll('b')].reduce((total, signal) => total + signal.querySelectorAll('svg[data-tabler]').length, 0),
-    }))
-    const ICON = '<svg data-tabler="folder" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 4h4l3 3h7" /></svg>'
-    const before = clauses()
-    const rejectedEmpty = services.contribute({ id: 'odk.briefing.harness-empty', parts: [{ text: '' }] })
-    const afterReject = clauses()
-    services.contribute({ id: 'odk.briefing.harness-second', order: 30, parts: [{ text: 'Second ' }, { text: 'signal', emphasis: true, icon: ICON }] })
-    services.contribute({ id: 'odk.briefing.harness-first', order: 10, parts: [{ text: 'First ' }, { text: 'signal', emphasis: true, icon: ICON }, { text: '.' }] })
-    const ordered = clauses()
-    const signal = narrative().querySelector('.dash-clause b')
-    const clause = signal && signal.closest('.dash-clause')
-    const styles = signal ? {
-      signalWeight: Number(getComputedStyle(signal).fontWeight),
-      connectiveWeight: Number(getComputedStyle(clause).fontWeight),
-      signalColor: getComputedStyle(signal).color,
-      connectiveColor: getComputedStyle(clause).color,
-      iconSize: signal.querySelector('svg').getBoundingClientRect().width,
-      signalSize: parseFloat(getComputedStyle(signal).fontSize),
-    } : null
-    services.withdraw('odk.briefing.harness-first')
-    services.withdraw('odk.briefing.harness-second')
-    return { before, afterReject, ordered, restored: clauses(), rejectedEmpty, styles }
+    const narrative = document.querySelector('#dash-narrative');
+    const clauses = [...narrative.querySelectorAll('.dash-clause')];
+    const before = narrative.textContent;
+    window.odkServices.briefing.contribute({ id: 'odk.briefing.harness', parts: [{ text: 'Fixed fallback' }] });
+    const unchanged = narrative.textContent === before;
+    window.odkServices.briefing.withdraw('odk.briefing.harness');
+    return { texts: clauses.map(c => c.textContent),
+      noMetadata: !document.querySelector('.dash-foot, .dash-provenance, #dash-agent-status, #dash-source-list'),
+      safe: !narrative.querySelector('script'), unchanged,
+      live: narrative.getAttribute('aria-live') };
   })()`)
-
-  const ids = result.ordered.map((clause) => clause.id)
-  const first = ids.indexOf('odk.briefing.harness-first')
-  const second = ids.indexOf('odk.briefing.harness-second')
-  const added = result.ordered.filter((clause) => ids.indexOf(clause.id) >= 0 && /harness/.test(clause.id))
-
-  check('an invalid briefing contribution is refused', result.rejectedEmpty === false)
-  check('a refused contribution adds no statement', JSON.stringify(result.afterReject) === JSON.stringify(result.before))
-  check('briefing statements render in ascending order', first >= 0 && second >= 0 && first < second)
-  check('every harness statement renders one emphasized signal with an icon',
-    added.length === 2 && added.every((clause) => clause.signalIcons === 1 && clause.signalText.length === 1))
-  check('withdrawing a contribution removes its statement', JSON.stringify(result.restored) === JSON.stringify(result.before))
-  // Pixel runs Zpix at a single Regular weight with font-synthesis disabled, so
-  // emphasis must survive on the brighter signal color alone.
-  check('signals read louder than connectives without outgrowing the line',
-    Boolean(result.styles) &&
-    result.styles.signalColor !== result.styles.connectiveColor &&
-    result.styles.signalWeight >= result.styles.connectiveWeight &&
-    result.styles.iconSize > 0 &&
-    result.styles.iconSize < result.styles.signalSize)
+  check('Today renders Agent statements in generated order', JSON.stringify(result.texts) === JSON.stringify(frame.items.map(i => i.text)))
+  check('Overview omits metadata and source controls', result.noMetadata)
+  check('Agent text remains literal', result.safe)
+  check('fixed plugin statements cannot replace the Agent briefing', result.unchanged)
+  check('Today announces briefing changes', result.live === 'polite')
+  win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing: before })
 }
 
 module.exports = async function run(win, check) {

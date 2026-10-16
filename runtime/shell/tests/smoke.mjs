@@ -86,8 +86,8 @@ export function resolveSmokeCommand({ host = resolveShellHost() } = {}) {
  * window it is checking.
  */
 export function configuredSize(env = process.env) {
-  const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || 1920
-  const height = Number.parseInt(env.ODESK_SHELL_HEIGHT ?? '', 10) || 1280
+  const width = Number.parseInt(env.ODK_SHELL_WIDTH ?? '', 10) || 1920
+  const height = Number.parseInt(env.ODK_SHELL_HEIGHT ?? '', 10) || 1280
   return { width, height }
 }
 
@@ -148,7 +148,7 @@ export function runSmoke({
     cwd: RUNTIME_ROOT,
     encoding: 'utf8',
     timeout: SMOKE_TIMEOUT_MS,
-    env: { ...process.env, ...env, ODESK_SMOKE_RESULT_FILE: resultFile },
+    env: { ...process.env, ...env, ODK_SMOKE_RESULT_FILE: resultFile },
   })
   const line = readSmokeResult(resultFile, result.stdout)
   console.log(`smoke: ${line || '(no result)'}`)
@@ -205,7 +205,7 @@ export function main() {
       return runSmoke({
         width: size.width,
         height: size.height,
-        env: { ODESK_SHELL_WIDTH: String(size.width), ODESK_SHELL_HEIGHT: String(size.height) },
+        env: { ODK_SHELL_WIDTH: String(size.width), ODK_SHELL_HEIGHT: String(size.height) },
       })
     },
     () => {

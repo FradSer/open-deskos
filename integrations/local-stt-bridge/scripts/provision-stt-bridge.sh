@@ -70,10 +70,10 @@ echo "== installing user service =="
 UNIT_DIR="${TARGET_HOME}/.config/systemd/user"
 run_as_target_user mkdir -p "${UNIT_DIR}"
 install -o "${TARGET_USER}" -g "${TARGET_USER}" -m 0644 \
-  "${SCRIPT_DIR}/systemd/open-deskos-stt-bridge.service" \
-  "${UNIT_DIR}/open-deskos-stt-bridge.service"
+  "${SCRIPT_DIR}/systemd/odk-stt-bridge.service" \
+  "${UNIT_DIR}/odk-stt-bridge.service"
 run_as_target_user systemctl --user daemon-reload
-run_as_target_user systemctl --user enable --now open-deskos-stt-bridge.service
+run_as_target_user systemctl --user enable --now odk-stt-bridge.service
 
 echo "== verifying loopback-only bind and transcription =="
 for _ in $(seq 1 30); do

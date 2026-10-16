@@ -1,4 +1,10 @@
 Feature: Read AI quotas with clear provenance and recovery
+  Scenario: Hidden consumer acceptance uses its private profile on every host
+    Given the parent supplies a private Electron profile
+    When Electron includes command-line flags in its argument list
+    Then the fixture uses the supplied profile for user and session data
+    And its hidden window can advance animation frames without showing or taking focus
+
   Scenario: Decide which subscription needs attention at a glance
     Given subscriptions with healthy, low, exhausted and unknown quota windows
     When I open Usage

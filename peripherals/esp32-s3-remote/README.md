@@ -7,6 +7,25 @@ Standalone ESP-IDF firmware for the **Waveshare ESP32-S3 Touch LCD 2.8**.
 It uses the board's USB-Serial/JTAG port as an exclusive bidirectional protocol interface.
 Firmware console output is disabled so logs cannot corrupt newline-delimited authoritative v1 state JSON or versioned Remote Touchpad input records.
 
+## Native component plugins
+
+The boot entry uses the [native plugin host](../common/README.md).
+Local [manifests](main/plugins) bind display, touch, buffers, gesture, serial, and surface lifecycle implementations.
+CMake generates their immutable descriptors before compilation.
+The default dependency order preserves the previous initialization sequence.
+A failed boot stops initialized resources before it reports the original error.
+
+[remote_plugin_ports.h](main/remote_plugin_ports.h) owns the component port types.
+A buffer provider supplies a DMA-capable framebuffer for 240 by 320 pixels and a queue of `remote_state_t` records.
+Serial and surface consumers use these published resources.
+The display port accepts the selected framebuffer and state.
+Its `drain()` operation waits for pending transfers before buffer cleanup.
+The default SPI implementation uses the ESP-IDF parameter-transfer barrier without sending a command.
+Cleanup failure retains native handles for retry.
+Lifecycle operations must run from the same owner task as the USB Serial/JTAG driver.
+A build-time native replacement must implement the declared port contract.
+These declarations do not load third-party firmware at runtime.
+
 ## Controls
 
 - Directional ring taps and cardinal swipes (minimum 40px) emit up/down/left/right regardless of cached page/mode.
@@ -62,7 +81,9 @@ The behavior contract is in [`tests/features/remote-control.feature`](tests/feat
 
 ## Development
 
-`main/remote_control.c` owns display, touch polling, and serial I/O.
+`main/remote_control.c` implements the native drivers and Remote surface.
+`main/plugins/` owns their declarations.
+`../common/` owns the shared native lifecycle.
 `main/touchpad_gesture.c` and `main/cst328_frame.c` own gesture handling and touch-frame decoding.
 Configuration lives in `main/idf_component.yml`; scenarios live in `tests/features/remote-control.feature`.
 Use 4-space ESP-IDF C, `snake_case`, explicit error handling, and bounded buffers.

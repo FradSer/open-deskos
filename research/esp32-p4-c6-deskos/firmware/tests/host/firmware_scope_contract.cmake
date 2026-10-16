@@ -1,7 +1,7 @@
-set(OPEN_DESKOS_ROOT "${ODK_ROOT}/application/open_deskos")
-set(BOARDS_ROOT "${OPEN_DESKOS_ROOT}/boards")
+set(ODK_ROOT "${ODK_ROOT}/application/odk")
+set(BOARDS_ROOT "${ODK_ROOT}/boards")
 
-if(NOT IS_DIRECTORY "${OPEN_DESKOS_ROOT}")
+if(NOT IS_DIRECTORY "${ODK_ROOT}")
     message(FATAL_ERROR "Open DeskOS application directory is missing")
 endif()
 
@@ -47,8 +47,8 @@ if(M5_ID_OFFSET EQUAL -1)
     message(FATAL_ERROR "production M5PaperColor board ID is missing")
 endif()
 
-file(READ "${OPEN_DESKOS_ROOT}/CMakeLists.txt" CMAKE_SOURCE)
-string(FIND "${CMAKE_SOURCE}" "project(open_deskos VERSION" PROJECT_OFFSET)
+file(READ "${ODK_ROOT}/CMakeLists.txt" CMAKE_SOURCE)
+string(FIND "${CMAKE_SOURCE}" "project(odk VERSION" PROJECT_OFFSET)
 if(PROJECT_OFFSET EQUAL -1)
-    message(FATAL_ERROR "ESP-IDF project identity must be open_deskos")
+    message(FATAL_ERROR "ESP-IDF project identity must be odk")
 endif()

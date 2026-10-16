@@ -1,11 +1,14 @@
+import { protectProactivePath } from '../../src/proactive-private.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 // Offline SDK fixtures must not read the developer's settings or resolve a
 // package from them. Node's test runner isolates each test file's environment.
 export async function isolateAgentDirectory(t, root, settings = {}) {
+  if (process.platform === 'win32') protectProactivePath(root)
   const agentDir = join(root, 'agent')
   await mkdir(agentDir, { recursive: true })
+  if (process.platform === 'win32') protectProactivePath(agentDir)
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({
     compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: 'off', ...settings,
   }))

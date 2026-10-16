@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url)
 // A file URL's `pathname` is `/C:/…` on Windows, which `path.join` then doubles
 // into `C:\C:\…`. The harness directory is resolved the cross-platform way.
 const harnessDirectory = fileURLToPath(new URL('.', import.meta.url))
-const { compute, gridWidgetCount } = require('../src/renderer/layout.js')
+const { compute, computeDesk, gridWidgetCount } = require('../src/renderer/layout.js')
 require('../src/renderer/config/desktop_layout.js')
 const DESKTOP_LAYOUT = globalThis.DESKTOP_LAYOUT
 
@@ -62,12 +62,18 @@ for (const [label, width, height] of SIZES) {
   }
 }
 
-// Placement contract: widgets fill grid pages starting from the top-left
-// corner. A grid page hosting exactly one tile anchors it to the top-left
-// (first column line, first row line); the dedicated reading page hosts the
-// 3x2 WeRead tile (columns 1-3, rows 1-2) beside the 2x2 pre-order countdown
-// (columns 4-5, rows 1-2 of the widescreen grid), with the market tile on the
-// next row under WeRead.
+// The resident Agent and briefing do not consume Widget page positions.
+check('Agent remains in its persistent host', DESKTOP_LAYOUT.pages.find(p => p.id === 'personal-agent')?.persistent === 'personal-agent')
+check('briefing remains in its persistent host', DESKTOP_LAYOUT.pages.find(p => p.id === 'today')?.persistent === 'home-summary')
+for (const [width, height, deskWidth, deskHeight] of [[1920, 1280, 1056, 1000], [1280, 800, 704, 560], [320, 480, 320, 360]]) {
+  const m = computeDesk(width, height, deskWidth, deskHeight)
+  check(`desk ${width}x${height}: readable square cells`, m.cellW === m.cellH && m.cellW >= 200)
+  check(`desk ${width}x${height}: grid fits the right column`, m.gridW <= deskWidth - 2 * m.widgetGap)
+  check(`desk ${width}x${height}: pane determines columns`, m.cols === (deskWidth >= 700 ? 3 : deskWidth >= 480 ? 2 : 1))
+  check(`desk ${width}x${height}: original State Bar height`, m.statusH === compute(width, height).statusH)
+}
+
+// Widgets keep their plugin identities in the smaller right-column pages.
 for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.widgets.length === 1)) {
   const [tile] = page.widgets
   const colStart = tile.col?.split('/')[0]?.trim()
@@ -76,16 +82,18 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 }
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
-check('reading page hosts WeRead, pre-order and market tiles', readingPage?.widgets?.length === 3 && readingPage.widgets.map((tile) => tile.id).join(',') === 'odk.tile.weread,odk.tile.preorder,odk.tile.futu', JSON.stringify(readingPage?.widgets))
-check('weread tile spans 3x2 top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 3', `col=${readingPage?.widgets?.[0]?.col} row=${readingPage?.widgets?.[0]?.row}`)
-check('preorder tile spans 2x2 beside weread', readingPage?.widgets?.[1]?.col === '4 / 6' && readingPage?.widgets?.[1]?.row === '1 / 3', `col=${readingPage?.widgets?.[1]?.col} row=${readingPage?.widgets?.[1]?.row}`)
-check('market tile takes one cell on the row under weread', readingPage?.widgets?.[2]?.col === '1' && readingPage?.widgets?.[2]?.row === '3', `col=${readingPage?.widgets?.[2]?.col} row=${readingPage?.widgets?.[2]?.row}`)
+check('reading page hosts the three-by-three WeRead canvas', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
+check('weread fills three rows and three columns from top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
+const deskPreorder = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.preorder')
+check('preorder sits on Desk beside Hydra', deskPreorder?.col === '2' && deskPreorder?.row === '1')
+const market = DESKTOP_LAYOUT.pages.find(p => p.id === 'home')?.widgets?.find(tile => tile.id === 'odk.tile.futu')
+check('market fills the former Home clock cell', market?.col === '3' && market?.row === '1')
 
 // WeRead meta: title/author/date step down by phi, the date carries an
 // underline, and the cover is a narrow right rail instead of a half panel.
 const wereadCssPath = require('node:path').join(harnessDirectory, '../src/renderer/plugins/weread.css')
 const wereadCss = require('node:fs').readFileSync(wereadCssPath, 'utf8')
-const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(12px,\\s*)?([\\d.]+)cqi')) || [])[1])
+const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(\\d+px,\\s*)?([\\d.]+)cqi')) || [])[1])
 const wereadTitleCqi = wereadSize('\\.weread-title')
 const wereadAuthorCqi = wereadSize('\\.weread-author')
 const wereadDateCqi = wereadSize('\\.weread-date')

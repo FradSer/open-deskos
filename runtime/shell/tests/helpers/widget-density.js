@@ -1,4 +1,6 @@
 const DEFAULTS = { target: 0.62, tolerance: 0.08, minOccupied: 0.2, maxEmptyBand: 0.28 }
+const WEATHER_PROFILE = { target: 0.62, tolerance: 0.08, minOccupied: 0.1, maxEmptyBand: 0.28 }
+const WEREAD_PROFILE = { target: 0.65, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.55 }
 
 function intervalLength(intervals) {
   const sorted = intervals.sort((a, b) => a[0] - b[0])
@@ -110,4 +112,4 @@ function collectWidgetContent() {
   })
 }
 
-module.exports = { DEFAULTS, measureDensity, collectWidgetContent }
+module.exports = { DEFAULTS, WEATHER_PROFILE, WEREAD_PROFILE, measureDensity, collectWidgetContent }

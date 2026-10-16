@@ -12,21 +12,21 @@ import { observeAcceptanceFrame } from './helpers/acceptance-frame.mjs'
 
 // Explicit opt-in only. Installed Windows tools and OpenSSH carry requests to a
 // new isolated native Mac Pi. No provider, microphone, service or config writes.
-const enabled = process.env.ODESK_NATIVE_WINDOWS_ACCEPTANCE === '1'
+const enabled = process.env.ODK_NATIVE_WINDOWS_ACCEPTANCE === '1'
 const repository = fileURLToPath(new URL('../../..', import.meta.url))
 const packageDir = join(dirname(repository), 'pi-packages/packages/open-deskos')
 const root = '/private/tmp/odk-session-demo'
-const runtimeDir = '/Users/FradSer/.local/run/open-deskos/sessions'
+const runtimeDir = '/Users/FradSer/.local/run/odk/sessions'
 const existingDemoId = '01a0f0ba-8e8b-750f-aaae-c29d6fd8e743'
 const helper = join(packageDir, 'session-control')
-const windowsSource = 'open-deskos/personal-bot-releases/20261003-v6/integrations/personal-bot/src'
+const windowsSource = 'odk/personal-bot-releases/20261003-v6/integrations/personal-bot/src'
 const sshArgs = ['-i', '/Users/FradSer/.ssh/id_ed25519', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR', 'frads@100.82.50.70', 'node', '-']
 
 async function windowsRequest(request) {
   const acceptanceId = randomUUID()
   const script = `const {join}=require('node:path'); const {pathToFileURL}=require('node:url');
 (async()=>{const base=join(process.env.LOCALAPPDATA,${JSON.stringify(windowsSource)});
-process.env.ODESK_TASK_TARGETS_FILE=join(process.env.LOCALAPPDATA,'open-deskos','pi-tasks.json');
+process.env.ODK_TASK_TARGETS_FILE=join(process.env.LOCALAPPDATA,'odk','pi-tasks.json');
 const {loadTargets}=await import(pathToFileURL(join(base,'task-client.mjs')).href);
 const targets=await loadTargets(); const target=targets.find(t=>t.id==='mac');
 if(!target||target.host!=='FradSer@100.89.103.122'||target.executable!==${JSON.stringify(helper)}||!target.roots.includes(${JSON.stringify(root)}))throw Error('Unexpected installed Mac target');
@@ -71,7 +71,7 @@ async function until(predicate, message) {
 
 test('OPTIONAL installed Windows coding tools continue an isolated original Mac Pi', {
   timeout: 180_000,
-  skip: !enabled ? 'Set ODESK_NATIVE_WINDOWS_ACCEPTANCE=1 for authorized disposable Windows SSH acceptance' : process.platform !== 'darwin' ? 'This acceptance requires the configured Mac target host' : false,
+  skip: !enabled ? 'Set ODK_NATIVE_WINDOWS_ACCEPTANCE=1 for authorized disposable Windows SSH acceptance' : process.platform !== 'darwin' ? 'This acceptance requires the configured Mac target host' : false,
 }, async t => {
   // All deployment/configuration and ownership checks precede fixture writes.
   await access(join(packageDir, 'index.ts')); await access(helper)
@@ -101,8 +101,8 @@ test('OPTIONAL installed Windows coding tools continue an isolated original Mac 
   const agentDir = await isolateAgentDirectory(t, project)
   const desks = join(project, 'desks.json')
   await writeFile(desks, JSON.stringify({ desks: [] }))
-  const changes = { ODK_SESSION_HOST_SOCKET: runtimeDir, ODK_DESK_LINK_DESKS_FILE: desks, PI_DIRECTORY_SESSIONS_DIR: join(project, 'registry'),
-    ODK_DESK_LINK_ADDRESS: '', ODK_DESK_LINK_TOKEN: '', ODK_DESK_LINK_CONTROL_TOKEN: '' }
+  const changes = { ODK_SESSION_HOST_SOCKET: runtimeDir, ODK_LINK_DESKS_FILE: desks, PI_DIRECTORY_SESSIONS_DIR: join(project, 'registry'),
+    ODK_LINK_ADDRESS: '', ODK_LINK_TOKEN: '', ODK_LINK_CONTROL_TOKEN: '' }
   for (const [key, value] of Object.entries(changes)) { savedEnv.set(key, process.env[key]); process.env[key] = value }
   const { default: extension } = await import(pathToFileURL(join(packageDir, 'index.ts')).href)
   const loader = new DefaultResourceLoader({ cwd: project, agentDir, noExtensions: true, noSkills: true, noPromptTemplates: true,

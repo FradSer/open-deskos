@@ -21,21 +21,27 @@
     slot: 'left',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="sb-net" id="sb-net" role="img">${ONLINE_ICON}${OFFLINE_ICON}</span>`
+        <span class="sb-net" id="sb-net" role="img">${ONLINE_ICON}${OFFLINE_ICON}<span class="sb-network-label">Wi-Fi unknown</span></span>`
 
       const indicator = el.querySelector('#sb-net')
       const online = indicator.querySelector('[data-tabler="wifi"]')
       const offline = indicator.querySelector('[data-tabler="wifi-off"]')
+      let released = false
 
-      ctx.connection.subscribe((reachable) => {
+      const unsubscribe = ctx.connection.subscribe((reachable) => {
+        if (released || ctx.signal?.aborted) return
         // The reachability value carries the same truth as the status
         // announcement, so the indicator never disagrees with it.
-        const label = ctx.connection.labelFor(reachable)
+        const label = `Wi-Fi status unknown; ${ctx.connection.labelFor(reachable)}`
         setIconVisible(online, reachable)
         setIconVisible(offline, !reachable)
         indicator.dataset.online = String(reachable)
         indicator.setAttribute('aria-label', label)
         indicator.setAttribute('title', label)
+      })
+      ctx.trackCleanup?.(() => {
+        released = true
+        unsubscribe()
       })
     },
   })

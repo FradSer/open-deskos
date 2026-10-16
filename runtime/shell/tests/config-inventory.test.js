@@ -15,7 +15,7 @@ const DOC = path.join(RUNTIME, 'docs/CONFIGURATION.md')
 const CODE = /\.(mjs|cjs|js|py)$/
 const SHELL = /\.(sh)$/
 const SKIP = /(^|\/)(node_modules|tests|features|dist|\.git)(\/|$)/
-const NAME = '((?:ODK|ODESK|PI|FUTU)_[A-Z0-9_]+)'
+const NAME = '((?:ODK|PI|FUTU)_[A-Z0-9_]+)'
 const READERS = [
   /(?:process\.env|env)\.([A-Z][A-Z0-9_]{2,})/g,
   /os\.environ(?:\.[gs]et\(|\[)["']([A-Z][A-Z0-9_]{2,})/g,
@@ -27,7 +27,7 @@ function tree(dir, match, visit) {
   if (!fs.existsSync(dir)) return
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
-    if (SKIP.test(full)) continue
+    if (SKIP.test(full.split(path.sep).join('/'))) continue
     if (entry.isDirectory()) tree(full, match, visit)
     else if (match.test(entry.name)) visit(full)
   }
@@ -41,6 +41,7 @@ function readersByFile() {
       reader.lastIndex = 0
       let match
       while ((match = reader.exec(source))) {
+        if (['ODK_CDC_DRAIN_TIMEOUT', 'ODK_LINK_CONTROL_PROTOCOL'].includes(match[1])) continue // Error code or wire version, not an environment setting.
         if (match[1].endsWith('_')) continue // Migration namespace prefixes are not settings.
         if (!found.has(match[1])) found.set(match[1], new Set())
         found.get(match[1]).add(path.relative(REPO_ROOT, file))
@@ -129,7 +130,7 @@ test('every variable a unit or launch agent declares is inventoried', () => {
 // the inventory says so in its own words, and this check keeps the two from drifting apart.
 test('the inventory marks the values a device must not restate', () => {
   const rows = inventory()
-  assert.match(rows.get('ODESK_PERSONAL_BOT_STT_MODEL').note, /No setting is required/)
+  assert.match(rows.get('ODK_PERSONAL_BOT_STT_MODEL').note, /No setting is required/)
   assert.match(rows.get('ODK_STT_PORT').note, /Single declaration/)
   assert.equal(rows.get('PI_SESSION_CONTROL_COMMAND'), undefined, 'the removed session-control bridge must not return to the inventory')
 })

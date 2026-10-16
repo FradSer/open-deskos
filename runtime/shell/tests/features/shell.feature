@@ -51,26 +51,24 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the network changes offline then online
     Then the indicator glyph, its accessible name, and the assistive status announcement update accordingly
 
-  Scenario: Today briefs the desk only from plugin contributions
+  Scenario: Today briefs the desk through Personal Agent
     Given the shell starts at 1920 by 1280
     Then the first page is Today and shows the current weekday, date, and year
-    And Today renders one statement per contributed briefing
-    And every statement signal is emphasized inside the statement while connectives stay quiet
-    And Today never states network, focus, or quota-service status
-    And Today does not claim meetings, tasks, habits, steps, sleep, or other personal data without a configured provider
-    And Today states that no desk briefing is available when no plugin contributes one
-    And Today remains usable when optional experimental integrations are unavailable
+    And Today renders Personal Agent statements with source states and measurement times
+    And Today states briefing availability without fixed session-count fallback sentences
+    And Today does not claim personal data without source evidence
+    And Today remains usable when optional integrations are unavailable
 
   Scenario: Briefing contributions stay ordered, honest, and withdrawable
     Given the shell is running
     When a plugin contributes briefing parts
-    Then Today renders them in ascending contribution order
+    Then the plugin statement store lists them in ascending contribution order
     When a contribution repeats unchanged
-    Then Today does not re-render that statement
+    Then the plugin statement store does not notify subscribers
     When a contribution carries empty or malformed parts
     Then the shell drops those parts instead of rendering fabricated text
     When a plugin withdraws its contribution
-    Then Today no longer renders that statement
+    Then the plugin statement store no longer lists that statement
 
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
@@ -140,10 +138,10 @@ Feature: Open DeskOS 跨平台 Display Shell
 
   Scenario: Display widgets and App pages remain separate surfaces
     Given the Home grid displays registered widgets
-    Then every Home widget renders as a non-interactive instrument without an App action affordance
+    Then every Home widget displays a reading with a native App continuation button
     And the Pi Sessions page is a full interactive App surface on page three
     And the OpenCode Go Usage page is a full interactive App surface on page four
-    And App controls never appear inside the Home widget grid
+    And App task controls stay inside App surfaces
 
   Scenario: Pi Sessions App page exposes every local process
     Given the local Pi session scanner reports running, settled, and exited processes
@@ -186,21 +184,13 @@ Feature: Open DeskOS 跨平台 Display Shell
     When hardware acceleration is enabled by default
     Then the kiosk launcher does not force software OpenGL
     And the main process configures Chromium to ignore the GPU blocklist and enable GPU rasterization
-    And setting ODESK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
+    And setting ODK_DISABLE_GPU or LIBGL_ALWAYS_SOFTWARE to 1 forces software rendering fallback
 
   Scenario: The desk surface never depends on peripheral gates
     Given the ESP32-P4 camera or the Remote Control is disconnected
     When the Shell starts
     Then Today, Home, Pi Sessions, Usage, direct touch, and keyboard navigation remain available
     And no peripheral integration gates the shell
-
-  Scenario: Home shows the latest camera frame on a 1x1 tile
-    Given the ESP32-P4 camera is accepted as a generic UVC webcam
-    When the Home page mounts its 1x1 camera tile
-    Then the tile shows the latest captured frame with its capture time
-    And it refreshes the frame on a bounded interval without blocking shell input
-    And a missing camera or failed capture renders a truthful unavailable state instead of a frame
-    And the tile keeps its framing marks and stays a filled instrument with or without a frame
 
   Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
     Given an ESP32-P4 sub-device runs the SC2336 camera firmware
@@ -216,8 +206,10 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the user opens that App
     Then the UI emits an open-app intent through preload
     And the main-process built-in view endpoint and renderer runtime handle the intent
-    And the modal makes its background inert and exposes a tabbable Back action
-    And Back or Escape returns to the source page and route
+    And the App makes its covered pages inert and exposes a tabbable return control
+    And the resident Agent and State Bar remain usable
+    And the bottom handle returns Widget Apps to their source page and route
+    And other App entry points retain Back and Escape
 
   Scenario: Shell keeps the renderer sandboxed
     Given the shell is loaded
@@ -325,7 +317,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     When release preflight validates the composition contract
     Then every plugin has a unique supported identity, kind, and lifecycle
     And every layout entry references a compatible plugin surface
-    And display grid tiles cannot reference an App continuation
+    And display grid tiles use Shell-owned continuation buttons to open Apps
     And no System App or bottom Peek surface is registered
     And interactive App pages remain repository-controlled
     But no third-party plugin or theme code is loaded
@@ -365,7 +357,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And the shell keeps ticking on the next second
 
   Scenario: Selected plugins can be disabled by a launch parameter
-    Given ODESK_DISABLED_PLUGINS lists one tile, one status, and one page plugin id
+    Given ODK_DISABLED_PLUGINS lists one tile, one status, and one page plugin id
     When the shell starts
     Then the listed tile is absent from its grid while every other declared widget still mounts
     And the listed status plugin leaves its slot empty without blocking the other slot
@@ -380,3 +372,65 @@ Feature: Open DeskOS 跨平台 Display Shell
     And a missing service renders Not configured without numbers
     And a missing trade unlock renders Trade unlock needed without numbers
     And a failed poll renders Holdings unavailable without numbers
+
+  Scenario: Shared service selection reaches Shell consumers
+    Given a replacement Camera or Quota service is registered before Shell consumers mount
+    When consumers read the named service and the shared refresh timer runs
+    Then both use the registered implementation
+    And the default provider does not receive replacement refresh requests
+    And a failed refresh does not stop other shared services
+    And removal prevents further scheduled refresh requests
+
+    And other hosts retain their existing rendering selection
+    And the first comparison waits for the requested viewport, scale, and fonts
+    And replacement and recovery use the same measurement inputs
+
+  Scenario: Service names identify one selected implementation
+    Given a shared service has a complete identifier and a short name
+    When a replacement is registered through either name
+    Then both names and the named consumer property select that replacement
+    And removal through either name removes that selection
+    And the service inventory contains each complete identifier once
+
+  Scenario: Shared Tick resources stop with their last consumer
+    Given multiple plugins use the shared Tick service
+    When one plugin releases its subscription
+    Then remaining consumers continue to receive Ticks
+    When the final consumer releases its subscription
+    Then the shared interval stops and sends no further refresh requests
+    And retained interval callbacks remain inactive after a new consumer subscribes
+    And releasing the final consumer during a Tick prevents that Tick from refreshing services
+
+  Scenario: Shared subscriptions retain separate plugin ownership
+    Given two plugins subscribe to a shared service with the same callback
+    When the service publishes a new value
+    Then each subscription receives the value
+    When one plugin releases its subscription
+    Then the other subscription continues to receive values
+    And repeated old cleanup cannot remove a later subscription using that callback
+
+  Scenario: Failed initial subscription replay releases its registration
+    Given a plugin subscribes to a service that propagates initial callback errors
+    When its initial callback throws
+    Then subscription creation reports the same error
+    And later service updates do not call the failed subscription
+    And existing peer subscriptions continue to receive updates
+
+  Scenario: Selected shared services own their upstream listeners
+    Given default Home Briefing, Remote Link, connection, and gamepad services are registered
+    When another implementation replaces a default service
+    Then the default service releases its upstream listeners
+    And retained callbacks and pending responses cannot change its readings
+    When the original implementation is restored
+    Then it acquires one new set of listeners
+    And only current callbacks can update its readings
+    And Home Briefing reads the current Personal Bot status
+    And repeated selection does not acquire duplicate listeners
+    And restored services read current input state after changes during replacement
+    And failed listener release retains ownership for a later retry
+    And synchronous selection during restoration releases the newly acquired listeners
+
+  Scenario: Escape remains available for other App entry points
+    Given a non-Widget entry has opened an App
+    When the user focuses the bottom handle and presses Escape
+    Then the App closes and restores its source focus

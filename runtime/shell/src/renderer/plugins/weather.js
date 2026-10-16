@@ -31,8 +31,12 @@
     app: 'Weather',
     state: 'Unavailable',
     interaction: 'display-only',
+    opensApp: 'weather',
     css: 'plugins/weather.css',
     mount(el, ctx) {
+      let released = false
+      ctx.trackCleanup(() => { released = true })
+      const active = () => !released && !ctx.signal?.aborted
       el.innerHTML = `
         <div class="widget-signal w-weather-content">
           <div class="w-weather-head">
@@ -100,6 +104,7 @@
       }
 
       function render(snapshot) {
+        if (!active()) return
         const reported = Object.prototype.hasOwnProperty.call(STATES, snapshot?.status) ? snapshot.status : 'unavailable'
         const reading = snapshot?.current || null
         // A snapshot that claims a reading it does not carry is not live, and no reply yet
@@ -131,6 +136,7 @@
       }
 
       async function refresh(force) {
+        if (!active()) return
         try {
           const snapshot = await root.odkPlatform?.getWeatherStatus?.({ force: Boolean(force) })
           render(snapshot)
@@ -145,6 +151,7 @@
       void refresh(false).then(() => refresh(true))
       let ticks = 0
       ctx.onTick(() => {
+        if (!active()) return
         ticks += 1
         if (ticks % REFRESH_EVERY_TICKS === 0) void refresh(false)
       })

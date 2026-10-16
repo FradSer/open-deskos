@@ -19,11 +19,11 @@ test('the reasoning display is folded when the device runtime says nothing', () 
 })
 
 test('only an explicit shown value displays reasoning', () => {
-  assert.equal(resolvePiSessionReasoning({ ODESK_PI_REASONING: 'shown' }), 'shown')
+  assert.equal(resolvePiSessionReasoning({ ODK_PI_REASONING: 'shown' }), 'shown')
   // A typo, a boolean, a case variant, or the folded default restated must not
   // become a second way to publish a session's reasoning.
   for (const value of ['hidden', 'SHOWN', ' Shown ', 'true', '1', 'yes', '']) {
-    assert.equal(resolvePiSessionReasoning({ ODESK_PI_REASONING: value }), 'hidden', value)
+    assert.equal(resolvePiSessionReasoning({ ODK_PI_REASONING: value }), 'hidden', value)
   }
 })
 

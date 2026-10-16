@@ -13,10 +13,10 @@
 		000000000000000000000313 /* OpenDeskOSCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000213 /* OpenDeskOSCLI.swift */; };
 		000000000000000000000320 /* SubBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000218 /* SubBridge.swift */; };
 		000000000000000000000314 /* OpenDeskOS in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000220 /* OpenDeskOS */; platformFilters = (macos, ); settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		000000000000000000000315 /* dev.fradser.open-deskos.wispr-health.app.5m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000214 /* dev.fradser.open-deskos.wispr-health.app.5m.plist */; platformFilters = (macos, ); };
-		000000000000000000000316 /* dev.fradser.open-deskos.wispr-health.app.15m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000215 /* dev.fradser.open-deskos.wispr-health.app.15m.plist */; platformFilters = (macos, ); };
-		000000000000000000000317 /* dev.fradser.open-deskos.wispr-health.app.30m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000216 /* dev.fradser.open-deskos.wispr-health.app.30m.plist */; platformFilters = (macos, ); };
-		000000000000000000000318 /* dev.fradser.open-deskos.wispr-health.app.60m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000217 /* dev.fradser.open-deskos.wispr-health.app.60m.plist */; platformFilters = (macos, ); };
+		000000000000000000000315 /* dev.fradser.odk.wispr-health.app.5m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000214 /* dev.fradser.odk.wispr-health.app.5m.plist */; platformFilters = (macos, ); };
+		000000000000000000000316 /* dev.fradser.odk.wispr-health.app.15m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000215 /* dev.fradser.odk.wispr-health.app.15m.plist */; platformFilters = (macos, ); };
+		000000000000000000000317 /* dev.fradser.odk.wispr-health.app.30m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000216 /* dev.fradser.odk.wispr-health.app.30m.plist */; platformFilters = (macos, ); };
+		000000000000000000000318 /* dev.fradser.odk.wispr-health.app.60m.plist in Copy LaunchAgents */ = {isa = PBXBuildFile; fileRef = 000000000000000000000217 /* dev.fradser.odk.wispr-health.app.60m.plist */; platformFilters = (macos, ); };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,10 +47,10 @@
 			dstPath = "Contents/Library/LaunchAgents";
 			dstSubfolderSpec = 1;
 			files = (
-				000000000000000000000315 /* dev.fradser.open-deskos.wispr-health.app.5m.plist in Copy LaunchAgents */,
-				000000000000000000000316 /* dev.fradser.open-deskos.wispr-health.app.15m.plist in Copy LaunchAgents */,
-				000000000000000000000317 /* dev.fradser.open-deskos.wispr-health.app.30m.plist in Copy LaunchAgents */,
-				000000000000000000000318 /* dev.fradser.open-deskos.wispr-health.app.60m.plist in Copy LaunchAgents */,
+				000000000000000000000315 /* dev.fradser.odk.wispr-health.app.5m.plist in Copy LaunchAgents */,
+				000000000000000000000316 /* dev.fradser.odk.wispr-health.app.15m.plist in Copy LaunchAgents */,
+				000000000000000000000317 /* dev.fradser.odk.wispr-health.app.30m.plist in Copy LaunchAgents */,
+				000000000000000000000318 /* dev.fradser.odk.wispr-health.app.60m.plist in Copy LaunchAgents */,
 			);
 			name = "Copy LaunchAgents";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -65,10 +65,10 @@
 		000000000000000000000212 /* PluginHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginHealth.swift; sourceTree = "<group>"; };
 		000000000000000000000213 /* OpenDeskOSCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDeskOSCLI.swift; sourceTree = "<group>"; };
 		000000000000000000000218 /* SubBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubBridge.swift; sourceTree = "<group>"; };
-		000000000000000000000214 /* dev.fradser.open-deskos.wispr-health.app.5m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.open-deskos.wispr-health.app.5m.plist"; sourceTree = "<group>"; };
-		000000000000000000000215 /* dev.fradser.open-deskos.wispr-health.app.15m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.open-deskos.wispr-health.app.15m.plist"; sourceTree = "<group>"; };
-		000000000000000000000216 /* dev.fradser.open-deskos.wispr-health.app.30m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.open-deskos.wispr-health.app.30m.plist"; sourceTree = "<group>"; };
-		000000000000000000000217 /* dev.fradser.open-deskos.wispr-health.app.60m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.open-deskos.wispr-health.app.60m.plist"; sourceTree = "<group>"; };
+		000000000000000000000214 /* dev.fradser.odk.wispr-health.app.5m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.odk.wispr-health.app.5m.plist"; sourceTree = "<group>"; };
+		000000000000000000000215 /* dev.fradser.odk.wispr-health.app.15m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.odk.wispr-health.app.15m.plist"; sourceTree = "<group>"; };
+		000000000000000000000216 /* dev.fradser.odk.wispr-health.app.30m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.odk.wispr-health.app.30m.plist"; sourceTree = "<group>"; };
+		000000000000000000000217 /* dev.fradser.odk.wispr-health.app.60m.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "dev.fradser.odk.wispr-health.app.60m.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -118,10 +118,10 @@
 		000000000000000000000040 /* LaunchAgents */ = {
 			isa = PBXGroup;
 			children = (
-				000000000000000000000214 /* dev.fradser.open-deskos.wispr-health.app.5m.plist */,
-				000000000000000000000215 /* dev.fradser.open-deskos.wispr-health.app.15m.plist */,
-				000000000000000000000216 /* dev.fradser.open-deskos.wispr-health.app.30m.plist */,
-				000000000000000000000217 /* dev.fradser.open-deskos.wispr-health.app.60m.plist */,
+				000000000000000000000214 /* dev.fradser.odk.wispr-health.app.5m.plist */,
+				000000000000000000000215 /* dev.fradser.odk.wispr-health.app.15m.plist */,
+				000000000000000000000216 /* dev.fradser.odk.wispr-health.app.30m.plist */,
+				000000000000000000000217 /* dev.fradser.odk.wispr-health.app.60m.plist */,
 			);
 			path = LaunchAgents;
 			sourceTree = "<group>";

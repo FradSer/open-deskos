@@ -5,7 +5,7 @@ Feature: Open DeskOS repository architecture
     When a contributor locates the runtime in a source checkout
     Then the runtime lives at runtime/shell rather than a host-specific directory
     And repository-root discovery resolves that checkout from nested runtime tools
-    And the existing Electron profile identity survives the directory rename
+    And the Shell and launcher use the canonical ODK profile identity
 
   Scenario: macOS is a Shell Host without invented runtime endpoints
     Given macOS runs the shared Shell on x64 or arm64
@@ -17,13 +17,13 @@ Feature: Open DeskOS repository architecture
   Scenario: Documentation routes readers to the active runtime or preserved research
     Given the repository separates CM5 runtime, peripherals, experiments, and P4+C6 research
     When a contributor reads tracked product and architecture documentation
-    Then it does not direct the contributor to firmware/linux, firmware/open-deskos, app/apple, or docs/open-deskos
+    Then it does not direct the contributor to firmware/linux, firmware/odk, app/apple, or docs/odk
     And active CM5 documentation does not present the preserved P4+C6 research line as current product authority
 
   Scenario: Repository topology contracts run only in a source checkout
     Given a contributor runs repository architecture checks from a Git checkout
     When git-agent classifies a contribution
-    Then it uses concise scopes for Shell, hardware, link, vision, research, tooling, and experiments
+    Then it uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments
     And a research scope covers contributions spanning preserved research components
     And it does not retain scopes for the removed app or firmware roots
     But a deployed runtime slice does not require preserved research source trees or Git metadata

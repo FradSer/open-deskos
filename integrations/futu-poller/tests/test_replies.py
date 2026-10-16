@@ -191,6 +191,9 @@ class ResetConn:
     def recv(self, _n):
         raise ConnectionResetError(104, "Connection reset by peer")
 
+    def close(self):
+        pass
+
 
 class SilentConn:
     """A connection to a desk that says nothing back, which is a healthy link."""
@@ -209,6 +212,9 @@ class SilentConn:
 
     def recv(self, _n):
         raise socket.timeout()
+
+    def close(self):
+        pass
 
 
 class ClosedConn(SilentConn):

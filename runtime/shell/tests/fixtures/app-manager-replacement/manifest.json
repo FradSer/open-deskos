@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.system.app-manager",
+  "name": "Independent App Manager",
+  "version": "2.0.0",
+  "kind": "system",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [{ "interface": "odk:system/app-manager/v1" }],
+  "requires": [],
+  "permissions": ["ipc", "system.app-manager"]
+}

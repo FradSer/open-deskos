@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.source.pi-sessions",
+  "name": "Pi Sessions replacement acceptance fixture",
+  "version": "2.0.0",
+  "kind": "service",
+  "host": "electron-main",
+  "entry": "entry.cjs",
+  "provides": [
+    { "interface": "odk:source/pi-sessions/v1" },
+    { "interface": "odk:desk-reading/pi-sessions/v1" }
+  ],
+  "requires": [{ "interface": "odk:source/link/v1" }],
+  "permissions": ["source.pi-sessions", "ipc"]
+}

@@ -6,8 +6,8 @@ Feature: Open DeskOS firmware scope
   Scenario: The product firmware has a product-specific application identity
     Given the Open DeskOS firmware source tree
     When the production application is selected for an ESP-IDF build
-    Then its application path is application/open_deskos
-    And its ESP-IDF project identity is open_deskos
+    Then its application path is application/odk
+    And its ESP-IDF project identity is odk
     And the legacy upstream application path is absent
 
   Scenario: The production board catalog contains the supported targets

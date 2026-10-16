@@ -26,7 +26,7 @@ The Shell remains useful when peripherals, providers, or experimental services f
 | --- | --- |
 | Shared Display Shell | Display, direct input, local data, services, and application orchestration |
 | Personal Bot | Resident agent; its runtime role and vocabulary are defined in [Shell context](runtime/shell/CONTEXT.md) |
-| Hosted Pi / Desk Link | Host sessions and attribute Console control; local input keeps authority |
+| Hosted Pi / Open DeskOS Link | Host sessions and attribute Console control; local input keeps authority |
 | ESP32-S3 Remote / Remote Bridge | Touch Remote Control and its transport |
 | ESP32-P4 SC2336 Camera | Generic UVC webcam and UAC microphone; no recognition, expression analysis, or identity storage |
 | Local user Widgets/Apps | Self-contained HTML packages with independent draft, verify, install, update, rollback, and removal |

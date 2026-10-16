@@ -73,7 +73,7 @@ function feedbackHarness(toggle = async () => ({ accepted: true })) {
     },
   }
   vm.runInNewContext(fs.readFileSync('src/renderer/core/personal-bot-status.js', 'utf8'), {
-    document: { getElementById: () => node, body: { children: [] } },
+    document: { querySelector: () => null, getElementById: () => node, body: { children: [] } },
     CustomEvent: class {},
     window,
   })
@@ -137,6 +137,8 @@ test('voice feedback reuses one structured instrument and safely renders service
   assert.equal(elements['.personal-bot-status-stage'].textContent, '')
   assert.equal(elements['.personal-bot-status-icon'].dataset.stateIcon, '')
   assert.equal(elements['.personal-bot-status-progress'].hidden, true)
+  listener({ state: 'idle', transcript, message: 'Request complete', notifications: [{ id: 'ride-1', message: '司机已接单' }] })
+  assert.equal(elements['.personal-bot-status-title'].textContent, 'Request complete\n\n司机已接单', 'the voice surface preserves separate notification content')
   window.odkPersonalBotStatus.close()
   listener({ state: 'idle', message: 'Request complete' })
   assert.equal(node.hidden, true)

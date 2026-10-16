@@ -10,9 +10,9 @@ The Xcode project has a cross-platform GUI target named OpenDeskOS and a macOS-o
 # 构建 CLI
 xcodebuild -project research/esp32-p4-c6-deskos/apple/OpenDeskOS.xcodeproj -scheme OpenDeskOSCLI \
   -configuration Release -destination 'generic/platform=macOS' \
-  -derivedDataPath build/open-deskos-cli build
+  -derivedDataPath build/odk-cli build
 # 将 Release 产物放到稳定路径后再安装 daemon；LaunchAgent 会记录这个绝对路径
-cp build/open-deskos-cli/Build/Products/Release/OpenDeskOS /usr/local/bin/OpenDeskOS
+cp build/odk-cli/Build/Products/Release/OpenDeskOS /usr/local/bin/OpenDeskOS
 
 # 检查 Wispr Flow sidecar
 OpenDeskOS plugin health
@@ -28,7 +28,7 @@ FLOW_API_PORT=18787 OpenDeskOS daemon install --interval 900
 OpenDeskOS daemon install --interval 900 --url http://127.0.0.1:18787/health
 ```
 
-The standalone task uses ~/Library/LaunchAgents/dev.fradser.open-deskos.wispr-health.plist. Install the binary at a stable absolute path before you install the task. Each run calls plugin health, records last-run.json under ~/Library/Application Support/OpenDeskOS/CLI, writes logs/daemon.log and exits.
+The standalone task uses ~/Library/LaunchAgents/dev.fradser.odk.wispr-health.plist. Install the binary at a stable absolute path before you install the task. Each run calls plugin health, records last-run.json under ~/Library/Application Support/OpenDeskOS/CLI, writes logs/daemon.log and exits.
 
 Without --url, FLOW_API_PORT selects the endpoint; the default is 127.0.0.1:8787. Reinstall after the port or binary path changes. If the sidecar requires FLOW_API_TOKEN, export it before installation. The CLI stores it in a mode-0600 plist. Reinstall after token rotation. The CLI checks health; it does not start or host the Bun sidecar.
 

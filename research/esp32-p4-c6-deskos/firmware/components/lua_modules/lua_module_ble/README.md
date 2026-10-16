@@ -865,7 +865,7 @@ event_publisher.publish_message({
 ## Lua HTTP Server
 
 This module lets a long-running Lua script publish static FatFS files and HTTP
-callbacks through the existing open_deskos HTTP server.
+callbacks through the existing odk HTTP server.
 
 ### Example
 

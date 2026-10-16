@@ -151,7 +151,7 @@ test('a Windows host without ffmpeg reports an unavailable microphone and remove
 })
 
 test('a Linux host and the default platform still capture through arecord with an ignored stdin', async t => {
-  for (const options of [{ platform: 'linux' }, {}]) {
+  for (const options of [{ platform: 'linux' }, ...(process.platform === 'win32' ? [] : [{}])]) {
     const { calls, capture } = await fixture(t, { ...options, device: 'plughw:1,0' })
     assert.equal(calls.command, 'arecord')
     assert.deepEqual(calls.args, ['-q', '-D', 'plughw:1,0', '-t', 'raw', '-f', 'S16_LE', '-r', '16000', '-c', '1'])

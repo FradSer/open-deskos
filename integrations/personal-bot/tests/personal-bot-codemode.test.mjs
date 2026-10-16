@@ -20,14 +20,14 @@ test('one codemode call batches reviewed tools through the real pipeline without
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
   const calls = []
-  const safe = defineTool({ name: 'desk_fixture', label: 'Fixture', description: 'Read a fixture reading',
+  const safe = defineTool({ name: 'odk_fixture', label: 'Fixture', description: 'Read a fixture reading',
     parameters: Type.Object({ id: Type.String() }), outputSchema: Type.Object({ id: Type.String(), value: Type.Integer() }),
     execute: async (_id, params) => { calls.push(params.id); return { content: [{ type: 'text', text: JSON.stringify(params) }],
       details: {}, structuredContent: { id: params.id, value: 7 } } } })
   const loader = await createResourceLoader(repository, dir)
   const { session, requests } = await offlineSession({ ...agentOptions(repository, dir, [safe]), agentDir: dir, resourceLoader: loader },
     (_context, count) => count === 1 ? assistant([{ type: 'toolCall', id: 'batch', name: 'codemode', arguments: { code:
-      'const r=await Promise.allSettled([tools.desk_fixture({id:"one"}),tools.desk_fixture({id:"two"})]); text(r); text({bash:"bash" in tools,write:"write" in tools,process:typeof process,models:typeof models});' } }], 'toolUse') : assistant('两个读数已读取。'))
+      'const r=await Promise.allSettled([tools.odk_fixture({id:"one"}),tools.odk_fixture({id:"two"})]); text(r); text({bash:"bash" in tools,write:"write" in tools,process:typeof process,models:typeof models});' } }], 'toolUse') : assistant('两个读数已读取。'))
   t.after(() => session.dispose())
   const snapshots = []
   assert.equal(await sessionAdapter(session).prompt('读取两个读数', value => snapshots.push(value)), '两个读数已读取。')
@@ -41,7 +41,7 @@ test('one codemode call batches reviewed tools through the real pipeline without
   const scriptText = result.content.filter(part => part.type === "text").map(part => part.text).join("\n")
   assert.ok(scriptText.includes('"bash":false') && scriptText.includes('"write":false'))
   assert.equal(result.nestedCalls.calls.length, 2)
-  assert.ok(result.nestedCalls.calls.every(call => call.name === 'desk_fixture' && call.status === 'ok'))
+  assert.ok(result.nestedCalls.calls.every(call => call.name === 'odk_fixture' && call.status === 'ok'))
   assert.deepEqual(snapshots, ['两个读数已读取。'])
 })
 

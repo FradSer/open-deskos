@@ -30,6 +30,7 @@ async function fixture(t, options = {}) {
     return true
   }
   const capture = await record(directory, 'test-device', level => calls.levels.push(level), {
+    platform: 'linux',
     spawnProcess: (_command, args) => {
       calls.args = args
       setImmediate(() => child.emit('spawn'))

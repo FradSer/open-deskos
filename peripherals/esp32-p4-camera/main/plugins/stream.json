@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.p4.stream",
+  "name": "P4 stream",
+  "version": "1.0.0",
+  "host": "esp32-p4",
+  "kind": "processor",
+  "lifecycle": "p4_stream_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:p4/stream/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:p4/camera/v1"
+    },
+    {
+      "interface": "odk:p4/usb/v1"
+    },
+    {
+      "interface": "odk:p4/audio/v1",
+      "optional": true
+    }
+  ]
+}

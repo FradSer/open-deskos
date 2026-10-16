@@ -24,18 +24,10 @@
 const path = require('node:path')
 const fs = require('node:fs')
 
-const DEFAULT_THEME = 'instrument'
-const THEMES = ['instrument', 'pixel', 'border-beam']
-
-// Served to packages as odk-user-app://app/font/<id>, the same origin as the package
-// document: a custom scheme enforces CORS across hosts, so a separate font host would
-// be blocked. Absolute paths are resolved inside the running release, so a package
-// never reaches outside it.
-const FONTS = {
-  'zpix': { file: 'renderer/fonts/zpix.woff2', contentType: 'font/woff2' },
-  'montserrat-bold': { file: 'renderer/fonts/Montserrat-Bold.ttf', contentType: 'font/ttf' },
-  'noto-sans-sc': { file: 'renderer/fonts/NotoSansSC-Regular.ttf', contentType: 'font/ttf' },
-}
+const { createAppearanceHost, DEFAULT_THEME, FONTS } = require('./renderer/core/appearance-plugins')
+const packagedAppearances = createAppearanceHost()
+const THEMES = packagedAppearances.declarations().map(appearance => appearance.theme)
+const appearances = plugins => plugins ? createAppearanceHost({ plugins }) : packagedAppearances
 
 /*
  * The radius a package's own inner shapes should match. A tile's radius is derived
@@ -49,75 +41,14 @@ function tileRadius(value) {
   return Number.isFinite(number) && number >= 0 && number <= 120 ? `${Number(number.toFixed(2))}px` : null
 }
 
-const SHARED_TOKENS = {
-  '--odk-bg': '#000000',
-  '--odk-surface': '#171717',
-  '--odk-elevated': '#1f1f1f',
-  '--odk-button': '#383838',
-  '--odk-stroke': '#383838',
-  '--odk-stroke-focus': '#b5b5b5',
-  '--odk-primary': '#ffffff',
-  '--odk-secondary': '#706f70',
-  '--odk-secondary-strong': '#b5b5b5',
-  '--odk-accent-red': '#eb5757',
-  '--odk-accent-green': '#34c759',
-  '--odk-accent-blue': '#025bc2',
-  '--odk-radius-card': '36px',
-  '--odk-radius-pill': '999px',
-  '--odk-status-control-h': '44px',
-  '--odk-space-1': '4px',
-  '--odk-space-2': '8px',
-  '--odk-space-3': '16px',
-  '--odk-space-4': '24px',
-  '--odk-ease-out': 'cubic-bezier(0.23, 1, 0.32, 1)',
-}
-
-// The Shell derives its text roles from the grid cell; a package frame *is* a cell,
-// so the same ratios are expressed against the viewport the package is given.
-const CELL_TOKENS = {
-  '--odk-cell': '100cqi',
-  '--odk-text-label': 'clamp(12px, calc(var(--odk-cell) * 0.05), 16px)',
-  '--odk-text-body': 'clamp(16px, calc(var(--odk-cell) * 0.06), 20px)',
-  '--odk-text-heading': 'clamp(24px, calc(var(--odk-cell) * 0.1), 36px)',
-  '--odk-widget-inset': 'clamp(16px, calc(var(--odk-cell) * 0.08), 28px)',
-}
-
-const THEME_RULES = {
-  instrument: {
-    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
-    faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
-  },
-  pixel: {
-    tokens: {
-      ...SHARED_TOKENS,
-      ...CELL_TOKENS,
-      '--odk-radius-card': '0px',
-      '--odk-radius-pill': '0px',
-      '--odk-page-marker-active': 'var(--odk-accent-green)',
-      '--odk-page-control-stroke': 'var(--odk-stroke)',
-      '--odk-font': '"Zpix", monospace',
-    },
-    faces: ['zpix'],
-    extra: 'image-rendering:pixelated;',
-  },
-  // Border Beam keeps Instrument neutrals and type; only built-in surfaces get the
-  // optional perimeter, which a package frame cannot have.
-  'border-beam': {
-    tokens: { ...SHARED_TOKENS, ...CELL_TOKENS, '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif' },
-    faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],
-  },
-}
-
-function normalizeTheme(theme) {
-  return THEMES.includes(theme) ? theme : DEFAULT_THEME
+function normalizeTheme(theme, { appearancePlugins } = {}) {
+  return appearances(appearancePlugins).preview(theme).theme
 }
 
 function fontFace(fontId) {
   const font = FONTS[fontId]
   if (!font) return ''
-  const family = fontId === 'zpix' ? 'Zpix' : (fontId === 'montserrat-bold' ? 'Montserrat' : 'Noto Sans SC')
-  const weight = fontId === 'montserrat-bold' ? 700 : 400
-  const format = font.contentType === 'font/woff2' ? 'woff2' : 'truetype'
+  const { family, weight, format } = font
   return `@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};font-display:block;`
     + `src:url("odk-user-app://app/font/${fontId}") format("${format}")}`
 }
@@ -131,17 +62,18 @@ function tokenBlock(selector, tokens, extra = '') {
  * One stylesheet covering every appearance, so a live theme change is a single
  * attribute write inside the package instead of a reload.
  */
-function buildContextStyle({ radius } = {}) {
-  const faces = [...new Set(THEMES.flatMap((theme) => THEME_RULES[theme].faces))].map(fontFace).join('')
-  const blocks = THEMES.map((theme) => tokenBlock(`[data-theme='${theme}']`, THEME_RULES[theme].tokens, THEME_RULES[theme].extra || '')).join('')
+function buildContextStyle({ radius, appearancePlugins } = {}) {
+  const declarations = appearances(appearancePlugins).declarations()
+  const faces = [...new Set(declarations.flatMap(appearance => appearance.faces))].map(fontFace).join('')
+  const blocks = declarations.map(appearance => tokenBlock(`[data-theme='${appearance.theme}']`, appearance.tokens, appearance.extra || '')).join('')
   const measured = tileRadius(radius)
-  const fallback = tokenBlock(':root', THEME_RULES[DEFAULT_THEME].tokens)
+  const fallback = tokenBlock(':root', declarations.find(appearance => appearance.theme === DEFAULT_THEME).tokens)
   const tile = measured ? `:root{--odk-radius-tile:${measured}}` : ':root{--odk-radius-tile:var(--odk-radius-card)}'
   return `${faces}${fallback}${blocks}${tile}:root{font-family:var(--odk-font);color:var(--odk-primary);background:var(--odk-bg)}`
 }
 
-function contextTokens(theme) {
-  return { ...THEME_RULES[normalizeTheme(theme)].tokens }
+function contextTokens(theme, { appearancePlugins } = {}) {
+  return { ...appearances(appearancePlugins).preview(theme).tokens }
 }
 
 function resolveFont(fontId, { runtimeRoot = process.env.ODK_RUNTIME_ROOT || path.join(__dirname, '..') } = {}) {

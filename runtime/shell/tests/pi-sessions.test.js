@@ -471,7 +471,7 @@ test('scanPiSessions puts running sessions before activity order', async () => {
 test('scanPiSessions parses sessions, deduplicates, and evaluates process liveness', async () => {
   const tmpAgentDir = path.join(os.tmpdir(), `pi-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const dirSessions = path.join(tmpAgentDir, 'directory-sessions')
-  const wsDir1 = path.join(dirSessions, '--Users-FradSer-Developer-open-deskos--')
+  const wsDir1 = path.join(dirSessions, '--Users-FradSer-Developer-odk--')
   const wsDir2 = path.join(dirSessions, '--Users-FradSer-Developer-pi-packages--')
 
   fs.mkdirSync(wsDir1, { recursive: true })
@@ -481,7 +481,7 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   const session1Data = {
     sessionId: '2026-09-02T16-40-49-574Z_01a062fe-a0a6-7922-a757-abb790ef9977',
     pid: 12345,
-    cwd: '/Users/FradSer/Developer/open-deskos',
+    cwd: '/Users/FradSer/Developer/odk',
     startedAt: 1000,
     updatedAt: 2000,
     status: 'running',
@@ -491,7 +491,7 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   const session1Legacy = {
     sessionId: '01a062fe-a0a6-7922-a757-abb790ef9977',
     pid: 12345,
-    cwd: '/Users/FradSer/Developer/open-deskos',
+    cwd: '/Users/FradSer/Developer/odk',
     startedAt: 1000,
     updatedAt: 1500,
     status: 'running',
@@ -533,7 +533,7 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   assert.ok(activeSession)
   assert.equal(activeSession.status, 'running')
   assert.equal(activeSession.isAlive, true)
-  assert.equal(activeSession.workspaceName, 'open-deskos')
+  assert.equal(activeSession.workspaceName, 'odk')
   assert.equal(activeSession.latestGoal, 'Refactor desk UI layout for 1080P screen')
   assert.deepEqual(activeSession.modifiedFiles, ['src/renderer/shell.js', 'src/renderer/uno.css'])
 
@@ -543,7 +543,7 @@ test('scanPiSessions parses sessions, deduplicates, and evaluates process livene
   assert.equal(deadSession.isAlive, false)
 
   assert.equal(result.workspaces.length, 2)
-  const ws1 = result.workspaces.find(w => w.name === 'open-deskos')
+  const ws1 = result.workspaces.find(w => w.name === 'odk')
   assert.equal(ws1.runningCount, 1)
   assert.equal(ws1.totalCount, 1)
 

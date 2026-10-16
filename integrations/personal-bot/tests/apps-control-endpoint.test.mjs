@@ -1,3 +1,4 @@
+import { endpoint, tokenEnvironment, requests } from './helpers/private-channel.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readdir, rm, writeFile, chmod } from 'node:fs/promises'
@@ -5,11 +6,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as net from 'node:net'
 import { appsControlEndpoint, userAppsRequest } from '../src/apps-control.mjs'
-import { deskDataRequest } from '../src/desk-data.mjs'
+import { odkDataRequest } from '../src/odk-data.mjs'
 import { channelHandshake } from '../src/channel-token.mjs'
 import { loadCapabilities } from '../src/capabilities.mjs'
 
-const PIPE = '\\\\.\\pipe\\open-deskos-user-app-control'
+const PIPE = '\\\\.\\pipe\\odk-user-app-control'
 const WINDOWS_ENV = { LOCALAPPDATA: 'C:\\Users\\fradser\\AppData\\Local' }
 
 async function fixture(t, token = 'the-host-channel-token') {
@@ -27,7 +28,7 @@ async function fixture(t, token = 'the-host-channel-token') {
  * request protocol still run for real; only the transport is replaced.
  */
 function standInPipeNet(dir) {
-  const stand = endpoint => join(dir, `p-${String(endpoint).replace(/^\\\\\.\\pipe\\/i, '')}`)
+  const stand = name => endpoint(dir, 'p-' + String(name).split('\\').at(-1))
   return { path: stand, connect: endpoint => net.connect(stand(endpoint)) }
 }
 
@@ -53,14 +54,14 @@ async function listenControl(t, { listenPath, token = null, answer }) {
 test('the application control endpoint is the one the Shell Host names for it', () => {
   assert.equal(appsControlEndpoint({}, 'linux'), null, 'a Unix host without a runtime directory resolves no endpoint to guess')
   assert.equal(appsControlEndpoint({ XDG_RUNTIME_DIR: 'run/user/1000' }, 'linux'), null, 'a relative runtime directory is not an endpoint')
-  assert.equal(appsControlEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), '/run/user/1000/open-deskos-apps/control.sock')
+  assert.equal(appsControlEndpoint({ XDG_RUNTIME_DIR: '/run/user/1000' }, 'linux'), join('/run/user/1000', 'odk-apps', 'control.sock'))
   assert.equal(appsControlEndpoint({}, 'win32'), PIPE, 'the pipe name does not depend on a directory the host may not have')
-  assert.equal(appsControlEndpoint({ ODESK_APPS_CONTROL_SOCKET: '/tmp/apps.sock' }, 'linux'), '/tmp/apps.sock')
+  assert.equal(appsControlEndpoint({ ODK_APPS_CONTROL_SOCKET: '/tmp/apps.sock' }, 'linux'), '/tmp/apps.sock')
 })
 
-test('a Unix host is reached with one request and no invented handshake', async t => {
+test('a Unix host is reached with one request and no invented handshake', { skip: process.platform === 'win32' ? 'Unix ownership fixture; Windows authenticated peer is checked separately' : false }, async t => {
   const { dir } = await fixture(t)
-  await mkdir(join(dir, 'open-deskos-apps'), { recursive: true })
+  await mkdir(join(dir, 'odk-apps'), { recursive: true })
   const endpoint = appsControlEndpoint({ XDG_RUNTIME_DIR: dir })
   const received = await listenControl(t, {
     listenPath: endpoint,
@@ -94,7 +95,7 @@ test('a client never invents a channel token, and says so when there is none', a
   const missing = join(root, 'no-token-here.token')
   for (const [label, request] of [
     ['application lifecycle', () => userAppsRequest('list', { env: { ODK_CHANNEL_TOKEN_FILE: missing }, platform: 'win32' })],
-    ['desk data', () => deskDataRequest('list', { env: { ODK_CHANNEL_TOKEN_FILE: missing }, platform: 'win32' })],
+    ['Open DeskOS Data', () => odkDataRequest('list', { env: { ODK_CHANNEL_TOKEN_FILE: missing }, platform: 'win32' })],
   ]) {
     await assert.rejects(request, /channel token to present|unavailable/i, label)
   }
@@ -105,22 +106,19 @@ test('a client never invents a channel token, and says so when there is none', a
 test('the lifecycle tools reach the endpoint this host names', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'apps-cap-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const original = process.env.ODESK_APPS_CONTROL_SOCKET
-  process.env.ODESK_APPS_CONTROL_SOCKET = join(dir, 'apps.sock')
-  t.after(() => { if (original === undefined) delete process.env.ODESK_APPS_CONTROL_SOCKET; else process.env.ODESK_APPS_CONTROL_SOCKET = original })
+  await tokenEnvironment(t, dir)
+  const original = process.env.ODK_APPS_CONTROL_SOCKET
+  process.env.ODK_APPS_CONTROL_SOCKET = endpoint(dir, 'apps.sock')
+  t.after(() => { if (original === undefined) delete process.env.ODK_APPS_CONTROL_SOCKET; else process.env.ODK_APPS_CONTROL_SOCKET = original })
   const commands = []
   const server = net.createServer(client => {
-    let buffer = ''
-    client.on('data', chunk => {
-      buffer += chunk
-      if (!buffer.includes('\n')) return
-      const request = JSON.parse(buffer)
+    requests(client, request => {
       commands.push(request.command)
       client.end(JSON.stringify({ v: 1, id: request.id, ok: true, apps: [] }) + '\n')
     })
   })
   t.after(() => new Promise(resolve => server.close(resolve)))
-  await new Promise(resolve => server.listen(process.env.ODESK_APPS_CONTROL_SOCKET, resolve))
+  await new Promise(resolve => server.listen(process.env.ODK_APPS_CONTROL_SOCKET, resolve))
   const list = (await loadCapabilities()).find(tool => tool.name === 'user_apps_list')
   await list.execute('call', {})
   assert.deepEqual(commands, ['list'])

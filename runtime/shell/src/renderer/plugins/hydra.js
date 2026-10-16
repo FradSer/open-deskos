@@ -70,7 +70,7 @@
       plant.root.className = 'hydra-plant hydra-idle'
       plant.soil.textContent = '--'
       plant.soil.classList.remove('hydra-soil-watering')
-      plant.meterFill.style.width = '0%'
+      plant.meterFill.style.transform = 'scaleX(0)'
       plant.meterFill.classList.remove('hydra-meter-dry')
       return
     }
@@ -81,7 +81,7 @@
     plant.soil.textContent = formatSoil(entry)
     plant.soil.classList.toggle('hydra-soil-watering', watering)
     const percent = offline || entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
-    plant.meterFill.style.width = `${percent}%`
+    plant.meterFill.style.transform = `scaleX(${percent / 100})`
     plant.meterFill.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
   }
 
@@ -92,7 +92,11 @@
     app: 'Hydra plants',
     state: 'Unconfigured',
     interaction: 'display-only',
+    opensApp: 'hydra',
     mount(el, ctx) {
+      let released = false
+      const alive = () => !released && !ctx.signal?.aborted
+      ctx.trackCleanup?.(() => { released = true })
       el.innerHTML = `
         <div class="widget-signal hydra-body odk-col">
           <div class="hydra-head">
@@ -156,6 +160,7 @@
       // on the reference panel and on a handheld and is something smaller in a
       // square cell, with no host named anywhere in it.
       const fitToCell = () => {
+        if (!alive()) return
         const box = el.getBoundingClientRect()
         const shape = shapeForCell(box.width, box.height)
         if (body.dataset.shape === shape) return
@@ -184,6 +189,7 @@
       }
 
       function render(snapshot) {
+        if (!alive()) return
         if (!snapshot || snapshot.configured === false) {
           body.classList.add('hydra-unconfigured')
           badge.textContent = 'Unconfigured'
@@ -220,6 +226,7 @@
       render(null)
       let tickCount = 0
       const refresh = async () => {
+        if (!alive()) return
         if (typeof root.odkPlatform?.getHydraStatus !== 'function') {
           render(null)
           return
@@ -231,6 +238,7 @@
         }
       }
       ctx.onTick(() => {
+        if (!alive()) return
         tickCount = (tickCount + 1) % REFRESH_EVERY_TICKS
         if (tickCount === 1) refresh()
       })

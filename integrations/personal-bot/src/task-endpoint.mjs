@@ -16,7 +16,7 @@ export const ENDPOINT_VERSION = 1
 /** @param {string} [runtimeDir] */
 export function endpointFile(runtimeDir = process.env.XDG_RUNTIME_DIR) {
   if (typeof runtimeDir !== 'string' || !isAbsolute(runtimeDir)) return undefined
-  return join(runtimeDir, 'open-deskos', 'hosted-pi', 'endpoint.json')
+  return join(runtimeDir, 'odk', 'hosted-pi', 'endpoint.json')
 }
 
 /** @param {string} file @param {{socketPath:string, stateDir:string}} config */

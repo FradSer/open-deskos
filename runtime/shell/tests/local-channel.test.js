@@ -233,11 +233,11 @@ test('a token-less client is refused only where ownership cannot authenticate it
 })
 
 test('a host that cannot check ownership states that a token is required', () => {
-  assert.equal(requiresToken({ endpoint: '\\\\.\\pipe\\open-deskos-desk-link', platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: 'C:\\Users\\frads\\AppData\\Local\\open-deskos\\service.sock', platform: 'win32' }), true)
-  assert.equal(requiresToken({ endpoint: '/run/user/1000/open-deskos-desk-link/service.sock', platform: 'linux' }), false)
-  assert.equal(isNamedPipe('\\\\.\\pipe\\open-deskos-desk-link'), true)
-  assert.equal(isNamedPipe('/run/user/1000/open-deskos-desk-link/service.sock'), false)
+  assert.equal(requiresToken({ endpoint: '\\\\.\\pipe\\odk-link', platform: 'win32' }), true)
+  assert.equal(requiresToken({ endpoint: 'C:\\Users\\frads\\AppData\\Local\\odk\\service.sock', platform: 'win32' }), true)
+  assert.equal(requiresToken({ endpoint: '/run/user/1000/odk-link/service.sock', platform: 'linux' }), false)
+  assert.equal(isNamedPipe('\\\\.\\pipe\\odk-link'), true)
+  assert.equal(isNamedPipe('/run/user/1000/odk-link/service.sock'), false)
   assert.equal(isNamedPipe(undefined), false)
 })
 
@@ -259,6 +259,51 @@ test('the token file is written so only its owner can read it', { skip: posixOnl
   assert.equal(info.mode & 0o777, 0o600)
   const directory = await fs.stat(dir)
   assert.equal(directory.uid, process.getuid())
+})
+
+test('token publication stays consistent while a creator has not written its bytes', async t => {
+  const dir = await temporaryDir(t)
+  let opened
+  const ready = new Promise(resolve => { opened = resolve })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  let paused = false
+  const fsModule = { ...fs, async writeFile(file, data, options) {
+    if (paused || options?.flag !== 'wx') return fs.writeFile(file, data, options)
+    paused = true
+    const handle = await fs.open(file, 'wx', options.mode)
+    opened()
+    try { await gate; await handle.writeFile(data) } finally { await handle.close() }
+  } }
+  const creator = readOrCreateToken({ stateDir: dir, fsModule })
+  await ready
+  let contender
+  try { contender = await readOrCreateToken({ stateDir: dir, fsModule }) } finally { release() }
+  assert.equal(await creator, contender)
+  assert.equal((await fs.readFile(tokenFile(dir), 'utf8')).trim(), contender)
+  assert.deepEqual(await fs.readdir(dir), [TOKEN_FILENAME])
+})
+
+test('independent processes adopt the same published token', async t => {
+  const dir = await temporaryDir(t)
+  const run = require('node:util').promisify(require('node:child_process').execFile)
+  const script = 'require(process.argv[1]).readOrCreateToken({ stateDir: process.argv[2] }).then(token => process.stdout.write(token)).catch(() => process.exit(1))'
+  const args = ['-e', script, require.resolve('../src/local-channel'), dir]
+  const results = await Promise.all(Array.from({ length: 4 }, () => run(process.execPath, args)))
+  assert.equal(new Set(results.map(result => result.stdout)).size, 1)
+  assert.equal((await fs.readFile(tokenFile(dir), 'utf8')).trim(), results[0].stdout)
+  assert.deepEqual(await fs.readdir(dir), [TOKEN_FILENAME])
+})
+
+test('publication failure cleans candidates and preserves an empty existing token file', async t => {
+  const dir = await temporaryDir(t)
+  await fs.writeFile(tokenFile(dir), '')
+  await assert.rejects(readOrCreateToken({ stateDir: dir }), /token file is empty/)
+  assert.equal(await fs.readFile(tokenFile(dir), 'utf8'), '')
+  assert.deepEqual(await fs.readdir(dir), [TOKEN_FILENAME])
+  const other = await temporaryDir(t)
+  await assert.rejects(readOrCreateToken({ stateDir: other, fsModule: { ...fs, link: async () => { throw Error('publication unavailable') } } }), /publication unavailable/)
+  assert.deepEqual(await fs.readdir(other), [])
 })
 
 test('a socket left behind by a stopped service is taken over', { skip: posixOnlyReason('unix-socket') }, async (t) => {

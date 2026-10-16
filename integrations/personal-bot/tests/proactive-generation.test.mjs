@@ -100,6 +100,48 @@ test('identical advice and evidence cannot duplicate delivery when the model cha
   assert.equal(f.watch.list().length, 1); assert.equal(f.watch.list()[0].id, p.id); assert.equal(f.frames.at(-1).popup, false)
 })
 
+test('a judgment fluctuation and restart cannot erase acknowledgment of unchanged advice', async () => {
+  let probability = 0.95, saved
+  const judge = async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability, groundingProbability: 0.95, threshold: 0.8 }])) })
+  const f = fixture({ judge, saveState: state => { saved = structuredClone(state) } })
+  f.raw({ suggestions: [suggestion('collect', '领取待取物品。')] })
+  await f.watch.tick()
+  const original = f.watch.list()[0]
+  await f.watch.presented([original.id])
+  probability = 0.2
+  await f.watch.tick()
+  assert.equal(f.watch.list()[0].status, 'expired')
+  await f.watch.close()
+  probability = 0.95
+  const restored = fixture({ judge, loadState: () => saved })
+  restored.raw({ suggestions: [suggestion('collect', '领取待取物品。')] })
+  await restored.watch.tick()
+  const pending = restored.watch.list().filter(p => p.status === 'pending')
+  assert.equal(pending.length, 1)
+  assert.equal(pending[0].id, original.id)
+  assert.equal(pending[0].presented, true)
+  assert.equal(restored.frames.at(-1).popup, false)
+  await restored.watch.close()
+})
+
+test('changed observations can notify again after an acknowledged suggestion expires', async () => {
+  let probability = 0.95, count = 2
+  const f = fixture({
+    read: async id => ({ id, state: 'live', value: { ready: true, count, measured_at: stamp } }),
+    judge: async ({ candidates }) => ({ model: 'jev-fixture', answers: Object.fromEntries(candidates.map(c => [c.id, { probability, groundingProbability: 0.95, threshold: 0.8 }])) }),
+  })
+  f.raw({ suggestions: [suggestion('collect', '领取待取物品。', ['e0', 'e1'])] })
+  await f.watch.tick()
+  const original = f.watch.list()[0]
+  await f.watch.presented([original.id])
+  probability = 0.2; await f.watch.tick()
+  probability = 0.95; count = 3; await f.watch.tick()
+  const current = f.watch.list().find(p => p.status === 'pending')
+  assert.notEqual(current.id, original.id)
+  assert.equal(f.frames.at(-1).popup, true)
+  await f.watch.close()
+})
+
 test('judgment audit records cannot export generated key contents', async () => {
   const audit = [], f = fixture({ onJudgment: r => audit.push(r) })
   f.raw({ suggestions: [suggestion('owner-alice-parcel-123', '领取待取物品。')] })
@@ -122,7 +164,7 @@ test('independent unsupported-assertion veto overrides a falsely high grounding 
  }})
  const result=await judge({candidates:[{id:'c0',generated:true,advice:'This instrument has 3x leverage.',reason:'Inspect its price change.',evidence:[{id:'e0',field:'price',value:12}],evidenceIds:['e0']}],trigger:{kind:'heartbeat',readingIds:[]},context:{},recent:[]})
  assert.ok(result.answers.c0.groundingProbability < 0.8)
- assert.match(JSON.stringify(body.questions.c0_unsupported),/outside knowledge|not explicitly/i)
+ assert.match(JSON.stringify(body.questions.c0_unsupported),/cited observation values|outside knowledge|not explicitly/i)
 })
 
 test('an unrelated subscribed source push cannot discard another topic inference', async () => {

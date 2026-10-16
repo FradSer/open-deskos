@@ -29,7 +29,7 @@ pnpm test
 | Touch Remote Control | [S3 Remote](peripherals/esp32-s3-remote/README.md) |
 | UVC camera and UAC microphone | [P4 camera](peripherals/esp32-p4-camera/README.md) |
 | Speech and account sources | [STT bridge](integrations/local-stt-bridge/README.md), [Futu poller](integrations/futu-poller/README.md) |
-| Widget/App development | [Widget skill](.agents/skills/open-deskos-widget/SKILL.md) |
+| Widget/App development | [Widget skill](.agents/skills/odk-widget/SKILL.md) |
 | Optional gateway experiment | [C6/S31 gateway](experiments/cm5-s31-gateway/README.md) |
 | Preserved firmware and Apple companion | [P4+C6 research](research/esp32-p4-c6-deskos/README.md) |
 

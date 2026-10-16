@@ -5,6 +5,83 @@ Feature: Hydra plant and environment widget on the Home grid
   (soil moisture, pump state, online state) and the main node's
   environment sensors (temperature, humidity, pressure, lux).
 
+  Scenario: Hydra runtime browser replacement preserves rendered consumers without navigation
+    Given authenticated discovery exposes a trusted independent Hydra entry while the Shell is running
+    When the browser loads that entry and the runtime controller replaces the surface
+    Then the original desktop container and document remain mounted without navigation
+    And the selected independent mount cannot delegate to the default implementation
+    And all 240 theme, Cell, and source-state consumers retain attributes, computed CSS, text, and geometry
+    When the controller restores the captured default definition
+    Then all 240 consumers remain equal and default mounting executes again
+    And discovery shutdown releases IPC and captured signed assets
+
+  Scenario: Trusted runtime replacement drains signed Hydra source ownership
+    Given the Native loader captures an independent signed Hydra source
+    And production source, IPC, Open DeskOS Data, and cached health plugins run in one Host
+    When a trusted controller replaces that factory with another captured signed revision
+    Then the previous MQTT completion callback blocks new client construction
+    And late old messages cannot change fresh readings
+    And both revisions and restored default preserve public consumer values
+    And stored signed bytes remain unchanged
+
+  Scenario: Actual Main jointly starts signed Hydra source and surface
+    Given signed independent Hydra source and surface selections share one publisher policy
+    And a controlled loopback MQTT broker publishes canonical plant and environment messages
+    When actual Main starts each updated, rolled-back, and removed surface selection in a separate process
+    Then the signed source executes without constructing the default source
+    And actual preload data reaches the selected rendered Hydra Widget
+    And rendered readings and plant states remain equal across all four launches
+    And shutdown releases source, discovery, protocol, and broker connections
+    And source selection and all stored revisions remain unchanged
+
+  Scenario: Signed Hydra surface revisions preserve separate process consumers
+    Given signed source and surface selections share one external publisher policy
+    When the Native CLI updates, rolls back, and removes the surface selection
+    Then each selection executes in a different Electron process
+    And selected and executed surface revisions agree
+    And the complete rendered matrix remains equal across processes
+    And invalid updates retain configuration bytes and unrelated preferences
+    And removal restores the default surface while retaining source and stored surface revisions
+
+  Scenario: Signed Hydra surfaces execute captured verified entries
+    Given the Native CLI installs an independent Hydra surface with explicit publisher policy and trust
+    When Renderer discovery captures its verified entry before browser loading
+    And the stored entry changes after capture
+    Then actual preload consumers retain the default rendered matrix
+    And another store verification rejects the changed entry
+    And shutdown releases discovery IPC and signed asset routes
+
+  Scenario: Hydra state badges stay inside the narrow tall Cell
+    Given the Hydra Widget occupies its minimum tall Cell of 120 by 240 pixels
+    When the source reports waiting, offline, stale, or unconfigured state
+    Then the complete badge stays inside the Cell without lowering its readable floor
+    And environment readings and plant rows remain contained
+
+  Scenario: Trusted Hydra development surfaces preserve actual rendered consumers
+    Given the CLI links an independent Hydra surface with explicit trust
+    When actual Renderer discovery loads its entry before Shell composition
+    Then actual preload supplies controlled snapshots to the selected surface
+    And default and independent surfaces retain readings, effective classes, fonts, and geometry
+    And all three themes preserve ten measured Cell compositions
+    And surface release clears mounted resources and shutdown removes discovery IPC
+
+  Scenario: Independent Hydra surfaces preserve readings and resource behavior
+    Given default and independent Hydra surfaces share static layout and stylesheet assets
+    When source states, plant telemetry, ticks, and measured cells change
+    Then both selected factories preserve labels, units, meters, badges, and omission counts
+    And both retain tall, compact, plants-only, and too-small compositions
+    And the independent surface never calls the default mount
+    And each mount owns its observer, subscriptions, and late response guards
+
+  Scenario: Released Hydra surfaces cannot change new mounts
+    Given a Hydra Widget has pending source requests and resize callbacks
+    When the Renderer releases the Widget and mounts it again
+    Then old request success or failure cannot change the new readings
+    And old ticks cannot start source requests
+    And old resize callbacks cannot change shape or plant labels
+    And failed observer release remains owned and retryable
+    And the shared Main source remains available to other consumers
+
   Scenario: Packaged Hydra bridge loads its MQTT dependency graph
     Given the CM5 release uses pnpm isolated node modules
     When the Hydra source loads MQTT after a previous connection attempt
@@ -122,3 +199,39 @@ Feature: Hydra plant and environment widget on the Home grid
     Then the environment readings are left out as whole readings rather than truncated
     And the widget states in its own text how many readings it is not showing
     And no reading is drawn below the readable floor
+
+  Scenario: Soil updates animate without changing meter layout
+    Given a plant reports soil moisture at 62 percent
+    When its reading changes or the plant goes offline
+    Then the meter scales from its left edge to match the displayed reading
+    And its layout width stays equal to the track width
+    And reduced motion disables the meter transition
+
+  Scenario: Signed source activation preserves actual Main and preload consumers
+    Given actual Main runs a signed Hydra source with an isolated loopback MQTT broker
+    When the operator selects another signed revision and activates it through the actual CLI
+    Then the same Main process replaces the source through its authenticated control channel
+    And actual preload returns the same telemetry after each activation
+    And source health remains healthy after fresh telemetry
+    And activation preserves the selected configuration bytes
+    And normal shutdown releases the control listener and source handlers
+  Scenario: Static replacement comparison suppresses motion under the production policy
+    Given the actual Shell document retains its restrictive style policy
+    When the acceptance fixture compares default and independent Hydra surfaces
+    Then its static measurement stylesheet applies before sampling
+    And meter transitions and animations are disabled for both implementations
+    And the fixture removes its stylesheet after the comparison
+
+  Scenario: Replacement comparison uses the same rendering scale
+    Given a launch request specifies a different device scale
+    When it compares default, independent, and restored Hydra surfaces
+    Then it uses the same fixed device scale and page zoom before each measurement
+    And it rejects measurements if either input changes
+    And its geometry, style, font, and containment assertions remain unchanged
+
+  Scenario: Cross-process revision checks retain the rendering fixture budget
+    Given CM5 uses the existing 150-second Hydra rendering fixture budget
+    When acceptance starts each of the four revision comparison processes
+    Then each child watchdog allows the fixture to finish and release resources
+    And the parent budget covers all four children and setup
+    And other hosts retain their existing budgets

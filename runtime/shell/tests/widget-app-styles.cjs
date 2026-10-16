@@ -1,6 +1,11 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
+const fs = require('node:fs')
+const os = require('node:os')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { resolvePages } = require('./helpers/pages')
 
@@ -44,12 +49,6 @@ ipcMain.handle('odk-opencode-go-status', () => completeQuotaRefresh
   ? new Promise(resolve => { completeQuotaRefresh = () => resolve(quota) })
   : quota)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
-// A 1x1 PNG keeps the camera tile's frame live without a camera peripheral, so
-// the framing marks can be checked against real painted content.
-const CAMERA_FRAME_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAAH/q842iQAAAABJRU5ErkJggg=='
-let cameraFrame = { status: 'live', frame: CAMERA_FRAME_DATA_URL, capturedAt: Date.now() }
-ipcMain.handle('odk-camera-frame', () => cameraFrame)
-
 ipcMain.handle('odk-pi-sessions', () => {
   if (scanFails) throw new Error('Scanner test failure')
   return sessions
@@ -102,7 +101,7 @@ async function widgets(win, label) {
     const tiles = [...document.querySelectorAll('.widget')]
     for (const tile of tiles) {
       const rect = tile.getBoundingClientRect()
-      if (Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
+      if (tile.closest('.page')?.dataset.pageId === 'home' && Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
       for (const el of tile.querySelectorAll('span, strong')) {
         if (!el.textContent.trim() || !el.getClientRects().length) continue
         const r = el.getBoundingClientRect()
@@ -111,7 +110,8 @@ async function widgets(win, label) {
       }
     }
     const page = tiles[0].closest('.page')
-    const indicators = [...document.querySelectorAll('.dot')].every(dot => {
+    if (innerWidth < 640) document.getElementById('home-desk').scrollTop = document.getElementById('home-desk').scrollHeight
+    const indicators = [...document.querySelectorAll('.dot')].filter(dot => dot.getClientRects().length).every(dot => {
       const r = dot.getBoundingClientRect()
       return [r.top + r.height / 2, r.top + 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === dot)
     })
@@ -123,7 +123,129 @@ async function widgets(win, label) {
   })()`)
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
-  check(`${label}: page indicators have distinct pointer targets`, result.indicators)
+  check(`${label}: Home handle has a reachable pointer target`, result.indicators)
+}
+
+async function pomodoroCentering(win) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
+      await resize(win, width, height)
+      await page(win, PAGES.dot('home'))
+      await win.webContents.executeJavaScript(`window.odkTheme.set('${theme}'); void document.body.offsetHeight; document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
+      const reading = await win.webContents.executeJavaScript(`(() => {
+        const tile = document.querySelector('.w-pomodoro')
+        const frame = tile.getBoundingClientRect()
+        const dial = tile.querySelector('svg').getBoundingClientRect()
+        const ring = tile.querySelector('.ring-track').getBoundingClientRect()
+        const time = tile.querySelector('.ring-mmss').getBoundingClientRect()
+        const label = tile.querySelector('.pomodoro-context').getBoundingClientRect()
+        const state = tile.querySelector('.pomodoro-state').getBoundingClientRect()
+        const center = r => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
+        const a = center(frame), b = center(dial), c = center(time)
+        return { centered: Math.abs(a.x-b.x) < 1 && Math.abs(a.y-b.y) < 1 && Math.abs(b.x-c.x) < 1 && Math.abs(b.y-c.y) < 1,
+          labelInside: label.top >= time.bottom && label.bottom <= ring.bottom + 1 && label.left >= ring.left && label.right <= ring.right,
+          stateAbove: state.bottom <= ring.top && Math.abs(center(state).x-a.x) < 1,
+          offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
+      })()`)
+      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateAbove, reading)
+    }
+  }
+}
+
+async function liquidGlassNarrowDeskScroll(win) {
+  await resize(win, 320, 480)
+  await page(win, PAGES.dot('home'))
+  await win.webContents.executeJavaScript('window.odkTheme.ready')
+  const originalTheme = await win.webContents.executeJavaScript('window.odkTheme.get()')
+  try {
+    await win.webContents.executeJavaScript("window.odkTheme.set('liquid-glass')")
+    const stylesLoaded = await win.webContents.executeJavaScript(`new Promise(resolve => {
+      const link = document.querySelector('link[data-plugin="odk.theme.liquid-glass"]')
+      if (!link) return resolve(false)
+      if (link.sheet) return resolve(true)
+      link.addEventListener('load', () => resolve(Boolean(link.sheet)), { once: true })
+      link.addEventListener('error', () => resolve(false), { once: true })
+      setTimeout(() => resolve(Boolean(link.sheet)), 5000)
+    })`)
+    const desk = await win.webContents.executeJavaScript(`(() => {
+      const desk = document.getElementById('home-desk')
+      desk.classList.add('lg-scene')
+      const maxScrollTop = desk.scrollHeight - desk.clientHeight
+      desk.scrollTop = maxScrollTop
+      return {
+        theme: document.documentElement.dataset.theme,
+        scene: desk.classList.contains('lg-scene'),
+        overflowY: getComputedStyle(desk).overflowY,
+        scrollHeight: desk.scrollHeight,
+        clientHeight: desk.clientHeight,
+        maxScrollTop,
+        scrollTop: desk.scrollTop,
+      }
+    })()`)
+    check('Liquid Glass scene keeps the 320x480 home desk scrollable',
+      stylesLoaded && desk.theme === 'liquid-glass' && desk.scene && desk.overflowY === 'auto'
+        && desk.maxScrollTop > 0 && desk.scrollTop >= desk.maxScrollTop - 1,
+      { stylesLoaded, ...desk })
+  } finally {
+    await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(originalTheme)})`)
+  }
+}
+
+async function surfaceAffordances(win) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    for (const [width, height] of [[1920, 1280], [960, 640], [320, 480]]) {
+      await resize(win, width, height)
+      await page(win, PAGES.dot('home'))
+      await win.webContents.executeJavaScript(`odkTheme.set('${theme}'); document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
+      const widgets = await win.webContents.executeJavaScript(`(() => {
+        const nodes = [...document.querySelectorAll('.widget[data-interaction="display-only"]')]
+        const css = getComputedStyle(nodes[0])
+        return { static: nodes.every(node => {
+          const style = getComputedStyle(node)
+          return style.borderTopStyle === 'solid' && style.borderTopWidth === '1px'
+            && style.borderTopColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(node, '::after').content === 'none'
+            && !node.matches('[tabindex],button') && !node.querySelector('button:not(.widget-launch),input,select,textarea,a[href]')
+            && node.querySelector('.widget-launch')?.tagName === 'BUTTON'
+        }), color: css.borderTopColor }
+      })()`)
+      check(`Widget reading and App continuation frame: ${theme} ${width}x${height}`, widgets.static, widgets)
+      await page(win, PAGES.dot('quota'))
+      const rest = await win.webContents.executeJavaScript(`(() => {
+        document.querySelector('.dot.active').focus()
+        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        return { color: css.borderTopColor, width: css.borderTopWidth, outline: css.outlineStyle, size: [rect.width, rect.height] }
+      })()`)
+      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '1px' && rest.color === widgets.color && rest.outline === 'none', rest)
+      const active = await win.webContents.executeJavaScript(`(() => {
+        document.querySelector('#quota-refresh').focus()
+        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, offset: parseFloat(css.outlineOffset), size: [rect.width, rect.height] }
+      })()`)
+      check(`App frame stays consistent during control focus: ${theme} ${width}x${height}`, active.color === rest.color && active.outline === 'none' && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
+      if (width === 1920) {
+        await win.webContents.executeJavaScript(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`)
+        fs.writeFileSync(path.join(os.tmpdir(), `odk-app-frame-active-${theme}.png`), (await win.webContents.capturePage()).toPNG())
+      }
+      const restored = await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); getComputedStyle(document.querySelector('.quota-card')).borderTopColor`)
+      check(`App frame restores after focus leaves: ${theme} ${width}x${height}`, restored === rest.color)
+      if (width === 1920) {
+        const point = await win.webContents.executeJavaScript(`(() => { const r = document.querySelector('.quota-card').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 6) } })()`)
+        win.webContents.debugger.attach('1.3')
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
+        const pressed = await win.webContents.executeJavaScript(`(() => { const card = document.querySelector('.quota-card'), css = getComputedStyle(card); return { active: card.matches(':active'), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
+        win.webContents.debugger.detach()
+        check(`Pointer press preserves the Widget frame: ${theme}`, pressed.active && pressed.color === rest.color && pressed.outline === 'none', pressed)
+      }
+    }
+    const foreground = await win.webContents.executeJavaScript(`(async () => {
+      await odkAppPlatform.openApp({ appId: 'clock' })
+      const css = getComputedStyle(document.querySelector('#app-view'))
+      return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
+    })()`)
+    check(`Opened App retains the shared Widget frame: ${theme}`, foreground.width === '1px' && foreground.outline === 'none', foreground)
+    await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
+  }
 }
 
 async function appPage(win, index, label) {
@@ -173,25 +295,6 @@ async function appPage(win, index, label) {
     })
   })()`)
 
-}
-
-// The density harness measures boxes, so it cannot see a frame painting over the
-// marks. Hit testing follows paint order, which is what this asserts.
-async function cameraInstrument(win) {
-  await page(win, PAGES.dot('home'))
-  const live = await win.webContents.executeJavaScript(`(() => {
-    const tile = document.querySelector('.widget[data-widget="odk.tile.camera"]')
-    const frame = tile.querySelector('.w-camera-frame')
-    const marks = tile.querySelector('.w-camera-marks')
-    const rect = marks.getBoundingClientRect()
-    const probe = document.elementFromPoint(rect.left + rect.width * 0.14, rect.top + rect.height * 0.14)
-    return {
-      frameLive: frame.hidden === false && frame.getAttribute('src') !== null,
-      marksAboveFrame: probe === marks || marks.contains(probe),
-      hit: probe ? probe.tagName.toLowerCase() : null,
-    }
-  })()`)
-  check('Camera: a live frame does not paint over the framing marks', live.frameLive && live.marksAboveFrame, live)
 }
 
 async function contrastAndMotion(win) {
@@ -684,6 +787,18 @@ async function main() {
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.executeJavaScript('document.fonts.ready')
   PAGES = await resolvePages(win)
+  if (process.argv.includes('--surface-frames')) {
+    await surfaceAffordances(win)
+    assert.equal(failures, 0, `${failures} frame checks failed`)
+    console.log('SURFACE_FRAMES_PASS')
+    return
+  }
+  if (process.argv.includes('--liquid-glass-narrow-scroll-only')) {
+    await liquidGlassNarrowDeskScroll(win)
+    assert.equal(failures, 0, `${failures} narrow scroll checks failed`)
+    console.log('LIQUID_GLASS_NARROW_SCROLL_PASS')
+    return
+  }
   for (const [width, height] of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
     await resize(win, width, height)
     const label = `${width}x${height}`
@@ -691,6 +806,7 @@ async function main() {
     await appPage(win, PAGES.dot('pi-sessions'), label)
     await appPage(win, PAGES.dot('quota'), label)
   }
+  await liquidGlassNarrowDeskScroll(win)
   await resize(win, 1920, 1280)
   const savedSessions = sessions
   const savedSessionEvents = sessionEvents
@@ -700,7 +816,6 @@ async function main() {
   await require('./pi-reading-stability.cjs').run(win, check, value => { sessions = value })
   sessions = savedSessions
   await processIdentityContinuity(win)
-  await cameraInstrument(win)
   await contrastAndMotion(win)
   await builtinApps(win)
   await resize(win, 1920, 1280)
@@ -730,6 +845,8 @@ async function main() {
   await remoteScrollingIsolation(win)
   await remoteStripControls(win)
   await scannerRecovery(win)
+  await pomodoroCentering(win)
+  await surfaceAffordances(win)
   assert.equal(failures, 0, `${failures} interior checks failed`)
   console.log('WIDGET_APP_STYLES_PASS')
 }

@@ -25,30 +25,46 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
   const modules = {
     electron: {
       app, BrowserWindow: Object.assign(function () { return win }, { getAllWindows: () => [win] }),
-      ipcMain: { handle: (id, fn) => handlers.set(id, fn) },
+      ipcMain: { on() {}, removeListener() {}, handle: (id, fn) => handlers.set(id, fn), removeHandler: id => handlers.delete(id) },
       session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
     },
-    './platform': { resolveShellHost: () => ({ id: 'win32-x64', isWindows: true, supported: true, provisionsUserAppControl: false }) },
+    './platform': { resolveShellHost: () => ({ id: 'win32-x64', isWindows: true, supported: true, endpoint: () => null, provisionsUserAppControl: false }) },
+    './plugin-host': require('../src/plugin-host'),
+    './frame-ready': require('../src/frame-ready'),
+    './plugin-config': require('../src/plugin-config'),
+    './native-renderer-assets': require('../src/native-renderer-assets'),
+    './native-runtime-activation': require('../src/native-runtime-activation'),
+    './native-renderer-activation': require('../src/native-renderer-activation'),
+    './native-plugin-loader': require('../src/native-plugin-loader'),
+    './development-plugins': require('../src/development-plugins'),
+    './renderer/core/appearance-plugins': require('../src/renderer/core/appearance-plugins'),
+    './plugins/main-composition': require('../src/plugins/main-composition'),
+    './plugin-diagnostics': require('../src/plugin-diagnostics'),
+    './plugin-shutdown': require('../src/plugin-shutdown'),
+    './plugins/data-sources': require('../src/plugins/data-sources'),
+    './plugins/system-channels': require('../src/plugins/system-channels'),
+    './plugins/desk-runtime': require('../src/plugins/desk-runtime'),
     './platform/native-process-reader': { createNativeProcessReader: () => ({ reader: null, reason: 'process reader unavailable: not built' }) },
     './remote-bridge-client': {
       resolveRemoteBridgeSocketPath: () => null,
       createRemoteBridgeClient: (options) => {
         onRemoteMic = options.onRemoteMic
         return {
-          onLinkState() {}, onNavigation() {}, onInput: (fn) => { onInput = fn }, start() {}, getLinkState: () => 'disconnected',
+          onLinkState: () => () => {}, onNavigation: () => () => {}, onInput: (fn) => { onInput = fn; return () => {} }, start() {}, stop() {}, getLinkState: () => 'disconnected',
         }
       },
     },
     './personal-bot-client': {
       resolvePersonalBotSocketPath: () => '/test.sock',
-      createPersonalBotClient: () => ({ subscribe(fn) { publishStatus = fn }, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? state : 'unavailable' }) }),
+      createPersonalBotClient: () => ({ subscribe(fn) { publishStatus = fn; return () => {} }, start() {}, stop() {}, toggle: () => { toggles++; return connected }, snapshot: () => ({ state: connected ? state : 'unavailable' }) }),
     },
-    './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {}, resolveUserAppSurface: () => ({ stateDir: '/test/state/open-deskos/user-apps' }) },
+    './user-app-system': { registerUserAppScheme() {}, async startUserAppSystem() {}, resolveUserAppSurface: () => ({ stateDir: '/test/state/odk/user-apps' }) },
     './pi-sessions-source': { createPiSessionsSource: () => () => { throw new Error('MIC must not scan or control the monitor') } },
     './pi-sessions': { readSessionEvents: () => { throw new Error('MIC must not read monitor session events') } },
     './pi-session-events-source': { createPiSessionEventsSource: () => () => { throw new Error('MIC must not read monitor session events') } },
-    './desk-link-client': { createDeskLinkClient: () => ({ machines: async () => [], snapshot: async () => null, sessionEvents: async () => ({ ok: false }) }) },
-    './desk-link-service': { SESSION_LOG_MISSING: 'session-log-missing' },
+    './odk-link-client': { createOdkLinkClient: () => ({ machines: async () => [], snapshot: async () => null, sessionEvents: async () => ({ ok: false }) }) },
+    './odk-link-service': { SESSION_LOG_MISSING: 'session-log-missing' },
+    './odk-link-host-adapter': require('../src/odk-link-host-adapter'),
     // The panel module is only reached by a kiosk launch, and this harness is
     // not one; it is named here so a new dependency in main.js is a stated
     // choice rather than a module that silently fails to resolve.
@@ -58,21 +74,22 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
     './weather-source': { createWeatherSource: () => ({ refresh: async () => ({ status: 'unconfigured' }), snapshot: () => ({ status: 'unconfigured' }) }) },
     './futu-source': { createFutuSource: () => ({ refreshServices: async () => {}, snapshot: () => ({ state: 'unconfigured' }) }), STALE_MS: 60000 },
     './app-manager-endpoint': { createAppManagerEndpoint: () => ({}) },
-    './desk-data': {
-      createShellDeskData: () => ({
+    './odk-data': {
+      createShellOdkData: () => ({
         registry: { publish: () => ({ ok: false, error: 'unknown-reading' }) },
         control: { dispatch: async () => ({ ok: false, error: 'invalid-command' }) },
         syncPackages: async () => {},
         syncServices: () => {},
       }),
     },
-    './desk-data-control': { listenDeskData: async () => ({ close: async () => {} }) },
+    './odk-data-control': { listenOdkData: async () => ({ close: async () => {} }) },
     './user-app-store': { createUserAppStore: () => ({ list: async () => [] }) },
+    './user-app-verifier': { createUserAppVerifier: () => ({ verify: async () => true, drain: async () => {}, close: async () => {} }) },
     './opencode-go': {},
     './camera-source': { createCameraSource: () => ({ refresh: async () => {}, snapshot: () => ({ status: 'unavailable' }) }) },
   }
   vm.runInNewContext(fs.readFileSync('src/main.js', 'utf8'), {
-    require: (id) => modules[id] || require(id), process: { argv: [], env: {} },
+    require: (id) => modules[id] || require(id), process: { argv: [], env: { ODK_CONFIG_DIR: '/fixture/absent-plugin-config' } },
     module: { exports: {} }, __dirname: '/test', console, URLSearchParams, setInterval, clearInterval,
   })
   await new Promise(resolve => setImmediate(resolve))

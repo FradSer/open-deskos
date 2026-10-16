@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "p4_plugin_ports.h"
 
 #define P4_UVC_WIDTH 1280
 #define P4_UVC_HEIGHT 720
@@ -24,6 +25,8 @@
  * @return esp_err_t ESP_OK on success.
  */
 esp_err_t p4_uvc_stream_init(uint16_t width, uint16_t height);
+esp_err_t p4_uvc_stream_init_with_ports(uint16_t width, uint16_t height,
+    const p4_camera_port_t *camera, const p4_video_sink_t *sink);
 
 /**
  * @brief Start the capture-encode-transfer loop in a dedicated task.
@@ -33,7 +36,10 @@ esp_err_t p4_uvc_stream_init(uint16_t width, uint16_t height);
  */
 esp_err_t p4_uvc_stream_start(void);
 
+/* Serialize initialization, start, stop, and cleanup through one lifecycle owner. */
+/* A stop timeout retains the worker and all capture resources for retry. */
 esp_err_t p4_uvc_stream_stop(void);
+esp_err_t p4_uvc_stream_deinit(void);
 bool p4_uvc_stream_running(void);
 
 #endif /* P4_UVC_STREAM_H */

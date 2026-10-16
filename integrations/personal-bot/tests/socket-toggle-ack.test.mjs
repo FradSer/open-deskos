@@ -1,3 +1,4 @@
+import { endpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { connect } from 'node:net'
@@ -19,14 +20,14 @@ test('toggle acknowledgement waits for the accepted retry instead of echoing sta
     },
     setState() {},
   }
-  const server = await listen(join(directory, 'agent.sock'), service)
-  const client = connect(join(directory, 'agent.sock'))
+  const server = await listen(endpoint(directory, 'agent'), service, { token: fixtureToken })
+  const client = connect(endpoint(directory, 'agent'))
   t.after(async () => { release?.(); client.destroy(); await server.close(); await rm(directory, { recursive: true, force: true }) })
   await once(client, 'connect')
   client.setEncoding('utf8')
   const records = []
   client.on('data', chunk => records.push(...chunk.trim().split('\n').map(JSON.parse)))
-  client.write('{"v":1,"type":"toggle"}\n{"v":1,"type":"status"}\n')
+  client.write((process.platform === 'win32' ? JSON.stringify({v:1,token:fixtureToken}) + '\n' : '') + '{"v":1,"type":"toggle"}\n{"v":1,"type":"status"}\n')
   await once(client, 'data')
   assert.equal(records.length, 1, 'Only the explicit status query replies while toggle is pending')
   assert.equal(records[0].state, 'error')

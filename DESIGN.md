@@ -73,10 +73,13 @@ New installations use Pixel; explicit local selection survives restart. There is
 
 ## Interaction
 
-- Widgets open focused views. Back/Escape restore the source page. Touch/keyboard remain independent of Remote Link and camera state.
+- Widgets display readings. Apps own interactive views. Swipe up from the bottom handle to return from a Widget App. This restores its source page and focus. A focused handle accepts ArrowUp, Enter, or Space. Gamepad B returns from the foreground App. A Personal Bot overlay receives Back first. Escape remains available for other App entry points. Touch and keyboard work without Remote Link or camera services.
 - Attribute the Console driving a Hosted Pi in the overview header for as long as it drives. Local input retains authority.
 - Show unavailable/synchronizing peripheral states honestly and keep hardware acceptance separate.
 - Pointer paging has a short spatial transition; keyboard/Remote changes are immediate. Respect reduced motion. Page marks crossfade opacity without scaling targets or animating layout width.
-- Pi status and pagination share `--odk-status-control-h: 44px` for surface and hit height. Other pages are points, the current page is a short bar, and page names are assistive text. Instrument/Border Beam round the marks; Pixel uses square marks and its semantic active color. Theme changes never resize or replace controls.
+- Home shows one neutral horizontal handle with a 44-pixel target. Swipe the handle sideways to change pages. A focused handle accepts ArrowLeft, ArrowRight, Home, or End. Its accessible name identifies the current page. Theme changes preserve its location and target.
+- App cards use the same border width, border color, and theme radius as Widgets. Controls retain their focus outlines. App contents have no additional outer frame. The Shell App title is available to assistive technology without a visible title bar. Widget Apps have no empty header.
 - Put session status/goals before PID/command disclosures. Refresh preserves expansion, focus, and scroll. Usage refresh actions stay beside provider state before optional metric details.
 - A not-started focus dial is neutral; Today has no decorative active dot.
+
+The resident Agent centers one avatar above its name and status capsule. The capsule opens the identity form. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.

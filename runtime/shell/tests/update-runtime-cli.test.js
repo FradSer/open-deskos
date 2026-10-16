@@ -24,21 +24,22 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /\['pnpm', 'preflight'\], kiosk/)
   assert.match(updater, /activateRelease/)
   assert.match(updater, /post-activation smoke failed/)
-  assert.match(updater, /open-deskos-remote-bridge\.service/)
+  assert.match(updater, /odk-remote-bridge\.service/)
   // Required components are part of the activation transaction: an enabled one is restarted onto
   // the new release and a failure rolls the update back, while a host that has not enabled it keeps
   // the unit staged and stopped.
-  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'open-deskos-personal-bot\.service', 'required Personal Bot component'\)/)
-  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'open-deskos-pi-tasks\.service', 'required Hosted Pi control'\)/)
-  // The Desk Link Service resolves the Hosted Pi endpoint from the descriptor the daemon publishes,
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-personal-bot\.service', 'required Personal Bot component'\)/)
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-pi-tasks\.service', 'required Hosted Pi control'\)/)
+  // The Open DeskOS Link Service resolves the Hosted Pi endpoint from the descriptor the daemon publishes,
   // so it has to be restarted onto the active release too — under the same enabled gate, and without
   // rolling back an activation that otherwise succeeded.
-  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'open-deskos-desk-link\.service', 'desk link service'\)/)
-  assert.match(updater, /Desk Link restart did not complete/)
+  assert.match(updater, /restartRequiredService\(releaseId, kiosk, 'odk-link\.service', 'Open DeskOS Link service'\)/)
+  assert.match(updater, /Open DeskOS Link restart did not complete/)
   assert.match(updater, /is-enabled/)
   assert.match(updater, /required Personal Bot component restart failed|\$\{component\} restart failed/)
-  assert.match(updater, /open-deskos-shell\.service/)
+  assert.match(updater, /odk-shell\.service/)
   assert.match(updater, /ODK_KIOSK_USER/)
+  assert.match(updater, /ODK_RUNTIME_ROOT=\$\{releasePath\}/)
   assert.match(updater, /ODK_KIOSK_UID/)
   assert.match(updater, /ODK_KIOSK_HOME/)
   assert.match(updater, /ODK_KIOSK_NODE_BIN/)
@@ -62,6 +63,7 @@ test('CM5 updater serializes transactions and preflights before activating a rel
 test('device preflight inherits the kiosk graphical session instead of ambient SSH environment', () => {
   assert.match(updater, /ODK_KIOSK_DISPLAY/)
   assert.match(updater, /ODK_KIOSK_XAUTHORITY/)
+  assert.match(updater, /DBUS_SESSION_BUS_ADDRESS=unix:path=\/run\/user\/\$\{runAs\.uid\}\/bus/)
   assert.match(updater, /DISPLAY=\$\{/)
   assert.match(updater, /XAUTHORITY=\$\{/)
   assert.match(installer, /ODK_KIOSK_DISPLAY="\$\{GRAPHICAL_DISPLAY:-\}"/)
@@ -78,10 +80,10 @@ test('kiosk identity retains names while resolving only filesystem paths', () =>
 test('immutable runtime smoke can skip generated stylesheet writes', () => {
   const launcher = fs.readFileSync(path.join(__dirname, '..', 'run.sh'), 'utf8')
   const packageManifest = fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
-  assert.match(launcher, /ODESK_SKIP_STYLE_BUILD/)
+  assert.match(launcher, /ODK_SKIP_STYLE_BUILD/)
   assert.match(packageManifest, /bash scripts\/verify-release\.sh/)
   assert.equal(JSON.parse(packageManifest).scripts['verify-release'], 'bash scripts/verify-release.sh')
-  assert.match(releaseVerifier, /ODESK_SKIP_STYLE_BUILD=1 \.\/run\.sh --smoke/)
+  assert.match(releaseVerifier, /ODK_SKIP_STYLE_BUILD=1 \.\/run\.sh --smoke/)
   assert.match(releaseVerifier, /loginctl show-session/)
   assert.match(releaseVerifier, /SESSION_DISPLAY/)
   assert.match(releaseVerifier, /xvfb-run/)

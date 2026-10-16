@@ -1,4 +1,11 @@
 Feature: Managed independent coding tasks
+  Scenario: Direct SSH task control does not forward provider environment values
+    Given a client-only environment value and an SSH configuration that selects it through SendEnv
+    When the coordinator sends a request to an explicitly configured SSH target
+    Then the SSH process receives only connection-related environment values
+    And the target returns the correlated request without receiving the client-only value
+    And local control helpers retain their existing environment contract
+
   Scenario: An incomplete native inventory does not prove a missing session
     Given a root inventory with one endpoint that did not answer
     When the helper returns incomplete true and unavailable one

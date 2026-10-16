@@ -7,8 +7,8 @@ import { join } from 'node:path'
 export function personalBotEnvironment(env = process.env) {
   const normalized = { ...env }
   for (const [name, value] of Object.entries(env)) {
-    if (!name.startsWith('ODESK_VOICE_')) continue
-    const destination = name.replace('ODESK_VOICE_AGENT_', 'ODESK_PERSONAL_BOT_').replace('ODESK_VOICE_', 'ODESK_PERSONAL_BOT_')
+    if (!name.startsWith('ODK_VOICE_')) continue
+    const destination = name.replace('ODK_VOICE_AGENT_', 'ODK_PERSONAL_BOT_').replace('ODK_VOICE_', 'ODK_PERSONAL_BOT_')
     if (normalized[destination] === undefined) normalized[destination] = value
   }
   return normalized
@@ -17,10 +17,10 @@ export function personalBotEnvironment(env = process.env) {
 /** Move private history once, preserving permissions and refusing ambiguous histories. */
 export async function migratePersonalBotState(env = process.env, platform = process.platform) {
   const parent = platform === 'win32'
-    ? join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'open-deskos')
+    ? join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'odk')
     : env.XDG_STATE_HOME || join(homedir(), '.local/state')
-  const legacy = join(parent, platform === 'win32' ? 'voice' : 'open-deskos-voice')
-  const destination = join(parent, platform === 'win32' ? 'personal-bot' : 'open-deskos-personal-bot')
+  const legacy = join(parent, platform === 'win32' ? 'voice' : 'odk-voice')
+  const destination = join(parent, platform === 'win32' ? 'personal-bot' : 'odk-personal-bot')
   const info = await lstat(legacy).catch(error => { if (error.code === 'ENOENT') return null; throw error })
   if (!info) return
   if (!info.isDirectory() || (platform !== 'win32' && (info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0))) throw Error('Unsafe legacy bot state directory')

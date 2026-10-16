@@ -18,7 +18,7 @@ const {
 } = require('../scripts/lib/runtime-release')
 
 function makeRuntime() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'open-deskos-release-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-release-'))
   const stateDir = path.join(root, 'state')
   const releasesDir = path.join(root, 'releases')
   fs.mkdirSync(releasesDir, { recursive: true })
@@ -60,8 +60,8 @@ function makeCompleteRelease(runtime, id) {
   fs.mkdirSync(path.join(integration, 'node_modules'))
   fs.writeFileSync(path.join(integration, 'package.json'), '{}')
   fs.writeFileSync(path.join(integration, 'src', 'main.mjs'), 'entry')
-  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-personal-bot.service'), 'unit')
-  fs.writeFileSync(path.join(integration, 'systemd', 'open-deskos-pi-tasks.service'), 'unit')
+  fs.writeFileSync(path.join(integration, 'systemd', 'odk-personal-bot.service'), 'unit')
+  fs.writeFileSync(path.join(integration, 'systemd', 'odk-pi-tasks.service'), 'unit')
   return release
 }
 
@@ -338,7 +338,7 @@ test('a candidate missing the required Hosted Pi control service is rejected', (
   const runtime = makeRuntime()
   try {
     const candidate = makeCompleteRelease(runtime, 'candidate')
-    fs.rmSync(path.join(candidate, 'integrations', 'personal-bot', 'systemd', 'open-deskos-pi-tasks.service'))
+    fs.rmSync(path.join(candidate, 'integrations', 'personal-bot', 'systemd', 'odk-pi-tasks.service'))
     assert.deepEqual(validateRuntimeComposition(candidate), {
       ok: false,
       reason: 'required Hosted Pi control service is missing',

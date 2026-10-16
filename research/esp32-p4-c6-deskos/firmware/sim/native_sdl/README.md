@@ -12,7 +12,7 @@ Requires SDL2 and CMake (`brew install sdl2 cmake` on macOS).
 ```sh
 cmake -S research/esp32-p4-c6-deskos/firmware/sim/native_sdl -B research/esp32-p4-c6-deskos/firmware/sim/native_sdl/build
 cmake --build research/esp32-p4-c6-deskos/firmware/sim/native_sdl/build -j
-cd research/esp32-p4-c6-deskos/firmware/sim/native_sdl && ./build/open-deskos_sim
+cd research/esp32-p4-c6-deskos/firmware/sim/native_sdl && ./build/odk_sim
 ```
 
 Or run the complete setup, build, and launch flow from any directory:
@@ -22,7 +22,7 @@ research/esp32-p4-c6-deskos/firmware/sim/native_sdl/run.sh
 ```
 
 `run.sh` copies the current firmware Lua modules and fonts into the simulator,
-configures CMake, builds `open-deskos_sim`, and launches it. The simulator
+configures CMake, builds `odk_sim`, and launches it. The simulator
 uses the same Guition JC4880P443C 480×800 UI sources; its host display path is
 SDL2 IO/PARTIAL rather than the device's MIPI-DSI path.
 
@@ -61,8 +61,8 @@ layout fixture; these switches have no device-side effect. When
 
 The launcher sources are copied from
 `components/lua_modules/lua_module_lvgl/lib/`, including the `apps/` directory.
-The build target is `open-deskos_sim`; older references to `cerberus_sim` or
-`open_deskos_sim` are obsolete.
+The build target is `odk_sim`; older references to `cerberus_sim` or
+`odk_sim` are obsolete.
 
 ## Fonts at runtime
 
@@ -72,9 +72,9 @@ The build target is `open-deskos_sim`; older references to `cerberus_sim` or
 `<cwd>/fonts/...`. Copy both fonts into the run directory before launching:
 
 ```sh
-cp application/open_deskos/fatfs_image/storage/fonts/NotoSansSC-Regular.ttf \
+cp application/odk/fatfs_image/storage/fonts/NotoSansSC-Regular.ttf \
    research/esp32-p4-c6-deskos/firmware/sim/native_sdl/fonts/
-cp application/open_deskos/fatfs_image/storage/fonts/Montserrat-Bold.ttf \
+cp application/odk/fatfs_image/storage/fonts/Montserrat-Bold.ttf \
    research/esp32-p4-c6-deskos/firmware/sim/native_sdl/fonts/
 ```
 
@@ -137,7 +137,7 @@ scope; the sim runs the pre-authored `launcher.lua` directly.
 ## Honesty: host build != `idf.py build`
 
 Per the project's host-vs-IDF-build caveat (memory
-`[[open-deskos-firmware-host-vs-idf-build]]`), this sim building and running on
+`[[odk-firmware-host-vs-idf-build]]`), this sim building and running on
 the host does NOT mean `idf.py build` passes. The sim shares `lua_module_lvgl`
 source with the firmware but exercises the IO/PARTIAL render path, not the
 device's MIPI_DSI/`esp_lv_adapter` TRIPLE_PARTIAL path. IDF-only traps

@@ -1,3 +1,4 @@
+import { nodeExecutable } from './helpers/node-executable.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, symlink, writeFile, rm } from 'node:fs/promises'
@@ -5,15 +6,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { carriedProject, loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
 
-const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: ['/work'] }
+const local = value => process.platform === 'win32' ? value.replaceAll('/', '\\') : value
+const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: [local('/work')] }
 const TASK_ID = '12345678-1234-1234-1234-123456789abc'
 
 async function fixture(t, source) {
   const dir = await mkdtemp(join(tmpdir(), 'task-client-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const executable = join(dir, 'helper')
   await writeFile(executable, '#!/usr/bin/env node\n' + source, { mode: 0o700 })
-  return { ...target, executable }
+  return { ...target, executable: await nodeExecutable(t, executable) }
 }
 
 test('strict SSH invocation quotes spaces and apostrophes without shell payloads', () => {
@@ -30,7 +32,7 @@ test('strict SSH invocation quotes spaces and apostrophes without shell payloads
 // root was a symlink, and the reported project is exactly what a spoken reference has to reuse.
 test('the coordinator carries a project verbatim instead of repeating the host root policy', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'task-verbatim-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const real = join(dir, 'real')
   const link = join(dir, 'link')
   await mkdir(join(real, 'sub'), { recursive: true })
@@ -49,13 +51,13 @@ test('the coordinator carries a project verbatim instead of repeating the host r
 
 test('target configuration rejects duplicate IDs, unexpected keys and invalid roots', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'task-targets-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const path = join(dir, 'targets.json')
   for (const config of [
     { targets: [target, target] }, { targets: [{ ...target, id: 'other' }] },
     { targets: [{ ...target, roots: ['relative'] }] }, { targets: [{ ...target, host: '' }] },
     { targets: [{ ...target, command: 'bad' }] }, { targets: [target], extra: true },
-    { targets: [{ ...target, roots: ['/opt/open-deskos/current'] }] },
+    { targets: [{ ...target, roots: ['/opt/odk/current'] }] },
   ]) {
     await writeFile(path, JSON.stringify(config))
     await assert.rejects(loadTargets(path), /Invalid|Duplicate/)
@@ -67,19 +69,27 @@ test('target configuration rejects duplicate IDs, unexpected keys and invalid ro
 
 test('Chinese requests retain Unicode and one generated task UUID', async t => {
   const configured = await fixture(t, 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:r}))})')
-  const response = await taskRequest(configured, { command: 'start', project: '/work/中文', prompt: '修改天气 Widget 并测试' })
+  const response = await taskRequest(configured, { command: 'start', project: local('/work/中文'), prompt: '修改天气 Widget 并测试' })
   assert.equal(response.task.prompt, '修改天气 Widget 并测试')
-  assert.equal(response.task.project, '/work/中文')
+  assert.equal(response.task.project, local('/work/中文'))
   assert.match(response.task.taskId, /^[0-9a-f-]{36}$/)
   assert.notEqual(response.task.taskId, response.requestId)
-  await assert.rejects(taskRequest(configured, { command: 'start', project: '/work/../else', prompt: 'no' }), /project/)
+  await assert.rejects(taskRequest(configured, { command: 'start', project: local('/work/../else'), prompt: 'no' }), /project/)
   // A sibling path is not the coordinator's call: it travels, and the host answers for it.
-  assert.equal((await taskRequest(configured, { command: 'start', project: '/working', prompt: 'no' })).task.project, '/working')
+  assert.equal((await taskRequest(configured, { command: 'start', project: local('/working'), prompt: 'no' })).task.project, local('/working'))
+})
+
+test('local control helpers retain their application environment', async t => {
+  const previous = process.env.ODK_FIXTURE_CLIENT_ONLY
+  process.env.ODK_FIXTURE_CLIENT_ONLY = 'local-helper-fixture'
+  t.after(() => { if (previous === undefined) delete process.env.ODK_FIXTURE_CLIENT_ONLY; else process.env.ODK_FIXTURE_CLIENT_ONLY = previous })
+  const configured = await fixture(t, 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:{clientOnly:process.env.ODK_FIXTURE_CLIENT_ONLY}}))})')
+  assert.equal((await taskRequest(configured, { command: 'list', project: local('/work') })).task.clientOnly, 'local-helper-fixture')
 })
 
 test('unknown mutation outcomes expose original target and task ID, never retry', async t => {
   const configured = await fixture(t, 'process.stdin.resume();setTimeout(()=>{},60000)')
-  await assert.rejects(taskRequest(configured, { command: 'start', project: '/work', prompt: '测试' }, undefined, 30), error => {
+  await assert.rejects(taskRequest(configured, { command: 'start', project: local('/work'), prompt: '测试' }, undefined, 30), error => {
     assert.match(error.message, /outcome unknown.*do not retry/i)
     assert.match(error.message, /mac/)
     assert.match(error.message, /[0-9a-f]{8}-[0-9a-f-]{27}/)
@@ -92,11 +102,11 @@ test('aborted mutations retain reconciliation information', async t => {
   const taskId = '12345678-1234-1234-1234-123456789abc'
   for (const command of ['start', 'cancel']) {
     const controller = new AbortController()
-    const response = taskRequest(configured, { command, project: '/work', prompt: '测试', taskId }, controller.signal)
+    const response = taskRequest(configured, { command, project: local('/work'), prompt: '测试', taskId }, controller.signal)
     controller.abort()
     await assert.rejects(response, error => {
       assert.match(error.message, /outcome unknown.*do not retry/i)
-      assert.match(error.message, /project=\/work/)
+      assert.ok(error.message.includes('project=' + local('/work')))
       if (command === 'cancel') assert.ok(error.message.includes(taskId))
       return true
     })
@@ -110,15 +120,15 @@ test('reject uncorrelated, oversized and failed responses', async t => {
     'process.exit(1)',
   ]) {
     const configured = await fixture(t, source)
-    await assert.rejects(taskRequest(configured, { command: 'list', project: '/work' }), /response|failed/)
-    await assert.rejects(taskRequest(configured, { command: 'start', project: '/work', prompt: '测试' }), /outcome unknown/)
+    await assert.rejects(taskRequest(configured, { command: 'list', project: local('/work') }), /response|failed/)
+    await assert.rejects(taskRequest(configured, { command: 'start', project: local('/work'), prompt: '测试' }), /outcome unknown/)
   }
 })
 
 test('known daemon rejections preserve safe reasons and hide unknown text', async t => {
   for (const reason of ['项目或主机任务已满', '未找到任务', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
     const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
-    await assert.rejects(taskRequest(configured, { command: 'list', project: '/work' }), error => {
+    await assert.rejects(taskRequest(configured, { command: 'list', project: local('/work') }), error => {
       assert.equal(error.message, reason === 'private provider diagnostic' ? 'Managed task request rejected' : reason)
       return true
     })
@@ -130,7 +140,7 @@ test('known daemon rejections preserve safe reasons and hide unknown text', asyn
 test('a refused prompt reports the reason rather than an unknown outcome', async t => {
   for (const reason of ['Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
     const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
-    await assert.rejects(taskRequest(configured, { command: 'prompt', project: '/work', taskId: '12345678-1234-1234-1234-123456789abc', prompt: '继续完成测试' }), error => {
+    await assert.rejects(taskRequest(configured, { command: 'prompt', project: local('/work'), taskId: '12345678-1234-1234-1234-123456789abc', prompt: '继续完成测试' }), error => {
       assert.doesNotMatch(error.message, /outcome unknown|do not retry/i)
       assert.equal(error.message, reason === 'private provider diagnostic' ? 'Managed task request rejected' : reason)
       return true
@@ -143,7 +153,7 @@ test('a refused prompt reports the reason rather than an unknown outcome', async
 // this host's rules is what a Windows Shell Host did: it rewrote every separator and
 // prefixed a root, so every project it was asked to carry came back as invalid.
 test('a remote target carries a project its own host would resolve', () => {
-  for (const project of ['/Users/fradser/Developer/open-deskos', '/work/中文', '/srv/deep/path']) {
+  for (const project of ['/Users/fradser/Developer/odk', '/work/中文', '/srv/deep/path']) {
     assert.equal(carriedProject(project, true), true, `a remote project must travel: ${project}`)
   }
   // What the target host could not resolve is refused before the wire: a relative
@@ -154,8 +164,8 @@ test('a remote target carries a project its own host would resolve', () => {
 })
 
 test('a local target keeps judging a project with this host path rules', () => {
-  assert.equal(carriedProject('/work/中文'), true)
-  assert.equal(carriedProject('/work/../else'), false)
+  assert.equal(carriedProject(local('/work/中文')), true)
+  assert.equal(carriedProject(local('/work/../else')), false)
   assert.equal(carriedProject('work/project'), false)
 })
 
@@ -170,7 +180,7 @@ const request = require('node:fs').readFileSync(0, 'utf8')
 process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, tasks: [{ id: 'a' }], truncated: false }) + '\\n')
 setInterval(() => {}, 1000)
 `)
-  const response = await taskRequest(helper, { command: 'list', project: '/work' }, undefined, 5000)
+  const response = await taskRequest(helper, { command: 'list', project: local('/work') }, undefined, 5000)
   assert.equal(response.ok, true)
   assert.deepEqual(response.tasks, [{ id: 'a' }])
 })
@@ -181,13 +191,13 @@ const request = require('node:fs').readFileSync(0, 'utf8')
 process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, tasks: [], truncated: false }) + '\\n')
 process.exit(3)
 `)
-  const response = await taskRequest(helper, { command: 'list', project: '/work' }, undefined, 5000)
+  const response = await taskRequest(helper, { command: 'list', project: local('/work') }, undefined, 5000)
   assert.equal(response.ok, true, 'a completed request is the reply, not the exit status')
 })
 
 test('a helper that answers nothing is still a timeout with the same reason', async t => {
   const helper = await fixture(t, 'setInterval(() => {}, 1000)\n')
-  await assert.rejects(taskRequest(helper, { command: 'list', project: '/work' }, undefined, 500), /timeout/)
+  await assert.rejects(taskRequest(helper, { command: 'list', project: local('/work') }, undefined, 500), /timeout/)
 })
 
 test('the request arrives whole, including a non-ASCII project', async t => {
@@ -195,17 +205,17 @@ test('the request arrives whole, including a non-ASCII project', async t => {
 const request = require('node:fs').readFileSync(0, 'utf8')
 process.stdout.write(JSON.stringify({ version: 1, requestId: JSON.parse(request).requestId, ok: true, received: request, tasks: [], truncated: false }) + '\\n')
 `)
-  const response = await taskRequest(helper, { command: 'list', project: '/work/中文' }, undefined, 5000)
+  const response = await taskRequest(helper, { command: 'list', project: local('/work/中文') }, undefined, 5000)
   assert.equal(response.ok, true)
-  assert.equal(response.received.includes('/work/中文'), true, 'the request must arrive whole')
+  assert.equal(JSON.parse(response.received).project, local('/work/中文'), 'the request must arrive whole')
   assert.equal(response.received.trimEnd().split('\n').length, 1, 'and as the one bounded frame it is')
 })
 
 test('remote target configuration rejects POSIX production roots on every desk host', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'task-remote-roots-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
   const path = join(dir, 'targets.json')
-  for (const root of ['/opt/open-deskos', '/opt/open-deskos/current', '/opt/open-deskos/../open-deskos/current', '//opt/open-deskos/current']) {
+  for (const root of ['/opt/odk', '/opt/odk/current', '/opt/odk/../odk/current', '//opt/odk/current']) {
     await writeFile(path, JSON.stringify({ targets: [{ ...target, host: 'user@mac.local', roots: [root] }] }))
     await assert.rejects(loadTargets(path), /Invalid task target configuration/)
   }

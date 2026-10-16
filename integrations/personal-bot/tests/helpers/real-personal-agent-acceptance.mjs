@@ -8,7 +8,7 @@ import { createConnection } from 'node:net'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { acceptanceEndpoint, acceptanceTools, assertResidentIdentity, cleanupAcceptance, observePersonalTurn } from './real-acceptance-support.mjs'
 
-if (process.env.ODESK_REAL_PERSONAL_ACCEPTANCE !== '1') throw Error('Explicit ODESK_REAL_PERSONAL_ACCEPTANCE=1 required')
+if (process.env.ODK_REAL_PERSONAL_ACCEPTANCE !== '1') throw Error('Explicit ODK_REAL_PERSONAL_ACCEPTANCE=1 required')
 let input = ''
 process.stdin.setEncoding('utf8')
 for await (const chunk of process.stdin) {
@@ -21,7 +21,7 @@ if (!request || typeof request.prompt !== 'string' || !request.prompt.trim() || 
   || typeof request.taskId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.taskId)
   || request.taskId === '01a0f0ba-8e8b-750f-aaae-c29d6fd8e743') throw Error('Exact disposable native fixture required')
 
-let integrationDir = process.env.ODESK_ACCEPTANCE_INTEGRATION_DIR
+let integrationDir = process.env.ODK_ACCEPTANCE_INTEGRATION_DIR
 if (process.platform === 'linux') {
   if (!Number.isSafeInteger(request.residentPid) || request.residentPid < 1) throw Error('Current resident process ID required')
   assertResidentIdentity((await stat(`/proc/${request.residentPid}`)).uid, process.getuid())
@@ -39,9 +39,12 @@ const { createPersonalBot } = await import(pathToFileURL(join(integrationDir, 's
 const { loadPersonalConfig } = await import(pathToFileURL(join(integrationDir, 'src', 'personal-config.mjs')).href)
 const { PersonalBotService } = await import(pathToFileURL(join(integrationDir, 'src', 'service.mjs')).href)
 const { listen, channelHandshake } = await import(pathToFileURL(join(integrationDir, 'src', 'socket.mjs')).href)
-const { createAgentSession } = await import(pathToFileURL(join(integrationDir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'index.js')).href)
+const { createDurableAgentSession } = await import(pathToFileURL(join(integrationDir, 'src', 'durable-agent-session.mjs')).href)
+const { BACKGROUND_CONTEXT } = await import(pathToFileURL(join(integrationDir, 'node_modules', '@earendil-works', 'chord', 'dist', 'context', 'index.js')).href)
+const runtimeVersion = JSON.parse(await readFile(join(integrationDir, 'node_modules', '@earendil-works', 'pi-durable', 'package.json'), 'utf8')).version
+if (runtimeVersion !== '1.2.0') throw Error('Expected Pi Durable 1.2.0 runtime required')
 const configured = await loadPersonalConfig(process.env)
-const expectedProfile = process.env.ODESK_ACCEPTANCE_EXPECTED_PROFILE || 'personal'
+const expectedProfile = process.env.ODK_ACCEPTANCE_EXPECTED_PROFILE || 'personal'
 if (!['coding', 'personal'].includes(expectedProfile) || configured.profile !== expectedProfile) throw Error('Expected resident Personal Agent profile required')
 const dir = await mkdtemp(join(tmpdir(), 'odk-real-pa-'))
 const startedAt = new Date().toISOString()
@@ -60,14 +63,14 @@ async function saveReceipt(receipt) {
   return evidenceFile
 }
 try {
-  agent = await createPersonalBot({ workspace: process.env.ODESK_WORKSPACE, stateDir: dir,
-    model: process.env.ODESK_PERSONAL_BOT_MODEL,
+  agent = await createPersonalBot({ workspace: process.env.ODK_WORKSPACE, stateDir: dir,
+    model: process.env.ODK_PERSONAL_BOT_MODEL,
     personal: { ...configured, memoryFile: join(dir, 'memory.json') }, env: process.env }, {
     createSession: async options => {
       const tools = acceptanceTools(options.customTools || [], request, trace)
       options.customTools = tools.tools
-      failureStage = 'sdk-session'
-      const result = await createAgentSession(options)
+      failureStage = 'durable-session'
+      const result = await createDurableAgentSession(options)
       failureStage = 'factory'
       if (!session) { session = result.session; guardedTools = tools }
       return result
@@ -86,9 +89,11 @@ try {
   failureStage = 'channel-observe'
   client = createConnection(endpoint)
   const outcome = await observePersonalTurn(client, { handshake: channelHandshake(token), states })
-  const routeEvidence = session.messages.filter(message => message.role === 'user').map(message => message.content)
+  const view = await session.runtime.conversation.viewState(BACKGROUND_CONTEXT)
+  const routeEvidence = view.value.entries.flatMap(entry => entry.model ?? []).filter(message => message.role === 'user').map(message => message.content)
+  view.dispose()
   const receipt = { event: 'personal_agent_acceptance', startedAt, completedAt: new Date().toISOString(), installedIntegration: integrationDir, model: agent.generationModel,
-    profile: configured.profile, injectedTranscript: true, microphone: false, states, transcript: outcome.transcript, finalState: outcome.state,
+    profile: configured.profile, runtime: 'pi-durable', runtimeVersion, injectedTranscript: true, microphone: false, states, transcript: outcome.transcript, finalState: outcome.state,
     response: outcome.message, offeredPrompt: guardedTools?.getOffer(), codingTrace: trace, routeEvidence, expectedTaskId: request.taskId, expectedProject: request.project }
   finalReceipt = receipt
   evidenceFile = await saveReceipt(receipt)

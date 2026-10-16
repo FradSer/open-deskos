@@ -57,14 +57,29 @@ if (Test-Path -LiteralPath $pathFile) {
   $electron = Join-Path $PSScriptRoot "node_modules\electron\dist\$binary"
 }
 if (-not $electron -or -not (Test-Path -LiteralPath $electron)) {
+  $installScript = Join-Path $PSScriptRoot 'node_modules\electron\install.js'
+  if (Test-Path -LiteralPath $installScript) {
+    # Electron 42 and later download the binary on demand, without a postinstall hook.
+    $install = Start-Process -FilePath 'node' -ArgumentList ('"' + $installScript + '"') -NoNewWindow -Wait -PassThru
+    if ($install.ExitCode -ne 0) {
+      Write-Output "Electron binary installation failed with exit code $($install.ExitCode)"
+      exit $install.ExitCode
+    }
+    if (Test-Path -LiteralPath $pathFile) {
+      $binary = (Get-Content -LiteralPath $pathFile -Raw).Trim()
+      $electron = Join-Path $PSScriptRoot "node_modules\electron\dist\$binary"
+    }
+  }
+}
+if (-not $electron -or -not (Test-Path -LiteralPath $electron)) {
   $electron = (& node -e "process.stdout.write(String(require('electron')))")
 }
 if (-not $electron -or -not (Test-Path -LiteralPath $electron)) {
-  Write-Error 'the Electron binary is missing; run: pnpm install'
+  Write-Error 'the Electron binary is missing; run: node node_modules/electron/install.js'
   exit 1
 }
 
-if ($Kiosk) { $env:ODESK_SHELL_KIOSK = '1' }
+if ($Kiosk) { $env:ODK_SHELL_KIOSK = '1' }
 # A kiosk panel is always on; the platform's own idle blanking is not the desk's.
 if ($Kiosk -and $ShellArgs -notcontains '--kiosk') { $ShellArgs = @('--kiosk') + $ShellArgs }
 

@@ -1,6 +1,8 @@
 'use strict'
 
 const { listenChannel } = require('./local-channel')
+const { randomBytes } = require('node:crypto')
+const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 
 const PROTO_VERSION = 1
 const MAX_FRAME_BYTES = 64 * 1024
@@ -15,6 +17,43 @@ function createServicePluginSocket({ socketPath, endpoint, channelToken = '', st
   const channelEndpoint = endpoint ?? socketPath
   if (!channelEndpoint) throw Error('endpoint-required')
   let channel = null
+  let stopping = null
+  const connections = new Map()
+  const pending = new Map()
+
+  function settle(requestId, error, report) {
+    const request = pending.get(requestId)
+    if (!request) return
+    pending.delete(requestId)
+    clearTimeout(request.timer)
+    request.signal?.removeEventListener('abort', request.abort)
+    if (error) request.reject(Error(error))
+    else request.resolve(report)
+  }
+
+  function retire(socket, reason) {
+    connections.delete(socket)
+    for (const [id, request] of pending) if (request.socket === socket) settle(id, reason)
+  }
+
+  function diagnoseRuntime(service, { timeoutMs = 500, signal } = {}) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2000) return Promise.reject(Error('invalid-timeout'))
+    if (signal?.aborted) return Promise.reject(Error('cancelled'))
+    const candidates = [...connections].filter(([socket, state]) => !socket.destroyed && state.peer?.service === service && state.runtimeDiagnosis)
+    if (candidates.length !== 1) return Promise.reject(Error(candidates.length ? 'ambiguous-peer' : 'capability-unavailable'))
+    if (pending.size >= 16) return Promise.reject(Error('requests-full'))
+    const [socket] = candidates[0]
+    if (socket.writableLength > MAX_FRAME_BYTES) return Promise.reject(Error('channel-busy'))
+    const requestId = randomBytes(16).toString('hex')
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => settle(requestId, 'timeout'), timeoutMs)
+      const abort = () => settle(requestId, 'cancelled')
+      pending.set(requestId, { socket, resolve, reject, timer, signal, abort })
+      signal?.addEventListener('abort', abort, { once: true })
+      try { socket.write(frame({ v: 1, type: 'runtime_diagnosis', service, requestId })) }
+      catch { settle(requestId, 'disconnected') }
+    })
+  }
 
   function send(socket, record) {
     try { socket.write(frame(record)) } catch {}
@@ -32,13 +71,33 @@ function createServicePluginSocket({ socketPath, endpoint, channelToken = '', st
         socket.end()
         return
       }
+      retire(socket, 'peer-changed')
       state.peer = { service: record.service, revision: record.revision }
+      state.runtimeDiagnosis = Array.isArray(record.capabilities) && record.capabilities.includes('runtime_diagnosis')
+      connections.set(socket, state)
+      send(socket, { v: 1, type: 'ack', ok: true, ...(state.runtimeDiagnosis ? { capabilities: ['runtime_diagnosis'] } : {}) })
       onStatus({ service: record.service, state: 'connected' })
-      send(socket, { v: 1, type: 'ack', ok: true })
       return
     }
     if (!state.peer || record.service !== state.peer.service) {
       send(socket, { v: 1, type: 'ack', ok: false, error: 'not-identified' })
+      return
+    }
+    if (record.type === 'runtime_diagnosis_result') {
+      const request = pending.get(record.requestId)
+      if (!state.runtimeDiagnosis || !request || request.socket !== socket) return
+      try {
+        const report = record.report
+        if (report?.host !== 'python-agent' || report.instance !== 'futu-poller') throw Error('invalid report')
+        let result
+        if (report.state === 'available') result = { host: report.host, instance: report.instance,
+          state: 'available', plugins: sanitizeRuntimePlugins(report, 'python-agent') }
+        else {
+          if (report.state !== 'unavailable' || typeof report.reason !== 'string' || !/^[a-z][a-z0-9-]{0,79}$/.test(report.reason)) throw Error('invalid report')
+          result = { host: report.host, instance: report.instance, state: 'unavailable', reason: report.reason, plugins: [] }
+        }
+        settle(record.requestId, null, result)
+      } catch { settle(record.requestId, 'invalid-report') }
       return
     }
     if (record.type === 'data') {
@@ -86,12 +145,14 @@ function createServicePluginSocket({ socketPath, endpoint, channelToken = '', st
       }
     })
     socket.on('close', () => {
+      retire(socket, 'disconnected')
       if (state.peer) onStatus({ service: state.peer.service, state: 'disconnected' })
     })
     socket.on('error', () => {})
   }
 
   return {
+    diagnoseRuntime,
     async start() {
       // The transport and its authentication belong to the channel: a Unix socket
       // is authenticated by the private directory it sits in, a named pipe and a
@@ -109,10 +170,19 @@ function createServicePluginSocket({ socketPath, endpoint, channelToken = '', st
       return channel
     },
     async stop() {
+      for (const id of pending.keys()) settle(id, 'stopped')
+      connections.clear()
+      if (stopping) return stopping
       if (!channel) return
       const closing = channel
-      channel = null
-      await closing.close()
+      const operation = Promise.resolve().then(() => closing.close())
+      stopping = operation
+      try {
+        await operation
+        if (channel === closing) channel = null
+      } finally {
+        if (stopping === operation) stopping = null
+      }
     },
   }
 }

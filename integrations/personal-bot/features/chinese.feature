@@ -5,23 +5,23 @@ Feature: Simplified Chinese and mixed-language voice transcription
     Then the multipart language is "zh"
 
   Scenario: Operators select an upstream language code
-    Given ODESK_PERSONAL_BOT_STT_LANGUAGE is a two or three lowercase letter language code
+    Given ODK_PERSONAL_BOT_STT_LANGUAGE is a two or three lowercase letter language code
     When captured audio is sent for transcription
     Then the explicit language is included unchanged
 
   Scenario: Automatic language detection is explicit for local whisper.cpp
-    Given ODESK_PERSONAL_BOT_STT_LANGUAGE is "auto"
+    Given ODK_PERSONAL_BOT_STT_LANGUAGE is "auto"
     When captured audio is sent to a loopback HTTP or HTTPS URL with pathname /inference
     Then the multipart language is "auto"
     And multipart translate is "false" to preserve the spoken language
 
   Scenario: Standard OpenAI-compatible endpoints do not receive whisper.cpp options
-    Given ODESK_PERSONAL_BOT_STT_LANGUAGE is "auto"
+    Given ODK_PERSONAL_BOT_STT_LANGUAGE is "auto"
     When captured audio is sent to a non-loopback endpoint or a different pathname
     Then the multipart language and translate fields are omitted
 
   Scenario: Invalid language configuration is rejected safely
-    Given an invalid ODESK_PERSONAL_BOT_STT_LANGUAGE value including "zh-CN"
+    Given an invalid ODK_PERSONAL_BOT_STT_LANGUAGE value including "zh-CN"
     When transcription configuration is validated
     Then transcription is rejected before file access or network requests
     And the error does not include the configured value
@@ -40,19 +40,19 @@ Feature: Simplified Chinese and mixed-language voice transcription
     Then the original English is preserved
 
   Scenario: A short mixed-language transcription context supplies product vocabulary
-    Given no ODESK_PERSONAL_BOT_STT_PROMPT override
+    Given no ODK_PERSONAL_BOT_STT_PROMPT override
     When captured audio is sent for transcription
     Then the multipart prompt is a short Simplified Chinese and English transcription example
     And it includes Open DeskOS, CM5, ESP32-P4, Pi, Agent, MIC, Back, Markdown, GitHub and TypeScript
 
   Scenario: Operators can replace or disable transcription context
-    Given ODESK_PERSONAL_BOT_STT_PROMPT is configured with at most 1024 characters
+    Given ODK_PERSONAL_BOT_STT_PROMPT is configured with at most 1024 characters
     When startup configures transcription and audio is submitted
     Then the exact configured prompt is used
     And an explicitly empty prompt omits the multipart prompt field
 
   Scenario: Oversized transcription context is rejected safely
-    Given ODESK_PERSONAL_BOT_STT_PROMPT exceeds 1024 characters
+    Given ODK_PERSONAL_BOT_STT_PROMPT exceeds 1024 characters
     When startup or transcription validates configuration
     Then a safe configuration error rejects the prompt before transcription I/O
     And the error does not include the configured value

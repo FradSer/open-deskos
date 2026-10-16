@@ -25,9 +25,9 @@ export const MAX_HANDSHAKE_BYTES = 512
 export function channelTokenFile(env = process.env, platform = process.platform) {
   if (platform === 'win32') {
     const local = env.LOCALAPPDATA || win32.join(homedir(), 'AppData', 'Local')
-    return win32.join(local, 'open-deskos', TOKEN_FILENAME)
+    return win32.join(local, 'odk', TOKEN_FILENAME)
   }
-  return join(env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'open-deskos', TOKEN_FILENAME)
+  return join(env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'odk', TOKEN_FILENAME)
 }
 
 async function read(file, fsModule) {
@@ -42,9 +42,8 @@ async function read(file, fsModule) {
 /**
  * Read the host's channel token, creating it on first use.
  *
- * Two services can start on a cold host at the same instant, so the exclusive
- * create is what decides the race: the file wins, and the loser adopts the
- * winner's token rather than leaving the host holding two.
+ * Services publish complete candidate files without replacing a winner.
+ * A competing service reads the published token.
  *
  * @param {{ file?: string, fsModule?: typeof fs }} options
  */
@@ -57,17 +56,21 @@ export async function readOrCreateChannelToken({ file, fsModule = fs } = {}) {
 
   const token = randomBytes(TOKEN_BYTES).toString('base64url')
   await fsModule.mkdir(dirname(file), { recursive: true, mode: 0o700 })
+  const candidateDir = await fsModule.mkdtemp(join(dirname(file), '.local-channel-token-'))
+  const candidate = join(candidateDir, TOKEN_FILENAME)
   try {
-    await fsModule.writeFile(file, `${token}\n`, { mode: 0o600, flag: 'wx' })
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error
-    const raced = await read(file, fsModule)
-    if (raced) return raced
-    await fsModule.writeFile(file, `${token}\n`, { mode: 0o600 })
+    await fsModule.writeFile(candidate, `${token}\n`, { mode: 0o600, flag: 'wx' })
+    try { await fsModule.link(candidate, file) } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+      const raced = await read(file, fsModule)
+      if (!raced) throw Error('runtime channel token file is empty')
+      return raced
+    }
+    await fsModule.chmod(file, 0o600).catch(() => {})
+    return token
+  } finally {
+    await fsModule.rm(candidateDir, { recursive: true, force: true })
   }
-  // A host without mode bits has nothing to set, and nothing to leak by failing.
-  await fsModule.chmod(file, 0o600).catch(() => {})
-  return token
 }
 
 /**

@@ -1,5 +1,6 @@
 const net = require('node:net')
 const path = require('node:path')
+const { createRuntimeChannelProbe } = require('./runtime-channel-probe')
 
 const REMOTE_LINK_STATES = new Set(['disconnected', 'usb', 'wireless', 'syncing'])
 const REMOTE_NAVIGATION_DIRECTIONS = new Set(['previous', 'next'])
@@ -7,15 +8,15 @@ const REMOTE_INPUTS = new Set(['left', 'right', 'up', 'down', 'primary', 'second
 const DEFAULT_RECONNECT_DELAY_MS = 1000
 
 function resolveRemoteBridgeSocketPath(env = process.env) {
-  if (env.ODESK_SHELL_TEST_MODE === '1' && env.ODESK_REMOTE_BRIDGE_SOCKET) {
-    if (!path.isAbsolute(env.ODESK_REMOTE_BRIDGE_SOCKET)) {
-      throw new Error('ODESK_REMOTE_BRIDGE_SOCKET must be an absolute Unix socket path')
+  if (env.ODK_SHELL_TEST_MODE === '1' && env.ODK_REMOTE_BRIDGE_SOCKET) {
+    if (!path.isAbsolute(env.ODK_REMOTE_BRIDGE_SOCKET)) {
+      throw new Error('ODK_REMOTE_BRIDGE_SOCKET must be an absolute Unix socket path')
     }
-    return env.ODESK_REMOTE_BRIDGE_SOCKET
+    return env.ODK_REMOTE_BRIDGE_SOCKET
   }
   const runtimeDir = env.XDG_RUNTIME_DIR
   if (!runtimeDir || !path.isAbsolute(runtimeDir)) return null
-  return path.join(runtimeDir, 'open-deskos-remote', 'bridge.sock')
+  return path.join(runtimeDir, 'odk-remote', 'bridge.sock')
 }
 
 function normalizePageState(state) {
@@ -73,6 +74,7 @@ function createRemoteBridgeClient({
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   onRemoteMic,
+  diagnosisTimeoutMs = 500,
 } = {}) {
   let socket = null
   let reconnectTimer = null
@@ -83,6 +85,7 @@ function createRemoteBridgeClient({
   const linkSubscribers = new Set()
   const navigationSubscribers = new Set()
   const inputSubscribers = new Set()
+  const diagnosis = createRuntimeChannelProbe({ endpoint: socketPath, host: 'remote-bridge', instance: 'bridge', connect: createConnection, timeoutMs: diagnosisTimeoutMs })
 
   function notifyLinkState(next) {
     if (!REMOTE_LINK_STATES.has(next) || currentLinkState === next) return
@@ -156,6 +159,7 @@ function createRemoteBridgeClient({
     },
     stop() {
       running = false
+      diagnosis.stop()
       if (reconnectTimer) clearTimeoutFn(reconnectTimer)
       reconnectTimer = null
       const activeSocket = socket
@@ -166,6 +170,9 @@ function createRemoteBridgeClient({
     publishPageState(state) {
       lastPageState = normalizePageState(state)
       return writeState()
+    },
+    diagnose(options) {
+      return running ? diagnosis.request(options) : Promise.resolve([{ host: 'remote-bridge', instance: 'bridge', state: 'unavailable', reason: 'disconnected', plugins: [] }])
     },
     getLinkState() {
       return currentLinkState

@@ -43,6 +43,7 @@ const WIDE_EVENTS = [
 ]
 
 function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false } = {}) {
+  ipcMain.handle('odk-renderer-development-plugins', () => [])
   const live = state === 'live'
   ipcMain.handle('odk-opencode-go-status', () => ({ state: 'unconfigured' }))
   ipcMain.handle('odk-remote-publish-page-state', () => true)

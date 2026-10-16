@@ -29,8 +29,8 @@ $ErrorActionPreference = 'Stop'
 # counted so an operator still learns that logging is impaired.
 $script:logFailures = 0
 
-$fallbackLogDir = if ($env:TEMP) { Join-Path $env:TEMP 'open-deskos' } else { $PSScriptRoot }
-$logDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'open-deskos' } else { $fallbackLogDir }
+$fallbackLogDir = if ($env:TEMP) { Join-Path $env:TEMP 'odk' } else { $PSScriptRoot }
+$logDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'odk' } else { $fallbackLogDir }
 try {
   New-Item -ItemType Directory -Force -Path $logDir -ErrorAction Stop | Out-Null
 } catch {

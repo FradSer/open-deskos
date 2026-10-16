@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
-import { execFile, spawn } from 'node:child_process'
+import { execFile, spawn, spawnSync } from 'node:child_process'
 import { chmod, lstat, mkdir, mkdtemp, open, readFile, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -17,8 +17,13 @@ before(async () => {
   testRoot = await realpath(await mkdtemp(join(tmpdir(), 'coding-check-tests-')))
   await mkdir(join(testRoot, 'home'))
   originalEnv = { ...process.env }
+  const windowsTools = process.platform === 'win32' ? ['git.exe', 'bash.exe'].map(name => {
+    const result = spawnSync('where.exe', [name], { encoding: 'utf8', windowsHide: true })
+    assert.equal(result.status, 0, `${name} is required for real coding checks`)
+    return dirname(result.stdout.trim().split(/\r?\n/)[0])
+  }) : []
   isolatedEnv = {
-    PATH: `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${process.platform === 'win32' ? (process.env.SystemRoot ?? 'C:\\Windows') + '\\System32' : '/usr/bin:/bin'}`,
+    PATH: `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${process.platform === 'win32' ? [...windowsTools, (process.env.SystemRoot ?? 'C:\\Windows') + '\\System32'].join(';') : '/usr/bin:/bin'}`,
     HOME: join(testRoot, 'home'), USERPROFILE: join(testRoot, 'home'),
     XDG_CONFIG_HOME: join(testRoot, 'home'), TMPDIR: testRoot, TEMP: testRoot, TMP: testRoot,
     LANG: 'C', LC_ALL: 'C',
@@ -226,16 +231,18 @@ test('missing tracked parent directories retain explicit deleted file records', 
 })
 
 test('sorted path identity handles whitespace, renames and deletion/recreation ordering', async t => {
+  const bName = process.platform === 'win32' ? 'b source.txt' : 'b\nsource.txt'
+  const aName = process.platform === 'win32' ? 'a  source.txt' : 'a\t source.txt'
   const f = await fixture(t, {})
-  await writeFile(join(f.repo, 'b\nsource.txt'), 'b source')
-  await writeFile(join(f.repo, 'a\t source.txt'), 'a source')
+  await writeFile(join(f.repo, bName), 'b source')
+  await writeFile(join(f.repo, aName), 'a source')
   const first = evidence(await check(f.repo)).before.digest
-  await unlink(join(f.repo, 'b\nsource.txt'))
-  await unlink(join(f.repo, 'a\t source.txt'))
-  await writeFile(join(f.repo, 'a\t source.txt'), 'a source')
-  await writeFile(join(f.repo, 'b\nsource.txt'), 'b source')
+  await unlink(join(f.repo, bName))
+  await unlink(join(f.repo, aName))
+  await writeFile(join(f.repo, aName), 'a source')
+  await writeFile(join(f.repo, bName), 'b source')
   assert.equal(evidence(await check(f.repo)).before.digest, first)
-  await unlink(join(f.repo, 'b\nsource.txt'))
+  await unlink(join(f.repo, bName))
   await writeFile(join(f.repo, 'renamed.txt'), 'b source')
   assert.notEqual(evidence(await check(f.repo)).before.digest, first)
 })
@@ -488,7 +495,7 @@ test('command/cwd/call identity is exact when small and explicitly truncated wit
   assert.equal(value.cwd, f.repo)
   assert.equal(value.commandTruncated, false)
   assert.equal(value.cwdTruncated, false)
-  const largeCommand = command('console.log("bounded identity")') + '\n#' + '\\'.repeat(20000)
+  const largeCommand = command('console.log("bounded identity")') + '\n#' + '\\'.repeat(process.platform === 'win32' ? 9000 : 20000)
   const bounded = evidence(await definition.execute('call-' + 'x'.repeat(2000), { command: largeCommand }, undefined, undefined, undefined))
   assert.equal(bounded.commandTruncated, true)
   assert.equal(bounded.commandBytes, Buffer.byteLength(largeCommand))

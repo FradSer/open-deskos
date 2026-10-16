@@ -30,7 +30,7 @@ function mountWith(reading, height = 400) {
       return nodes.get(selector)
     },
   }
-  const root = { odkPlatform: { getFutuHoldings: async () => reading } }
+  const root = { odkPluginHost: require('../src/plugin-host'), odkPlatform: { getFutuHoldings: async () => reading } }
   const sandbox = { window: root, globalThis: root }
   vm.runInContext(registrySource, vm.createContext(sandbox))
   vm.runInContext(tileSource, vm.createContext(sandbox))
@@ -100,4 +100,17 @@ test('non-live states render short honest labels without numbers', async () => {
     assert.equal(nodes.get('#futu-value').textContent, '--')
     assert.equal(nodes.get('#futu-detail').textContent, label)
   }
+})
+
+test('malformed positions are not presented as an empty portfolio', async () => {
+  const { nodes } = await mountWith({ state: 'live', snapshot: { totals: { plRatio: 0 }, positions: {} } })
+  assert.equal(nodes.get('#futu-value').textContent, '--')
+  assert.equal(nodes.get('#futu-detail').textContent, 'Malformed holdings')
+})
+
+test('expanded holdings labels the poller daily ratio as a daily return', () => {
+  assert.match(tileSource, /<h2>Daily return<\/h2>/)
+  assert.doesNotMatch(tileSource, /<h2>Total return<\/h2>/)
+  const reading = fs.readFileSync('src/plugins/readings/futu.js', 'utf8')
+  assert.match(reading, /todayChangePercent:.*plRatio/)
 })

@@ -5,7 +5,7 @@ struct DaemonInstallConfigurationTests {
     static func main() throws {
         let fileManager = FileManager.default
         let temporaryDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("open-deskos-daemon-configuration-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("odk-daemon-configuration-\(UUID().uuidString)", isDirectory: true)
         defer { try? fileManager.removeItem(at: temporaryDirectory) }
 
         let binaryDirectory = temporaryDirectory.appendingPathComponent("bin", isDirectory: true)

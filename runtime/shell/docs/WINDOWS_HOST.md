@@ -16,10 +16,12 @@ pwsh -File run.ps1
 pwsh -File run.ps1 -Kiosk
 ```
 
+Electron downloads its binary on first launch. `run.ps1` performs this download when the binary is missing.
+
 `run.ps1` reads `.env.local`. Its format is one `KEY=VALUE` per line with `#` comments. Keep the file out of Git and release artifacts. The default content size is 1920×1280. To set another development size:
 
 ```powershell
-$env:ODESK_SHELL_WIDTH = '1280'; $env:ODESK_SHELL_HEIGHT = '800'; pwsh -File run.ps1
+$env:ODK_SHELL_WIDTH = '1280'; $env:ODK_SHELL_HEIGHT = '800'; pwsh -File run.ps1
 ```
 
 ## Native process reader
@@ -49,11 +51,11 @@ pnpm run build:native
 | Surface | Windows contract |
 | --- | --- |
 | Remote Control / Remote Bridge | Not ported. The Unix link and service are absent. Report unavailable/disconnected. |
-| Voice Agent / Personal Bot | Ported. Use ffmpeg DirectShow and the token-authenticated `\\.\pipe\open-deskos-personal-bot` channel. A stopped service reports unavailable. |
-| Desk Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\open-deskos-desk-link`. |
-| Desk Data | Ported on both sides. Shell and bot use `\\.\pipe\open-deskos-desk-data` with the host channel token. |
-| External package control | Ported on both sides. Use `\\.\pipe\open-deskos-user-app-control` with the host channel token. Install/update/rollback/remove remain available. |
-| P4 camera tile | Unavailable. Windows has neither `v4l2-ctl` nor `/dev/open-deskos-p4-camera`. |
+| Voice Agent / Personal Bot | Ported. Use ffmpeg DirectShow and the token-authenticated `\\.\pipe\odk-personal-bot` channel. A stopped service reports unavailable. |
+| Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
+| Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |
+| External package control | Ported on both sides. Use `\\.\pipe\odk-user-app-control` with the host channel token. Install/update/rollback/remove remain available. |
+| P4 camera tile | Unavailable. Windows has neither `v4l2-ctl` nor `/dev/odk-p4-camera`. |
 | Futu Service Plugin | Ported. Use the declared socket, pipe or TCP endpoint. A remote plugin requires the host channel token. |
 | CM5 GPU/HDMI/touch gates | Not applicable to this host. Windows needs its own device evidence. |
 
@@ -63,39 +65,39 @@ pnpm run build:native
 
 Unix sockets use ownership: private directory mode `0700`, socket mode `0600`, UID checks and refusal to delete a foreign or live socket. Keep that contract unchanged.
 
-A Windows named pipe cannot use these ownership checks. The channel uses a 32-byte random token in `%LOCALAPPDATA%\open-deskos\local-channel.token`. The first connection line is `{"v":1,"token":"…"}\n`. The listener checks it in constant time and removes it before the channel protocol reads data. A missing or wrong token closes the connection. The token file is restricted to the user profile. Administrators can still read it, as they can read the process.
+A Windows named pipe cannot use these ownership checks. The channel uses a 32-byte random token in `%LOCALAPPDATA%\odk\local-channel.token`. The first connection line is `{"v":1,"token":"…"}\n`. The listener checks it in constant time and removes it before the channel protocol reads data. A missing or wrong token closes the connection. The token file is restricted to the user profile. Administrators can still read it, as they can read the process.
 
 Unix clients that predate the token remain valid where ownership authenticates them. A presented but invalid token is always refused. See [ADR-0025](ARCHITECTURE.md#adr-0025).
 
-## Desk Link service
+## Open DeskOS Link service
 
 Set these values in `runtime\shell\.env.local`. `run.ps1` loads the file; other launchers must load it explicitly.
 
 | Setting | Purpose |
 | --- | --- |
-| `ODK_DESK_LINK_TOKEN_FILE` | Absolute path to a nonempty reporting token file |
-| `ODK_DESK_LINK_CONTROL_CREDENTIAL_FILE` | Separate control credential file. Leave unset for report-only operation. |
-| `ODK_DESK_LINK_PORT` | TCP port, default 8765 |
+| `ODK_LINK_TOKEN_FILE` | Absolute path to a nonempty reporting token file |
+| `ODK_LINK_CONTROL_CREDENTIAL_FILE` | Separate control credential file. Leave unset for report-only operation. |
+| `ODK_LINK_PORT` | TCP port, default 8765 |
 
-The service runs as interactive task `OdkDeskLink` with a restart loop. Its wrapper loads `.env.local` and runs `scripts/desk-link-service.js`. Use the provisioning script:
+The service runs as interactive task `OdkLink` with a restart loop. Its wrapper loads `.env.local` and runs `scripts/odk-link-service.js`. Use the provisioning script:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.ps1 -Report
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-desk-link.ps1 -Start
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-odk-link.ps1 -Report
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-odk-link.ps1 -Start
 ```
 
-Register tasks from SSH or the login session. A scheduled task cannot register another task. Logs are in `%LOCALAPPDATA%\open-deskos\desk-link.log`. The wrapper separates native diagnostic output from crashes so an informational stderr line does not stop its restart loop.
+Register tasks from SSH or the login session. A scheduled task cannot register another task. Logs are in `%LOCALAPPDATA%\odk\odk-link.log`. The wrapper separates native diagnostic output from crashes so an informational stderr line does not stop its restart loop.
 
 Allow the listener port once from an elevated session:
 
 ```powershell
-New-NetFirewallRule -DisplayName 'Open DeskOS Desk Link' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -Profile Any
+New-NetFirewallRule -DisplayName 'Open DeskOS Link' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -Profile Any
 ```
 
 Read a snapshot from the running service:
 
 ```powershell
-node -e "require('./src/desk-link-client').createDeskLinkClient().snapshot().then(s => console.log(s.ok, (s.sessions||[]).length))"
+node -e "require('./src/odk-link-client').createOdkLinkClient().snapshot().then(s => console.log(s.ok, (s.sessions||[]).length))"
 ```
 
 `ok true` proves that the pipe token was accepted and the protocol answered. It does not prove Hosted Pi or physical input acceptance.
@@ -106,7 +108,7 @@ The plugin connects to the desk and pushes readings. The desk does not acquire g
 
 ```ini
 ODK_FUTU_ENDPOINT=tcp://100.82.50.70:8790
-ODESK_FUTU_SERVICE_REVISION=dev
+ODK_FUTU_SERVICE_REVISION=dev
 ```
 
 Allow the port from an elevated session:
@@ -120,22 +122,22 @@ For a pipe/TCP target, give the plugin the destination host token through a priv
 The following device check reads but does not print the token:
 
 ```powershell
-node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.readFileSync(process.env.LOCALAPPDATA+'\\open-deskos\\local-channel.token','utf8').trim();const s=n.connect(8790,'100.82.50.70',()=>{s.write(JSON.stringify({v:1,token:t})+'\n');s.write(JSON.stringify({v:1,type:'hello',service:'futu-poller',revision:'dev',proto:1})+'\n')});s.on('data',(d)=>{console.log('ack: '+d.toString().trim());s.end()})"
+node -e "const n=require('node:net');const fs=require('node:fs');const t=fs.readFileSync(process.env.LOCALAPPDATA+'\\odk\\local-channel.token','utf8').trim();const s=n.connect(8790,'100.82.50.70',()=>{s.write(JSON.stringify({v:1,token:t})+'\n');s.write(JSON.stringify({v:1,type:'hello',service:'futu-poller',revision:'dev',proto:1})+'\n')});s.on('data',(d)=>{console.log('ack: '+d.toString().trim());s.end()})"
 ```
 
 An `ack` with `ok:true` proves the token and service handshake were accepted.
 
 ## Personal Bot
 
-The same `integrations/personal-bot` runs on Windows. Capture uses DirectShow instead of ALSA. Configure `%LOCALAPPDATA%\open-deskos\runtime.env` for the shared `ODESK_WORKSPACE`. Put bot/provider settings in `%LOCALAPPDATA%\open-deskos\personal-bot.env`:
+The same `integrations/personal-bot` runs on Windows. Capture uses DirectShow instead of ALSA. Configure `%LOCALAPPDATA%\odk\runtime.env` for the shared `ODK_WORKSPACE`. Put bot/provider settings in `%LOCALAPPDATA%\odk\personal-bot.env`:
 
 ```ini
-# %LOCALAPPDATA%\open-deskos\personal-bot.env
-ODESK_PERSONAL_BOT_STT_PROVIDER=aliyun
-ODESK_PERSONAL_BOT_STT_MODEL=qwen3-asr-flash
-ODESK_PERSONAL_BOT_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
+# %LOCALAPPDATA%\odk\personal-bot.env
+ODK_PERSONAL_BOT_STT_PROVIDER=aliyun
+ODK_PERSONAL_BOT_STT_MODEL=qwen3-asr-flash
+ODK_PERSONAL_BOT_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
 ALIYUNCS_TOKEN=<host-local-credential>
-ODESK_PERSONAL_BOT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
+ODK_PERSONAL_BOT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
 ```
 
 The microphone value must be the exact name that ffmpeg lists. Do not add the `audio=` prefix; ffmpeg adds it. The quoted device name above is an example of a real device label. The Unix `default` value does not identify a DirectShow input. A missing device or invalid name reports microphone unavailable without inventing a recording. ffmpeg stderr does not enter the public status.
@@ -147,7 +149,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-b
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg -Start
 ```
 
-`-Report` makes no changes. `-InstallFfmpeg` explicitly permits the dependency install. The bot runs in a logged-on interactive task with a restart loop. Session 0 has no audio endpoint. Logs are in `%LOCALAPPDATA%\open-deskos\personal-bot.log`.
+`-Report` makes no changes. `-InstallFfmpeg` explicitly permits the dependency install. The bot runs in a logged-on interactive task with a restart loop. Session 0 has no audio endpoint. Logs are in `%LOCALAPPDATA%\odk\personal-bot.log`.
 
 Use the published protocol for acceptance:
 
@@ -158,18 +160,18 @@ node scripts\personal-bot-acceptance.mjs --status
 
 The first command performs live capture/provider work. `--status` only reads state. The bot needs its own host-local Pi model authentication. STT credentials do not authenticate the model. Configure an OpenAI-compatible provider in `~\.pi\agent\models.json`; the Shell does not log in on the bot's behalf.
 
-Both `desk-data` and `user-app-control` resolve through the host platform and present its token. Production needs no `ODESK_*_SOCKET` override. Those overrides are for tests. `didi` in the personal profile remains unported; the default coding profile does not need it.
+Both `odk-data` and `user-app-control` resolve through the host platform and present its token. Production needs no `ODK_*_SOCKET` override. Those overrides are for tests. The personal profile supports DiDi on Windows. Use a private credential file for DiDi.
 
 ## State and private configuration
 
-Persistent state is under `%LOCALAPPDATA%\open-deskos`. Pi sessions and authentication use `~\.pi\agent` or `PI_AGENT_DIR`. Use `.env.local` for Shell settings and the two host environment files for the bot. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
+Persistent state is under `%LOCALAPPDATA%\odk`. Pi sessions and authentication use `~\.pi\agent` or `PI_AGENT_DIR`. Use `.env.local` for Shell settings and the two host environment files for the bot. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
 
 - Keep `ALIYUNCS_TOKEN` in `personal-bot.env`, never `.env.local` or a command line.
 - `WEREAD_API_KEY` is the operator-provisioned WeRead credential. Historical handheld acceptance used the same authorized credential as CM5 and produced a live cache.
 - `ODK_HYDRA_MQTT_URL` declares the local MQTT endpoint. Provision authentication separately if the broker requires it.
 - Fixed weather coordinates disable third-party location lookup. An unconfigured mobile desk uses device location.
 - CLIProxyAPI uses this host's forwarding-only SSH identity/tunnel and management key file.
-- Desk Link and SSH collection use this host's own credentials. Do not copy a reference-host control token to a report-only desk.
+- Open DeskOS Link and SSH collection use this host's own credentials. Do not copy a reference-host control token to a report-only desk.
 - Do not move gateway RSA keys, trade passwords or unrelated personal-profile keys to this host. The local bot still needs its own Pi authentication.
 
 ## Interactive GUI checks
@@ -196,7 +198,7 @@ Run in the interactive session:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\windows-kiosk.ps1
 ```
 
-The kiosk wrapper restarts the Shell after three seconds and writes `%LOCALAPPDATA%\open-deskos\kiosk.log` without a console window.
+The kiosk wrapper restarts the Shell after three seconds and writes `%LOCALAPPDATA%\odk\kiosk.log` without a console window.
 
 The panel covers the display, not the work area. It is not topmost and does not hide the host taskbar. Another foreground application regains its window and taskbar. Apply geometry after the Shell window is shown. Request fullscreen and display-bound `setBounds`; compare bounds every 400 ms and retry at most eight times. Stop once coverage is correct.
 
@@ -234,7 +236,7 @@ The development checkout is the source. A transfer must match every selected fil
 1. Archive paths relative to the repository root: `tar czf change.tgz runtime/shell/src/…`.
 2. Use `md5 -q` to create `change.hashes`. Each line is `<md5> <repository-relative-path>`. Include every archived file.
 3. Copy both files with `scp` to `C:\Users\<user>\`.
-4. Upload an ASCII `.ps1`. It calls the deploy script, extracts under `ODESK_WORKSPACE`, checks each hash, builds styles and restarts the desk. Any mismatch fails. Only full agreement may print `DEPLOY_OK`.
+4. Upload an ASCII `.ps1`. It calls the deploy script, extracts under `ODK_WORKSPACE`, checks each hash, builds styles and restarts the desk. Any mismatch fails. Only full agreement may print `DEPLOY_OK`.
 5. Register/start an interactive task from SSH. Poll a marker unique to this run. Copy the log back and read it before accepting the result.
 
 PowerShell 5.1 `Join-Path` joins rather than resolves an absolute child. Pass relative archive names. SSH/cmd can consume quotes, pipes and redirects; put complex logic in the uploaded file. Old `DONE` markers are not completion evidence. Check task state with `schtasks /query`; use `/end` if a previous instance prevents the new run.
@@ -287,7 +289,7 @@ Put long commands in a background task with a log so an SSH disconnect does not 
 Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "$env:USERPROFILE\step.cmd" -PassThru -NoNewWindow
 ```
 
-Task settings must allow battery start and must not stop on a battery transition. `pnpm install --ignore-scripts` skips the Electron download for Node-only checks; install Electron before GUI checks. If the normal download is blocked, an approved mirror can supply the binary. Extract it to `node_modules/electron/dist` and write `path.txt` as `electron.exe`.
+Task settings must allow battery start and must not stop on a battery transition. Electron does not download its binary during `pnpm install`. `run.ps1` downloads it on first launch and writes `node_modules/electron/path.txt`. If network access blocks the download, configure an approved mirror.
 
 ## Remaining device limits
 
@@ -296,7 +298,7 @@ Task settings must allow battery start and must not stop on a battery transition
 - `process.kill(pid, 0)` against a higher-integrity Pi process needs acceptance on the target host.
 - The inherited process matcher can over-identify scripts named `pi`, such as `notepad.exe C:\tools\pi.js` or `cmd /c "echo pi"`. A long-lived false parent can hide a child as a worker. Changing the interpreter rule also changes CM5 behavior and needs its own change.
 - Installer/portable packaging, boot autostart and physical touch/display-topology acceptance remain unverified by the cited fixture gates.
-- Historical 2026-09 checks established pipe token handshakes, Desk Link listener behavior, device weather location and panel geometry on one 1280×800 handheld. They do not establish current device state, a different display, microphone quality or a complete release acceptance.
+- Historical 2026-09 checks established pipe token handshakes, Open DeskOS Link listener behavior, device weather location and panel geometry on one 1280×800 handheld. They do not establish current device state, a different display, microphone quality or a complete release acceptance.
 
 ## Native reader implementation
 

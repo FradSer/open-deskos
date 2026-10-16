@@ -18,7 +18,9 @@
       el.innerHTML = `<span id="sb-pad" role="img" hidden>${PAD_ICON}</span>`
 
       const indicator = el.querySelector('#sb-pad')
+      let released = false
       const show = (state) => {
+        if (released || ctx?.signal?.aborted) return
         if (!state || state.connected !== true) {
           indicator.setAttribute('hidden', '')
           return
@@ -35,9 +37,21 @@
       }
 
       show(null)
-      const onState = (event) => show(event.detail)
-      window.addEventListener('odk-gamepad-state', onState)
-      ctx?.trackCleanup?.(() => window.removeEventListener('odk-gamepad-state', onState))
+      const gamepad = ctx?.services?.get('odk.service.gamepad')
+      if (gamepad) {
+        const unsubscribe = gamepad.subscribe(show)
+        ctx.trackCleanup?.(() => {
+          released = true
+          unsubscribe()
+        })
+      } else {
+        const onState = (event) => show(event.detail)
+        window.addEventListener('odk-gamepad-state', onState)
+        ctx?.trackCleanup?.(() => {
+          released = true
+          window.removeEventListener('odk-gamepad-state', onState)
+        })
+      }
     },
   })
 })(typeof window !== 'undefined' ? window : globalThis)

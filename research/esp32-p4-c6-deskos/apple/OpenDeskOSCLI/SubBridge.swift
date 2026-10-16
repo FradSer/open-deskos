@@ -5,7 +5,7 @@
 //  macOS → USB → ESP32-P4 subscription bridge + time sync.
 //
 //  Pushes the user's real OpenCode Go usage (the data CodexBar shows in the
-//  menu bar) to the OPEN_DESKOS device over its USB serial console, so Homepage
+//  menu bar) to the ODK device over its USB serial console, so Homepage
 //  #2 renders live data instead of a placeholder. Also pushes the Mac wall
 //  clock (`cerb settime <epoch>`) so the launcher clock/date render real
 //  values — the device has no battery-backed RTC and SNTP cannot reach
@@ -344,7 +344,7 @@ enum SerialError: Error, CustomStringConvertible, LocalizedError {
     var description: String {
         switch self {
         case .noDevice:
-            return "no OPEN_DESKOS device found at /dev/tty.usbmodem* (is it plugged in over USB?)"
+            return "no ODK device found at /dev/tty.usbmodem* (is it plugged in over USB?)"
         case .openFailed(let msg):
             return "could not open serial device: \(msg) (close any serial monitor / screen session on the port)"
         case .writeFailed(let msg):
@@ -361,7 +361,7 @@ enum SerialPush {
     /// JTAG is the console that owns the `cerb` command; a co-enumerated C6
     /// (esp-hosted WiFi slave) would open its own console instead. When more
     /// than one node exists, probe each and prefer the one that answers a
-    /// `cerb sub status` round-trip (i.e. runs the OPEN_DESKOS console).
+    /// `cerb sub status` round-trip (i.e. runs the ODK console).
     static func devicePath() -> String? {
         let fm = FileManager.default
         guard let dir = try? fm.contentsOfDirectory(atPath: "/dev") else { return nil }
@@ -654,7 +654,7 @@ enum SubCommand {
 /// (refresh=yes). Lives beside the Wispr health agent, installed together by
 /// `OpenDeskOS daemon install`.
 enum SubPullDaemon {
-    static let label = "dev.fradser.open-deskos.sub-pull"
+    static let label = "dev.fradser.odk.sub-pull"
 
     static var logPath: String {
         URL(fileURLWithPath: CLIStateStore.logPath)

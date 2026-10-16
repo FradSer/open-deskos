@@ -59,7 +59,7 @@ test('realpath admission and host/project active limits', async t => {
   const f = await fixture(t, ({ signal }) => new Promise(resolve => signal.addEventListener('abort', () => resolve({ text: '', stopReason: 'aborted' }))))
   await symlink(f.dir, join(f.root, 'escape'))
   assert.equal((await f.service.handle(start(join(f.root, 'escape')))).ok, false)
-  assert.equal((await f.service.handle(start('/opt/open-deskos'))).ok, false)
+  assert.equal((await f.service.handle(start('/opt/odk'))).ok, false)
   const busy = join(f.root, 'busy')
   await mkdir(busy)
   assert.equal((await f.service.handle(start(busy))).ok, true)
@@ -321,7 +321,7 @@ test('list carries a bounded goal without carrying the full prompt', async t => 
 })
 
 
-test('private socket preserves jobs across helper exit and rejects oversized frames', async t => {
+test('private socket preserves jobs across helper exit and rejects oversized frames', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const { serveTasks, requestTask, readFrame } = await import('../src/task-protocol.mjs')
   const { stat, writeFile } = await import('node:fs/promises')
   const { spawn } = await import('node:child_process')
@@ -335,7 +335,7 @@ test('private socket preserves jobs across helper exit and rejects oversized fra
   const file = join(f.dir, 'config.json')
   await writeFile(file, JSON.stringify(f.config), { mode: 0o600 })
   const req = start(f.root)
-  const child = spawn(process.execPath, ['src/task-cli.mjs'], { env: { ...process.env, ODESK_TASK_CONFIG: file }, stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn(process.execPath, ['src/task-cli.mjs'], { env: { ...process.env, ODK_TASK_CONFIG: file }, stdio: ['pipe', 'pipe', 'pipe'] })
   const reply = readFrame(child.stdout, 256 * 1024)
   child.stdin.end(JSON.stringify(req) + '\n')
   assert.equal((await reply).task.state, 'running')
@@ -997,7 +997,7 @@ test('ending a session whose launch is still in flight settles instead of failin
   assert.equal((await service.handle(request('status', { taskId: launched.taskId }))).task.activity, undefined)
 })
 
-test('held attach socket accepts further correlated commands and streams events until disconnect', async t => {
+test('held attach socket accepts further correlated commands and streams events until disconnect', { skip: process.platform === 'win32' ? 'Unix Hosted Pi server fixture; Windows agent clients run separately' : false }, async t => {
   const { serveTasks } = await import('../src/task-protocol.mjs')
   const { connect } = await import('node:net')
   const dir = await mkdtemp(join(tmpdir(), 'hosted-socket-'))
@@ -1045,4 +1045,14 @@ test('real persisted history uses physical log positions, skips non-message entr
   assert.deepEqual(second.events.map(item => item.position), [3])
   assert.deepEqual(second.events[0].events.map(event => event.kind), ['thinking', 'assistant'])
   assert.equal(second.continuation, null)
+})
+
+test('atomic task records remain readable after replacement on the current host', async t => {
+  const { atomicRecord } = await import('../src/task-store.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'bot-atomic-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const file = join(root, 'record.json')
+  await atomicRecord(file, { identity: 'same-task', state: 'pending' })
+  await atomicRecord(file, { identity: 'same-task', state: 'settled' })
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { identity: 'same-task', state: 'settled' })
 })

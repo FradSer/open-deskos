@@ -9,7 +9,7 @@ const { createUserAppStore } = require('../src/user-app-store')
 const roots = []
 test.after(async () => { await Promise.all(roots.map(root => fs.rm(root, { recursive: true, force: true }))) })
 async function fixture() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-store-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-store-'))
   roots.push(root)
   const workspace = path.join(root, 'workspace')
   const stateDir = path.join(root, 'state')
@@ -180,10 +180,38 @@ test('a package declares the data it may publish and an invalid declaration is n
   const store = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
   assert.equal((await store.install('pomodoro')).ok, true)
   assert.deepEqual((await store.list())[0].data, { fields: { remaining_seconds: { type: 'number' } } })
+  declared.home = { mode: 'optional', priority: 30, icon: 'tasks', fields: ['remaining_seconds'] }
+  await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify(declared))
+  assert.equal((await store.install('pomodoro')).ok, true)
+  assert.deepEqual((await store.list())[0].home, declared.home)
+  const restarted = createUserAppStore({ workspace: f.workspace, stateDir: f.stateDir, verify: () => true })
+  assert.deepEqual((await restarted.list())[0].home, declared.home)
+  const withoutData = { ...declared }; delete withoutData.data
+  await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify(withoutData))
+  assert.equal((await store.install('pomodoro')).error, 'invalid-manifest')
+  declared.home.fields = ['unknown_field']
+  await fs.writeFile(path.join(dir, 'manifest.json'), JSON.stringify(declared))
+  assert.equal((await store.install('pomodoro')).error, 'invalid-manifest')
+
 
   const bad = path.join(f.workspace, 'apps', 'bad-data')
   await fs.mkdir(bad, { recursive: true })
   await fs.writeFile(path.join(bad, 'index.html'), '<p>x</p>')
   await fs.writeFile(path.join(bad, 'manifest.json'), JSON.stringify({ ...declared, id: 'bad-data', name: 'Bad', data: { fields: { remaining_seconds: { type: 'number', extra: true } } } }))
   assert.equal((await store.install('bad-data')).error, 'invalid-manifest')
+})
+
+test('imports local packages without a workspace and serializes their verified snapshots', async () => {
+  const f = await fixture()
+  await draft(f.workspace, 'one', '1', '<p>one</p>')
+  await draft(f.workspace, 'two', '1', '<p>two</p>')
+  const store = createUserAppStore({ stateDir: f.stateDir, verify: () => true })
+  const results = await Promise.all(['one', 'two'].map(id => store.addFromPath(path.join(f.workspace, 'apps', id))))
+  assert.ok(results.every(result => result.ok))
+  assert.deepEqual((await store.list()).map(app => app.id).sort(), ['one', 'two'])
+  await fs.rm(f.workspace, { recursive: true })
+  const restarted = createUserAppStore({ stateDir: f.stateDir, verify: () => true })
+  assert.equal((await restarted.getContent('one')).html, '<p>one</p>')
+  assert.equal((await restarted.getContent('two')).html, '<p>two</p>')
+  assert.deepEqual(await restarted.addFromPath('../relative'), { ok: false, error: 'unsafe-package' })
 })

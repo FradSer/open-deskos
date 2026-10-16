@@ -209,6 +209,7 @@
     app: 'Pi Sessions',
     state: 'Live',
     interaction: 'display-only',
+    opensApp: 'pi-sessions',
     mount(el, ctx) {
       // Before the first scan answers, the tile knows nothing: it states that, and
       // claims no workspace, session or state it has not read.
@@ -354,6 +355,7 @@
       const declaredMinCell = PI_TILE_MIN_CELL
       const meetsFloor = root.odkGridPlacement?.meetsMinCell
       const fitToCell = () => {
+        if (disposed) return
         const box = el.getBoundingClientRect()
         // The Shell owns this question for the whole runtime, so the tile asks the
         // same one rather than keeping its own copy of the rule.
@@ -991,6 +993,401 @@
   /* ---------------------------------------------------------
    * Fullscreen App / Page: odk.app.pi-sessions
    * --------------------------------------------------------- */
+  const mountPiSessions = (el, ctx) => {
+    el.innerHTML = surfaceMarkup()
+
+    const detailEl = el.querySelector('#pi-detail')
+    const bodyEl = el.querySelector('#pi-detail-body')
+    const titleTextEl = el.querySelector('#pi-title-text')
+    const titleSpinnerEl = el.querySelector('#pi-title .pi-spinner')
+    const subtitleEl = el.querySelector('#pi-view-subtitle')
+    const factsEl = el.querySelector('#pi-view-facts')
+    const filtersEl = el.querySelector('#pi-overview-filters')
+    const statusEl = el.querySelector('#pi-status')
+    const filterButtons = [...el.querySelectorAll('.pi-filter-btn')]
+    const detail = detailView({
+      detailEl,
+      bodyEl,
+      eventsHostEl: el.querySelector('#pi-events-host'),
+      // The device's runtime display decides whether a thought is published;
+      // the rest of the stream is the same either way.
+      showReasoning: ctx?.runtimeConfig?.piSessionReasoning === 'shown',
+    })
+    const overview = overviewView({
+      overviewEl: el.querySelector('#pi-overview'),
+      listEl: el.querySelector('#pi-overview-list'),
+    })
+
+    let scan = null
+    let filter = DEFAULT_FILTER
+    let selectedKey = null
+    let selectedIndex = 0
+    let lastDirection = 'right'
+    let eventsState = { reason: 'loading', ok: false, events: [] }
+    let scanToken = 0
+    let eventToken = 0
+    let disposed = false
+    let tickCount = 0
+    const orderSessions = createSessionOrder()
+
+    const currentSet = () => sessionSet(scan, filter)
+    const selected = () => currentSet().find((session) => sessionKey(session) === selectedKey) || null
+    const sourceLabel = () => scan?.source?.label || ''
+
+    function pageCopy() {
+      return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })
+    }
+
+    // The title row states the page's condition, so the list states only what
+    // the rows themselves need. A condition said in both places is read as two
+    // conditions: while the scan is in flight the list shows Pi's own working
+    // indicator, and it names a reason only when the scan answered and matched
+    // no session.
+    function regionHtml() {
+      if (scan === null) return `<span class="pi-spinner" data-pi-spinner aria-hidden="true">${SPINNER_FRAMES[0]}</span>`
+      // An unavailable scan has not matched nothing: it has not answered, and
+      // the title row is where that condition is stated.
+      if (scan.ok === false) return ''
+      if (currentSet().length > 0) return ''
+      return escapeHtml(`No session matches ${filterTitle(filter)}.`)
+    }
+
+    // This page is one App page in a shell of pages, so its spinner only runs
+    // while the shell is showing it. ctx.onTick is a one-second cadence and
+    // cannot drive an 80ms indicator, so the interval is page-owned and
+    // registered with the plugin's cleanup. Reduced motion stops the frames
+    // instead of removing the indicator: the state is information.
+    const motionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null
+    const pageIsCurrent = () => {
+      const page = el.closest('.page')
+      if (!page) return true
+      const active = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
+      return Number(page.dataset.page) === active
+    }
+    let frameIndex = 0
+    let appliedFrame = -1
+    const spinnerTimer = setInterval(() => {
+      if (disposed || document.hidden || !pageIsCurrent()) return
+      if (motionQuery?.matches !== true) frameIndex = (frameIndex + 1) % SPINNER_FRAMES.length
+      if (frameIndex === appliedFrame) return
+      appliedFrame = frameIndex
+      for (const node of el.querySelectorAll('[data-pi-spinner]')) node.textContent = SPINNER_FRAMES[frameIndex]
+    }, SPINNER_INTERVAL_MS)
+
+    function publishRemote() {
+      // The page owns directional input in both views: a session by session,
+      // or a row by row. The only page-owned Strip control is the Session
+      // Filter, whose label is the filter the overview is showing.
+      ctx?.publishPageRemote?.(el, {
+        actions: [{ id: ACTION_FILTER, label: filterTitle(filter).toUpperCase() }],
+        focus: 'items',
+      })
+    }
+
+    function announce() {
+      const text = announcement(selected(), filter, currentSet().length, pageCopy())
+      if (statusEl.textContent !== text) statusEl.textContent = text
+    }
+
+    // The title states the view: the session's own Pi state while one is
+    // shown, and the live set while the Overview is open.
+    function renderTitle() {
+      const showing = overview.isOpen()
+      const session = selected()
+      factsEl.textContent = ''
+      // The Session Filter and the open session's elapsed time share the title
+      // row's trailing edge, and each is stated exactly when it applies: the
+      // filter while the list is the view, the elapsed reading while a session
+      // is. Neither is a control over the other view.
+      filtersEl.hidden = !showing
+      if (showing) {
+        titleTextEl.textContent = 'Pi Sessions'
+        titleSpinnerEl.hidden = true
+        // The title row states the page's condition, not a description of the
+        // list. A running count with its source, and any driven-by attribution,
+        // was a second line of chrome under the title: the board below already
+        // says what it holds, the card says which session is hosted, and the
+        // live region still announces the count. What stays here is the part
+        // only this row can say, so the page carries no summary line at all.
+        subtitleEl.textContent = scan === null
+          ? 'Loading Pi sessions...'
+          : scan.ok === false
+            ? `${sourceLabel() || 'Pi sessions'} unavailable. Retrying automatically.`
+            : ''
+        return
+      }
+      if (!session) {
+        titleTextEl.textContent = 'Pi Sessions'
+        titleSpinnerEl.hidden = true
+        subtitleEl.textContent = pageCopy()
+        return
+      }
+      const working = session.status === 'running'
+      titleTextEl.textContent = statusLabel(session.status)
+      titleSpinnerEl.hidden = !working
+      subtitleEl.textContent = sessionPath(session)
+      factsEl.textContent = formatElapsed(session.startedAt)
+    }
+
+    function renderDetail() {
+      const session = selected()
+      detail.render(session, eventsState, sourceLabel())
+      if (!session) {
+        bodyEl.innerHTML = ''
+        const note = document.createElement('p')
+        note.className = 'pi-empty-state'
+        note.textContent = pageCopy()
+        bodyEl.append(note)
+      }
+    }
+
+    function renderFilters() {
+      for (const button of filterButtons) {
+        const value = button.dataset.filter
+        const active = value === filter
+        button.classList.toggle('active', active)
+        button.setAttribute('aria-pressed', String(active))
+        const count = scan && scan.ok !== false ? sessionSet(scan, value).length : null
+        button.querySelector('.pi-filter-count').textContent = count === null ? '--' : String(count)
+        button.setAttribute('aria-label', `${FILTER_LABELS[value]} sessions${count === null ? ', count unavailable' : `, ${count}`}`)
+      }
+    }
+
+    function renderOverview() {
+      renderFilters()
+      overview.render({ set: currentSet(), filter, selectedKey, regionHtml: regionHtml(), onChoose: chooseCell })
+    }
+
+    function renderAll() {
+      renderTitle()
+      renderDetail()
+      renderOverview()
+      announce()
+    }
+
+    function setFilter(value) {
+      if (!FILTERS.includes(value) || value === filter) return
+      filter = value
+      reconcileSelection()
+      eventsState = { reason: 'loading', ok: false, events: [] }
+      detail.restart()
+      renderAll()
+      publishRemote()
+      loadEvents()
+    }
+
+    function reconcileSelection() {
+      const set = currentSet()
+      if (set.length === 0) {
+        selectedKey = null
+        selectedIndex = 0
+        return
+      }
+      selectedIndex = selectionIndex(set, selectedKey, selectedIndex, lastDirection)
+      selectedKey = sessionKey(set[selectedIndex])
+    }
+
+    function setSelection(index, direction = lastDirection) {
+      const set = currentSet()
+      const target = set[steppedIndex(index, 0, set.length)]
+      if (!target) return
+      const nextKey = sessionKey(target)
+      if (nextKey === selectedKey) return
+      lastDirection = direction
+      selectedIndex = steppedIndex(index, 0, set.length)
+      selectedKey = nextKey
+      eventsState = { reason: 'loading', ok: false, events: [] }
+      detail.restart()
+      renderAll()
+      loadEvents()
+    }
+
+    function moveSelection(step) {
+      const set = currentSet()
+      if (set.length === 0) return
+      setSelection(steppedIndex(selectedIndex, step, set.length), step < 0 ? 'left' : 'right')
+    }
+
+    function chooseCell(key) {
+      const index = currentSet().findIndex((session) => sessionKey(session) === key)
+      if (index < 0) return
+      setSelection(index)
+      setOverview(false)
+    }
+
+    function setOverview(open) {
+      const next = typeof open === 'boolean' ? open : !overview.isOpen()
+      if (next === overview.isOpen()) return
+      overview.show(next)
+      // This is a page-local cover, not replacement navigation or a modal
+      // over the Shell. Preserve the covered detail's layout and reading.
+      detailEl.inert = next
+      if (next) {
+        detailEl.removeAttribute('data-page-focus')
+        renderOverview()
+        overview.focusSelected(selectedKey)
+      } else {
+        detailEl.setAttribute('data-page-focus', '')
+        detail.focus()
+      }
+      renderTitle()
+      publishRemote()
+    }
+
+    async function loadEvents() {
+      const session = selected()
+      const token = ++eventToken
+      if (!session) {
+        eventsState = { reason: 'loading', ok: false, events: [] }
+        detail.paint(eventsState, sourceLabel())
+        return
+      }
+      // A remote session's events are not this host's business to judge: a machine
+      // that reports over a Open DeskOS Link brings its own bounded event tail with it, and
+      // the main process already asks that link first and falls back to a local log.
+      // What this surface must not do is refuse a remote session before the source
+      // that actually holds its events has been asked. When nothing holds them, the
+      // reason the main process returns is what the detail states.
+      try {
+        const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
+          ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid, hostedPi: session.hostedPi === true })
+          : null
+        if (disposed || token !== eventToken) return
+        const valid = res?.ok && Array.isArray(res.events) && res.events.every((event) => event && typeof event.kind === 'string' && typeof event.text === 'string')
+        eventsState = valid
+          ? { reason: '', ok: true, events: res.events, truncated: res.truncated === true }
+          : { reason: res?.reason || 'session-log-missing', ok: false, events: [] }
+      } catch {
+        if (disposed || token !== eventToken) return
+        eventsState = { reason: 'session-log-unreadable', ok: false, events: [] }
+      }
+      detail.paint(eventsState, sourceLabel())
+    }
+
+    async function load() {
+      if (disposed) return
+      const token = ++scanToken
+      let response
+      try {
+        response = typeof root.odkPlatform?.getPiSessions === 'function'
+          ? await root.odkPlatform.getPiSessions()
+          : null
+      } catch {
+        response = null
+      }
+      if (disposed || token !== scanToken) return
+      const previousKey = selectedKey
+      const previousSource = JSON.stringify(scan?.source)
+      scan = validScan(response)
+        ? { ...response, sessions: orderSessions(response.sessions) }
+        : { ok: false, source: response?.source || scan?.source || null, sessions: [] }
+      reconcileSelection()
+      if (selectedKey !== previousKey || JSON.stringify(scan.source) !== previousSource) {
+        eventsState = { reason: 'loading', ok: false, events: [] }
+        detail.restart()
+      }
+      renderAll()
+      loadEvents()
+    }
+
+    function onRemoteAction(event) {
+      if (event?.detail === ACTION_FILTER) setFilter(nextFilter(filter))
+    }
+
+    function onRemotePageInput(event) {
+      const action = pageInputAction(event?.detail?.input, overview.isOpen())
+      if (action === 'show-list') setOverview(true)
+      else if (action === 'select-cell') {
+        const cell = overview.cells().find((candidate) => candidate === document.activeElement)
+        if (cell) chooseCell(cell.dataset.sessionKey)
+      } else if (action === 'cell-left') overview.focusLane(selectedKey, -1)
+      else if (action === 'cell-right') overview.focusLane(selectedKey, 1)
+      else if (action === 'cell-up') overview.focusWithinLane(selectedKey, -1)
+      else if (action === 'cell-down') overview.focusWithinLane(selectedKey, 1)
+      else if (action === 'scroll-up') detail.scroll('up')
+      else if (action === 'scroll-down') detail.scroll('down')
+      else if (action === 'previous-session') moveSelection(-1)
+      else if (action === 'next-session') moveSelection(1)
+    }
+
+    function onKeydown(event) {
+      const page = el.closest('.page')
+      if (page) {
+        const activeIndex = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
+        if (Number(page.dataset.page) !== activeIndex) return
+      }
+      if (event.key === 'Escape' && overview.isOpen()) {
+        event.preventDefault()
+        event.stopPropagation()
+        setOverview(false)
+        return
+      }
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      // A focused overview control owns its own activation keys.
+      if (overview.isOpen() && (event.key === 'Enter' || event.key === ' ')) {
+        const cell = overview.cells().find((candidate) => candidate === document.activeElement)
+        if (cell) {
+          event.preventDefault()
+          chooseCell(cell.dataset.sessionKey)
+          return
+        }
+      }
+      const input = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.key]
+      if (!input || !event.target.closest('.pi-detail, .pi-overview-cell')) return
+      event.stopPropagation()
+      // A focused Markdown table owns native horizontal scrolling.
+      if (event.target.closest('.pi-result-table-scroll')) return
+      // Native vertical scrolling remains available in the detail.
+      if (!overview.isOpen() && (input === 'up' || input === 'down')) return
+      event.preventDefault()
+      onRemotePageInput({ detail: { input } })
+    }
+
+    function onPageShown() {
+      load()
+    }
+
+    el.addEventListener('odk-remote-action', onRemoteAction)
+    el.addEventListener('odk-remote-page-input', onRemotePageInput)
+    el.addEventListener('odk-page-shown', onPageShown)
+    el.addEventListener('keydown', onKeydown)
+    ctx?.trackCleanup?.(() => {
+      disposed = true
+      clearInterval(spinnerTimer)
+      detail.destroy()
+      scanToken += 1
+      eventToken += 1
+      el.removeEventListener('odk-remote-action', onRemoteAction)
+      el.removeEventListener('odk-remote-page-input', onRemotePageInput)
+      el.removeEventListener('odk-page-shown', onPageShown)
+      el.removeEventListener('keydown', onKeydown)
+      ctx?.publishPageRemote?.(el, null)
+    })
+
+    for (const button of filterButtons) {
+      button.addEventListener('click', () => setFilter(button.dataset.filter))
+    }
+
+    // The page lands on the live session list: the overview is where a
+    // session is chosen, and the detail is what a choice opens.
+    overview.show(true)
+    detailEl.inert = true
+    detailEl.removeAttribute('data-page-focus')
+    publishRemote()
+    renderAll()
+
+    if (ctx?.onTick) {
+      ctx.onTick(() => {
+        tickCount += 1
+        if (tickCount % SCAN_TICK_INTERVAL === 0) load()
+      })
+    }
+
+    load()
+  }
+
   root.odkPlugins.register({
     id: 'odk.app.pi-sessions',
     manifest: { schemaVersion: 1 },
@@ -1001,410 +1398,15 @@
     appKind: 'ui',
     source: 'builtin',
     capabilities: [],
-    lifecycle: lifecycleFor((el, ctx) => {
-      el.innerHTML = surfaceMarkup()
-
-      const detailEl = el.querySelector('#pi-detail')
-      const bodyEl = el.querySelector('#pi-detail-body')
-      const titleTextEl = el.querySelector('#pi-title-text')
-      const titleSpinnerEl = el.querySelector('#pi-title .pi-spinner')
-      const subtitleEl = el.querySelector('#pi-view-subtitle')
-      const factsEl = el.querySelector('#pi-view-facts')
-      const filtersEl = el.querySelector('#pi-overview-filters')
-      const statusEl = el.querySelector('#pi-status')
-      const filterButtons = [...el.querySelectorAll('.pi-filter-btn')]
-      const detail = detailView({
-        detailEl,
-        bodyEl,
-        eventsHostEl: el.querySelector('#pi-events-host'),
-        // The device's runtime display decides whether a thought is published;
-        // the rest of the stream is the same either way.
-        showReasoning: ctx?.runtimeConfig?.piSessionReasoning === 'shown',
-      })
-      const overview = overviewView({
-        overviewEl: el.querySelector('#pi-overview'),
-        listEl: el.querySelector('#pi-overview-list'),
-      })
-
-      let scan = null
-      let filter = DEFAULT_FILTER
-      let selectedKey = null
-      let selectedIndex = 0
-      let lastDirection = 'right'
-      let eventsState = { reason: 'loading', ok: false, events: [] }
-      let scanToken = 0
-      let eventToken = 0
-      let disposed = false
-      let tickCount = 0
-      const orderSessions = createSessionOrder()
-
-      const currentSet = () => sessionSet(scan, filter)
-      const selected = () => currentSet().find((session) => sessionKey(session) === selectedKey) || null
-      const sourceLabel = () => scan?.source?.label || ''
-
-      function pageCopy() {
-        return emptyCopy({ scan, filter, setSize: currentSet().length, sourceLabel: sourceLabel() })
-      }
-
-      // The title row states the page's condition, so the list states only what
-      // the rows themselves need. A condition said in both places is read as two
-      // conditions: while the scan is in flight the list shows Pi's own working
-      // indicator, and it names a reason only when the scan answered and matched
-      // no session.
-      function regionHtml() {
-        if (scan === null) return `<span class="pi-spinner" data-pi-spinner aria-hidden="true">${SPINNER_FRAMES[0]}</span>`
-        // An unavailable scan has not matched nothing: it has not answered, and
-        // the title row is where that condition is stated.
-        if (scan.ok === false) return ''
-        if (currentSet().length > 0) return ''
-        return escapeHtml(`No session matches ${filterTitle(filter)}.`)
-      }
-
-      // This page is one App page in a shell of pages, so its spinner only runs
-      // while the shell is showing it. ctx.onTick is a one-second cadence and
-      // cannot drive an 80ms indicator, so the interval is page-owned and
-      // registered with the plugin's cleanup. Reduced motion stops the frames
-      // instead of removing the indicator: the state is information.
-      const motionQuery = typeof window.matchMedia === 'function'
-        ? window.matchMedia('(prefers-reduced-motion: reduce)')
-        : null
-      const pageIsCurrent = () => {
-        const page = el.closest('.page')
-        if (!page) return true
-        const active = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
-        return Number(page.dataset.page) === active
-      }
-      let frameIndex = 0
-      let appliedFrame = -1
-      const spinnerTimer = setInterval(() => {
-        if (disposed || document.hidden || !pageIsCurrent()) return
-        if (motionQuery?.matches !== true) frameIndex = (frameIndex + 1) % SPINNER_FRAMES.length
-        if (frameIndex === appliedFrame) return
-        appliedFrame = frameIndex
-        for (const node of el.querySelectorAll('[data-pi-spinner]')) node.textContent = SPINNER_FRAMES[frameIndex]
-      }, SPINNER_INTERVAL_MS)
-
-      function publishRemote() {
-        // The page owns directional input in both views: a session by session,
-        // or a row by row. The only page-owned Strip control is the Session
-        // Filter, whose label is the filter the overview is showing.
-        ctx?.publishPageRemote?.(el, {
-          actions: [{ id: ACTION_FILTER, label: filterTitle(filter).toUpperCase() }],
-          focus: 'items',
-        })
-      }
-
-      function announce() {
-        const text = announcement(selected(), filter, currentSet().length, pageCopy())
-        if (statusEl.textContent !== text) statusEl.textContent = text
-      }
-
-      // The title states the view: the session's own Pi state while one is
-      // shown, and the live set while the Overview is open.
-      function renderTitle() {
-        const showing = overview.isOpen()
-        const session = selected()
-        factsEl.textContent = ''
-        // The Session Filter and the open session's elapsed time share the title
-        // row's trailing edge, and each is stated exactly when it applies: the
-        // filter while the list is the view, the elapsed reading while a session
-        // is. Neither is a control over the other view.
-        filtersEl.hidden = !showing
-        if (showing) {
-          titleTextEl.textContent = 'Pi Sessions'
-          titleSpinnerEl.hidden = true
-          // The title row states the page's condition, not a description of the
-          // list. A running count with its source, and any driven-by attribution,
-          // was a second line of chrome under the title: the board below already
-          // says what it holds, the card says which session is hosted, and the
-          // live region still announces the count. What stays here is the part
-          // only this row can say, so the page carries no summary line at all.
-          subtitleEl.textContent = scan === null
-            ? 'Loading Pi sessions...'
-            : scan.ok === false
-              ? `${sourceLabel() || 'Pi sessions'} unavailable. Retrying automatically.`
-              : ''
-          return
-        }
-        if (!session) {
-          titleTextEl.textContent = 'Pi Sessions'
-          titleSpinnerEl.hidden = true
-          subtitleEl.textContent = pageCopy()
-          return
-        }
-        const working = session.status === 'running'
-        titleTextEl.textContent = statusLabel(session.status)
-        titleSpinnerEl.hidden = !working
-        subtitleEl.textContent = sessionPath(session)
-        factsEl.textContent = formatElapsed(session.startedAt)
-      }
-
-      function renderDetail() {
-        const session = selected()
-        detail.render(session, eventsState, sourceLabel())
-        if (!session) {
-          bodyEl.innerHTML = ''
-          const note = document.createElement('p')
-          note.className = 'pi-empty-state'
-          note.textContent = pageCopy()
-          bodyEl.append(note)
-        }
-      }
-
-      function renderFilters() {
-        for (const button of filterButtons) {
-          const value = button.dataset.filter
-          const active = value === filter
-          button.classList.toggle('active', active)
-          button.setAttribute('aria-pressed', String(active))
-          const count = scan && scan.ok !== false ? sessionSet(scan, value).length : null
-          button.querySelector('.pi-filter-count').textContent = count === null ? '--' : String(count)
-          button.setAttribute('aria-label', `${FILTER_LABELS[value]} sessions${count === null ? ', count unavailable' : `, ${count}`}`)
-        }
-      }
-
-      function renderOverview() {
-        renderFilters()
-        overview.render({ set: currentSet(), filter, selectedKey, regionHtml: regionHtml(), onChoose: chooseCell })
-      }
-
-      function renderAll() {
-        renderTitle()
-        renderDetail()
-        renderOverview()
-        announce()
-      }
-
-      function setFilter(value) {
-        if (!FILTERS.includes(value) || value === filter) return
-        filter = value
-        reconcileSelection()
-        eventsState = { reason: 'loading', ok: false, events: [] }
-        detail.restart()
-        renderAll()
-        publishRemote()
-        loadEvents()
-      }
-
-      function reconcileSelection() {
-        const set = currentSet()
-        if (set.length === 0) {
-          selectedKey = null
-          selectedIndex = 0
-          return
-        }
-        selectedIndex = selectionIndex(set, selectedKey, selectedIndex, lastDirection)
-        selectedKey = sessionKey(set[selectedIndex])
-      }
-
-      function setSelection(index, direction = lastDirection) {
-        const set = currentSet()
-        const target = set[steppedIndex(index, 0, set.length)]
-        if (!target) return
-        const nextKey = sessionKey(target)
-        if (nextKey === selectedKey) return
-        lastDirection = direction
-        selectedIndex = steppedIndex(index, 0, set.length)
-        selectedKey = nextKey
-        eventsState = { reason: 'loading', ok: false, events: [] }
-        detail.restart()
-        renderAll()
-        loadEvents()
-      }
-
-      function moveSelection(step) {
-        const set = currentSet()
-        if (set.length === 0) return
-        setSelection(steppedIndex(selectedIndex, step, set.length), step < 0 ? 'left' : 'right')
-      }
-
-      function chooseCell(key) {
-        const index = currentSet().findIndex((session) => sessionKey(session) === key)
-        if (index < 0) return
-        setSelection(index)
-        setOverview(false)
-      }
-
-      function setOverview(open) {
-        const next = typeof open === 'boolean' ? open : !overview.isOpen()
-        if (next === overview.isOpen()) return
-        overview.show(next)
-        // This is a page-local cover, not replacement navigation or a modal
-        // over the Shell. Preserve the covered detail's layout and reading.
-        detailEl.inert = next
-        if (next) {
-          detailEl.removeAttribute('data-page-focus')
-          renderOverview()
-          overview.focusSelected(selectedKey)
-        } else {
-          detailEl.setAttribute('data-page-focus', '')
-          detail.focus()
-        }
-        renderTitle()
-        publishRemote()
-      }
-
-      async function loadEvents() {
-        const session = selected()
-        const token = ++eventToken
-        if (!session) {
-          eventsState = { reason: 'loading', ok: false, events: [] }
-          detail.paint(eventsState, sourceLabel())
-          return
-        }
-        // A remote session's events are not this host's business to judge: a machine
-        // that reports over a Desk Link brings its own bounded event tail with it, and
-        // the main process already asks that link first and falls back to a local log.
-        // What this surface must not do is refuse a remote session before the source
-        // that actually holds its events has been asked. When nothing holds them, the
-        // reason the main process returns is what the detail states.
-        try {
-          const res = typeof root.odkPlatform?.getPiSessionEvents === 'function'
-            ? await root.odkPlatform.getPiSessionEvents({ cwd: session.cwd, sessionId: session.sessionId || session.uuid, hostedPi: session.hostedPi === true })
-            : null
-          if (disposed || token !== eventToken) return
-          const valid = res?.ok && Array.isArray(res.events) && res.events.every((event) => event && typeof event.kind === 'string' && typeof event.text === 'string')
-          eventsState = valid
-            ? { reason: '', ok: true, events: res.events, truncated: res.truncated === true }
-            : { reason: res?.reason || 'session-log-missing', ok: false, events: [] }
-        } catch {
-          if (disposed || token !== eventToken) return
-          eventsState = { reason: 'session-log-unreadable', ok: false, events: [] }
-        }
-        detail.paint(eventsState, sourceLabel())
-      }
-
-      async function load() {
-        const token = ++scanToken
-        let response
-        try {
-          response = typeof root.odkPlatform?.getPiSessions === 'function'
-            ? await root.odkPlatform.getPiSessions()
-            : null
-        } catch {
-          response = null
-        }
-        if (disposed || token !== scanToken) return
-        const previousKey = selectedKey
-        const previousSource = JSON.stringify(scan?.source)
-        scan = validScan(response)
-          ? { ...response, sessions: orderSessions(response.sessions) }
-          : { ok: false, source: response?.source || scan?.source || null, sessions: [] }
-        reconcileSelection()
-        if (selectedKey !== previousKey || JSON.stringify(scan.source) !== previousSource) {
-          eventsState = { reason: 'loading', ok: false, events: [] }
-          detail.restart()
-        }
-        renderAll()
-        loadEvents()
-      }
-
-      function onRemoteAction(event) {
-        if (event?.detail === ACTION_FILTER) setFilter(nextFilter(filter))
-      }
-
-      function onRemotePageInput(event) {
-        const action = pageInputAction(event?.detail?.input, overview.isOpen())
-        if (action === 'show-list') setOverview(true)
-        else if (action === 'select-cell') {
-          const cell = overview.cells().find((candidate) => candidate === document.activeElement)
-          if (cell) chooseCell(cell.dataset.sessionKey)
-        } else if (action === 'cell-left') overview.focusLane(selectedKey, -1)
-        else if (action === 'cell-right') overview.focusLane(selectedKey, 1)
-        else if (action === 'cell-up') overview.focusWithinLane(selectedKey, -1)
-        else if (action === 'cell-down') overview.focusWithinLane(selectedKey, 1)
-        else if (action === 'scroll-up') detail.scroll('up')
-        else if (action === 'scroll-down') detail.scroll('down')
-        else if (action === 'previous-session') moveSelection(-1)
-        else if (action === 'next-session') moveSelection(1)
-      }
-
-      function onKeydown(event) {
-        const page = el.closest('.page')
-        if (page) {
-          const activeIndex = [...document.querySelectorAll('#dots .dot')].findIndex((dot) => dot.getAttribute('aria-current') === 'page')
-          if (Number(page.dataset.page) !== activeIndex) return
-        }
-        if (event.key === 'Escape' && overview.isOpen()) {
-          event.preventDefault()
-          event.stopPropagation()
-          setOverview(false)
-          return
-        }
-        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-        // A focused overview control owns its own activation keys.
-        if (overview.isOpen() && (event.key === 'Enter' || event.key === ' ')) {
-          const cell = overview.cells().find((candidate) => candidate === document.activeElement)
-          if (cell) {
-            event.preventDefault()
-            chooseCell(cell.dataset.sessionKey)
-            return
-          }
-        }
-        const input = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.key]
-        if (!input || !event.target.closest('.pi-detail, .pi-overview-cell')) return
-        event.stopPropagation()
-        // A focused Markdown table owns native horizontal scrolling.
-        if (event.target.closest('.pi-result-table-scroll')) return
-        // Native vertical scrolling remains available in the detail.
-        if (!overview.isOpen() && (input === 'up' || input === 'down')) return
-        event.preventDefault()
-        onRemotePageInput({ detail: { input } })
-      }
-
-      function onPageShown() {
-        load()
-      }
-
-      el.addEventListener('odk-remote-action', onRemoteAction)
-      el.addEventListener('odk-remote-page-input', onRemotePageInput)
-      el.addEventListener('odk-page-shown', onPageShown)
-      el.addEventListener('keydown', onKeydown)
-      ctx?.trackCleanup?.(() => {
-        disposed = true
-        clearInterval(spinnerTimer)
-        detail.destroy()
-        scanToken += 1
-        eventToken += 1
-        el.removeEventListener('odk-remote-action', onRemoteAction)
-        el.removeEventListener('odk-remote-page-input', onRemotePageInput)
-        el.removeEventListener('odk-page-shown', onPageShown)
-        el.removeEventListener('keydown', onKeydown)
-        ctx?.publishPageRemote?.(el, null)
-      })
-
-      for (const button of filterButtons) {
-        button.addEventListener('click', () => setFilter(button.dataset.filter))
-      }
-
-      // The page lands on the live session list: the overview is where a
-      // session is chosen, and the detail is what a choice opens.
-      overview.show(true)
-      detailEl.inert = true
-      detailEl.removeAttribute('data-page-focus')
-      publishRemote()
-      renderAll()
-
-      if (ctx?.onTick) {
-        ctx.onTick(() => {
-          tickCount += 1
-          if (tickCount % SCAN_TICK_INTERVAL === 0) load()
-        })
-      }
-
-      load()
-    }),
+    lifecycle: lifecycleFor(mountPiSessions),
   })
-  // The page is the direct interactive surface; the Home tile remains a
-  // display-only summary and never opens an App.
+  // The page is a direct interactive surface. The Home summary opens the
+  // same App through the Shell-owned Widget button.
   root.odkPlugins.register({
     id: 'odk.page.pi-sessions',
     manifest: { schemaVersion: 1 },
     kind: 'page',
     surface: 'app',
-    mount(el, ctx) {
-      const app = root.odkPlugins.get('odk.app.pi-sessions')
-      app.lifecycle.mount.call(app, el, ctx)
-    },
+    mount: mountPiSessions,
   })
 })(typeof window !== 'undefined' ? window : globalThis)

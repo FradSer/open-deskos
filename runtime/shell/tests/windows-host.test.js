@@ -45,6 +45,8 @@ test('the Windows Shell Host has executable scenarios', () => {
   assert.match(feature, /the panel geometry equals the display bounds/)
   assert.match(feature, /it is asked again while the window is short of the display/)
   assert.match(feature, /it is not movable, resizable, maximizable or minimizable/)
+  assert.match(feature, /the launcher downloads the Electron binary before it starts the shell/)
+  assert.match(feature, /the launcher reports an installation failure before starting the shell/)
 })
 
 test('the Windows runbook states which surfaces are ported and which are not', () => {
@@ -59,14 +61,14 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   // The voice link is ported, and the runbook says what carries it and what
   // authenticates it, so a missing personal bot service cannot read as a missing voice
   // capability.
-  assert.match(runbook, /open-deskos-personal-bot/)
+  assert.match(runbook, /odk-personal-bot/)
   assert.match(runbook, /DirectShow/)
 
   // The surfaces this host does provide are stated with their transport and the
   // thing that authenticates it, so 'not ported' and 'ported to a named pipe'
   // cannot be confused for one another.
-  assert.match(runbook, /open-deskos-desk-link/)
-  assert.match(runbook, /open-deskos-user-app-control/)
+  assert.match(runbook, /odk-link/)
+  assert.match(runbook, /odk-user-app-control/)
   assert.match(runbook, /local-channel\.token/)
   assert.match(runbook, /ADR-0025/)
 
@@ -90,7 +92,7 @@ test('the panel decision is recorded where a reader looks for it', () => {
 
 test('the Windows entry points do not require bash', () => {
   const launcher = read(RUNTIME, 'run.ps1')
-  assert.match(launcher, /ODESK_SHELL_KIOSK/)
+  assert.match(launcher, /ODK_SHELL_KIOSK/)
   assert.match(launcher, /\.env\.local/)
 
   // One set of acceptance rules: the CM5 wrapper delegates to the Node script
@@ -102,6 +104,20 @@ test('the Windows entry points do not require bash', () => {
   const smoke = read(RUNTIME, 'tests/smoke.mjs')
   assert.match(smoke, /check_tokens\.mjs/)
   assert.match(smoke, /layout-harness\.mjs/)
+})
+
+test('the Windows launcher downloads Electron before starting when the binary is absent', () => {
+  const launcher = read(RUNTIME, 'run.ps1')
+
+  assert.match(launcher, /node_modules\\electron\\install\.js/)
+  assert.match(launcher, /Start-Process -FilePath 'node'.*?-NoNewWindow -Wait -PassThru/)
+  assert.match(launcher, /if \(\$install\.ExitCode -ne 0\)/)
+  assert.match(launcher, /exit \$install\.ExitCode/)
+})
+
+test('pnpm permits the Electron package build on Windows', () => {
+  const workspace = read(RUNTIME, 'pnpm-workspace.yaml')
+  assert.match(workspace, /^  electron: true$/m)
 })
 
 test('the supported-host decision is recorded where a reader looks for it', repositoryOnly, () => {

@@ -12,12 +12,13 @@
     app: 'WeRead',
     state: 'Loading',
     interaction: 'display-only',
+    opensApp: 'weread',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">
-              <p class="weread-text">Syncing highlights...</p>
+              <p class="weread-text" role="region" aria-label="Highlight excerpt">Syncing highlights...</p>
               <div class="weread-foot">
                 <div class="weread-meta">
                   <strong class="weread-title">Loading</strong>
@@ -37,8 +38,32 @@
       const copy = el.querySelector('.weread-copy')
       const textEl = () => el.querySelector('.weread-text')
       const footEl = () => el.querySelector('.weread-foot')
+      let active = true
+      let resizeObserver
+      let fitFrame = null
+      let currentImage = null
+      let pendingImageTheme = null
+      const releaseImage = () => {
+        pendingImageTheme = null
+        if (!currentImage) return
+        currentImage.onload = null
+        currentImage.onerror = null
+        currentImage.src = ''
+        currentImage = null
+      }
+      ctx.trackCleanup(() => {
+        active = false
+        releaseImage()
+        if (fitFrame !== null && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(fitFrame)
+          fitFrame = null
+        }
+        resizeObserver?.disconnect()
+      })
       const MIN_TEXT_SIZE = 14
       const MAX_TEXT_SIZE = 72
+      // A full three-by-three reading canvas supports larger display type.
+      const textCeiling = () => el.clientWidth >= 800 && el.clientHeight >= 800 ? 96 : MAX_TEXT_SIZE
       const FIT_GAP = 28
       // Fluid hero base: characters per line grow sublinearly with length,
       // normalized by the copy width so every density converges near its
@@ -46,7 +71,7 @@
       const fitBaseSize = (length, width) => {
         const unit = width > 0 ? width : 900
         const perLine = Math.max(4, Math.sqrt(Math.max(1, length)) * 2.2)
-        return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, unit / perLine))
+        return Math.min(textCeiling(), Math.max(MIN_TEXT_SIZE, unit / perLine))
       }
       const stripBrackets = (value) => String(value || '').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim()
       const formatDate = (createTime) => {
@@ -58,47 +83,71 @@
         return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
       }
       const fitText = (text) => {
+        if (!active) return
         const foot = footEl()
         if (!el || !copy || !text || !foot) return
         const copyStyles = getComputedStyle(copy)
         const copyGaps = (Number.parseFloat(copyStyles.paddingTop) || 0)
           + (Number.parseFloat(copyStyles.paddingBottom) || 0)
-        const maxH = copy.clientHeight - copyGaps - foot.offsetHeight - FIT_GAP
+        const rowGap = Number.parseFloat(copyStyles.rowGap)
+        const maxH = copy.clientHeight - copyGaps - foot.offsetHeight - (Number.isFinite(rowGap) ? rowGap : FIT_GAP)
         if (maxH <= 0) return
         let size = fitBaseSize(text.textContent.length, copy.clientWidth)
         text.style.fontSize = `${size}px`
         let guard = 60
         while (guard-- > 0 && size > MIN_TEXT_SIZE) {
           if (text.scrollHeight <= maxH) break
-          size -= 2
+          size = Math.max(MIN_TEXT_SIZE, size - 2)
           text.style.fontSize = `${size}px`
         }
+        text.tabIndex = text.scrollHeight > text.clientHeight + 1 ? 0 : -1
       }
+      textEl().addEventListener('keydown', event => {
+        if (!active) return
+        const text = textEl()
+        if (text.scrollHeight > text.clientHeight + 1 && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
+          // Keep excerpt navigation inside its scroll region on every Host.
+          event.stopPropagation()
+          if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault()
+            text.scrollTop = event.key === 'Home' ? 0 : text.scrollHeight
+          }
+        }
+      })
       const scheduleFit = () => {
+        if (!active) return
         const text = textEl()
         fitText(text)
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => fitText(textEl()))
+        if (fitFrame === null && typeof requestAnimationFrame === 'function') {
+          fitFrame = requestAnimationFrame(() => {
+            fitFrame = null
+            if (active) fitText(textEl())
+          })
         }
       }
       const observeResize = () => {
         if (typeof ResizeObserver === 'undefined' || !el) return
-        if (el.__wereadResizeObserver) return
-        el.__wereadResizeObserver = new ResizeObserver(() => {
-          fitText(textEl())
+        resizeObserver = new ResizeObserver(() => {
+          if (active) fitText(textEl())
         })
-        el.__wereadResizeObserver.observe(el)
+        resizeObserver.observe(el)
       }
       let currentCoverSrc = ''
       let currentTheme = ''
       const drawCover = () => {
+        if (!active) return
+        releaseImage()
         if (!currentCoverSrc) {
           coverWrap.hidden = true
           fitText(textEl())
           return
         }
         const img = new Image()
+        currentImage = img
+        pendingImageTheme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
         img.onload = () => {
+          if (!active || currentImage !== img) return
+          pendingImageTheme = null
           const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
           currentTheme = theme
           const isPixel = theme === 'pixel'
@@ -155,12 +204,15 @@
           fitText(textEl())
         }
         img.onerror = () => {
+          if (!active || currentImage !== img) return
+          pendingImageTheme = null
           coverWrap.hidden = true
           fitText(textEl())
         }
         img.src = currentCoverSrc
       }
       const render = (state) => {
+        if (!active) return
         const title = el.querySelector('.weread-title')
         const text = textEl()
         const author = el.querySelector('.weread-author')
@@ -193,13 +245,17 @@
         date.hidden = !date.textContent
         scheduleFit()
       }
-      const refresh = () => root.odkPlatform?.getWeReadHighlight?.().then(render).catch(() => render({ status: 'error', error: 'Sync failed' }))
+      const refresh = () => {
+        if (!active) return
+        return root.odkPlatform?.getWeReadHighlight?.().then(render).catch(() => render({ status: 'error', error: 'Sync failed' }))
+      }
       observeResize()
       refresh()
       let tickCount = 0
       ctx.onTick(() => {
+        if (!active) return
         const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
-        if (theme !== currentTheme && currentCoverSrc) {
+        if (theme !== currentTheme && currentCoverSrc && pendingImageTheme !== theme) {
           drawCover()
         }
         scheduleFit()

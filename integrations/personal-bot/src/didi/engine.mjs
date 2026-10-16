@@ -1,3 +1,4 @@
+import { checkProactivePath, protectProactivePath, createProactiveDirectory } from '../proactive-private.mjs';
 import { mkdir, lstat, readFile, open, rename, unlink, rmdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID, randomInt } from 'node:crypto';
@@ -12,9 +13,10 @@ const text = value => typeof value === 'string' && value.length > 0 && value.len
 /** A single resident controller owns each state file. No automatic mutation retries. */
 export async function createRideEngine({stateFile, call, sandbox = true, now = Date.now, quoteTtlMs = 120000, onUpdate = (_snapshot) => {}, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = timer => clearTimeout(timer)}) {
   const dir = dirname(stateFile);
-  await mkdir(dir, {recursive:true,mode:0o700});
+  createProactiveDirectory(dir);
+  if (process.platform === 'win32') checkProactivePath(dir);
   const info = await lstat(dir);
-  if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) || info.uid !== process.getuid?.()) throw new DidiError('打车状态目录必须为当前用户私有目录。');
+  if (!info.isDirectory() || info.isSymbolicLink() || (process.platform !== 'win32' && ((info.mode & 0o077) || info.uid !== process.getuid?.()))) throw new DidiError('打车状态目录必须为当前用户私有目录。');
   const lock = `${stateFile}.lock`;
   try { await mkdir(lock,{mode:0o700}); }
   catch {
@@ -37,7 +39,8 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
   let state = {version:1,sandbox,phase:'idle',quote:null,proposal:null,order:null,reconciliation:null};
   try {
     const info = await lstat(stateFile);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 1048576 || (info.mode & 0o077) || info.uid !== process.getuid?.()) throw Error();
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 1048576 || (process.platform !== 'win32' && ((info.mode & 0o077) || info.uid !== process.getuid?.()))) throw Error();
+    if (process.platform === 'win32') checkProactivePath(stateFile);
     state = JSON.parse(await readFile(stateFile,'utf8'));
     if (state.version !== 1 || state.sandbox !== sandbox || (['active','cancelling','cancel_unknown'].includes(state.phase) && !state.order) || (state.order && !text(state.order.orderId)) || (state.quote && (!text(state.quote.id) || !text(state.quote.traceId) || !Number.isFinite(state.quote.expiresAt) || !Array.isArray(state.quote.items))) || !['idle','quoted','proposed','submitting','unknown','active','cancelling','cancel_unknown','terminal'].includes(state.phase)) throw Error();
   } catch (error) { if (error.code !== 'ENOENT') {await release();throw new DidiError('无法安全读取打车状态；请人工检查，禁止重新下单。');} }
@@ -51,9 +54,11 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
     const temporary = `${stateFile}.${randomUUID()}.tmp`;
     try {
       const file = await open(temporary,'wx',0o600);
-      try { await file.writeFile(JSON.stringify(state)); await file.sync(); } finally { await file.close(); }
+      try { if (process.platform === 'win32') protectProactivePath(temporary); await file.writeFile(JSON.stringify(state)); await file.sync(); } finally { await file.close(); }
       await rename(temporary,stateFile);
-      const directory = await open(dir,'r');try { await directory.sync(); } finally { await directory.close(); }
+      if (process.platform !== 'win32') {
+        const directory = await open(dir,'r');try { await directory.sync(); } finally { await directory.close(); }
+      }
     } finally { await unlink(temporary).catch(() => {}); }
     try { await onUpdate(snapshot()); } catch { /* UI failure cannot affect purchase state. */ }
   };

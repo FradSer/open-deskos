@@ -1,11 +1,11 @@
 Feature: A calm and precise desk instrument
 
-  Scenario: Today groups the date with plugin-contributed statements
+  Scenario: Today groups the date with Personal Agent statements
     Given the local desk shell starts
     When Today is displayed at desktop or compact width
     Then the current weekday and date form one readable group
-    And every contributed briefing statement wraps inside the surface
-    And statement signals and their icons are emphasized while connectives stay quiet
+    And every Personal Agent briefing statement wraps inside the surface
+    And each statement identifies its source state and measurement time
     And no decorative active-status dot is shown
     And the surface shares the desktop grid edges
 

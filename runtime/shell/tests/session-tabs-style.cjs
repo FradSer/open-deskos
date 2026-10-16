@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-tabs-'))
 app.setPath('userData', profile)
 // A running, an idle, and an exited session make every Session Filter tab real,
@@ -44,7 +45,7 @@ app.whenReady().then(async () => {
         await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
         const result = await win.webContents.executeJavaScript(`(async () => {
           odkTheme.set(${JSON.stringify(theme)})
-          const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+          const index = DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
           document.querySelectorAll('.dot')[index].click()
           window.dispatchEvent(new Event('resize'))
           await document.fonts.ready
@@ -231,7 +232,7 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 900, deviceScaleFactor: 1, mobile: false })
     await win.webContents.executeJavaScript(`(async () => {
       odkTheme.set('pixel')
-      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const index = DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
       document.querySelectorAll('.dot')[index].click()
       const page = document.querySelector('.page[data-page="' + index + '"]')
       const surface = page.querySelector('.pi-app-wrapper')
@@ -248,7 +249,7 @@ app.whenReady().then(async () => {
     const tabNode = await nodeFor('.pi-filter-btn:not(.active)')
     assert.ok(tabNode, 'the probe needs a non-active tab')
     const fills = await win.webContents.executeJavaScript(`(() => {
-      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const index = DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
       const surface = document.querySelector('.page[data-page="' + index + '"] .pi-app-wrapper')
       const fill = (node) => node ? getComputedStyle(node).backgroundColor : 'missing'
       const stroke = (node) => node ? getComputedStyle(node).borderTopStyle + ' ' + getComputedStyle(node).borderTopWidth + ' ' + getComputedStyle(node).borderTopColor : 'missing'
@@ -262,7 +263,7 @@ app.whenReady().then(async () => {
     // surface, so this environment resolves the desk's hover rules at all.
     await win.webContents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: tabNode, forcedPseudoClasses: ['hover'] })
     const tabHoverFill = await win.webContents.executeJavaScript(`(() => {
-      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const index = DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
       return getComputedStyle(document.querySelector('.page[data-page="' + index + '"] .pi-filter-btn:not(.active)')).backgroundColor
     })()`)
     assert.equal(tabHoverFill, 'rgb(31, 31, 31)', `the harness observes a hover style, so the row reading below is not vacuous — ${JSON.stringify({ ...fills, tabHoverFill })}`)
@@ -270,7 +271,7 @@ app.whenReady().then(async () => {
     assert.ok(rowNode, 'the probe needs a non-selected row')
     await win.webContents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: rowNode, forcedPseudoClasses: ['hover'] })
     const rowHover = await win.webContents.executeJavaScript(`(() => {
-      const index = DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions')
+      const index = DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
       const surface = document.querySelector('.page[data-page="' + index + '"] .pi-app-wrapper')
       const cells = [...surface.querySelectorAll('.pi-overview-cell')]
       const selected = cells.find(cell => cell.classList.contains('is-selected'))

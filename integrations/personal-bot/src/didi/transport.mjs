@@ -1,5 +1,6 @@
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
+import { readProactiveFile } from '../proactive-private.mjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -36,17 +37,22 @@ export function boundedDidiFetch(fetchImpl = globalThis.fetch, timeoutMs = 20000
 }
 
 /** Credentials never enter returned errors, logs, or persisted state. */
-export async function createDidiTransport({ keyFile, sandbox = true, connectTimeoutMs = 15000, clientFactory = () => new Client({name:'open-deskos-rides',version:'1.0.0'}), transportFactory = (url, signal) => new StreamableHTTPClientTransport(url, {fetch:boundedDidiFetch(),reconnectionOptions:{maxRetries:0,initialReconnectionDelay:1000,maxReconnectionDelay:1000,reconnectionDelayGrowFactor:1}, requestInit:{redirect:'error',signal}}) }) {
+export async function createDidiTransport({ keyFile, sandbox = true, connectTimeoutMs = 15000, clientFactory = () => new Client({name:'odk-rides',version:'1.0.0'}), transportFactory = (url, signal) => new StreamableHTTPClientTransport(url, {fetch:boundedDidiFetch(),reconnectionOptions:{maxRetries:0,initialReconnectionDelay:1000,maxReconnectionDelay:1000,reconnectionDelayGrowFactor:1}, requestInit:{redirect:'error',signal}}) }) {
   let client;
   try {
-    const file = await open(keyFile, constants.O_RDONLY | constants.O_NOFOLLOW);
     let key;
+    if (process.platform === 'win32') {
+      key = readProactiveFile(keyFile, 8192).trim();
+      if (!key || /\s/.test(key)) throw safeError();
+    } else {
+    const file = await open(keyFile, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const info = await file.stat();
       if (!info.isFile() || (info.mode & 0o077) || info.uid !== process.getuid?.() || info.size > 8192) throw safeError();
       key = (await file.readFile('utf8')).trim();
       if (!key || /\s/.test(key)) throw safeError();
     } finally { await file.close(); }
+    }
     const url = new URL(`https://mcp.didichuxing.com/mcp-servers${sandbox ? '-sandbox' : ''}`);
     url.searchParams.set('key', key);
     client = clientFactory();

@@ -54,6 +54,10 @@ const DATA_FLOOR = 14
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 776, webPreferences: { offscreen: true, backgroundThrottling: false } })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
+  win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
   const result = await win.webContents.executeJavaScript(`(async () => {
     const SNAPSHOTS = ${JSON.stringify(SNAPSHOTS)}
     const CAPTION_FLOOR = ${CAPTION_FLOOR}
@@ -68,6 +72,9 @@ app.whenReady().then(async () => {
       window.odkPlatform = { getHydraStatus: async () => snapshot }
       window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup() {} })
       await new Promise(resolve => setTimeout(resolve, 160))
+      for (const fill of host.querySelectorAll('.hydra-meter-fill')) {
+        for (const animation of fill.getAnimations()) animation.finish()
+      }
       return host
     }
     const cases = []
@@ -88,6 +95,14 @@ app.whenReady().then(async () => {
         cases.push({
           name, theme, cell: width + 'x' + height,
           shape: body ? body.dataset.shape : null,
+          meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
+            layoutWidth: fill.offsetWidth,
+            trackWidth: fill.parentElement.offsetWidth,
+            fraction: fill.parentElement.getBoundingClientRect().width > 0
+              ? fill.getBoundingClientRect().width / fill.parentElement.getBoundingClientRect().width : null,
+            transition: getComputedStyle(fill).transitionProperty,
+            origin: getComputedStyle(fill).transformOrigin,
+          })),
           escaping,
           contained: host.scrollHeight <= host.clientHeight + 1,
           columns: new Set(envCells.filter(node => node.getBoundingClientRect().height > 0).map(node => Math.round(node.getBoundingClientRect().left))).size,
@@ -109,8 +124,12 @@ app.whenReady().then(async () => {
     const unconfigured = []
     for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
       const host = await mount('instrument', width, height, SNAPSHOTS.unconfigured)
+      const body = host.querySelector('.hydra-body')
+      const padding = getComputedStyle(host)
       unconfigured.push({
         name, cell: width + 'x' + height,
+        shape: body?.dataset.shape,
+        padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
         badge: host.querySelector('.hydra-badge').textContent,
         readings: [...new Set([...host.querySelectorAll('.hydra-env-value, .hydra-plant-soil')]
           .filter(node => node.getBoundingClientRect().height > 0)
@@ -126,6 +145,12 @@ app.whenReady().then(async () => {
   for (const row of result.cases) {
     const where = JSON.stringify(row)
     assert.deepEqual(row.escaping, [], where)
+    for (const [index, meter] of row.meters.entries()) {
+      assert.equal(meter.layoutWidth, meter.trackWidth, where)
+      assert.equal(meter.transition, row.theme === 'pixel' ? 'none' : 'transform', where)
+      assert.equal(parseFloat(meter.origin), 0, where)
+      if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - [0.62, 0.48][index]) < 0.001, where)
+    }
     assert.equal(row.contained, true, where)
     assert.equal(row.ellipsized.length, 0, where)
     assert.ok(row.smallest >= CAPTION_FLOOR, where + ' caption floor ' + row.smallest)
@@ -182,11 +207,30 @@ app.whenReady().then(async () => {
   for (const row of result.unconfigured) {
     const where = JSON.stringify(row)
     assert.equal(row.badge, 'Unconfigured', where)
+    if (row.shape === 'plants') {
+      const [width, height] = row.cell.split('x').map(Number)
+      const inset = Math.max(12, Math.min(Math.min(width, height) * 0.08, 28))
+      assert.ok(row.padding.every(value => Math.abs(value - inset) < 1), where + ` plant inset should be ${inset}px`)
+    }
     // No reading is invented in any shape; a shape too small to draw a reading
     // draws none at all rather than a fabricated one.
     assert.deepEqual(row.readings, row.readings.length === 0 ? [] : ['--'], where)
     assert.equal(row.contained, true, where)
   }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+  })
+  const reduced = await win.webContents.executeJavaScript(`(() => {
+    const fill = document.createElement('div')
+    fill.className = 'hydra-meter-fill'
+    document.body.append(fill)
+    const style = getComputedStyle(fill)
+    const result = { property: style.transitionProperty, duration: style.transitionDuration }
+    fill.remove()
+    return result
+  })()`)
+  assert.deepEqual(reduced, { property: 'none', duration: '0s' })
+  win.webContents.debugger.detach()
   console.log(`HYDRA_STYLE_PASS ${checked} composition cases, ${result.unconfigured.length} unconfigured cases`)
   win.destroy()
 }).then(() => { clearTimeout(timer); app.exit(0) }).catch(error => { clearTimeout(timer); console.error(error); app.exit(1) })

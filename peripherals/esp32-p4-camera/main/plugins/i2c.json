@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.p4.i2c",
+  "name": "P4 i2c",
+  "version": "1.0.0",
+  "host": "esp32-p4",
+  "kind": "device-driver",
+  "lifecycle": "p4_i2c_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:p4/i2c/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:p4/storage/v1"
+    }
+  ]
+}

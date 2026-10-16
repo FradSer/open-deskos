@@ -122,7 +122,7 @@ Feature: Resident push-to-talk coding agent
     And toggle does not capture audio until configuration is valid
 
   Scenario: Voice consumes the shared Open DeskOS workspace
-    Given ODESK_WORKSPACE specifies the system writable checkout
+    Given ODK_WORKSPACE specifies the system writable checkout
     And transcription credentials are not configured
     When the resident service starts
     Then configuration advances to the transcription credential requirement
@@ -156,7 +156,7 @@ Feature: Resident push-to-talk coding agent
     Given the shell application control socket is available
     When the agent lists, installs, rolls back or removes an application by ID
     Then each lifecycle request uses the bounded version one JSONL protocol
-    And install drafts follow the ODESK_WORKSPACE/apps/<id> manifest contract and are verified by the system tool
+    And install drafts follow the ODK_WORKSPACE/apps/<id> manifest contract and are verified by the system tool
     And application UI runs in a strict scripts-only sandbox without network or parent access
 
   Scenario: Deliver to live sessions on the configured SSH host

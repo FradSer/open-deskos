@@ -19,6 +19,14 @@
   }
   if (Object.values(elements).some((element) => !element)) return
 
+  function messageText(status) {
+    const messages = [typeof status.message === 'string' ? status.message : '']
+    if (Array.isArray(status.notifications)) {
+      for (const notification of status.notifications) if (typeof notification?.message === 'string') messages.push(notification.message)
+    }
+    return messages.filter(Boolean).join('\n\n')
+  }
+
   const presentation = {
     starting: { stage: 'Preparing', icon: 'microphone', title: '', detail: '', progress: false },
     sending: { stage: 'Submitting', icon: 'arrow-up', title: '', detail: '', progress: true },
@@ -34,9 +42,10 @@
     if (['starting', 'recording', 'sending', 'transcribing', 'thinking'].includes(status.state)) return ''
     if (status.state === 'unavailable') return copy.detail
     if (status.state === 'error') {
-      return status.message ? `${status.message}\n${copy.detail}` : copy.detail
+      const message = messageText(status)
+      return message ? `${message}\n${copy.detail}` : copy.detail
     }
-    return status.message || copy.detail
+    return messageText(status) || copy.detail
   }
 
   let proposals
@@ -151,7 +160,10 @@
   let lastDetail
   let lastTranscript
 
+  const residentHome = () => Boolean(document.querySelector('#personal-agent .agent-panel') && document.getElementById('app-view')?.hidden)
   function setVisible(visible) {
+    // The resident panel owns home feedback. Keep modal voice feedback inside Apps.
+    if (residentHome() && !proactive) visible = false
     if (visible === !surface.hidden) return
     if (!visible) savedScrollTop = elements.content.scrollTop
     surface.hidden = !visible
@@ -188,7 +200,7 @@
     return true
   }
   async function mic() {
-    if (active && surface.hidden) {
+    if (active && surface.hidden && !residentHome()) {
       dismissed = false
       setVisible(true)
       return
@@ -259,7 +271,7 @@
       savedScrollTop = 0
       elements.content.scrollTop = 0
     }
-    const emptyIdle = status.state === 'idle' && !status.message && !status.transcript
+    const emptyIdle = status.state === 'idle' && !messageText(status) && !status.transcript
     setVisible(active && !dismissed && !emptyIdle)
     if (emptyIdle) active = false
     surface.dataset.state = status.state
@@ -275,7 +287,7 @@
   }
 
   function renderContent(status, copy) {
-    const title = ['thinking', 'idle'].includes(status.state) ? status.message || '' : copy.title
+    const title = ['thinking', 'idle'].includes(status.state) ? messageText(status) : copy.title
     const detail = status.state === 'idle' ? '' : detailFor(status, copy)
     const transcript = ['thinking', 'idle', 'error'].includes(status.state) ? status.transcript || '' : ''
     const changed = status.state !== lastState || title !== lastTitle || detail !== lastDetail || transcript !== lastTranscript

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.tile.year",
+  "name": "Independent year surface",
+  "version": "2.0.0",
+  "kind": "surface",
+  "host": "electron-renderer",
+  "surfaceKind": "tile",
+  "provides": [
+    {
+      "interface": "odk:surface/odk.tile.year/v1"
+    }
+  ],
+  "requires": [],
+  "permissions": [],
+  "entry": "entry.js",
+  "interaction": "display-only"
+}

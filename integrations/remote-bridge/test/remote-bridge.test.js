@@ -13,7 +13,7 @@ const { createJsonLineReader } = require('../lib/json-line-reader')
 
 test('speaks the Shell client schema over its 0600 runtime socket, syncs state, and relays navigation', async (t) => {
   const runtimeDirectory = await makeRuntimeDirectory()
-  const socketPath = path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock')
+  const socketPath = path.join(runtimeDirectory, 'odk-remote', 'bridge.sock')
   const adapter = new FakeAdapter()
   const bridge = new RemoteBridge({ adapter, socketPath, logger: silentLogger })
   await bridge.start()
@@ -51,7 +51,7 @@ test('sends each changed Shell state to the active Remote without a reconnect', 
   const adapter = new FakeAdapter()
   const bridge = new RemoteBridge({
     adapter,
-    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
     logger: silentLogger,
   })
   await bridge.start()
@@ -79,7 +79,7 @@ test('resynchronizes retained Shell state after a wired Remote Control reconnect
   const adapter = new FakeAdapter()
   const bridge = new RemoteBridge({
     adapter,
-    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
     logger: silentLogger,
   })
   await bridge.start()
@@ -112,7 +112,7 @@ test('marks future non-USB adapter state as wireless without changing retained S
   const adapter = new FakeAdapter()
   const bridge = new RemoteBridge({
     adapter,
-    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
     logger: silentLogger,
   })
   await bridge.start()
@@ -140,7 +140,7 @@ test('relays versioned Remote Touchpad input records emitted by an adapter', asy
   const adapter = new FakeAdapter()
   const bridge = new RemoteBridge({
     adapter,
-    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
     logger: silentLogger,
   })
   await bridge.start()
@@ -161,7 +161,7 @@ test('rejects unversioned and unsupported navigation emitted by an adapter', asy
   const runtimeDirectory = await makeRuntimeDirectory()
   const bridge = new RemoteBridge({
     adapter: new FakeAdapter(),
-    socketPath: path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock'),
+    socketPath: path.join(runtimeDirectory, 'odk-remote', 'bridge.sock'),
     logger: silentLogger,
   })
   await bridge.start()
@@ -182,7 +182,7 @@ test('rejects unversioned and unsupported navigation emitted by an adapter', asy
 test('requires an absolute XDG_RUNTIME_DIR and refuses to delete non-socket or live socket paths', async (t) => {
   assert.throws(() => resolveSocketPath({}), /XDG_RUNTIME_DIR must be an absolute path/)
   assert.throws(() => resolveSocketPath({ XDG_RUNTIME_DIR: 'relative' }), /XDG_RUNTIME_DIR must be an absolute path/)
-  assert.equal(resolveSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/open-deskos-remote/bridge.sock')
+  assert.equal(resolveSocketPath({ XDG_RUNTIME_DIR: '/run/user/1000' }), '/run/user/1000/odk-remote/bridge.sock')
   const directory = await makeRuntimeDirectory()
   const socketPath = path.join(directory, 'not-a-socket')
   await fs.promises.writeFile(socketPath, 'protected')
@@ -193,7 +193,7 @@ test('requires an absolute XDG_RUNTIME_DIR and refuses to delete non-socket or l
 
 test('will not delete a live Remote Bridge socket', async (t) => {
   const runtimeDirectory = await makeRuntimeDirectory()
-  const socketPath = path.join(runtimeDirectory, 'open-deskos-remote', 'bridge.sock')
+  const socketPath = path.join(runtimeDirectory, 'odk-remote', 'bridge.sock')
   const first = new RemoteBridge({ adapter: new FakeAdapter(), socketPath, logger: silentLogger })
   await first.start()
   t.after(async () => {

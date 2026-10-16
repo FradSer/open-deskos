@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const { resolvePages } = require('./helpers/pages')
 

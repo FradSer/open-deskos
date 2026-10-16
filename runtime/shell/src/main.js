@@ -11,23 +11,34 @@ const DEFAULT_WIDTH = 1920
 const DEFAULT_HEIGHT = 1280
 const { resolveOpenCodeGoConfig, fetchOpenCodeGo } = require('./opencode-go')
 const { createAppManagerEndpoint } = require('./app-manager-endpoint')
-const { createCameraSource } = require('./camera-source')
-const { createPiSessionsSource } = require('./pi-sessions-source')
-const { createDeskLinkClient } = require('./desk-link-client')
+const { createCameraSource, createCameraCaptureProvider } = require('./camera-source')
+const { createPiSessionsSource, createConfiguredPiSessionReader } = require('./pi-sessions-source')
+const { createOdkLinkClient, createOdkLinkTransport } = require('./odk-link-client')
 const { KIOSK_WINDOW_LOCK, enterPanel, resolvePanelBounds } = require('./panel')
 const { createPiSessionEventsSource } = require('./pi-session-events-source')
-const { createHydraSource } = require('./hydra-mqtt')
+const { readSessionEvents } = require('./pi-sessions')
+const { createHydraSource, connectHydraMqtt } = require('./hydra-mqtt')
 const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('./personal-bot-client')
 const { createWeReadSource } = require('./weread-source')
 const { createFutuSource } = require('./futu-source')
 const { createWeatherSource } = require('./weather-source')
 const { registerUserAppScheme, startUserAppSystem, resolveUserAppSurface } = require('./user-app-system')
-const { createShellDeskData } = require('./desk-data')
-const { listenDeskData } = require('./desk-data-control')
-const deskLink = createDeskLinkClient()
-const scanPiSessions = createPiSessionsSource({ deskLink })
-const readPiSessionEvents = createPiSessionEventsSource({ deskLink })
-const cameraSource = createCameraSource()
+const { createUserAppVerifier } = require('./user-app-verifier')
+const { createShellOdkData } = require('./odk-data')
+const { listenOdkData } = require('./odk-data-control')
+const { createPluginHost } = require('./plugin-host')
+const { resolveStartupDisabled, readConfig, resolveConfigPath } = require('./plugin-config')
+const { loadDevelopmentPlugins, loadAppearanceReplacements } = require('./development-plugins')
+const { loadNativePlugins, loadNativeRendererPlugins, loadNativeAppearancePlugins } = require('./native-plugin-loader')
+const { createNativeRendererAssets } = require('./native-renderer-assets')
+const { createNativeRuntimeActivator } = require('./native-runtime-activation')
+const { createNativeRendererActivator } = require('./native-renderer-activation')
+const { selectAppearancePlugins } = require('./renderer/core/appearance-plugins')
+const { installPluginShutdown } = require('./plugin-shutdown')
+const { createMainPlugins } = require('./plugins/main-composition')
+const { createFrameReadyEvents } = require('./frame-ready')
+const { resolveHostedPiSocketPath } = require('./odk-link-host-adapter')
+const { SYSTEM_PORTS } = require('./plugins/system-channels')
 
 // Mali userspace (ARM libmali blob plus CSF firmware) installed by
 // scripts/cm5-gpu-userspace.sh. Its presence marks a CM5 that can render
@@ -43,7 +54,7 @@ function hasMaliUserspace(dir = MALI_USERSPACE_DIR) {
 }
 
 function resolveGpuBackend(env = process.env, options = {}) {
-  const requested = env.ODESK_GPU_BACKEND
+  const requested = env.ODK_GPU_BACKEND
   if (requested === 'mali' || requested === 'default') return requested
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
@@ -57,7 +68,7 @@ function resolveGpuBackend(env = process.env, options = {}) {
 }
 
 function configureGpuSwitches(targetApp = app, env = process.env, options = {}) {
-  const forceSoftware = env.ODESK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
+  const forceSoftware = env.ODK_DISABLE_GPU === '1' || env.LIBGL_ALWAYS_SOFTWARE === '1'
   if (forceSoftware) {
     if (targetApp?.commandLine?.appendSwitch) {
       targetApp.commandLine.appendSwitch('disable-gpu')
@@ -85,13 +96,13 @@ function configureGpuSwitches(targetApp = app, env = process.env, options = {}) 
 }
 
 function resolveLaunchOptions(argv, env) {
-  const width = Number.parseInt(env.ODESK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
-  const height = Number.parseInt(env.ODESK_SHELL_HEIGHT ?? '', 10) || DEFAULT_HEIGHT
+  const width = Number.parseInt(env.ODK_SHELL_WIDTH ?? '', 10) || DEFAULT_WIDTH
+  const height = Number.parseInt(env.ODK_SHELL_HEIGHT ?? '', 10) || DEFAULT_HEIGHT
   return {
     width,
     height,
     smoke: argv.includes('--smoke'),
-    kiosk: argv.includes('--kiosk') || env.ODESK_SHELL_KIOSK === '1',
+    kiosk: argv.includes('--kiosk') || env.ODK_SHELL_KIOSK === '1',
     disabledPlugins: resolveDisabledPlugins(env),
     piSessionReasoning: resolvePiSessionReasoning(env),
   }
@@ -100,7 +111,7 @@ function resolveLaunchOptions(argv, env) {
 // The panel itself is src/panel.js: what a kiosk panel covers, and how it asks
 // for that geometry again while a Windows Shell Host has dropped the request.
 function resolveDisabledPlugins(env = process.env) {
-  return (env.ODESK_DISABLED_PLUGINS ?? '')
+  return (env.ODK_DISABLED_PLUGINS ?? '')
     .split(/[\s,]+/)
     .map((id) => id.trim())
     .filter(Boolean)
@@ -110,7 +121,7 @@ function resolveDisabledPlugins(env = process.env) {
 // explicit `shown` publishes what Pi was thinking, and every other value keeps
 // the desk's folded default instead of guessing at intent.
 function resolvePiSessionReasoning(env = process.env) {
-  return String(env.ODESK_PI_REASONING ?? '').trim() === 'shown' ? 'shown' : 'hidden'
+  return String(env.ODK_PI_REASONING ?? '').trim() === 'shown' ? 'shown' : 'hidden'
 }
 
 // The renderer learns launch configuration from its own URL. A value the desk
@@ -120,6 +131,7 @@ function rendererQuery(options) {
   if (options.kiosk) params.set('kiosk', '1')
   if (options.disabledPlugins.length > 0) params.set('disabledPlugins', options.disabledPlugins.join(','))
   if (options.piSessionReasoning === 'shown') params.set('piReasoning', 'shown')
+  if (options.appearanceReplacements?.length) params.set('appearanceReplacements', JSON.stringify(options.appearanceReplacements))
   return params.size > 0 ? `?${params}` : ''
 }
 
@@ -176,13 +188,13 @@ function createWindow(options) {
 function writeSmokeResult(result) {
   const serialized = `${JSON.stringify(result)}\n`
   process.stdout.write(serialized)
-  const resultFile = process.env.ODESK_SMOKE_RESULT_FILE
+  const resultFile = process.env.ODK_SMOKE_RESULT_FILE
   if (resultFile) fs.writeFileSync(resultFile, serialized, 'utf8')
 }
 
 function finishSmoke(result) {
   writeSmokeResult(result)
-  setTimeout(() => process.exit(result.ok ? 0 : 1), 0)
+  setTimeout(() => app.exit(result.ok ? 0 : 1), 0)
 }
 
 function runSmokeCheck(win, expected) {
@@ -207,6 +219,29 @@ async function main() {
   session.defaultSession.setPermissionCheckHandler(() => false)
   const smokeMode = process.argv.includes('--smoke')
   const shellHost = resolveShellHost()
+  let pluginConfig = { version: 1, plugins: {} }
+  try { pluginConfig = readConfig(resolveConfigPath(process.env)) }
+  catch (error) { console.error(`plugin configuration unavailable: ${error.message}`) }
+  const disabledPlugins = resolveStartupDisabled(process.env, undefined, pluginConfig)
+  const nativeRendererAssets = createNativeRendererAssets()
+  app.once('before-quit', () => nativeRendererAssets.close())
+  let nativeAppearanceEntries = []
+  let appearanceReplacements = []
+  if (!smokeMode) {
+    try { appearanceReplacements = loadAppearanceReplacements(pluginConfig, { disabled: disabledPlugins,
+      report: id => console.error(`appearance selection unavailable: ${id}`) }) }
+    catch (error) { console.error(`appearance selection unavailable: ${error.message}`) }
+    const nativeAppearances = await loadNativeAppearancePlugins(pluginConfig, { env: process.env, disabled: disabledPlugins,
+      existingPlugins: appearanceReplacements.map(manifest => ({ manifest })), assets: nativeRendererAssets,
+      report: id => console.error(`native Appearance unavailable: ${id}`) })
+    appearanceReplacements.push(...nativeAppearances.filter(entry => !entry.entryUrl).map(entry => entry.manifest))
+    nativeAppearanceEntries = nativeAppearances.filter(entry => entry.entryUrl)
+    if (stopping) { nativeRendererAssets.close(); return }
+  }
+  const appearancePlugins = selectAppearancePlugins(appearanceReplacements)
+  if (smokeMode || !shellHost.endpoint('plugin-diagnostics')) disabledPlugins.push('odk.system.plugin-diagnostics')
+  if (smokeMode || !shellHost.endpoint('plugin-control')) disabledPlugins.push('odk.system.plugin-control')
+  if (smokeMode || !shellHost.endpoint('renderer-plugin-control')) disabledPlugins.push('odk.system.renderer-control')
   if (!smokeMode) {
     // One statement of what this host cannot inspect, so a degraded reading is
     // visible instead of being inferred from a blank column. The reader is
@@ -230,262 +265,132 @@ async function main() {
       console.error(`remote bridge disabled: ${error.message}`)
     }
   }
-  const personalBot = createPersonalBotClient({ socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost })
-  const broadcastPersonalBotStatus = (status) => {
-    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-personal-bot-status', status)
+  const broadcast = (channel, payload) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
   }
-  let pendingPersonalBotToggle = null
-  personalBot.subscribe((status) => {
-    if (pendingPersonalBotToggle === 'starting' && status.state === 'idle') return
-    if (pendingPersonalBotToggle === 'sending' && status.state === 'recording') return
-    pendingPersonalBotToggle = null
-    broadcastPersonalBotStatus(status)
-  })
-  if (!smokeMode) personalBot.start()
-  ipcMain.handle('odk-personal-bot-status', () => personalBot.snapshot())
-  const togglePersonalBot = () => {
-    const current = personalBot.snapshot()
-    if (pendingPersonalBotToggle || ['transcribing', 'thinking'].includes(current.state)) return false
-    const sent = personalBot.toggle()
-    if (sent) {
-      pendingPersonalBotToggle = current.state === 'recording' ? 'sending' : 'starting'
-      broadcastPersonalBotStatus({
-        state: pendingPersonalBotToggle,
-        message: '',
-      })
-    } else {
-      broadcastPersonalBotStatus({ ...current, activated: true })
-    }
-    return sent
-  }
-  ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: togglePersonalBot() }))
-  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => {
-    if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
-    if (command.type === 'proposal_respond' && (typeof command.id !== 'string' || command.id.length !== 36 || !['accept', 'ignore', 'mute'].includes(command.decision) || (command.confirmation !== undefined && (typeof command.confirmation !== 'string' || command.confirmation.length > 2048)))) return { accepted: false }
-    if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return { accepted: false }
-    return { accepted: personalBot.proposalCommand(command) }
-  })
-  app.once('before-quit', () => personalBot.stop())
-  const remoteBridge = createRemoteBridgeClient({
-    socketPath: remoteSocketPath,
-    onRemoteMic: () => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('odk-personal-bot-mic')
-    },
-  })
-  let remoteSequence = 0
-  const broadcastRemoteLinkState = (state) => {
-    remoteSequence += 1
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('odk-remote-link-state', { state, sequence: remoteSequence })
-    }
-  }
-  remoteBridge.onLinkState(broadcastRemoteLinkState)
-  remoteBridge.onNavigation((direction) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('odk-remote-navigation', { direction })
-    }
-  })
-  remoteBridge.onInput((input) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('odk-remote-input', { input })
-    }
-  })
-  app.once('before-quit', () => remoteBridge.stop())
-  if (!smokeMode) remoteBridge.start()
-  ipcMain.handle('odk-remote-link-state', () => ({
-    state: remoteBridge.getLinkState(),
-    sequence: remoteSequence,
-  }))
-  ipcMain.handle('odk-remote-publish-page-state', (_event, state) => remoteBridge.publishPageState(state))
-  ipcMain.handle('odk-opencode-go-status', () => {
-    const openCodeGoConfig = resolveOpenCodeGoConfig()
-    return fetchOpenCodeGo(openCodeGoConfig)
-  })
-  ipcMain.handle('odk-camera-frame', async () => {
-    await cameraSource.refresh()
-    return cameraSource.snapshot()
-  })
-  ipcMain.handle('odk-pi-sessions', () => scanPiSessions())
-  ipcMain.handle('odk-pi-session-events', async (_event, request) => {
-    const cwd = typeof request?.cwd === 'string' ? request.cwd : ''
-    const sessionId = typeof request?.sessionId === 'string' ? request.sessionId : ''
-    return readPiSessionEvents({ cwd, sessionId, hostedPi: request?.hostedPi === true })
-  })
-  const hydraSource = smokeMode
-    ? createHydraSource({})
-    : createHydraSource({
-      url: process.env.ODK_HYDRA_MQTT_URL,
-      topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
-      onUpdate: () => personalBot.servicePush(['odk.tile.hydra']),
-    })
-  app.once('before-quit', () => hydraSource.stop())
-  ipcMain.handle('odk-hydra-status', () => hydraSource.snapshot())
-  const wereadSource = createWeReadSource({
-    cacheFile: require('node:path').join(app.getPath('userData'), 'weread-highlights.json'),
-  })
-  ipcMain.handle('odk-weread-highlight', async () => {
-    await wereadSource.refresh()
-    return wereadSource.snapshot()
-  })
-
-  // Service Plugin data seam (ADR 0009): each declared service owns one Unix
-  // socket; the shell never performs provider network I/O. The registry is
-  // rebuilt from the installed catalog so a service has no lifecycle apart
-  // from its package revision. ODESK_FUTU_SERVICE is the tracer bootstrap for
-  // first light before the installer (T3) drives the registry; it is not a
-  // second lifecycle.
-  const futuServiceDefs = {}
-  const { createUserAppStore } = require('./user-app-store')
-  const installedStore = createUserAppStore({
-    workspace: process.env.ODESK_WORKSPACE,
-    // XDG_STATE_HOME is resolved by the shared host-path module, together with
-    // LOCALAPPDATA on Windows; the refresh path must use this same store.
-    stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
-  })
   let lastFutuRejection = null
-  const futuRuntimeDir = (() => {
-    const base = process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir()
-    return require('node:path').join(base, 'open-deskos')
-  })()
-  const futuSource = createFutuSource({
-    onUpdate: id => personalBot.servicePush([id]),
-    runtimeDir: futuRuntimeDir,
-    // A declared endpoint that has no owner to authenticate it (a named pipe, or
-    // a network address a plugin on another host connects to) is gated by the
-    // host's channel token, which the channel reads from this state directory.
-    stateDir: shellHost.stateDir,
-    onReject: (reason) => {
-      if (reason === lastFutuRejection) return
-      lastFutuRejection = reason
-      console.error(`futu service plugin refused a connection: ${reason}`)
+  const { createUserAppStore } = require('./user-app-store')
+  const frames = createFrameReadyEvents()
+  const diagnosisFrames = new Set()
+  let nativeRendererEntries = []
+  const rendererEntries = () => smokeMode ? [] : [...loadDevelopmentPlugins(pluginConfig, {
+    disabled: disabledPlugins, host: 'electron-renderer',
+    report: id => console.error(`renderer development plugin unavailable: ${id}`),
+  }), ...nativeRendererEntries, ...nativeAppearanceEntries]
+  const servicePush = readingIds => pluginHost.get(SYSTEM_PORTS.serviceNotifications)?.publish(readingIds)
+  const pluginHost = createPluginHost({
+    disabled: disabledPlugins,
+    onError: (id, error) => console.error(`plugin ${id} failed: ${error.message}`),
+    capabilities: {
+      'shell.frames': { subscribe: frames.subscribe },
+      'system.renderer-development': { ipc: ipcMain, protocol: electron.protocol, nativeAssets: nativeRendererAssets,
+        runtimeNativeAssets: !smokeMode && !disabledPlugins.includes('odk.system.renderer-control'),
+        frames: () => [...diagnosisFrames], entries: rendererEntries },
+      'system.renderer-diagnostics': { ipc: ipcMain, frames: () => [...diagnosisFrames].map(sender => ({
+        id: sender.id, sender, mainFrame: () => sender.mainFrame, send: sender.send.bind(sender),
+      })) },
+      'system.renderer-control': { ipc: ipcMain, frames: () => [...diagnosisFrames].map(sender => ({
+        sender, mainFrame: () => sender.mainFrame, send: sender.send.bind(sender),
+      })), prepareActivation: (id, options) => activateRenderer(id, options), endpoint: shellHost.endpoint('renderer-plugin-control'), stateDir: shellHost.stateDir, platform: shellHost.platform, smokeMode },
+      'system.hosted-pi-diagnostics': { endpoint: () => smokeMode ? null : resolveHostedPiSocketPath(process.env) },
+      'plugin.diagnostics': { endpoint: shellHost.endpoint('plugin-diagnostics'), stateDir: shellHost.stateDir, platform: shellHost.platform, smokeMode, snapshot: () => pluginHost.list() },
+      'plugin.control': { endpoint: shellHost.endpoint('plugin-control'), stateDir: shellHost.stateDir, platform: shellHost.platform, smokeMode,
+        snapshot: () => pluginHost.list(), setEnabled: (id, enabled) => pluginHost.setEnabled(id, enabled),
+        activate: (id, options) => activateNative(id, options) },
+      ipc: ipcMain,
+      broadcast,
+      'desk.catalog': { create: createUserAppStore, createVerifier: () => createUserAppVerifier({ electronPath: process.execPath }), smokeMode, options: {
+        workspace: process.env.ODK_WORKSPACE,
+        stateDir: resolveUserAppSurface({ env: process.env }).stateDir,
+      } },
+      'desk.futu': { create: createFutuSource, env: process.env, report: message => console.error(message), options: {
+        onUpdate: id => servicePush([id]),
+        runtimeDir: require('node:path').join(process.env.XDG_RUNTIME_DIR || require('node:os').tmpdir(), 'odk'),
+        stateDir: shellHost.stateDir,
+        onReject: reason => {
+          if (reason === lastFutuRejection) return
+          lastFutuRejection = reason
+          console.error(`futu service plugin refused a connection: ${reason}`)
+        },
+        onRefuse: (id, reason) => console.error(`futu service ${id} is not listening: ${reason}`),
+      } },
+      'desk.data': { create: createShellOdkData, smokeMode, onUpdate: id => servicePush([id]) },
+      'desk.refresh': { smokeMode, setInterval, clearInterval, report: message => console.error(message) },
+      'desk.user-apps': { start: startUserAppSystem, smokeMode, isStopping, options: {
+        app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, appearancePlugins,
+      } },
+      'desk.link': { listen: listenOdkData, smokeMode, enabled: shellHost.provisionsOdkData, report: message => console.error(message), options: {
+        endpoint: shellHost.odkDataEndpoint, stateDir: shellHost.stateDir, platform: shellHost.platform,
+      } },
+      'system.personal-bot': { create: createPersonalBotClient, smokeMode, options: {
+        socketPath: smokeMode ? null : resolvePersonalBotSocketPath(process.env, shellHost), host: shellHost,
+      } },
+      'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },
+      'system.app-manager': { create: createAppManagerEndpoint },
+      'source.odk-link': { create: createOdkLinkClient, createTransport: createOdkLinkTransport },
+      'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
+      'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
+      'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },
+      'source.quota': { read: options => fetchOpenCodeGo(resolveOpenCodeGoConfig(), options) },
+      'source.hydra': { create: createHydraSource, connect: connectHydraMqtt, options: smokeMode ? {} : {
+        url: process.env.ODK_HYDRA_MQTT_URL,
+        topicPrefix: process.env.ODK_HYDRA_MQTT_TOPIC,
+        onUpdate: () => servicePush(['odk.tile.hydra']),
+      } },
+      'source.weread': { create: createWeReadSource, options: {
+        cacheFile: require('node:path').join(app.getPath('userData'), 'weread-highlights.json'),
+      } },
+      'source.weather': { create: createWeatherSource, options: smokeMode ? { latitude: null, longitude: null } : {
+        cacheFile: require('node:path').join(app.getPath('userData'), 'weather-reading.json'),
+        onUpdate: () => servicePush(['odk.tile.weather']),
+      } },
     },
-    // A service that cannot be listened for is that one service being
-    // unavailable. The reason is stated, and the shell keeps running.
-    onRefuse: (id, reason) => console.error(`futu service ${id} is not listening: ${reason}`),
-    services: () => ({ ...futuServiceDefs }),
   })
-  app.once('before-quit', () => {
-    void futuSource.stop().catch(error => console.error(`futu services stop failed: ${error.message}`))
-  })
-  const refreshFutuServices = async () => {
-    if (stopping) return
-    let nextFutuServiceDefs = null
-    try {
-      const installed = await installedStore.list()
-      nextFutuServiceDefs = {}
-      for (const entry of installed) {
-        if (!entry?.service || !entry?.id) continue
-        // A plugin declares where it listens: a socket path, a named pipe, or a
-        // network address. The socket field is the historical name for it.
-        const endpoint = entry.service.endpoint ?? entry.service.socket
-        // The package that owns the service is what a reader calls it, which is
-        // why the declared service id alone is not the whole label. An
-        // installed revision can be replaced, so a declaration that changed is
-        // published rather than only the first one ever seen.
-        const declared = { revision: entry.revision, endpoint, label: entry.name }
-        nextFutuServiceDefs[entry.service.id] = declared
-      }
-    } catch {}
-    if (stopping) return
-    const declaredEndpoint = process.env.ODK_FUTU_ENDPOINT || process.env.ODESK_FUTU_SOCKET
-    if (nextFutuServiceDefs && declaredEndpoint && !nextFutuServiceDefs['futu-poller']) {
-      // The revision is declared once, in the shared file the poller also reads, so a packaged
-      // revision cannot make the handshake reject the poller that is actually running.
-      nextFutuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint: declaredEndpoint }
-    }
-    if (nextFutuServiceDefs) {
-      for (const id of Object.keys(futuServiceDefs)) {
-        if (!(id in nextFutuServiceDefs)) delete futuServiceDefs[id]
-      }
-      Object.assign(futuServiceDefs, nextFutuServiceDefs)
-    } else if (declaredEndpoint && !futuServiceDefs['futu-poller']) {
-      futuServiceDefs['futu-poller'] = { revision: process.env.ODESK_FUTU_SERVICE_REVISION || 'dev', endpoint: declaredEndpoint }
-    }
-    if (stopping) return
-    try { await futuSource.refreshServices() } catch (error) {
-      console.error(`futu services unavailable: ${error.message}`)
-    }
-  }
-  ipcMain.handle('odk-futu-holdings', (_event, request) => futuSource.snapshot(request?.service || 'futu-poller'))
-
-  // The desk's weather instrument is the only surface allowed to reach a weather
-  // provider: the renderer asks for a snapshot and never performs network I/O.
-  // A smoke run stays offline by asking for an explicit empty location.
-  const weatherSource = smokeMode
-    ? createWeatherSource({ latitude: null, longitude: null })
-    : createWeatherSource({
-      cacheFile: require('node:path').join(app.getPath('userData'), 'weather-reading.json'),
-      onUpdate: () => personalBot.servicePush(['odk.tile.weather']),
-    })
-  ipcMain.handle('odk-weather-status', (_event, request) => weatherSource.refresh({ force: Boolean(request?.force) }))
-
-  const appManager = createAppManagerEndpoint()
-  ipcMain.handle('odk-app-manager-list', () => appManager.list())
-  ipcMain.handle('odk-app-manager-state', (_event, appId) => appManager.get(appId))
-  ipcMain.handle('odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent))
-
-  // Desk Data (ADR 0033): one registry of what the desk holds. Every reading here
-  // resolves the source the tile above already draws from, so a spoken answer and
-  // the screen cannot disagree, and the Personal Bot reaches it over the Desk Data
-  // Link rather than a second integration of any provider.
-  const deskData = createShellDeskData({
-    onUpdate: id => personalBot.servicePush([id]),
-    hydra: hydraSource,
-    weather: weatherSource,
-    weread: wereadSource,
-    futu: futuSource,
-    piSessions: { scan: () => scanPiSessions() },
-    quota: { read: () => fetchOpenCodeGo(resolveOpenCodeGoConfig()) },
-    store: installedStore,
-    // A Service Plugin is answerable under the id its own package declared, so the
-    // reading follows the installed catalog rather than one hardcoded service.
-    services: () => Object.fromEntries(Object.entries(futuServiceDefs).map(([id, def]) => [id, def.label])),
-  })
+  let developmentPlugins = []
   if (!smokeMode) {
-    // The catalog settles before the window exists, so nothing that reads a
-    // reading after boot can race the first synchronization.
-    await deskData.syncPackages()
-    if (stopping) return
-    void refreshFutuServices().then(() => { if (!stopping) deskData.syncServices() }).catch(error => console.error(`futu services refresh failed: ${error.message}`))
-    const futuRefreshTimer = setInterval(() => {
-      if (stopping) return
-      void refreshFutuServices().then(() => { if (!stopping) deskData.syncServices() }).catch(error => console.error(`futu services refresh failed: ${error.message}`))
-    }, 60 * 1000)
-    futuRefreshTimer.unref?.()
-    app.once('before-quit', () => clearInterval(futuRefreshTimer))
+    try { developmentPlugins = loadDevelopmentPlugins(pluginConfig, { disabled: disabledPlugins,
+      report: id => console.error(`development plugin unavailable: ${id}`) }) }
+    catch (error) { console.error(`development plugins unavailable: ${error.message}`) }
+    developmentPlugins.push(...await loadNativePlugins(pluginConfig, { env: process.env, disabled: disabledPlugins, existingPlugins: developmentPlugins,
+      report: id => console.error(`native plugin unavailable: ${id}`) }))
+    if (stopping) { nativeRendererAssets.close(); return }
+    const rendererDevelopment = loadDevelopmentPlugins(pluginConfig, { disabled: disabledPlugins, host: 'electron-renderer',
+      report: id => console.error(`renderer development plugin unavailable: ${id}`) })
+    nativeRendererEntries = await loadNativeRendererPlugins(pluginConfig, { env: process.env, disabled: disabledPlugins,
+      existingPlugins: [...rendererDevelopment, ...nativeAppearanceEntries], assets: nativeRendererAssets,
+      report: id => console.error(`native Renderer plugin unavailable: ${id}`) })
+    if (stopping) { nativeRendererAssets.close(); return }
   }
-  await startUserAppSystem({ app, ipcMain, protocol: electron.protocol, BrowserWindow, smokeMode, deskData, isStopping })
-  if (stopping) return
-  // A smoke run reads nothing the device owns, so it also decides nothing about
-  // which installed packages may answer.
-  if (!smokeMode) void deskData.syncPackages()
-  if (!smokeMode && shellHost.provisionsDeskData) {
-    void (async () => {
-      if (stopping) return
-      try {
-        const server = await listenDeskData({ endpoint: shellHost.deskDataEndpoint, control: deskData.control, stateDir: shellHost.stateDir, platform: shellHost.platform })
-        if (stopping) {
-          await server.close().catch(() => {})
-          return
-        }
-        app.once('before-quit', () => { void server.close().catch(() => {}) })
-      } catch (error) {
-        console.error(`desk data link unavailable: ${error.message}`)
-      }
-    })()
+  let plugins
+  let defaults
+  try {
+    plugins = createMainPlugins({ developmentPlugins: developmentPlugins.filter(plugin => !plugin.replacement),
+      replacementPlugins: developmentPlugins.filter(plugin => plugin.replacement), onDefaults: definitions => { defaults = definitions } })
+  } catch (error) {
+    console.error(`development replacements unavailable: ${error.message}`)
+    plugins = createMainPlugins({ onDefaults: definitions => { defaults = definitions } })
   }
-
+  for (const plugin of plugins) pluginHost.register(plugin)
+  const activateNative = createNativeRuntimeActivator({ host: pluginHost, defaults })
+  const activateRenderer = createNativeRendererActivator({ assets: nativeRendererAssets, entries: rendererEntries,
+    publishSelection(entry) {
+      if (entry.manifest.id.startsWith('odk.theme.')) {
+        nativeAppearanceEntries = [...nativeAppearanceEntries.filter(current => current.manifest.id !== entry.manifest.id), entry]
+      } else nativeRendererEntries = [...nativeRendererEntries.filter(current => current.manifest.id !== entry.manifest.id), entry]
+    },
+  })
+  installPluginShutdown(app, pluginHost, error => console.error(`plugins stop failed: ${error.message}`))
+  await pluginHost.start()
   if (stopping) return
 
-  const options = resolveLaunchOptions(process.argv, process.env)
+  const options = { ...resolveLaunchOptions(process.argv, process.env), disabledPlugins, appearanceReplacements }
   const win = createWindow(options)
+  const diagnosisFrame = win.webContents
+  diagnosisFrames.add(diagnosisFrame)
+  diagnosisFrame.once('destroyed', () => diagnosisFrames.delete(diagnosisFrame))
   if (options.smoke) runSmokeCheck(win, { width: options.width, height: options.height })
   win.webContents.once('did-finish-load', () => {
-    broadcastPersonalBotStatus(personalBot.snapshot())
-    win.webContents.send('odk-remote-link-state', {
-      state: remoteBridge.getLinkState(),
-      sequence: remoteSequence,
-    })
+    frames.publish({ send: win.webContents.send.bind(win.webContents) })
   })
   win.once('ready-to-show', () => {
     if (!options.smoke) {

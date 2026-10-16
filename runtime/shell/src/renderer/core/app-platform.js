@@ -66,7 +66,7 @@
     }
 
     const runtime = {
-      start(plugin, appContext) {
+      async start(plugin, appContext) {
         const appId = plugin.appId || plugin.id
         record('app-runtime', 'start', appId)
         const cleanups = []
@@ -85,8 +85,9 @@
         const rootElement = host.runtimeRoot()
         rootElement.replaceChildren()
         try {
-          root.odkPlugins.activate(plugin, rootElement, scopedContext)
+          if (root.odkPlugins.activate(plugin, rootElement, scopedContext) === false) throw new Error('App surface unavailable')
         } catch (error) {
+          await root.odkPlugins.deactivate(plugin, rootElement, scopedContext)
           runtimeCleanup()
           runtimeCleanup = null
           runtimePlugin = null
@@ -107,18 +108,15 @@
           return false
         }
       },
-      stop() {
+      async stop() {
         if (!runtimePlugin) return
         const plugin = runtimePlugin
         const appId = plugin.appId || plugin.id
         record('app-runtime', 'stop', appId)
-        try {
-          root.odkPlugins.deactivate(plugin, host.runtimeRoot(), host.context())
-        } finally {
-          runtimeCleanup?.()
-          runtimeCleanup = null
-          runtimePlugin = null
-        }
+        await root.odkPlugins.deactivate(plugin, host.runtimeRoot(), host.context())
+        runtimeCleanup?.()
+        runtimeCleanup = null
+        runtimePlugin = null
       },
     }
 
@@ -147,17 +145,26 @@
       },
     }
 
-    function stopLocalForeground() {
+    async function stopLocalForeground() {
       if (!state.active) return
-      runtime.stop()
+      await runtime.stop()
       manager.stop()
       host.closeAppFrame()
     }
 
-    function cleanupLocalForeground() {
-      try { runtime.stop() } catch {}
+    async function cleanupLocalForeground() {
+      try { await runtime.stop() } catch { return false }
       try { manager.stop() } catch {}
       try { host.closeAppFrame() } catch {}
+      return true
+    }
+
+    function markRetainedRuntimeFailure() {
+      if (!state.active) return
+      state.active.state = 'failed'
+      state.appStates.set(state.active.appId, 'Error')
+      publish()
+      publishAppState(state.active.appId)
     }
 
     async function restoreLocalForeground(snapshot) {
@@ -168,7 +175,7 @@
       try {
         manager.start(plugin, source)
         host.openAppFrame({ plugin, source })
-        runtime.start(plugin, {
+        await runtime.start(plugin, {
           ...host.context(),
           appId: snapshot.appId,
           route: snapshot.route,
@@ -177,7 +184,7 @@
         })
         return true
       } catch {
-        cleanupLocalForeground()
+        if (!await cleanupLocalForeground()) markRetainedRuntimeFailure()
         return false
       }
     }
@@ -194,12 +201,12 @@
       host.openRuntimeUnavailable(appId, reason, retry)
     }
 
-    function showActionFailure(intent, reason) {
-      host.openAppActionError(intent, reason, () => platform.emitIntent(intent))
+    function showActionFailure(intent, reason, retry = () => platform.emitIntent(intent)) {
+      host.openAppActionError(intent, reason, retry)
     }
 
     async function openApp({ appId, widgetId = null, route = null }) {
-      if (state.active?.appId === appId) return true
+      if (state.active?.appId === appId && state.active.state !== 'failed') return true
       const plugin = installer.ensureInstalled(appId)
       if (!plugin) {
         host.openMissingApp(appId)
@@ -214,12 +221,14 @@
       recordEndpointTrace(result.trace)
       const previous = state.active ? { ...state.active } : null
       const source = { widgetId, route }
+      let previousReleased = false
 
       try {
-        stopLocalForeground()
+        await stopLocalForeground()
+        previousReleased = true
         manager.start(plugin, source)
         host.openAppFrame({ plugin, source })
-        runtime.start(plugin, {
+        await runtime.start(plugin, {
           ...host.context(),
           appId,
           route,
@@ -228,7 +237,11 @@
         })
         return true
       } catch (error) {
-        cleanupLocalForeground()
+        if (previousReleased && !await cleanupLocalForeground()) {
+          markRetainedRuntimeFailure()
+          showOpenFailure(appId, `${error.message}; surface cleanup pending`, widgetId, route)
+          return false
+        }
         const transition = result.transition
         const rollback = transition ? await dispatchToEndpoint({
           type: 'rollback-open',
@@ -238,9 +251,9 @@
           previousAppId: transition.previousAppId,
           previousState: transition.previousState,
         }) : { ok: false, error: 'rollback-unavailable' }
-        let restored = false
-        if (rollback.ok && previous) restored = await restoreLocalForeground(previous)
-        if (rollback.ok && previous && !restored) {
+        let restored = rollback.ok && Boolean(previous) && !previousReleased
+        if (rollback.ok && previous && previousReleased) restored = await restoreLocalForeground(previous)
+        if (rollback.ok && previous && !restored && !runtimePlugin) {
           await dispatchToEndpoint({
             type: 'rollback-open',
             appId,
@@ -291,12 +304,12 @@
       const result = await dispatchToEndpoint({ type: 'action', appId, action: 'stop' })
       if (!result.ok) {
         record('app-manager', 'stop-failed', appId)
-        showActionFailure({ type: 'action', appId, action: 'stop' }, result.error)
+        showActionFailure({ type: 'action', appId, action: 'stop' }, result.error, () => platform.closeApp())
         return false
       }
       recordEndpointTrace(result.trace)
       try {
-        stopLocalForeground()
+        await stopLocalForeground()
         return true
       } catch (error) {
         const transition = result.transition
@@ -309,9 +322,16 @@
         }) : { ok: false, error: 'rollback-unavailable' }
         const detail = rollback.ok ? error.message :
           `${error.message}; endpoint rollback failed: ${rollback.error || 'unknown error'}`
-        showActionFailure({ type: 'action', appId, action: 'stop' }, detail)
+        showActionFailure({ type: 'action', appId, action: 'stop' }, detail, () => platform.closeApp())
         return false
       }
+    }
+
+    let pendingTransition = Promise.resolve()
+    const serializeTransition = operation => {
+      const result = pendingTransition.then(operation)
+      pendingTransition = result.catch(() => {})
+      return result
     }
 
     const platform = {
@@ -349,14 +369,14 @@
         publishAppState(appId)
       },
       active: () => state.active ? { ...state.active } : null,
-      openApp,
+      openApp: request => serializeTransition(() => openApp(request)),
       async emitIntent(intent) {
         if (!intent) return false
-        if (intent.type === 'open-app') return openApp(intent)
+        if (intent.type === 'open-app') return serializeTransition(() => openApp(intent))
         if (intent.type !== 'action') return false
-        return dispatchAction(intent)
+        return serializeTransition(() => dispatchAction(intent))
       },
-      closeApp: stopForeground,
+      closeApp: () => serializeTransition(stopForeground),
     }
 
     return platform

@@ -5,7 +5,7 @@
 set -euo pipefail
 
 USB_ID="303a:7002"
-VIDEO_SYMLINK="/dev/open-deskos-p4-camera"
+VIDEO_SYMLINK="/dev/odk-p4-camera"
 
 is_mjpg_node() {
   v4l2-ctl -d "$1" --list-formats-ext 2>/dev/null | grep -q 'MJPG'

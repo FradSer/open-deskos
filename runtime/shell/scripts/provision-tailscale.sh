@@ -6,7 +6,7 @@
 # one, and the login stays the operator's act.
 set -euo pipefail
 
-COMMAND="${ODESK_TAILSCALE_BIN:-/usr/bin/tailscale}"
+COMMAND="${ODK_TAILSCALE_BIN:-/usr/bin/tailscale}"
 REPORT=0
 [ "${1:-}" = "--report" ] && REPORT=1
 

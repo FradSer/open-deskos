@@ -56,7 +56,7 @@ function createTile({ snapshot, reject = false, platform = true, delay = 0 } = {
     clearTimeout,
   }
   vm.runInNewContext(pluginSource, { window: root, globalThis: root, document: root.document, setTimeout, clearTimeout, URLSearchParams, Promise, console, Object, Math, String, Number, Array, JSON, Date, Boolean })
-  root.registration.mount(el, { onTick: (callback) => { ticks.push(callback); return () => {} } })
+  root.registration.mount(el, { trackCleanup() {}, onTick: (callback) => { ticks.push(callback); return () => {} } })
   return {
     el,
     nodes,
@@ -216,7 +216,7 @@ test('a restart shows the last reading before the provider answers', async () =>
     setTimeout, clearTimeout,
   }
   vm.runInNewContext(pluginSource, { window: root, globalThis: root, document: root.document, setTimeout, clearTimeout, URLSearchParams, Promise, console, Object, Math, String, Number, Array, JSON, Date, Boolean })
-  root.registration.mount(el, { onTick: () => () => {} })
+  root.registration.mount(el, { trackCleanup() {}, onTick: () => () => {} })
   await new Promise((resolve) => setImmediate(resolve))
   assert.deepEqual(asked.slice(0, 2), [false, true], 'the cached reading is asked for first')
   assert.equal(el.dataset.state, 'live', 'the fresh reading is the last word')

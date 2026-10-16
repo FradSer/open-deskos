@@ -142,11 +142,11 @@ add_test(NAME dashboard_layout_contract
 # launcher, reads their actual frames, and checks baseline / adaptive-plan
 # behavior. Keep it in CTest rather than relying on a static source contract.
 add_test(NAME dashboard_layout_harness
-    COMMAND ${CMAKE_COMMAND} -E env "ODK_SIM_BUILD_DIR=/tmp/open-deskos-p4-c6-research-sim"
+    COMMAND ${CMAKE_COMMAND} -E env "ODK_SIM_BUILD_DIR=/tmp/odk-p4-c6-research-sim"
             ${CMAKE_CURRENT_SOURCE_DIR}/../../sim/native_sdl/run.sh
             @${CMAKE_CURRENT_SOURCE_DIR}/dashboard_layout_harness.lua)
 set_tests_properties(dashboard_layout_harness PROPERTIES
-    ENVIRONMENT "ODK_SIM_SHOT=/tmp/open-deskos-dashboard-layout-harness.bmp;ODK_SIM_SHOT_FRAMES=10")
+    ENVIRONMENT "ODK_SIM_SHOT=/tmp/odk-dashboard-layout-harness.bmp;ODK_SIM_SHOT_FRAMES=10")
 
 add_test(NAME ppa_adapter_alignment_contract
     COMMAND ${CMAKE_COMMAND}

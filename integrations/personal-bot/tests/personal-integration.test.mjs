@@ -36,8 +36,9 @@ test('ride updates defer during a request and cannot overwrite it or publish aft
   service.notify('司机已接单')
   assert.equal(service.status.message, 'current answer')
   service.setState('idle', 'answer done')
-  assert.match(service.status.message, /answer done/)
-  assert.match(service.status.message, /司机已接单/)
+  assert.equal(service.status.message, 'answer done')
+  assert.equal(service.status.notifications.length, 1)
+  assert.match(service.status.notifications[0].message, /司机已接单/)
   assert.equal(service.status.transcript, 'my question')
   await service.close()
   service.notify('late driver update')
@@ -55,11 +56,13 @@ test('transaction-aware failure text does not invite another order', async () =>
 
 test('adapter grants only the accepted transcript and clears on completion, rejection and failure', async () => {
   const turns = []
-  let resolve
+  let resolve, entered
+  const started = new Promise(r => { entered = r })
   const session = { isStreaming: false, subscribe: () => () => {},
-    prompt: () => new Promise(r => { resolve = r }), dispose() {}, abort() {} }
+    prompt: () => new Promise(r => { resolve = r; entered() }), dispose() {}, abort() {} }
   const adapter = sessionAdapter(session, { beginTurn: text => turns.push(text) })
   const pending = adapter.prompt('确认叫车')
+  await started
   await assert.rejects(adapter.prompt('other'), /progress/)
   assert.deepEqual(turns, ['确认叫车'])
   resolve()

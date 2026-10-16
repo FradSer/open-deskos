@@ -1,4 +1,10 @@
 const BUILTIN_APPS = [
+  { appId: 'futu', name: 'Futu holdings', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'weather', name: 'Weather', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'hydra', name: 'Hydra plants', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'weread', name: 'WeRead', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+  { appId: 'preorder', name: 'Pre-order', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
+
   { appId: 'calendar', name: 'Calendar', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'clock', name: 'Clock', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'pomodoro', name: 'Pomodoro', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
@@ -212,6 +218,24 @@ function createAppManagerEndpoint({ apps = BUILTIN_APPS } = {}) {
         return { ok: false, error: 'invalid-intent', trace: [] }
       }
       return route(intent, intent.action)
+    },
+    captureState() {
+      return { version: 1, states: apps.map(app => ({ appId: app.appId, state: states.get(app.appId) })), foregroundAppId: foreground.appId }
+    },
+    restoreState(snapshot) {
+      const restored = new Map()
+      if (snapshot?.version !== 1 || !Array.isArray(snapshot.states) || snapshot.states.length !== apps.length) {
+        throw Error('invalid App Manager state')
+      }
+      for (const row of snapshot.states) {
+        if (!row || !apps.some(app => app.appId === row.appId) || restored.has(row.appId)
+          || (!APP_STATES.has(row.state) && row.state !== 'removed')) throw Error('invalid App Manager state')
+        restored.set(row.appId, row.state)
+      }
+      if (snapshot.foregroundAppId !== null && !restored.has(snapshot.foregroundAppId)) throw Error('invalid App Manager state')
+      states.clear()
+      for (const [appId, state] of restored) states.set(appId, state)
+      foreground.appId = snapshot.foregroundAppId
     },
     foreground() {
       return foreground.appId ? get(foreground.appId) : null

@@ -6,7 +6,7 @@ const path = require('node:path')
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..', '..')
 const FEATURE = path.join(__dirname, 'features', 'repository-layout.feature')
 const GIT_AGENT_CONFIG = path.join(REPOSITORY_ROOT, '.git-agent', 'config.yml')
-const OBSOLETE_PATHS = ['firmware/linux', 'firmware/open-deskos', 'app/apple', 'docs/open-deskos']
+const OBSOLETE_PATHS = ['firmware/linux', 'firmware/odk', 'app/apple', 'docs/odk']
 
 function exists(relativePath) {
   return fs.existsSync(path.join(REPOSITORY_ROOT, relativePath))
@@ -45,10 +45,10 @@ if (!exists('.git')) {
     assert.equal(exists(path.join('runtime', 'linux')), false, 'the runtime directory must not name a host platform')
   })
 
-  test('the host-neutral rename retains the existing Electron profile identity', () => {
+  test('the Shell and CM5 launcher use the canonical ODK profile identity', () => {
     const runtimeRoot = path.resolve(__dirname, '..')
     const manifest = JSON.parse(fs.readFileSync(path.join(runtimeRoot, 'package.json'), 'utf8'))
-    assert.equal(manifest.name, '@fradser/open-deskos-linux-shell')
+    assert.equal(manifest.name, '@odk/shell')
     assert.match(manifest.description, /Linux, Windows, and macOS/)
     const launcher = fs.readFileSync(path.join(runtimeRoot, 'scripts', 'start-kiosk.sh'), 'utf8')
     assert.ok(launcher.includes(manifest.name), 'the CM5 profile launcher and Electron package identity must agree')
@@ -57,8 +57,8 @@ if (!exists('.git')) {
   test('git-agent uses concise scopes aligned with the current topology', () => {
     const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
     const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
-    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, research, tooling, and experiments/)
-    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'rsrch', 'tool', 'exp'].sort())
+    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments/)
+    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'vis', 'rsrch', 'tool', 'exp'].sort())
     assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
   })
 

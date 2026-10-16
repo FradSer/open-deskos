@@ -38,7 +38,7 @@ enum BackgroundHealthSchedule: String, CaseIterable, Identifiable, Equatable {
     }
 
     var agentPlistName: String {
-        "dev.fradser.open-deskos.wispr-health.app.\(suffix).plist"
+        "dev.fradser.odk.wispr-health.app.\(suffix).plist"
     }
 
     private var suffix: String {

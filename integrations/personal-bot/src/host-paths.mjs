@@ -16,12 +16,12 @@ import { join } from 'node:path'
  */
 export function hostDirectories(env = process.env, platform = process.platform) {
   if (platform === 'win32') {
-    const root = join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'open-deskos', 'personal-bot')
+    const root = join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'odk', 'personal-bot')
     return { captures: root, state: root }
   }
   return {
-    captures: join(env.XDG_RUNTIME_DIR, 'open-deskos-personal-bot'),
-    state: join(env.XDG_STATE_HOME || join(homedir(), '.local/state'), 'open-deskos-personal-bot'),
+    captures: join(env.XDG_RUNTIME_DIR, 'odk-personal-bot'),
+    state: join(env.XDG_STATE_HOME || join(homedir(), '.local/state'), 'odk-personal-bot'),
   }
 }
 

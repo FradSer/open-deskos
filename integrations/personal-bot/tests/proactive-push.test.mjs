@@ -10,8 +10,8 @@ import { listen } from '../src/socket.mjs'
 const require = createRequire(import.meta.url)
 const { createPersonalBotClient } = require('../../../runtime/shell/src/personal-bot-client.js')
 const { createHydraStore } = require('../../../runtime/shell/src/hydra-mqtt.js')
-const { createShellDeskData } = require('../../../runtime/shell/src/desk-data.js')
-const { createDeskDataRegistry } = require('../../../runtime/shell/src/desk-data-registry.js')
+const { createShellOdkData } = require('../../../runtime/shell/src/odk-data.js')
+const { createOdkDataRegistry } = require('../../../runtime/shell/src/odk-data-registry.js')
 const stamp = Date.parse('2026-10-02T10:00:00Z')
 const until = async predicate => { const begin = Date.now(); while (!predicate()) { if (Date.now()-begin>5000) throw Error('fixture timed out'); await new Promise(resolve=>setTimeout(resolve,20)) } }
 
@@ -22,7 +22,7 @@ test('real Hydra update -> authenticated Shell client -> source reread -> Jev pu
   const store = createHydraStore({ onUpdate: () => client?.servicePush(['odk.tile.hydra']) })
   store.markConnected(true)
   for (const [topic,value] of [['main/online','true'],['main/env','v=1;t=26;h=50;p=1000;l=0'],['node1/online','true'],['node1/soil','60']]) store.applyMessage('hydra/'+topic,value,stamp)
-  const registry = createShellDeskData({ hydra: { snapshot: () => store.snapshot(stamp) } }).registry
+  const registry = createShellOdkData({ hydra: { snapshot: () => store.snapshot(stamp) } }).registry
   const service = new PersonalBotService({ record: async () => { throw Error('no audio') }, transcribe: async () => '', prompt: async () => '' })
   const requests = []
   const watch = new ProactiveWatch({ config: { version: 1, pollMs: 60000, maxAgeMs: 1800000, cooldownMs: 60000, suppressed: [], snoozed: {}, rules: [{ id: 'soil', delivery: 'immediate', urgent: false, advice: '检查盆土。', conditions: [{ readingId: 'odk.tile.hydra', field: 'plants.0.soilPercent', measuredAtField: 'plants.0.measuredAt', op: 'lt', value: 15 }] }] },
@@ -42,7 +42,7 @@ test('real Hydra update -> authenticated Shell client -> source reread -> Jev pu
 })
 
 test('only committed declared package values emit source updates', () => {
-  const ids = [], registry = createDeskDataRegistry({ onPublish: id => ids.push(id) })
+  const ids = [], registry = createOdkDataRegistry({ onPublish: id => ids.push(id) })
   registry.register({ id:'test.app', label:'test', kind:'package', declaration:{fields:{ soil:{type:'number'} }} })
   assert.equal(registry.publish('test.app',{ advice:'run tools' }).ok,false); assert.deepEqual(ids,[])
   assert.equal(registry.publish('test.app',{ soil:10 }).ok,true); assert.deepEqual(ids,['test.app'])

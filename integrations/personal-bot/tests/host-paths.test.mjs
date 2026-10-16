@@ -10,22 +10,22 @@ import { hostDirectories, prepareHostDirectories } from '../src/host-paths.mjs'
 // device found by exiting at startup, and this is what keeps it from returning.
 test('a Windows host keeps captures and agent state in its own application data', () => {
   assert.deepEqual(hostDirectories({ LOCALAPPDATA: 'C:\\Users\\desk\\AppData\\Local' }, 'win32'), {
-    captures: join('C:\\Users\\desk\\AppData\\Local', 'open-deskos', 'personal-bot'),
-    state: join('C:\\Users\\desk\\AppData\\Local', 'open-deskos', 'personal-bot'),
+    captures: join('C:\\Users\\desk\\AppData\\Local', 'odk', 'personal-bot'),
+    state: join('C:\\Users\\desk\\AppData\\Local', 'odk', 'personal-bot'),
   })
 })
 
 test('a Unix host keeps captures in the runtime directory and state where XDG says', () => {
   assert.deepEqual(hostDirectories({ XDG_RUNTIME_DIR: '/run/user/1000', XDG_STATE_HOME: '/home/kiosk/.local/state' }, 'linux'), {
-    captures: '/run/user/1000/open-deskos-personal-bot',
-    state: '/home/kiosk/.local/state/open-deskos-personal-bot',
+    captures: join('/run/user/1000','odk-personal-bot'),
+    state: join('/home/kiosk/.local/state','odk-personal-bot'),
   })
 })
 
 test('a missing host directory is created before anything is written into it', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'voice-host-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const captures = join(dir, 'app-data', 'open-deskos', 'personal-bot')
+  const captures = join(dir, 'app-data', 'odk', 'personal-bot')
   assert.equal(await access(captures).then(() => true, () => false), false)
 
   const directories = await prepareHostDirectories({ LOCALAPPDATA: join(dir, 'app-data') }, 'win32')
@@ -42,6 +42,6 @@ test('a host that cannot hold the directory stops startup instead of recording n
   const created = []
   await prepareHostDirectories({ XDG_RUNTIME_DIR: '/run/user/1000', XDG_STATE_HOME: '/run/user/1000/state' }, 'linux',
     async (directory, options) => { created.push([directory, options]) })
-  assert.deepEqual(created.map(([directory]) => directory), ['/run/user/1000/open-deskos-personal-bot', '/run/user/1000/state/open-deskos-personal-bot'])
+  assert.deepEqual(created.map(([directory]) => directory), [join('/run/user/1000','odk-personal-bot'), join('/run/user/1000/state','odk-personal-bot')])
   assert.deepEqual(created[0][1], { recursive: true, mode: 0o700 })
 })

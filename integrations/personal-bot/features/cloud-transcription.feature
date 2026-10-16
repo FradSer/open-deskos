@@ -8,7 +8,7 @@ Feature: Declared Aliyun/Qwen cloud transcription
     Given no transcription provider override
     When a desk with no local ASR model sends a recording for transcription
     Then the declared provider is openai and the request is multipart
-    And a desk that declares ODESK_PERSONAL_BOT_STT_PROVIDER as "aliyun" uses the cloud JSON request
+    And a desk that declares ODK_PERSONAL_BOT_STT_PROVIDER as "aliyun" uses the cloud JSON request
     And the endpoint hostname alone never selects the transport
 
   Scenario: Undeclared provider values are rejected before any I/O
@@ -32,17 +32,17 @@ Feature: Declared Aliyun/Qwen cloud transcription
     Given ALIYUNCS_TOKEN is a trimmed, nonempty token in the desk environment
     When captured audio is sent for transcription
     Then the Authorization header is that token as a bearer
-    And a configured ODESK_PERSONAL_BOT_STT_KEY_FILE is not read and not sent on this transport
+    And a configured ODK_PERSONAL_BOT_STT_KEY_FILE is not read and not sent on this transport
     And a missing or blank token fails with the missing credential error before any request
 
   Scenario: Provider language codes are sent unchanged
-    Given ODESK_PERSONAL_BOT_STT_LANGUAGE is a two or three lowercase letter language code
+    Given ODK_PERSONAL_BOT_STT_LANGUAGE is a two or three lowercase letter language code
     When captured audio is sent to the cloud provider
     Then asr_options.language is that exact code
     And asr_options.enable_lid is absent
 
   Scenario: Automatic language detection is explicit for the cloud provider
-    Given ODESK_PERSONAL_BOT_STT_LANGUAGE is "auto"
+    Given ODK_PERSONAL_BOT_STT_LANGUAGE is "auto"
     When captured audio is sent to the cloud provider
     Then asr_options.enable_lid is true
     And no asr_options.language key is sent at all
@@ -54,13 +54,13 @@ Feature: Declared Aliyun/Qwen cloud transcription
     And digits inside product vocabulary are not rewritten by the provider
 
   Scenario: Transcription context becomes the system message
-    Given no ODESK_PERSONAL_BOT_STT_PROMPT override
+    Given no ODK_PERSONAL_BOT_STT_PROMPT override
     When captured audio is sent to the cloud provider
     Then the system message text is the short Simplified Chinese and English transcription example
     And it includes Open DeskOS, CM5, ESP32-P4, Pi, Agent, MIC, Back, Markdown, GitHub and TypeScript
 
   Scenario: Operators can replace or disable the cloud context
-    Given ODESK_PERSONAL_BOT_STT_PROMPT is configured with at most 1024 characters, or is empty
+    Given ODK_PERSONAL_BOT_STT_PROMPT is configured with at most 1024 characters, or is empty
     When captured audio is sent to the cloud provider
     Then the exact configured context becomes the system message text
     And an explicitly empty context omits the system message entirely rather than sending empty text

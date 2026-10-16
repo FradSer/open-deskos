@@ -7,8 +7,8 @@ const { readBoundedFile, ensureDirectory, writeExclusive } = require('../src/use
 const { posixOnlyReason } = require('./not-ported')
 
 async function fixture() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-files-'))
-  return { root, outside: await fs.mkdtemp(path.join(os.tmpdir(), 'odesk-outside-')) }
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-files-'))
+  return { root, outside: await fs.mkdtemp(path.join(os.tmpdir(), 'odk-outside-')) }
 }
 
  test('reads regular files exactly and enforces bounds', async () => {

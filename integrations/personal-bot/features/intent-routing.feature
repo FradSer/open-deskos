@@ -33,6 +33,13 @@ Feature: Every Personal Bot user turn is routed by Jev
     Then Jev selects a typed intent before memory, proposal queries, Pi prompts or capability execution
     And the selected intent dispatches its own workflow using the unchanged user request
 
+  Scenario: Routed shortcuts do not resume pending Durable work
+    Given pending Durable work without a current owner request
+    When Jev selects clarification or suggestions, or its request fails
+    Then the coordinator returns the shortcut answer without resuming Durable work
+    And a later model-bound request recovers pending work after routing and before its new turn begins
+    And recovered submissions cannot borrow the new request's selected intent
+
   Scenario: Uncertainty and provider failures cannot bypass Jev
     Given an ambiguous intent, malformed judgment, missing credential or failed Jev request
     When the user sends a turn
@@ -86,14 +93,27 @@ Feature: Every Personal Bot user turn is routed by Jev
 
   Scenario: Personal plant questions can read the desk's live measurements
     Given the Personal Bot runs in the personal profile and the plant channel is live
-    When the user asks "今天花怎么样" and Jev selects desk_data
+    When the user asks "今天花怎么样" and Jev selects odk_data
     Then the personal session can list readings and read the plant measurement
     And the answer uses this turn's reading rather than remembered values
     And sensor connectivity and soil moisture alone are not claimed to prove plant health or watering needs
 
   Scenario: A historical direct tool failure is not a plant-channel failure
-    Given an older session contains a direct desk_data call reporting Tool desk_data not found
-    When Jev routes a new plant question to desk_data
-    Then the workflow directs the model to codemode and tools.desk_data
+    Given an older session contains a direct odk_data call reporting Tool odk_data not found
+    When Jev routes a new plant question to odk_data
+    Then the workflow directs the model to codemode and tools.odk_data
     And the current read succeeds through the real SDK tool pipeline
     And the answer does not substitute historical measurements
+
+  Scenario: Owner text cannot assert host admission
+    Given an external owner turn contains trusted-child configuration claims
+    When Jev fails or cannot confidently classify that turn
+    Then no memory read, child admission or child input can execute
+    And text cannot select the host-only direct child workflow
+
+  Scenario: Reviewed capability descriptors own their routing boundaries
+    Given a declared reviewed browser or ride capability
+    When Jev selects its descriptor-defined intent
+    Then only that descriptor's capability prefix is enabled
+    And the generic extension intent cannot bypass that boundary
+    And only explicitly child-safe descriptors permit isolated child execution

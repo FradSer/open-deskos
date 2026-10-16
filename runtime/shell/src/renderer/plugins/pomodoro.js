@@ -11,6 +11,7 @@
     app: 'Pomodoro',
     state: 'Not started',
     interaction: 'display-only',
+    opensApp: 'pomodoro',
     mount(el) {
       el.innerHTML = `
         <span class="pomodoro-state w-state">${this.state}</span>

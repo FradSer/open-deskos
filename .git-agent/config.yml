@@ -13,3 +13,5 @@ scopes:
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
     - name: tool
       description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
+    - name: vis
+      description: Computer vision pipelines and face recognition logic in experiments/vision/; does not cover peripheral firmware drivers

@@ -12,17 +12,20 @@ function createFakeDocument() {
     appendChild(node) {
       node.parentNode = head
       children.push(node)
+      doc.onInsert?.(node)
       return node
     },
     insertBefore(node, ref) {
       node.parentNode = head
       if (!ref) {
         children.push(node)
+        doc.onInsert?.(node)
         return node
       }
       const index = children.indexOf(ref)
       if (index === -1) children.push(node)
       else children.splice(index, 0, node)
+      doc.onInsert?.(node)
       return node
     },
   }
@@ -53,6 +56,15 @@ function createFakeDocument() {
         getAttribute(key) {
           return this.attrs[key] || null
         },
+        removeAttribute(key) {
+          delete this.attrs[key]
+          if (key === 'data-plugin') delete this.dataset.plugin
+        },
+        remove() {
+          const index = children.indexOf(this)
+          if (index !== -1) children.splice(index, 1)
+          this.parentNode = null
+        },
       }
     },
     querySelector(selector) {
@@ -68,8 +80,9 @@ function createFakeDocument() {
 }
 
 function createRegistry(doc) {
-  const root = doc ? { document: doc } : {}
-  vm.runInContext(registrySource, vm.createContext({ window: root, globalThis: root, document: doc }))
+  const root = { document: doc, odkPluginHost: require('../src/plugin-host') }
+  vm.runInContext(registrySource, vm.createContext({ window: root, structuredClone, setTimeout, clearTimeout,
+    console: { error() {} }, globalThis: root, document: doc }))
   return root.odkPlugins
 }
 
@@ -141,4 +154,202 @@ test('deactivation keeps the stylesheet loaded', () => {
   registry.activate(def, el, fakeCtx())
   registry.deactivate(def, el, fakeCtx())
   assert.ok(doc.querySelector('link[data-plugin="odk.tile.weread"]'), 'stylesheet must survive deactivation')
+})
+
+
+test('trusted development stylesheet preparation preserves relative declarations and maps only the selected definition', async () => {
+  const doc = createFakeDocument()
+  const registry = createRegistry(doc)
+  const original = tile('odk.tile.clock')
+  registry.register(original)
+  const replacement = tile(original.id, { css: 'clock.css', manifest: { schemaVersion: 1, css: 'clock.css' } })
+  assert.throws(() => registry.prepareDevelopmentStylesheet(replacement, 'https://example.invalid/clock.css'), /invalid/)
+  registry.prepareDevelopmentStylesheet(replacement, 'file:///package/clock.css')
+  const unprepared = tile('odk.tile.other', { css: 'clock.css' })
+  registry.register(unprepared)
+  await registry.start({ replacements: [replacement] })
+  registry.activate(registry.get(original.id), fakeEl(), fakeCtx())
+  registry.activate(registry.get(unprepared.id), fakeEl(), fakeCtx())
+  assert.equal(doc.querySelector('link[data-plugin="odk.tile.clock"]').href, 'file:///package/clock.css')
+  assert.equal(doc.querySelector('link[data-plugin="odk.tile.other"]').href, 'clock.css')
+  assert.throws(() => registry.prepareDevelopmentStylesheet(replacement, 'file:///package/clock.css'), /before startup/)
+  await registry.stop()
+})
+
+const deferred = () => { let resolve; const promise = new Promise(accept => { resolve = accept }); return { promise, resolve } }
+async function recoveryFixture({ css = 'plugins/default.css', mount, create, unmount } = {}) {
+  const doc = createFakeDocument()
+  const registry = createRegistry(doc)
+  const id = 'odk.tile.recovery'
+  const element = { text: '', isConnected: true, replaceChildren() { this.text = '' } }
+  const original = tile(id, { css, manifest: { schemaVersion: 1, version: '1.0.0', ...(css ? { css } : {}) },
+    create, mount: mount || (el => { el.text = 'default' }) })
+  registry.register(original)
+  const external = tile(id, { css: 'external.css', manifest: { schemaVersion: 1, version: '2.0.0', css: 'external.css' },
+    unmount, mount(el) { el.text = 'external' } })
+  registry.prepareDevelopmentStylesheet(external, 'file:///package/external.css')
+  await registry.start({ replacements: [external] })
+  registry.activate(registry.get(id), element, fakeCtx())
+  const previous = doc.querySelector(`link[data-plugin="${id}"]`)
+  const inserted = deferred()
+  doc.onInsert = link => { if (link.media === 'not all') inserted.resolve(link) }
+  return { doc, registry, id, original, element, previous, inserted,
+    link: () => doc.querySelector(`link[data-plugin="${id}"]`) }
+}
+
+test('recovery stages default CSS without applying it and switches only after external cleanup', async () => {
+  const entered = deferred(); const released = deferred()
+  const f = await recoveryFixture({ unmount() { entered.resolve(); return released.promise } })
+  const recovery = f.registry.restoreDefault(f.id)
+  const staged = await f.inserted.promise
+  assert.equal(staged.media, 'not all')
+  assert.equal(f.previous.disabled, undefined)
+  assert.equal(f.element.text, 'external')
+  staged.onload()
+  await entered.promise
+  assert.equal(f.link(), f.previous)
+  assert.equal(f.previous.disabled, undefined)
+  assert.equal(staged.media, 'not all')
+  released.resolve()
+  const result = await recovery
+  assert.equal(result.implementation, 'built-in')
+  assert.equal(f.link(), staged)
+  assert.equal(staged.media, '')
+  assert.equal(staged.href, 'plugins/default.css')
+  assert.equal(f.previous.parentNode, null)
+  assert.equal(f.element.text, 'default')
+  await f.registry.stop()
+})
+
+test('unavailable default stylesheet rejects before external release or default construction', async () => {
+  let released = 0; let created = 0
+  const f = await recoveryFixture({ unmount() { released++ }, create() { created++; return {} } })
+  const recovery = f.registry.restoreDefault(f.id)
+  const rejected = assert.rejects(recovery, /stylesheet unavailable/)
+  const staged = await f.inserted.promise
+  staged.onerror()
+  await rejected
+  assert.equal(released, 0)
+  assert.equal(created, 0)
+  assert.equal(f.link(), f.previous)
+  assert.equal(f.element.text, 'external')
+  assert.equal(staged.parentNode, null)
+  await f.registry.stop()
+})
+
+for (const phase of ['factory', 'mount']) test(`failed default ${phase} restores the external stylesheet and surface`, async () => {
+  const f = await recoveryFixture({
+    ...(phase === 'factory' ? { create() { throw Error('default factory failed') } }
+      : { mount() { throw Error('default mount failed') } }),
+  })
+  const recovery = f.registry.restoreDefault(f.id)
+  const rejected = assert.rejects(recovery, /replacement failed|restoration failed/)
+  const staged = await f.inserted.promise
+  staged.onload()
+  await rejected
+  assert.equal(f.link(), f.previous)
+  assert.equal(f.previous.disabled, undefined)
+  assert.equal(staged.parentNode, null)
+  assert.equal(f.registry.get(f.id).manifest.version, '2.0.0')
+  assert.equal(f.element.text, 'external')
+  await f.registry.stop()
+})
+
+test('failed external cleanup keeps its stylesheet and discards staged default CSS until retry', async () => {
+  let refuse = true
+  const f = await recoveryFixture({ unmount() { if (refuse) throw Error('external retained') } })
+  const recovery = f.registry.restoreDefault(f.id)
+  const rejected = assert.rejects(recovery, /retains resources/)
+  const staged = await f.inserted.promise
+  staged.onload()
+  await rejected
+  assert.equal(f.link(), f.previous)
+  assert.equal(staged.parentNode, null)
+  refuse = false
+  f.doc.onInsert = link => queueMicrotask(() => link.onload?.())
+  await f.registry.restoreDefault(f.id)
+  assert.equal(f.link().href, 'plugins/default.css')
+  assert.equal(f.element.text, 'default')
+  await f.registry.stop()
+})
+
+test('retained failed default cleanup keeps its stylesheet until explicit successful recovery', async () => {
+  let refuse = true
+  const f = await recoveryFixture({ mount(el, ctx) {
+    ctx.trackCleanup(() => { if (refuse) throw Error('default retained') })
+    if (refuse) throw Error('default mount failed')
+    el.text = 'default'
+  } })
+  const recovery = f.registry.restoreDefault(f.id)
+  const rejected = assert.rejects(recovery, /retains resources/)
+  const staged = await f.inserted.promise
+  staged.onload()
+  await rejected
+  assert.equal(f.link(), staged)
+  assert.equal(staged.media, '')
+  assert.equal(f.previous.parentNode, null)
+  assert.equal(f.registry.get(f.id).manifest.version, '1.0.0')
+  refuse = false
+  await f.registry.restoreDefault(f.id)
+  assert.equal(f.link(), staged)
+  assert.equal(f.element.text, 'default')
+  await f.registry.stop()
+})
+
+test('shutdown cancels staged stylesheet loading and late completion cannot construct defaults', async () => {
+  let created = 0
+  const f = await recoveryFixture({ create() { created++; return {} } })
+  const recovery = f.registry.restoreDefault(f.id)
+  const rejected = assert.rejects(recovery, /cancelled|shutdown/)
+  const staged = await f.inserted.promise
+  const lateLoad = staged.onload
+  await f.registry.stop()
+  await rejected
+  lateLoad()
+  assert.equal(created, 0)
+  assert.equal(staged.parentNode, null)
+  assert.equal(f.link(), f.previous)
+})
+
+test('recovery to a default without CSS removes only the released external stylesheet', async () => {
+  const doc = createFakeDocument(); const registry = createRegistry(doc)
+  const original = tile('odk.tile.plain')
+  registry.register(original)
+  const external = tile(original.id, { css: 'external.css', manifest: { schemaVersion: 1, css: 'external.css' } })
+  registry.prepareDevelopmentStylesheet(external, 'file:///package/external.css')
+  await registry.start({ replacements: [external] })
+  registry.activate(registry.get(original.id), fakeEl(), fakeCtx())
+  const previous = doc.querySelector(`link[data-plugin="${original.id}"]`)
+  await registry.restoreDefault(original.id)
+  assert.equal(previous.parentNode, null)
+  assert.equal(doc.head.children.length, 1)
+  await registry.stop()
+})
+
+test('queued ordinary replacement rechecks stylesheet binding after default recovery', async () => {
+  const f = await recoveryFixture()
+  const recovery = f.registry.restoreDefault(f.id)
+  const staged = await f.inserted.promise
+  const replacement = f.registry.get(f.id)
+  // Pass the admitted definition so its private external binding survives admission.
+  const replacing = f.registry.replace(replacement)
+  let settled = false
+  void replacing.then(() => { settled = true }, () => { settled = true })
+  const rejected = assert.rejects(replacing, /stylesheet contract/)
+  await Promise.resolve()
+  assert.equal(settled, false)
+  staged.onload()
+  await recovery
+  await rejected
+  assert.equal(f.link(), staged)
+  assert.equal(f.element.text, 'default')
+  await f.registry.stop()
+})
+
+test('ordinary replacement cannot opt into built-in stylesheet recovery', async () => {
+  const f = await recoveryFixture()
+  await assert.rejects(f.registry.replace(f.original, { recovery: true }), /stylesheet contract/)
+  assert.equal(f.link(), f.previous)
+  assert.equal(f.element.text, 'external')
+  await f.registry.stop()
 })

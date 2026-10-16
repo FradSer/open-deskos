@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "odk.s3.surface",
+  "name": "Remote surface",
+  "version": "1.0.0",
+  "host": "esp32-s3",
+  "kind": "surface",
+  "lifecycle": "s3_surface_lifecycle",
+  "provides": [
+    {
+      "interface": "odk:s3/surface/v1"
+    }
+  ],
+  "requires": [
+    {
+      "interface": "odk:s3/display/v1"
+    },
+    {
+      "interface": "odk:s3/touch/v1"
+    },
+    {
+      "interface": "odk:s3/buffers/v1"
+    },
+    {
+      "interface": "odk:s3/gesture/v1"
+    },
+    {
+      "interface": "odk:s3/serial/v1"
+    }
+  ]
+}

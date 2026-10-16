@@ -44,7 +44,7 @@ test('resuming the coordinator does not restore generic mutation tools', async t
   saved.appendMessage({ role: 'assistant', content: [{ type: 'text', text: 'Earlier direct implementation' }],
     api: 'test', provider: 'test', model: 'test', timestamp: 2, stopReason: 'stop',
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } })
-  const inspected = defineTool({ name: 'desk_fixture', label: 'Fixture', description: 'A reviewed system capability',
+  const inspected = defineTool({ name: 'odk_fixture', label: 'Fixture', description: 'A reviewed system capability',
     parameters: Type.Object({}), execute: async () => ({ content: [], details: {} }) })
   const resourceLoader = await createResourceLoader(repository, dir)
   const options = agentOptions(repository, dir, [inspected])
@@ -55,8 +55,8 @@ test('resuming the coordinator does not restore generic mutation tools', async t
   assert.ok(session.messages.some(message => message.role === 'assistant'), 'fixture must resume earlier conversation')
   const active = ['codemode', 'find', 'grep', 'ls', 'read']
   assert.deepEqual(session.getActiveToolNames().sort(), active)
-  assert.deepEqual(session.getAllTools().map(tool => tool.name).sort(), ['codemode', 'desk_fixture', 'find', 'grep', 'ls', 'read'])
-  assert.deepEqual(session.getCallableToolNames().sort(), ['desk_fixture', 'find', 'grep', 'ls', 'read'])
+  assert.deepEqual(session.getAllTools().map(tool => tool.name).sort(), ['codemode', 'odk_fixture', 'find', 'grep', 'ls', 'read'].sort())
+  assert.deepEqual(session.getCallableToolNames().sort(), ['odk_fixture', 'find', 'grep', 'ls', 'read'].sort())
   session.setActiveToolsByName(['bash', 'powershell', 'write', 'edit', ...active])
   assert.deepEqual(session.getActiveToolNames().sort(), active)
   assert.ok(!session.systemPrompt.includes('Use real read/write/edit/bash tools'))

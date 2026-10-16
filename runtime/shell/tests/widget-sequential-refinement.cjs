@@ -1,6 +1,12 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
+ipcMain.handle('odk-camera-frame', () => ({ status: 'unavailable', frame: null, capturedAt: null }))
+ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
+ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const endpoint = createAppManagerEndpoint()
 let catalogMode = 'success'
@@ -83,8 +89,7 @@ app.whenReady().then(async () => {
             }
             await odkAppPlatform.closeApp()
           }
-          const clock = document.querySelector('.w-clock-time')
-          if (clock.tagName !== 'TIME' || !/^\\d{2}:\\d{2}$/.test(clock.dateTime)) failures.push('clock semantic reading')
+          if (document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')) failures.push('retired time or date Widget')
           return failures
         })()`)
         assert.deepEqual(failures, [], `${theme} ${width}x${height}`)

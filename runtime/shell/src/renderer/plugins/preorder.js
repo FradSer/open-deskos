@@ -19,16 +19,7 @@
     return { days, hours }
   }
 
-  root.odkPlugins.register({
-    id: 'odk.tile.preorder',
-    // Reads at the smallest cell the desk promises, so a span above one cell
-    // is only refused below that.
-    manifest: { schemaVersion: 1, minCell: 186 },
-    kind: 'tile',
-    app: 'Pre-order',
-    state: 'Live',
-    interaction: 'display-only',
-    mount(el, ctx) {
+  function mountPreorder(el, ctx) {
       el.innerHTML = `
         <div class="widget-signal preorder-body">
           <div class="preorder-figure" aria-hidden="true">
@@ -42,10 +33,14 @@
       const count = el.querySelector('.preorder-count')
       const coverWrap = el.querySelector('.preorder-figure')
       const cover = el.querySelector('.preorder-cover')
+      let released = false
+      ctx.trackCleanup?.(() => { released = true })
       let currentTheme = ''
       const drawHero = () => {
+        if (released || ctx.signal?.aborted) return
         const img = new Image()
         img.onload = () => {
+          if (released || ctx.signal?.aborted) return
           const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
           currentTheme = theme
           const targetH = Math.max(1, Math.round(coverWrap.clientHeight || 434))
@@ -105,6 +100,7 @@
       drawHero()
       let shown = ''
       ctx.onTick((now) => {
+        if (released || ctx.signal?.aborted) return
         const theme = root.odkTheme?.get?.() || document.documentElement.dataset.theme || ''
         if (theme !== currentTheme) drawHero()
         const left = remaining(now instanceof Date ? now.getTime() : Date.now())
@@ -130,6 +126,28 @@
           count.append(group)
         }
       })
+  }
+
+  root.odkPlugins.register({
+    id: 'odk.tile.preorder',
+    // Reads at the smallest cell the desk promises, so a span above one cell
+    // is only refused below that.
+    manifest: { schemaVersion: 1, minCell: 186 },
+    kind: 'tile',
+    app: 'Pre-order',
+    state: 'Live',
+    interaction: 'display-only',
+    opensApp: 'preorder',
+    mount: mountPreorder,
+  })
+
+  root.odkPlugins.register({
+    id: 'odk.app.preorder', manifest: { schemaVersion: 1 }, kind: 'app', appId: 'preorder',
+    app: 'Pre-order', name: 'Pre-order', appKind: 'ui', source: 'builtin', capabilities: [],
+    css: 'plugins/reading-apps.css',
+    mount(el, ctx) {
+      el.innerHTML = '<section class="runtime-app"><h2>Pre-order</h2><div class="reading-preorder w-preorder"></div></section>'
+      mountPreorder(el.querySelector('.reading-preorder'), ctx)
     },
   })
 

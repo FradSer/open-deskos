@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -261,6 +262,8 @@ async function firstMic() {
     const before = toggleCount
     toggleStatus = state === 'unavailable' ? { state, activated: true } : { state: 'starting' }
     await mic()
+    const deadline = Date.now() + 2000
+    while (toggleCount === before && Date.now() < deadline) await pause()
     assert.equal(toggleCount, before + 1, `${state}: first MIC invokes recording control`)
     assert.equal(await evaluate(`document.getElementById('personal-bot-status').hidden`), false)
     assert.equal(await evaluate(`document.querySelector('.personal-bot-status-transcript').textContent`), '')
@@ -343,6 +346,10 @@ async function rapidMic() {
 }
 
 app.whenReady().then(async () => {
+  ipcMain.handle('odk-weather-status', () => ({ status: 'unconfigured', place: null, current: null, daily: null, updatedAt: null, hint: null, error: null }))
+  ipcMain.handle('odk-futu-holdings', () => ({ state: 'unavailable', service: 'futu-poller', snapshot: null, updatedAt: null }))
+  ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
+  ipcMain.handle('odk-renderer-development-plugins', () => [])
   ipcMain.handle('odk-personal-bot-toggle', () => {
     toggleCount += 1
     if (rejectToggle) throw new Error('Recording control unavailable')
@@ -359,7 +366,9 @@ app.whenReady().then(async () => {
   win.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
     requests.push(details.url); callback({ cancel: true })
   })
-  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
+  // Exercise the fallback voice panel when the resident Agent plugin is disabled.
+  // agent-home.cjs covers voice feedback in the resident Agent.
+  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.page.personal-agent' } })
   await firstMic()
   await rapidMic()
   for (const theme of ['instrument', 'pixel', 'border-beam']) {

@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "cst328_frame.h"
+#include "s3_plugins.h"
+#include "remote_plugin_ports.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
@@ -70,9 +72,20 @@
 static const char *const TAG = "remote_s3";
 
 static esp_lcd_panel_handle_t s_panel;
+static esp_lcd_panel_io_handle_t s_panel_io;
+static i2c_master_bus_handle_t s_touch_bus;
+static bool s_spi_owned;
+static bool s_backlight_owned;
+static bool s_touch_isr_owned;
+static bool s_touch_handler_owned;
+static bool s_serial_owned;
 static i2c_master_dev_handle_t s_touch;
 static uint16_t *s_framebuffer;
 static QueueHandle_t s_state_queue;
+static remote_buffers_port_t s_buffers_port;
+static remote_buffers_port_t *s_surface_buffers;
+static remote_buffers_port_t *s_serial_buffers;
+static remote_display_port_t *s_buffers_display;
 static remote_state_t s_state;
 static remote_state_t s_rendered_state;
 static bool s_has_rendered = false;
@@ -123,6 +136,7 @@ static esp_err_t backlight_init(void)
         .hpoint = 0,
     };
     ESP_RETURN_ON_ERROR(ledc_channel_config(&channel_config), TAG, "failed to configure LEDC channel");
+    s_backlight_owned = true;
     ESP_RETURN_ON_ERROR(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 1023), TAG, "failed to set backlight duty");
     ESP_RETURN_ON_ERROR(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0), TAG, "failed to update backlight duty");
     return ESP_OK;
@@ -142,6 +156,7 @@ static esp_err_t display_init(void)
     };
     ESP_RETURN_ON_ERROR(spi_bus_initialize(LCD_HOST, &bus_config, SPI_DMA_CH_AUTO), TAG, "SPI bus init failed");
 
+    s_spi_owned = true;
     const esp_lcd_panel_io_spi_config_t io_config = {
         .dc_gpio_num = PIN_LCD_DC,
         .cs_gpio_num = PIN_LCD_CS,
@@ -151,8 +166,7 @@ static esp_err_t display_init(void)
         .spi_mode = 0,
         .trans_queue_depth = 10,
     };
-    esp_lcd_panel_io_handle_t io_handle = NULL;
-    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &io_handle),
+    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &s_panel_io),
                         TAG, "panel IO create failed");
 
     const esp_lcd_panel_dev_config_t panel_config = {
@@ -161,7 +175,7 @@ static esp_err_t display_init(void)
         .bits_per_pixel = 16,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
     };
-    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_st7789(io_handle, &panel_config, &s_panel), TAG, "ST7789 create failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_st7789(s_panel_io, &panel_config, &s_panel), TAG, "ST7789 create failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "panel reset failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "panel init failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(s_panel, true), TAG, "panel invert failed");
@@ -215,15 +229,14 @@ static esp_err_t touch_init(void)
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
-    i2c_master_bus_handle_t touch_bus;
-    ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_config, &touch_bus), TAG, "touch I2C bus");
+    ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_config, &s_touch_bus), TAG, "touch I2C bus");
 
     const i2c_device_config_t touch_config = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = TOUCH_I2C_ADDRESS,
         .scl_speed_hz = 400000,
     };
-    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(touch_bus, &touch_config, &s_touch), TAG, "CST328");
+    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_touch_bus, &touch_config, &s_touch), TAG, "CST328");
 
     ESP_RETURN_ON_ERROR(gpio_set_direction(PIN_TOUCH_RST, GPIO_MODE_OUTPUT), TAG, "touch reset GPIO");
     ESP_RETURN_ON_ERROR(gpio_set_level(PIN_TOUCH_RST, 1), TAG, "touch reset initial high");
@@ -248,8 +261,10 @@ static esp_err_t touch_init(void)
     };
     ESP_RETURN_ON_ERROR(gpio_config(&interrupt_config), TAG, "touch interrupt GPIO");
     ESP_RETURN_ON_ERROR(gpio_install_isr_service(0), TAG, "touch interrupt service");
+    s_touch_isr_owned = true;
     ESP_RETURN_ON_ERROR(gpio_isr_handler_add(PIN_TOUCH_INT, touch_interrupt_handler, NULL), TAG,
                         "touch interrupt handler");
+    s_touch_handler_owned = true;
     ESP_LOGI(TAG, "CST328 ready: I2C1 SDA=%d SCL=%d INT=%d RST=%d addr=0x%02x",
              PIN_TOUCH_SDA, PIN_TOUCH_SCL, PIN_TOUCH_INT, PIN_TOUCH_RST, TOUCH_I2C_ADDRESS);
     return ESP_OK;
@@ -460,14 +475,14 @@ static bool send_touchpad_input(void *context, remote_input_t input, const char 
 
 static void process_cdc_line(void)
 {
-    if (s_state_queue == NULL) {
+    if (s_serial_buffers == NULL || s_serial_buffers->state_queue == NULL) {
         return;
     }
     if (!s_cdc_line_overflow) {
         s_cdc_line[s_cdc_line_length] = '\0';
         remote_state_t parsed_state;
         if (remote_state_frame_parse(s_cdc_line, &parsed_state)) {
-            xQueueOverwrite(s_state_queue, &parsed_state);
+            xQueueOverwrite(s_serial_buffers->state_queue, &parsed_state);
         } else {
             ESP_LOGW(TAG, "discarded invalid CDC state frame");
         }
@@ -496,10 +511,12 @@ static void cdc_receive_byte(char byte)
     }
 }
 
-static void usb_init(void)
+static esp_err_t usb_init(void)
 {
     usb_serial_jtag_driver_config_t config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&config));
+    esp_err_t error = usb_serial_jtag_driver_install(&config);
+    if (error == ESP_OK) s_serial_owned = true;
+    return error;
 }
 
 static void receive_state_records(void)
@@ -511,21 +528,152 @@ static void receive_state_records(void)
     }
 }
 
-void app_main(void)
+static void display_port_render(uint16_t *framebuffer, const remote_state_t *state)
 {
-    ESP_ERROR_CHECK(display_init());
-    ESP_ERROR_CHECK(touch_init());
-    s_framebuffer = heap_caps_calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint16_t),
-                                     MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    ESP_ERROR_CHECK(s_framebuffer == NULL ? ESP_ERR_NO_MEM : ESP_OK);
-    s_state_queue = xQueueCreate(1, sizeof(remote_state_t));
-    ESP_ERROR_CHECK(s_state_queue == NULL ? ESP_ERR_NO_MEM : ESP_OK);
-    touchpad_gesture_init(&s_touchpad);
-    usb_init();
+    s_framebuffer = framebuffer;
+    s_state = *state;
     display_render();
-    s_has_rendered = true;
-    ESP_LOGI(TAG, "remote ready: Apple TV style Touchpad with contextual Touch Bar");
+}
 
+static esp_err_t display_port_drain(void)
+{
+    // ESP-IDF waits for pending color DMA before a parameter transaction.
+    return s_panel_io ? esp_lcd_panel_io_tx_param(s_panel_io, -1, NULL, 0) : ESP_OK;
+}
+
+static remote_display_port_t s_display_port = {display_port_render, display_port_drain};
+static remote_touch_port_t s_touch_port = {touch_read_point};
+static remote_serial_port_t s_serial_port = {receive_state_records, send_touchpad_input};
+static remote_display_port_t *s_surface_display;
+static remote_touch_port_t *s_surface_touch;
+static remote_serial_port_t *s_surface_serial;
+static touchpad_gesture_t *s_surface_gesture;
+
+static void keep_error(esp_err_t *first, esp_err_t error)
+{
+    if (*first == ESP_OK) *first = error;
+}
+
+static esp_err_t display_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    ESP_RETURN_ON_ERROR(display_init(), TAG, "display plugin");
+    return odk_plugin_publish(context, "odk:s3/display/v1", &s_display_port);
+}
+
+static esp_err_t display_plugin_destroy(void)
+{
+    esp_err_t error = display_port_drain();
+    if (error != ESP_OK) return error;
+    if (s_backlight_owned) {
+        esp_err_t status = ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_backlight_owned = false;
+    }
+    if (s_panel) {
+        esp_err_t status = esp_lcd_panel_del(s_panel);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_panel = NULL;
+    }
+    if (!s_panel && s_panel_io) {
+        esp_err_t status = esp_lcd_panel_io_del(s_panel_io);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_panel_io = NULL;
+    }
+    if (!s_panel_io && s_spi_owned) {
+        esp_err_t status = spi_bus_free(LCD_HOST);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_spi_owned = false;
+    }
+    return error;
+}
+
+static esp_err_t touch_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    ESP_RETURN_ON_FALSE(odk_plugin_get(context, "odk:s3/display/v1") != NULL, ESP_ERR_INVALID_STATE, TAG, "display unavailable");
+    ESP_RETURN_ON_ERROR(touch_init(), TAG, "touch plugin");
+    return odk_plugin_publish(context, "odk:s3/touch/v1", &s_touch_port);
+}
+
+static esp_err_t touch_plugin_destroy(void)
+{
+    esp_err_t error = ESP_OK;
+    if (s_touch_handler_owned) {
+        esp_err_t status = gpio_isr_handler_remove(PIN_TOUCH_INT);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_touch_handler_owned = false;
+    }
+    if (!s_touch_handler_owned && s_touch_isr_owned) { gpio_uninstall_isr_service(); s_touch_isr_owned = false; }
+    if (s_touch) {
+        esp_err_t status = i2c_master_bus_rm_device(s_touch);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_touch = NULL;
+    }
+    if (!s_touch && s_touch_bus) {
+        esp_err_t status = i2c_del_master_bus(s_touch_bus);
+        keep_error(&error, status);
+        if (status == ESP_OK) s_touch_bus = NULL;
+    }
+    s_touch_interrupt_pending = false;
+    return error;
+}
+
+static esp_err_t buffers_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    s_buffers_display = odk_plugin_get(context, "odk:s3/display/v1");
+    s_buffers_port.framebuffer = heap_caps_calloc(DISPLAY_WIDTH * DISPLAY_HEIGHT, sizeof(uint16_t),
+                                                MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (s_buffers_port.framebuffer == NULL) return ESP_ERR_NO_MEM;
+    s_buffers_port.state_queue = xQueueCreate(1, sizeof(remote_state_t));
+    if (s_buffers_port.state_queue == NULL) return ESP_ERR_NO_MEM;
+    return odk_plugin_publish(context, "odk:s3/buffers/v1", &s_buffers_port);
+}
+
+static esp_err_t buffers_plugin_destroy(void)
+{
+    if (s_buffers_display) {
+        esp_err_t error = s_buffers_display->drain();
+        if (error != ESP_OK) return error;
+    }
+    if (s_buffers_port.state_queue) { vQueueDelete(s_buffers_port.state_queue); s_buffers_port.state_queue = NULL; }
+    if (s_buffers_port.framebuffer) { heap_caps_free(s_buffers_port.framebuffer); s_buffers_port.framebuffer = NULL; }
+    s_buffers_display = NULL;
+    memset(&s_state, 0, sizeof(s_state));
+    memset(&s_rendered_state, 0, sizeof(s_rendered_state));
+    s_has_rendered = false;
+    return ESP_OK;
+}
+
+static esp_err_t gesture_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    touchpad_gesture_init(&s_touchpad);
+    return odk_plugin_publish(context, "odk:s3/gesture/v1", &s_touchpad);
+}
+
+static esp_err_t serial_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    s_serial_buffers = remote_buffers_from_context(context);
+    ESP_RETURN_ON_FALSE(s_serial_buffers != NULL, ESP_ERR_INVALID_STATE, TAG, "buffers unavailable");
+    ESP_RETURN_ON_ERROR(usb_init(), TAG, "serial plugin");
+    return odk_plugin_publish(context, "odk:s3/serial/v1", &s_serial_port);
+}
+
+static esp_err_t serial_plugin_destroy(void)
+{
+    esp_err_t error = s_serial_owned ? usb_serial_jtag_driver_uninstall() : ESP_OK;
+    if (error == ESP_OK) s_serial_owned = false;
+    s_serial_buffers = NULL;
+    s_cdc_line_length = 0;
+    s_cdc_line_overflow = false;
+    return error;
+}
+
+static void remote_surface_run(void)
+{
     while (true) {
         remote_state_t received_state;
         if (xQueueReceive(s_state_queue, &received_state, 0) == pdTRUE) {
@@ -549,20 +697,77 @@ void app_main(void)
             if (state_changed) {
                 s_state = received_state;
                 s_rendered_state = received_state;
-                touchpad_gesture_set_actions(&s_touchpad, s_state.action_count, s_state.actions);
+                touchpad_gesture_set_actions(s_surface_gesture, s_state.action_count, s_state.actions);
                 s_has_rendered = true;
-                display_render();
+                s_surface_display->render(s_surface_buffers->framebuffer, &s_state);
             }
         }
-        receive_state_records();
+        s_surface_serial->receive();
         int16_t x = 0;
         int16_t y = 0;
         const uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
-        if (touch_read_point(&x, &y)) {
-            touchpad_gesture_touch(&s_touchpad, x, y, now_ms, send_touchpad_input, &s_touchpad);
+        if (s_surface_touch->read_point(&x, &y)) {
+            touchpad_gesture_touch(s_surface_gesture, x, y, now_ms, s_surface_serial->send, s_surface_gesture);
         } else {
-            touchpad_gesture_release(&s_touchpad, now_ms, send_touchpad_input, &s_touchpad);
+            touchpad_gesture_release(s_surface_gesture, now_ms, s_surface_serial->send, s_surface_gesture);
         }
         vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_INTERVAL_MS));
     }
+}
+
+static remote_surface_port_t s_surface_port = {remote_surface_run};
+static esp_err_t surface_plugin_init(void *context, const void *config)
+{
+    (void)config;
+    s_surface_display = odk_plugin_get(context, "odk:s3/display/v1");
+    s_surface_touch = odk_plugin_get(context, "odk:s3/touch/v1");
+    s_surface_serial = odk_plugin_get(context, "odk:s3/serial/v1");
+    s_surface_gesture = odk_plugin_get(context, "odk:s3/gesture/v1");
+    s_surface_buffers = remote_buffers_from_context(context);
+    if (s_surface_buffers == NULL) return ESP_ERR_INVALID_STATE;
+    s_framebuffer = s_surface_buffers->framebuffer;
+    s_state_queue = s_surface_buffers->state_queue;
+    s_surface_display->render(s_surface_buffers->framebuffer, &s_state);
+    s_has_rendered = true;
+    ESP_LOGI(TAG, "remote ready: Apple TV style Touchpad with contextual Touch Bar");
+    return odk_plugin_publish(context, "odk:s3/surface/v1", &s_surface_port);
+}
+
+static esp_err_t surface_plugin_stop(void)
+{
+    return s_surface_display ? s_surface_display->drain() : ESP_OK;
+}
+
+static esp_err_t surface_plugin_destroy(void)
+{
+    s_surface_display = NULL;
+    s_surface_touch = NULL;
+    s_surface_serial = NULL;
+    s_surface_gesture = NULL;
+    s_surface_buffers = NULL;
+    s_framebuffer = NULL;
+    s_state_queue = NULL;
+    return ESP_OK;
+}
+
+const odk_plugin_lifecycle_t s3_display_lifecycle = {.init=display_plugin_init, .destroy=display_plugin_destroy};
+const odk_plugin_lifecycle_t s3_touch_lifecycle = {.init=touch_plugin_init, .destroy=touch_plugin_destroy};
+const odk_plugin_lifecycle_t s3_buffers_lifecycle = {.init=buffers_plugin_init, .destroy=buffers_plugin_destroy};
+const odk_plugin_lifecycle_t s3_gesture_lifecycle = {.init=gesture_plugin_init};
+const odk_plugin_lifecycle_t s3_serial_lifecycle = {.init=serial_plugin_init, .destroy=serial_plugin_destroy};
+const odk_plugin_lifecycle_t s3_surface_lifecycle = {.init=surface_plugin_init, .stop=surface_plugin_stop, .destroy=surface_plugin_destroy};
+
+void app_main(void)
+{
+    static odk_plugin_host_t host;
+    ESP_ERROR_CHECK(odk_plugin_host_init(&host, g_odk_plugins, g_odk_plugins_count, NULL));
+    esp_err_t error = odk_plugin_host_start(&host);
+    if (error != ESP_OK) {
+        odk_plugin_host_stop(&host);
+        ESP_ERROR_CHECK(error);
+        return;
+    }
+    remote_surface_port_t *surface = odk_plugin_host_port(&host, "odk:s3/surface/v1");
+    surface->run();
+    ESP_ERROR_CHECK(odk_plugin_host_stop(&host));
 }

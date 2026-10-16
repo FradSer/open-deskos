@@ -24,7 +24,7 @@ function fixture() {
   surface.selectors['.personal-bot-status-level span'] = new Element()
   const content = surface.selectors['.personal-bot-status-content']; surface.append(content)
   const local = new Element('button'), commands = [], events = {}
-  const document = { getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
+  const document = { querySelector: () => null, getElementById: () => surface, activeElement: local, body: { children: [local, surface] }, createElement: tag => new Element(tag) }
   let render
   const window = { odkPersonalBot: { subscribe: callback => { render = callback }, onMic() {}, proposalCommand: async command => { commands.push(command); return { accepted: true } } },
     odkPersonalBotReply: { render: (el, text) => { el.textContent = text } }, addEventListener: (name, callback) => { events[name] = callback }, dispatchEvent() {} }

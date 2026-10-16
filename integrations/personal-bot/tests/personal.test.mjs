@@ -1,3 +1,4 @@
+import { checkProactivePath } from '../src/proactive-private.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, writeFile, readFile, stat, chmod, symlink, realpath } from 'node:fs/promises';
@@ -24,13 +25,42 @@ test('Given personal config When validating Then strict safe local files only', 
   await writeFile(skill, '---\nname: reviewed\ndescription: Reviewed skill\n---\nInstructions');
   const config = { profile: 'personal', skillPaths: [skill], memoryFile: join(dir, 'private', 'MEMORY.json'), didi: { environment: 'sandbox', keyFile: join(dir, 'key') } };
   await writeFile(path, JSON.stringify(config));
-  assert.deepEqual(await loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: path }), config);
+  const { didi, ...expected } = config;
+  assert.deepEqual(await loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path }), { ...expected, capabilities: { didi } });
   for (const bad of [{ ...config, unexpected: 'DO_NOT_REFLECT' }, { ...config, memoryFile: './relative' }, { ...config, didi: { environment: 'other', keyFile: '/key' } }, { ...config, skillPaths: [dir] }]) {
     await writeFile(path, JSON.stringify(bad));
-    await assert.rejects(loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: path }), (e) => !e.message.includes('DO_NOT_REFLECT'));
+    await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path }), (e) => !e.message.includes('DO_NOT_REFLECT'));
   }
   await writeFile(path, '{DO_NOT_REFLECT');
-  await assert.rejects(loadPersonalConfig({ ODESK_PERSONAL_BOT_CONFIG: path }), /Invalid personal assistant configuration/);
+  await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path }), /Invalid personal assistant configuration/);
+});
+
+test('Given canonical capability declarations When loading Then plugins remain fixed and skills grant no capability', async (t) => {
+  const dir = await fixture(t);
+  const path = join(dir, 'config.json');
+  const base = { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'notes.json') };
+  const browser = { executablePath: '/opt/agent-browser/bin/agent-browser', timeoutMs: 1000 };
+  const agentPlugins = { enabled: ['experience', 'completion', 'learning'] };
+  await writeFile(path, JSON.stringify({ ...base, capabilities: { browser }, agentPlugins }));
+  const loaded = await loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path });
+  assert.deepEqual(loaded.capabilities, { browser });
+  assert.deepEqual(loaded.agentPlugins.enabled, agentPlugins.enabled);
+  assert.equal(Object.hasOwn(loaded, 'browser'), false);
+  await writeFile(path, JSON.stringify({ ...base, browser }));
+  assert.deepEqual((await loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path })).capabilities, { browser });
+  for (const value of [
+    { ...base, browser, capabilities: { browser } },
+    { ...base, capabilities: { browser: null } },
+    { ...base, capabilities: { browser: { ...browser, import: '/external.mjs' } } },
+    { ...base, capabilities: { native_pi: {} } },
+    { profile: 'coding', capabilities: {} },
+    { ...base, capabilities: { didi: { environment: 'sandbox', keyFile: path } } },
+  ]) {
+    await writeFile(path, JSON.stringify(value));
+    await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path }), /Invalid personal assistant configuration/);
+  }
+  await writeFile(path, JSON.stringify(base));
+  assert.deepEqual((await loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: path })).capabilities, {});
 });
 
 test('Given memory When explicit remember/forget Then exact single-use current-turn grants and private persistence', async (t) => {
@@ -44,8 +74,11 @@ test('Given memory When explicit remember/forget Then exact single-use current-t
   await memory.update({ category: 'note', value: '我喜欢茶' });
   assert.deepEqual(JSON.parse(await memory.read()), { note: '我喜欢茶' });
   await assert.rejects(memory.update({ category: 'note', value: '我喜欢茶' }), /current user turn/);
-  assert.equal((await stat(file)).mode & 0o777, 0o600);
-  assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700);
+  if (process.platform === 'win32') {checkProactivePath(file);checkProactivePath(join(dir, 'private'));}
+  else {
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
+    assert.equal((await stat(join(dir, 'private'))).mode & 0o777, 0o700);
+  }
   memory.beginTurn('remember beverage: tea');
   await memory.update({ category: 'beverage', value: 'tea' });
   memory.beginTurn('hello');
@@ -76,7 +109,7 @@ test('Given personal tools When reading skills Then only indexed reviewed files 
   const skill = join(dir, 'SKILL.md');
   await writeFile(skill, 'reviewed');
   const tools = createPersonalTools({ memory: createMemoryStore(join(dir, 'MEMORY.json')), skillPaths: [skill] });
-  assert.deepEqual(tools.map((tool) => tool.name), ['desk_data', 'memory_read', 'memory_update', 'memory_forget', 'skill_read']);
+  assert.deepEqual(tools.map((tool) => tool.name), ['odk_data', 'memory_read', 'memory_update', 'memory_forget', 'skill_read']);
   assert.deepEqual(tools.filter((tool) => tool.name.startsWith('memory') || tool.name === 'skill_read').map((tool) => tool.name), ['memory_read', 'memory_update', 'memory_forget', 'skill_read']);
   const tool = tools.at(-1);
   assert.equal((await tool.execute('id', { index: 0 })).content[0].text, 'reviewed');
