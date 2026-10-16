@@ -8,6 +8,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { createHash } = require('node:crypto')
 
 const SCRIPT_PATH = path.join(__dirname, '..', 'scripts', 'cm5-agent-browser.sh')
 const script = fs.readFileSync(SCRIPT_PATH, 'utf8')
@@ -102,13 +103,13 @@ test('the CLI is exposed on the host command path for the resident service', () 
 })
 
 test('a repeated run reuses the pinned pair and prunes only the versions it owns', () => {
-  assert.match(script, /if \[ -x "\$\{destination\}" \]; then[\s\S]*?already installed/)
+  assert.match(script, /if \[ -x "\$\{destination\}" \] && verify_sha256[\s\S]*?already installed/)
   assert.match(script, /\.odk-chrome-version/)
   assert.match(script, /prune_other_browsers/)
   assert.match(script, /for directory in "\$\{BROWSERS_DIR\}"\/chrome-\*; do/)
   assert.match(script, /\[ ! -d "\$\{directory\}" \] \|\| \[ "\$\{directory\}" = "\$\{CHROME_DIR\}" \]/)
   // A partial transfer must never be mistaken for an installed binary.
-  assert.match(script, /\.partial/)
+  assert.match(script, /mktemp "\$\{destination\}\.XXXXXX"/)
 })
 
 test('the deployment feature states the browser infrastructure contract', () => {
@@ -151,11 +152,14 @@ test('an installed host pair survives repeated runs from a read-only release wit
   const chrome = path.join(host, 'browsers/chrome-155.0.8059.79/chrome')
   writeExecutable(chrome, 'exit 0')
   fs.writeFileSync(path.join(path.dirname(chrome), '.odk-chrome-version'), '155.0.8059.79\n')
+  const chromeDigest = 'a'.repeat(64)
+  fs.writeFileSync(path.join(path.dirname(chrome), '.odk-chrome-sha256'), chromeDigest)
+  const cliDigest = createHash('sha256').update(fs.readFileSync(cli)).digest('hex')
   const candidate = path.join(release, 'cm5-agent-browser.sh')
   fs.writeFileSync(candidate, script.replaceAll('/opt/agent-browser', host).replaceAll('/usr/local/bin/agent-browser', path.join(home, 'agent-browser')), { mode: 0o444 })
   fs.chmodSync(release, 0o555)
   for (let run = 0; run < 2; run++) {
-    const result = spawnSync('bash', [candidate, 'install'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, SUDO_USER: 'orangepi' } })
+    const result = spawnSync('bash', [candidate, 'install'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, SUDO_USER: 'orangepi', ODK_AGENT_BROWSER_SHA256: cliDigest, ODK_CHROME_SHA256: chromeDigest } })
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, /already installed/)
     assert.match(result.stdout, /verified: the CLI drove Chrome/)
@@ -172,4 +176,32 @@ test('the root installer never writes or changes ownership through user-controll
   assert.doesNotMatch(script, /chown .*probe_page/)
   assert.match(script, /chmod 0644 "\$\{probe_page\}"/)
   assert.match(script, /chmod 0755 "\$\{PROBE_DIR\}"/)
+})
+
+
+test('downloaded bytes must match the reviewed digest before they replace an executable or archive', t => {
+  const start = script.indexOf('verify_sha256() {')
+  const end = script.indexOf('\ninstall_cli() {', start)
+  assert(start >= 0 && end > start, 'the installer must provide its checked-download path')
+  const functions = script.slice(start, end)
+  for (const matches of [false, true]) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-browser-digest-'))
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+    const bin = path.join(directory, 'bin')
+    fs.mkdirSync(bin)
+    fs.writeFileSync(path.join(bin, 'curl'), `#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\nprintf 'downloaded fixture' > "$2"\n`, { mode: 0o755 })
+    const destination = path.join(directory, 'download')
+    fs.writeFileSync(destination, 'existing installed bytes')
+    const digest = matches ? createHash('sha256').update('downloaded fixture').digest('hex') : '0'.repeat(64)
+    const result = spawnSync('bash', ['-c', `${functions}\ndownload_verified "$1" "$2" "$3" fixture`, 'digest-test', 'https://example.invalid/fixture', destination, digest], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    })
+    assert.equal(result.status, matches ? 0 : 1, result.stderr)
+    assert.equal(fs.readFileSync(destination, 'utf8'), matches ? 'downloaded fixture' : 'existing installed bytes')
+    if (!matches) assert.match(result.stderr, /checksum mismatch/)
+    assert.deepEqual(fs.readdirSync(directory).sort(), ['bin', 'download'])
+  }
+  assert.match(script, /download_verified[\s\S]*?agent-browser-linux-arm64[\s\S]*?AGENT_BROWSER_SHA256/)
+  assert.match(script, /download_verified[\s\S]*?chrome-linux-arm64\.zip[\s\S]*?CHROME_SHA256/)
+  assert.doesNotMatch(script, /^run_as_target_user\(\)/m)
 })

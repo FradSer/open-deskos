@@ -1,4 +1,19 @@
 Feature: The Personal Bot reads and drives a web page through a bounded capability
+  Scenario: A redirected private page is not returned as public content
+    Given a public target redirects to a private or credential-bearing address
+    When a browser result identifies that final address or snapshot origin
+    Then the capability refuses the result without returning page content
+
+  Scenario: Page delimiters remain unpredictable without CLI boundary metadata
+    Given page text contains the previous fallback closing delimiter
+    When the CLI omits its optional boundary metadata
+    Then each response receives a fresh host-generated delimiter nonce
+
+  Scenario: Provisioning verifies downloaded bytes before installation
+    Given the installer downloads a pinned CLI or browser archive
+    When its SHA256 digest differs from the reviewed digest
+    Then provisioning refuses the download before execution or extraction
+
   Scenario: A page reading carries provenance and a bound
     Given the desk browser capability is configured in the personal profile
     When the coordinator reads a page through codemode

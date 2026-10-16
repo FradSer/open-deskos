@@ -20,6 +20,10 @@ PROBE_TIMEOUT="${ODK_AGENT_BROWSER_PROBE_TIMEOUT:-120}"
 # device that already runs an unattended browser.
 AGENT_BROWSER_VERSION="${ODK_AGENT_BROWSER_VERSION:-0.39.1}"
 CHROME_VERSION="${ODK_CHROME_VERSION:-155.0.8059.79}"
+# CLI digest comes from the release asset metadata; Chrome digest pins the official CfT archive.
+# A version override must include its corresponding verified digest override.
+AGENT_BROWSER_SHA256="${ODK_AGENT_BROWSER_SHA256:-9d8fdc586056df65747927ae166157c83af91b52cea287175e5544afd2591d33}"
+CHROME_SHA256="${ODK_CHROME_SHA256:-6ba365c60cb1cff5e742caaa1e8b6f2c019f93f7a644fa42ea0bcfcf029d7e67}"
 CHROME_DIR="${BROWSERS_DIR}/chrome-${CHROME_VERSION}"
 CHROME_BIN="${CHROME_DIR}/chrome"
 
@@ -63,17 +67,7 @@ TARGET_HOME="$(getent passwd "${TARGET_USER}" | cut -d: -f6)"
 TARGET_UID="$(id -u "${TARGET_USER}")"
 TARGET_GID="$(id -g "${TARGET_USER}")"
 
-run_as_target_user() {
-  runuser -u "${TARGET_USER}" -- env \
-    HOME="${TARGET_HOME}" USER="${TARGET_USER}" LOGNAME="${TARGET_USER}" \
-    XDG_RUNTIME_DIR="/run/user/${TARGET_UID}" \
-    AGENT_BROWSER_EXECUTABLE_PATH="${CHROME_BIN}" \
-    AGENT_BROWSER_SESSION="${PROBE_SESSION}" \
-    "$@"
-}
-
-# The CLI is an executable, so the deadline applies to the CLI process itself.
-# `timeout` cannot run the shell function above: it needs an executable name.
+# Apply the deadline to the CLI executable under the kiosk identity.
 run_cli_as_target_user() {
   runuser -u "${TARGET_USER}" -- env \
     HOME="${TARGET_HOME}" USER="${TARGET_USER}" LOGNAME="${TARGET_USER}" \
@@ -83,27 +77,39 @@ run_cli_as_target_user() {
     timeout "${PROBE_TIMEOUT}" "${CLI_BIN}" "$@"
 }
 
+verify_sha256() {
+  local file="$1" expected="$2" actual
+  [[ "${expected}" =~ ^[0-9a-f]{64}$ ]] && [ -s "${file}" ] || return 1
+  actual="$(sha256sum "${file}" | awk '{print $1}')" || return 1
+  [ "${actual}" = "${expected}" ]
+}
+
+download_verified() {
+  local url="$1" destination="$2" expected="$3" description="$4" temporary
+  temporary="$(mktemp "${destination}.XXXXXX")"
+  if ! curl -fsSL --retry 3 --connect-timeout 15 -o "${temporary}" "${url}"; then
+    rm -f "${temporary}"
+    return 1
+  fi
+  if ! verify_sha256 "${temporary}" "${expected}"; then
+    rm -f "${temporary}"
+    echo "checksum mismatch or empty download for ${description}" >&2
+    return 1
+  fi
+  mv -f "${temporary}" "${destination}"
+}
+
 install_cli() {
   local destination="${INSTALL_DIR}/bin/agent-browser-${AGENT_BROWSER_VERSION}"
-  if [ -x "${destination}" ]; then
+  if [ -x "${destination}" ] && verify_sha256 "${destination}" "${AGENT_BROWSER_SHA256}"; then
     echo "== agent-browser ${AGENT_BROWSER_VERSION} already installed =="
   else
     echo "== installing agent-browser ${AGENT_BROWSER_VERSION} =="
     install -d -o root -g root -m 0755 "${INSTALL_DIR}/bin"
-    # Download beside the destination so a failed transfer never leaves a
-    # partial binary that a later run would treat as installed.
-    local temporary="${destination}.partial"
-    rm -f "${temporary}"
-    curl -fsSL --retry 3 --connect-timeout 15 \
-      -o "${temporary}" \
-      "https://github.com/vercel-labs/agent-browser/releases/download/v${AGENT_BROWSER_VERSION}/agent-browser-linux-arm64"
-    if [ ! -s "${temporary}" ]; then
-      rm -f "${temporary}"
-      echo "agent-browser download was empty; check access to github.com." >&2
-      exit 1
-    fi
-    chmod 0755 "${temporary}"
-    mv -f "${temporary}" "${destination}"
+    download_verified \
+      "https://github.com/vercel-labs/agent-browser/releases/download/v${AGENT_BROWSER_VERSION}/agent-browser-linux-arm64" \
+      "${destination}" "${AGENT_BROWSER_SHA256}" "agent-browser"
+    chmod 0755 "${destination}"
   fi
   ln -sfn "${destination}" "${CLI_BIN}"
   # The resident service resolves its commands from PATH, so the CLI is exposed
@@ -114,16 +120,18 @@ install_cli() {
 
 install_browser() {
   local marker="${CHROME_DIR}/.odk-chrome-version"
-  if [ -f "${marker}" ] && [ "$(cat "${marker}")" = "${CHROME_VERSION}" ] && [ -x "${CHROME_BIN}" ]; then
+  local digest_marker="${CHROME_DIR}/.odk-chrome-sha256"
+  if [ -f "${marker}" ] && [ "$(cat "${marker}")" = "${CHROME_VERSION}" ] && [ -f "${digest_marker}" ] && [ "$(cat "${digest_marker}")" = "${CHROME_SHA256}" ] && [ -x "${CHROME_BIN}" ]; then
     echo "== Chrome for Testing ${CHROME_VERSION} already installed =="
   else
     echo "== installing Chrome for Testing ${CHROME_VERSION} =="
     local work
     work="$(mktemp -d)"
-    if ! curl -fsSL --retry 3 --connect-timeout 15 -o "${work}/chrome.zip" \
-      "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux-arm64/chrome-linux-arm64.zip"; then
+    if ! download_verified \
+      "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux-arm64/chrome-linux-arm64.zip" \
+      "${work}/chrome.zip" "${CHROME_SHA256}" "Chrome for Testing"; then
       rm -rf "${work}"
-      echo "Chrome download failed; check access to storage.googleapis.com." >&2
+      echo "Chrome download verification failed." >&2
       exit 1
     fi
     unzip -q -o "${work}/chrome.zip" -d "${work}/extracted"
@@ -140,6 +148,7 @@ install_browser() {
     install -d -o root -g root -m 0755 "${CHROME_DIR}"
     cp -a "${source_dir}/." "${CHROME_DIR}/"
     printf '%s\n' "${CHROME_VERSION}" > "${marker}"
+    printf '%s\n' "${CHROME_SHA256}" > "${digest_marker}"
     rm -rf "${work}"
   fi
   chown -R root:root "${CHROME_DIR}"
