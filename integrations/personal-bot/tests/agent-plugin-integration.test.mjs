@@ -70,7 +70,7 @@ test('explicit owner notes reach real Durable context after restart and reflect 
   } finally { await bot.close() }
 })
 
-test('configured default Durable resident verifies, learns, and retrieves experience on a later restarted task', async t => {
+test('configured Durable resident verifies, learns, clears shortcut outcomes, and retrieves after restart', async t => {
   const { directory, config } = await fixture(t)
   const stages = []
   let residentCalls = 0
@@ -99,7 +99,11 @@ test('configured default Durable resident verifies, learns, and retrieves experi
     if (latest.role !== 'toolResult') return assistant([{ type: 'toolCall', id: `query-${residentCalls}`, name: 'codemode', arguments: { code: 'text(await tools.coding_targets({}));' } }], 'toolUse')
     return assistant('没有配置可用目标。')
   })
-  const deps = { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'task_query' }) }
+  let selectedIntent = 'task_query'
+  const deps = { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => {
+    if (selectedIntent === 'failure') throw Error('fixture route unavailable')
+    return { intent: selectedIntent }
+  } }
   let bot = await createPersonalBot(config, deps)
   t.after(() => bot.close())
   assert.equal(await bot.prompt('查询配置目标'), '没有配置可用目标。')
@@ -107,6 +111,22 @@ test('configured default Durable resident verifies, learns, and retrieves experi
   assert.equal(bot.lastTaskResult.verification.status, 'passed')
   assert.equal(bot.lastTaskResult.learning.status, 'applied')
   await assert.rejects(readFile(config.personal.memoryFile), /ENOENT/)
+  for (const shortcut of ['clarify', 'failure', 'suggestions']) {
+    if (shortcut !== 'clarify') {
+      selectedIntent = 'task_query'
+      await bot.prompt('再次查询配置目标')
+      assert.equal(bot.lastTaskResult.verification.status, 'passed')
+    }
+    const previousStages = [...stages]
+    const previousCalls = residentCalls
+    selectedIntent = shortcut
+    const answer = await bot.prompt('下一项请求')
+    assert.match(answer, shortcut === 'clarify' ? /请说明/ : shortcut === 'failure' ? /暂时不可用/ : /建议/)
+    assert.equal(bot.lastTaskResult, null, 'A shortcut answer cannot retain previous completion evidence')
+    assert.deepEqual(stages, previousStages, 'A shortcut must not run completion or learning')
+    assert.equal(residentCalls, previousCalls, 'A shortcut must not prompt the reasoning model')
+  }
+  selectedIntent = 'task_query'
   await bot.close()
   bot = await createPersonalBot(config, deps)
   assert.equal(await bot.prompt('再次查询配置目标'), '没有配置可用目标。')

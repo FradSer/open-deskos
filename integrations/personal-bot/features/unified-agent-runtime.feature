@@ -5,6 +5,12 @@ Feature: One Personal Agent capability and admission architecture
     Then no session recovery, memory context or task execution starts
     And the previous turn authority is cleared
 
+  Scenario: A new owner request clears previous completion evidence
+    Given the previous request passed completion verification
+    When the next request receives clarification, suggestions, or unavailable routing
+    Then the public task result is unset
+    And no completion check or learning runs for that shortcut answer
+
   Scenario: A declaration supplies the complete reviewed capability
     Given a personal profile declares the reviewed browser capability
     When the resident starts and Jev selects browsing

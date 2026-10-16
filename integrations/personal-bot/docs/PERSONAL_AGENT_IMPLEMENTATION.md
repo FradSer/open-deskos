@@ -52,6 +52,7 @@ The original worktrees retain their uncommitted source snapshots.
 | 6 | [#31](https://github.com/FradSer/open-deskos/pull/31) | Resident integration, memory, completion, and learning |
 
 Review corrections retain cleanup failures across concurrent close calls.
+New owner requests clear previous completion results, including routed shortcut answers.
 Browser output checks observed locations and uses fresh host delimiters.
 Refused page sessions retire before later actions, including when cleanup remains unconfirmed.
 Host downloads require pinned digests before installation.
