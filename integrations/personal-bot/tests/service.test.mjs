@@ -15,6 +15,22 @@ function fixture(overrides = {}) {
   return { service, calls }
 }
 
+test('child activity stays separate from conversation state and clears during service shutdown', async () => {
+  const { service } = fixture()
+  service.setState('thinking', 'Current reply', 'Current request')
+  const tasks = [{ taskId: '64a7f377-3169-447c-9b85-547a2454c28f', identity: { id: 'reporter', name: 'Reporter', avatar: 'book', revision: 'a'.repeat(64) }, state: 'running', updatedAt: new Date().toISOString() }]
+  service.publishAgents(tasks)
+  assert.equal(service.status.state, 'thinking')
+  assert.equal(service.status.message, 'Current reply')
+  assert.deepEqual(service.status.agents, { state: 'live', tasks })
+  service.setState('idle', 'Final reply')
+  assert.deepEqual(service.status.agents.tasks, tasks)
+  await service.close()
+  assert.deepEqual(service.status.agents, { state: 'unavailable', tasks: [] })
+  service.publishAgents(tasks)
+  assert.deepEqual(service.status.agents.tasks, [])
+})
+
 test('notifications stay separate from replies and flush one message per event', () => {
   const { service } = fixture()
   service.setState('thinking', 'Partial answer', 'Ride status?')

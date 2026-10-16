@@ -85,6 +85,12 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-conversation { display: grid; grid-auto-rows: min-content; align-content: start; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-block: 8px; }
 .agent-empty { color: var(--odk-secondary-strong); font-size: 16px; line-height: 1.6; }
 .agent-message { margin: 0; overflow-wrap: anywhere; font-size: clamp(16px, 1.3vw, 20px); line-height: 1.6; }
+.agent-child { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 0; color: var(--odk-secondary-strong); }
+.agent-child-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); }
+.agent-child-avatar svg { width: 24px; height: 24px; }
+.agent-child-details { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.agent-child-name { font-size: 16px; line-height: 1.5; color: var(--odk-primary); }
+.agent-child-state { font-size: 14px; line-height: 1.5; }
 .agent-message-bubble { width: fit-content; min-width: 0; max-width: 96%; padding: 16px 20px; background: var(--odk-surface); border-radius: 28px; }
 .agent-message-body { white-space: pre-wrap; }
 .agent-message-body p { margin: 0 0 12px; }
