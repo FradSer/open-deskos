@@ -12,6 +12,7 @@ export const AGENT_AVATARS = Object.freeze(['agent', 'book', 'code', 'compass', 
 const ACTIVE = new Set(['starting', 'running', 'cancelling'])
 const STATES = [...ACTIVE, 'finished', 'failed', 'cancelled', 'interrupted']
 const VERIFICATION = ['not_run', 'passed', 'needs_review']
+const LEARNING = ['skipped', 'disabled', 'applied', 'needs_review']
 const object = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key))
 const text = (value, limit, empty = false) => typeof value === 'string' && (empty || value.trim().length > 0)
   && Buffer.byteLength(value) <= limit && Buffer.from(value).toString('utf8') === value && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value)
@@ -40,7 +41,7 @@ function validateState(state) {
       || !text(task.response, 16384, true) || !Number.isSafeInteger(task.turn) || task.turn < 1
       || !Number.isFinite(Date.parse(task.createdAt)) || !Number.isFinite(Date.parse(task.updatedAt))
       || !object(task.verification, ['status', 'summary']) || !VERIFICATION.includes(task.verification.status) || !text(task.verification.summary, 1024)
-      || !['skipped', 'disabled', 'applied', 'needs_review'].includes(task.learning)
+      || !LEARNING.includes(task.learning)
       || (task.identity !== null && (!object(task.identity, ['id', 'name', 'avatar', 'revision']) || !text(task.identity.id, 64) || !ID.test(task.identity.id)
         || !text(task.identity.name, 120) || /[\x00-\x1f]/.test(task.identity.name) || !AGENT_AVATARS.includes(task.identity.avatar) || !REVISION.test(task.identity.revision)))) throw Error('Invalid private agent task record')
   }
@@ -132,7 +133,8 @@ export async function openAgentTasks({ directory, createWorker, onUpdate }) {
         verification = result && VERIFICATION.includes(result.verification?.status) && text(result.verification.summary, 1024)
           ? { status: result.verification.status, summary: result.verification.summary }
           : { status: 'not_run', summary: 'The child did not run completion verification.' }
-        learning = result?.learning?.status ?? 'skipped'
+        const observedLearning = result?.learning?.status ?? 'skipped'
+        learning = LEARNING.includes(observedLearning) ? observedLearning : 'needs_review'
         outcome = 'finished'
       } catch {
         outcome = owner.controller.signal.aborted ? 'cancelled' : 'failed'
