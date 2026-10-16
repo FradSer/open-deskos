@@ -1,7 +1,7 @@
-import { mkdirSync, lstatSync, realpathSync, openSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync } from 'node:fs'
+import { lstatSync, realpathSync, openSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { readProactiveFile, checkProactivePath, protectProactivePath, openProactiveTemporary } from './proactive-private.mjs'
+import { readProactiveFile, checkProactivePath, createProactiveDirectory, openProactiveTemporary } from './proactive-private.mjs'
 
 const LIMIT = 2 * 1024 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -29,11 +29,8 @@ function validate(state) {
 export function proposalStateStore(file) {
   const directory = dirname(file)
   function privateDirectory() {
-    let exists = true
-    try { lstatSync(directory) } catch (error) { if (error.code === 'ENOENT') exists = false; else throw error }
-    mkdirSync(directory, { recursive: true, mode: 0o700 })
+    createProactiveDirectory(directory)
     if (process.platform === 'win32') {
-      if (!exists) protectProactivePath(directory)
       checkProactivePath(directory)
       return
     }

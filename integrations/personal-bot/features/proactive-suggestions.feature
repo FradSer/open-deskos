@@ -182,6 +182,21 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then the proposal can be displayed again after the active voice turn
     And exact confirmation remains available without another automatic scheduled popup
 
+  Scenario: Private modules can create shared state ancestors in any order
+    Given the private state directories do not exist
+    When package installation creates state before the first child task
+    Then each new directory receives private permissions before its children are created
+    And experience and child tasks can use the same protected parent directories
+    And unsafe existing directories remain unchanged and refused
+
+  Scenario: Windows checks each private ACL without a command processor
+    Given a private Windows state directory
+    When Durable storage repeatedly reads or writes private state
+    Then every operation checks the current owner and access rules through native APIs
+    And no permission check starts a command processor
+    And changed or missing access rules are refused without repair
+    And new files receive private permissions before content is written
+
   Scenario: Windows stores owner rules and action receipts with private ACLs
     Given the Windows Shell Host runs under its configured user
     When proactive owner rules and checkpoint state are read or written

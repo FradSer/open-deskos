@@ -16,6 +16,7 @@
     "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
     "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
     "start": "node src/main.mjs",
+    "agent:packages": "node src/agent-catalog/cli.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "@earendil-works/pi-env": "1.2.0",
     "@echogarden/fvad-wasm": "0.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "koffi": "3.3.3",
     "minimatch": "10.2.6",
     "opencc-js": "1.4.2",
     "proper-lockfile": "4.1.2",

@@ -1,4 +1,4 @@
-import { checkProactivePath, protectProactivePath } from '../proactive-private.mjs';
+import { checkProactivePath, protectProactivePath, createProactiveDirectory } from '../proactive-private.mjs';
 import { mkdir, lstat, readFile, open, rename, unlink, rmdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { randomUUID, randomInt } from 'node:crypto';
@@ -13,11 +13,8 @@ const text = value => typeof value === 'string' && value.length > 0 && value.len
 /** A single resident controller owns each state file. No automatic mutation retries. */
 export async function createRideEngine({stateFile, call, sandbox = true, now = Date.now, quoteTtlMs = 120000, onUpdate = (_snapshot) => {}, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = timer => clearTimeout(timer)}) {
   const dir = dirname(stateFile);
-  const created = await mkdir(dir, {recursive:true,mode:0o700});
-  if (process.platform === 'win32') {
-    if (created) protectProactivePath(dir);
-    else checkProactivePath(dir);
-  }
+  createProactiveDirectory(dir);
+  if (process.platform === 'win32') checkProactivePath(dir);
   const info = await lstat(dir);
   if (!info.isDirectory() || info.isSymbolicLink() || (process.platform !== 'win32' && ((info.mode & 0o077) || info.uid !== process.getuid?.()))) throw new DidiError('打车状态目录必须为当前用户私有目录。');
   const lock = `${stateFile}.lock`;

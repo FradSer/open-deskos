@@ -1,10 +1,23 @@
-import { spawnSync } from 'node:child_process'
-import { chmodSync, lstatSync, realpathSync, openSync, closeSync, unlinkSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { chmodSync, lstatSync, realpathSync, openSync, closeSync, unlinkSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { readLocalFile } from './personal-config.mjs'
+import { createWindowsPrivatePaths } from './proactive-private-windows.mjs'
 
-const helper = fileURLToPath(new URL('./proactive-private.ps1', import.meta.url))
+let windowsPrivatePaths
+
+/** Protect each new ancestor before creating its children. Never repair an existing directory. */
+export function createProactiveDirectory(directory) {
+  try { mkdirSync(directory, { mode: 0o700 }) }
+  catch (error) {
+    if (error.code === 'EEXIST') return
+    if (error.code !== 'ENOENT') throw error
+    const parent = dirname(directory)
+    if (parent === directory) throw error
+    createProactiveDirectory(parent)
+    return createProactiveDirectory(directory)
+  }
+  protectProactivePath(directory)
+}
 
 /** Windows mode bits are not ACLs. Never relax existing owner files while reading. */
 export function checkProactivePath(path) {
@@ -20,8 +33,10 @@ export function protectProactivePath(path) {
 
 function acl(operation, path) {
   if (realpathSync(path) !== path || lstatSync(path).isSymbolicLink()) throw Error('Unsafe private proactive path')
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, '-Operation', operation, '-Path', path], { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 8192 })
-  if (result.status !== 0 || result.stdout.trim() !== 'PRIVATE_PATH_OK') throw Error('Unsafe private proactive path ACL')
+  try {
+    windowsPrivatePaths ??= createWindowsPrivatePaths()
+    windowsPrivatePaths(operation, path, lstatSync(path).isDirectory())
+  } catch { throw Error('Unsafe private proactive path ACL') }
 }
 
 export function readProactiveFile(file, limit) {
