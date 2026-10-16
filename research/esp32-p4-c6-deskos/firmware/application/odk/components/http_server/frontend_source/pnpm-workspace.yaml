@@ -1,3 +1,5 @@
 allowBuilds:
   '@tailwindcss/oxide': true
   esbuild: true
+overrides:
+  oxfmt@0.51.0>tinypool: 2.1.2

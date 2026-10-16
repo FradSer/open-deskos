@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:security": "node --test tests/transitive-security.test.mjs"
   },
   "dependencies": {
     "@kobalte/core": "^0.13.11",
