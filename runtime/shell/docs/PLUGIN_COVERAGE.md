@@ -7488,7 +7488,7 @@ Private CM5 runs passed the complete geometry, E2E, and smoke commands with Elec
 The subsequent Quota fill repair passed all six affected Electron checks on CM5.
 These checks cover the default App, production Main, development page, signed page, and authenticated page recovery.
 They measure actual meter widths under the existing Content Security Policy.
-The combined Linux full suite remains pending after the fixture and meter repairs.
+The [pull request](https://github.com/FradSer/open-deskos/pull/34) records the combined Linux full-suite result.
 The density fixture measures the unavailable Quota placeholder.
 It does not establish the density of a live account reading.
 
