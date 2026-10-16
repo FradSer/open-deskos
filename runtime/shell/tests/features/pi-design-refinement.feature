@@ -17,3 +17,10 @@ Feature: Quiet Pi session inspection
     Then keyed disclosures, focused control, and scroll position are restored
     And a different process reusing a PID does not inherit disclosure state
     And sessions without a UUID can retain context using their id
+
+  Scenario: Hidden Pi tile geometry uses each requested viewport
+    Given an offscreen Pi tile fixture with live scanner data
+    When its viewport changes between reference, handheld, and compact sizes
+    Then Chromium reports the requested width and height at unit scale
+    And the layout reports the same viewport before measurements
+    And all 48 cases retain their existing goal, font, count, and Cell limits
