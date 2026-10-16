@@ -58,6 +58,8 @@ test('CM5 acceptance reports release, migration, service, runtime, and hardware 
   assert.match(script, /"egl-renderer"/)
   assert.match(script, /"mali-userspace"/)
   assert.match(script, /"xorg-glamor"/)
+  assert.match(script, /"xorg-bgra-module"/)
+  assert.match(script, /cm5-gpu-userspace\.sh" verify/)
   assert.match(script, /glamor X acceleration enabled/)
   assert.match(script, /EGL_VENDOR\|EGL_VERSION/)
   assert.match(script, /"touch-devices"/)

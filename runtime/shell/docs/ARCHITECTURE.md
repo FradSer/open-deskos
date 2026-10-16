@@ -123,6 +123,25 @@ The Rockchip 6.1 image has kbase `g21p0-01eac0`, no usable CSF firmware/blob and
 
 Select ANGLE `--use-gl=angle --use-angle=gles-egl` with `--disable-gpu-compositing` only for Linux arm64/X11 with the blob. Xorg glamor enables its X11 EGL path. GPU rasterization/WebGL remain accelerated; presentation is a software copy because X11 swaps lose the blob's context. `--use-gl=egl` is not an accepted Chromium 150 implementation. Overrides are `ODK_GPU_BACKEND=mali|default`, `ODK_DISABLE_GPU=1` and `LIBGL_ALWAYS_SOFTWARE=1`.
 
+GLES glamor must use BGRA for its 24-bit and 32-bit formats on this Mali stack.
+RGBA formats can make parts of the physical display blue while screenshots remain correct.
+The installer builds a local glamor module through `scripts/cm5-glamor-bgra.sh` and its checked-in patch.
+It pins Debian source `2:21.1.7-3+deb12u12` and verifies all source archive checksums.
+
+It applies the Debian security patches before the channel format patch.
+Xorg loads the local module first; the distribution module stays unchanged.
+Installation preserves the original modesetting configuration, and removal restores it unless the operator has changed it.
+
+Update the source version and checksums after an Xorg package update.
+Rebuild the module before GPU acceptance.
+Verify the module after the graphical session restarts.
+A version mismatch fails verification.
+
+`scripts/start-kiosk.sh` selects HDMI-1 RGB with 8-bit channels when the Rockchip color properties are present.
+A DPMS cycle clears stale color conversion before the launcher disables screen blanking.
+Device acceptance requires Mali EGL, the loaded BGRA module, correct test colors, and physical display confirmation.
+The reference CM5 passed nine WebGL shader color readbacks and physical color confirmation with Mali-G610 acceleration enabled.
+
 Do not treat Mesa GLX/llvmpipe as acceleration evidence. Check EGL vendor/version, Xorg glamor and installed pair through `scripts/cm5-acceptance.sh`. Recorded device evidence was ARM EGL 1.5, Mali-G610 glamor and ANGLE with software compositing. A new kernel/DDK requires re-pinning both artifacts/checksums; the firmware interface is `0x1010000`. Mainline panthor plus Mesa 24+ is the cleaner future route and would retire this workaround.
 
 <a id="adr-0017"></a>

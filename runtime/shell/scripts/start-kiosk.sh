@@ -28,6 +28,20 @@ export ODK_SKIP_STYLE_BUILD=1
 export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-0}"
 export ELECTRON_EXTRA_LAUNCH_ARGS="${ELECTRON_EXTRA_LAUNCH_ARGS:-}"
 
+# The Rockchip panel needs RGB 8-bit and a scanout refresh to clear stale CSC.
+if [ -n "${DISPLAY:-}" ] && [ "$(uname -m)" = "aarch64" ] &&
+   command -v xrandr >/dev/null 2>&1 && command -v xset >/dev/null 2>&1; then
+  HDMI_PROPERTIES="$(xrandr --prop 2>/dev/null | awk '/^HDMI-1 connected/ { active=1; next } /^[^ \t]/ { active=0 } active' || true)"
+  if [[ "$HDMI_PROPERTIES" == *color_format:* && "$HDMI_PROPERTIES" == *color_depth:* ]]; then
+    if xrandr --output HDMI-1 --set color_format rgb --set color_depth 24bit; then
+      xset dpms force off || true
+      xset dpms force on || true
+    else
+      echo "Could not set HDMI-1 to RGB 8-bit." >&2
+    fi
+  fi
+fi
+
 # The CM5's X11 session enables DPMS by default. Kiosk is an always-on panel,
 # so prevent the compositor from powering the HDMI output down while idle.
 if [ -n "${DISPLAY:-}" ] && command -v xset >/dev/null 2>&1; then

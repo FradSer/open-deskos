@@ -139,4 +139,12 @@ ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a --server-args="-screen 0 1920x1280x24" \
 
 Host fixture checks do not establish physical touch, S3 Remote input, screen-reader announcements, GPU performance, live microphone or provider accuracy. Aggregate E2E acceptance requires every required subprocess to pass; scoped success never replaces a failed aggregate.
 
-[ADR-0016](docs/ARCHITECTURE.md#adr-0016) records the Mali blob/firmware pair and software presentation trade-off. Restart the graphical session after `scripts/cm5-gpu-userspace.sh` installs/removes userspace. Check EGL, Xorg glamor and Mesa GLX separately; GLX alone does not prove GPU acceptance.
+[ADR-0016](docs/ARCHITECTURE.md#adr-0016) records the Mali pair, BGRA channel patch, and software presentation path.
+Run `sudo scripts/cm5-gpu-userspace.sh install` to build the matching glamor module and install Mali userspace.
+Restart the graphical session after installation or removal.
+Run `sudo scripts/cm5-gpu-userspace.sh verify` after the restart.
+The source pins must match the installed Xorg package.
+Update the source pins after an Xorg update.
+Rebuild the module.
+Check EGL, Xorg glamor, test colors, and the physical display separately.
+Mesa GLX alone does not prove GPU acceptance.

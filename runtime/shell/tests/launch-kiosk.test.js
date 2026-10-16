@@ -2,6 +2,9 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const os = require('node:os')
+const { spawnSync } = require('node:child_process')
+const { posixOnlyReason } = require('./not-ported')
 
 const launcherPath = path.join(__dirname, '..', 'scripts', 'start-kiosk.sh')
 const launcher = fs.readFileSync(launcherPath, 'utf8')
@@ -32,4 +35,31 @@ test('kiosk launcher hides the X11 pointer and disables screen blanking before s
   assert.match(launcher, /xset\s+s\s+noblank/)
   assert.ok(launcher.indexOf('unclutter -idle 0.1 -root') < launcher.indexOf('while true'))
   assert.ok(launcher.indexOf('xset -dpms') < launcher.indexOf('while true'))
+})
+
+test('CM5 startup selects RGB and resets scanout before disabling DPMS', { skip: posixOnlyReason('cm5-tooling') }, t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-display-color-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const bin = path.join(root, 'bin')
+  const scripts = path.join(root, 'scripts')
+  fs.mkdirSync(bin)
+  fs.mkdirSync(scripts)
+  fs.copyFileSync(launcherPath, path.join(scripts, 'start-kiosk.sh'))
+  const log = path.join(root, 'commands')
+  const stub = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 })
+  stub('uname', 'echo aarch64')
+  stub('xrandr', `echo "xrandr $*" >> '${log}'; if [ "$1" = --prop ]; then printf 'HDMI-1 connected primary 1920x1280+0+0\\n\\tcolor_format: yuv444\\n\\tcolor_depth: 24bit\\n'; fi`)
+  stub('xset', `echo "xset $*" >> '${log}'`)
+  stub('openbox', 'exit 0')
+  stub('unclutter', 'exit 0')
+  fs.writeFileSync(path.join(root, 'run.sh'), '#!/bin/sh\nkill -TERM "$PPID"\n', { mode: 0o755 })
+  const result = spawnSync('bash', [path.join(scripts, 'start-kiosk.sh')], {
+    env: { ...process.env, HOME: root, PATH: `${bin}:${process.env.PATH}`, ODK_RUNTIME_ROOT: path.join(root, 'missing-release'), DISPLAY: ':fixture' },
+    timeout: 5000,
+    encoding: 'utf8',
+  })
+  assert.equal(result.signal, 'SIGTERM', result.stderr)
+  const calls = fs.readFileSync(log, 'utf8')
+  assert.match(calls, /xrandr --output HDMI-1 --set color_format rgb --set color_depth 24bit/)
+  assert.match(calls, /xset dpms force off\nxset dpms force on\nxset -dpms/)
 })
