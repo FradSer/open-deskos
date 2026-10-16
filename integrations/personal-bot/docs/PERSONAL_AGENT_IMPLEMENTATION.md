@@ -3,7 +3,7 @@
 The current runtime integration candidate defines implemented behavior.
 The [unified architecture](UNIFIED_ARCHITECTURE.md) owns the five-layer model and authority boundaries.
 This ledger distinguishes previous checks, live results, and work that remains unverified.
-This work includes reviewed commits and pull requests.
+This work includes reviewed commits, pull requests, and merges into `main`.
 It does not include production deployment or activation.
 
 ## Implemented scope
@@ -38,7 +38,8 @@ Source and acceptance evidence must identify the candidate that they checked.
 ## Pull request stack
 
 Merge these pull requests in table order.
-Each pull request uses the previous branch as its base.
+Each pull request initially used the previous feature branch as its base.
+After each merge, retarget the next pull request to `main`.
 Review fixes move forward through normal merges.
 The original worktrees retain their uncommitted source snapshots.
 
