@@ -55,6 +55,12 @@ Feature: Personal Agent delegates general tasks to DeskOS child agents
     And no child is started automatically
     And final verification remains incomplete
 
+  Scenario: An unsupported worker learning status cannot disable task storage
+    Given a child returns an unsupported learning status
+    When the runtime records its finished answer
+    Then learning requires review without accepting the unsupported status
+    And later tasks and saved records remain available after restart
+
   Scenario: Task ownership and storage are bounded
     Given another runtime owns the task records or a private path is linked
     When a new runtime attempts to use that storage

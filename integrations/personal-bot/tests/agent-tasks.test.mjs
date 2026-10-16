@@ -39,6 +39,27 @@ test('temporary task admission is asynchronous and isolated, with verification s
   assert.equal(closed, 1)
 })
 
+test('unsupported worker learning status requires review without poisoning later tasks or restart', async t => {
+  const { runtime, directory } = await fixture(t, async () => ({ ...worker('Observed fixture answer.'),
+    lastTaskResult: { verification: { status: 'passed', summary: 'Fixture evidence checked.' }, learning: { status: 'recorded' } },
+  }))
+  const first = runtime.start({ request: 'Check the fixture.' })
+  const result = await runtime.wait(first.taskId)
+  assert.equal(result.state, 'finished')
+  assert.equal(result.learning, 'needs_review')
+  const later = runtime.start({ request: 'Check another fixture.' })
+  assert.equal((await runtime.wait(later.taskId)).state, 'finished')
+  runtime.saveIdentity(identity)
+  await runtime.close()
+  const restarted = await openAgentTasks({ directory, createWorker: async () => worker('No replay expected.') })
+  try {
+    assert.equal(restarted.status(first.taskId).learning, 'needs_review')
+    assert.equal(restarted.status(first.taskId).response, 'Observed fixture answer.')
+    assert.equal(restarted.status(later.taskId).state, 'finished')
+    assert.equal(restarted.identities()[0].id, identity.id)
+  } finally { await restarted.close() }
+})
+
 test('saved identities retain homes and avatars across restart without leaking between identities', async t => {
   const homes = []
   const { runtime, directory } = await fixture(t, async spec => { homes.push(spec); return worker('Read result.') })
