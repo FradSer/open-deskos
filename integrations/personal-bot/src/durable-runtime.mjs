@@ -1,4 +1,4 @@
-import { mkdir, lstat, realpath } from 'node:fs/promises'
+import { lstat, realpath } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -7,7 +7,7 @@ import { AssistantEntry, Harness, MemoryStorage, createRegistry, defineExtension
 import { createCodemodeExtension } from '@earendil-works/pi-durable/codemode'
 import { CodemodeSandbox } from '@earendil-works/pi-codemode'
 import { Connection, LocalExecutionEnv, RemoteExecutionEnv, localDaemon, sshArguments } from '@earendil-works/pi-env'
-import { checkProactivePath, protectProactivePath } from './proactive-private.mjs'
+import { checkProactivePath, createProactiveDirectory } from './proactive-private.mjs'
 import { openPrivateDurableStorage } from './durable-storage.mjs'
 
 /** Convert reviewed Coding Agent capabilities without changing their authorization checks.
@@ -71,10 +71,9 @@ export function createPiSshConnection({ target, daemonCommand, onLog }) {
 
 async function privateDirectory(directory) {
   if (!directory || !isAbsolute(directory)) throw Error('Durable state requires an absolute private directory')
-  const created = await mkdir(directory, { recursive: true, mode: 0o700 })
+  createProactiveDirectory(directory)
   const info = await lstat(directory)
   if (!info.isDirectory() || info.isSymbolicLink() || await realpath(directory) !== directory) throw Error('Unsafe durable state directory')
-  if (created !== undefined) protectProactivePath(directory)
   checkProactivePath(directory)
   if (process.platform !== 'win32' && (info.uid !== process.getuid() || (info.mode & 0o077) !== 0)) throw Error('Durable state directory must be private')
 }
