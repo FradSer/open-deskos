@@ -57,6 +57,8 @@ Browser output checks observed locations and uses fresh host delimiters.
 Refused page sessions retire before later actions, including when cleanup remains unconfirmed.
 Host downloads require pinned digests before installation.
 The installer no longer contains the unused user-switch helper.
+Worker learning states use the stored enum; unknown states require review.
+Pending microphone frames retain current child activity and voice metadata.
 
 ## Offline evidence
 
@@ -65,12 +67,12 @@ Rows marked previous retain their original evidence boundary.
 
 | Check | Result | Evidence boundary |
 | --- | --- | --- |
-| Personal Bot suite | 814 total; 808 passed; six skipped | Published integration with browser and repeated-close regressions; concurrency four; original deadlines retained |
+| Personal Bot suite | 815 total; 809 passed; six skipped | Published integration with review regressions; concurrency four; original deadlines retained |
 | Typecheck | Passed | Current Personal Bot candidate |
 | Shell Node gate | Previous: 2295 total; 2293 passed; two skipped | Shared host contracts before this integration |
-| Affected Shell contracts | 18 passed | Current installer, activity frame, and socket client |
+| Affected Shell contracts | 32 passed | Current installer, activity frame, socket client, Main channel, microphone routing, and preload |
 | Focused CM5 gate | Previous: 54 passed | Nonroot isolated candidate before the Windows permission changes |
-| Complete child activity pipeline | Three checks passed on Windows; previous local and CM5 runs passed | Durable, service, Main, preload, renderer, restart, and cleanup pipeline |
+| Complete child activity pipeline | Three checks passed locally; previous Windows and CM5 runs passed | Durable, service, Main, preload, renderer, restart, and cleanup pipeline |
 | Live acceptance contract | 48 passed; previous readability sample: 49 passed | Safe feedback, privacy, and complete zero-call runner checks |
 | Independent module review | 59 passed; three findings corrected | Browser lifecycle, uncertain mutations, installer symlink safety, declarations, and routing |
 | Final lifecycle review | 35 passed | Scoped cleanup, failed close receipts, unused sessions, and concurrent disposal |
@@ -78,6 +80,7 @@ Rows marked previous retain their original evidence boundary.
 | Actual browser commands | All seven command kinds passed | CM5 `orangepi`, real CLI and Chrome, private local HTTP fixture |
 
 The pipeline uses disposable state, offline model responses, and isolated display resources.
+A concurrent run exceeded the unchanged cleanup-test deadline; the isolated rerun passed.
 It retains the original saved identity and completed task after a new resident process starts.
 It rejects missing identities and unsuccessful private-process cleanup.
 These results do not prove physical input, production activation, or live-model quality.
