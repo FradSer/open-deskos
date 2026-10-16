@@ -1,6 +1,47 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {generationDeadlineMs, generateWithinDeadline} from '../src/proactive-generation-session.mjs'
+import {AgentValidationError, pluginFormatCorrection} from '../src/agent-plugins/completion.mjs'
+
+test('known host validation codes produce exact safe feedback inside the existing two-attempt lifecycle', async () => {
+  let calls = 0, disposed = 0, corrections = 0
+  const result = await generateWithinDeadline({
+    create: async () => ({ dispose: async () => { disposed++ }, abort: async () => {} }),
+    prompt: async (_session, text) => {
+      calls++
+      const request = JSON.parse(text)
+      if (calls === 1) { assert.equal(request.formatCorrection, undefined); return '{"valid":false}' }
+      assert.equal(request.formatCorrection, pluginFormatCorrection('completion', new AgentValidationError('citation')))
+      assert(!request.formatCorrection.includes('PRIVATE_ERROR'))
+      return '{"valid":true}'
+    },
+    validate: value => { if (!value.valid) throw Object.assign(new AgentValidationError('citation'), { message: 'PRIVATE_ERROR' }) },
+    formatCorrection: error => { corrections++; return pluginFormatCorrection('completion', error) },
+  }, { request: 'Check supplied input' })
+  assert.deepEqual(result, { valid: true })
+  assert.equal(calls, 2); assert.equal(corrections, 1); assert.equal(disposed, 1)
+})
+
+test('unknown private errors and malformed JSON receive generic feedback without response or message disclosure', async () => {
+  for (const malformed of [false, true]) {
+    let calls = 0
+    await assert.rejects(generateWithinDeadline({
+      create: async () => ({ dispose: async () => {}, abort: async () => {} }),
+      prompt: async (_session, text) => {
+        calls++
+        if (calls === 2) {
+          const correction = JSON.parse(text).formatCorrection
+          assert.equal(correction, pluginFormatCorrection('learning', new Error('unknown')))
+          assert(!correction.includes('PRIVATE_ERROR'))
+        }
+        return malformed ? '{PRIVATE_ERROR' : '{}'
+      },
+      validate: () => { throw Object.assign(new Error('PRIVATE_ERROR'), { code: 'citation' }) },
+      formatCorrection: error => pluginFormatCorrection('learning', error),
+    }, {}))
+    assert.equal(calls, 2)
+  }
+})
 
 test('generation budget defaults to 90 seconds and rejects unbounded settings', () => {
  assert.equal(generationDeadlineMs(),90000)

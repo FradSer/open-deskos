@@ -5,6 +5,8 @@ This file owns authorization, intent routing, Hosted Pi control, proposals, and 
 Read the host deployment runbook before activation or service operations.
 Git history preserves past plans and acceptance runs.
 
+The [unified architecture](UNIFIED_ARCHITECTURE.md) defines the five layers and their authority boundaries.
+
 ## Plugin composition
 
 [plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
@@ -201,7 +203,7 @@ Implementation needs an explicit configured Coding Target and project.
 No target means unconfigured; there is no local implementation fallback.
 Reviewed custom capabilities have service-user permissions, without an OS sandbox.
 
-The personal profile adds protected memory and reviewed DiDi tools.
+The personal profile adds protected memory and explicitly declared reviewed capabilities.
 It loads no project instructions, discovered extensions, or operator coding modules.
 Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
 
@@ -210,9 +212,14 @@ Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
   "profile": "personal",
   "skillPaths": [],
   "memoryFile": "/home/orangepi/.local/state/odk-personal-bot/personal/MEMORY.md",
-  "didi": {
-    "environment": "sandbox",
-    "keyFile": "/home/orangepi/.config/odk/didi.key"
+  "capabilities": {
+    "didi": {
+      "environment": "sandbox",
+      "keyFile": "/home/orangepi/.config/odk/didi.key"
+    },
+    "browser": {
+      "executablePath": "/opt/agent-browser/bin/agent-browser"
+    }
   }
 }
 ```
@@ -220,7 +227,13 @@ Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
 The service user owns the memory parent, mode 0700, and key file, mode 0600.
 Windows uses protected user ACLs.
 Only operator configuration selects production; sandbox and production keep separate transaction states.
-DiDi configuration includes its built-in skill.
+`capabilities` selects only host-reviewed `didi` and `browser` declarations.
+[reviewed-capabilities.mjs](../src/reviewed-capabilities.mjs) owns their validation, factories, Skills, intents, workflows, tool prefixes, lifecycle, and `childAllowed` policy.
+Legacy top-level `didi` and `browser` keys normalize into that map.
+Declaring the same capability in both locations fails validation.
+Capability declarations in the `coding` profile fail validation.
+Unknown identities and factory paths fail validation.
+DiDi configuration includes its built-in Skill.
 `skillPaths` adds reviewed absolute `SKILL.md` paths.
 `skill_read` returns startup snapshots; a skill adds no scripts, tools, or permissions.
 The personal profile needs no writable Git checkout.
@@ -274,7 +287,7 @@ Never restore transaction state from before a possibly accepted order.
 
 ## Intent routing
 
-Every text/transcribed turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
+Every resident owner turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
 Touch proposal confirmation also routes its actual phrase through Jev.
 No regex shortcut bypasses routing.
 The TypeSafe Choice API selects a closed intent; code owns dispatch.
@@ -287,21 +300,34 @@ Private memory files, credentials, and live readings are excluded.
 | `task_query` | Read targets, list, status, and history |
 | `session_control` | Cancel a turn or end a resolved session |
 | `coding_work` | Start work on an explicit configured target/project |
+| `agent_work` | Admit or continue a general DeskOS child task |
+| `agent_identity` | Save or update an explicitly requested child identity |
 | `widget_create`, `app_create` | Draft/check; install only when requested |
 | `app_query` | Read installed packages and placement |
 | `app_manage` | Explicit existing package lifecycle/placement changes |
+| `package_query` | Read installed agent packages and named candidates |
+| `package_manage` | Apply requested Skill or MCP package lifecycle changes |
 | `suggestions` | Read private proposals without conversation inference |
 | `proposal_response` | Validate the displayed phrase and subsequent turn |
 | `odk_data` | Read current measurements, state, and time |
 | `memory` | Apply explicit current-turn remember/forget policy |
 | `ride` | Use the reviewed quote/order transaction |
-| `extension` | Invoke reviewed operator-added capabilities |
+| `browse` | Use the reviewed browser session and requested page actions |
+| `extension` | Invoke reviewed capabilities or installed MCP tools |
 | `conversation` | Converse without specialized mutations |
 | `clarify` | Ask; invoke no downstream model or capability |
 
 Restrict capabilities to the selected workflow at execution time.
 The `extension` handler receives registered names and bounded descriptions.
-It cannot substitute core mutations; other workflows cannot invoke extension tools.
+It cannot substitute task, application, proposal, or package lifecycle mutations.
+The package-management workflow permits MCP calls only for an explicitly requested connector action.
+The [agent package contract](AGENT_CATALOG.md) owns installation, revision, credential, and connector lifecycle rules.
+The [child task contract](AGENT_TASKS.md) owns general task execution and saved identities.
+After parent admission, the host selects the fixed internal `agent_execute` workflow for that child.
+A child creates no second Jev client and performs no second intent classification.
+Only the composition root can select child execution.
+Task text and role guidance cannot select it or expand its tools.
+Tool discovery and evidence collection occur during execution; admission does not certify feasibility or completion.
 Hosted Pi retains its separate full coding capability.
 
 Register each reviewed capability once as an initially inactive Durable tool.
@@ -330,7 +356,7 @@ Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`
 `ODK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
 `ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
 `ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
-Selected probability and confidence must both meet the threshold.
+Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
 Missing credentials stop initialization.
@@ -475,6 +501,8 @@ Do not wait for helper exit to establish success.
 
 Coordinator tools are `coding_targets`, `coding_task_start`, `coding_tasks_list`, `coding_task_status`, and `coding_task_history`.
 They also include `coding_task_prompt`, `coding_task_cancel`, and `coding_task_end`.
+The completion plugin adds `coding_task_verify` for read-only final-result checks.
+The [plugin contract](AGENT_PLUGINS.md#hosted-pi-results) owns its evidence rules and limits.
 List accepts a configured project subtree and orders sessions by latest update.
 Every identity operation carries the session's own project exactly as listed, plus its durable task ID.
 Only the target daemon resolves roots on disk.
@@ -541,7 +569,10 @@ Command/cwd identity uses SHA-256 and bounded labels.
 Credential redaction is heuristic; raw worker arguments/output can contain secrets.
 Session history is private coding data, not a secret vault.
 Structured script output is bounded to 64 KiB and omits temporary full-output paths.
-Host history persists nested check metadata because Pi omits ordinary nested tool results.
+Host history preserves bounded nested check output and metadata because Pi omits ordinary nested tool results.
+String user prompts remain visible as user events.
+Tool events retain tool identities.
+Result events retain compact nested-call identities and status without nested arguments.
 
 Hosted Pi Position identifies a complete physical log entry; zero precedes the first entry.
 Non-message entries can create numeric gaps without lost output.

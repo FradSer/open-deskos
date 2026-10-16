@@ -191,7 +191,7 @@ test('main wires validated transcription context including empty opt-out', async
   const dir = await mkdtemp(join(tmpdir(), 'voice-context-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
-  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?\) \{[\s\S]*?\n\}/)[0]
+  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?(?:, onAgentUpdate = undefined)?\) \{[\s\S]*?\n\}/)[0]
   const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
   const { prepareHostDirectories } = await import('../src/host-paths.mjs')
   const initialize = Function('access', 'createPersonalBot', 'join', 'homedir', 'prepareHostDirectories', 'transcriptionLanguage', 'transcriptionPrompt', 'transcriptionProvider', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(
@@ -213,7 +213,7 @@ async function initializeFor(t, env, platform) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-provider-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
-  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?\) \{[\s\S]*?\n\}/)[0]
+  const initializeSource = source.match(/async function initialize\(env, report, onRideUpdate, platform = process\.platform(?:, getWatch = undefined)?(?:, signal = undefined)?(?:, onAgentUpdate = undefined)?\) \{[\s\S]*?\n\}/)[0]
   const { transcriptionLanguage, transcriptionPrompt, transcriptionProvider, isLoopbackUrl, isDeviceLocalStt } = await import('../src/transcribe.mjs')
   const { prepareHostDirectories } = await import('../src/host-paths.mjs')
   const initialize = Function('access', 'createPersonalBot', 'join', 'homedir', 'prepareHostDirectories', 'transcriptionLanguage', 'transcriptionPrompt', 'transcriptionProvider', 'isLoopbackUrl', 'isDeviceLocalStt', 'loadPersonalConfig', `return (${initializeSource})`)(

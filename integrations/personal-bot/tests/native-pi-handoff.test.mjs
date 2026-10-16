@@ -30,11 +30,19 @@ async function until(predicate, message) {
 test('Personal Agent idle, followUp and normal Enter instructions execute in the original native Pi session', { timeout: 60_000, skip: process.platform === 'win32' ? 'Native Pi private endpoint requires a Unix target' : false }, async t => {
   await access(join(packageDir, 'index.ts'))
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-native-handoff-')))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  let bot, worker, socketDir, release, releaseSteer
+  t.after(async () => {
+    try { await bot?.close() }
+    finally {
+      try {
+        release?.(); releaseSteer?.()
+        if (worker) { await worker.session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' }); await worker.session.dispose() }
+      } finally { await rm(dir, { recursive: true, force: true }); if (socketDir) await rm(socketDir, { recursive: true, force: true }) }
+    }
+  })
   // macOS limits Unix socket names to 104 bytes. Keep this owned runtime
   // directory independent of TMPDIR, which can already exceed that limit.
-  const socketDir = await mkdtemp('/tmp/odk-npi-')
-  t.after(() => rm(socketDir, { recursive: true, force: true }))
+  socketDir = await mkdtemp('/tmp/odk-npi-')
   assert.ok(Buffer.byteLength(join(socketDir, `${'0'.repeat(36)}.sock`)) < 100)
   const agentDir = await isolateAgentDirectory(t, dir)
   const project = join(dir, 'project')
@@ -61,16 +69,16 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
     settingsManager: SettingsManager.inMemory({ packages: [] }), extensionFactories: [extension],
     agentsFilesOverride: () => ({ agentsFiles: [] }), systemPromptOverride: () => 'Offline isolated handoff fixture.' })
   await loader.reload()
-  let release, entered
+  let entered
   const gate = new Promise(resolve => { release = resolve })
   const streaming = new Promise(resolve => { entered = resolve })
-  let releaseSteer, enteredSteer
+  let enteredSteer
   const steerGate = new Promise(resolve => { releaseSteer = resolve })
   const steering = new Promise(resolve => { enteredSteer = resolve })
   const idlePrompt = '继续原来的任务，把 idle-marker.txt 写成 idle-delivered。'
   const queuedPrompt = '继续原来的任务，把 queued-marker.txt 写成 queued-delivered，作为下一轮执行。'
   const steerPrompt = '继续原来的任务，把 steer-marker.txt 写成 steer-delivered。'
-  const worker = await offlineSession({ cwd: project, agentDir, resourceLoader: loader,
+  worker = await offlineSession({ cwd: project, agentDir, resourceLoader: loader,
     tools: ['write'], sessionManager: SessionManager.create(project, join(dir, 'native-sessions')) }, async context => {
     const user = context.messages.filter(message => message.role === 'user').at(-1)
     const text = typeof user?.content === 'string' ? user.content : user?.content?.map(part => part.text || '').join('')
@@ -81,7 +89,6 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
     const path = text === idlePrompt ? 'idle-marker.txt' : text === queuedPrompt ? 'queued-marker.txt' : text === steerPrompt ? 'steer-marker.txt' : undefined
     return path ? assistant([{ type: 'toolCall', id: path, name: 'write', arguments: { path, content: path.replace('-marker.txt', '-delivered') } }], 'toolUse') : assistant('原会话等待后续指令。')
   })
-  t.after(async () => { release(); releaseSteer(); await worker.session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' }); worker.session.dispose() })
   worker.session.setActiveToolsByName(['write'])
   await worker.session.prompt('开始原来的验收任务。')
   const sessionId = worker.session.sessionManager.getSessionId()
@@ -90,7 +97,7 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   await access(join(envChanges.ODK_SESSION_HOST_SOCKET, `${sessionId}.json`))
 
   let coordinator, activePrompt, behavior
-  const bot = await createPersonalBot({ stateDir: join(dir, 'bot'), personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
+  bot = await createPersonalBot({ stateDir: join(dir, 'bot'), personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: () => createJevIntentRouter({ env: { TYPESAFE_API_KEY: 'fixture-only' }, fetchImpl: async (_url, options) => {
       const { questions } = JSON.parse(options.body)
       return Response.json({ model: 'jev-fixture', answers: { intent: { type: 'choice', choice: 'session_continue', confidence: 1,
@@ -109,7 +116,6 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
     }),
     createSession: async options => { const result = await createDurableAgentSession(options); coordinator = result.session; return result },
   })
-  t.after(() => bot.close())
   activePrompt = idlePrompt
   await bot.prompt('在 Mac 的原 Pi 会话中继续原来的任务。')
   const idleResult = (await coordinator.runtime.conversation.context(BACKGROUND_CONTEXT)).messages.find(message => message.role === 'toolResult' && message.toolName === 'codemode')
