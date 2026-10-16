@@ -16,10 +16,10 @@ import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proact
 import { createJevJudge } from './proactive-jev.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
-import { rideNotification } from './ride-notification.mjs'
+import { createRideNotifier } from './ride-notification.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
 
-async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined) {
+async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined) {
   signal?.throwIfAborted()
   report('Check ODK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
   const personal = await loadPersonalConfig(env)
@@ -82,7 +82,7 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     stateDir: directories.state,
     model: env.ODK_PERSONAL_BOT_MODEL,
     capabilityPaths: personal.profile === 'coding' && env.ODK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODK_PERSONAL_BOT_CAPABILITIES) : [],
-    personal, onRideUpdate, getWatch, env, signal,
+    personal, onRideUpdate, onAgentUpdate, getWatch, env, signal,
   })
   return {
     agent,
@@ -133,6 +133,7 @@ async function main() {
   let watch
   let home
   let service
+  const notifyRide = createRideNotifier(message => service?.notify(message))
   const composition = createPersonalBotComposition({
     replacementPlugins, disabled, control,
     onService(value) { service = value },
@@ -162,12 +163,10 @@ async function main() {
         },
       }
     },
-    initialize: (service, context) => initialize(env, message => service.setState('error', message), snapshot => {
-      const message = rideNotification(snapshot)
-      if (message) service.notify(message)
-    }, platform, () => watch, context.signal),
+    initialize: (service, context) => initialize(env, message => service.setState('error', message), notifyRide, platform, () => watch, context.signal, tasks => service.publishAgents(tasks)),
     onRuntime(value, context) {
       runtime = value
+      service.publishAgents(runtime ? runtime.agent.agentTasks?.activity() ?? [] : undefined)
       if (runtime) service.setState('idle')
       else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')
     },
@@ -178,6 +177,7 @@ async function main() {
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         generate: runtime.agent.generateBriefing,
         publish: frame => service.publishBriefing(frame),
+        onFailure: failure => console.warn(JSON.stringify({ event: 'home_briefing_failure', ...failure })),
       })
       return home
     },

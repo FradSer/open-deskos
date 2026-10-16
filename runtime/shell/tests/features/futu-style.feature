@@ -1,4 +1,15 @@
 Feature: Calm and truthful Futu holdings styling
+  Scenario: The App scrollbar appears only while holdings scroll
+    Given the Futu App contains more holdings than fit in its list
+    Then the scrollbar thumb and track are hidden while idle
+    And no scrollbar arrow buttons are shown
+    When the user scrolls with the wheel, touch, or keyboard
+    Then the scrollbar thumb follows the theme shape in a reserved right gutter
+    And holding values and column labels stay aligned outside that gutter
+    And the thumb hides after scrolling stops without moving the columns
+    When the user closes the App
+    Then its scroll listener and hide timer are released
+
 
   # The expanded row is kept as long as it genuinely fits, and the break point is
   # measured rather than chosen per device. At the 20px holdings floor the three

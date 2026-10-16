@@ -49,12 +49,6 @@ ipcMain.handle('odk-opencode-go-status', () => completeQuotaRefresh
   ? new Promise(resolve => { completeQuotaRefresh = () => resolve(quota) })
   : quota)
 ipcMain.handle('odk-hydra-status', () => ({ configured: false, connected: false, env: null, nodes: [] }))
-// A 1x1 PNG keeps the camera tile's frame live without a camera peripheral, so
-// the framing marks can be checked against real painted content.
-const CAMERA_FRAME_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAAH/q842iQAAAABJRU5ErkJggg=='
-let cameraFrame = { status: 'live', frame: CAMERA_FRAME_DATA_URL, capturedAt: Date.now() }
-ipcMain.handle('odk-camera-frame', () => cameraFrame)
-
 ipcMain.handle('odk-pi-sessions', () => {
   if (scanFails) throw new Error('Scanner test failure')
   return sessions
@@ -107,7 +101,7 @@ async function widgets(win, label) {
     const tiles = [...document.querySelectorAll('.widget')]
     for (const tile of tiles) {
       const rect = tile.getBoundingClientRect()
-      if (Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
+      if (tile.closest('.page')?.dataset.pageId === 'home' && Math.abs(rect.width - rect.height) > 2 && innerWidth < 1000) failures.push(tile.dataset.app + ': not square')
       for (const el of tile.querySelectorAll('span, strong')) {
         if (!el.textContent.trim() || !el.getClientRects().length) continue
         const r = el.getBoundingClientRect()
@@ -117,7 +111,7 @@ async function widgets(win, label) {
     }
     const page = tiles[0].closest('.page')
     if (innerWidth < 640) document.getElementById('home-desk').scrollTop = document.getElementById('home-desk').scrollHeight
-    const indicators = [...document.querySelectorAll('.dot')].every(dot => {
+    const indicators = [...document.querySelectorAll('.dot')].filter(dot => dot.getClientRects().length).every(dot => {
       const r = dot.getBoundingClientRect()
       return [r.top + r.height / 2, r.top + 4].every(y => document.elementFromPoint(r.left + r.width / 2, y) === dot)
     })
@@ -129,7 +123,7 @@ async function widgets(win, label) {
   })()`)
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
-  check(`${label}: page indicators have distinct pointer targets`, result.indicators)
+  check(`${label}: Home handle has a reachable pointer target`, result.indicators)
 }
 
 async function pomodoroCentering(win) {
@@ -210,23 +204,24 @@ async function surfaceAffordances(win) {
           const style = getComputedStyle(node)
           return style.borderTopStyle === 'solid' && style.borderTopWidth === '1px'
             && style.borderTopColor !== 'rgba(0, 0, 0, 0)' && getComputedStyle(node, '::after').content === 'none'
-            && !node.matches('[tabindex],button') && !node.querySelector('button,input,select,textarea,a[href]')
+            && !node.matches('[tabindex],button') && !node.querySelector('button:not(.widget-launch),input,select,textarea,a[href]')
+            && node.querySelector('.widget-launch')?.tagName === 'BUTTON'
         }), color: css.borderTopColor }
       })()`)
-      check(`Read-only Widget frame: ${theme} ${width}x${height}`, widgets.static, widgets)
+      check(`Widget reading and App continuation frame: ${theme} ${width}x${height}`, widgets.static, widgets)
       await page(win, PAGES.dot('quota'))
       const rest = await win.webContents.executeJavaScript(`(() => {
         document.querySelector('.dot.active').focus()
         const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
         return { color: css.borderTopColor, width: css.borderTopWidth, outline: css.outlineStyle, size: [rect.width, rect.height] }
       })()`)
-      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '2px' && rest.color !== widgets.color && rest.outline === 'none', rest)
+      check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '1px' && rest.color === widgets.color && rest.outline === 'none', rest)
       const active = await win.webContents.executeJavaScript(`(() => {
         document.querySelector('#quota-refresh').focus()
         const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
         return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, offset: parseFloat(css.outlineOffset), size: [rect.width, rect.height] }
       })()`)
-      check(`App active frame: ${theme} ${width}x${height}`, active.color !== rest.color && active.outline === 'solid' && parseFloat(active.width) >= 2 && active.offset === 2 && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
+      check(`App frame stays consistent during control focus: ${theme} ${width}x${height}`, active.color === rest.color && active.outline === 'none' && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
       if (width === 1920) {
         await win.webContents.executeJavaScript(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`)
         fs.writeFileSync(path.join(os.tmpdir(), `odk-app-frame-active-${theme}.png`), (await win.webContents.capturePage()).toPNG())
@@ -240,15 +235,15 @@ async function surfaceAffordances(win) {
         const pressed = await win.webContents.executeJavaScript(`(() => { const card = document.querySelector('.quota-card'), css = getComputedStyle(card); return { active: card.matches(':active'), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
         win.webContents.debugger.detach()
-        check(`Pointer press activates the App frame: ${theme}`, pressed.active && pressed.color !== rest.color && pressed.outline === 'solid', pressed)
+        check(`Pointer press preserves the Widget frame: ${theme}`, pressed.active && pressed.color === rest.color && pressed.outline === 'none', pressed)
       }
     }
     const foreground = await win.webContents.executeJavaScript(`(async () => {
       await odkAppPlatform.openApp({ appId: 'clock' })
-      const css = getComputedStyle(document.querySelector('#app-runtime .runtime-app'))
+      const css = getComputedStyle(document.querySelector('#app-view'))
       return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
     })()`)
-    check(`Opened App retains its active frame: ${theme}`, foreground.width === '2px' && foreground.outline === 'solid' && foreground.outlineWidth === '2px' && foreground.offset === 2, foreground)
+    check(`Opened App retains the shared Widget frame: ${theme}`, foreground.width === '1px' && foreground.outline === 'none', foreground)
     await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
   }
 }
@@ -300,25 +295,6 @@ async function appPage(win, index, label) {
     })
   })()`)
 
-}
-
-// The density harness measures boxes, so it cannot see a frame painting over the
-// marks. Hit testing follows paint order, which is what this asserts.
-async function cameraInstrument(win) {
-  await page(win, PAGES.dot('home'))
-  const live = await win.webContents.executeJavaScript(`(() => {
-    const tile = document.querySelector('.widget[data-widget="odk.tile.camera"]')
-    const frame = tile.querySelector('.w-camera-frame')
-    const marks = tile.querySelector('.w-camera-marks')
-    const rect = marks.getBoundingClientRect()
-    const probe = document.elementFromPoint(rect.left + rect.width * 0.14, rect.top + rect.height * 0.14)
-    return {
-      frameLive: frame.hidden === false && frame.getAttribute('src') !== null,
-      marksAboveFrame: probe === marks || marks.contains(probe),
-      hit: probe ? probe.tagName.toLowerCase() : null,
-    }
-  })()`)
-  check('Camera: a live frame does not paint over the framing marks', live.frameLive && live.marksAboveFrame, live)
 }
 
 async function contrastAndMotion(win) {
@@ -840,7 +816,6 @@ async function main() {
   await require('./pi-reading-stability.cjs').run(win, check, value => { sessions = value })
   sessions = savedSessions
   await processIdentityContinuity(win)
-  await cameraInstrument(win)
   await contrastAndMotion(win)
   await builtinApps(win)
   await resize(win, 1920, 1280)

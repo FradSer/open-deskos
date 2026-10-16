@@ -37,6 +37,12 @@ Feature: Independent CM5 personal bot service deployment
     And the required services start only after activation selects the release
     And a host without a Hosted Pi configuration keeps that unit staged and stopped
 
+  Scenario: Enable legacy service aliases by their canonical unit identity
+    Given the Personal Bot, Open DeskOS Link, Remote Bridge, and Hosted Pi task aliases link to open-deskos units
+    When the CM5 installer stages or starts those services
+    Then it reads each loaded unit's canonical identity before enabling it
+    And it keeps the Personal Bot, Open DeskOS Link, and Hosted Pi tasks on the stable runtime path
+
   Scenario: Unconfigured voice keeps the shell usable and reports its state
     Given the shell release has been activated
     And STT authentication or the default ALSA microphone is unavailable

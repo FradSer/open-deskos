@@ -57,8 +57,8 @@ if (!exists('.git')) {
   test('git-agent uses concise scopes aligned with the current topology', () => {
     const config = fs.readFileSync(GIT_AGENT_CONFIG, 'utf8')
     const names = [...config.matchAll(/^    - name: (.+)$/gm)].map((match) => match[1])
-    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, research, tooling, and experiments/)
-    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'rsrch', 'tool', 'exp'].sort())
+    assert.match(fs.readFileSync(FEATURE, 'utf8'), /uses concise scopes for Shell, hardware, link, vision, computer vision, research, tooling, and experiments/)
+    assert.deepEqual(names.slice().sort(), ['shell', 'hw', 'link', 'vision', 'vis', 'rsrch', 'tool', 'exp'].sort())
     assert.doesNotMatch(config, /^    - name: (?:app|firmware|experiments)$/m)
   })
 

@@ -1,9 +1,9 @@
-Feature: Open DeskOS uses one tested Pi v1.0 runtime on each Shell Host
+Feature: Open DeskOS uses one tested Pi v1.2 runtime on each Shell Host
   Scenario: The bundled SDK version matches the declared runtime
     Given a staged Personal Bot and Hosted Pi component
     When its dependencies are installed from its frozen lockfile
-    Then the declared and resolved Pi SDK version is 1.0.0
-    And the installed codemode package belongs to the same v1.0 release family
+    Then the declared and resolved Pi SDK version is 1.2.0
+    And Durable, env, AI, Chord, and Code Mode belong to the same v1.2 release family
 
   Scenario: CLI version is not proof of the resident SDK version
     Given a host whose CLI is upgraded while its resident SDK is older

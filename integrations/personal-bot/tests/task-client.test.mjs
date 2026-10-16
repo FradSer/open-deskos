@@ -79,6 +79,14 @@ test('Chinese requests retain Unicode and one generated task UUID', async t => {
   assert.equal((await taskRequest(configured, { command: 'start', project: local('/working'), prompt: 'no' })).task.project, local('/working'))
 })
 
+test('local control helpers retain their application environment', async t => {
+  const previous = process.env.ODK_FIXTURE_CLIENT_ONLY
+  process.env.ODK_FIXTURE_CLIENT_ONLY = 'local-helper-fixture'
+  t.after(() => { if (previous === undefined) delete process.env.ODK_FIXTURE_CLIENT_ONLY; else process.env.ODK_FIXTURE_CLIENT_ONLY = previous })
+  const configured = await fixture(t, 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,task:{clientOnly:process.env.ODK_FIXTURE_CLIENT_ONLY}}))})')
+  assert.equal((await taskRequest(configured, { command: 'list', project: local('/work') })).task.clientOnly, 'local-helper-fixture')
+})
+
 test('unknown mutation outcomes expose original target and task ID, never retry', async t => {
   const configured = await fixture(t, 'process.stdin.resume();setTimeout(()=>{},60000)')
   await assert.rejects(taskRequest(configured, { command: 'start', project: local('/work'), prompt: '测试' }, undefined, 30), error => {

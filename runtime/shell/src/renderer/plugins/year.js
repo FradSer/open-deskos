@@ -15,6 +15,7 @@
     app: 'Year progress',
     state: 'Live',
     interaction: 'display-only',
+    opensApp: 'year',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="widget-signal year-row">

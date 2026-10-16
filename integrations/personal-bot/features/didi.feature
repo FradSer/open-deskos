@@ -70,6 +70,12 @@ Feature: Confirmed personal DiDi rides
     And tools explain that natural text cannot verify completion or cancellation
     When a structured query later returns a matching ID and documented status
     Then only the structured status restores lifecycle authority
+  Scenario: Repeated uncertain status polls do not repeat the same notice
+    Given a ride submission has an ambiguous result
+    When later polls report the same uncertain order state
+    Then Personal Agent shows one uncertainty notice for that order
+    And a verified status change produces a new notice
+    And another create request stays blocked until the status is verified
   Scenario: Compatibility fallback never authorizes mutation results
     Given estimate, create or cancel returns only text content
     When the transport validates its response

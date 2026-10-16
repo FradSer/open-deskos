@@ -491,10 +491,12 @@ test('SDK no-assistant, rejected, aborted and cancelled retry requests never reu
 })
 
 test('SDK adapter rejects concurrent prompts without sharing subscriptions', async () => {
-  let finish
-  const fixture = streamingSession(() => new Promise(resolve => { finish = resolve }))
+  let finish, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const fixture = streamingSession(() => new Promise(resolve => { finish = resolve; entered() }))
   const pending = fixture.adapter.prompt('first')
   await assert.rejects(fixture.adapter.prompt('second'), /progress/)
+  await ready
   finish()
   await pending
   assert.equal(fixture.unsubscribed(), 1)

@@ -4,8 +4,7 @@ const { installGeometryFixtures } = require('./live-fixtures')
 
 // Representative success data belongs to this preview, not to the runtime or
 // the shared geometry/failure fixtures. All times and facts share one snapshot.
-function installHomePreviewFixtures(ipcMain, { now = Date.now(), cameraFrame }) {
-  if (!cameraFrame?.startsWith('data:image/png;base64,')) throw Error('Synthetic Camera PNG required')
+function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
   installGeometryFixtures(ipcMain, { state: 'live' })
   const replace = (name, value) => {
     ipcMain.removeHandler(name)
@@ -29,7 +28,6 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now(), cameraFrame }) 
     { kind: 'result', toolName: 'check', toolCallId: 'preview-check', text: 'All layout checks passed.' },
   ] })
   replace('odk-remote-link-state', { state: 'usb' })
-  replace('odk-camera-frame', { status: 'live', frame: cameraFrame, capturedAt: now, width: 640, height: 360 })
   replace('odk-weather-status', { status: 'live', place: 'Taipei',
     current: { temperature: 26, unit: '°C', condition: 'Overcast', sky: 'cloud', code: 3 },
     daily: { high: 28, low: 22 }, updatedAt: now, hint: null, error: null })

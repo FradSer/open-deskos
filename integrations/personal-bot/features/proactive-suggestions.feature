@@ -1,6 +1,19 @@
 Feature: Owner controlled proactive Personal Bot proposals
   Proposals are read-only agent state, never plugin instructions or authorization.
 
+  Scenario: Recommendations do not assert that an action already happened
+    Given fresh observations explicitly report a pending need and its deadline
+    When generated advice recommends addressing that need without adding facts
+    Then Jev evaluates the recommendation separately from factual assertions
+    And invented deadlines, causes, permissions and completed actions remain unsupported
+
+  Scenario: A judgment fluctuation cannot repeat an acknowledged suggestion
+    Given the Shell acknowledged a generated suggestion
+    When Jev rejects it once and later accepts the same intent and observations
+    Then the previous proposal identity and acknowledgement are preserved
+    And no automatic popup repeats after a service restart
+    But materially changed observations can create a new suggestion
+
   Scenario: Generate several suggestions before Jev selects what to push
     Given owner goals and fresh observations from arbitrary subscribed services
     When a heartbeat or selected service event arrives
@@ -168,6 +181,21 @@ Feature: Owner controlled proactive Personal Bot proposals
     When the owner explicitly asks for suggestions after restart
     Then the proposal can be displayed again after the active voice turn
     And exact confirmation remains available without another automatic scheduled popup
+
+  Scenario: Private modules can create shared state ancestors in any order
+    Given the private state directories do not exist
+    When package installation creates state before the first child task
+    Then each new directory receives private permissions before its children are created
+    And experience and child tasks can use the same protected parent directories
+    And unsafe existing directories remain unchanged and refused
+
+  Scenario: Windows checks each private ACL without a command processor
+    Given a private Windows state directory
+    When Durable storage repeatedly reads or writes private state
+    Then every operation checks the current owner and access rules through native APIs
+    And no permission check starts a command processor
+    And changed or missing access rules are refused without repair
+    And new files receive private permissions before content is written
 
   Scenario: Windows stores owner rules and action receipts with private ACLs
     Given the Windows Shell Host runs under its configured user

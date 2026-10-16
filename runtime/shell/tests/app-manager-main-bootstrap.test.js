@@ -125,7 +125,7 @@ test('production Main preserves selected installed desktop consumers and detects
           await fs.writeFile(path.join(draft, 'index.html'), kind === 'app'
             ? '<button id="counter">0</button><script>counter.onclick=()=>counter.textContent=Number(counter.textContent)+1</script>'
             : '<p>Installed note</p>')
-          assert.equal((await store.install(id, kind === 'widget' ? { pageId: 'reading', col: '2', row: '3' } : undefined)).ok, true)
+          assert.equal((await store.install(id, kind === 'widget' ? { pageId: 'desk', col: '2', row: '3' } : undefined)).ok, true)
         }
         if (mode === 'development') {
           const bundle = path.join(directory, 'desktop')

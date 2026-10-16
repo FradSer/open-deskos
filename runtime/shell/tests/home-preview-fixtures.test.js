@@ -9,7 +9,7 @@ test('normal Home preview has complete, consistent readings without provider acc
   const ipc = { handle(name, callback) { assert.equal(handlers.has(name), false); handlers.set(name, callback) },
     removeHandler(name) { handlers.delete(name) } }
   const now = 1791864000000
-  const preview = installHomePreviewFixtures(ipc, { now, cameraFrame: 'data:image/png;base64,fixture' })
+  const preview = installHomePreviewFixtures(ipc, { now })
   const read = name => handlers.get(name)()
   const pi = read('odk-pi-sessions')
   assert.equal(pi.summary.running, pi.sessions.filter(item => item.status === 'running').length)
@@ -19,8 +19,7 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.equal(read('odk-weather-status').current.temperature, 26)
   assert.equal(read('odk-weather-status').place, 'Taipei')
   assert.ok(read('odk-futu-holdings').snapshot.positions.every(item => Number.isFinite(item.price)))
-  assert.equal(read('odk-camera-frame').status, 'live')
-  assert.equal(read('odk-camera-frame').frame, 'data:image/png;base64,fixture')
+  assert.deepEqual(read('odk-camera-frame'), { ok: false }, 'the preview keeps the Camera source unavailable')
   assert.ok(read('odk-hydra-status').nodes.every(item => item.online && Number.isFinite(item.soilPercent)))
   assert.ok(read('odk-weread-highlight').highlight.markText)
   assert.ok(read('odk-opencode-go-status').snapshot.accounts[0].groups[0].quotas.length)

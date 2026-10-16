@@ -60,6 +60,10 @@ Prefer a targeted patch over rewriting the skill.
 Keep its description focused on Widget/App design and development.
 Do not add reflection to its ordinary completion sequence: this skill runs when reflection is requested, not recursively after every change.
 
+Before removing a surface, record any design that the user asked to retain in its owning reference.
+Remove stale source links.
+State whether the design is an example or an active surface.
+
 Respect the boundary with deployment and service-operation workflows.
 The Widget skill may specify the evidence those workflows must return; it cannot grant operational authorization.
 Editing instructions is not proof that a skill triggered, tests ran, or the reported product defect was fixed.

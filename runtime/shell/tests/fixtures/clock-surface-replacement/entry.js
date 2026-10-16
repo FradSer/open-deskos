@@ -3,7 +3,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.clock', manifest: { schemaVersion: 1, version: '2.0.0' },
-    kind: 'tile', app: 'Clock', state: 'Available', interaction: 'display-only',
+    kind: 'tile', app: 'Clock', state: 'Available', interaction: 'display-only', opensApp: 'clock',
     mount(element, context) {
       // Static markup and Shell styles are shared; formatting and Tick ownership are independent.
       element.innerHTML = `

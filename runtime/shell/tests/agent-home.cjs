@@ -39,6 +39,28 @@ async function send(briefing) {
   win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
+async function assertNotificationMessagesAreIndependent() {
+  const notification = message => ({ state: 'idle', transcript: 'Question 中文', message: 'Final response', notifications: [{ id: message, message }] })
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单结果尚未确认'))
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  await evaluate(`new Promise(r => setTimeout(r, 30))`)
+  const messageLayout = await evaluate(`(() => {
+    const conversation = document.querySelector('.agent-conversation')
+    const replies = [...conversation.querySelectorAll('.agent-message-assistant')]
+    const last = replies.slice(-2)
+    return { display: getComputedStyle(conversation).display, gap: getComputedStyle(conversation).rowGap,
+      texts: replies.map(node => node.querySelector('.agent-message-body').textContent),
+      visibleGap: last.length === 2 ? last[1].getBoundingClientRect().top - last[0].getBoundingClientRect().bottom : 0 }
+  })()`)
+  assert.equal(messageLayout.display, 'grid', 'conversation lays out independent messages as separate rows')
+  assert.equal(messageLayout.gap, '20px', 'conversation visibly separates messages')
+  assert.ok(messageLayout.visibleGap >= 20, 'the latest two messages have visible space between them')
+  assert.deepEqual(messageLayout.texts.slice(-3), ['Final response', '滴滴订单结果尚未确认', '滴滴订单状态已更新'])
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'each notification creates one assistant message')
+  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  await evaluate(`new Promise(r => setTimeout(r, 20))`)
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'replayed notification events do not duplicate messages')
+}
 
 app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
@@ -54,6 +76,74 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--agent-reference-only')) {
+    const failures=[]
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
+      for(const [width,height] of [[1280,800],[1920,1280],[960,640],[480,854],[320,480]]){
+        win.setContentSize(width,height)
+        await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
+        const layout=await evaluate(`(()=>{
+          const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('summary').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
+          return {centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,stacked:pill.top>=avatar.bottom-1,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+        })()`)
+        for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
+      }
+    }
+    assert.deepEqual(failures,[],'Reference Agent layout')
+    win.setContentSize(1280,800)
+    await evaluate(`(async()=>{await odkTheme.set('instrument');window.dispatchEvent(new Event('resize'));await new Promise(r=>setTimeout(r,80))})()`)
+    for(let i=0;i<16;i++)win.webContents.send('odk-personal-bot-status',{state:'idle',notifications:[{id:'reference-'+i,message:'A real notification fixture '+i+'. '+ 'Content remains readable. '.repeat(6)}]})
+    await evaluate('new Promise(r=>setTimeout(r,60))')
+    const scroll=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer');window.referenceComposerY=composer.getBoundingClientRect().y;list.scrollTop=0;list.dispatchEvent(new Event('scroll'));return {overflow:list.scrollHeight>list.clientHeight,latest:!document.querySelector('.agent-latest').hidden,fixed:Math.abs(composer.getBoundingClientRect().y-referenceComposerY)<1}})()`)
+    assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
+    await evaluate(`document.querySelector('.agent-latest').click()`)
+    assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-conversation');return n.scrollHeight-n.clientHeight-n.scrollTop<2})()`),true)
+    const summary=await evaluate(`(()=>{const n=document.querySelector('.agent-identity summary');n.focus();return document.activeElement===n})()`)
+    assert.equal(summary,true)
+    win.webContents.debugger.attach('1.3')
+    await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'char',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'})
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelector('.agent-identity').open`),true,await evaluate(`JSON.stringify({active:document.activeElement.outerHTML,focused:document.hasFocus()})`))
+    await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Mori';document.querySelector('.agent-identity-form').requestSubmit()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
+      win.setContentSize(320,480)
+      await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));document.querySelector('.agent-identity-form [name="name"]').value='中文'.repeat(20);document.querySelector('.agent-identity-form').requestSubmit();await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-identity summary').focus()})()`)
+      for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+      const popup=await evaluate(`(()=>{const form=document.querySelector('.agent-identity-form'),save=form.querySelector('button'),r=form.getBoundingClientRect(),s=save.getBoundingClientRect(),p=document.querySelector('#personal-agent').getBoundingClientRect();return {open:document.querySelector('.agent-identity').open,inside:r.left>=p.left&&r.right<=p.right&&r.top>=p.top&&r.bottom<=p.bottom,hit:document.elementFromPoint(s.x+s.width/2,s.y+s.height/2)===save,save:{x:s.x+s.width/2,y:s.y+s.height/2},bounds:[r.top,r.bottom,p.top,p.bottom]}})()`)
+      assert.ok(popup.open&&popup.inside&&popup.hit,theme+': '+JSON.stringify(popup))
+      for(let tab=0;tab<3;tab++)for(const type of ['keyDown','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+      assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-identity-form button')`),true)
+      for(const type of ['mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,...popup.save})
+      await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.equal(await evaluate(`!document.querySelector('.agent-identity').open&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+    }
+    win.setContentSize(1280,800)
+    await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Personal Agent';document.querySelector('.agent-identity-form').requestSubmit();window.dispatchEvent(new Event('resize'))`)
+    const errorDetail='Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
+    win.webContents.send('odk-personal-bot-status',{state:'idle',proposalError:errorDetail})
+    await evaluate('new Promise(r=>setTimeout(r,40))')
+    const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity summary');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)
+    assert.ok(statusLayout.height<=64,JSON.stringify(statusLayout))
+    assert.ok(statusLayout.label.includes(statusLayout.name)&&statusLayout.label.includes(statusLayout.status),JSON.stringify(statusLayout))
+    assert.equal(statusLayout.detail,errorDetail)
+    console.log('AGENT_REFERENCE_PASS')
+    finish(0)
+    return
+  }
+  if (process.argv.includes('--personal-agent-messages-only')) {
+    win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
+    await evaluate(`new Promise(r => setTimeout(r, 30))`)
+    win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
+    await evaluate(`new Promise(r => setTimeout(r, 30))`)
+    await assertNotificationMessagesAreIndependent()
+    console.log('PASS Personal Agent keeps each reply and notification separate with a 20px gap')
+    finish(0)
+    return
+  }
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
     { text: ' today. Taipei is ' }, { text: '26°C and overcast', icon: 'weather' }, { text: '.' }]
@@ -147,7 +237,8 @@ app.whenReady().then(async () => {
             return r.left >= pane.left && r.right <= pane.right && r.top >= pane.top && r.bottom <= pane.bottom
           }).length
         })()`)
-        assert.equal(visibleHome, 6, 'all six Home Widgets are fully visible on desktop panels')
+        const homeWidgetCount = await evaluate(`window.DESKTOP_LAYOUT.pages.find(page => page.id === 'home').widgets.length`)
+        assert.equal(visibleHome, homeWidgetCount, `all ${homeWidgetCount} Home Widgets are fully visible on desktop panels`)
         assert.ok(await evaluate(`(() => { const page=document.querySelector('[data-page-id="home"]'); page.scrollTop=100; return page.scrollTop===0 && getComputedStyle(page).overflowY==='clip' })()`), 'Home cannot scroll vertically')
         assert.equal(geometry.columns, 3, 'wide right pane uses at most three columns')
         assert.ok(geometry.unit >= 186, 'home uses readable square units')
@@ -272,6 +363,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 1)
   assert.equal(await evaluate(`document.querySelector('.agent-message-assistant .agent-message-body').textContent.includes('Final response')`), true)
   assert.equal(await evaluate(`document.querySelector('.agent-message-bubble') === window.agentStreamBubble && document.querySelector('.agent-message-assistant .agent-message-body') === window.agentStreamBody && getComputedStyle(window.agentStreamBubble).backgroundColor !== 'rgba(0, 0, 0, 0)'`), true, 'streaming and reconnect retain the same message background and body')
+  await assertNotificationMessagesAreIndependent()
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')

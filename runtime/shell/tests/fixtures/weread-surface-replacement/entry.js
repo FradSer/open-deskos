@@ -4,7 +4,7 @@
   // Layout and CSS retain the public visual contract; this entry owns behavior.
   root.odkRendererDevelopment.define({
     id: 'odk.tile.weread', manifest: { schemaVersion: 1, minCell: 186 },
-    kind: 'tile', css: 'plugins/weread.css', app: 'WeRead', state: 'Loading', interaction: 'display-only',
+    kind: 'tile', css: 'plugins/weread.css', app: 'WeRead', state: 'Loading', interaction: 'display-only', opensApp: 'weread',
     mount(element, context) {
       element.innerHTML = `
         <div class="widget-signal weread-body odk-col">
@@ -61,7 +61,7 @@
           - (Number.isFinite(gap) ? gap : 28)
         if (available <= 0) return
         const columns = Math.max(4, Math.sqrt(Math.max(1, nodes.text.textContent.length)) * 2.2)
-        let size = Math.max(14, Math.min(72, (nodes.copy.clientWidth > 0 ? nodes.copy.clientWidth : 900) / columns))
+        let size = Math.max(14, Math.min(element.clientWidth >= 800 && element.clientHeight >= 800 ? 96 : 72, (nodes.copy.clientWidth > 0 ? nodes.copy.clientWidth : 900) / columns))
         nodes.text.style.fontSize = `${size}px`
         for (let attempt = 0; attempt < 60 && size > 14 && nodes.text.scrollHeight > available; attempt++) {
           size = Math.max(14, size - 2)

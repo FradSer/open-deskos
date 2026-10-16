@@ -66,6 +66,7 @@ Feature: Immutable runtime release deployment
     And a kiosk user with an active graphical session
     When the updater runs release preflight
     Then the Electron verifier inherits the session display
+    And Electron tests connect to the kiosk user's D-Bus session
     And activation never depends on ambient SSH environment variables
 
   Scenario: Staged candidate carries its repository-local workflow sources
@@ -73,4 +74,5 @@ Feature: Immutable runtime release deployment
     When the installer seals the candidate
     Then the candidate contains the staged peripherals, integrations, experiments, and agent skills trees
     And device preflight resolves repository sources from inside the candidate
+    And release commands use the candidate as ODK_RUNTIME_ROOT
     And preflight never reads ambient copies outside the candidate

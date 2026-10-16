@@ -84,6 +84,6 @@ The parent waits for child closure before removing each private profile.
 This establishes controlled Main startup without certifying full application startup or physical capture.
 
 Hardware capture compatibility and supported-device acceptance remain unverified.
-The [surface contract](CAMERA_SURFACE_PLUGIN_CONTRACT.md) owns independent rendered replacement and generated-image decoding evidence.
-The surface contract also owns joint production Main source and surface revision evidence with controlled JPEG capture.
+The retired Camera Widget had separate rendering and generated-image acceptance.
+The current Shell keeps the Camera source independent from any renderer surface.
 Actual capture-process cancellation, temporary-file deletion failures, deployed hosts, and physical camera acceptance remain separate gates.

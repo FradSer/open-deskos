@@ -170,7 +170,7 @@ app.on('browser-window-created', (_event, win) => {
         assert.equal(await js(`odkAppPlatform.openApp({appId:'clock'})`), true)
         await js('window.desktopRetainedForeground=document.querySelector("#app-runtime").firstElementChild')
         const managerState = host.get('odk:system/app-manager/v1').captureState()
-        const moved = { pageId: 'reading', col: '3 / 5', row: '3' }
+        const moved = { pageId: 'desk', col: '3 / 5', row: '3' }
         assert.equal((await js(`odkUserApps.dispatch(${JSON.stringify({ command: 'place', appId: 'note', placement: moved })})`)).ok, true)
         await wait(`document.querySelector('[data-user-app-id="note"]').dataset.col==='3 / 5'`)
         const retained = async () => {

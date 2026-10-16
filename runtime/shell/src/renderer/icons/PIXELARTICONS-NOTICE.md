@@ -37,6 +37,7 @@ Replacements applied in the shell (free set, 24x24 grid):
 | `arrow-up` | arrow-up |
 | `arrow-down` | arrow-down |
 | `camera` | camera |
+| `compass` | compass |
 | `microphone` | mic |
 | `edit` | pencil |
 | `chevron-down` | chevron-down |

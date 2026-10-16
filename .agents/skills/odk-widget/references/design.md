@@ -94,7 +94,7 @@ Use existing plugin implementations as examples:
 
 | Need | Example | Required distinction |
 | --- | --- | --- |
-| Pending integration | `plugins/chat.js`, `plugins/settings.js` | Name, icon, `Pending`, and `Integration not available`; no controls |
+| Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
 | Calendar | `plugins/almanac.js` | Guard date changes; maintain centered one/two-digit days |
 | Clock | `plugins/clock.js` | `--:--` until first tick; update `dateTime` with the reading |
 | Progress | `plugins/year.js` | Rounded text and precise meter; text carries accessible meaning |

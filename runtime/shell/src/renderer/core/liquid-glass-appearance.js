@@ -5,7 +5,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict'
 
-  const TARGETS = '#home-summary .dash, #pages-viewport .widget[data-interaction="display-only"]'
+  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"]'
   const MAX_SURFACES = 10
 
   function createLiquidGlassAppearance(root, doc) {
@@ -17,6 +17,7 @@
     let glassSdk
     let rootElement
     let contentElement
+    let backdropElement
     let resizeObserver
     let mutationObserver
     let observing = false
@@ -40,6 +41,7 @@
 
     function hasReducedTransparency() {
       return root.matchMedia?.('(prefers-reduced-transparency: reduce)').matches
+        || root.matchMedia?.('(prefers-contrast: more)').matches
         || root.matchMedia?.('(forced-colors: active)').matches
     }
 
@@ -73,7 +75,7 @@
         material: 'regular',
         appearance: 'dark',
         radius: Math.min(Number.parseFloat(root.getComputedStyle?.(surface.target)?.borderTopLeftRadius) || 24, 32),
-        refraction: 10,
+        refraction: 24,
         interactive: false,
         motion: 'none',
       })
@@ -144,8 +146,10 @@
       stopObservers()
       stopScene(true)
       surfaces.clear()
+      if (backdropElement) backdropElement.hidden = true
       rootElement = undefined
       contentElement = undefined
+      backdropElement = undefined
       setStatus('inactive')
     }
 
@@ -202,13 +206,16 @@
       if (!active || token !== generation) return
       rootElement = doc.getElementById('home-desk')
       contentElement = doc.getElementById('desk-content')
-      if (!rootElement || !contentElement) {
+      backdropElement = doc.getElementById('liquid-glass-backdrop')
+      if (!rootElement || !contentElement || !backdropElement) {
         setStatus('fallback')
         return
       }
+      backdropElement.hidden = false
       observeContent()
       reconcile()
       if (hasReducedTransparency()) {
+        backdropElement.hidden = true
         setStatus('fallback')
         return
       }
@@ -246,7 +253,7 @@
           },
         })
         rootElement.classList.add('lg-scene')
-        glassScene.setContent(contentElement)
+        glassScene.setContent(backdropElement)
         for (const surface of surfaces.values()) registerSurface(surface)
         if (sceneFailed) return
         if (glassReady) setStatus('sdk')
@@ -285,7 +292,7 @@
       })
     }
 
-    for (const query of ['(prefers-reduced-transparency: reduce)', '(forced-colors: active)']) {
+    for (const query of ['(prefers-reduced-transparency: reduce)', '(prefers-contrast: more)', '(forced-colors: active)']) {
       const media = root.matchMedia?.(query)
       addListener(media, 'change', refreshForPreference, undefined, true)
     }

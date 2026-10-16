@@ -61,10 +61,12 @@ does not create or overwrite either file. Set actual absolute paths on the CM5:
 - `ODK_PERSONAL_BOT_STT_MODEL`: optional; defaults to `whisper-1` for the OpenAI
   provider and `qwen3-asr-flash` for the Aliyun one. The loopback bridge
   ignores the field, so a device-local endpoint has no reason to set it.
-- Pi SDK: the release installs `@earendil-works/pi-coding-agent` 1.0.0 as a voice
-  package dependency. The resident coordinator and Hosted Pi sessions load the SDK's
-  own `codemode` extension; extension discovery from user and project configuration
-  stays disabled. No MCP server is registered.
+- Pi runtime: install the candidate's frozen dependency lockfile.
+  The resident coordinator and isolated proactive generation use Pi Durable 1.2.0.
+  The coordinator loads Durable Code Mode. Hosted Pi workers retain Coding Agent 1.2.0 and its Code Mode extension.
+  Extension discovery from user and project configuration stays disabled.
+  No MCP server is registered.
+  Read the [runtime contract](../../../integrations/personal-bot/docs/CONTRACT.md#durable-runtime) before migrating state or troubleshooting recovery.
 - Pi settings: only the kiosk user's Pi agent directory configures these sessions. A
   checkout in `ODK_WORKSPACE` never does, which also keeps it from declaring a
   package to install. Set `"cacheWarming": "off"` there to stop Pi spending provider

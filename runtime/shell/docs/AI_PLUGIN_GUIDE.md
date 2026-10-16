@@ -299,9 +299,10 @@ Read [the Weather surface contract](WEATHER_SURFACE_PLUGIN_CONTRACT.md) when rep
 
 Read [the Hydra surface contract](HYDRA_SURFACE_PLUGIN_CONTRACT.md) when replacing telemetry display, measured cell composition, or surface release behavior.
 
-## Camera surface contract
+## Camera source contract
 
-Read [the Camera surface contract](CAMERA_SURFACE_PLUGIN_CONTRACT.md) when replacing frame display, capture-time formatting, or subscription cleanup.
+Read [the Camera source contract](CAMERA_PLUGIN_CONTRACT.md) when replacing capture, frame caching, or source lifecycle behavior.
+The Camera Widget is retired. The Camera source and peripheral status remain separate.
 
 ## Clock surface contract
 
@@ -313,9 +314,9 @@ Read [calendar and State Bar time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRA
 
 Read [the Pre-order contract](PREORDER_SURFACE_PLUGIN_CONTRACT.md) when replacing countdowns, hero canvas processing, or pending image ownership.
 
-## Static desk tool surface contracts
+## Pomodoro surface contract
 
-Read [static desk tool contracts](DESK_TOOL_SURFACE_PLUGIN_CONTRACT.md) when replacing Settings, Chatbot, or the not-started Pomodoro display.
+Read the [Pomodoro surface contract](POMODORO_SURFACE_PLUGIN_CONTRACT.md) when replacing its not-started display.
 
 ## Quota surface contract
 

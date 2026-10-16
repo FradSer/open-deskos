@@ -91,34 +91,6 @@ test('failed replacement refreshes remain isolated from peer services', async ()
 })
 
 
-test('Camera Widget subscribes to the selected service and releases its subscription', () => {
-  const f = fixture()
-  let widget
-  let refreshes = 0
-  let releases = 0
-  f.root.odkPlugins = { register(definition) { widget = definition } }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/camera.js'), 'utf8'), { window: f.root })
-  const frame = { hidden: true, removeAttribute() {} }
-  const state = { textContent: '' }
-  const element = { innerHTML: '', querySelector(selector) { return selector === '.w-camera-frame' ? frame : state } }
-  const cleanups = []
-  f.services.registerService('odk.service.camera', {
-    subscribe(callback) {
-      callback({ status: 'live', frame: 'data:image/png;base64,fixture', capturedAt: null })
-      return () => { releases++ }
-    },
-    refresh() { refreshes++ },
-  })
-  widget.mount(element, { camera: f.services.camera, trackCleanup(cleanup) { cleanups.push(cleanup) } })
-  assert.equal(frame.hidden, false)
-  assert.equal(frame.src, 'data:image/png;base64,fixture')
-  assert.equal(refreshes, 1)
-  assert.equal(f.reads.camera, 0)
-  cleanups.forEach(cleanup => cleanup())
-  assert.equal(releases, 1)
-})
-
-
 test('Shell startup contains selected Quota refresh failures before mounting consumers', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/shell.js'), 'utf8')
   const startup = source.slice(source.indexOf('  applyGeometry()\n', source.indexOf('async function main()')), source.indexOf("  const appView = document.getElementById('app-view')"))

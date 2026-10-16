@@ -1,4 +1,5 @@
 allowBuilds:
   '@vgpu/adapter-node': false
+  electron: true
   esbuild: true
   webgpu: false

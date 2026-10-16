@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, session, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, session } = require('electron')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -43,29 +43,10 @@ function capturePaintedFrame() {
   })
 }
 
-// A generated desk illustration, never a captured camera or private photograph.
-function syntheticCamera() {
-  const width = 640, height = 360, pixels = Buffer.alloc(width * height * 4)
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    let rgb = y < 250 ? [202 - Math.floor(y / 15), 205 - Math.floor(y / 15), 195 - Math.floor(y / 15)] : [147, 117, 88]
-    if (x > 40 && x < 235 && y > 28 && y < 198) rgb = [221, 230, 222]
-    if (x > 255 && x < 485 && y > 125 && y < 272) rgb = [36, 43, 43]
-    if (x > 268 && x < 472 && y > 138 && y < 251) rgb = [91, 110, 108]
-    if (x > 240 && x < 500 && y >= 272 && y < 286) rgb = [162, 171, 166]
-    if (x > 65 && x < 177 && y > 281 && y < 325) rgb = [224, 215, 190]
-    if (x > 540 && x < 592 && y > 224 && y < 284) rgb = [173, 139, 111]
-    if (x > 563 && x < 568 && y > 132 && y <= 225) rgb = [70, 104, 68]
-    if (((x - 547) / 29) ** 2 + ((y - 176) / 15) ** 2 < 1 || ((x - 583) / 27) ** 2 + ((y - 148) / 16) ** 2 < 1) rgb = [83, 124, 78]
-    const i = (y * width + x) * 4
-    pixels[i] = rgb[2]; pixels[i + 1] = rgb[1]; pixels[i + 2] = rgb[0]; pixels[i + 3] = 255
-  }
-  return nativeImage.createFromBitmap(pixels, { width, height }).toDataURL()
-}
-
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
-  const preview = installHomePreviewFixtures(ipcMain, { cameraFrame: syntheticCamera() })
+  const preview = installHomePreviewFixtures(ipcMain)
   const js = source => win.webContents.executeJavaScript(source)
   const captures = []
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
@@ -92,9 +73,6 @@ app.whenReady().then(async () => {
       }
       await Promise.all([document.fonts.load('700 48px Montserrat'), document.fonts.load('400 16px "Noto Sans SC"'), document.fonts.load('400 16px Zpix')]);
       await document.fonts.ready;
-      const image = document.querySelector('.w-camera-frame');
-      await image.decode();
-      if (image.naturalWidth !== 640 || image.hidden) throw Error('Synthetic Camera did not decode');
     })()`)
     // These surfaces have no product data channel yet. Scope their simulated
     // display to this fixture, expose it explicitly, and restore it after capture.
@@ -118,8 +96,17 @@ app.whenReady().then(async () => {
     assert.equal(controls.wifi, 'none')
     await js(`(async () => {
       await odkTheme.set('${theme}');
+      // Theme activation can finish before its stylesheet imports have loaded.
+      // Wait for the shared material to apply before measuring or capturing it.
+      const styleDeadline = performance.now() + 5000;
+      while ([...document.querySelectorAll('link[rel="stylesheet"]')].some(link => !link.sheet)
+        || ('${theme}' === 'liquid-glass' && !getComputedStyle(document.documentElement).getPropertyValue('--odk-glass-material').trim())) {
+        if (performance.now() > styleDeadline) throw Error('Preview theme styles did not load');
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
       window.dispatchEvent(new Event('resize'));
       await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       if ('${theme}' === 'liquid-glass' && !['sdk', 'fallback'].includes(document.documentElement.dataset.liquidGlass)) {
         await new Promise((resolve, reject) => {
           const observer = new MutationObserver(() => {
@@ -137,27 +124,37 @@ app.whenReady().then(async () => {
       const home = document.querySelector('[data-page-id="home"]');
       const tiles = [...home.querySelectorAll('.widget')];
       const square = tiles.every(tile => { const r = tile.getBoundingClientRect(); return Math.abs(r.width - r.height) < 1; });
-      const camera = document.querySelector('.w-camera-frame');
       const time = document.querySelector('.ring-mmss').getBoundingClientRect();
       const dial = document.querySelector('.ring-track').getBoundingClientRect();
       const bubble = document.querySelector('.agent-message-assistant .agent-message-bubble');
       const summary = document.querySelector('#home-summary');
+      const overview = summary.querySelector('.dash');
+      const overviewStyle = getComputedStyle(overview);
+      const glassWidget = home.querySelector('.widget[data-interaction="display-only"]');
+      const glassWidgetStyle = glassWidget ? getComputedStyle(glassWidget) : null;
       return { square, columns: window.__odkGrid.cols, rows: window.__odkGrid.rows, cell: window.__odkGrid.cellDim,
         pi: document.querySelector('.pi-widget-count').textContent,
         weather: document.querySelector('[data-widget="odk.tile.weather"]').textContent,
         holdings: document.querySelector('[data-widget="odk.tile.futu"]').textContent,
         narrative: document.querySelector('#dash-narrative').textContent,
-        camera: camera.complete && camera.naturalWidth === 640 && !camera.hidden,
         placeholder: /unavailable|not started|--:--/.test(home.textContent.toLowerCase()),
         paragraphs: document.querySelectorAll('.agent-message').length,
         repeatedNames: document.querySelectorAll('.agent-message-name, .agent-caption').length,
         messageMetadata: document.querySelectorAll('.agent-message time, .agent-message-avatar').length,
-        identityEntryHidden: getComputedStyle(document.querySelector('.agent-identity')).display === 'none' && document.querySelector('.agent-identity summary').getClientRects().length === 0,
+        identityCapsule: document.querySelector('.agent-identity summary').getBoundingClientRect().height >= 44 && document.querySelector('.agent-head .agent-state') !== null,
         agentBubble: !!bubble && getComputedStyle(bubble).backgroundColor !== 'rgba(0, 0, 0, 0)',
         timerFits: time.width <= dial.width * 0.84 && Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2) < 1,
         timerBounds: { text: time.width, dial: dial.width, centerDelta: Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2), font: getComputedStyle(document.querySelector('.ring-mmss')).fontSize },
         noFooter: !home.querySelector('.dash-foot, details, summary'),
         summaryFit: { height: summary.clientHeight, content: summary.scrollHeight, font: getComputedStyle(summary.querySelector('.dash-narrative')).fontSize },
+        liquidGlass: document.documentElement.dataset.liquidGlass,
+        overviewCard: { borderWidth: overviewStyle.borderTopWidth, borderStyle: overviewStyle.borderTopStyle,
+          borderRadius: overviewStyle.borderTopLeftRadius, background: overviewStyle.backgroundColor,
+          shadow: overviewStyle.boxShadow, backdrop: overviewStyle.backdropFilter,
+          liquidGlassSurface: overview.classList.contains('lg-surface'),
+          paddingInline: overviewStyle.paddingInlineStart },
+        glassWidget: glassWidgetStyle && { borderWidth: glassWidgetStyle.borderTopWidth,
+          backgroundImage: glassWidgetStyle.backgroundImage, liquidGlassSurface: glassWidget.classList.contains('lg-surface') },
         temperature: document.querySelector('.w-temp')?.textContent,
         viewport: [innerWidth, innerHeight, devicePixelRatio, document.fonts.status] };
     })()`)
@@ -170,22 +167,38 @@ app.whenReady().then(async () => {
     assert.match(state.weather, /26/)
     assert.match(state.holdings, /62\.15/)
     assert.equal(state.narrative, preview.briefing.items[0].text)
-    assert.equal(state.camera, true)
     assert.equal(state.placeholder, false)
     assert.equal(state.paragraphs, 2)
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
     assert.equal(state.messageMetadata, 0, 'conversation messages have no avatars or timestamps')
-    assert.equal(state.identityEntryHidden, true, 'the pencil entry is absent from layout and keyboard navigation')
+    assert.equal(state.identityCapsule, true, 'the name and status capsule exposes the existing identity editor')
     assert.equal(state.agentBubble, true, 'Agent messages have a background container')
     assert.equal(state.timerFits, true, theme + ' complete timer reading has space inside the dial: ' + JSON.stringify(state.timerBounds))
     assert.equal(state.noFooter, true)
     assert.ok(state.summaryFit.content <= state.summaryFit.height, 'normal summary fits without an inner scrollbar: ' + JSON.stringify(state.summaryFit))
+    if (theme === 'liquid-glass') {
+      assert.equal(state.overviewCard.liquidGlassSurface, false, 'Overview has no separate Liquid Glass card surface')
+      assert.equal(state.overviewCard.borderWidth, '0px', 'Overview has no card border')
+      assert.equal(state.overviewCard.borderRadius, '0px', 'Overview has no card frame')
+      assert.equal(state.overviewCard.background, 'rgba(0, 0, 0, 0)', 'Overview stays on the shared canvas')
+      assert.equal(state.overviewCard.shadow, 'none', 'Overview has no card edge highlight')
+      assert.equal(state.overviewCard.backdrop, 'none', 'Overview has no separate card blur')
+      assert.ok(Number.parseFloat(state.overviewCard.paddingInline) >= 16, 'Overview retains the wider content inset')
+      assert.equal(state.glassWidget.borderWidth, '1px', 'Widget card keeps its own Liquid Glass border')
+      if (state.liquidGlass === 'sdk') assert.equal(state.glassWidget.liquidGlassSurface, true, 'Widget card retains its SDK glass surface')
+      else assert.notEqual(state.glassWidget.backgroundImage, 'none', 'Widget card keeps its static glass tint')
+    }
     assert.deepEqual(state.viewport, [width, height, 1, 'loaded'])
     const file = path.join(os.tmpdir(), `odk-populated-home-${theme}-${width}.png`)
-    // Acknowledge one native frame before requesting the capture frame. The
-    // first paint can still contain pixels from before the fixture update.
+    // Acknowledge a native frame, then request the current compositor surface.
+    // Paint events can still carry pixels from before the fixture update.
     await capturePaintedFrame()
-    fs.writeFileSync(file, await capturePaintedFrame())
+    const capture = await win.webContents.capturePage()
+    const bitmap = capture.getSize()
+    const backingScale = bitmap.width / width
+    assert.ok(backingScale >= 1 && backingScale <= 2)
+    assert.equal(bitmap.height / height, backingScale, 'Preview capture must not crop the viewport')
+    fs.writeFileSync(file, capture.toPNG())
     captures.push({ theme, width, height, cell: state.cell,
       ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
   }
@@ -254,6 +267,6 @@ app.whenReady().then(async () => {
     if (document.querySelector('.ring-mmss').textContent !== '--:--') throw Error('Pomodoro fixture did not restore the product state');
     delete window.previewRestore; delete window.previewSheet;
   })()`)
-  console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, cameraCapture: false, liveProviders: false, fixtureControlsRestored: true, captures }))
+  console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, liveProviders: false, fixtureControlsRestored: true, captures }))
   finish(0)
 }).catch(error => finish(1, error))

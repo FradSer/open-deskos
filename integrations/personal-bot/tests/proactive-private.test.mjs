@@ -1,14 +1,74 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync, realpathSync, chmodSync, linkSync, unlinkSync } from 'node:fs'
+import fs, { mkdtempSync, writeFileSync, rmSync, realpathSync, chmodSync, linkSync, unlinkSync, mkdirSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
-import { readProactiveFile, protectProactivePath } from '../src/proactive-private.mjs'
+import { join, parse } from 'node:path'
+import childProcess, { spawnSync } from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import { createProactiveDirectory, checkProactivePath, readProactiveFile, protectProactivePath } from '../src/proactive-private.mjs'
 import { proposalStateStore } from '../src/proactive-state.mjs'
 import { createMemoryStore } from '../src/memory.mjs'
 
 const windows = process.platform === 'win32'
+
+test('an unavailable filesystem root preserves its error without recursive retries', t => {
+  const unavailable = Object.assign(Error('Unavailable fixture root'), { code: 'ENOENT' })
+  const blocked = t.mock.method(fs, 'mkdirSync', () => { throw unavailable })
+  syncBuiltinESMExports()
+  try {
+    assert.throws(() => createProactiveDirectory(parse(process.cwd()).root), error => error === unavailable)
+    assert.equal(blocked.mock.callCount(), 1)
+  } finally { blocked.mock.restore(); syncBuiltinESMExports() }
+})
+
+test('Windows repeatedly checks fresh private ACLs without a command processor', { skip: !windows }, t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-native-acl-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, 'owner.json')
+  writeFileSync(file, '{}')
+  protectProactivePath(file)
+  const blocked = t.mock.method(childProcess, 'spawnSync', () => { throw Error('Permission checks must not start a command processor') })
+  syncBuiltinESMExports()
+  try {
+    for (let i = 0; i < 50; i++) { checkProactivePath(dir); assert.equal(readProactiveFile(file, 4096), '{}') }
+  } finally { blocked.mock.restore(); syncBuiltinESMExports() }
+  const broaden = spawnSync('icacls.exe', [file, '/grant', '*S-1-1-0:(R)'], { encoding: 'utf8', windowsHide: true })
+  assert.equal(broaden.status, 0)
+  assert.throws(() => readProactiveFile(file, 4096), /private/)
+})
+test('Windows native ACL checks reject unsafe descriptors and directory aliases', { skip: !windows }, t => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-acl-boundaries-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  protectProactivePath(dir)
+  const file = join(dir, '记录 é.json')
+  writeFileSync(file, '{}')
+  protectProactivePath(file)
+  assert.equal(readProactiveFile(file, 4096), '{}')
+  const fixture = fileURLToPath(new URL('./fixtures/private-acl.ps1', import.meta.url))
+  for (const mode of ['NullDacl', 'CallbackAllow']) {
+    const applied = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fixture, '-Mode', mode, '-Path', file], { encoding: 'utf8', windowsHide: true })
+    assert.equal(applied.status, 0, `ACL fixture failed: ${mode}`)
+    assert.equal(applied.stdout.trim(), 'APPLIED')
+    assert.throws(() => readProactiveFile(file, 4096), /private/)
+    protectProactivePath(file)
+    assert.equal(readProactiveFile(file, 4096), '{}')
+  }
+  const child = join(dir, 'child'), alias = join(dir, 'alias')
+  mkdirSync(child)
+  protectProactivePath(child)
+  const applied = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fixture, '-Mode', 'Unprotected', '-Path', child], { encoding: 'utf8', windowsHide: true })
+  assert.equal(applied.status, 0)
+  assert.throws(() => checkProactivePath(child), /private/)
+  protectProactivePath(child)
+  symlinkSync(child, alias, 'junction')
+  assert.throws(() => checkProactivePath(alias), /private/)
+  assert.throws(() => protectProactivePath(alias), /private/)
+  checkProactivePath(child)
+  assert.throws(() => checkProactivePath(join(dir, 'missing')))
+})
+
 test('native memory preserves exact grants across private atomic writes', async t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-memory-native-')))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
@@ -71,8 +131,10 @@ test('native host protects private proactive files and round trips checkpoints',
   protectProactivePath(dir)
   const file = join(dir, 'owner.json'); writeFileSync(file, '{"owner":true}', { mode: 0o600 }); protectProactivePath(file)
   assert.equal(readProactiveFile(file, 4096), '{"owner":true}')
-  const store = proposalStateStore(join(dir, 'checkpoint', 'state.json')); store.save({ version: 1, proposals: [] })
+  const store = proposalStateStore(join(dir, 'checkpoint', 'nested', 'state.json')); store.save({ version: 1, proposals: [] })
   assert.deepEqual(store.load(), { version: 1, proposals: [] })
+  checkProactivePath(join(dir, 'checkpoint'))
+  checkProactivePath(join(dir, 'checkpoint', 'nested'))
 })
 test('POSIX broad access remains rejected', { skip: windows }, t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'odk-proactive-mode-')))

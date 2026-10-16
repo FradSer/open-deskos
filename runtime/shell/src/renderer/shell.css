@@ -1157,49 +1157,6 @@ body.kiosk {
 }
 
 
-.w-camera-body {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--cell-dim) * 0.035);
-}
-
-/* The framing marks are the instrument: they stay whether or not a frame has
-   arrived, and the state line below says truthfully which of the two it is. */
-.w-camera-figure {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--odk-stroke);
-  border-radius: calc(var(--radius) * 0.5);
-  background: var(--odk-bg);
-}
-
-.w-camera-frame {
-  position: absolute;
-  inset: 0;
-  /* The frame is content beneath the marks, not above them: a positioned
-     element paints over a static sibling, which hid the viewfinder. */
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.w-camera-frame[hidden] {
-  display: none;
-}
-
-.w-camera-marks {
-  position: relative;
-  z-index: 1;
-  width: 76%;
-  height: 76%;
-  color: var(--odk-secondary-strong);
-}
-
 /* Pomodoro keeps its state above a proportionate, static focus dial. */
 .w-pomodoro {
   --pomodoro-time-size: clamp(24px, 16cqi, 88px);
@@ -1393,11 +1350,6 @@ body.kiosk {
 @container (min-width: 300px) {
   .widget-status-layout .widget-corner-icon { width: 36cqi; height: 36cqi; }
   .widget-status-layout .widget-status-value { font-size: clamp(32px, 22cqi, 80px); }
-}
-
-/* Distributed readings keep their inset proportional in larger square cells. */
-.widget:is(.w-futu, .w-weather) {
-  --odk-widget-inset: clamp(16px, calc(var(--cell-dim) * 0.08), 40px);
 }
 
 .widget-status-name {
@@ -1624,11 +1576,6 @@ body.kiosk {
   flex: none;
   flex-shrink: 0;
   aspect-ratio: 1;
-}
-
-#app-title {
-  font-size: clamp(22px, calc(var(--cell-dim) * 0.16), 30px);
-  font-weight: 400;
 }
 
 .app-body {
@@ -3178,22 +3125,22 @@ body.kiosk {
 .hydra-offline .hydra-plant-name,
 .hydra-plant.hydra-stale .hydra-plant-soil,
 .hydra-plant.hydra-stale .hydra-plant-name {
-  color: var(--odk-secondary);
+  color: var(--odk-secondary-strong);
 }
 
 .hydra-plant.hydra-stale .hydra-plant-soil,
 .hydra-plant.hydra-stale .hydra-plant-name,
 .hydra-plant.hydra-stale .hydra-meter {
-  opacity: 0.58;
+  opacity: 1;
 }
 
 .hydra-unconfigured .hydra-env,
 .hydra-unconfigured .hydra-plants {
-  opacity: 0.45;
+  opacity: 1;
 }
 
 .hydra-stale .hydra-env {
-  opacity: 0.55;
+  opacity: 1;
 }
 
 /* Hydra composes from the cell it is drawn in, so the shapes below are chosen by
@@ -3227,7 +3174,9 @@ body.kiosk {
 }
 
 .widget.w-hydra:has(.hydra-body[data-shape='plants']) {
-  padding: 12px;
+  /* A narrow plant-only cell needs the caption floor, then follows the shared
+     inset as the cell grows. */
+  padding: clamp(12px, calc(var(--cell-dim) * 0.08), var(--odk-widget-inset));
 }
 
 .hydra-body[data-shape='plants'] {

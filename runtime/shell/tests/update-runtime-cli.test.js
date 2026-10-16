@@ -39,6 +39,7 @@ test('CM5 updater serializes transactions and preflights before activating a rel
   assert.match(updater, /required Personal Bot component restart failed|\$\{component\} restart failed/)
   assert.match(updater, /odk-shell\.service/)
   assert.match(updater, /ODK_KIOSK_USER/)
+  assert.match(updater, /ODK_RUNTIME_ROOT=\$\{releasePath\}/)
   assert.match(updater, /ODK_KIOSK_UID/)
   assert.match(updater, /ODK_KIOSK_HOME/)
   assert.match(updater, /ODK_KIOSK_NODE_BIN/)
@@ -62,6 +63,7 @@ test('CM5 updater serializes transactions and preflights before activating a rel
 test('device preflight inherits the kiosk graphical session instead of ambient SSH environment', () => {
   assert.match(updater, /ODK_KIOSK_DISPLAY/)
   assert.match(updater, /ODK_KIOSK_XAUTHORITY/)
+  assert.match(updater, /DBUS_SESSION_BUS_ADDRESS=unix:path=\/run\/user\/\$\{runAs\.uid\}\/bus/)
   assert.match(updater, /DISPLAY=\$\{/)
   assert.match(updater, /XAUTHORITY=\$\{/)
   assert.match(installer, /ODK_KIOSK_DISPLAY="\$\{GRAPHICAL_DISPLAY:-\}"/)

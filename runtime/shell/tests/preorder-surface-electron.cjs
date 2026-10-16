@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
     window.preorderPeer=document.querySelector('[data-widget="odk.tile.year"]');
     window.preorderDesktop=document.querySelector('[data-widget="odk.tile.preorder"]');
     if(!preorderDesktop)throw Error('Pre-order desktop placement absent');
-    document.querySelector('#dots .dot[aria-label$="Reading"]').click();
+    document.querySelector('#dots .dot[aria-label^="Reading, page "]').click();
     const tile=document.createElement('div');tile.id='preorder-acceptance';tile.className=preorderDesktop.className;
     document.body.append(tile);window.preorderTile=tile;
     const sheet=new CSSStyleSheet();

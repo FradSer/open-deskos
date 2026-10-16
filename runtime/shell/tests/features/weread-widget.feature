@@ -151,7 +151,8 @@ Feature: WeRead highlight widget
   Scenario: Reading excerpt has a restrained display scale
     Given a short highlight on the wide reading page
     When the widget fits its text
-    Then the excerpt font size is at most 72 pixels
+    Then standard excerpts use at most 72 pixels
+    And a full three-by-three canvas can use at most 96 pixels
     And the cover appears to the right of the book details
     And the source cover remains subordinate to the excerpt
 

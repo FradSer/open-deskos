@@ -10,6 +10,12 @@ Feature: 64-bit Windows as a Shell Host
     Then the five desktop pages are reachable at the configured content size
     And no bash interpreter is required to start or verify it
 
+  Scenario: The Windows launcher installs Electron when its binary is absent
+    Given a Windows runtime with Electron installed but no Electron binary
+    When the operator starts the shell with run.ps1
+    Then the launcher downloads the Electron binary before it starts the shell
+    And the launcher reports an installation failure before starting the shell
+
   Scenario: The panel covers the whole display after a restart
     Given a 64-bit Windows host that boots into the panel launcher
     When the panel window is shown at logon

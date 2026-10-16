@@ -37,11 +37,6 @@ test('geometry includes the isolated Clock replacement comparison matrix', () =>
   assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/clock-surface-electron\.test\.js(?:$| &&)/)
 })
 
-test('geometry includes the isolated Camera replacement density matrix', () => {
-  const { scripts } = require('../package.json')
-  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/camera-surface-electron\.test\.js(?:$| &&)/)
-})
-
 test('keyboard fixtures do not request desktop window focus', () => {
   for (const file of ['page-indicator.cjs', 'pixel-font.cjs']) {
     const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
@@ -247,7 +242,7 @@ for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar'
   })
 
 
-for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Quota', 'quota-surface-electron.cjs'], ['Quota provider', 'quota-plugin-electron.cjs'], ['Input status', 'input-status-surface-electron.cjs'], ['Pre-order', 'preorder-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Camera', 'camera-surface-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']])
+for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Quota', 'quota-surface-electron.cjs'], ['Quota provider', 'quota-plugin-electron.cjs'], ['Input status', 'input-status-surface-electron.cjs'], ['Pre-order', 'preorder-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']])
   test(`${name} comparisons render frames without showing a host window`, () => {
     const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
     const start = source.indexOf('new BrowserWindow(')
@@ -428,7 +423,7 @@ for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead
   }
 }
 
-for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Camera', 'camera-surface-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']]) {
+for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']]) {
   for (const platform of ['linux', 'win32', 'darwin']) {
     test(`${name} comparison selects software rendering only on ${platform}`, () => {
       const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
@@ -442,37 +437,6 @@ for (const [name, file] of [['Weather', 'weather-plugin-electron.cjs'], ['WeRead
   }
 }
 
-
-test('Camera establishes its viewport before the first rendered comparison', async () => {
-  const source = fs.readFileSync(path.join(__dirname, 'camera-surface-electron.cjs'), 'utf8')
-  const start = source.indexOf('  const viewport = async (width, height) => {')
-  const end = source.indexOf("  for (const phase of ['default', 'independent', 'restored'])", start)
-  assert.ok(start > 0 && end > start)
-  const calls = []
-  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
-    win: {
-      setContentSize(width, height) {
-        assert.equal(width, 1920); assert.equal(height, 1280)
-        calls.push('size')
-      },
-      webContents: {
-        debugger: { async sendCommand(name, metrics) {
-          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
-          assert.deepEqual({ ...metrics }, { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
-          calls.push('metrics')
-        } },
-        async executeJavaScript(script) {
-          assert.match(script, /window\.__odkGrid/)
-          assert.match(script, /document\.fonts\.ready/)
-          assert.match(script, /devicePixelRatio !== 1/)
-          assert.match(script, /visualViewport\.scale !== 1/)
-          calls.push('settled')
-        },
-      },
-    },
-  })
-  assert.deepEqual(calls, ['size', 'metrics', 'settled'])
-})
 
 for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin', 'arm64'], ['win32', 'x64']]) {
   test(`Pi view matrix retains bounded deadlines on ${platform} ${arch}`, () => {
