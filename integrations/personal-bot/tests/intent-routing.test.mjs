@@ -76,14 +76,22 @@ test('invalid provider answers and failures cannot supply an intent', async () =
   await assert.rejects(f({ text: '你好', profile: 'personal' }), error => /Jev/.test(error.message) && !error.message.includes('private-provider-detail'))
 })
 
-test('routing precedes turn hooks, suggestion lookup and model prompt', async () => {
-  const events = []
-  const turn = createIntentTurn({ route: async ({ text }) => { events.push('jev'); assert.equal(text, '有什么建议'); return { intent: 'suggestions' } }, profile: 'coding', tools: [], getWatch: () => ({ list: () => [], readProposals: async () => { events.push('proposals'); return [] } }) })
-  const adapter = sessionAdapter({ isStreaming: false, prompt: async () => assert.fail('no reasoning-model shortcut'), subscribe: () => () => {}, abort: async () => {} }, {
-    prepareTurn: turn.prepare, beginTurn: text => { if (text) events.push('begin') },
-  })
-  assert.match(await adapter.prompt('有什么建议'), /没有.*建议/)
-  assert.deepEqual(events, ['jev', 'proposals'])
+test('routed suggestion, clarification and unavailable shortcuts never resume pending Durable work', async () => {
+  for (const intent of ['suggestions', 'clarify', 'unavailable']) {
+    const events = []
+    const turn = createIntentTurn({ route: async () => {
+      events.push('jev')
+      if (intent === 'unavailable') throw Error('fixture route unavailable')
+      return { intent }
+    }, profile: 'coding', tools: [], getWatch: () => ({ list: () => [], readProposals: async () => { events.push('proposals'); return [] } }) })
+    const adapter = sessionAdapter({ isStreaming: false, recover: async () => assert.fail('a shortcut cannot resume pending work'),
+      prompt: async () => assert.fail('no reasoning-model shortcut'), subscribe: () => () => {}, abort: async () => {} }, {
+      prepareTurn: turn.prepare, beginTurn: text => { if (text) events.push('begin') },
+    })
+    assert.match(await adapter.prompt('当前请求'), intent === 'suggestions' ? /没有.*建议/ : intent === 'clarify' ? /请说明/ : /暂时不可用/)
+    assert.deepEqual(events, intent === 'suggestions' ? ['jev', 'proposals'] : ['jev'])
+    assert.equal(turn.getIntent(), intent === 'unavailable' ? null : intent)
+  }
 })
 
 test('task query tools cannot mutate tasks and no tools run outside a routed turn', async () => {
