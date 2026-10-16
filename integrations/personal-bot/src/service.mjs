@@ -31,6 +31,7 @@ export class PersonalBotService {
     this.home = undefined
     this.briefing = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.pendingNotifications = []
+    this.agentFrame = { state: 'unavailable', tasks: [] }
   }
 
   subscribe(listener) {
@@ -41,6 +42,13 @@ export class PersonalBotService {
   attachWatch(watch) { this.watch = watch }
 
   attachHome(home) { this.home = home }
+
+  publishAgents(tasks) {
+    if (this.closed) return
+    this.agentFrame = Array.isArray(tasks) ? { state: 'live', tasks: structuredClone(tasks) } : { state: 'unavailable', tasks: [] }
+    this.status = { ...this.status, agents: this.agentFrame }
+    for (const listener of this.listeners) listener(this.status)
+  }
 
   publishBriefing(briefing) {
     if (this.closed) return
@@ -81,7 +89,7 @@ export class PersonalBotService {
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, agents: this.agentFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -248,6 +256,7 @@ export class PersonalBotService {
 
   async shutdown() {
     this.closed = true
+    this.agentFrame = { state: 'unavailable', tasks: [] }
     this.captureId++
     this.controller.abort()
     this.cancelStreaming()
