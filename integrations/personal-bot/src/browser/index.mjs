@@ -1,5 +1,6 @@
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
+import { randomBytes } from 'node:crypto'
 import { BrowserError, boundedContent, checkedTarget, createBrowserSession } from './session.mjs'
 
 export { BrowserError, checkedTarget, createBrowserSession, isPrivateHost } from './session.mjs'
@@ -29,11 +30,22 @@ function failure(error) {
   }
 }
 
-/** Page text reaches the model only inside the CLI's own provenance markers. */
+function checkedLocation(value) {
+  if (typeof value !== 'string' || !value) return undefined
+  return value === 'about:blank' ? value : checkedTarget(value)
+}
+
+// Validate observed locations before exposing page content. This does not stop
+// a browser network request or replace a network-level egress policy.
+function checkPageLocations(data, boundary) {
+  for (const location of [data.url, data.finalUrl, data.origin, boundary?.origin]) checkedLocation(location)
+}
+
+/** Host-owned delimiters remain unpredictable even without CLI boundary metadata. */
 function boundedPageText(content, boundary, limit) {
   const { text, truncated } = boundedContent(content, limit)
-  const origin = boundary && typeof boundary.origin === 'string' ? boundary.origin : 'unknown'
-  const nonce = boundary && typeof boundary.nonce === 'string' ? boundary.nonce : 'unknown'
+  const origin = checkedLocation(boundary?.origin) ?? 'unknown'
+  const nonce = randomBytes(16).toString('hex')
   const body = truncated
     ? `${text}\n[truncated: showing ${limit} of more characters. Narrow the page with a more specific URL or ask for a section.]`
     : text
@@ -68,7 +80,8 @@ export function createBrowserTools(session) {
       async execute(_id, { url }) {
         try {
           const target = checkedTarget(url)
-          const { data } = await session.command(['open', target], { mutation: true })
+          const { data, boundary } = await session.command(['open', target], { mutation: true })
+          checkPageLocations(data, boundary)
           return ok({ url: typeof data.url === 'string' ? data.url : target, title: shortTitle(data.title) }, `Opened ${data.url ?? target}`)
         } catch (error) { return failure(error) }
       },
@@ -83,6 +96,7 @@ export function createBrowserTools(session) {
         try {
           const args = url === undefined ? ['read'] : ['read', checkedTarget(url)]
           const { data, boundary } = await session.command(args)
+          checkPageLocations(data, boundary)
           const page = boundedPageText(data.content, boundary, session.maxOutputChars)
           return ok({
             url: typeof data.url === 'string' ? data.url : '',
@@ -101,6 +115,7 @@ export function createBrowserTools(session) {
       async execute() {
         try {
           const { data, boundary } = await session.command(['snapshot', '-i'])
+          checkPageLocations(data, boundary)
           const page = boundedPageText(data.snapshot, boundary, session.maxOutputChars)
           return ok({ url: typeof data.origin === 'string' ? data.origin : '', truncated: page.truncated, untrusted: true }, page.text)
         } catch (error) { return failure(error) }
