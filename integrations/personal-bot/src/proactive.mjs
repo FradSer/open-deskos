@@ -344,6 +344,18 @@ export class ProactiveWatch {
     this.judgmentError = 'Jev 判断暂不可用；不会回退为阈值提醒或执行动作。'
     this.emit()
   }
+  /**
+   * Clear the failure of a rule the current round does not judge.
+   *
+   * A failure is evidence about the round that established it. A rule that has no
+   * fresh evidence, or that the owner muted, is not judged again, so its older
+   * failure is not evidence about now. Retaining it reports unavailable judgment
+   * and blocks every other topic for as long as that rule stays unjudged.
+   */
+  clearJudgmentFailure(ruleId) {
+    if (!this.failedJudgments.delete(ruleId)) return
+    if (!this.failedJudgments.size) this.judgmentError = ''
+  }
   async readProposals() {
     await this.inflight
     if (this.closed || this.storageFailure || this.judgmentError) throw Error('Suggestions unavailable')
@@ -368,6 +380,8 @@ export class ProactiveWatch {
     for (const rule of this.config.rules) {
       const dependencies = rule.coding ? [`pi-tasks.${rule.coding.target}`] : rule.conditions.map(c => c.readingId)
       if (trigger.kind === 'service_push' && !dependencies.some(id => trigger.readingIds.includes(id))) continue
+      if (this.closed || this.responding || revision !== this.revision) return
+      if (this.config.suppressed.includes(rule.id) || (this.config.snoozed[rule.id] ?? 0) > this.now()) { this.clearJudgmentFailure(rule.id); continue }
       let identities = [rule.coding]
       if (rule.coding && !rule.coding.taskId) {
         try {
@@ -378,14 +392,17 @@ export class ProactiveWatch {
             .map(task => ({ target: rule.coding.target, project: task.project, taskId: task.taskId }))
         } catch { identities = [] }
       }
+      if (this.closed || this.responding || revision !== this.revision) return
+      if (!identities.length) { this.clearJudgmentFailure(rule.id); continue }
       for (const identity of identities) {
-        if (this.closed) return
-        if (this.config.suppressed.includes(rule.id) || (this.config.snoozed[rule.id] ?? 0) > this.now()) continue
+        if (this.closed || this.responding || revision !== this.revision) return
         const evidence = rule.coding ? await this.codingEvidence(rule, identity) : await this.evidence(rule)
-        if (this.closed || this.responding) return
+        if (this.closed || this.responding || revision !== this.revision) return
         const current = this.proposals.find(p => p.ruleId === rule.id && p.subject === (identity?.taskId ?? rule.id) && pending(p))
         if (!evidence || !this.fresh({ evidence })) {
           if (current && !rule.coding) current.status = 'expired'
+          // A rule the round does not judge cannot hold an older failure.
+          this.clearJudgmentFailure(rule.id)
           continue
         }
         if (this.proposals.some(p => p.ruleId === rule.id && p.subject === (identity?.taskId ?? rule.id) && (['executing', 'unknown'].includes(p.status) || (p.status === 'completed' && this.now() - Date.parse(p.completedAt) < this.config.cooldownMs)))) continue

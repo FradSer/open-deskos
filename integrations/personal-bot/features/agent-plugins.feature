@@ -137,6 +137,8 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then reduced limits cannot exceed the original plan
     And an optional private host relay reaches only the configured HTTP provider
     And the relay closes every connection after acceptance
+    And an accepted idle TCP connection can close with an explicit connection reset
+    And the listener refuses new connections after shutdown
 
   Scenario: Task evaluation preserves its fixture boundary
     Given prior natural-language package and identity checks have separate evidence

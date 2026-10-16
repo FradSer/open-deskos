@@ -129,6 +129,64 @@ test('proposal payloads and escaped voice replies fit the existing status bound'
   assert.ok(frame.hiddenCount > 0)
 })
 
+test('a rule without fresh evidence cannot hold an earlier judgment failure', async () => {
+  // The v1 path judges every rule that has a matching reading. A rule whose
+  // reading later disappears is not judged again, so its older failure is not
+  // evidence about now and cannot keep every other rule silent.
+  let fail = true
+  const f = fixture({ judge: async args => { if (fail) throw Error('Jev unavailable'); return fixtureJudge(args) } })
+  await f.watch.tick()
+  assert.match(f.frames.at(-1).error, /Jev/)
+  fail = false
+  f.reading({ id: 'odk.tile.hydra', state: 'unavailable', value: null })
+  await f.watch.tick()
+  assert.equal(f.watch.judgmentError, '')
+})
+
+test('a superseded missing reading cannot clear a judgment failure', async t => {
+  let blocked = false, release, entered
+  const gate = new Promise(resolve => { release = resolve })
+  const started = new Promise(resolve => { entered = resolve })
+  const f = fixture({ judge: async () => { throw Error('Jev unavailable') }, read: async () => {
+    if (!blocked) return live()
+    entered()
+    await gate
+    return { id: condition.readingId, state: 'unavailable', value: null }
+  } })
+  t.after(() => { release(); return f.watch.close() })
+  await f.watch.tick()
+  await assert.rejects(f.watch.readProposals(), /Suggestions unavailable/)
+  blocked = true
+  const stale = f.watch.tick()
+  await started
+  assert.equal(f.watch.push([condition.readingId]), true)
+  release()
+  await stale
+  await assert.rejects(f.watch.readProposals(), /Suggestions unavailable/)
+  await f.watch.tick()
+  assert.deepEqual(await f.watch.readProposals(), [])
+})
+
+test('a current empty coding task list cannot hold an older judgment failure', async t => {
+  for (const unavailable of [false, true]) {
+    const c = config()
+    c.rules = [{ id: 'coding-complete', delivery: 'silent', urgent: false, advice: '查看任务结果。', coding: { target: 'mac', project: '/project' } }]
+    let listed = true
+    let task = { taskId: 'e311a280-c0b9-4411-96cd-4e1e92385349', project: '/project/app', state: 'running', lifecycle: 'live', activity: 'working', updatedAt: time }
+    const f = fixture({ config: c, judge: async () => { throw Error('Jev unavailable') },
+      codingList: async () => { if (listed) return [task]; if (unavailable) throw Error('offline'); return [] },
+      codingStatus: async () => task })
+    t.after(() => f.watch.close())
+    await f.watch.tick()
+    task = { ...task, state: 'settled', activity: 'idle', turnOutcome: 'finished' }
+    await f.watch.tick()
+    await assert.rejects(f.watch.readProposals(), /Suggestions unavailable/)
+    listed = false
+    await f.watch.tick()
+    assert.deepEqual(await f.watch.readProposals(), [])
+  }
+})
+
 test('mute suppresses every pending proposal of the same owner rule', async () => {
   const c = config(); c.rules = [{ id: 'coding-complete', delivery: 'silent', urgent: false, advice: '查看任务结果。', coding: { target: 'mac', project: '/project' } }]
   const ids = ['e311a280-c0b9-4411-96cd-4e1e92385349', 'e311a280-c0b9-4411-96cd-4e1e92385350']

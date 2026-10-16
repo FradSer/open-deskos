@@ -142,6 +142,40 @@ test('changed observations can notify again after an acknowledged suggestion exp
   await f.watch.close()
 })
 
+test('a topic the round does not judge cannot hold an earlier judgment failure', async () => {
+  const c = config()
+  c.rules.push({ ...c.rules[0], id: 'other', goal: '关注另一个服务', observations: [{ readingId: 'other.source', fields: ['count'] }] })
+  const live = { 'thirdparty.parcels': true, 'other.source': true }
+  const f = fixture({ config: c, read: async id => ({ id, state: live[id] ? 'live' : 'unavailable', value: live[id] ? { ready: true, count: 2, measured_at: stamp } : null }) })
+  // A rejected batch fails the round and records every topic the round judged.
+  f.raw({ suggestions: [suggestion('bad', '领取', ['unknown'])] })
+  await f.watch.tick()
+  assert.match(f.frames.at(-1).error, /生成|generation/i)
+  // The other topic's reading disappears: it is no longer judged, so its failure
+  // cannot keep the whole suggestion channel unavailable.
+  live['other.source'] = false
+  f.raw({ suggestions: [suggestion('collect', '领取待取物品。')] })
+  await f.watch.tick()
+  assert.equal(f.watch.judgmentError, '')
+  assert.equal(f.frames.at(-1).popup, true)
+})
+
+test('a muted topic cannot hold an earlier judgment failure', async () => {
+  const c = config()
+  c.rules.push({ ...c.rules[0], id: 'other', goal: '关注另一个服务', observations: [{ readingId: 'other.source', fields: ['count'] }] })
+  const f = fixture({ config: c, read: async id => ({ id, state: 'live', value: { ready: true, count: 2, measured_at: stamp } }) })
+  f.raw({ suggestions: [suggestion('bad', '领取', ['unknown'])] })
+  await f.watch.tick()
+  assert.match(f.frames.at(-1).error, /生成|generation/i)
+  // The owner mutes the failing topic. The remaining topic is judged again, so the
+  // muted topic's older failure cannot keep the suggestion channel unavailable.
+  f.watch.config.suppressed = ['other']
+  f.raw({ suggestions: [suggestion('collect', '领取待取物品。')] })
+  await f.watch.tick()
+  assert.equal(f.watch.judgmentError, '')
+  assert.equal(f.frames.at(-1).popup, true)
+})
+
 test('judgment audit records cannot export generated key contents', async () => {
   const audit = [], f = fixture({ onJudgment: r => audit.push(r) })
   f.raw({ suggestions: [suggestion('owner-alice-parcel-123', '领取待取物品。')] })

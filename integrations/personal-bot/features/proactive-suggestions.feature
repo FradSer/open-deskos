@@ -54,6 +54,14 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then no new suggestion is presented and unavailable judgment is reported
     And ordinary voice and explicit action confirmation remain available
 
+  Scenario: An unjudged topic cannot hold suggestions unavailable
+    Given a generation or judgment failure was reported for a topic
+    When a later round has no fresh observation for that topic, or the owner muted it
+    Then its older failure cannot keep judgment unavailable
+    And a topic with fresh observations can still produce a suggestion
+    And an empty current coding task list clears its older judgment failure
+    And a superseded read cannot clear a failure before the current round runs
+
   Scenario: Device E2E joins real Jev to the private channel and Electron panel
     Given an isolated Hydra store, private voice channel and disposable Electron profile
     When a real Jev heartbeat judges ordinary soil and then dry soil
