@@ -35,6 +35,19 @@ function finish(code) {
   try { fs.rmSync(profile, { recursive: true, force: true }) } catch {}
   app.exit(code)
 }
+async function resize(width, height) {
+  win.setContentSize(width, height)
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+    width, height, deviceScaleFactor: 1, mobile: false,
+  })
+  await evaluate(`window.dispatchEvent(new Event('resize'))`)
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    if (await evaluate(`innerWidth === ${width} && innerHeight === ${height} && devicePixelRatio === 1 && __odkGrid?.width === ${width} && __odkGrid?.height === ${height}`)) return
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  assert.fail(`Agent viewport did not settle at ${width}x${height}`)
+}
 async function send(briefing) {
   win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
@@ -67,9 +80,11 @@ app.whenReady().then(async () => {
     webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true,
       nodeIntegration: false, offscreen: true, backgroundThrottling: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
+  win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Page.enable')
+  win.webContents.setZoomFactor(1)
   // Hidden windows can start at 1x1 before their first layout on Linux.
-  win.setContentSize(1920, 1280)
-  await evaluate(`window.dispatchEvent(new Event('resize'))`)
+  await resize(1920, 1280)
   await evaluate('document.fonts.ready')
   assert.equal(await evaluate(`!!document.querySelector('#personal-agent textarea')`), true, 'resident Agent has a composer')
   assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing retains its plugin host')
@@ -80,7 +95,7 @@ app.whenReady().then(async () => {
     const failures=[]
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       for(const [width,height] of [[1280,800],[1920,1280],[960,640],[480,854],[320,480]]){
-        win.setContentSize(width,height)
+        await resize(width,height)
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
           const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('summary').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
@@ -90,7 +105,7 @@ app.whenReady().then(async () => {
       }
     }
     assert.deepEqual(failures,[],'Reference Agent layout')
-    win.setContentSize(1280,800)
+    await resize(1280,800)
     await evaluate(`(async()=>{await odkTheme.set('instrument');window.dispatchEvent(new Event('resize'));await new Promise(r=>setTimeout(r,80))})()`)
     for(let i=0;i<16;i++)win.webContents.send('odk-personal-bot-status',{state:'idle',notifications:[{id:'reference-'+i,message:'A real notification fixture '+i+'. '+ 'Content remains readable. '.repeat(6)}]})
     await evaluate('new Promise(r=>setTimeout(r,60))')
@@ -100,7 +115,6 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-conversation');return n.scrollHeight-n.clientHeight-n.scrollTop<2})()`),true)
     const summary=await evaluate(`(()=>{const n=document.querySelector('.agent-identity summary');n.focus();return document.activeElement===n})()`)
     assert.equal(summary,true)
-    win.webContents.debugger.attach('1.3')
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
     await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
     await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'char',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'})
@@ -110,7 +124,7 @@ app.whenReady().then(async () => {
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Mori';document.querySelector('.agent-identity-form').requestSubmit()`)
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
-      win.setContentSize(320,480)
+      await resize(320,480)
       await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));document.querySelector('.agent-identity-form [name="name"]').value='中文'.repeat(20);document.querySelector('.agent-identity-form').requestSubmit();await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-identity summary').focus()})()`)
       for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
       const popup=await evaluate(`(()=>{const form=document.querySelector('.agent-identity-form'),save=form.querySelector('button'),r=form.getBoundingClientRect(),s=save.getBoundingClientRect(),p=document.querySelector('#personal-agent').getBoundingClientRect();return {open:document.querySelector('.agent-identity').open,inside:r.left>=p.left&&r.right<=p.right&&r.top>=p.top&&r.bottom<=p.bottom,hit:document.elementFromPoint(s.x+s.width/2,s.y+s.height/2)===save,save:{x:s.x+s.width/2,y:s.y+s.height/2},bounds:[r.top,r.bottom,p.top,p.bottom]}})()`)
@@ -121,7 +135,7 @@ app.whenReady().then(async () => {
       await evaluate('new Promise(r=>setTimeout(r,20))')
       assert.equal(await evaluate(`!document.querySelector('.agent-identity').open&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
     }
-    win.setContentSize(1280,800)
+    await resize(1280,800)
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Personal Agent';document.querySelector('.agent-identity-form').requestSubmit();window.dispatchEvent(new Event('resize'))`)
     const errorDetail='Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
     win.webContents.send('odk-personal-bot-status',{state:'idle',proposalError:errorDetail})
@@ -180,8 +194,8 @@ app.whenReady().then(async () => {
 
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [1280, 776], [960, 640], [480, 854], [320, 480]]) {
-      win.setContentSize(width, height)
-      await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 80))`)
+      await resize(width, height)
+      await evaluate(`(async () => { await odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))) })()`)
       await send(compact)
       const geometry = await evaluate(`(() => {
         const bar = document.querySelector('#status-bar'), pi = document.querySelector('#sb-pi-status')
@@ -324,12 +338,12 @@ app.whenReady().then(async () => {
   await evaluate(`document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 80))`)
   assert.equal(await evaluate(`document.querySelectorAll('.dot')[0].classList.contains('active')`), true)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
-    win.setContentSize(1280, 800)
+    await resize(1280, 800)
     await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
     await send(compact)
     fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-home-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
   }
-  win.setContentSize(1536, 1024)
+  await resize(1536, 1024)
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
   await send(compact)
   const firstCard = await evaluate(`(() => { const r = document.querySelector('#home-summary').getBoundingClientRect(); return { x: r.x, height: r.height, unit: window.__odkGrid.cellDim, border: parseFloat(getComputedStyle(document.querySelector('#home-summary')).borderTopWidth) } })()` )
@@ -390,14 +404,14 @@ app.whenReady().then(async () => {
   assert.equal(micToggles, 2, 'next home mic starts another voice turn')
   const identity = await evaluate(`document.querySelector('.agent-name').textContent`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
-    win.setContentSize(320, 480)
+    await resize(320, 480)
     await evaluate(`odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); document.querySelector('.agent-identity-form [name="name"]').value = '中文'.repeat(20); document.querySelector('.agent-identity-form').requestSubmit(); new Promise(r => setTimeout(r, 60))`)
     const nameLayout = await evaluate(`(() => { const panel = document.querySelector('.agent-panel').getBoundingClientRect(), composer = document.querySelector('.agent-composer').getBoundingClientRect(); return { fits: composer.bottom <= panel.bottom && composer.right <= panel.right, conversation: document.querySelector('.agent-conversation').clientHeight } })()`)
     assert.ok(nameLayout.fits && nameLayout.conversation >= 40, JSON.stringify({ theme, nameLayout }))
     assert.equal(await evaluate(`(() => { window.dispatchEvent(new CustomEvent('odk-gamepad-state', { detail: { connected: true, readable: true, id: 'Fixture pad' } })); const bar = document.querySelector('#status-bar').getBoundingClientRect(), pad = document.querySelector('#sb-pad').getBoundingClientRect(), pi = document.querySelector('#sb-pi-status').getBoundingClientRect(); return pad.width > 0 && pad.bottom <= bar.bottom && pad.right <= bar.right && (pi.right <= pad.left || pad.right <= pi.left) })()`), true, 'compact gamepad and Pi status remain inside separate bounds')
     await evaluate(`window.dispatchEvent(new CustomEvent('odk-gamepad-state', { detail: { connected: false } }))`)
   }
-  win.setContentSize(1536, 1024)
+  await resize(1536, 1024)
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = ${JSON.stringify(identity)}; document.querySelector('.agent-identity-form').requestSubmit(); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 60))`)
   await evaluate(`document.querySelectorAll('.dot')[1].click()` )
   await evaluate(`document.querySelector('.agent-composer textarea').focus(); document.querySelector('.agent-composer textarea').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))`)
@@ -407,7 +421,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent`), identity)
     fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-stress-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
   }
-  win.setContentSize(1920, 1280)
+  await resize(1920, 1280)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); void document.body.offsetHeight; document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
     await send(compact)

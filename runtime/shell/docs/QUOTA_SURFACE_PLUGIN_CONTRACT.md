@@ -7,10 +7,16 @@ The [runtime contract](RUNTIME_PLUGIN_REPLACEMENT.md) owns loading, stylesheet a
 
 ## Consumer and rendering
 
-Quota is an App page with the existing `plugins/quota-page.css` stylesheet.
+Quota is an App surface with the existing `plugins/quota-page.css` stylesheet.
+Three identities carry it: `odk.tile.quota` is the Home Widget reading, `odk.app.quota` is the App view opened from that Widget, and `odk.page.quota` is the preserved page identity the replacement fixtures place themselves.
+The App and page share one mount function, so only their root classes differ.
 It consumes `ctx.subscription.status()`, `lastCheck()`, `subscribe()`, and `refresh()`.
 The registry owns cleanup registered through `ctx.trackCleanup()`.
 The surface does not read credentials, files, or providers directly.
+
+The Widget reads the same subscription service without owning a refresh action.
+It shows the tightest known window, or the honest unconfigured, unavailable, unauthorized, or empty state.
+A Widget press opens the App, which owns the refresh action and every disclosure.
 
 Provider names, account identity, plan, quota windows, reset times, and optional credits retain their existing meaning.
 Only finite numeric percentages between zero and 100 produce numeric readings and accessible meters.
@@ -23,10 +29,9 @@ The heading counts failed accounts as subscriptions.
 Unavailable status with retained accounts identifies the previous response.
 Unauthorized, unconfigured, unavailable, and empty responses retain their distinct recovery messages.
 
-The current default's inline fill widths are blocked by the Shell document's Content Security Policy.
-The independent fixture preserves that existing behavior alongside its numeric and accessible meter readings.
-Agreement does not certify correct visual meter fill or repair this existing issue.
-A separate repair needs an updated behavior scenario and verification of affected consumers.
+The default and independent page set meter widths through CSSOM under the existing Content Security Policy.
+Actual Electron checks compare the rendered fill width with each known percentage, including zero and fractional values.
+The quota Widget also writes its meter through CSSOM.
 
 ## Refresh and lifecycle
 
@@ -42,7 +47,9 @@ Failed subscription release retains ownership and blocks another mount until rel
 Released surfaces ignore late readings and pending refresh completion.
 Enable restores the selected implementation; built-in recovery selects captured defaults.
 Replacement and recovery retain the actual page and comparison containers.
-Disable can remove the desktop page; enable creates its placement again.
+Disable can remove the placed page; enable creates its placement again.
+The shipped desktop layout does not place that page: the App is reachable only from its Widget.
+A page-surface harness therefore adds its own placement before the Shell composes the desktop.
 The document and independent peers remain available.
 
 ## Independent implementation and evidence
@@ -52,8 +59,13 @@ It does not call the default factory or import its projection helpers.
 Static provider artwork, Shell styles, fonts, and the public subscription service remain shared dependencies.
 This evidence does not establish independent provider access or arbitrary stylesheet replacement.
 
+The entry replaces `odk.page.quota` only.
+The App and page share the content mount; the Widget has its own mount.
+No independent entry replaces `odk.app.quota` or `odk.tile.quota`, so their independent replacement remains unproven.
+
 [Scenarios](../tests/features/quota-surface-replacement.feature) define the shared behavior.
 [Browser checks](../tests/quota-surface-electron.test.js) exercise actual preload, private Main IPC, development links, signed loading, and the public Renderer controller.
+The App-view acceptance in [the Electron consumer check](../tests/quota-electron.test.js) opens the App through the shared App manager and reads the same surface.
 Subscription observation starts before initial mounting and checks the first actual consumer before adding a comparison consumer.
 Three themes and two viewport sizes compare actual and comparison consumers across default, independent, and restored phases.
 Nineteen state cases include mixed priorities, partial errors, unknown providers, malformed percentages, and inert markup text.

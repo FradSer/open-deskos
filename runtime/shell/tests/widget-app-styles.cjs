@@ -94,6 +94,40 @@ async function page(win, index) {
   await delay(300)
 }
 
+// AI usage is a Widget App, not a desktop page: the Widget opens the App and
+// the App owns the quota surface, so the checks drive the App view.
+async function openQuota(win) {
+  await win.webContents.executeJavaScript(`(async()=>{
+    if(odkAppPlatform.active()?.appId!=='quota')await odkAppPlatform.openApp({appId:'quota'})
+    const deadline=performance.now()+4000
+    while(!document.querySelector('#app-runtime .quota-card')){
+      if(performance.now()>deadline)throw Error('Quota App did not render');await new Promise(resolve=>setTimeout(resolve,10))}
+  })()`)
+  await delay(150)
+}
+
+async function closeQuota(win) {
+  await win.webContents.executeJavaScript(`(async()=>{ if(odkAppPlatform.active()?.appId==='quota') await odkAppPlatform.closeApp() })()`)
+  await delay(100)
+}
+
+async function quotaAppPage(win, label) {
+  await openQuota(win)
+  const result = await win.webContents.executeJavaScript(`(() => {
+    const surface = document.querySelector('#app-runtime .quota-app-host')
+    const failures = []
+    for (const el of surface.querySelectorAll('*')) {
+      if (el.closest('[hidden]') || el.classList.contains('sr-only') || !el.getClientRects().length || el instanceof SVGElement) continue
+      if (el.scrollWidth > el.clientWidth + 2) failures.push(el.className || el.tagName)
+    }
+    const controls = [...surface.querySelectorAll('button, input, summary')].filter(el => el.getClientRects().length)
+    return { failures, targets: controls.every(el => el.getBoundingClientRect().height >= 44) }
+  })()`)
+  check(`${label}: Quota App wraps all content: ${result.failures.join(', ')}`, result.failures.length === 0)
+  check(`${label}: Quota App uses touch-sized controls`, result.targets)
+  await closeQuota(win)
+}
+
 async function widgets(win, label) {
   await page(win, PAGES.dot('home'))
   const result = await win.webContents.executeJavaScript(`(() => {
@@ -209,16 +243,18 @@ async function surfaceAffordances(win) {
         }), color: css.borderTopColor }
       })()`)
       check(`Widget reading and App continuation frame: ${theme} ${width}x${height}`, widgets.static, widgets)
-      await page(win, PAGES.dot('quota'))
+      await openQuota(win)
+      // The App view owns the shared frame for a Widget App, so the frame is
+      // read from it while its own controls take focus.
       const rest = await win.webContents.executeJavaScript(`(() => {
-        document.querySelector('.dot.active').focus()
-        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        document.querySelector('#app-back').focus()
+        const frame = document.getElementById('app-view'), css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
         return { color: css.borderTopColor, width: css.borderTopWidth, outline: css.outlineStyle, size: [rect.width, rect.height] }
       })()`)
       check(`App resting frame: ${theme} ${width}x${height}`, rest.width === '1px' && rest.color === widgets.color && rest.outline === 'none', rest)
       const active = await win.webContents.executeJavaScript(`(() => {
         document.querySelector('#quota-refresh').focus()
-        const card = document.querySelector('.quota-card'), css = getComputedStyle(card), rect = card.getBoundingClientRect()
+        const frame = document.getElementById('app-view'), css = getComputedStyle(frame), rect = frame.getBoundingClientRect()
         return { color: css.borderTopColor, outline: css.outlineStyle, width: css.outlineWidth, offset: parseFloat(css.outlineOffset), size: [rect.width, rect.height] }
       })()`)
       check(`App frame stays consistent during control focus: ${theme} ${width}x${height}`, active.color === rest.color && active.outline === 'none' && JSON.stringify(active.size) === JSON.stringify(rest.size), active)
@@ -226,17 +262,18 @@ async function surfaceAffordances(win) {
         await win.webContents.executeJavaScript(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`)
         fs.writeFileSync(path.join(os.tmpdir(), `odk-app-frame-active-${theme}.png`), (await win.webContents.capturePage()).toPNG())
       }
-      const restored = await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus(); getComputedStyle(document.querySelector('.quota-card')).borderTopColor`)
+      const restored = await win.webContents.executeJavaScript(`document.querySelector('#app-back').focus(); getComputedStyle(document.getElementById('app-view')).borderTopColor`)
       check(`App frame restores after focus leaves: ${theme} ${width}x${height}`, restored === rest.color)
       if (width === 1920) {
-        const point = await win.webContents.executeJavaScript(`(() => { const r = document.querySelector('.quota-card').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 6) } })()`)
+        const point = await win.webContents.executeJavaScript(`(() => { const r = document.querySelector('#app-view .quota-card').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 6) } })()`)
         win.webContents.debugger.attach('1.3')
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
-        const pressed = await win.webContents.executeJavaScript(`(() => { const card = document.querySelector('.quota-card'), css = getComputedStyle(card); return { active: card.matches(':active'), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
+        const pressed = await win.webContents.executeJavaScript(`(() => { const frame = document.getElementById('app-view'), css = getComputedStyle(frame); return { inside: Boolean(document.elementFromPoint(${point.x}, ${point.y})?.closest('#app-view')), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
         win.webContents.debugger.detach()
-        check(`Pointer press preserves the Widget frame: ${theme}`, pressed.active && pressed.color === rest.color && pressed.outline === 'none', pressed)
+        check(`Pointer press preserves the Widget frame: ${theme}`, pressed.inside && pressed.color === rest.color && pressed.outline === 'none', pressed)
       }
+      await closeQuota(win)
     }
     const foreground = await win.webContents.executeJavaScript(`(async () => {
       await odkAppPlatform.openApp({ appId: 'clock' })
@@ -433,7 +470,8 @@ async function editableKeyboard(win) {
     const after = await scrollState(win, detail)
     check('a focused Session Detail keeps arrow input on its page', arrow?.prevented === true && after.page === before.page, { arrow, before, after })
     await win.webContents.executeJavaScript(`document.querySelector('.dot.active').focus()`)
-    const chromeArrow = await pressKey(win, 'Right')
+    // Pi Sessions is the last desktop page, so the bounded way forward is back.
+    const chromeArrow = await pressKey(win, 'Left')
     const paged = await scrollState(win, detail)
     check('page chrome still offers bounded arrow paging', chromeArrow?.prevented === true && paged.page !== before.page)
   } finally {
@@ -442,17 +480,21 @@ async function editableKeyboard(win) {
 }
 
 async function nativeAppScrolling(win) {
-  await page(win, PAGES.dot('quota'))
-  await win.webContents.executeJavaScript(`document.querySelector('#quota-refresh').focus(); document.querySelector('.quota-card').scrollTop = 100`)
-  const initial = await scrollState(win, '.quota-card')
+  await openQuota(win)
+  // The App body is the scrolling region for a Widget App, so the reading
+  // scrolls there while its own controls keep arrow input native.
+  const scroller = '#app-view .app-body'
+  await win.webContents.executeJavaScript(`document.querySelector('#quota-refresh').focus(); document.querySelector('${scroller}').scrollTop = 100`)
+  const initial = await scrollState(win, scroller)
   let previous = initial
   for (const keyCode of ['Down', 'Up']) {
     const event = await pressKey(win, keyCode)
-    const state = await scrollState(win, '.quota-card')
+    const state = await scrollState(win, scroller)
     const moved = keyCode === 'Down' ? state.top > previous.top : state.top < previous.top
     check(`App ${keyCode} uses native scrolling without paging`, event?.prevented === false && moved && state.page === initial.page, { event, previous, state })
     previous = state
   }
+  await closeQuota(win)
 }
 
 async function remoteInput(win, input) {
@@ -710,7 +752,7 @@ async function processIdentityContinuity(win) {
 }
 
 async function quotaRefreshFeedback(win) {
-  await page(win, PAGES.dot('quota'))
+  await openQuota(win)
   completeQuotaRefresh = () => {}
   try {
     const feedback = await win.webContents.executeJavaScript(`(() => {
@@ -730,6 +772,7 @@ async function quotaRefreshFeedback(win) {
   } finally {
     completeQuotaRefresh?.()
     completeQuotaRefresh = null
+    await closeQuota(win)
   }
 }
 
@@ -765,7 +808,7 @@ async function scannerRecovery(win) {
 }
 
 async function builtinApps(win) {
-  for (const id of ['calendar', 'clock', 'pomodoro', 'year', 'app-manager', 'pi-sessions']) {
+  for (const id of ['calendar', 'clock', 'pomodoro', 'year', 'app-manager', 'pi-sessions', 'quota']) {
     const result = await win.webContents.executeJavaScript(`(async () => {
       await window.odkAppPlatform.openApp({ appId: '${id}' })
       const surface = document.querySelector('#app-runtime .runtime-app')
@@ -804,7 +847,7 @@ async function main() {
     const label = `${width}x${height}`
     await widgets(win, label)
     await appPage(win, PAGES.dot('pi-sessions'), label)
-    await appPage(win, PAGES.dot('quota'), label)
+    await quotaAppPage(win, label)
   }
   await liquidGlassNarrowDeskScroll(win)
   await resize(win, 1920, 1280)
@@ -823,12 +866,12 @@ async function main() {
   await delay(350)
   await widgets(win, '200% zoom')
   await appPage(win, PAGES.dot('pi-sessions'), '200% zoom')
-  await appPage(win, PAGES.dot('quota'), '200% zoom')
+  await quotaAppPage(win, '200% zoom')
   win.webContents.setZoomFactor(1)
   await resize(win, 320, 480)
   quota = { state: 'available', snapshot: { accounts: [{ id: 'codex-test', provider: 'codex', fileName: 'codex-test.json', account: 'test@example.com', plan: 'Pro', resetCredits: { available: 2, expiresAt: ['2027-01-01T00:00:00Z'] }, groups: [{ title: 'Codex limits', description: null, quotas: [{ label: '5 hour limit', remainingPct: 58, resetAt: '2027-01-01T05:00:00Z', description: null }, { label: 'Weekly limit', remainingPct: 37, resetAt: '2027-01-07T00:00:00Z', description: null }] }] }] } }
   await win.webContents.executeJavaScript('window.odkServices.subscription.refresh()')
-  await appPage(win, PAGES.dot('quota'), '320x480 configured usage')
+  await quotaAppPage(win, '320x480 configured usage')
   sessions = { source: { kind: 'local', label: 'Local' }, summary: { running: 0, settled: 0, total: 0, workspacesCount: 0 }, sessions: [] }
   await page(win, PAGES.dot('pi-sessions'))
   await delay(80)

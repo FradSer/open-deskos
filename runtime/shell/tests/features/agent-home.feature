@@ -279,7 +279,7 @@ Feature: Personal Agent home briefing
 
   Scenario: App account values remain readable beside the Agent
     Given the Agent occupies the left side of a compact desk
-    When the user opens the Usage page on the right
+    When the user opens the AI usage App from its Home Widget
     Then account values have a font size of at least 14 pixels
     And all account details remain reachable by scrolling
 
@@ -386,3 +386,10 @@ Feature: Personal Agent home briefing
     When the user opens the capsule
     Then the complete status is readable in the contained editor
     And keyboard navigation reveals Save without scrolling the desk
+
+  Scenario: Hidden Agent layout comparisons use settled viewport dimensions
+    Given the Agent fixture uses a private offscreen window
+    When it changes viewport or theme
+    Then Chromium reports the requested viewport at unit scale
+    And layout measurements wait for the matching grid, fonts, and frames
+    And the original State Bar and interaction assertions remain required

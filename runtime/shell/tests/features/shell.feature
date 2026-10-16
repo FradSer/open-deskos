@@ -19,7 +19,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And it refuses a plaintext remote Management API transport
     And it retrieves Codex windows and reset credits through the authenticated management proxy
     And it retrieves Antigravity grouped model limits and xAI billing limits when their providers return them
-    And the Usage page does not render a separate quota-service status instrument
+    And the Usage App does not render a separate quota-service status instrument
     And the page heading names the task as AI usage and quotas
     And refresh failures appear within the quota results instead of a separate credentials banner
     And the page has no redundant navigation-help action
@@ -37,7 +37,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And the shell does not render a platform connection guide
 
   Scenario: Consecutive HID navigation presses advance consecutive pages
-    Given the Display Shell is focused on the first of five pages
+    Given the Display Shell is focused on the first of four pages
     When it receives an ArrowRight key press
     And it receives another ArrowRight key press after the prior navigation completes
     Then it displays the third page
@@ -73,7 +73,8 @@ Feature: Open DeskOS 跨平台 Display Shell
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
     Then the State Bar and five-column by three-row widget grid are visible
-    And the shell exposes Today, Home, Reading, Pi Sessions, and Usage without a separate User Applications page
+    And the shell exposes Today, Home, Reading, and Pi Sessions without a separate User Applications page
+    And the Home grid carries the AI usage Widget that opens its App
     And every visible widget states a truthful status before any App opens
     And the widget grid has five columns and three rows
     And the State Bar is large enough for the Pi Sessions running state to be legible
@@ -90,7 +91,6 @@ Feature: Open DeskOS 跨平台 Display Shell
     Given the shell starts at 1920 by 1280
     Then the Home widgets occupy the shared grid footprint
     And the Pi Sessions App surface matches that grid width and height
-    And the Usage App card matches that grid width and height
     And cards do not use colored top or left edge bars for state
 
   Scenario: Widgets use a unified signal-capsule information hierarchy
@@ -103,7 +103,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And decorative charts never imply unavailable data
 
   Scenario: App pages extend the Widget signal-capsule language
-    Given the user navigates to Pi Sessions or Usage
+    Given the user navigates to Pi Sessions or opens the AI usage App from its Widget
     Then the App surface uses the same radius, border, spacing, typography, and state-color system as Widgets
     And grouped data remains labeled and scannable without nested decorative cards
     And workspace paths, goals, process commands, and status explanations wrap instead of being hidden by ellipsis
@@ -124,9 +124,10 @@ Feature: Open DeskOS 跨平台 Display Shell
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
     Then the State Bar and five-column by three-row widget grid are visible
-    And Pi Sessions and Usage remain reachable as later App pages
+    And Pi Sessions remains reachable as a later App page
+    And the AI usage App is reachable only from its Home Widget
     And the layout provides balanced card proportions without horizontally stretched rows
-    And Today, Home, Pi Sessions, and Usage pages provide structured desk instrument views
+    And Today, Home, and Pi Sessions pages provide structured desk instrument views
     And the grid remains horizontally contained and vertically scrollable at alternate window sizes
 
   Scenario: Home grid fills the available layout with truthful local desk status
@@ -139,8 +140,8 @@ Feature: Open DeskOS 跨平台 Display Shell
   Scenario: Display widgets and App pages remain separate surfaces
     Given the Home grid displays registered widgets
     Then every Home widget displays a reading with a native App continuation button
-    And the Pi Sessions page is a full interactive App surface on page three
-    And the OpenCode Go Usage page is a full interactive App surface on page four
+    And the Pi Sessions page is a full interactive App surface on page four
+    And the AI usage App is a full interactive surface opened from its Home Widget
     And App task controls stay inside App surfaces
 
   Scenario: Pi Sessions App page exposes every local process
@@ -151,9 +152,9 @@ Feature: Open DeskOS 跨平台 Display Shell
     And status filters expose their selected state and session changes are announced
     And an empty scanner result explains that no local Pi sessions were found
 
-  Scenario: OpenCode Go remains an interactive Usage App page
+  Scenario: OpenCode Go remains an interactive Usage App surface
     Given the OpenCode Go endpoint is unavailable or explicitly configured
-    When the user navigates to the Usage page
+    When the user opens the AI usage App from its Home Widget
     Then the page exposes an honest provider state and a refresh action
     And configured usage values are shown only when returned by the provider
     And each usage value has a visible label
@@ -241,7 +242,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And Back remains available in both modes
 
   Scenario: Remote Touchpad enters App Focus Mode only after selection
-    Given the focused shell is on a Pi Sessions or Usage App page in browsing mode
+    Given the focused shell is on a Pi Sessions or another App browsing page in browsing mode
     When the Remote Touchpad sends left or right input
     Then the shell changes only to the adjacent bounded page
     And it does not move an App control focus

@@ -79,3 +79,150 @@ test('partial failures and unauthorized snapshots cannot claim fresh data', asyn
   assert.match(page.nodes.get('#quota-feedback').textContent, /credential/i)
   assert.match(page.nodes.get('#quota-feedback').textContent, /previous/i)
 })
+
+// The Home Widget reads the same service. It states one reading and owns no
+// control, so these cases assert the text, the meter, and the silence of an
+// unchanged reading.
+function mountTile(status) {
+  const nodes = new Map()
+  const cleanups = []
+  const writes = []
+  const node = (key) => {
+    if (nodes.has(key)) return nodes.get(key)
+    const classes = new Set()
+    const created = {
+      textContent: '', hidden: false, attrs: {}, classes, listeners: {},
+      _width: '',
+      style: { get width() { return this._width }, set width(value) { this._width = value; writes.push([key, 'width', value]) } },
+      setAttribute(k, v) { this.attrs[k] = v },
+      getAttribute(k) { return this.attrs[k] ?? null },
+      removeAttribute(k) { delete this.attrs[k] },
+      addEventListener(k, v) { this.listeners[k] = v },
+      removeEventListener(k, v) { delete this.listeners[k] },
+      classList: {
+        contains: (value) => classes.has(value),
+        toggle: (value, force) => { if (force) classes.add(value); else classes.delete(value) },
+      },
+    }
+    Object.defineProperty(created, 'textContent', {
+      get() { return this._text },
+      set(value) { writes.push([key, 'text']); this._text = value },
+    })
+    nodes.set(key, created)
+    return created
+  }
+  const el = { innerHTML: '', querySelector(key) { return node(key) } }
+  const registered = []
+  let tick
+  vm.runInNewContext(source, { document: { createElement: () => ({ textContent: '', get innerHTML() { return this.textContent } }) },
+    window: { odkPlugins: { register(value) { registered.push(value) } } } })
+  const plugin = registered.find(value => value.id === 'odk.tile.quota')
+  assert.ok(plugin, 'odk.tile.quota must be registered')
+  const subscription = { status: () => status }
+  plugin.mount(el, { trackCleanup(fn) { cleanups.push(fn) }, subscription, onTick(fn) { tick = fn } })
+  const meter = () => nodes.get('.quota-tile-meter')
+  return { plugin, el, nodes, writes, cleanups,
+    update(next) { status = next; tick(new Date()) },
+    text: (key) => nodes.get(key)?.textContent,
+    attr: (key, name) => nodes.get(key)?.getAttribute(name),
+    // The meter is the one place this Widget could invent a reading, so every
+    // case asserts its hidden state, its accessible numbers, and its fill.
+    meter: () => ({
+      hidden: meter()?.hidden,
+      now: meter()?.getAttribute('aria-valuenow'),
+      spoken: meter()?.getAttribute('aria-valuetext'),
+      label: meter()?.getAttribute('aria-label'),
+      width: nodes.get('.quota-tile-meter-fill')?.style.width,
+      low: nodes.get('.quota-tile-meter-fill')?.classList.contains('is-low'),
+      rule: nodes.get('.quota-tile-unknown')?.hidden === false,
+    }) }
+}
+
+const windows = (values) => ({ state: 'available', snapshot: { accounts: values.map(([label, remainingPct], index) => ({
+  provider: 'codex', fileName: `account-${index}.json`, groups: [{ title: 'Codex limits', quotas: [{ label, remainingPct, resetAt: null }] }],
+})) } })
+
+test('the AI usage Widget states the tightest known window without owning a control', () => {
+  const tile = mountTile(windows([['Weekly limit', 58], ['5 hour limit', 12]]))
+  assert.equal(tile.plugin.kind, 'tile')
+  assert.equal(tile.plugin.interaction, 'display-only')
+  assert.equal(tile.plugin.opensApp, 'quota')
+  assert.doesNotMatch(tile.el.innerHTML, /<button|Refresh/)
+  assert.equal(tile.text('.quota-state'), 'Low')
+  assert.equal(tile.text('.quota-tile-value'), '12%')
+  assert.equal(tile.text('.quota-tile-context'), '5 hour limit')
+  assert.deepEqual(tile.meter(), { hidden: false, now: '12', spoken: '12% remaining', label: '5 hour limit', width: '12%', low: true, rule: false })
+})
+
+test('the AI usage Widget states a healthy window and every unavailable reading honestly', () => {
+  const tile = mountTile(windows([['Weekly limit', 58], ['5 hour limit', 80]]))
+  assert.equal(tile.text('.quota-state'), 'Available')
+  assert.equal(tile.text('.quota-tile-value'), '58%')
+  assert.deepEqual(tile.meter(), { hidden: false, now: '58', spoken: '58% remaining', label: 'Weekly limit', width: '58%', low: false, rule: false })
+
+  tile.update({ state: 'unconfigured' })
+  assert.equal(tile.text('.quota-state'), 'Unconfigured')
+  assert.equal(tile.text('.quota-tile-value'), '--%')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+
+  tile.update({ state: 'unauthorized' })
+  assert.equal(tile.text('.quota-state'), 'Unauthorized')
+  assert.equal(tile.text('.quota-tile-context'), 'Invalid key')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+
+  tile.update({ state: 'unavailable' })
+  assert.equal(tile.text('.quota-state'), 'Unavailable')
+  assert.equal(tile.text('.quota-tile-value'), '--%')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+})
+
+test('the AI usage Widget counts accounts with no usable window and invents no percentage', () => {
+  const tile = mountTile({ state: 'available', snapshot: { accounts: [account(null), account(null)] } })
+  assert.equal(tile.text('.quota-state'), 'Available')
+  assert.equal(tile.text('.quota-tile-value'), '2')
+  assert.equal(tile.text('.quota-tile-context'), '2 accounts')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+
+  // A malformed percentage is the same path: no meter at all.
+  tile.update(windows([['Weekly limit', 'not-a-number'], ['5 hour limit', null]]))
+  assert.equal(tile.text('.quota-tile-value'), '2')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+
+  tile.update({ state: 'available', snapshot: { accounts: [account(0)] } })
+  assert.equal(tile.text('.quota-state'), 'Low')
+  assert.equal(tile.text('.quota-tile-value'), '0%')
+  assert.deepEqual(tile.meter(), { hidden: false, now: '0', spoken: '0% remaining', label: 'Weekly limit', width: '0%', low: true, rule: false })
+
+  tile.update({ state: 'available', snapshot: { accounts: [] } })
+  assert.equal(tile.text('.quota-tile-value'), '--%')
+  assert.equal(tile.text('.quota-tile-context'), 'No quotas returned')
+  assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
+})
+
+test('the AI usage Widget rewrites nothing while its reading is unchanged', () => {
+  const tile = mountTile(windows([['Weekly limit', 58]]))
+  const settled = tile.writes.length
+  tile.update(windows([['Weekly limit', 58]]))
+  assert.equal(tile.writes.length, settled)
+
+  for (const cleanup of tile.cleanups.splice(0)) cleanup()
+  tile.update(windows([['Weekly limit', 12]]))
+  assert.equal(tile.text('.quota-tile-value'), '58%')
+})
+
+test('failed accounts cannot supply a current Widget meter', () => {
+  const failed = { ...account(12), error: 'offline' }
+  const tile = mountTile({ state: 'available', snapshot: { accounts: [failed, account(58)] } })
+  assert.equal(tile.text('.quota-tile-value'), '58%')
+  tile.update({ state: 'available', snapshot: { accounts: [failed] } })
+  assert.equal(tile.text('.quota-state'), 'Unavailable')
+  assert.equal(tile.text('.quota-tile-value'), '--%')
+  assert.equal(tile.meter().hidden, true)
+})
+
+test('a low raw reading stays low when its displayed percentage rounds up', () => {
+  const tile = mountTile(live(24.6))
+  assert.equal(tile.text('.quota-tile-value'), '25%')
+  assert.equal(tile.text('.quota-state'), 'Low')
+  assert.equal(tile.meter().low, true)
+})

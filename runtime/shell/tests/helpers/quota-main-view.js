@@ -5,6 +5,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const { resolveConfigPath } = require('../../src/plugin-config')
 const { runCommand } = require('./hydra-wire-lifecycle')
+const { quotaPagePlacementSource } = require('./quota-page-placement')
 
 function prepareQuotaMainView(BrowserWindow, mode) {
   assert.ok(['default', 'selected', 'incorrect', 'missing'].includes(mode))
@@ -16,6 +17,7 @@ function prepareQuotaMainView(BrowserWindow, mode) {
     const source = `(()=>{
       window.quotaMainDefaultMounts=0;window.quotaMainAllowDefault=${mode === 'default'};
       window.quotaMainSubscriptions=new Set();
+      ${quotaPagePlacementSource}
       let services,registry;
       Object.defineProperty(window,'odkServices',{configurable:true,get(){return services},set(value){
         services=value;const sub=value.subscription,subscribe=sub.subscribe.bind(sub);
@@ -45,11 +47,14 @@ function prepareQuotaMainView(BrowserWindow, mode) {
     const js = source => win.webContents.executeJavaScript(source)
     assert.equal(await js('quotaMainDefaultMounts'), 0, 'Production Quota page fallback guard triggered')
     const settle = () => js(`(async()=>{const deadline=performance.now()+3000;
+      if (!document.querySelector('#quota-refresh') && window.odkAppPlatform) {
+        await window.odkAppPlatform.openApp({ appId: 'quota' });
+      }
       while(!document.querySelector('#quota-refresh')||document.querySelector('#quota-refresh').disabled){
         if(performance.now()>deadline)throw Error('Production Quota refresh did not settle');await new Promise(resolve=>setTimeout(resolve,10))}
     })()`)
     await settle()
-    await js('window.quotaMainDocument=document;window.quotaMainPage=document.querySelector(".page[data-page-id=quota]")')
+    await js('window.quotaMainDocument=document;window.quotaMainPage=document.querySelector(".page[data-page-id=quota], #app-runtime .quota-card")')
     const source = host.get('odk:source/quota/v1')
     const records = host.list()
     const saved = fs.existsSync(resolveConfigPath(process.env)) ? fs.readFileSync(resolveConfigPath(process.env)) : null
@@ -73,6 +78,11 @@ function prepareQuotaMainView(BrowserWindow, mode) {
         const status = await js('odkServices.subscription.refresh()')
         assert.deepEqual(status, responses[index])
         const view = await js(`(()=>{const page=quotaMainPage;
+          for(const meter of page.querySelectorAll('[role=meter]')){
+            const fill=meter.querySelector('.provider-quota-fill');
+            const expected=meter.clientWidth*Number(meter.getAttribute('aria-valuenow'))/100;
+            if(meter.clientWidth<=0||Math.abs(fill.getBoundingClientRect().width-expected)>1)throw Error('Production quota fill does not match its percentage');
+          }
           return{heading:page.querySelector('h1').textContent,count:page.querySelector('#quota-count').textContent,
             feedback:page.querySelector('#quota-feedback').textContent,
             readings:[...page.querySelectorAll('.provider-plan,.provider-quota-account,.provider-quota-availability,.provider-quota-label,.provider-quota-value,.provider-quota-reset')].map(node=>node.textContent.trim()),
@@ -90,7 +100,7 @@ function prepareQuotaMainView(BrowserWindow, mode) {
       assert.equal(host.get('odk:source/quota/v1'), source)
       assert.deepEqual(host.list(), records)
       assert.deepEqual(fs.existsSync(resolveConfigPath(process.env)) ? fs.readFileSync(resolveConfigPath(process.env)) : null, saved)
-      assert.equal(await js('document===quotaMainDocument&&quotaMainPage===document.querySelector(".page[data-page-id=quota]")&&quotaMainPage.isConnected'), true)
+      assert.equal(await js('document===quotaMainDocument&&quotaMainPage===document.querySelector(".page[data-page-id=quota], #app-runtime .quota-card")&&quotaMainPage.isConnected'), true)
       assert.equal(await js('quotaMainDefaultMounts'), 0, 'Production Quota page fallback guard triggered')
     }
     return { phases, entries: await js('(window.quotaMainEntries||[]).length') }

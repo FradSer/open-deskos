@@ -181,13 +181,25 @@ Host pi-mac
 
 Use a dedicated key authorized on that Mac account. Install its public key using your normal approved process; never put a private key in the repository. Verify the Mac host-key fingerprint out of band before accepting it with an interactive `ssh pi-mac` connection. The runtime requires an existing trusted host key and noninteractive key authentication: it will never accept a new key or prompt for a password. For tighter permissions, use an authorized_keys forced command pointing at the absolute Node and collector paths with forwarding/PTY disabled; this key then cannot run other commands. Restrict Remote Login/firewall to your trusted network or VPN, not the public Internet.
 
+Use an address that the desk can reach after either computer changes networks.
+A DHCP lease or `.lan` name can become unreachable outside the local network.
+For access across networks, use the Mac's stable VPN address.
+Confirm that the desk can route to that address:
+
+```sh
+ping -c 1 <mac-vpn-address>
+nc -z -w 3 <mac-vpn-address> 22
+```
+
+The desk requires a VPN client or a gateway route to the remote network.
+
 Test as the same kiosk user, substituting actual absolute paths:
 
 ```sh
 ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes pi-mac "'/absolute/path/to/node' '/Users/<mac-pi-user>/.local/share/odk/pi-monitor/scripts/pi-sessions-snapshot.js'"
 ```
 
-The output must be a single JSON snapshot, without shell greeting text. If the key is passphrase protected, the kiosk service needs a reachable unlocked SSH agent; otherwise scans remain unavailable. An SSH shell's agent is not automatically available to systemd.
+The output must be a single JSON snapshot, without shell greeting text. A refused or unreachable host stops the scan and the desk labels the source as unavailable. If the key is passphrase protected, the kiosk service needs a reachable unlocked SSH agent; otherwise scans remain unavailable. An SSH shell's agent is not automatically available to systemd.
 
 ### 3. Persist the selected source
 

@@ -10,18 +10,35 @@ Feature: Built-in App interiors
     And restoring defaults retains the same behavior
 
   Scenario: Built-in views expose a coherent semantic interior
-    Given a user opens a built-in Calendar, Clock, Pomodoro, or Year progress view
+    Given a user opens a built-in Calendar, Clock, Pomodoro, Year progress, or AI usage view
     Then the App retains its runtime surface
     And its title is inside an App surface header with an App surface heading
     And explanatory copy uses the App detail anatomy
     And truthful live or pending information uses the runtime value or runtime state anatomy
-    And Pomodoro explains that its timer is unavailable without a Start control
+    And Pomodoro provides a countdown timer with interactive controls
+    And the AI usage view hosts the shared quota card with its refresh and quota grid
 
-  Scenario: Pomodoro does not pretend to run an unsupported timer
-    Given the built-in Pomodoro App has no timer service
+  Scenario: Pomodoro provides interactive timer controls
+    Given a user opens the built-in Pomodoro view
     When the App is mounted
-    Then it says "Timer unavailable"
-    And no Start timer control or timer action handler is offered
+    Then it exposes a countdown dial with Start and Pause controls
+    And activating Start begins the countdown timer
+    And activating Pause pauses the countdown timer
+
+  Scenario: Default and independent Pomodoro sessions retain their public behavior
+    Given a default or independent Pomodoro App has a running session
+    When the shared Tick advances or the App closes and reopens
+    Then its countdown retains the original completion time
+    And repeating Start cannot extend that time
+    And Start begins a new session after completion without an intervening Tick
+    And unsupported actions return false without changing the session
+    And closing the view releases its controls and subscription
+
+  Scenario: The resting Pomodoro Widget makes no session-state claim
+    Given the Pomodoro App has started a session
+    When the user returns to Home
+    Then the display-only Widget identifies the App timer
+    And its neutral reading does not claim that the session has not started
 
   Scenario: Built-in view search has a visible accessible label
     Given a user opens Built-in views

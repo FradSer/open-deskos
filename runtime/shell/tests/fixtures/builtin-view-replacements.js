@@ -2,6 +2,34 @@
   'use strict'
   const titles = { calendar: 'Calendar', clock: 'Clock', pomodoro: 'Pomodoro', year: 'Year progress', 'app-manager': 'Built-in views' }
   const text = (node, value) => { if (node.textContent !== value) node.textContent = value }
+  // This fixture owns a separate session. It uses only the public App context.
+  const duration = 25 * 60
+  const session = { mode: 'idle', remaining: duration, endAt: null }
+  const views = new Set()
+  function settle() {
+    if (session.mode !== 'running') return
+    session.remaining = Math.max(0, Math.ceil((session.endAt - Date.now()) / 1000))
+    if (session.remaining === 0) { session.mode = 'completed'; session.endAt = null }
+  }
+  function update() {
+    settle()
+    for (const render of views) render()
+  }
+  function action(intent) {
+    const name = intent.action
+    if (!['start', 'resume', 'pause', 'stop'].includes(name)) return false
+    settle()
+    if (name === 'stop') Object.assign(session, { mode: 'idle', remaining: duration, endAt: null })
+    else if (name === 'pause') {
+      if (session.mode === 'running') { session.mode = 'paused'; session.endAt = null }
+    } else if (session.mode !== 'running') {
+      if (session.mode === 'completed') session.remaining = duration
+      session.mode = 'running'
+      session.endAt = Date.now() + session.remaining * 1000
+    }
+    update()
+    return true
+  }
   function mount(id, el, ctx) {
     const doc = el.ownerDocument
     const make = (tag, className, content) => {
@@ -14,10 +42,41 @@
     header.append(make('h2', 'app-surface-heading', titles[id])); body.append(header); el.append(body)
     if (id === 'pomodoro') {
       body.dataset.view = 'pomodoro'
-      const empty = make('div', 'app-empty-state')
-      const dial = make('span', 'pomodoro-empty-dial', '--:--'); dial.setAttribute('aria-hidden', 'true')
-      empty.append(dial, make('p', 'runtime-state app-detail', 'Timer unavailable'), make('p', 'app-detail', 'This view does not provide a countdown timer.'))
-      body.append(empty)
+      const appBody = make('div', 'pomodoro-app-body')
+      const dial = make('p', 'runtime-value pomodoro-dial', '25:00'); dial.id = 'pomodoro-dial'
+      const state = make('p', 'runtime-state app-detail', 'Focus'); state.id = 'pomodoro-state'
+      const controls = make('div', 'pomodoro-controls')
+      const toggle = make('button', 'button-pill button-primary pomodoro-toggle', 'Start')
+      toggle.id = 'pomodoro-toggle'; toggle.type = 'button'
+      const reset = make('button', 'button-pill button-secondary pomodoro-reset', 'Reset')
+      reset.id = 'pomodoro-reset'; reset.type = 'button'; reset.hidden = true
+      controls.append(toggle, reset)
+      appBody.append(dial, state, controls, make('p', 'app-detail', '25-minute focus session'))
+      body.append(appBody)
+      const render = () => {
+        const minutes = String(Math.floor(session.remaining / 60)).padStart(2, '0')
+        const seconds = String(session.remaining % 60).padStart(2, '0')
+        text(dial, `${minutes}:${seconds}`)
+        text(state, session.mode === 'running' ? 'Focusing' : session.mode === 'paused' ? 'Paused' : session.mode === 'completed' ? 'Completed' : 'Focus')
+        text(toggle, session.mode === 'running' ? 'Pause' : session.mode === 'paused' ? 'Resume' : 'Start')
+        reset.hidden = session.mode === 'idle'
+        dial.classList.toggle('is-running', session.mode === 'running')
+      }
+      const onToggle = () => {
+        settle()
+        action({ action: session.mode === 'running' ? 'pause' : 'start' })
+      }
+      const onReset = () => action({ action: 'stop' })
+      toggle.addEventListener('click', onToggle)
+      reset.addEventListener('click', onReset)
+      views.add(render)
+      ctx.trackCleanup(() => {
+        views.delete(render)
+        toggle.removeEventListener('click', onToggle)
+        reset.removeEventListener('click', onReset)
+      })
+      ctx.onTick(update)
+      update()
       return
     }
     if (id === 'app-manager') {
@@ -91,7 +150,7 @@
   }
   root.odkBuiltinViewReplacements = Object.entries(titles).map(([appId, title]) => ({
     id: `odk.app.${appId}`, manifest: { schemaVersion: 1, version: '2.0.0' }, kind: 'app',
-    appId, app: title, name: title, appKind: 'ui', source: 'builtin', capabilities: [], handleAction: null,
+    appId, app: title, name: title, appKind: 'ui', source: 'builtin', capabilities: [], handleAction: appId === 'pomodoro' ? action : null,
     mount(el, ctx) { mount(appId, el, ctx) }, unmount(el) { el.replaceChildren() },
   }))
 })(window)

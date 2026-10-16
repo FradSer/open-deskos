@@ -37,8 +37,7 @@
         'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': value.remainingPct,
         'aria-valuetext': `${percent(value.remainingPct)} remaining` })
       const fill = make('span', `provider-quota-fill is-${value.remainingPct < 25 ? 'low' : 'normal'}`)
-      // Preserve the built-in inline-style contract under the current CSP.
-      fill.setAttribute('style', `width:${value.remainingPct}%`)
+      fill.style.width = `${value.remainingPct}%`
       meter.append(fill); row.append(meter)
     } else row.append(make('div', 'provider-quota-unknown-rule', undefined, { 'aria-hidden': 'true' }))
     row.append(make('div', 'provider-quota-reset', value.description || (value.resetAt ? `Resets ${reset(value.resetAt)}` : 'Reset time unavailable')))

@@ -102,8 +102,22 @@ const DRIVER_SCRIPT = `
   out.surfaceSeparation =
     document.querySelector('#pages-track .page[data-page-id="home"]')?.dataset.surface === 'display' &&
     document.querySelector('#home-summary .page[data-page-id="today"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.dataset.surface === 'app' &&
-    document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app'
+    document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.dataset.surface === 'app'
+  // The Home page carries Widgets only: AI usage is a Widget that opens the
+  // App, never a desktop page of its own.
+  out.usageIsAWidgetNotAPage =
+    document.querySelector('#pages-track .page[data-page-id="quota"]') === null &&
+    Boolean(document.querySelector('[data-widget="odk.tile.quota"] .widget-launch'))
+  // An unconfigured or malformed reading states itself in words and draws the
+  // neutral rule: this Widget never presents one as a 0 or 100 percent meter.
+  out.usageWidgetInventsNoMeter = (() => {
+    const tile = document.querySelector('[data-widget="odk.tile.quota"]')
+    if (!tile) return false
+    const meter = tile.querySelector('.quota-tile-meter')
+    return meter?.hidden === true && meter.getAttribute('aria-valuenow') === null
+      && tile.querySelector('.quota-tile-value')?.textContent === '--%'
+      && tile.querySelector('.quota-tile-unknown')?.hidden === false
+  })()
   out.fontsLoaded = document.fonts.check('400 20px Zpix') || (document.fonts.check('700 32px Montserrat') && document.fonts.check('400 20px "Noto Sans SC"'))
 
   out.clockFormatted = /^\\d{2}:\\d{2}$/.test(text('.sb-time'))
@@ -139,7 +153,7 @@ const DRIVER_SCRIPT = `
     !$('#pages-viewport').inert &&
     !$('#status-bar').inert
   out.widgetStatesAreHonest =
-    $('.w-pomodoro .w-state')?.textContent === 'Not started'
+    $('.w-pomodoro .w-state')?.textContent === 'App timer'
   out.widgetsUseFlexibleAnatomy = Boolean(
     $('.w-year .year-signal-line') &&
     $('.w-pomodoro .pomodoro-state') &&
@@ -179,7 +193,7 @@ const DRIVER_SCRIPT = `
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
   out.timeAndDateWidgetsRemoved = !document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')
   out.overviewDateRetained = Boolean(text('.dash-wd') && text('.dash-date'))
-  out.pomodoroNotRunning = text('.ring-mmss') === '--:--' && text('.w-pomodoro .w-state') === 'Not started'
+  out.pomodoroWidgetIsNeutral = text('.ring-mmss') === '--:--' && text('.w-pomodoro .w-state') === 'App timer'
   window.dispatchEvent(new Event('offline'))
   out.netIndicatorOffline =
     $('#sb-net').dataset.online === 'false' &&
@@ -206,15 +220,12 @@ const DRIVER_SCRIPT = `
   // Pages are addressed by layout id: inserting a display page must not retarget a
   // positional selector onto the wrong surface (see tests/helpers/pages.js).
   const piAppRect = document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-app-wrapper').getBoundingClientRect()
-  const quotaCardRect = document.querySelector('#pages-track .page[data-page-id="quota"] .quota-card').getBoundingClientRect()
   const appPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
   const appSurfaceWidth = Math.min(metrics.gridW, appPage.clientWidth)
   const appSurfaceHeight = Math.min(metrics.gridH, appPage.clientHeight - 2 * metrics.gutter)
   out.appSurfacesMatchGridFootprint =
     approx(piAppRect.width, appSurfaceWidth) &&
-    approx(piAppRect.height, appSurfaceHeight) &&
-    approx(quotaCardRect.width, appSurfaceWidth) &&
-    approx(quotaCardRect.height, appSurfaceHeight)
+    approx(piAppRect.height, appSurfaceHeight)
   out.cardsHaveNoStateEdgeBars = [...document.querySelectorAll('.widget, .pi-overview-cell')].every((card) => {
     const before = getComputedStyle(card, '::before')
     const border = getComputedStyle(card)
@@ -243,7 +254,6 @@ const DRIVER_SCRIPT = `
   out.pomodoroSpansTwoSquare =
     approx(pomodoroRect.height, metrics.cellH)
 
-  out.subscriptionInitialStatus = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
   out.noBottomPeek = $('#peek') === null && document.querySelector('[data-slot="peek"]') === null
 
   const pageIndex = (index) => document.querySelectorAll('#dots .dot')[index].click()
@@ -339,7 +349,7 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = text('#page-context') === 'Reading · 3/5'
+  out.thirdPageContext = text('#page-context') === 'Pre-order · 3/5'
   const piPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
   out.piPageIsInteractiveAppSurface =
     piPage?.dataset.surface === 'app' &&
@@ -428,10 +438,7 @@ const DRIVER_SCRIPT = `
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
   out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToUsage = text('#page-context') === 'Usage · 5/5'
-  out.usageIsInteractiveAppSurface =
-    document.querySelector('#pages-track .page[data-page-id="quota"]')?.dataset.surface === 'app' &&
-    Boolean(document.querySelector('#pages-track .page[data-page-id="quota"] #quota-refresh'))
+  out.endJumpsToLastPage = text('#page-context') === 'Pi Sessions · 5/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
   out.homeJumpsToToday = text('#page-context') === 'Home · 1/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
@@ -439,20 +446,31 @@ const DRIVER_SCRIPT = `
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachUsage = text('#page-context') === 'Usage · 5/5'
+  out.consecutiveArrowRightsReachLastPage = text('#page-context') === 'Pi Sessions · 5/5'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.arrowRightStaysAtUsage = text('#page-context') === 'Usage · 5/5'
-  document.querySelectorAll('#dots .dot')[4].click()
-  out.quotaStateIsHonest = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
-  out.quotaRefreshLabel = text('#quota-refresh') === 'Refresh quotas'
+  out.arrowRightStaysAtLastPage = text('#page-context') === 'Pi Sessions · 5/5'
+  // The Home page carries Widgets only: the AI usage Widget opens the App, and
+  // the App owns the quota surface instead of a desktop page.
+  document.querySelectorAll('#dots .dot')[0].click()
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  document.querySelector('[data-widget="odk.tile.quota"] .widget-launch').click()
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  out.usageWidgetOpensTheApp =
+    odkAppPlatform.active()?.appId === 'quota' &&
+    document.getElementById('app-view').hidden === false &&
+    Boolean(document.querySelector('#app-view .quota-card'))
+  out.quotaStateIsHonest = text('#app-view #quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
+  out.quotaRefreshLabel = text('#app-view #quota-refresh') === 'Refresh quotas'
   out.quotaHelpRemoved = $('#quota-help') === null
-  out.quotaCheckedVisible = text('#quota-checked').includes('Last checked')
-  out.quotaHasNoFabricatedUsage = !$('#quota-metrics .provider-quota-card, #quota-metrics [role="meter"]') && !/\\d+%/.test(text('#quota-metrics'))
-  out.quotaMetricsAreLabeled = $('#quota-metrics').classList.contains('provider-quota-grid') && $('#quota-feedback').getAttribute('role') === 'status' && $('#quota-feedback').getAttribute('aria-live') === 'polite'
-  $('#quota-refresh').click()
-  out.quotaRefreshPreservesTruth = text('#quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
-  out.quotaRefreshShowsCheck = text('#quota-checked').includes('Last checked')
-  out.quotaPageAfterEscape = document.querySelectorAll('#dots .dot')[4].classList.contains('active')
+  out.quotaCheckedVisible = text('#app-view #quota-checked').includes('Last checked')
+  out.quotaHasNoFabricatedUsage = !$('#app-view #quota-metrics .provider-quota-card, #app-view #quota-metrics [role="meter"]') && !/[0-9]+%/.test(text('#app-view #quota-metrics'))
+  out.quotaMetricsAreLabeled = $('#app-view #quota-metrics').classList.contains('provider-quota-grid') && $('#app-view #quota-feedback').getAttribute('role') === 'status' && $('#app-view #quota-feedback').getAttribute('aria-live') === 'polite'
+  $('#app-view #quota-refresh').click()
+  out.quotaRefreshPreservesTruth = text('#app-view #quota-metrics .provider-quota-empty') === 'Actual quotas have not been retrieved.'
+  out.quotaRefreshShowsCheck = text('#app-view #quota-checked').includes('Last checked')
+  out.quotaAppStaysOpenAfterRefresh = document.getElementById('app-view').hidden === false && odkAppPlatform.active()?.appId === 'quota'
+  await odkAppPlatform.closeApp()
+  await new Promise((resolve) => setTimeout(resolve, 200))
 
   // Return to the grid page so the geometry sweep measures on-screen rects.
   document.querySelectorAll('#dots .dot')[1].click()
@@ -507,7 +525,7 @@ function check(results) {
     ['renderer plugins run on the common host', results.rendererHostRunning],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.clock', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.page.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.tile.almanac', 'odk.tile.clock', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.tile.quota', 'odk.page.quota', 'odk.app.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -529,12 +547,13 @@ function check(results) {
     ['Today briefs from Personal Agent with source provenance', results.todayBriefsFromAgent],
     ['Today omits network, focus, and quota-service status', results.todayOmitsDeskStatus],
     ['Today claims no personal data without a provider', results.todayClaimsNoPersonalData],
-    ['subscription starts in an honest unconfigured state', results.subscriptionInitialStatus && results.quotaStateIsHonest],
+    ['subscription starts in an honest unconfigured state', results.quotaStateIsHonest],
     ['tabler icon set complete', results.tablerSetComplete],
     ['tabler icons count >= 3', results.tablerCount >= 3],
     ['declared state widgets have unique identities', results.widgetIdentitiesMatch && results.uniqueApps],
     ['shell boots without peripheral gates', results.shellBootsWithoutPeripheralGates],
-    ['widgets declare truthful signals without forced template anatomy', results.widgetStatesAreHonest && results.widgetsUseFlexibleAnatomy && results.widgetsAreDisplayOnly && results.surfaceSeparation],
+    ['widgets declare truthful signals without forced template anatomy', results.widgetStatesAreHonest && results.widgetsUseFlexibleAnatomy && results.widgetsAreDisplayOnly && results.surfaceSeparation && results.usageIsAWidgetNotAPage],
+    ['AI usage Widget states a non-reading without a meter', results.usageWidgetInventsNoMeter],
     ['Hydra plants widget mounts truthfully on the Desk grid', results.hydraTileMounted && results.hydraTilePlacement && results.hydraStateIsHonest],
     ['renderer has no filesystem API', results.rendererHasNoFilesystemApi],
     ['preload exposes the Linux platform endpoints', results.preloadExposesIntentEndpoint && results.preloadExposesSubscriptionEndpoint && results.preloadExposesCameraEndpoint && results.endpointListCalled && results.endpointIntentCalled],
@@ -554,7 +573,7 @@ function check(results) {
     ['dot button itself is not transformed', results.dotButtonNotTransformed],
     ['widgets expose honest state labels', results.widgetsHaveState],
     ['time and date Widgets are removed while Overview keeps its date', results.timeAndDateWidgetsRemoved && results.overviewDateRetained],
-    ['pomodoro is visibly not running', results.pomodoroNotRunning],
+    ['Pomodoro Widget identifies the App timer without a session-state claim', results.pomodoroWidgetIsNeutral],
     ['network indicator draws struck wifi while offline', results.netIndicatorOffline],
     ['offline status is announced', results.offlineAnnounced],
     ['network indicator draws wifi and emphasis while online', results.netIndicatorOnline],
@@ -575,7 +594,7 @@ function check(results) {
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['Widget opens its App and the platform path remains available', results.widgetOpensApp && results.widgetHasNativeContinuation && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
     ['Pi Sessions is a direct live-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
-    ['Usage is a direct interactive App page', results.usageIsInteractiveAppSurface],
+    ['Usage is a Widget App opened from the Home grid', results.usageWidgetOpensTheApp],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar stays concise after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsRemoved],
     ['built-in view search is available', results.appManagerSearchVisible && results.appManagerSearchFilters],
@@ -585,15 +604,15 @@ function check(results) {
     ['third dot active after jump', results.thirdDotActive],
     ['third page context is visible', results.thirdPageContext],
     ['ArrowLeft returns to grid', results.arrowLeftReturnsToGrid],
-    ['End jumps to Usage', results.endJumpsToUsage],
+    ['End jumps to the last desktop page', results.endJumpsToLastPage],
     ['Home jumps to Today', results.homeJumpsToToday],
-    ['consecutive ArrowRight presses reach Usage', results.consecutiveArrowRightsReachUsage],
-    ['ArrowRight stays at Usage boundary', results.arrowRightStaysAtUsage],
+    ['consecutive ArrowRight presses reach the last page', results.consecutiveArrowRightsReachLastPage],
+    ['ArrowRight stays at the last page boundary', results.arrowRightStaysAtLastPage],
     ['quota status is native and honest', results.quotaStateIsHonest && results.quotaHasNoFabricatedUsage && results.quotaMetricsAreLabeled],
     ['quota exposes check state', results.quotaCheckedVisible],
     ['quota omits redundant navigation help', results.quotaHelpRemoved],
     ['quota refresh preserves truth', results.quotaRefreshLabel && results.quotaRefreshPreservesTruth && results.quotaRefreshShowsCheck],
-    ['quota page remains selected after refresh', results.quotaPageAfterEscape],
+    ['Usage App stays open after refresh', results.quotaAppStaysOpenAfterRefresh],
   ]
   let failures = 0
   for (const [name, ok] of checks) {
@@ -868,9 +887,9 @@ async function main() {
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
     remotePageStates.some((state) => state.page === 1 && state.pages === 5 && state.name === 'Home' && !state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 3 && state.pages === 5 && state.name === 'Reading' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 4 && state.pages === 5 && state.name === 'Pi Sessions' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 5 && state.pages === 5 && state.name === 'Usage' && state.canPrev && !state.canNext)
+    remotePageStates.some((state) => state.page === 3 && state.pages === 5 && state.name === 'Pre-order' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 4 && state.pages === 5 && state.name === 'Reading' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 5 && state.pages === 5 && state.name === 'Pi Sessions' && state.canPrev && !state.canNext)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
@@ -906,7 +925,7 @@ async function main() {
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const consecutiveRemoteMovesTwice = await pageContext() === 'Pi Sessions · 4/5'
+  const consecutiveRemoteMovesTwice = await pageContext() === 'Reading · 4/5'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)

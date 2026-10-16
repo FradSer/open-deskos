@@ -29,7 +29,7 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 ## Language
 
-**Widget / App (unified)**: Widgets share grid pages; Apps own pages. Either can have a declared Service Plugin. Installed HTML packages retain their verification/sandbox limits.
+**Widget / App (unified)**: Widgets share grid pages. An App owns one interactive view that a Home Widget or a standalone desktop placement opens. Either can have a declared Service Plugin. Installed HTML packages retain their verification/sandbox limits.
 
 **Device Location**: Configured coordinates, or a bounded device lookup only when no location is supplied. Explicit empty location disables lookup. See ADR-0029.
 

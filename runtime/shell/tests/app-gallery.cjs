@@ -191,7 +191,7 @@ app
         const widgets = await js(
           `[...document.querySelectorAll('#pages-track .widget')].map(n=>({id:n.dataset.widget,appId:n.dataset.openApp,page:n.closest('[data-page-id]').dataset.pageId}))`,
         )
-        assert.equal(widgets.length, 8)
+        assert.equal(widgets.length, 9)
         for (const widget of widgets) {
           await js(
             `(async()=>{const page=document.querySelector('[data-page-id="${widget.page}"]'),pages=[...document.querySelectorAll('#pages-track>.page')];document.querySelectorAll('.dot')[pages.indexOf(page)].click();document.querySelector('[data-widget="${widget.id}"] .widget-launch').click();await galleryUntil(()=>odkAppPlatform.active()?.sourceWidget==='${widget.id}'&&!document.getElementById('app-view').hidden);await galleryUntil(()=>!document.querySelector('#app-runtime .reading-refresh:disabled'));await document.fonts.ready;document.getElementById('app-view').scrollIntoView({block:'center'});await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`,
@@ -204,13 +204,14 @@ app
       const frame=document.getElementById('app-view').getBoundingClientRect(),root=document.querySelector('#app-view .runtime-app'),r=root.getBoundingClientRect(),s=getComputedStyle(root),app='${widget.appId}';
       const result={inset:r.left+parseFloat(s.paddingLeft)-frame.left<=33,header:document.querySelector('#app-view>.app-header').getBoundingClientRect().height===0,handle:frame.bottom<=document.querySelector('#dots .dot.active').getBoundingClientRect().top};
       if(app==='pi-sessions'){result.detailHidden=getComputedStyle(document.querySelector('#app-view .pi-detail')).visibility==='hidden';const main=document.querySelector('#app-view .pi-main').getBoundingClientRect();result.height=main.height>=frame.height*.55;if(innerWidth>=1280)result.filters=document.querySelector('#app-view .pi-overview-filters').getBoundingClientRect().height<=62;}
-      if(app==='pomodoro')result.empty=!!root.querySelector('.app-empty-state')&&!root.querySelector('button');
+      if(app==='pomodoro')result.hasTimer=!!root.querySelector('.pomodoro-dial')&&!!root.querySelector('button');
       if(app==='year')result.progress=!!root.querySelector('progress');
       if(app==='weather')result.hero=!!root.querySelector('.weather-reading');
       if(app==='hydra')result.plants=!!root.querySelector('.plant-readings');
       if(app==='weread'){const q=root.querySelector('blockquote');result.reading=${JSON.stringify(sourceState)}==='live'?q&&parseFloat(getComputedStyle(q).lineHeight)/parseFloat(getComputedStyle(q).fontSize)>=1.5:root.querySelector('.reading-status').textContent.length>0;}
       if(app==='preorder')result.art=document.querySelector('.reading-preorder').getBoundingClientRect().height>=frame.height*.65;
       if(app==='futu')result.returnLabel=root.querySelector('.reading-head h2')?.textContent==='Daily return';
+      if(app==='quota')result.hasQuota=!!root.querySelector('.quota-card');
       return result;
      })()`)
             for (const [name, ok] of Object.entries(checks))

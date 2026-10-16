@@ -79,7 +79,7 @@ exports.exerciseNavigation = async (win, host) => {
   assert.equal(result.reopened, true)
   assert.equal(result.escapeState.state, 'stopped')
   assert.equal(result.managerOpened, true)
-  assert.equal(result.managerRows, 11)
+  assert.equal(result.managerRows, 12)
   assert.equal(result.filteredRows, 1)
   assert.match(result.filteredName, /Pomodoro/)
   assert.equal(result.failedOpen, false)

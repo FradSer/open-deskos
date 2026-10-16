@@ -9,7 +9,7 @@
     manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     app: 'Pomodoro',
-    state: 'Not started',
+    state: 'App timer',
     interaction: 'display-only',
     opensApp: 'pomodoro',
     mount(el) {

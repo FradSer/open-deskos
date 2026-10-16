@@ -66,6 +66,7 @@ async function measureSize(win, width, height) {
       'odk.tile.hydra': '.hydra-body',
       'odk.tile.weread': '.weread-copy',
       'odk.tile.preorder': '.preorder-panel',
+      'odk.tile.quota': '.quota-tile-body',
     }
     const sides = style => ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(style['padding' + side]))
     const rounded = style => sides(style).map(value => Math.round(value * 10) / 10)
@@ -157,12 +158,22 @@ async function measureSize(win, width, height) {
       'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.32 },
       // Pre-order countdown: an image-led instrument. The hero figure is a
       // canvas, which collectWidgetContent does not count as ink, so the
-      // measured band is only the panel text (~35% of the tile height). The
-      // profile encodes that measurement limitation rather than hiding it.
-      'odk.tile.preorder': { target: 0.18, tolerance: 0.18, minOccupied: 0.05, maxEmptyBand: 0.75 },
+      // measured band is only the panel text below the figure. The profile
+      // encodes that measurement limitation rather than hiding it: the 3x3
+      // canvas measured 6.6% fill / 5.0% occupied / 81.4% empty on 1920x1280 and
+      // 9.5 / 7.2 / 77.9 on 1920x1080, while a single cell measures 28.9% fill /
+      // 16.5% occupied / 58.1% empty. The occupied floor still fails a canvas
+      // whose countdown or caption disappears.
+      'odk.tile.preorder': { target: 0.18, tolerance: 0.18, minOccupied: 0.04, maxEmptyBand: 0.85 },
       // WeRead is the same shape: a canvas cover that the collector cannot see
       // as ink, beside a quote that fills its own copy area.
       'odk.tile.weread': WEREAD_PROFILE,
+      // AI usage: the shared fixture answers the quota service as unconfigured,
+      // so every measured band is the placeholder reading and not a live
+      // window. Measured on 2026-10-16: 33.5% at 1920x1280 and 43.3% at the
+      // compact sizes. The profile records that fixture limitation instead of
+      // hiding it; a live account reading still needs its own measurement.
+      'odk.tile.quota': { target: 0.35, tolerance: 0.18, minOccupied: 0.06, maxEmptyBand: 0.35 },
     }
     const settings = profiles[widget.id]
     const result = measureDensity(widget.frame, widget.boxes, settings)

@@ -9,7 +9,7 @@ Feature: Replace the Pomodoro surface without changing behavior
     And normal shutdown releases handlers, signed routes, subscriptions, and private listeners
 
   Scenario: Independent surfaces preserve the current product state
-    Given Pomodoro reports not started
+    Given the Pomodoro Widget identifies the App timer without reporting its session state
     When independently constructed surfaces replace their built-in definitions
     Then their names, state text, static artwork, placement contracts, and display-only behavior remain unchanged
     And they acquire no provider, Tick, connection, or input subscriptions

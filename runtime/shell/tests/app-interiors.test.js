@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const APPS_SOURCE = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'plugins', 'apps.js'), 'utf8')
+const QUOTA_SOURCE = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'plugins', 'quota-page.js'), 'utf8')
 
 function markupFor(appId) {
   const marker = `app('${appId}'`
@@ -30,8 +31,8 @@ test('simple built-in App interiors use the shared semantic anatomy', () => {
   assert.match(clock, /class="runtime-state app-detail"/)
 
   const pomodoro = markupFor('pomodoro')
-  assert.match(pomodoro, /class="runtime-state app-detail">Timer unavailable<\/p>/)
-  assert.doesNotMatch(pomodoro, /Start timer/)
+  assert.match(pomodoro, /class="runtime-state app-detail"/)
+  assert.match(pomodoro, /class="button-pill button-primary pomodoro-toggle"/)
 })
 
 test('Built-in views provides a visible associated search label and shared list anatomy', () => {
@@ -44,4 +45,16 @@ test('Built-in views provides a visible associated search label and shared list 
   assert.match(markup, /<input id="app-search" class="app-search" type="search" aria-label="Search built-in views"/)
   assert.match(markup, /class="app-manager-status runtime-state app-detail" role="status" aria-live="polite"/)
   assert.match(markup, /<ul class="app-list"><\/ul>/)
+})
+
+test('the AI usage App interior uses the same semantic anatomy', () => {
+  // The surface is mounted by a shared function, so the App wrapper and the
+  // card it hosts are asserted where that function and its registration live.
+  assert.match(QUOTA_SOURCE, /id: 'odk\.app\.quota'/)
+  assert.match(QUOTA_SOURCE, /class="runtime-app quota-app" data-view="quota"/)
+  assert.match(QUOTA_SOURCE, /class="app-surface-header"><h2 class="app-surface-heading">AI usage &amp; quotas<\/h2>/)
+  assert.match(QUOTA_SOURCE, /class="\$\{rootClass\}"/)
+  assert.match(QUOTA_SOURCE, /<h1 class="quota-title">AI usage &amp; quotas<\/h1>/)
+  assert.match(QUOTA_SOURCE, /id="quota-refresh"/)
+  assert.match(QUOTA_SOURCE, /class="provider-quota-grid" id="quota-metrics"/)
 })

@@ -6,6 +6,7 @@ const path = require('node:path')
 const { createPluginHost } = require('../src/plugin-host')
 const { createRendererDevelopmentPlugin } = require('../src/plugins/renderer-development')
 const { loadDevelopmentPlugins } = require('../src/development-plugins')
+const { quotaPagePlacementSource } = require('./helpers/quota-page-placement')
 const { loadNativeRendererPlugins } = require('../src/native-plugin-loader')
 const { readConfig, resolveConfigPath } = require('../src/plugin-config')
 const { createNativeRendererAssets } = require('../src/native-renderer-assets')
@@ -74,6 +75,7 @@ app.whenReady().then(async () => {
   await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
     const ActualDate=Date, epoch=new ActualDate(2026,0,1,12,0).getTime();
     window.Date=class extends ActualDate{constructor(...args){super(...(args.length?args:[epoch]))}static now(){return epoch}};
+    ${quotaPagePlacementSource}
     let services;
     window.quotaCallbacks=[];window.quotaSubscriptions=new Set();
     Object.defineProperty(window,'odkServices',{configurable:true,get(){return services},set(value){

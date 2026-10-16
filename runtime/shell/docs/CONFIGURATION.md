@@ -33,6 +33,11 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_CHANNEL_TOKEN_FILE` | L3 device (sensitive) | Plugin and Personal Bot clients | integrations/futu-poller/poller.py, integrations/personal-bot/src/runtime-channel.mjs | — | Read-only client token file for TCP or named-pipe channels. The bot uses it for app control and Open DeskOS Data. Unix socket ownership supplies authentication without a token. |
 | `HOME` | Environment | Login session | runtime/shell/src/opencode-go.js, runtime/shell/src/plugin-config.js | — | Find host configuration and credentials. |
 | `LIBGL_ALWAYS_SOFTWARE` | Environment | Operator | runtime/shell/src/main.js | — | Force software rendering for diagnosis. |
+| `ODK_AGENT_BROWSER_PROBE_TIMEOUT` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | 120 | Deadline in seconds for each browser verification command. |
+| `ODK_AGENT_BROWSER_SHA256` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | Pinned in consumer | SHA-256 digest for the CLI archive. A version override requires its matching reviewed digest. |
+| `ODK_AGENT_BROWSER_VERSION` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | 0.39.1 | Pinned CLI release. Change the version and archive digest together. |
+| `ODK_CHROME_SHA256` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | Pinned in consumer | SHA-256 digest for the browser archive. A version override requires its matching reviewed digest. |
+| `ODK_CHROME_VERSION` | L2 install | Installer override | runtime/shell/scripts/cm5-agent-browser.sh | 155.0.8059.79 | Pinned Chrome for Testing release. Change the version and archive digest together. |
 | `LOCALAPPDATA` | Environment | Windows user session | runtime/shell/src/platform/index.js | — | Windows persistent state root. If absent, use AppData/Local under the user directory. |
 | `ODK_APPS_CONTROL_SOCKET` | Test | Test process | integrations/personal-bot/src/apps-control.mjs | Host app control socket (Windows: `\\.\pipe\odk-user-app-control`) | Test override only. Production uses the host endpoint. A missing Unix runtime directory makes the channel unavailable; do not guess a path. |
 | `ODK_CAMERA_DEVICE` | L3 device | Operator | runtime/shell/src/camera-source.js | — | Camera device override. |

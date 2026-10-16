@@ -18,6 +18,9 @@ app.on('window-all-closed', () => {})
 const widget = (revision, pageId = 'reading', col = '4') => ({ id: 'note', name: 'Notes 笔记', kind: 'widget', revision, placement: { pageId, col, row: '3' } })
 const interactive = { id: 'counter', name: 'Counter', kind: 'app', revision: 'r1' }
 const js = source => win.webContents.executeJavaScript(source)
+// Pages are addressed by layout id: inserting a display page shifts every
+// positional dot and silently retargets a click onto another surface.
+const clickDot = pageId => js(`document.querySelectorAll('#dots .dot')[[...document.querySelectorAll('#pages-track > .page')].findIndex(page => page.dataset.pageId === '${pageId}')].click()`)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function wait(expression) {
   for (let i = 0; i < 150; i++) { if (await js(expression)) return; await delay(40) }
@@ -72,16 +75,18 @@ app.whenReady().then(async () => {
   assert.equal(await js(`getComputedStyle(document.querySelector('[data-user-app-id="note"] iframe')).pointerEvents`), 'none')
   const appFrame = win.webContents.mainFrame.frames.find(frame => frame.url.includes('/counter/'))
   await appFrame.executeJavaScript('counter.click()')
-  await js(`window.oldWidget=document.querySelector('[data-user-app-id="note"] iframe'); document.querySelectorAll('#dots .dot')[2].click()`)
+  await js(`window.oldWidget=document.querySelector('[data-user-app-id="note"] iframe')`)
+  await clickDot('reading')
   await update([widget('r2', 'reading', '5'), interactive])
   await wait(`document.querySelector('[data-user-app-id="note"] iframe')?.dataset.revision === 'r2'`)
   assert.equal(await js(`oldWidget.isConnected`), false)
   assert.equal(await js(`originalBuiltin === document.querySelector('[data-widget="odk.tile.year"]') && originalPage === document.querySelector('[data-page-id="home"]')`), true)
   assert.equal(await appFrame.executeJavaScript('counter.textContent'), '1')
-  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Reading, page 3 of 6. Swipe left or right to change page.')
+  assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Reading, page 4 of 6. Swipe left or right to change page.')
   await js(`window.responsiveWidget=document.querySelector('[data-user-app-id="note"] iframe')`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
-    await js(`odkTheme.set('${theme}'); document.querySelectorAll('#dots .dot')[2].click()`)
+    await js(`odkTheme.set('${theme}')`)
+    await clickDot('reading')
     for (const width of [1920, 320]) {
       win.setContentSize(width, width === 1920 ? 1280 : 480)
       await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
@@ -123,7 +128,8 @@ app.whenReady().then(async () => {
   // Existing App pages retain their DOM position; add another after Counter.
   await update([...apps, { ...interactive, id: 'later', name: 'Later' }])
   await wait(`document.querySelectorAll('#dots .dot').length === 8`)
-  await js(`document.querySelectorAll('#dots .dot')[7].click(); window.savedVoice=odkPersonalBotStatus; window.odkPersonalBotStatus={visible:()=>true}; true`)
+  await clickDot('installed:later')
+  await js(`window.savedVoice=odkPersonalBotStatus; window.odkPersonalBotStatus={visible:()=>true}; true`)
   await update([widget('r2', 'reading', '5'), interactive, { ...interactive, id: 'later', name: 'Later' }])
   assert.equal(await js(`document.querySelector('.dot[aria-current="page"]').getAttribute('aria-label')`), 'Later, page 7 of 7. Swipe left or right to change page.')
   await js(`window.odkPersonalBotStatus=window.savedVoice; true`)

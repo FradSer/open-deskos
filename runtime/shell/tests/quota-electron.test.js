@@ -6,7 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 const execFile = require('node:util').promisify(require('node:child_process').execFile)
 
-test('default and signed independent Quota preserve the actual Electron page consumer', { timeout: 60000 }, async () => {
+test('default and signed independent Quota preserve the actual Electron App consumer', { timeout: 60000 }, async () => {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-quota-render-'))
   const env = { ...process.env, ODK_QUOTA_PLUGIN_PROFILE: profile }
   delete env.ELECTRON_RUN_AS_NODE

@@ -21,9 +21,9 @@ async function exerciseBuiltinMainViews(win, host, { version, configPath }) {
       if (id === 'clock') assert.equal(readings[id].value, '12:34', 'Production built-in Clock reading changed')
       if (id === 'calendar') assert.equal(readings[id].date, '2026-01-01')
       if (id === 'year') assert.equal(readings[id].value, '0%')
-      if (id === 'pomodoro') assert.equal(readings[id].state, 'Timer unavailable')
+      if (id === 'pomodoro') assert.equal(readings[id].value, '25:00')
       if (id === 'app-manager') {
-        assert.equal(readings[id].rows.length, 11)
+        assert.equal(readings[id].rows.length, 12)
         await js("(()=>{const input=document.querySelector('#app-search');input.value=' CLOCK ';input.dispatchEvent(new Event('input'))})()")
         assert.equal(await js("document.querySelectorAll('#app-runtime .app-list li').length"), 1)
         assert.equal(await js("document.querySelector('#app-runtime .app-list strong').textContent"), 'Clock')

@@ -7455,3 +7455,43 @@ The subsequent local Appearance command passed all eighteen checks with its 677 
 The complete CM5 command in [Scope and status](#scope-and-status) subsequently passed after that fixture change.
 Both signed-startup and empty-startup diagnostic copies completed on CM5 in approximately six seconds with offscreen rendering.
 The fixture retains its existing deadline, font readiness, geometry checks, and theme assertions.
+
+
+## Home Widget and App integration candidate
+
+Home contains six Widgets, including the AI usage Widget.
+`odk.tile.quota` opens `odk.app.quota` through the shared App manager.
+The shipped layout has no Usage page.
+`odk.page.quota` remains registered for existing page replacements.
+Page-surface acceptance places that page explicitly.
+
+The Quota Widget reads the shared service on each Tick.
+Only healthy accounts with finite percentages can supply its meter.
+Unknown readings hide the meter and retain no accessible percentage.
+The low-state threshold uses the raw reading before display rounding.
+The App owns quota refresh and account details.
+
+The Pomodoro App retains one session across view closure.
+Controls and public actions share that session.
+Repeated Start retains the original completion time.
+The resting Widget identifies the App timer without claiming a session state.
+It acquires no provider, Tick, connection, or input subscriptions.
+The independent App fixture uses its own session through the public context.
+
+Pre-order has a dedicated three-by-three page.
+Reading retains its three-by-three WeRead Widget.
+Desk retains Hydra.
+
+Focused Node checks passed 156 tests on 2026-10-17.
+The style build generated 45 utilities.
+Private CM5 runs passed the complete geometry, E2E, and smoke commands with Electron 43.5.0.
+The subsequent Quota fill repair passed all six affected Electron checks on CM5.
+These checks cover the default App, production Main, development page, signed page, and authenticated page recovery.
+They measure actual meter widths under the existing Content Security Policy.
+The [pull request](https://github.com/FradSer/open-deskos/pull/34) records the combined Linux full-suite result.
+The density fixture measures the unavailable Quota placeholder.
+It does not establish the density of a live account reading.
+
+No device deployment is included in this change.
+Physical input, production device pixels, and screen-reader output remain unverified.
+Independent replacements of `odk.app.quota` and `odk.tile.quota` remain unproven.

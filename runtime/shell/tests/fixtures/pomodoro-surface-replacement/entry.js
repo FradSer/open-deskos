@@ -4,7 +4,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.pomodoro', manifest: { schemaVersion: 1, version: '2.0.0', minCell: 186 },
-    kind: 'tile', app: 'Pomodoro', state: 'Not started', interaction: 'display-only', opensApp: 'pomodoro',
+    kind: 'tile', app: 'Pomodoro', state: 'App timer', interaction: 'display-only', opensApp: 'pomodoro',
     mount(element) {
       const make = (tag, className, text) => {
         const node = document.createElement(tag)
@@ -25,7 +25,7 @@
       }
       ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Focus'))
       body.append(ring)
-      element.replaceChildren(make('span', 'pomodoro-state w-state', 'Not started'), body)
+      element.replaceChildren(make('span', 'pomodoro-state w-state', 'App timer'), body)
     },
   })
 })(window)

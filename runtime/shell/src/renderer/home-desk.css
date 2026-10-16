@@ -187,8 +187,10 @@ html[data-theme='pixel'] #home-summary .dash {
 #app-view[data-return-gesture="true"] .runtime-app:not(.pi-app-wrapper) > .app-surface-header { min-height: 0; padding: 0; }
 #app-view .pi-app-wrapper .pi-app-header > .app-surface-heading { position: static; width: 100%; height: auto; margin: 0; overflow: visible; clip-path: none; white-space: normal; }
 #app-view .runtime-app[data-view="pomodoro"] { justify-content: center; }
-.app-empty-state { width: min(100%, 34ch); margin: auto; text-align: center; display: grid; justify-items: center; gap: var(--odk-space-3); }
-.pomodoro-empty-dial { display: grid; place-items: center; width: 180px; aspect-ratio: 1; border: 2px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); font: 700 40px "Montserrat", "Noto Sans SC", "Zpix", sans-serif; color: var(--odk-secondary-strong); }
+.pomodoro-app-body { width: min(100%, 34ch); margin: auto; text-align: center; display: grid; justify-items: center; gap: var(--odk-space-3); }
+.pomodoro-dial { display: grid; place-items: center; width: 180px; aspect-ratio: 1; border: 2px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); font: 700 40px "Montserrat", "Noto Sans SC", "Zpix", sans-serif; color: var(--odk-primary); font-variant-numeric: tabular-nums; margin-inline: auto; }
+.pomodoro-dial.is-running { border-color: var(--odk-primary); }
+.pomodoro-controls { display: flex; gap: var(--odk-space-3); justify-content: center; margin-top: var(--odk-space-2); }
 #app-view .runtime-app[data-view="year"] { justify-content: center; gap: var(--odk-space-4); }
 .year-reading { display: grid; justify-items: center; gap: var(--odk-space-4); margin-block: auto; }
 #app-view .year-reading .runtime-value { font-size: clamp(64px, 22cqi, 180px); line-height: 1; margin: 0; }

@@ -8,6 +8,7 @@ app.setPath('userData', profile)
 app.setPath('sessionData', profile)
 const { fixture, channel } = require('./helpers/quota-runtime')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
+const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const callbacks = []
 let win
 let finishing
@@ -39,6 +40,14 @@ function finish(code, error) {
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   installGeometryFixtures(ipcMain)
+  // AI usage is a Widget App now, so the Shell needs the shared App manager the
+  // same way every other Widget App fixture carries it.
+  const appManager = createAppManagerEndpoint()
+  for (const [name, handler] of [
+    ['odk-app-manager-list', () => appManager.list()],
+    ['odk-app-manager-state', (_event, appId) => appManager.get(appId)],
+    ['odk-app-manager-intent', (_event, intent) => appManager.dispatch(intent)],
+  ]) { ipcMain.removeHandler(name); ipcMain.handle(name, handler) }
   ipcMain.removeHandler(channel)
   win = new BrowserWindow({ show: false, width: 1920, height: 1280, useContentSize: true, webPreferences: {
     preload: path.resolve(__dirname, '../src/preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true, offscreen: true, backgroundThrottling: false,
@@ -63,9 +72,15 @@ app.whenReady().then(async () => {
     await document.fonts.ready;
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   })()`)
+  const openUsage = () => js(`(async () => {
+    if (odkAppPlatform.active()?.appId !== 'quota') await odkAppPlatform.openApp({ appId: 'quota' });
+  })()`)
   const collect = async () => {
     const result = await js(`(async () => { try {
-    const page = document.querySelector('.page[data-page-id="quota"]');
+    // AI usage is a Widget App: the Widget opens the App, and the App view owns
+    // the quota surface.
+    const page = document.querySelector('#app-view');
+    if (page.hidden) throw Error('Quota App is not open');
     const button = page.querySelector('#quota-refresh');
     const feedback = page.querySelector('#quota-feedback');
     const metrics = page.querySelector('#quota-metrics');
@@ -73,7 +88,7 @@ app.whenReady().then(async () => {
     const rect = button.getBoundingClientRect();
     const bounds = page.getBoundingClientRect();
     if (getComputedStyle(page).visibility === 'hidden' || bounds.right <= 0 || bounds.left >= innerWidth) throw Error('Quota page is not visible');
-    if (rect.width <= 0 || rect.right > bounds.right + 1 || rect.left < bounds.left - 1 || rect.right > innerWidth + 1 || rect.left < 0) throw Error('Quota refresh control outside page');
+    if (rect.width <= 0 || rect.right > bounds.right + 1 || rect.left < bounds.left - 1 || rect.right > innerWidth + 1 || rect.left < 0) throw Error('Quota refresh control outside the App surface');
     if (parseFloat(getComputedStyle(button).fontSize) < 14) throw Error('Quota refresh text too small');
     for (const card of metrics.querySelectorAll('.provider-quota-card')) {
       if (card.scrollWidth > card.clientWidth + 1) throw Error('Quota account overflows horizontally');
@@ -82,6 +97,9 @@ app.whenReady().then(async () => {
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const box = card.getBoundingClientRect();
         const reading = meter.getBoundingClientRect();
+        const expectedFill = meter.clientWidth * Number(meter.getAttribute('aria-valuenow')) / 100;
+        const actualFill = meter.querySelector('.provider-quota-fill').getBoundingClientRect().width;
+        if (Math.abs(actualFill - expectedFill) > 1) throw Error('Rendered quota fill does not match its percentage');
         if (reading.width <= 0 || reading.height <= 0 || reading.left < box.left || reading.right > box.right + 1
           || reading.top < box.top || reading.bottom > box.bottom + 1) throw Error('Quota meter outside account');
         if (reading.left < 0 || reading.right > innerWidth + 1 || reading.top < 0 || reading.bottom > innerHeight + 1) throw Error('Quota meter outside viewport');
@@ -90,6 +108,7 @@ app.whenReady().then(async () => {
     return {
       theme: document.documentElement.dataset.theme,
       context: document.querySelector('#page-context').textContent,
+      app: odkAppPlatform.active()?.appId || null,
       count: page.querySelector('#quota-count').textContent,
       feedback: feedback.textContent, role: feedback.getAttribute('role'), live: feedback.getAttribute('aria-live'),
       metrics: metrics.textContent.replace(/\\s+/g, ' ').trim(), cards: metrics.querySelectorAll('.provider-quota-card').length,
@@ -116,7 +135,8 @@ app.whenReady().then(async () => {
         response = live
         await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
         await js('window.odkShellReady')
-        await js(`window.odkTheme.set(${JSON.stringify(theme)}); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))`)
+        await js(`window.odkTheme.set(${JSON.stringify(theme)})`)
+        await openUsage()
         await waitReady()
         const results = [await collect()]
         assert.equal(results[0].cards, 2)
@@ -173,11 +193,14 @@ app.whenReady().then(async () => {
         await waitReady()
         results.push(await collect())
         assert.equal(results[7].cards, 2)
+        await js(`odkAppPlatform.closeApp()`)
         await js(`document.querySelectorAll('#dots .dot')[0].click()`)
         assert.match(await js('document.querySelector("#page-context").textContent'), /Home/)
-        await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))`)
+        // The Home Widget is the only way to the App: paging cannot reach it.
+        assert.equal(await js(`document.querySelector('#pages-track .page[data-page-id="quota"]') === null`), true)
+        await js(`document.querySelector('[data-widget="odk.tile.quota"] .widget-launch').click()`)
         await waitReady()
-        assert.match((await collect()).context, /Usage/)
+        assert.equal((await collect()).app, 'quota')
         const key = `${size.join('x')}/${theme}`
         if (replacement) assert.deepEqual(results, baseline.get(key))
         else baseline.set(key, results)

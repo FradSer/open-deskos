@@ -18,8 +18,8 @@ Feature: A calm and precise desk instrument
 
   Scenario: Usage keeps recovery actions in its compact header
     Given OpenCode Go is unconfigured or unavailable
-    When the user opens Usage in a compact window
-    Then the last-check time and refresh action appear beside the page title in one compact header
+    When the user opens the AI usage App from its Home Widget in a compact window
+    Then the last-check time and refresh action appear beside the title in one compact header
     And the header controls appear before optional metric details
     And no redundant navigation help is rendered
     And empty-state prose is separated from numerical metrics
