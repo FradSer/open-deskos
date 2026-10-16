@@ -43,7 +43,13 @@ async function checkPageLocations(session, data, boundary) {
   } catch (error) {
     // Retire the refused page before subsequent actions. closePage rotates its
     // epoch even when cleanup cannot be confirmed; never reuse that daemon.
-    await session.closePage()
+    try {
+      await session.closePage()
+    } catch {
+      const refusal = new BrowserError(`${error.message} 页面会话已隔离，但浏览器关闭未获确认。请报告拒绝及未确认的释放状态，不要自动重试。`)
+      refusal.outcomeUnknown = true
+      throw refusal
+    }
     throw error
   }
 }
