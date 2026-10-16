@@ -25,6 +25,7 @@ LIB_DIR="/usr/lib/aarch64-linux-gnu"
 MALI_BLOB_DIR="${LIB_DIR}/libmali"
 MESA_DIVERSION_DIR="${LIB_DIR}/odk-mesa"
 FIRMWARE_DIR="/lib/firmware"
+source "$(dirname -- "${BASH_SOURCE[0]}")/cm5-glamor-bgra.sh"
 
 # Soname aliases Chromium, Xorg (glamor) and GBM clients resolve at runtime.
 SONAMES=(libEGL.so.1 libGLESv2.so.2 libgbm.so.1)
@@ -73,7 +74,7 @@ download_verified() { # url dest expected_sha description
     return 0
   fi
   local tmp
-  tmp="$(mktemp "${dest}.XXXXXX")"
+  tmp="$(mktemp)"
   echo "  downloading ${description} from ${url}"
   if ! curl -fsSL --retry 2 --max-time 300 -o "$tmp" "$url"; then
     rm -f "$tmp"
@@ -133,6 +134,7 @@ install_firmware() {
 install_all() {
   check_arch
   require_tools
+  install_glamor
   install_firmware
   install_blob
   echo "== installed =="
@@ -144,6 +146,7 @@ install_all() {
 remove_all() {
   check_arch
   require_tools
+  remove_glamor
   echo "== removing Mali userspace blob =="
   for soname in "${SONAMES[@]}"; do
     if [ -L "${LIB_DIR}/${soname}" ] && [ "$(readlink -f "${LIB_DIR}/${soname}")" = "${MALI_BLOB_DIR}/${MALI_BLOB_FILE}" ]; then
@@ -169,6 +172,7 @@ remove_all() {
 
 verify_all() {
   local status=0
+  verify_glamor || status=1
   echo "== verification =="
   if [ -e /dev/mali0 ]; then
     echo "  kbase device: /dev/mali0 present"

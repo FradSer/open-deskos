@@ -1,0 +1,21 @@
+From: Jeffy Chen <jeffy.chen@rock-chips.com>
+Subject: Use BGRA channel formats for GLES glamor on Mali
+Origin: https://github.com/JeffyCN/xorg-xserver/commit/abcfaefc1eb3f4d4340a218afc0ae2b38c3fb60d
+The Debian source already contains the separate one-bit picture format fix.
+
+--- a/glamor/glamor.c
++++ b/glamor/glamor.c
+@@ -587,9 +587,9 @@
+     if (glamor_priv->is_gles) {
+         assert(X_BYTE_ORDER == X_LITTLE_ENDIAN);
+-        glamor_add_format(screen, 24, PICT_x8b8g8r8,
+-                          GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, TRUE);
+-        glamor_add_format(screen, 32, PICT_a8b8g8r8,
+-                          GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, TRUE);
++        glamor_add_format(screen, 24, PICT_x8r8g8b8,
++                          GL_BGRA, GL_BGRA, GL_UNSIGNED_BYTE, TRUE);
++        glamor_add_format(screen, 32, PICT_a8r8g8b8,
++                          GL_BGRA, GL_BGRA, GL_UNSIGNED_BYTE, TRUE);
+     } else {
+         glamor_add_format(screen, 24, PICT_x8r8g8b8,
+                           GL_RGBA, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, TRUE);

@@ -55,3 +55,26 @@ test('renderer diagnosis removes destroyed frames without accessing the destroye
   onDestroyed()
   assert.equal(diagnosisFrames.size, 0)
 })
+
+test('smoke settles once when load and deadline callbacks race', () => {
+  const checkSource = source.slice(source.indexOf('function runSmokeCheck('), source.indexOf('async function main()'))
+  for (const first of ['timeout', 'load']) {
+    const results = []
+    let onLoad
+    let onTimeout
+    const context = vm.createContext({
+      setTimeout(callback, delay) { assert.equal(delay, 15000); onTimeout = callback; return 1 },
+      clearTimeout() {},
+      finishSmoke: result => results.push(result),
+    })
+    vm.runInContext(checkSource, context)
+    context.runSmokeCheck({
+      webContents: { once(event, callback) { assert.equal(event, 'did-finish-load'); onLoad = callback } },
+      getContentBounds: () => ({ width: 1280, height: 800 }),
+    }, { width: 1280, height: 800 })
+    if (first === 'timeout') { onTimeout(); onLoad() }
+    else { onLoad(); onTimeout() }
+    assert.equal(results.length, 1)
+    assert.equal(results[0].ok, first === 'load')
+  }
+})
