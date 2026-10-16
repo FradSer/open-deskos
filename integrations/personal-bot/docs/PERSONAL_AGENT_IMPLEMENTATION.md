@@ -53,6 +53,7 @@ The original worktrees retain their uncommitted source snapshots.
 
 Review corrections retain cleanup failures across concurrent close calls.
 Browser output checks observed locations and uses fresh host delimiters.
+Refused page sessions retire before later actions, including when cleanup remains unconfirmed.
 Host downloads require pinned digests before installation.
 The installer no longer contains the unused user-switch helper.
 
@@ -63,7 +64,7 @@ Rows marked previous retain their original evidence boundary.
 
 | Check | Result | Evidence boundary |
 | --- | --- | --- |
-| Personal Bot suite | 813 total; 807 passed; six skipped | Published integration with browser and repeated-close regressions; concurrency four; original deadlines retained |
+| Personal Bot suite | 814 total; 808 passed; six skipped | Published integration with browser and repeated-close regressions; concurrency four; original deadlines retained |
 | Typecheck | Passed | Current Personal Bot candidate |
 | Shell Node gate | Previous: 2295 total; 2293 passed; two skipped | Shared host contracts before this integration |
 | Affected Shell contracts | 18 passed | Current installer, activity frame, and socket client |
