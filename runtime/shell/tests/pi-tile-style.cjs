@@ -40,6 +40,18 @@ ipcMain.handle('odk-pi-sessions', () => scan)
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+async function settleViewport(win, width, height) {
+  const deadline = Date.now() + 6000
+  let actual
+  while (Date.now() < deadline) {
+    actual = await win.webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, scale: devicePixelRatio, gridWidth: window.__odkGrid?.width, gridHeight: window.__odkGrid?.height })`)
+    if (actual.width === width && actual.height === height && actual.scale === 1
+      && actual.gridWidth === width && actual.gridHeight === height) return
+    await wait(30)
+  }
+  assert.fail(`Pi viewport did not settle at ${width}x${height}: ${JSON.stringify(actual)}`)
+}
+
 const READ = `(() => { try {
   const GOAL_FLOOR = ${GOAL_FLOOR}
   const host = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
@@ -66,6 +78,7 @@ const READ = `(() => { try {
   const needsWrap = singleLineWidth > goal.clientWidth + 1
   return {
     error: null,
+    viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
     cell: Math.round(host.getBoundingClientRect().width),
     layoutCell: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-dim')) || 0,
     text: goal.textContent.trim(),
@@ -86,21 +99,34 @@ const READ = `(() => { try {
 async function main() {
   const win = new BrowserWindow({
     width: 1280, height: 776, frame: false, show: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, offscreen: true },
   })
+  assert.equal(win.webContents.isOffscreen(), true, 'hidden Pi geometry renders offscreen')
+  assert.equal(win.webContents.isPainting(), true, 'Pi layout callbacks have an active frame source')
+  win.webContents.setZoomFactor(1)
   const results = []
   for (const [state, payload] of SCANS) {
     scan = payload
     await win.loadFile(path.join(root, 'src/renderer/index.html'))
+    if (!win.webContents.debugger.isAttached()) {
+      win.webContents.debugger.attach('1.3')
+      await win.webContents.debugger.sendCommand('Page.enable')
+    }
     for (const [name, cell, width, height, forcedCell] of CASES) {
       win.setContentSize(width, height)
+      await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width, height, deviceScaleFactor: 1, mobile: false,
+      })
       await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
-      await wait(500)
+      await settleViewport(win, width, height)
       if (forcedCell) await win.webContents.executeJavaScript(`(() => { const tile = document.querySelector('[data-widget="odk.tile.pi-sessions"]'); tile.style.width = '${forcedCell}px'; tile.style.height = '${forcedCell}px' })()`)
       for (const theme of THEMES) {
         await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
         await wait(400)
+        await win.webContents.executeJavaScript(`document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
         const reading = await win.webContents.executeJavaScript(READ)
+        assert.equal(reading.error, null, `${name} ${state} ${theme}: ${reading.error}`)
+        assert.deepEqual(reading.viewport, { width, height, scale: 1 }, `${name} ${state} ${theme}: measured viewport matches the case`)
         results.push({ panel: name, state, theme, ...reading })
       }
     }
