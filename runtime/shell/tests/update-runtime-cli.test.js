@@ -113,8 +113,17 @@ test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8'), /ODK_KIOSK_UID="\$\{TARGET_UID\}"/)
 })
 
+function gnuTimeoutUnavailableReason() {
+  const { spawnSync } = require('node:child_process')
+  const probe = spawnSync('timeout', ['--version'], {
+    encoding: 'utf8', timeout: 1000, killSignal: 'SIGKILL',
+  })
+  return probe.status === 0 && /GNU coreutils/.test(probe.stdout)
+    ? false : 'The CM5 process regression requires GNU coreutils timeout on PATH'
+}
+
 test('stalled verifier fails, rolls back, and releases its lock without leaving its child running', {
-  skip: require('./not-ported').posixOnlyReason('cm5-tooling'),
+  skip: require('./not-ported').posixOnlyReason('cm5-tooling') || gnuTimeoutUnavailableReason(),
 }, async () => {
   const os = require('node:os')
   const vm = require('node:vm')

@@ -88,3 +88,9 @@ Feature: Immutable runtime release deployment
     Given the smoke window has exceeded its 15-second load deadline
     When its load event arrives before Electron exits
     Then smoke reports only the original failure
+
+  Scenario: A portable test host lacks the CM5 command supervisor
+    Given a test host without GNU coreutils timeout on PATH
+    When release command tests run
+    Then the real CM5 process regression declares the missing prerequisite
+    And the remaining release contract tests still run
