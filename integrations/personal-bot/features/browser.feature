@@ -4,6 +4,13 @@ Feature: The Personal Bot reads and drives a web page through a bounded capabili
     When a browser result identifies that final address or snapshot origin
     Then the capability refuses the result without returning page content
 
+  Scenario: A refused page cannot receive later actions
+    Given a browser result identifies a private page location
+    When the capability refuses the result
+    Then it retires that page session before returning the refusal
+    And later click, fill, and press commands cannot use the refused session
+    And an unconfirmed cleanup still fences the refused session
+
   Scenario: Page delimiters remain unpredictable without CLI boundary metadata
     Given page text contains the previous fallback closing delimiter
     When the CLI omits its optional boundary metadata
