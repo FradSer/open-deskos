@@ -33,6 +33,13 @@ Feature: Every Personal Bot user turn is routed by Jev
     Then Jev selects a typed intent before memory, proposal queries, Pi prompts or capability execution
     And the selected intent dispatches its own workflow using the unchanged user request
 
+  Scenario: Routed shortcuts do not resume pending Durable work
+    Given pending Durable work without a current owner request
+    When Jev selects clarification or suggestions, or its request fails
+    Then the coordinator returns the shortcut answer without resuming Durable work
+    And a later model-bound request recovers pending work after routing and before its new turn begins
+    And recovered submissions cannot borrow the new request's selected intent
+
   Scenario: Uncertainty and provider failures cannot bypass Jev
     Given an ambiguous intent, malformed judgment, missing credential or failed Jev request
     When the user sends a turn

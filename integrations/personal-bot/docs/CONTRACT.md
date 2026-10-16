@@ -381,8 +381,11 @@ Existing Durable history takes precedence. Later starts do not repeat the import
 Legacy session files remain unchanged.
 Imported messages create no submissions, tasks, tools, or authorization.
 
-The coordinator recovers pending Durable work before routing the next owner request.
+The coordinator routes each owner request before it resumes pending Durable work.
+Answers for clarification, suggestions, or unavailable routing do not resume pending work or prompt the reasoning model.
+For requests that need the reasoning model, recovery completes before the new owner turn begins.
 Tool admission matches the persisted submission identity against a new host-only request nonce.
+The selected intent does not authorize a recovered submission.
 Recovered work cannot use a later request's intent, confirmation, or mutation reservations.
 Reviewed capabilities retain their argument validation and exact-turn guards.
 They use sequential execution and unsafe replay declarations, including capabilities with read-only catalog hints.
