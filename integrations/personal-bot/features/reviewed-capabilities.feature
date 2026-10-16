@@ -24,3 +24,9 @@ Feature: Reviewed resident capabilities
     When a different intent requests that tool
     Then the capability remains unavailable
     And generic extension routing cannot bypass the workflow gate
+
+  Scenario: Preserve uncertain cleanup across repeated disposal
+    Given a reviewed capability cannot confirm resource cleanup
+    When concurrent callers close the reviewed runtime
+    Then every caller observes the same cleanup failure
+    And a later close cannot report a confirmed release
