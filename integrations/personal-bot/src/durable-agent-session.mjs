@@ -7,6 +7,30 @@ import { createReadOnlyTools, createFindTool } from '@earendil-works/pi-coding-a
 import { openDurableRuntime, durableCapability, createPiExecutionTarget } from './durable-runtime.mjs'
 import { importLegacyContext } from './durable-legacy-context.mjs'
 
+/** @typedef {{status: 'succeeded'|'failed', output: string, diagnostics: {severity: 'info'|'warn'|'error', code?: string, message: string}[], truncated: boolean}} ComputationOutcome */
+/** @typedef {{requestId: string, taskId: string, callId: string, source: string, truncated: boolean, kind: 'computation', learningEligible: false}} ComputationStart */
+
+/** Keep executable source and results as bounded, untrusted computation evidence. */
+function computationOutcome(result) {
+  let output = '', truncated = false
+  for (const part of result.output ?? []) {
+    if (part.type !== 'text') { truncated = true; continue }
+    const text = `${output ? '\n' : ''}${part.text}`
+    const remaining = Math.max(0, 16000 - output.length)
+    output += text.slice(0, remaining)
+    if (text.length > remaining) truncated = true
+  }
+  const diagnostics = (result.diagnostics ?? []).slice(0, 16).map(item => ({
+    severity: item.severity, ...(item.code ? { code: item.code.slice(0, 128) } : {}), message: item.message.slice(0, 1000),
+  }))
+  truncated ||= (result.diagnostics?.length ?? 0) > diagnostics.length || (result.diagnostics ?? []).some(item =>
+    item.message.length > 1000 || (item.code?.length ?? 0) > 128 || /truncat|limit/i.test(item.code ?? ''))
+  // Code Mode formats its own truncation before ToolTask hooks run. A spill
+  // path and the SDK's warning both mean that the retained text is incomplete.
+  truncated ||= Boolean(result.details?.fullOutputPath) || output.includes('Warning: truncated output')
+  return { status: result.isError ? 'failed' : 'succeeded', output, diagnostics, truncated }
+}
+
 /** Preserve reviewed historical direct calls without advertising their schemas.
  * Durable validates against its persisted execution loadout. Only the provider
  * transport sees the smaller declaration set, as the previous Code Mode did.
@@ -49,7 +73,9 @@ function inspectionTools(cwd, target) {
 
 /** The resident port keeps its response events while Durable owns execution and storage.
  * @param {import('@earendil-works/pi-coding-agent').CreateAgentSessionOptions & {
- * durableDirectory?: string, ephemeral?: boolean
+ * durableDirectory?: string, ephemeral?: boolean,
+ * observeInspectionTools?: (tools: import('@earendil-works/pi-durable').ToolRegistration[]) => import('@earendil-works/pi-durable').ToolRegistration[],
+ * observeCodeModeExecution?: (start: ComputationStart) => ((outcome: ComputationOutcome) => void)
  * }} options
  * @param {{createTarget?: typeof createPiExecutionTarget}} [dependencies]
  */
@@ -66,30 +92,48 @@ export async function createDurableAgentSession(options, { createTarget = create
   const excluded = new Set(options.excludeTools ?? [])
   const target = ephemeral || excluded.has('read') ? undefined : createTarget({ cwd })
   const inspection = target ? inspectionTools(cwd, target) : []
+  const observedInspection = options.observeInspectionTools ? options.observeInspectionTools(inspection) : inspection
   const capabilities = customTools.map(tool => durableCapability(tool, { callers: ['model', 'tools'] }))
-  const tools = [...inspection, ...capabilities]
+  const tools = [...observedInspection, ...capabilities]
   const codeMode = !ephemeral
   const instructions = [resourceLoader?.getSystemPrompt(), ...(resourceLoader?.getAppendSystemPrompt() ?? []),
     ...(resourceLoader?.getAgentsFiles().agentsFiles ?? []).map(file => `Project context (${file.path}):\n${file.content}`),
     ...(resourceLoader?.getSkills().skills ?? []).map(skill => `Available Skill: ${skill.name}. ${skill.description}\nRead ${skill.filePath} when this Skill applies.`),
   ].filter(Boolean).join('\n\n')
   let runtime, activeRequestId, streaming = false, disposed = false, closing
+  const computations = new Map()
   const listeners = new Set()
   let activeTools = new Set(tools.map(tool => tool.name))
   if (codeMode) activeTools.add('codemode')
   // A recovered run may execute concurrently with admission of a later request.
   // Match persisted submission identity, rather than borrowing mutable host intent.
   const authority = defineExtension({ name: 'odk.owner-turn-authority', hooks: [hook(ToolTask, {
-    beforeTool: async (_call, api, context) => {
+    beforeTool: async (call, api, context) => {
       if (!activeRequestId || disposed || !runtime) return { block: 'No active owner request authorizes this tool call' }
       const requestId = activeRequestId
       const live = await api.snapshot(LiveDoc, api.conversationId, context)
       for (const id of live?.run?.inputs ?? []) {
         const submission = await runtime.harness.submission(id)
         const record = await submission?.status(context)
-        if (record?.requestId === requestId && activeRequestId === requestId && !disposed) return undefined
+        if (record?.requestId === requestId && activeRequestId === requestId && !disposed && !context.abortSignal?.aborted) {
+          if (call.name === 'codemode' && options.observeCodeModeExecution) {
+            const source = typeof call.arguments.code === 'string' ? call.arguments.code : ''
+            const finish = options.observeCodeModeExecution({ requestId, taskId: String(api.taskId), callId: call.id,
+              source: source.slice(0, 16000), truncated: source.length > 16000, kind: 'computation', learningEligible: false })
+            computations.set(api.taskId, { requestId, finish })
+          }
+          return undefined
+        }
       }
       return { block: 'Recovered work cannot borrow another owner request authorization' }
+    },
+    afterTool: (call, result, api, context) => {
+      if (call.name !== 'codemode') return undefined
+      const computation = computations.get(api.taskId)
+      computations.delete(api.taskId)
+      if (!computation || disposed || context.abortSignal?.aborted || activeRequestId !== computation.requestId) return undefined
+      computation.finish(computationOutcome(result))
+      return undefined
     },
   })] })
   try {
@@ -158,13 +202,14 @@ export async function createDurableAgentSession(options, { createTarget = create
               for (const message of entry.model ?? []) if (message.role === 'assistant') emit({ type: 'message_end', message })
             }
           } finally { final.dispose() }
-        } finally { streaming = false; activeRequestId = undefined; lastPartial = '' }
+        } finally { streaming = false; activeRequestId = undefined; computations.clear(); lastPartial = '' }
       },
-      abort: () => runtime.abort(),
+      abort: () => { activeRequestId = undefined; computations.clear(); return runtime.abort() },
       dispose() {
         if (!closing) {
           disposed = true
           activeRequestId = undefined
+          computations.clear()
           unsubscribe(); view.dispose(); listeners.clear()
           closing = (async () => { try { await runtime.close() } finally { await target?.close() } })()
         }

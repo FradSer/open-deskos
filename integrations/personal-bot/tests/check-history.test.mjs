@@ -16,6 +16,17 @@ const evidence = { version: 1, outcome: 'exited', exitCode: 7, sourceBinding: 'm
 const result = { role: 'toolResult', toolName: 'coding_check', toolCallId: 'check-fixture',
   content: [{ type: 'text', text: 'output\u0000'.repeat(10_000) }], details: { codingCheck: evidence }, isError: false, timestamp: 3 }
 
+test('string user prompts and host-only nested check metadata survive history mapping', () => {
+  assert.deepEqual(sessionEventsFromEntry({ type: 'message', message: { role: 'user', content: 'Original request' } }),
+    [{ kind: 'user', text: 'Original request' }])
+  const [event] = sessionEventsFromEntry({ type: 'message', message: result })
+  assert.deepEqual(event.codingCheck, evidence)
+  const [nested] = sessionEventsFromEntry({ type: 'message', message: { ...result, toolName: 'codemode', details: {},
+    nestedCalls: { complete: true, calls: [{ id: 'outer/1', name: 'coding_check', status: 'ok', arguments: { command: 'not copied' } }] } } })
+  assert.deepEqual(nested.nestedCalls, { complete: true, calls: [{ id: 'outer/1', name: 'coding_check', status: 'ok' }] })
+  assert(!JSON.stringify(nested.nestedCalls).includes('not copied'))
+})
+
 test('host evidence precedes bounded output and retains check identity', () => {
   const [event] = sessionEventsFromEntry({ type: 'message', message: result })
   assert.equal(event.kind, 'result')
