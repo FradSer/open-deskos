@@ -43,7 +43,10 @@ export async function pollGenerated(watch, trigger, context) {
     const dependencies = rule.coding ? [`pi-tasks.${rule.coding.target}`] : rule.observations.map(o => o.readingId)
     if (trigger.kind === 'service_push' && !dependencies.some(id => trigger.readingIds.includes(id))) continue
     topicRevisions.set(rule.id, dependencies.map(source => [source, watch.sourceRevisions.get(source) ?? 0]))
-    if (watch.config.suppressed.includes(rule.id) || (watch.config.snoozed[rule.id] ?? 0) > watch.now()) continue
+    // A topic the owner muted or snoozed is not being judged, so it cannot hold an
+    // older failure: that failure would report unavailable judgment and block every
+    // other topic for as long as the rule stays muted.
+    if (watch.config.suppressed.includes(rule.id) || (watch.config.snoozed[rule.id] ?? 0) > watch.now()) { watch.clearJudgmentFailure(rule.id); continue }
     let evidence
     if (rule.coding) {
       try {
@@ -61,7 +64,12 @@ export async function pollGenerated(watch, trigger, context) {
     if (!current()) return
     if (!topicCurrent(rule.id)) continue
     if (!evidence) {
+      // A topic without fresh evidence is not failing either. Keeping its older
+      // failure would report unavailable judgment and block every other topic for
+      // as long as that reading stays unavailable, which is how a rule whose
+      // observed fields disappear silences suggestions permanently.
       for (const p of watch.proposals) if (p.ruleId === rule.id && p.status === 'pending') p.status = 'expired'
+      watch.clearJudgmentFailure(rule.id)
       continue
     }
     topics.push({ id: rule.id, goal: rule.goal, evidence: evidence.map(e => ({ id: `e${evidenceIndex++}`, ...e })) })

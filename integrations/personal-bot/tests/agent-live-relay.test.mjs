@@ -32,9 +32,14 @@ test('a loopback relay preserves bytes, provider path and authority without chan
   assert.equal(await response.text(), 'offline bytes')
   const client = net.connect({ host: relay.host, port: relay.port })
   await once(client, 'connect')
-  const closed = once(client, 'close')
+  // The owner destroys idle sockets during shutdown. TCP can report that
+  // cancellation as a reset before close, which events.once would reject.
+  const errors = []
+  client.on('error', error => errors.push(error))
+  const closed = new Promise(resolve => client.once('close', resolve))
   await relay.close()
   await closed
+  for (const error of errors) assert.equal(error.code, 'ECONNRESET')
   await assert.rejects(new Promise((resolve, reject) => {
     const late = net.connect({ host: relay.host, port: relay.port }); late.once('connect', () => { late.end(); resolve() }); late.once('error', reject)
   }), /ECONNREFUSED/)
