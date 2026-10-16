@@ -11,10 +11,12 @@
   <link rel="stylesheet" href="user-app-desktop.css" />
   <link rel="stylesheet" href="themes/border-beam.css" />
   <link rel="stylesheet" href="themes/pixel.css" />
+  <link rel="stylesheet" href="home-desk.css" />
   <script src="../plugin-host.js"></script>
   <script src="core/appearance-plugins.js"></script>
   <script src="core/development-plugins.js"></script>
   <script src="core/native-appearance.js"></script>
+  <script src="core/liquid-glass-appearance.js"></script>
   <script src="core/theme.js"></script>
 </head>
 <body>
@@ -25,16 +27,37 @@
        pages and #app-view own all controls. -->
   <header id="status-bar" class="flex items-center">
     <span data-slot="status-left"></span>
-    <div id="page-center" class="flex items-center">
-      <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true">Today · 1/4</span>
-      <nav id="dots" class="flex items-center" aria-label="Page indicator"></nav>
-    </div>
     <span data-slot="status-right"></span>
     <span id="status-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
   </header>
 
-  <main id="pages-viewport">
-    <div id="pages-track"></div>
+  <main id="home-desk">
+    <div id="liquid-glass-backdrop" class="lg-content" aria-hidden="true" hidden></div>
+    <aside id="personal-agent" aria-label="Personal Agent"></aside>
+    <section id="desk-content" aria-label="Desk">
+      <section id="home-summary" aria-label="Desk briefing"></section>
+      <div id="pages-viewport"><div id="pages-track"></div></div>
+      <div id="page-center" class="flex items-center">
+        <span id="page-context" class="sr-only" aria-live="polite" aria-atomic="true"></span>
+        <nav id="dots" class="flex items-center" aria-label="Home handle"></nav>
+      </div>
+      <div id="app-view" role="region" aria-labelledby="app-title" hidden>
+          <h1 id="app-title" class="sr-only"></h1>
+          <header class="app-header flex items-center">
+            <button id="app-back" aria-label="Back">
+              <svg data-tabler="chevron-left" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 6l-6 6l6 6" /></svg>
+            </button>
+          </header>
+          <div class="app-body flex flex-col items-center justify-center">
+            <div id="app-runtime" class="app-runtime" data-slot="app-runtime"></div>
+            <p class="app-empty" id="app-empty"></p>
+            <p class="app-help" id="app-help" hidden>Swipe the bottom handle sideways to change pages. Swipe it up to return from a Widget App. Focus the handle and use arrow keys for keyboard navigation.</p>
+            <p class="app-empty-sub" id="app-empty-sub"></p>
+            <button class="button-pill app-action" id="app-action" type="button" hidden>Check status again</button>
+            <p class="app-action-status" id="app-action-status" aria-live="polite" hidden></p>
+          </div>
+        </div>
+    </section>
   </main>
 
   <div id="system-overlay-root" class="system-overlay-container" aria-live="polite"></div>
@@ -61,6 +84,9 @@
       <div class="personal-bot-status-progress" aria-hidden="true" hidden><span></span></div>
       <div class="personal-bot-status-level" aria-hidden="true" hidden><span></span></div>
       <div class="personal-bot-status-title" dir="auto" aria-live="polite" aria-atomic="false" aria-busy="false" hidden></div>
+
+    </div>
+  </div>
     </div>
   </div>
   <script src="../../node_modules/markdown-it/dist/browser/markdown-it.umd.min.js"></script>
@@ -70,22 +96,6 @@
   <script src="core/personal-bot-reply.js"></script>
   <script src="core/personal-bot-status.js"></script>
 
-  <div id="app-view" role="dialog" aria-modal="true" aria-labelledby="app-title" hidden>
-    <header class="app-header flex items-center">
-      <button id="app-back" aria-label="Back">
-        <svg data-tabler="chevron-left" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 6l-6 6l6 6" /></svg>
-      </button>
-      <h1 id="app-title"></h1>
-    </header>
-    <div class="app-body flex flex-col items-center justify-center">
-      <div id="app-runtime" class="app-runtime" data-slot="app-runtime"></div>
-      <p class="app-empty" id="app-empty"></p>
-      <p class="app-help" id="app-help" hidden>Swipe to change pages; select a page dot to jump directly; use Arrow keys or Home/End to navigate; use Back or Escape to return.</p>
-      <p class="app-empty-sub" id="app-empty-sub"></p>
-      <button class="button-pill app-action" id="app-action" type="button" hidden>Check status again</button>
-      <p class="app-action-status" id="app-action-status" aria-live="polite" hidden></p>
-    </div>
-  </div>
 
   <script src="layout.js"></script>
   <script src="core/grid-placement.js"></script>
@@ -98,12 +108,13 @@
   <script src="core/composer.js"></script>
   <script src="core/runtime-controller.js"></script>
   <script src="core/app-platform.js"></script>
+  <script src="core/home-handle.js"></script>
   <script src="core/gamepad.js"></script>
   <script src="plugins/dashboard-page.js"></script>
+  <script src="plugins/personal-agent.js"></script>
+  <script src="plugins/status-peripherals.js"></script>
   <script src="plugins/almanac.js"></script>
   <script src="plugins/clock.js"></script>
-  <script src="plugins/chat.js"></script>
-  <script src="plugins/settings.js"></script>
   <script src="plugins/weread.js"></script>
   <script src="plugins/preorder.js"></script>
   <script src="plugins/pomodoro.js"></script>
@@ -111,13 +122,13 @@
   <script src="plugins/futu.js"></script>
   <script src="plugins/year.js"></script>
   <script src="plugins/weather.js"></script>
-  <script src="plugins/camera.js"></script>
   <script src="plugins/quota-page.js"></script>
   <script src="plugins/status-connection.js"></script>
   <script src="plugins/status-gamepad.js"></script>
   <script src="plugins/status-clock.js"></script>
   <script src="plugins/status-pi-sessions.js"></script>
   <script src="plugins/apps.js"></script>
+  <script src="plugins/reading-apps.js"></script>
   <script src="plugins/pi-sessions.js"></script>
   <script src="core/user-app-frame.js"></script>
   <script src="core/user-app-desktop.js"></script>

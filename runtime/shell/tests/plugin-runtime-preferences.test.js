@@ -1,4 +1,5 @@
 'use strict'
+const { integrationURL, integrationPath } = require('./helpers/repo-root')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -9,12 +10,12 @@ const { pathToFileURL } = require('node:url')
 const { promisify } = require('node:util')
 const { execFile } = require('node:child_process')
 const { resolveStartupDisabled } = require('../src/plugin-config')
-const { createBridgePluginRuntime, loadPluginConfig } = require('../../../integrations/remote-bridge/lib/plugin-runtime')
+const { createBridgePluginRuntime, loadPluginConfig } = require(integrationPath('remote-bridge/lib/plugin-runtime'))
 const run = promisify(execFile)
 const cli = path.resolve(__dirname, '../scripts/odk-plugin-cli.js')
-const botEntry = path.resolve(__dirname, '../../../integrations/personal-bot/src/main.mjs')
-const taskEntry = path.resolve(__dirname, '../../../integrations/personal-bot/src/task-daemon.mjs')
-const bridgeEntry = path.resolve(__dirname, '../../../integrations/remote-bridge/lib/main.js')
+const botEntry = integrationPath('personal-bot/src/main.mjs')
+const taskEntry = integrationPath('personal-bot/src/task-daemon.mjs')
+const bridgeEntry = integrationPath('remote-bridge/lib/main.js')
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-runtime-pref-'))
@@ -47,7 +48,7 @@ for (const [id, entry] of [
 }
 
 test('shared resident disables block Agent and dependent factories while preserving the channel', async t => {
-  const { createPersonalBotComposition } = await import('../../../integrations/personal-bot/src/plugin-composition.mjs')
+  const { createPersonalBotComposition } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
   const f = await fixture(t)
   const id = 'odk.personal-bot.runtime'
   await f.change('disable', id)
@@ -74,7 +75,7 @@ test('shared resident disables block Agent and dependent factories while preserv
 })
 
 test('shared Hosted Pi disables retain listener diagnosis without constructing task services or publishing endpoints', async t => {
-  const { createTaskComposition } = await import('../../../integrations/personal-bot/src/task-composition.mjs')
+  const { createTaskComposition } = await import(integrationURL('personal-bot/src/task-composition.mjs'))
   const f = await fixture(t)
   await f.change('disable', 'odk.hosted-pi.service')
   let calls = 0
@@ -121,7 +122,7 @@ test('shared Remote transport disables prevent resource startup while retaining 
 })
 
 test('runtime preference adapters load the same configuration contract in a flattened release', async t => {
-  const { loadPersonalBotPluginConfig } = await import('../../../integrations/personal-bot/src/plugin-composition.mjs')
+  const { loadPersonalBotPluginConfig } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
   const f = await fixture(t)
   const release = path.join(f.root, 'release')
   const source = path.join(release, 'src')
@@ -137,10 +138,10 @@ test('runtime preference adapters load the same configuration contract in a flat
 })
 
 test('common startup disables prevent selected native replacement entries from executing', async t => {
-  const { createPersonalBotComposition, personalBotManifest } = await import('../../../integrations/personal-bot/src/plugin-composition.mjs')
-  const { createTaskComposition, hostedPiManifest } = await import('../../../integrations/personal-bot/src/task-composition.mjs')
-  const { loadPersonalBotReplacements, loadHostedPiReplacements } = await import('../../../integrations/personal-bot/src/development-plugins.mjs')
-  const { loadBridgeReplacements, transportPlaceholder } = require('../../../integrations/remote-bridge/lib/development-plugins')
+  const { createPersonalBotComposition, personalBotManifest } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
+  const { createTaskComposition, hostedPiManifest } = await import(integrationURL('personal-bot/src/task-composition.mjs'))
+  const { loadPersonalBotReplacements, loadHostedPiReplacements } = await import(integrationURL('personal-bot/src/development-plugins.mjs'))
+  const { loadBridgeReplacements, transportPlaceholder } = require(integrationPath('remote-bridge/lib/development-plugins'))
   const f = await fixture(t)
   const entry = path.join(f.root, 'must-not-execute.cjs')
   await fs.writeFile(entry, "throw Error('disabled native entry executed')")

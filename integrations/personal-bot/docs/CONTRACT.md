@@ -5,6 +5,8 @@ This file owns authorization, intent routing, Hosted Pi control, proposals, and 
 Read the host deployment runbook before activation or service operations.
 Git history preserves past plans and acceptance runs.
 
+The [unified architecture](UNIFIED_ARCHITECTURE.md) defines the five layers and their authority boundaries.
+
 ## Plugin composition
 
 [plugin-composition.mjs](../src/plugin-composition.mjs) owns the resident service composition.
@@ -193,7 +195,7 @@ Diagnosis does not extend task service availability or alter ordinary task respo
 
 ## Profiles and memory
 
-Both resident profiles use mandatory Jev routing and Pi 1.0.0 Code Mode.
+Both resident profiles use mandatory Jev routing and Pi Durable 1.2.0 Code Mode.
 Neither profile has TTS.
 The coding coordinator has `read`, `grep`, `find`, and `ls` plus reviewed system capabilities.
 It has no generic `write`, `edit`, `bash`, or `powershell`, including after resume.
@@ -201,7 +203,7 @@ Implementation needs an explicit configured Coding Target and project.
 No target means unconfigured; there is no local implementation fallback.
 Reviewed custom capabilities have service-user permissions, without an OS sandbox.
 
-The personal profile adds protected memory and reviewed DiDi tools.
+The personal profile adds protected memory and explicitly declared reviewed capabilities.
 It loads no project instructions, discovered extensions, or operator coding modules.
 Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
 
@@ -210,9 +212,14 @@ Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
   "profile": "personal",
   "skillPaths": [],
   "memoryFile": "/home/orangepi/.local/state/odk-personal-bot/personal/MEMORY.md",
-  "didi": {
-    "environment": "sandbox",
-    "keyFile": "/home/orangepi/.config/odk/didi.key"
+  "capabilities": {
+    "didi": {
+      "environment": "sandbox",
+      "keyFile": "/home/orangepi/.config/odk/didi.key"
+    },
+    "browser": {
+      "executablePath": "/opt/agent-browser/bin/agent-browser"
+    }
   }
 }
 ```
@@ -220,7 +227,13 @@ Set `ODK_PERSONAL_BOT_CONFIG` to a private canonical absolute JSON path:
 The service user owns the memory parent, mode 0700, and key file, mode 0600.
 Windows uses protected user ACLs.
 Only operator configuration selects production; sandbox and production keep separate transaction states.
-DiDi configuration includes its built-in skill.
+`capabilities` selects only host-reviewed `didi` and `browser` declarations.
+[reviewed-capabilities.mjs](../src/reviewed-capabilities.mjs) owns their validation, factories, Skills, intents, workflows, tool prefixes, lifecycle, and `childAllowed` policy.
+Legacy top-level `didi` and `browser` keys normalize into that map.
+Declaring the same capability in both locations fails validation.
+Capability declarations in the `coding` profile fail validation.
+Unknown identities and factory paths fail validation.
+DiDi configuration includes its built-in Skill.
 `skillPaths` adds reviewed absolute `SKILL.md` paths.
 `skill_read` returns startup snapshots; a skill adds no scripts, tools, or permissions.
 The personal profile needs no writable Git checkout.
@@ -274,7 +287,7 @@ Never restore transaction state from before a possibly accepted order.
 
 ## Intent routing
 
-Every text/transcribed turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
+Every resident owner turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
 Touch proposal confirmation also routes its actual phrase through Jev.
 No regex shortcut bypasses routing.
 The TypeSafe Choice API selects a closed intent; code owns dispatch.
@@ -287,26 +300,40 @@ Private memory files, credentials, and live readings are excluded.
 | `task_query` | Read targets, list, status, and history |
 | `session_control` | Cancel a turn or end a resolved session |
 | `coding_work` | Start work on an explicit configured target/project |
+| `agent_work` | Admit or continue a general DeskOS child task |
+| `agent_identity` | Save or update an explicitly requested child identity |
 | `widget_create`, `app_create` | Draft/check; install only when requested |
 | `app_query` | Read installed packages and placement |
 | `app_manage` | Explicit existing package lifecycle/placement changes |
+| `package_query` | Read installed agent packages and named candidates |
+| `package_manage` | Apply requested Skill or MCP package lifecycle changes |
 | `suggestions` | Read private proposals without conversation inference |
 | `proposal_response` | Validate the displayed phrase and subsequent turn |
 | `odk_data` | Read current measurements, state, and time |
 | `memory` | Apply explicit current-turn remember/forget policy |
 | `ride` | Use the reviewed quote/order transaction |
-| `extension` | Invoke reviewed operator-added capabilities |
+| `browse` | Use the reviewed browser session and requested page actions |
+| `extension` | Invoke reviewed capabilities or installed MCP tools |
 | `conversation` | Converse without specialized mutations |
 | `clarify` | Ask; invoke no downstream model or capability |
 
 Restrict capabilities to the selected workflow at execution time.
 The `extension` handler receives registered names and bounded descriptions.
-It cannot substitute core mutations; other workflows cannot invoke extension tools.
+It cannot substitute task, application, proposal, or package lifecycle mutations.
+The package-management workflow permits MCP calls only for an explicitly requested connector action.
+The [agent package contract](AGENT_CATALOG.md) owns installation, revision, credential, and connector lifecycle rules.
+The [child task contract](AGENT_TASKS.md) owns general task execution and saved identities.
+After parent admission, the host selects the fixed internal `agent_execute` workflow for that child.
+A child creates no second Jev client and performs no second intent classification.
+Only the composition root can select child execution.
+Task text and role guidance cannot select it or expand its tools.
+Tool discovery and evidence collection occur during execution; admission does not certify feasibility or completion.
 Hosted Pi retains its separate full coding capability.
 
-Register each reviewed capability once as an initially inactive direct SDK tool.
+Register each reviewed capability once as an initially inactive Durable tool.
 Activate the current intent's execution allowlist.
-Code Mode `only` hides separate schemas and exposes `codemode` to the model.
+The provider transport advertises only `codemode`.
+The persisted execution configuration retains active reviewed names for historical direct calls.
 Exact historical direct calls use the same parameter validation and executor as nested calls.
 Inactive tools cannot be discovered or executed.
 Completion, failure, and cancellation deactivate the selected entries.
@@ -320,6 +347,7 @@ Reviewed `readOnlyHint: true` queries remain repeatable.
 Absent hints conservatively mark mutations.
 A new explicit turn resets reservations but preserves tool-specific authorization and unknown-outcome gates.
 A failed script does not undo completed effects.
+
 Unknown tools and invalid arguments are call errors, not proof of service unavailability.
 Historical readings do not establish current conditions.
 Raw metrics cannot establish assessments without applicable thresholds or source assessments.
@@ -328,7 +356,7 @@ Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`
 `ODK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
 `ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
 `ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
-Selected probability and confidence must both meet the threshold.
+Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
 Missing credentials stop initialization.
@@ -336,6 +364,54 @@ Failed, malformed, or oversized inference never falls back to regexes or Pi rout
 Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
+
+## Durable runtime
+
+[durable-agent-session.mjs](../src/durable-agent-session.mjs) implements the resident session port through the Pi Durable Harness.
+Each profile owns private JSONL state in `<stateDir>/durable/<profile>`.
+[durable-storage.mjs](../src/durable-storage.mjs) rejects linked files and holds one writer lease until Harness shutdown.
+A stopped process's lease expires after 120 seconds.
+All hosts must retain this lease policy.
+
+[durable-legacy-context.mjs](../src/durable-legacy-context.mjs) imports legacy context only into an empty Durable conversation.
+It uses the Coding Agent projection, including retained compaction summaries.
+It excludes old system messages and normalizes incomplete history through Pi AI.
+Import and its checkpoint commit together.
+Existing Durable history takes precedence. Later starts do not repeat the import.
+Legacy session files remain unchanged.
+Imported messages create no submissions, tasks, tools, or authorization.
+
+The coordinator routes each owner request before it resumes pending Durable work.
+Answers for clarification, suggestions, or unavailable routing do not resume pending work or prompt the reasoning model.
+For requests that need the reasoning model, recovery completes before the new owner turn begins.
+Tool admission matches the persisted submission identity against a new host-only request nonce.
+The selected intent does not authorize a recovered submission.
+Recovered work cannot use a later request's intent, confirmation, or mutation reservations.
+Reviewed capabilities retain their argument validation and exact-turn guards.
+They use sequential execution and unsafe replay declarations, including capabilities with read-only catalog hints.
+An uncertain mutation result does not authorize automatic repetition.
+
+The coding profile uses LocalExecutionEnv for Durable file reads and Pi daemon file inventory.
+File searches include hidden paths and exclude `.git` and `node_modules` directories.
+Truncated inventories report an incomplete search.
+The remaining inspection adapters retain the Coding Agent implementations.
+RemoteExecutionEnv construction exists as a tested primitive; resident inspection has no remote execution selector.
+Configured remote Pi control continues through the existing authenticated task endpoints.
+`createPiSshConnection` connects to an explicitly provisioned daemon through Pi's strict host-key arguments.
+It starts SSH with connection-related environment values only.
+Provider environment values cannot reach SSH through a configured `SendEnv` pattern.
+The operator supplies the daemon command and its target-shell quoting.
+This factory accepts no host keys and deploys no daemon.
+The caller closes its returned connection.
+Read the [SSH acceptance procedure](PERSONAL_AGENT_RESEARCH.md#ssh-acceptance) to verify this transport independently of a device.
+Direct SSH task-control targets use the same environment allowlist.
+Local control helpers retain their application environment for existing endpoint configuration.
+
+The public session port emits assistant text from committed entries and partial generation views.
+Tool results and thinking do not become spoken replies.
+Closing a session releases its views, Harness, storage lease, sandbox, and owned environment connection.
+Normal isolated generation awaits Harness disposal.
+Timeout and cancellation retain their response deadline while cleanup failures remain observed.
 
 <a id="hosted-pi"></a>
 
@@ -425,6 +501,8 @@ Do not wait for helper exit to establish success.
 
 Coordinator tools are `coding_targets`, `coding_task_start`, `coding_tasks_list`, `coding_task_status`, and `coding_task_history`.
 They also include `coding_task_prompt`, `coding_task_cancel`, and `coding_task_end`.
+The completion plugin adds `coding_task_verify` for read-only final-result checks.
+The [plugin contract](AGENT_PLUGINS.md#hosted-pi-results) owns its evidence rules and limits.
 List accepts a configured project subtree and orders sessions by latest update.
 Every identity operation carries the session's own project exactly as listed, plus its durable task ID.
 Only the target daemon resolves roots on disk.
@@ -491,7 +569,10 @@ Command/cwd identity uses SHA-256 and bounded labels.
 Credential redaction is heuristic; raw worker arguments/output can contain secrets.
 Session history is private coding data, not a secret vault.
 Structured script output is bounded to 64 KiB and omits temporary full-output paths.
-Host history persists nested check metadata because Pi omits ordinary nested tool results.
+Host history preserves bounded nested check output and metadata because Pi omits ordinary nested tool results.
+String user prompts remain visible as user events.
+Tool events retain tool identities.
+Result events retain compact nested-call identities and status without nested arguments.
 
 Hosted Pi Position identifies a complete physical log entry; zero precedes the first entry.
 Non-message entries can create numeric gaps without lost output.
@@ -523,8 +604,9 @@ Concurrent owner edits cause suppression writes to refuse overwrite.
 
 Use [proactive-goals.example.json](proactive-goals.example.json) for version 2.
 Owners select goals and bounded observation fields.
-An isolated configured-model session generates zero or more candidates.
-It has no tools, skills, extensions, memory, or durable history.
+An isolated in-memory Durable conversation generates zero or more candidates with the configured model.
+It has no tools, Skills, project context, owner memory, execution environment, or persisted transcript.
+It loads no operator or project extensions.
 `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` defaults to 90000; allowed range is 1000–180000.
 The deadline covers the entire generation lifecycle, including at most one format correction.
 Provider errors are not retried.

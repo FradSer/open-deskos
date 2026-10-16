@@ -19,7 +19,9 @@ app.whenReady().then(async () => {
   } })
   const evaluate = (script) => win.webContents.executeJavaScript(script)
   const send = async (status) => { win.webContents.send('odk-personal-bot-status', status); await pause() }
-  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
+  // Exercise the fallback voice panel when the resident Agent plugin is disabled.
+  // agent-home.cjs covers voice feedback in the resident Agent.
+  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.page.personal-agent' } })
   for (const state of ['idle', 'error', 'unavailable']) {
     await send({ state, message: 'Previous result' })
     assert.equal(await evaluate('document.getElementById("personal-bot-status").hidden'), true)

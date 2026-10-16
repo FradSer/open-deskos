@@ -132,7 +132,7 @@ app.whenReady().then(async () => {
       for(let index=0;index<3;index++) for(const callback of window.piTicks) callback();
       const deadline=performance.now()+3000;
       while(![piActual,piSample].every((node,index)=>(window.piWrites.get(node)||0)>before[index] && node.querySelector('#sb-pi-count').textContent===${JSON.stringify(expected)})){
-        if(performance.now()>deadline) throw Error('Controlled scan did not reach consumers');
+        if(performance.now()>deadline) throw Error('Controlled scan did not reach consumers: '+JSON.stringify({expected:${JSON.stringify(expected)},actual:[piActual,piSample].map(node=>({text:node.querySelector('#sb-pi-count').textContent,writes:window.piWrites.get(node),version:odkPlugins.get('odk.status.pi-sessions').manifest.version})),before}));
         await new Promise(resolve=>setTimeout(resolve,10));
       }
     })()`)
@@ -160,7 +160,7 @@ app.whenReady().then(async () => {
     assert.equal(await js(`window.odkPlugins.get('${id}').manifest.version || '1.0.0'`),phase==='independent'?'2.0.0':'1.0.0')
     for(let index=0;index<cases.length;index++) {
       const value=cases[index]
-      await scan(value,!value || value.ok===false?'--':String(value.summary?.running??0))
+      await scan(value,!value || value.ok===false || !Number.isInteger(value.summary?.running)?'Unavailable':String(value.summary.running))
       const snapshot=await js(`(()=>{
         const collect=node=>{const button=node.querySelector('button');return {count:node.querySelector('#sb-pi-count').textContent,
           dot:node.querySelector('.sb-pi-dot').className,button:button.className,title:button.title,aria:button.getAttribute('aria-label')};};
@@ -187,7 +187,7 @@ app.whenReady().then(async () => {
           return ['button','.sb-pi-dot','.sb-pi-label','.sb-pi-count'].map(selector=>{
             const node=container.querySelector(selector),box=node.getBoundingClientRect(),style=getComputedStyle(node);
             if(box.width<=0 || box.height<=0) throw Error('Pi reading has no geometry');
-            if(relative && (box.left<frame.left || box.right>frame.right+0.1 || box.top<frame.top || box.bottom>frame.bottom+0.1)) throw Error('Pi reading is clipped');
+            if(relative && (box.left<frame.left || box.right>frame.right+0.1 || box.top<frame.top || box.bottom>frame.bottom+0.1)) throw Error('Pi reading is clipped: '+JSON.stringify({selector,frame:frame.toJSON(),box:box.toJSON()}));
             return {text:node.textContent,classes:node.className,width:box.width,height:box.height,left:box.left-frame.left,top:box.top-frame.top,
               font:style.fontFamily,fontSize:style.fontSize,color:style.color,spacing:style.letterSpacing,aria:node.getAttribute('aria-label')};
           });
@@ -231,7 +231,7 @@ app.whenReady().then(async () => {
       { ok: false, source: { label: 'Selected service unavailable' } },
     ]) {
       const before = await js('window.piSelectedStatements.length')
-      await scan(value, value.ok === false ? '--' : String(value.summary.running))
+      await scan(value, value.ok === false ? 'Unavailable' : String(value.summary.running))
       assert.equal(await js('window.piSelectedStatements.length > ' + before), true,
         'Pi consumer bypassed selected briefing service')
       assert.deepEqual(await js('window.piSelectedStatements.at(-1)'), await js('window.piStatements.at(-1)'))

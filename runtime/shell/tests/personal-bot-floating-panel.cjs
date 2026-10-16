@@ -115,7 +115,9 @@ app.whenReady().then(async () => {
   win.on('show', () => { throw new Error('Offscreen test window was shown') })
   win.on('focus', () => { throw new Error('Offscreen test window received foreground focus') })
   assert.equal(win.webContents.isOffscreen(), true)
-  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
+  // Exercise the fallback voice panel when the resident Agent plugin is disabled.
+  // agent-home.cjs covers voice feedback in the resident Agent.
+  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.page.personal-agent' } })
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
     for (const [width, height] of [[1920, 1280], [480, 854], [320, 480]]) await checkSize(width, height)

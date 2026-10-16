@@ -1,5 +1,15 @@
 Feature: Legible Widget and App interiors
 
+  Scenario: Frames distinguish readings from interactive Apps
+    Given Home has read-only Widgets and separate interactive App pages
+    When the desk renders in Instrument, Pixel, or Border Beam
+    Then Widgets have a static one-pixel neutral border without gaining controls
+    And App surfaces have a brighter two-pixel border
+    When an App receives focus or pointer input
+    Then its frame has a bright border and an outer focus outline without changing its size
+    And leaving the App restores its resting frame
+    And an opened foreground App keeps its active frame until Back
+
   Scenario: Every Widget retains readable content in a compact window
     Given the shell displays all ten Home Widgets
     When the window is 320 by 480, 480 by 854, 960 by 640, or zoomed to 200 percent

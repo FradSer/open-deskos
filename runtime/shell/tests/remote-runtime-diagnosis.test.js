@@ -1,4 +1,5 @@
 'use strict'
+const { integrationPath } = require('./helpers/repo-root')
 
 const test = require('node:test')
 if (require('./not-ported').notPortedOnWindows(test, 'unix-socket')) return
@@ -35,8 +36,8 @@ for (const independent of [false, true]) for (const multiple of [false, true]) t
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-rdiag-'))
   const socketPath = path.join(directory, 'bridge.sock')
   const transport = new Transport()
-  const { RemoteBridge } = require('../../../integrations/remote-bridge/lib/remote-bridge')
-  const { RemoteBridgeHost } = require('../../../integrations/remote-bridge/lib/remote-bridge-host')
+  const { RemoteBridge } = require(integrationPath('remote-bridge/lib/remote-bridge'))
+  const { RemoteBridgeHost } = require(integrationPath('remote-bridge/lib/remote-bridge-host'))
   const bridge = multiple ? new RemoteBridgeHost({ socketPath, transports: [transport], logger: { error() {} } })
     : new RemoteBridge({ socketPath, adapter: transport, logger: { error() {} } })
   t.after(async () => { await bridge.stop(); await fs.rm(directory, { recursive: true, force: true }) })
@@ -113,7 +114,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   const socketPath = path.join(directory, 'bridge.sock')
   const transport = new Transport()
   transport.start = async () => { throw Error('private transport details') }
-  const { RemoteBridgeHost } = require('../../../integrations/remote-bridge/lib/remote-bridge-host')
+  const { RemoteBridgeHost } = require(integrationPath('remote-bridge/lib/remote-bridge-host'))
   const bridge = new RemoteBridgeHost({ socketPath, transports: [transport], logger: { error() {} } })
   const client = createRemoteBridgeClient({ socketPath })
   const host = createPluginHost({ capabilities: { 'plugin.diagnostics': {

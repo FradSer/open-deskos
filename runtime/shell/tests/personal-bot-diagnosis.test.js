@@ -1,4 +1,5 @@
 'use strict'
+const { integrationURL } = require('./helpers/repo-root')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -21,8 +22,8 @@ function selectedProvider(independent) {
 const { createDiagnosticsPlugin, requestDiagnostics } = require('../src/plugin-diagnostics')
 
 for (const independent of [false, true]) test(`${independent ? 'selected independent' : 'default'} resident diagnosis reaches the actual composition through the authenticated Shell channel`, { timeout: 5000 }, async t => {
-  const { listen } = await import('../../../integrations/personal-bot/src/socket.mjs')
-  const { createPersonalBotComposition } = await import('../../../integrations/personal-bot/src/plugin-composition.mjs')
+  const { listen } = await import(integrationURL('personal-bot/src/socket.mjs'))
+  const { createPersonalBotComposition } = await import(integrationURL('personal-bot/src/plugin-composition.mjs'))
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-bdiag-'))
   t.after(() => fs.rm(directory, { recursive: true, force: true }))
   const endpoint = privateEndpoint(directory, 'resident')
@@ -84,7 +85,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
 })
 
 test('invalid asynchronous resident snapshots remain unavailable without leaking rejected errors', { timeout: 3000 }, async t => {
-  const { listen } = await import('../../../integrations/personal-bot/src/socket.mjs')
+  const { listen } = await import(integrationURL('personal-bot/src/socket.mjs'))
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-basync-'))
   const endpoint = privateEndpoint(directory, 'resident')
   const service = { status: { v: 1, type: 'status', state: 'idle' }, subscribe: () => () => {} }

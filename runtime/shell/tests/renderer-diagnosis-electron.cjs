@@ -247,10 +247,11 @@ app.whenReady().then(async () => {
   const { resolveStartupDisabled } = require('../src/plugin-config')
   const statusReconcile = process.argv.includes('--status-reconcile')
   const runtimeController = process.argv.includes('--runtime-controller')
-  const disabled = ['odk.tile.camera', ...(statusReconcile || runtimeController || rendererControl ? ['odk.status.clock'] : []),
+  const disabled = ['odk.tile.weather', ...(statusReconcile || runtimeController || rendererControl ? ['odk.status.clock'] : []),
     ...(runtimeController ? ['odk.page.dashboard'] : []), ...resolveStartupDisabled(developmentEnv)]
   const appearances = loadAppearanceReplacements(readConfig(resolveConfigPath(developmentEnv)))
   const query = { disabledPlugins: disabled.join(','), ...(appearances.length ? { appearanceReplacements: JSON.stringify(appearances) } : {}) }
+  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query })
   await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkRendererDiagnosis.ready, window.odkTheme.ready])')
   if (bridgeDiagnosisProof) {
@@ -287,7 +288,7 @@ app.whenReady().then(async () => {
   assert.equal(bridge.state, 'unavailable')
   assert.equal(bridge.reason, 'provider-unavailable')
   assert.equal(renderer.state, 'available')
-  assert.equal(renderer.plugins.find(plugin => plugin.manifest.id === 'odk.tile.camera').state, 'disabled')
+  assert.equal(renderer.plugins.find(plugin => plugin.manifest.id === 'odk.tile.weather').state, 'disabled')
   assert.equal(renderer.plugins.find(plugin => plugin.manifest.id === 'odk.theme.pixel').state, disabledAppearance ? 'disabled' : 'running')
   if (linkedAppearance) {
     assert.equal(renderer.plugins.find(plugin => plugin.manifest.id === 'odk.theme.pixel').manifest.version, '2.0.0')
@@ -327,7 +328,7 @@ app.whenReady().then(async () => {
     await run(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'enable', 'odk.theme.pixel'], {
       env: { ...developmentEnv, ELECTRON_RUN_AS_NODE: '1' },
     })
-    const enabled = ['odk.tile.camera', ...resolveStartupDisabled(developmentEnv)]
+    const enabled = ['odk.tile.weather', ...resolveStartupDisabled(developmentEnv)]
     await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: enabled.join(',') } })
     await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkRendererDiagnosis.ready, window.odkTheme.ready])')
     assert.equal(await win.webContents.executeJavaScript('window.odkTheme.get()'), 'pixel')
@@ -422,7 +423,7 @@ app.whenReady().then(async () => {
         const mounted = Boolean(element.querySelector('time'));
         return { disabled, cleared, refused, mounted, sameElement: document.querySelector('[data-widget="odk.tile.clock"]') === element,
           reading: element.querySelector('time').textContent,
-          camera: registry.catalog().find(plugin => plugin.manifest.id === 'odk.tile.camera').state };
+          weather: registry.catalog().find(plugin => plugin.manifest.id === 'odk.tile.weather').state };
       })()`)
       assert.equal(result.disabled, 'disabled')
       assert.equal(result.cleared, true)
@@ -430,7 +431,7 @@ app.whenReady().then(async () => {
       assert.equal(result.refused, true)
       assert.equal(result.mounted, true)
       assert.match(result.reading, /^\d{2}:\d{2}$/)
-      assert.equal(result.camera, 'disabled')
+      assert.equal(result.weather, 'disabled')
     }
     await win.webContents.executeJavaScript('window.odkPlugins.stop()')
     assert.deepEqual(await win.webContents.executeJavaScript('[...(window.__odkReplacementTrace || [])]'), invalidReplacement || rejectedLinkedEntry ? [] : runtimeLifecycle ? ['create', 'mount', 'unmount', 'stop', 'create', 'mount', 'unmount', 'stop'] : ['create', 'mount', 'unmount', 'stop'])
@@ -457,11 +458,11 @@ app.whenReady().then(async () => {
       const clock = document.querySelector('[data-widget="odk.tile.clock"]');
       return { removed, reading: clock.querySelector('time').textContent,
         retained: document.querySelector('[data-widget="odk.tile.almanac"]') === retained,
-        cameraAbsent: !document.querySelector('[data-widget="odk.tile.camera"]') };
+        retiredWidgetsAbsent: ['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]')) };
     })()`)
     assert.equal(result.removed, true)
     assert.equal(result.retained, true)
-    assert.equal(result.cameraAbsent, true)
+    assert.equal(result.retiredWidgetsAbsent, true)
     assert.match(result.reading, /^\d{2}:\d{2}$/)
   }
   if (statusReconcile) {
@@ -530,7 +531,7 @@ app.whenReady().then(async () => {
       const context = document.getElementById('page-context').textContent;
       return { inserted, preserved, samePage, retainedSelection, clock, fallback, fallbackPreserved, context,
         pages: track.children.length, dots: document.querySelectorAll('#dots .dot').length,
-        cameraAbsent: !document.querySelector('[data-widget="odk.tile.camera"]') };
+        retiredWidgetsAbsent: ['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]')) };
     })()`)
     assert.equal(result.inserted, true)
     assert.equal(result.preserved, true)
@@ -540,7 +541,7 @@ app.whenReady().then(async () => {
     assert.equal(result.fallback, 'quota')
     assert.equal(result.fallbackPreserved, true)
     assert.equal(result.pages, result.dots)
-    assert.equal(result.cameraAbsent, true)
+    assert.equal(result.retiredWidgetsAbsent, true)
     assert.match(result.context, /^Usage/)
     // Drain the publication IPC through the same renderer-to-Main channel.
     await win.webContents.executeJavaScript('window.odkRemote.publishPageState({ fixtureBarrier: true })')
@@ -579,7 +580,7 @@ app.whenReady().then(async () => {
     assert.equal(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.clock\\"]") === null'), true)
     assert.equal((await command('enable', 'odk.tile.clock')).state, 'running')
     assert.match(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.clock\\"] time").textContent'), /^\d{2}:\d{2}$/)
-    assert.equal(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.camera\\"]") === null'), true)
+    assert.equal(await win.webContents.executeJavaScript(`['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]'))`), true)
     await win.webContents.executeJavaScript("window.odkTheme.set('pixel')")
     assert.equal((await command('disable', 'odk.theme.pixel')).state, 'disabled')
     assert.deepEqual(await win.webContents.executeJavaScript(`({ theme: window.odkTheme.get(), saved: localStorage.getItem('odk.theme') })`),

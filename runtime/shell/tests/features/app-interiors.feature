@@ -52,11 +52,11 @@ Feature: Built-in App interiors
     And a signed entry with changed Clock behavior fails the shared comparison
     And shutdown removes discovery and the signed asset protocol
 
-  Scenario: Built-in replacements preserve dialog keyboard behavior
+  Scenario: Built-in replacements preserve pane keyboard behavior
     Given a desktop navigation control has focus
     When the public App platform opens a default, independent, or restored built-in view
     Then Back receives initial focus
-    And Tab and Shift-Tab keep focus inside the dialog
+    And Tab and Shift-Tab can reach the Agent and State Bar
     And keyboard text input filters Built-in views
     And Enter activates the available Reload button
     And Escape closes the App and restores the original control focus
@@ -123,3 +123,18 @@ Feature: Built-in App interiors
     Then the negative fixture can accept that rejection
     When a watchdog or signal terminates that process
     Then the negative fixture refuses the result even if its error text matches
+
+  Scenario: Reading Apps explain recoverable source failures
+    Given Weather or WeRead needs setup or authorization
+    When its Widget opens the App
+    Then the App explains the required source connection or authorization
+    And Refresh remains the available recovery action
+    And raw source state identifiers do not replace recovery instructions
+    And malformed live readings are not presented as current values
+
+  Scenario: Year details use calendar days
+    Given the local year includes February 29
+    When Year progress renders
+    Then its progress meter retains the elapsed local-year ratio
+    And completed days and remaining days include leap day
+    And the values reset when the new local year starts

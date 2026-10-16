@@ -111,7 +111,7 @@ function result(value) {
 
 export async function loadCapabilities(paths = []) {
   const tools = coreCapabilities(await loadTargets())
-  const names = new Set(['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls', 'codemode', 'tool_search', ...tools.map(tool => tool.name)])
+  const names = new Set(['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls', 'codemode', 'tool_search', 'coding_task_verify', ...tools.map(tool => tool.name)])
   for (const path of paths) {
     if (!isAbsolute(path)) throw Error('Capability paths must be absolute')
     const module = await import(pathToFileURL(path).href)

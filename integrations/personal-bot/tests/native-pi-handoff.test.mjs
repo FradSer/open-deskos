@@ -10,8 +10,10 @@ import { createJevIntentRouter } from '../src/intent-routing.mjs'
 import { taskRequest } from '../src/task-client.mjs'
 import { assistant, fixtureModel, offlineSession } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
+import { createDurableAgentSession } from '../src/durable-agent-session.mjs'
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 
-// This uses the installed Pi SDK agent loop, public extension API and persisted
+// This uses the Durable coordinator, Pi SDK native session, extension API and persisted
 // messages. Model replies and intent judgments are scripted offline; this is not
 // natural model routing, TUI, device SSH or microphone acceptance.
 const repository = fileURLToPath(new URL('../../..', import.meta.url))
@@ -28,11 +30,19 @@ async function until(predicate, message) {
 test('Personal Agent idle, followUp and normal Enter instructions execute in the original native Pi session', { timeout: 60_000, skip: process.platform === 'win32' ? 'Native Pi private endpoint requires a Unix target' : false }, async t => {
   await access(join(packageDir, 'index.ts'))
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-native-handoff-')))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  let bot, worker, socketDir, release, releaseSteer
+  t.after(async () => {
+    try { await bot?.close() }
+    finally {
+      try {
+        release?.(); releaseSteer?.()
+        if (worker) { await worker.session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' }); await worker.session.dispose() }
+      } finally { await rm(dir, { recursive: true, force: true }); if (socketDir) await rm(socketDir, { recursive: true, force: true }) }
+    }
+  })
   // macOS limits Unix socket names to 104 bytes. Keep this owned runtime
   // directory independent of TMPDIR, which can already exceed that limit.
-  const socketDir = await mkdtemp('/tmp/odk-npi-')
-  t.after(() => rm(socketDir, { recursive: true, force: true }))
+  socketDir = await mkdtemp('/tmp/odk-npi-')
   assert.ok(Buffer.byteLength(join(socketDir, `${'0'.repeat(36)}.sock`)) < 100)
   const agentDir = await isolateAgentDirectory(t, dir)
   const project = join(dir, 'project')
@@ -59,16 +69,16 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
     settingsManager: SettingsManager.inMemory({ packages: [] }), extensionFactories: [extension],
     agentsFilesOverride: () => ({ agentsFiles: [] }), systemPromptOverride: () => 'Offline isolated handoff fixture.' })
   await loader.reload()
-  let release, entered
+  let entered
   const gate = new Promise(resolve => { release = resolve })
   const streaming = new Promise(resolve => { entered = resolve })
-  let releaseSteer, enteredSteer
+  let enteredSteer
   const steerGate = new Promise(resolve => { releaseSteer = resolve })
   const steering = new Promise(resolve => { enteredSteer = resolve })
   const idlePrompt = '继续原来的任务，把 idle-marker.txt 写成 idle-delivered。'
   const queuedPrompt = '继续原来的任务，把 queued-marker.txt 写成 queued-delivered，作为下一轮执行。'
   const steerPrompt = '继续原来的任务，把 steer-marker.txt 写成 steer-delivered。'
-  const worker = await offlineSession({ cwd: project, agentDir, resourceLoader: loader,
+  worker = await offlineSession({ cwd: project, agentDir, resourceLoader: loader,
     tools: ['write'], sessionManager: SessionManager.create(project, join(dir, 'native-sessions')) }, async context => {
     const user = context.messages.filter(message => message.role === 'user').at(-1)
     const text = typeof user?.content === 'string' ? user.content : user?.content?.map(part => part.text || '').join('')
@@ -79,7 +89,6 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
     const path = text === idlePrompt ? 'idle-marker.txt' : text === queuedPrompt ? 'queued-marker.txt' : text === steerPrompt ? 'steer-marker.txt' : undefined
     return path ? assistant([{ type: 'toolCall', id: path, name: 'write', arguments: { path, content: path.replace('-marker.txt', '-delivered') } }], 'toolUse') : assistant('原会话等待后续指令。')
   })
-  t.after(async () => { release(); releaseSteer(); await worker.session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' }); worker.session.dispose() })
   worker.session.setActiveToolsByName(['write'])
   await worker.session.prompt('开始原来的验收任务。')
   const sessionId = worker.session.sessionManager.getSessionId()
@@ -88,26 +97,28 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   await access(join(envChanges.ODK_SESSION_HOST_SOCKET, `${sessionId}.json`))
 
   let coordinator, activePrompt, behavior
-  const bot = await createPersonalBot({ stateDir: join(dir, 'bot'), personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
+  bot = await createPersonalBot({ stateDir: join(dir, 'bot'), personal: { profile: 'personal', skillPaths: [], memoryFile: join(dir, 'memory.json') } }, {
     createIntentRouter: () => createJevIntentRouter({ env: { TYPESAFE_API_KEY: 'fixture-only' }, fetchImpl: async (_url, options) => {
       const { questions } = JSON.parse(options.body)
       return Response.json({ model: 'jev-fixture', answers: { intent: { type: 'choice', choice: 'session_continue', confidence: 1,
         probabilities: Object.fromEntries(Object.keys(questions.intent.criteria).map(key => [key, key === 'session_continue' ? 1 : 0])) } } })
     } }),
-    createRuntime: async () => ({ getAvailable: async () => [fixtureModel] }),
-    createSession: async options => {
-      coordinator = await offlineSession(options, context => {
+    createRuntime: async () => ({ getAvailable: async () => [fixtureModel], getModel: () => fixtureModel,
+      streamSimple: (_model, context) => {
+        const reply = () => {
         if (context.messages.at(-1)?.role === 'toolResult') return assistant('原会话收到续接请求；执行结果需要另行核实。')
         const code = `const targets=await tools.coding_targets({}); const list=await tools.coding_tasks_list({target:"mac",project:${JSON.stringify(project)}}); const task=list.tasks.find(t=>t.taskId===${JSON.stringify(sessionId)}); if(!task) throw Error("Original session missing"); text(await tools.coding_task_prompt({target:"mac",project:task.project,taskId:task.taskId,prompt:${JSON.stringify(activePrompt)}${behavior ? ',streamingBehavior:"followUp"' : ''}}));`
         return assistant([{ type: 'toolCall', id: `handoff-${behavior || 'idle'}`, name: 'codemode', arguments: { code } }], 'toolUse')
-      })
-      return { session: coordinator.session }
-    },
+        }
+        const result = Promise.resolve(reply())
+        return { async *[Symbol.asyncIterator]() { const message = await result; yield { type: 'done', reason: message.stopReason, message } }, result: () => result }
+      },
+    }),
+    createSession: async options => { const result = await createDurableAgentSession(options); coordinator = result.session; return result },
   })
-  t.after(() => bot.close())
   activePrompt = idlePrompt
   await bot.prompt('在 Mac 的原 Pi 会话中继续原来的任务。')
-  const idleResult = coordinator.session.messages.find(message => message.role === 'toolResult' && message.toolName === 'codemode')
+  const idleResult = (await coordinator.runtime.conversation.context(BACKGROUND_CONTEXT)).messages.find(message => message.role === 'toolResult' && message.toolName === 'codemode')
   assert.ok(idleResult, 'Coordinator must run its actual codemode pipeline')
   assert.equal(idleResult.isError, false, JSON.stringify(idleResult.content))
   await until(async () => { try { return await readFile(join(project, 'idle-marker.txt'), 'utf8') === 'idle-delivered' } catch { return false } }, 'Idle prompt did not execute')
@@ -116,10 +127,11 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   await streaming
   activePrompt = queuedPrompt; behavior = 'followUp'
   await bot.prompt('继续同一个 Mac 会话，下一轮写入验收标记。')
-  const results = coordinator.session.messages.filter(message => message.role === 'toolResult' && message.toolName === 'codemode')
+  const results = (await coordinator.runtime.conversation.context(BACKGROUND_CONTEXT)).messages.filter(message => message.role === 'toolResult' && message.toolName === 'codemode')
   assert.equal(results.length, 2)
   for (const result of results) assert.equal(result.isError, false, JSON.stringify(result.content))
-  const receipts = results.map(result => JSON.parse(result.content.find(part => part.type === 'text' && part.text.startsWith('{')).text))
+  const receipt = result => JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n').split('\n').find(line => line.startsWith('{')))
+  const receipts = results.map(receipt)
   for (const receipt of receipts) {
     assert.equal(receipt.delivery, 'unknown')
     assert.equal(receipt.accepted, false)
@@ -135,9 +147,9 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   await steering
   activePrompt = steerPrompt; behavior = undefined
   await bot.prompt('继续同一个 Mac 会话，直接输入新的验收指令。')
-  const steerResult = coordinator.session.messages.filter(message => message.role === 'toolResult' && message.toolName === 'codemode').at(-1)
+  const steerResult = (await coordinator.runtime.conversation.context(BACKGROUND_CONTEXT)).messages.filter(message => message.role === 'toolResult' && message.toolName === 'codemode').at(-1)
   assert.equal(steerResult.isError, false, JSON.stringify(steerResult.content))
-  const steerReceipt = JSON.parse(steerResult.content.find(part => part.type === 'text' && part.text.startsWith('{')).text)
+  const steerReceipt = receipt(steerResult)
   assert.equal(steerReceipt.delivery, 'unknown')
   assert.equal(steerReceipt.accepted, false)
   assert.equal(steerReceipt.retry, 'never')
@@ -164,7 +176,8 @@ test('Personal Agent idle, followUp and normal Enter instructions execute in the
   assert.equal(status.task.activity, 'idle')
   const persisted = (await readFile(sessionFile, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line))
   for (const prompt of [idlePrompt, queuedPrompt, steerPrompt]) assert.ok(persisted.some(entry => entry.type === 'message' && entry.message.role === 'user' && JSON.stringify(entry.message.content).includes(prompt)))
-  const calls = [...results, steerResult].flatMap(result => result.nestedCalls.calls.map(call => call.name))
+  const tasks = await coordinator.runtime.conversation.commit(tx => tx.scanTasks({ conversationId: coordinator.runtime.conversation.id, kind: 'pi.tool' }, 100), BACKGROUND_CONTEXT)
+  const calls = tasks.items.filter(task => task.input.kind === 'nested').map(task => task.input.call.name)
   assert.deepEqual(calls, Array.from({ length: 3 }, () => ['coding_targets', 'coding_tasks_list', 'coding_task_prompt']).flat())
-  t.diagnostic(JSON.stringify({ evidence: 'native-sdk-handoff', model: 'offline-scripted', realProvider: false, device: false, originalSessionId: sessionId, identityPreserved: true, persistedPrompts: 3, markerWrites: 3, deliveryReceipts: 'unknown', mutationIds, sessionObservation: 'prompt-response-idle', replacementStarts: 0, socketPathBytes: Buffer.byteLength(join(socketDir, `${sessionId}.sock`)) }))
+  t.diagnostic(JSON.stringify({ evidence: 'durable-native-handoff', runtime: 'pi-durable', model: 'offline-scripted', realProvider: false, device: false, originalSessionId: sessionId, identityPreserved: true, persistedPrompts: 3, markerWrites: 3, deliveryReceipts: 'unknown', mutationIds, sessionObservation: 'prompt-response-idle', replacementStarts: 0, socketPathBytes: Buffer.byteLength(join(socketDir, `${sessionId}.sock`)) }))
 })

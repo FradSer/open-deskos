@@ -1,4 +1,5 @@
 'use strict'
+const { integrationURL, findRepositoryRoot } = require('./helpers/repo-root')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -22,7 +23,7 @@ test('host state and data channels use the ODK namespace without aliases', () =>
 })
 
 test('Personal Bot and Shell resolve the same default data endpoints', async () => {
-  const { odkDataEndpoint } = await import('../../../integrations/personal-bot/src/odk-data.mjs')
+  const { odkDataEndpoint } = await import(integrationURL('personal-bot/src/odk-data.mjs'))
   for (const platform of ['linux', 'win32']) {
     const env = { XDG_RUNTIME_DIR: '/run/user/1000', LOCALAPPDATA: 'C:\\Local' }
     const host = resolveShellHost({ platform, arch: 'x64', env, homedir: '/home/test' })
@@ -31,7 +32,7 @@ test('Personal Bot and Shell resolve the same default data endpoints', async () 
 })
 
 test('only the canonical data environment variable overrides an endpoint', async () => {
-  const { odkDataEndpoint } = await import('../../../integrations/personal-bot/src/odk-data.mjs')
+  const { odkDataEndpoint } = await import(integrationURL('personal-bot/src/odk-data.mjs'))
   const oldVariable = ['ODES', 'K_DESK_DATA_SOCKET'].join('')
   const env = { XDG_RUNTIME_DIR: '/run/user/1000', [oldVariable]: '/tmp/retired.sock' }
   assert.equal(odkDataEndpoint(env, 'linux'), path.join('/run/user/1000', 'odk-data', 'service.sock'))
@@ -40,10 +41,17 @@ test('only the canonical data environment variable overrides an endpoint', async
 
 test('active sources and launchers contain no retired technical prefixes', () => {
   const fs = require('node:fs')
-  const root = path.resolve(__dirname, '../../..')
+  const root = findRepositoryRoot(__dirname)
+  const shell = fs.existsSync(path.join(root, 'runtime/shell/src')) ? 'runtime/shell/' : ''
   const retired = new RegExp(['ODES' + 'K_', 'OPEN_' + 'DESKOS', 'open-' + 'deskos', 'odes' + 'k-'].join('|'))
+  const legacyCm5UnitAliases = [
+    ['open', 'deskos', 'personal-bot.service'].join('-'),
+    ['open', 'deskos', 'desk-link.service'].join('-'),
+    ['open', 'deskos', 'remote-bridge.service'].join('-'),
+    ['open', 'deskos', 'pi-tasks.service'].join('-'),
+  ]
   for (const directory of [
-    'runtime/shell/src', 'runtime/shell/scripts', 'runtime/shell/systemd',
+    shell + 'src', shell + 'scripts', shell + 'systemd',
     'integrations/personal-bot/src', 'integrations/personal-bot/scripts',
     'integrations/personal-bot/systemd', 'integrations/personal-bot/launchd',
     'integrations/futu-poller', 'integrations/remote-bridge/lib',
@@ -53,13 +61,18 @@ test('active sources and launchers contain no retired technical prefixes', () =>
     for (const entry of fs.readdirSync(base, { recursive: true, withFileTypes: true })) {
       if (!entry.isFile() || !/\.(?:js|mjs|cjs|py|ps1|sh|service|plist)$/.test(entry.name)) continue
       const file = path.join(entry.parentPath, entry.name)
-      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), retired, path.relative(root, file))
+      let source = fs.readFileSync(file, 'utf8')
+      if (path.relative(root, file) === `${shell}scripts/cm5-personal-bot.sh`) {
+        // Existing CM5 systemd alias targets remain accepted during service migration.
+        for (const alias of legacyCm5UnitAliases) source = source.replaceAll(alias, '')
+      }
+      assert.doesNotMatch(source, retired, path.relative(root, file))
     }
   }
 })
 
 test('the Personal Bot data tool uses the ODK tool namespace', async () => {
-  const { createOdkDataTool } = await import('../../../integrations/personal-bot/src/odk-data.mjs')
+  const { createOdkDataTool } = await import(integrationURL('personal-bot/src/odk-data.mjs'))
   const tool = createOdkDataTool()
   assert.equal(tool.name, 'odk_data')
   assert.equal(tool.namespace.name, 'odk')

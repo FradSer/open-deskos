@@ -63,7 +63,8 @@ app.whenReady().then(async () => {
     await document.fonts.ready;
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   })()`)
-  const collect = () => js(`(() => {
+  const collect = async () => {
+    const result = await js(`(async () => { try {
     const page = document.querySelector('.page[data-page-id="quota"]');
     const button = page.querySelector('#quota-refresh');
     const feedback = page.querySelector('#quota-feedback');
@@ -76,8 +77,10 @@ app.whenReady().then(async () => {
     if (parseFloat(getComputedStyle(button).fontSize) < 14) throw Error('Quota refresh text too small');
     for (const card of metrics.querySelectorAll('.provider-quota-card')) {
       if (card.scrollWidth > card.clientWidth + 1) throw Error('Quota account overflows horizontally');
-      const box = card.getBoundingClientRect();
       for (const meter of card.querySelectorAll('[role="meter"]')) {
+        meter.scrollIntoView({ block: 'center', behavior: 'instant' });
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const box = card.getBoundingClientRect();
         const reading = meter.getBoundingClientRect();
         if (reading.width <= 0 || reading.height <= 0 || reading.left < box.left || reading.right > box.right + 1
           || reading.top < box.top || reading.bottom > box.bottom + 1) throw Error('Quota meter outside account');
@@ -97,7 +100,11 @@ app.whenReady().then(async () => {
       font: value ? getComputedStyle(value).fontFamily : null,
       zpixLoaded: [...document.fonts].some(face => face.family.replace(/["']/g, '') === 'Zpix' && face.status === 'loaded'),
     };
+    } catch (error) { return { error: error.message } }
   })()`)
+    assert.equal(result.error, undefined, result.error)
+    return result
+  }
   const baseline = new Map()
   for (const replacement of [false, 'signed']) {
     let response = live
@@ -167,7 +174,7 @@ app.whenReady().then(async () => {
         results.push(await collect())
         assert.equal(results[7].cards, 2)
         await js(`document.querySelectorAll('#dots .dot')[0].click()`)
-        assert.match(await js('document.querySelector("#page-context").textContent'), /Today/)
+        assert.match(await js('document.querySelector("#page-context").textContent'), /Home/)
         await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))`)
         await waitReady()
         assert.match((await collect()).context, /Usage/)

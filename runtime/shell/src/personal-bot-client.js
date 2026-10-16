@@ -2,6 +2,7 @@ const net = require('node:net')
 const { randomUUID } = require('node:crypto')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { parseHomeBriefing } = require('./home-briefing-frame')
+const { parseAgentTasks } = require('./agent-task-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
 
@@ -37,6 +38,14 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
   let status = { state: 'unavailable', message: 'Personal Bot service unavailable' }
   const listeners = new Set()
   const diagnoses = new Map()
+  const textRequests = new Map()
+  function finishText(id, accepted) {
+    const request = textRequests.get(id)
+    if (!request) return
+    textRequests.delete(id)
+    clearTimeout(request.timer)
+    request.resolve(accepted)
+  }
   const unavailable = reason => ({ host: 'personal-agent', instance: 'resident', state: 'unavailable', reason, plugins: [] })
   function finishDiagnosis(id, runtime) {
     const pending = diagnoses.get(id)
@@ -97,6 +106,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (Buffer.byteLength(line) > MAX_STATUS_BYTES) return active.destroy()
         let record
         try { record = JSON.parse(line) } catch { continue }
+        if (record?.v === 1 && record.type === 'text_receipt') { finishText(record.requestId, record.accepted === true); continue }
         if (record?.v === 1 && record.type === 'runtime_diagnosis') {
           if (!diagnoses.has(record.requestId)) continue
           const runtime = record.runtime
@@ -120,9 +130,11 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           ? record.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS) : ''
         publish({
           state: record.state,
+          textInput: record.textInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
           level,
+          agents: parseAgentTasks(record.agents),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
           ...(typeof record.proposalError === 'string' ? { proposalError: record.proposalError.slice(0, 256) } : {}),
@@ -137,7 +149,9 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       diagnosisSupported = false
       socket = null
       cancelDiagnoses('disconnected')
+      for (const id of textRequests.keys()) finishText(id, false)
       publish({ state: 'unavailable', message: 'Personal Bot service unavailable',
+        agents: { state: 'unavailable', tasks: [] },
         ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })
       if (running) timer = setTimeout(connect, reconnectDelayMs)
     })
@@ -158,6 +172,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       const active = socket
       socket = null
       cancelDiagnoses('stopped')
+      for (const id of textRequests.keys()) finishText(id, false)
       active?.destroy()
     },
     diagnose({ signal } = {}) {
@@ -177,6 +192,18 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       })
     },
     toggle: () => write('toggle'),
+    sendText(text) {
+      if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
+        || status.textInput !== true || textRequests.size || !['idle', 'error'].includes(status.state)) return Promise.resolve(false)
+      const requestId = randomUUID()
+      if (Buffer.byteLength(JSON.stringify({ v: 1, type: 'text', text, requestId })) > 4095) return Promise.resolve(false)
+      return new Promise(resolve => {
+        const timer = setTimeout(() => finishText(requestId, false), 5000)
+        textRequests.set(requestId, { resolve, timer })
+        try { if (!write('text', { text, requestId })) finishText(requestId, false) }
+        catch { finishText(requestId, false) }
+      })
+    },
     servicePush: (readingIds) => Array.isArray(readingIds) && readingIds.length > 0 && readingIds.length <= 32 && readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) && write('proactive_event', { readingIds }),
     proposalCommand: ({ type, ...payload }) => ['proposal_respond', 'proposal_list', 'proposal_presented'].includes(type) && write(type, payload),
     snapshot: () => ({ ...status }),

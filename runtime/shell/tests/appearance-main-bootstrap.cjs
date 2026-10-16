@@ -123,7 +123,7 @@ app.on('browser-window-created', (_event, win) => {
           await new Promise(resolve => requestAnimationFrame(resolve));
         }
         window.__retainedDocument = document;
-        window.__retainedClock = document.querySelector('[data-widget="odk.tile.clock"] time');
+        window.__retainedClock = document.querySelector('.sb-time');
         window.__retainedFrame = document.querySelector('[data-user-app-id="counter"] iframe');
       })()`)
       const appFrame = win.webContents.mainFrame.frames.find(frame => frame.url.startsWith('odk-user-app://app/counter/'))
@@ -131,20 +131,20 @@ app.on('browser-window-created', (_event, win) => {
       await appFrame.executeJavaScript('counter.click()')
       const measure = async () => {
         const results = {}
-        for (const theme of ['pixel', 'instrument', 'border-beam']) {
+        for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
           const shell = await js(`(async () => {
-            document.querySelector('#dots .dot[aria-label$="Home"]').click();
+            document.querySelector('#dots .dot[aria-label^="Home, page "]').click();
             odkTheme.set(${JSON.stringify(theme)});
             await document.fonts.ready;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const clock = document.querySelector('[data-widget="odk.tile.clock"] time');
+            const clock = document.querySelector('.sb-time');
             const box = clock.getBoundingClientRect(); const style = getComputedStyle(clock);
             return { text: clock.textContent, font: style.fontFamily, size: style.fontSize, width: box.width, height: box.height,
               primary: getComputedStyle(document.documentElement).getPropertyValue('--odk-primary').trim(),
               radius: getComputedStyle(document.documentElement).getPropertyValue('--odk-radius-card').trim() };
           })()`)
           assert.ok(shell.width > 0 && shell.height > 0, JSON.stringify(shell))
-          await js(`document.querySelector('#dots .dot[aria-label$="Counter"]').click()`)
+          await js(`document.querySelector('#dots .dot[aria-label^="Counter, page "]').click()`)
           const installedApp = await appFrame.executeJavaScript(`(async () => {
             const until = performance.now() + 4000;
             while (document.documentElement.dataset.theme !== ${JSON.stringify(theme)}) {
@@ -173,7 +173,7 @@ app.on('browser-window-created', (_event, win) => {
       const baseline = await measure()
       const retained = async () => {
         assert.equal(await js(`document === __retainedDocument &&
-          document.querySelector('[data-widget="odk.tile.clock"] time') === __retainedClock &&
+          document.querySelector('.sb-time') === __retainedClock &&
           document.querySelector('[data-user-app-id="counter"] iframe') === __retainedFrame &&
           __retainedFrame.getAttribute('sandbox') === 'allow-scripts' && localStorage.getItem('odk.theme') === 'pixel'`), true)
         assert.equal(win.webContents.mainFrame.frames.find(frame => frame.url.startsWith('odk-user-app://app/counter/')), appFrame)

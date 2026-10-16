@@ -31,6 +31,7 @@
     app: 'Weather',
     state: 'Unavailable',
     interaction: 'display-only',
+    opensApp: 'weather',
     css: 'plugins/weather.css',
     mount(el, ctx) {
       let released = false

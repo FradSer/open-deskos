@@ -11,15 +11,28 @@
   "private": true,
   "scripts": {
     "test": "node --test --test-timeout=120000 tests/*.test.mjs",
+    "test:env:ssh": "node --test --test-timeout=60000 tests/acceptance/pi-env-ssh.test.mjs",
     "test:intents:live": "node scripts/test-intents-live.mjs",
+    "test:agent:live": "node scripts/test-agent-runtime-live.mjs",
+    "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
+    "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
     "start": "node src/main.mjs",
+    "agent:packages": "node src/agent-catalog/cli.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "1.0.0",
+    "@earendil-works/chord": "1.2.0",
+    "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-codemode": "1.2.0",
+    "@earendil-works/pi-coding-agent": "1.2.0",
+    "@earendil-works/pi-durable": "1.2.0",
+    "@earendil-works/pi-env": "1.2.0",
     "@echogarden/fvad-wasm": "0.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "koffi": "3.3.3",
+    "minimatch": "10.2.6",
     "opencc-js": "1.4.2",
+    "proper-lockfile": "4.1.2",
     "typebox": "^1.3.28"
   },
   "devDependencies": {

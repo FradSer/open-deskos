@@ -19,9 +19,13 @@ The surface renders briefing segments as literal text.
 Approved fact icons retain the Shell theme adapter and static artwork.
 Temperature readings retain their Celsius units.
 Portfolio changes use direction colors only for signed, nonzero values with live sources and a live frame.
-Source states and measurement times remain available through Sources.
-Loading, empty, unavailable, error, stale, and live frames retain their existing messages.
-Omitted sources retain their count and singular or plural message.
+The briefing frame retains source metadata and omitted-source counts.
+The surface has no attribution footer, update timestamp, or Sources controls.
+Loading, empty, unavailable, error, and stale frames show availability in the briefing paragraph.
+The paragraph uses a polite status region.
+Home fits the paragraph and inline icons within the space below the date row.
+The date row and card geometry do not change with briefing length.
+Long content remains scrollable at the 16-pixel reading floor.
 The date retains its English weekday, month, day, and year.
 Current callbacks update the active placement.
 Released callbacks cannot change former nodes or later placements.
@@ -39,18 +43,17 @@ It replaces and restores the Dashboard inside one unchanged Shell document.
 The default mount is forbidden during independent activation.
 Both paths compare ten controlled frames across Instrument, Pixel, and Border Beam.
 Each positive path makes sixty replacement or restoration comparisons against the default.
-Comparisons cover literal content, element geometry, styles, icon paths, states, and source messages.
+Comparisons cover literal content, element geometry, styles, icon paths, and availability messages.
 Leaf text and narrative text exclude static markup indentation from the comparison.
-Product assertions also check literal rendering, portfolio direction, and Sources availability.
+Product assertions also check literal rendering, portfolio direction, and the absence of source controls.
 Controlled invalid candidates must fail at the empty-message comparison through both loading paths.
 Additional invalid candidates leave the actual page empty or let released callbacks modify former nodes.
 Each control must fail at its intended boundary through both loading paths.
 
 The checks preserve the Today container, Clock placement, and foreground Clock App node.
-Browser pointer input closes the App through Back and opens Sources.
+Browser pointer input closes the App through Back.
 Every frame compares actual Today content with the controlled placement.
-Sources pointer checks target Today after Back and verify the target is unobscured.
-The extra placement is hidden only for that pointer check; the control is removed before subsequent assertions.
+The page has no source controls after Back.
 Controlled forward and backward dates exercise the actual shared Tick.
 Captured callbacks from previous implementations cannot change the active placement.
 They also cannot change retained nodes from former placements.

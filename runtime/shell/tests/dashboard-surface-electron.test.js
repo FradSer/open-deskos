@@ -61,7 +61,7 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
       const result = await operation
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
         actualPreload: true, mode, documentLoads: 1, themes: 3, frames: 10, comparisons: 60, retainedPage: true,
-        retainedForeground: true, pointerBack: 3, sourcesDisclosure: 3, dateTransitions: 6, restored: true,
+        retainedForeground: true, pointerBack: 3, noSourceControls: 3, dateTransitions: 6, restored: true,
         discoveryReleased: true, assetLeaseReleased: mode === 'native',
       })
     } finally { await fs.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }

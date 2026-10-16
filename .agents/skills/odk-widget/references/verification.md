@@ -17,6 +17,28 @@ Capture needed images on CM5 and transfer them to the development machine's `/tm
 Label fixture images as examples.
 Screenshots support explanation; they do not replace runtime assertions.
 
+## Normal design previews
+
+Use populated, representative readings for normal design review.
+Keep success previews separate from failure, stress, and recovery captures.
+Do not change shared failure fixtures to make a preview look complete.
+Check that every visible data surface has its expected values, units, and labels.
+Derive summary facts and component readings from one consistent fixture snapshot.
+Populate conversation previews with representative messages, not a transcript of test actions.
+Assert decoded images, visible readings, font readiness, and cross-surface consistency before capture.
+Capture each supported theme and the applicable reference and compact dimensions.
+
+When a component lacks a data channel, identify any preview-only display as simulated.
+Record the missing product capability separately; a populated preview does not implement it.
+Scope fixture controls to the preview and verify their removal after capture.
+Never fill missing production data with preview values.
+
+For Shell Home success previews, use [the isolated harness](../../../../runtime/shell/tests/home-preview.cjs).
+Its synthetic Camera frame needs no hardware capture or external image provider.
+Use the failure harness separately for unavailable states and interaction recovery.
+
+## Difficult states
+
 Use deterministic success, unavailable, malformed, slow, unauthorized, empty, corrupt-cache, and stale-cache fixtures for external data.
 Include long English/CJK, extreme values, missing units, and partial readings.
 Check Instrument, Pixel, and Border Beam themes where inherited.

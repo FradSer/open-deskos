@@ -93,8 +93,7 @@ app.whenReady().then(async () => {
   const registry = generated ? createOdkDataRegistry({ onPublish: id => { if (forward) client.servicePush([id]) } }) : createShellOdkData({ hydra: { snapshot: () => hydra.snapshot(Date.now()) } }).registry
   if (generated) {
     const { createPersonalBot } = await load('agent.mjs')
-    const {createAgentSession}=await import(pathToFileURL(path.join(personalBotRoot,'node_modules/@earendil-works/pi-coding-agent/dist/index.js')))
-    generator = await createPersonalBot({ stateDir: path.join(profile, 'generator'), model: process.env.ODK_PERSONAL_BOT_MODEL, personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } }, {createSession:async options=>{const r=await createAgentSession(options);r.session.subscribe(e=>{if(e.type==='message_end' && e.message.role==='assistant' && ['error','aborted'].includes(e.message.stopReason))record({case:'generation_provider_failure',stopReason:e.message.stopReason})});return r}})
+    generator = await createPersonalBot({ stateDir: path.join(profile, 'generator'), model: process.env.ODK_PERSONAL_BOT_MODEL, personal: { profile: 'personal', skillPaths: [], memoryFile: path.join(profile, 'generator/memory.json') } })
     for (const id of ['example.parcels', 'example.ci']) registry.register({ id, label: id, kind: 'package', declaration: { fields: { status: { type: 'string' }, measured_at: { type: 'string' } } } })
   }
   const judge = createJevJudge({ env: { ODK_JEV_KEY_FILE: option('--jev-key') } })

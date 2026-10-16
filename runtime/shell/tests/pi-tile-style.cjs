@@ -20,9 +20,9 @@ const timer = setTimeout(() => { console.error('PI_TILE_STYLE_TIMEOUT'); app.exi
 
 // Each case names a real viewport and the cell that viewport produces, because a
 // case about a cell the layout never produces would silently test nothing. The
-// small cell comes from a two-column layout, where the page's composition cannot
+// small cell comes from a compact layout, where the page's composition cannot
 // be placed and every tile gets a single cell.
-const CASES = [['reference panel', 348, 1920, 1280], ['handheld panel', 186, 1280, 776], ['small cell', 204, 480, 854]]
+const CASES = [['reference panel', 357, 1920, 1280], ['handheld panel', 196, 1280, 776], ['small cell', 217, 480, 854], ['below-floor cell', 217, 480, 854, 206]]
 const THEMES = ['instrument', 'pixel', 'border-beam']
 const GOAL_FLOOR = 14
 
@@ -92,10 +92,11 @@ async function main() {
   for (const [state, payload] of SCANS) {
     scan = payload
     await win.loadFile(path.join(root, 'src/renderer/index.html'))
-    for (const [name, cell, width, height] of CASES) {
+    for (const [name, cell, width, height, forcedCell] of CASES) {
       win.setContentSize(width, height)
       await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('resize'))`)
       await wait(500)
+      if (forcedCell) await win.webContents.executeJavaScript(`(() => { const tile = document.querySelector('[data-widget="odk.tile.pi-sessions"]'); tile.style.width = '${forcedCell}px'; tile.style.height = '${forcedCell}px' })()`)
       for (const theme of THEMES) {
         await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
         await wait(400)
@@ -125,14 +126,15 @@ async function main() {
     assert.equal(reading.countContained, true, `${where}: every count digit stays inside its metric row`)
     // The summary is the line that goes when the cell is smaller than the tile
     // declared it reads at; the primary reading never goes.
-    if (reading.panel !== 'small cell') assert.equal(reading.summaryVisible, true, `${where}: the summary stays visible`)
+    assert.equal(reading.summaryVisible, reading.cell >= 217, `${where}: the full summary follows the measured Cell while compact primary readings stay visible`)
   }
   // Below the declared minimum the tile drops its least essential line rather
   // than letting the cell cut it off.
-  for (const reading of results.filter((item) => item.panel === 'small cell')) {
+  for (const reading of results.filter((item) => item.panel === 'below-floor cell')) {
     const where = `${reading.panel} ${reading.state} ${reading.theme}`
     assert.ok(reading.hiddenV <= 1, `${where}: the tile hides ${reading.hiddenV}px of its own content`)
     assert.equal(reading.countVisible, true, `${where}: the primary reading stays visible`)
+    assert.equal(reading.cell, 206, `${where}: the fixture supplied a cell below the declared minimum`)
     assert.equal(reading.summaryVisible, false, `${where}: a cell below the declared minimum drops the summary rather than clipping it`)
     assert.ok(reading.font >= GOAL_FLOOR, `${where}: goal type ${reading.font}px is under the data floor`)
   }

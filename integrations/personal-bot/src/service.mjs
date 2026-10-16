@@ -1,4 +1,5 @@
 import { AudioLimitError } from './errors.mjs'
+import { randomUUID } from 'node:crypto'
 
 function boundedText(text, limit, label) {
   const notice = `\n\n[${label} truncated]`
@@ -12,7 +13,7 @@ export class PersonalBotService {
   /** @param {Dependencies} dependencies */
   constructor(dependencies) {
     this.dependencies = dependencies
-    this.status = { v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
+    this.status = { textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
     this.terminated = false
@@ -29,7 +30,8 @@ export class PersonalBotService {
     this.watch = undefined
     this.home = undefined
     this.briefing = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
-    this.notification = ''
+    this.pendingNotifications = []
+    this.agentFrame = { state: 'unavailable', tasks: [] }
   }
 
   subscribe(listener) {
@@ -40,6 +42,13 @@ export class PersonalBotService {
   attachWatch(watch) { this.watch = watch }
 
   attachHome(home) { this.home = home }
+
+  publishAgents(tasks) {
+    if (this.closed) return
+    this.agentFrame = Array.isArray(tasks) ? { state: 'live', tasks: structuredClone(tasks) } : { state: 'unavailable', tasks: [] }
+    this.status = { ...this.status, agents: this.agentFrame }
+    for (const listener of this.listeners) listener(this.status)
+  }
 
   publishBriefing(briefing) {
     if (this.closed) return
@@ -71,18 +80,17 @@ export class PersonalBotService {
 
   notify(message) {
     if (this.closed) return
-    this.notification = boundedText(message, 4096, 'Ride update')
+    this.pendingNotifications.push({ id: randomUUID(), message: boundedText(message, 4096, 'Ride update') })
     if (!this.starting && ['idle', 'error'].includes(this.status.state)) this.setState(this.status.state, this.status.message)
   }
 
   setState(state, message = '', transcript = this.status.transcript) {
-    if (!this.closed && ['idle', 'error'].includes(state) && this.notification) {
-      message = [message, this.notification].filter(Boolean).join('\n\n')
-      this.notification = ''
-    }
+    const limit = this.proposalFrame.proposals.length ? 8192 : 16384
+    const reply = boundedText(message, limit, 'Response')
+    const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), v: 1, type: 'status', state, level: 0,
-      message: boundedText(message, this.proposalFrame.proposals.length ? 8192 : 16384, 'Response'),
+      ...this.proposalFrame, agents: this.agentFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
@@ -99,7 +107,7 @@ export class PersonalBotService {
   }
 
   async start() {
-    this.status = { ...this.status, message: '', transcript: '' }
+    this.status = { ...this.status, message: '', notifications: [], transcript: '' }
     try {
       const captureId = ++this.captureId
       this.recording = await this.dependencies.record(level => {
@@ -116,6 +124,7 @@ export class PersonalBotService {
       if (!this.closed) this.setState('error', 'Microphone unavailable')
     } finally {
       this.starting = false
+      if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message)
       this.watch?.setBusy(!['idle', 'error'].includes(this.status.state))
     }
   }
@@ -157,6 +166,27 @@ export class PersonalBotService {
         this.setState(failure ? 'error' : 'idle', failure || response)
         if (!failure) this.watch?.interact()
       }
+    }
+  }
+
+  /** Submit a typed turn through the same resident session as voice. */
+  sendText(text) {
+    if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
+      || this.closed || this.starting || this.watch?.responding || !['idle', 'error'].includes(this.status.state)) return false
+    this.watch?.setBusy(true)
+    this.setState('thinking', '', text.trim())
+    this.pending = this.submitText(text.trim())
+    return true
+  }
+
+  async submitText(text) {
+    try {
+      const response = await this.promptResponse(text)
+      if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
+    } catch {
+      if (!this.closed) this.setState('error', this.dependencies.failureMessage || 'Personal Bot request failed; try again')
+    } finally {
+      this.watch?.setBusy(false)
     }
   }
 
@@ -226,6 +256,7 @@ export class PersonalBotService {
 
   async shutdown() {
     this.closed = true
+    this.agentFrame = { state: 'unavailable', tasks: [] }
     this.captureId++
     this.controller.abort()
     this.cancelStreaming()

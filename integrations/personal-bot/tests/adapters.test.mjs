@@ -83,6 +83,10 @@ test('status transport preserves maximally escaped bounded replies and transcrip
   const service = new PersonalBotService({ record: async () => { throw Error('no device') }, transcribe: async () => '', prompt: async () => '' })
   const reply = '\u0000'.repeat(16_384)
   const transcript = '\u0000'.repeat(4096)
+  const tasks = Array.from({ length: 4 }, (_, index) => ({ taskId: `64a7f377-3169-447c-9b85-547a2454c28${index}`, identity: {
+    id: `reporter-${index}`, name: '"'.repeat(120), avatar: 'book', revision: 'a'.repeat(64),
+  }, state: 'running', updatedAt: '2026-10-16T00:00:00.000Z' }))
+  service.publishAgents(tasks)
   service.setState('idle', reply, transcript)
   const server = await listen(socketPath, service, { token: fixtureToken })
   t.after(() => server.close())
@@ -103,7 +107,11 @@ test('status transport preserves maximally escaped bounded replies and transcrip
   assert.equal(status.message, reply)
   assert.equal(status.transcript, transcript)
   assert.equal(status.level, 0)
-  assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 123_000)
+  const { textInput, agents, ...boundedStatus } = status
+  assert.equal(textInput, true)
+  assert.deepEqual(agents, { state: 'live', tasks })
+  assert.ok(Buffer.byteLength(`${JSON.stringify(boundedStatus)}\n`) < 123_000)
+  assert.ok(Buffer.byteLength(`${JSON.stringify(status)}\n`) < 131_072)
 })
 
 test('Chinese transcription preserves mixed project names and configurable languages', async t => {

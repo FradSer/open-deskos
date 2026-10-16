@@ -3,7 +3,7 @@
 
   root.odkRendererDevelopment.define({
     id: 'odk.tile.almanac', manifest: { schemaVersion: 1, version: '2.0.0' },
-    kind: 'tile', app: 'Calendar', state: 'Available', interaction: 'display-only',
+    kind: 'tile', app: 'Calendar', state: 'Available', interaction: 'display-only', opensApp: 'calendar',
     mount(element, context) {
       // Static markup and Shell styles are shared; date formatting is independent.
       element.innerHTML = `

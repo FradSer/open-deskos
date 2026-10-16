@@ -1,4 +1,5 @@
 'use strict'
+const { integrationPath } = require('./helpers/repo-root')
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -107,13 +108,13 @@ test('actual Python publisher answers diagnosis with its owned plugin lifecycle'
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": "", "ODK_FUTU_TARGETS_FILE": sys.argv[3]})',
     'runtime.start()',
     'try: runtime.host.get(poller.PORTS["publisher"]).send({"type":"data","snapshot":{"positions":[],"totals":{}}})',
     'finally: runtime.close()',
   ].join('\n')
-  await promisify(execFile)(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], {
-    cwd: path.resolve(__dirname, '../../../integrations/futu-poller'), timeout: 10000,
+  await promisify(execFile)(pythonExecutable, ['-c', code, endpoint, channel.tokenFile, path.join(root, 'missing-futu-targets.json')], {
+    cwd: integrationPath('futu-poller'), timeout: 10000,
   })
   const actual = await observed
   assert.equal(actual.host, 'python-agent')
@@ -134,7 +135,7 @@ test('Python owner receives diagnosis while waiting after publication', async t 
   await server.start()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": "", "ODK_FUTU_TARGETS_FILE": sys.argv[3]})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',
@@ -143,7 +144,7 @@ test('Python owner receives diagnosis while waiting after publication', async t 
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile, path.join(root, 'missing-futu-targets.json')], { cwd: integrationPath('futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''

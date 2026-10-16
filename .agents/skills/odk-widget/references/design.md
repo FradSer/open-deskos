@@ -11,6 +11,13 @@ Trace defects through parents, shared styles, component constraints, and content
 Compare user-approved neighboring surfaces in their actual composition.
 Treat minimum sizes as safeguards, not visual targets.
 
+For composition changes, record the latest accepted constraints before editing shared geometry.
+Distinguish fixed spans, aspect ratios, page membership, outer margins, and internal gaps.
+Replace superseded constraints when the user changes them.
+Derive the canvas from those constraints and the available pane dimensions.
+Check the complete composition before adjusting individual components.
+Tests establish constraints and behavior; user feedback establishes subjective acceptance.
+
 Widgets adapt to their measured Cell, not a host name or window width.
 Use container queries and content-driven composition.
 Honor Minimum Readable Cell and supported spans.
@@ -87,7 +94,7 @@ Use existing plugin implementations as examples:
 
 | Need | Example | Required distinction |
 | --- | --- | --- |
-| Pending integration | `plugins/chat.js`, `plugins/settings.js` | Name, icon, `Pending`, and `Integration not available`; no controls |
+| Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
 | Calendar | `plugins/almanac.js` | Guard date changes; maintain centered one/two-digit days |
 | Clock | `plugins/clock.js` | `--:--` until first tick; update `dateTime` with the reading |
 | Progress | `plugins/year.js` | Rounded text and precise meter; text carries accessible meaning |

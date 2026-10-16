@@ -13,7 +13,11 @@
     const header = make('header', 'app-surface-header')
     header.append(make('h2', 'app-surface-heading', titles[id])); body.append(header); el.append(body)
     if (id === 'pomodoro') {
-      body.append(make('p', 'runtime-state app-detail', 'Timer unavailable'), make('p', 'app-detail', 'This view does not provide a countdown timer.'))
+      body.dataset.view = 'pomodoro'
+      const empty = make('div', 'app-empty-state')
+      const dial = make('span', 'pomodoro-empty-dial', '--:--'); dial.setAttribute('aria-hidden', 'true')
+      empty.append(dial, make('p', 'runtime-state app-detail', 'Timer unavailable'), make('p', 'app-detail', 'This view does not provide a countdown timer.'))
+      body.append(empty)
       return
     }
     if (id === 'app-manager') {
@@ -50,7 +54,19 @@
     }
     const value = make(id === 'year' ? 'p' : 'time', id === 'calendar' ? 'runtime-date app-detail' : 'runtime-value')
     const status = make('p', 'runtime-state app-detail', id === 'calendar' ? 'Calendar events unavailable. Date uses the local clock.' : id === 'clock' ? 'Local time' : '')
-    body.append(value, status)
+    let meter, completed, remaining
+    if (id === 'year') {
+      body.dataset.view = 'year'
+      const reading = make('div', 'year-reading')
+      meter = make('progress', 'year-meter'); meter.max = 100; meter.value = 0; meter.setAttribute('aria-label', 'Year elapsed')
+      reading.append(value, meter, status)
+      const calendar = make('dl', 'year-calendar')
+      completed = make('dd', 'year-days-completed', '--'); remaining = make('dd', 'year-days-left', '--')
+      for (const [label, counter] of [['Days completed', completed], ['Days left', remaining]]) {
+        const row = doc.createElement('div'); row.append(doc.createElement('dt'), counter); row.firstChild.textContent = label; calendar.append(row)
+      }
+      body.append(reading, calendar)
+    } else body.append(value, status)
     ctx.onTick(now => {
       if (id === 'clock') {
         const reading = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now)
@@ -65,6 +81,11 @@
         const year = now.getFullYear(), boundaries = [new Date(year, 0, 1).getTime(), new Date(year + 1, 0, 1).getTime()]
         text(value, Math.round(100 * (now.getTime() - boundaries[0]) / (boundaries[1] - boundaries[0])) + '%')
         text(status, `of ${year} elapsed · Local time`)
+        meter.value = 100 * (now.getTime() - boundaries[0]) / (boundaries[1] - boundaries[0])
+        const firstDay = Date.UTC(year, 0, 1)
+        const elapsedDays = (Date.UTC(year, now.getMonth(), now.getDate()) - firstDay) / 86400000
+        text(completed, String(elapsedDays))
+        text(remaining, String((Date.UTC(year + 1, 0, 1) - firstDay) / 86400000 - elapsedDays))
       }
     })
   }

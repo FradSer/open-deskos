@@ -63,6 +63,7 @@ app.whenReady().then(async () => {
   checkpoint('debugger')
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')
+  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   // Freeze Date before initial subscriptions; retain ordinary Date construction with explicit arguments.
   await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
     const ActualDate = Date;

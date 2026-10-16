@@ -15,6 +15,40 @@ function fixture(overrides = {}) {
   return { service, calls }
 }
 
+test('child activity stays separate from conversation state and clears during service shutdown', async () => {
+  const { service } = fixture()
+  service.setState('thinking', 'Current reply', 'Current request')
+  const tasks = [{ taskId: '64a7f377-3169-447c-9b85-547a2454c28f', identity: { id: 'reporter', name: 'Reporter', avatar: 'book', revision: 'a'.repeat(64) }, state: 'running', updatedAt: new Date().toISOString() }]
+  service.publishAgents(tasks)
+  assert.equal(service.status.state, 'thinking')
+  assert.equal(service.status.message, 'Current reply')
+  assert.deepEqual(service.status.agents, { state: 'live', tasks })
+  service.setState('idle', 'Final reply')
+  assert.deepEqual(service.status.agents.tasks, tasks)
+  await service.close()
+  assert.deepEqual(service.status.agents, { state: 'unavailable', tasks: [] })
+  service.publishAgents(tasks)
+  assert.deepEqual(service.status.agents.tasks, [])
+})
+
+test('notifications stay separate from replies and flush one message per event', () => {
+  const { service } = fixture()
+  service.setState('thinking', 'Partial answer', 'Ride status?')
+  service.notify('订单状态仍待确认')
+  service.notify('订单状态已更新')
+  service.setState('idle', 'Final answer', 'Ride status?')
+
+  assert.equal(service.status.message, 'Final answer')
+  assert.equal(service.status.notifications.length, 2)
+  assert.deepEqual(service.status.notifications.map(item => item.message), ['订单状态仍待确认', '订单状态已更新'])
+  assert.equal(new Set(service.status.notifications.map(item => item.id)).size, 2)
+
+  service.notify('后续状态')
+  assert.equal(service.status.message, 'Final answer')
+  assert.equal(service.status.notifications.length, 1)
+  assert.equal(service.status.notifications[0].message, '后续状态')
+})
+
 test('service suspension drains capture and restores work without accepting late recording completion', async () => {
   let done
   let cleaned = 0

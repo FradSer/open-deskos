@@ -51,7 +51,7 @@ app.whenReady().then(async () => {
     });
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', false);
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', true);
-    if (document.querySelector('#dash-agent-status').textContent !== 'Personal Agent could not update your briefing. It will retry.')
+    if (document.querySelector('#dash-narrative').textContent !== 'Personal Agent could not update your briefing. It will retry.')
       throw Error('Dashboard bypassed selected Home Briefing service');
     window.homeDelivery = new Promise(resolve => {
       const release = window.odkPersonalBot.subscribe(() => { release(); resolve(); });
@@ -72,14 +72,14 @@ app.whenReady().then(async () => {
     await current;
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', false);
     await window.odkRendererRuntime.setEnabled('odk.page.dashboard', true);
-    if (document.querySelector('#dash-agent-status').textContent !== 'Personal Agent is unavailable.')
+    if (document.querySelector('#dash-narrative').textContent !== 'Personal Agent is unavailable.')
       throw Error('Dashboard did not restore current Home Briefing');
   })()`)
   const result = await js(`(async () => {
     const check = (value, message) => { if (!value) throw Error(message) };
     const registry = window.odkPlugins, id = 'odk.page.dashboard';
     const originalDocument = document;
-    const peer = document.querySelector('[data-widget="odk.tile.clock"]');
+    const peer = document.querySelector('[data-widget="odk.tile.year"]');
     check(peer, 'Peer Clock placement absent');
     for (const failUnsubscribe of [false, true]) {
       const element = document.createElement('section'); document.body.append(element);
@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
       };
       check(registry.activate(registry.get(id), element, ui), 'Initial Dashboard mount refused');
       const oldYear = element.querySelector('#dash-y');
-      const oldStatus = element.querySelector('#dash-agent-status');
+      const oldStatus = element.querySelector('#dash-narrative');
       await registry.setEnabled(id, false);
       const releasedHTML = element.innerHTML;
       briefings[0](frame('error')); ticks[0](new Date(2099, 0, 1));
@@ -118,13 +118,13 @@ app.whenReady().then(async () => {
       await registry.setEnabled(id, true);
       check(briefings.length === 2 && ticks.length === 2, 'Remount subscriptions absent');
       briefings[1](frame('unavailable')); ticks[1](new Date(2027, 1, 2));
-      check(element.querySelector('#dash-agent-status').textContent === 'Personal Agent is unavailable.', 'Current briefing stopped updating');
+      check(element.querySelector('#dash-narrative').textContent === 'Personal Agent is unavailable.', 'Current briefing stopped updating');
       check(element.querySelector('#dash-md').textContent === 'February 2', 'Current date stopped updating');
       check(element.querySelector('#dash-y').textContent === '2027', 'Current year stopped updating');
       const currentHTML = element.innerHTML;
       briefings[0](frame('error')); ticks[0](new Date(2099, 0, 1));
       check(element.innerHTML === currentHTML, 'Old callback overwrote the new placement');
-      check(document === originalDocument && peer === document.querySelector('[data-widget="odk.tile.clock"]'), 'Document or peer replaced');
+      check(document === originalDocument && peer === document.querySelector('[data-widget="odk.tile.year"]'), 'Document or peer replaced');
       const currentYear = element.querySelector('#dash-y');
       await registry.deactivate(registry.get(id), element, ui);
       check(activeBriefings.size === 0 && activeTicks.size === 0, 'Final surface release leaked subscriptions');

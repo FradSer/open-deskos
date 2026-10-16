@@ -65,12 +65,35 @@
     }
   }
 
+  function computeDesk(width, height, viewportWidth, viewportHeight, widgetCount = 6, deskHeight, minCell = 200) {
+    // State Bar and theme metrics still belong to the whole Shell. Only the
+    // Widget grid is measured from the right pane, including its scroll rails.
+    const metrics = compute(width, height, widgetCount)
+    const widgetGap = 16
+    const availableWidth = Math.max(24, viewportWidth - 2 * widgetGap - (width < 640 ? 32 : 0))
+    const cols = Math.max(1, Math.min(3, Math.floor((availableWidth + widgetGap) / (minCell + widgetGap))))
+    const widthCell = Math.floor((availableWidth - (cols - 1) * widgetGap) / cols)
+    // Home has one full-width Overview card above two square Widget rows.
+    // Desktop panels show the complete canvas. Single-cell Widgets use their
+    // compact composition when the display height is below their full-size minimum.
+    const rows = Math.max(2, Math.ceil(widgetCount / cols))
+    const canvasHeight = Number.isFinite(deskHeight) ? deskHeight - 48 : viewportHeight
+    const fitCell = Math.floor((canvasHeight - (rows + 2) * widgetGap) / (rows + 1))
+    const fitCanvas = width >= 1280 && cols === 3 && rows === 2 && fitCell >= 186
+    const heightCell = Math.max(fitCanvas ? 186 : minCell, fitCell)
+    const cellDim = Math.min(widthCell, heightCell)
+    return { ...metrics, widgetGap, minCell, fitCanvas, cols, rows, cellDim, cellW: cellDim, cellH: cellDim,
+      colW: cellDim, gridW: cols * cellDim + (cols - 1) * widgetGap,
+      gridH: rows * cellDim + (rows - 1) * widgetGap,
+      widgetViewportH: null }
+  }
+
   function gridWidgetCount(layout) {
     const grid = layout?.pages?.find((page) => page.kind === 'grid')
     return grid?.widgets?.length ?? 0
   }
 
-  const api = { REF, compute, gridWidgetCount }
+  const api = { REF, compute, computeDesk, gridWidgetCount }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api
   } else {

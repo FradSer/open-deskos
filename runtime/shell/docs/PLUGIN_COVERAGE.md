@@ -543,6 +543,8 @@ The complete end-to-end rerun passed without missing Remote Link handlers.
 The other standalone fixtures received declaration and syntax checks; they were not each executed separately.
 These results do not establish complete service contract coverage, physical input, Windows, or CM5 acceptance.
 
+Historical command from before the Camera Widget retirement:
+
 ```sh
 node --test --test-concurrency=1 tests/shared-service-selection.test.js tests/preload.test.js tests/voice-mic-preload.test.js tests/agent-home.test.js tests/briefing-store.test.js tests/gamepad-state-service.test.js tests/gamepad-input.test.js tests/home-briefing-frame.test.js tests/dashboard-lifecycle.test.js tests/dashboard-lifecycle-electron.test.js tests/dashboard-surface-electron.test.js tests/dashboard-main-bootstrap.test.js tests/input-status-surface-lifecycle.test.js tests/input-status-surface-electron.test.js tests/shell-robustness.test.js tests/renderer-runtime-controller.test.js tests/renderer-runtime-replacement.test.js tests/system-channel-plugins.test.js tests/main-smoke.test.js tests/pixel-icons.test.js tests/camera-surface-electron.test.js tests/builtin-view-replacement.test.js tests/app-interiors.test.js
 ```
@@ -5801,7 +5803,7 @@ Published asset retirement and the feature matrix's remaining replacement and su
 
 ## Camera independent surface and subscription ownership
 
-The [surface contract](CAMERA_SURFACE_PLUGIN_CONTRACT.md) defines independent frame display and preserved Camera service behavior.
+This historical section records acceptance for the retired Camera Widget. The Camera source and UVC hardware checks remain active.
 The new regression reproduced a default subscription retained after surface release.
 Built-in recovery then attempted another subscription while the old listener still owned the service.
 The default and independent surfaces now register cleanup with the existing registry and fence late callbacks before cancellation.
@@ -5809,7 +5811,7 @@ Failed cancellation remains owned for explicit retry.
 Source capture, image placement, visible wording, and refresh cadence remain unchanged.
 
 The affected command passed all thirteen lifecycle and existing tile checks.
-The actual [Electron check](../tests/camera-surface-electron.test.js) passed development loading and seventy-two replacement and recovery comparisons.
+The former Electron check passed development loading and seventy-two replacement and recovery comparisons.
 It retains one document, the desktop placement, and the measured container across default, independent, and built-in recovery phases.
 Generated images decode into distinct red and blue regions with the same intrinsic aspect ratio.
 Three themes, three sizes, and four sequential readings retain complete computed styles, attributes, text, geometry, and containment.
@@ -5845,7 +5847,7 @@ The joint branch executes the independent signed source through the production c
 Generated JPEG frames decode at 1280 by 720 with distinct red and blue regions.
 Actual preload and the production Camera service deliver those frames to the selected desktop surface.
 
-The [revision checks](../tests/camera-main-surface.test.js) run eight separate Main processes across live and unavailable states.
+The former revision checks ran eight separate Main processes across live and unavailable states.
 Each state selects surface versions `2.0.0`, `3.0.0`, `2.0.0`, and default `1.0.0`.
 The independent source stays at version `2.0.0` without default source construction.
 Actual child PIDs and entry markers bind each report to its process and implementation.
@@ -5865,7 +5867,7 @@ Authenticated operator activation, published resource retirement, independent de
 
 ## Camera authenticated surface activation and recovery
 
-The [joint Main checks](../tests/camera-main-surface.test.js) now exercise authenticated Renderer activation through the actual operator CLI.
+The former joint Main checks exercised authenticated Renderer activation through the actual operator CLI.
 Each live and unavailable state starts one signed surface process and one process with an initially empty native asset route.
 Both retain the document, desktop container, source instance, decoded frame, capture time, and one controlled capture across four transitions.
 Recovery preserves malformed configuration and revoked publisher-policy bytes while selecting the captured built-in surface.
@@ -5934,6 +5936,8 @@ Product geometry, source behavior, runtime contracts, density thresholds, and de
 Published resource retirement, physical capture, physical input, Windows, and CM5 remain open.
 
 ## Native Camera surface fixture acceptance
+
+This historical result applies to the retired Camera Widget surface. The Camera source and UVC hardware checks remain active.
 
 Both initial host runs failed their two Camera surface cases with `CAMERA_SURFACE_TIMEOUT`.
 Private diagnostic copies retained the original 45-second fixture limit and synthetic frames.
@@ -6179,8 +6183,9 @@ Other independent plugin implementations and supported-host acceptance remain un
 
 ## Static desk tool independent replacements
 
-The [static desk tool contract](DESK_TOOL_SURFACE_PLUGIN_CONTRACT.md) defines Settings, Chatbot, and the not-started Pomodoro display.
-Their [independent examples](../tests/helpers/desk-tool-surfaces.js) construct DOM nodes without calling default factories.
+This historical section records replacement acceptance for the retired Chatbot and Settings widgets. The [Pomodoro contract](POMODORO_SURFACE_PLUGIN_CONTRACT.md) remains active.
+The [current helper](../tests/helpers/desk-tool-surfaces.js) constructs the Pomodoro surface without calling its default factory.
+The Chatbot and Settings design remains in the [Widget design reference](../../../.agents/skills/odk-widget/references/design.md).
 Static artwork, Shell styles, fonts, and placement remain shared product dependencies.
 The fixtures preserve pending integration, not-started state, and display-only behavior without adding services or controls.
 Pre-order countdown and canvas replacement remain open separately.
@@ -7191,7 +7196,7 @@ These results cover selected Camera, connection, gamepad, Home Briefing, and Quo
 The Pi briefing follow-up below owns selected legacy briefing evidence.
 Windows behavior, live providers, and physical input remain outside these follow-ups.
 
-Run the affected command from the candidate Shell directory:
+Historical command from before the Camera Widget retirement:
 
 ```sh
 node --unhandled-rejections=strict --test --test-concurrency=1 tests/quota-surface-electron.test.js tests/shared-service-selection.test.js tests/fixture-rejection.test.js

@@ -89,15 +89,16 @@
   function renderBriefing(el, frame) {
     const doc = el.ownerDocument
     const narrative = el.querySelector('#dash-narrative')
-    const status = el.querySelector('#dash-agent-status')
     const label = LABELS[frame.state] || LABELS.unavailable
     el.querySelector('.dash-presence').dataset.state = frame.state
-    const updated = frame.generatedAt ? new Date(frame.generatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''
-    status.textContent = label + (frame.state === 'loading' && frame.items.length ? ' Previous briefing shown.' : '') + (updated ? ` · Updated ${updated}` : '')
     narrative.dataset.state = frame.state
     narrative.replaceChildren()
-    const provenance = el.querySelector('#dash-source-list')
-    provenance.replaceChildren()
+    if (frame.items.length && frame.state !== 'live') {
+      const availability = doc.createElement('span')
+      availability.className = 'dash-availability'
+      availability.textContent = label + (frame.state === 'loading' ? ' Previous briefing shown.' : '') + ' '
+      narrative.append(availability)
+    }
     for (const [index, item] of frame.items.entries()) {
       if (index) narrative.append(doc.createTextNode(' '))
       const clause = doc.createElement('span')
@@ -130,27 +131,13 @@
         clause.append(span)
       }
       narrative.append(clause)
-      const sources = doc.createElement('p')
-      sources.className = 'dash-sources'
-      sources.textContent = item.sources.map(source => {
-        const time = source.updatedAt ? new Date(source.updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Measurement time unavailable'
-        return `${source.label} · ${source.state} · ${time}`
-      }).join(' / ')
-      provenance.append(sources)
     }
-    el.querySelector('.dash-provenance').hidden = !frame.items.length && !frame.omittedSources
     root.odkIcons?.apply?.(narrative)
     if (!frame.items.length) {
       const clause = doc.createElement('span')
       clause.className = 'dash-clause'
       clause.textContent = label
       narrative.append(clause)
-    }
-    if (frame.omittedSources) {
-      const omitted = doc.createElement('p')
-      omitted.className = 'dash-sources'
-      omitted.textContent = `${frame.omittedSources} ${frame.omittedSources === 1 ? 'source was' : 'sources were'} outside the briefing limit.`
-      provenance.append(omitted)
     }
   }
 
@@ -170,14 +157,7 @@
               <span id="dash-y"></span>
             </div>
           </header>
-          <p class="dash-narrative" id="dash-narrative"></p>
-          <footer class="dash-foot">
-            <p class="dash-agent-status" id="dash-agent-status" role="status" aria-live="polite"></p>
-            <details class="dash-provenance">
-              <summary>Sources</summary>
-              <div id="dash-source-list"></div>
-            </details>
-          </footer>
+          <p class="dash-narrative" id="dash-narrative" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>`
 
       const wd = el.querySelector('#dash-wd')
@@ -186,17 +166,56 @@
 
       let released = false
       const active = () => !released && !ctx.signal?.aborted
-      ctx.trackCleanup?.(() => { released = true })
+      const host = el.closest?.('#home-summary')
+      const narrative = el.querySelector('#dash-narrative')
+      const fonts = el.ownerDocument.fonts
+      let fitFrame = null
+      const fitCopy = () => {
+        if (!active() || !host?.clientHeight || !narrative.clientWidth) return
+        const bottom = parseFloat(root.getComputedStyle(el.querySelector('.dash')).paddingBottom) || 0
+        const available = host.clientHeight - (narrative.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop) - bottom
+        if (available <= 0) return
+        // Fit only the copy. The date row and the 3x1 card keep their geometry.
+        const minimum = root.getComputedStyle(host).overflowY === 'clip' ? 14 : 16
+        for (let size = 48; size >= minimum; size--) {
+          narrative.style.setProperty('--overview-copy-size', `${size}px`)
+          if (narrative.scrollHeight <= available && narrative.scrollWidth <= narrative.clientWidth) break
+        }
+      }
+      const queueFit = () => {
+        if (!active() || fitFrame !== null || !host) return
+        if (typeof root.requestAnimationFrame !== 'function') { fitCopy(); return }
+        fitFrame = root.requestAnimationFrame(() => { fitFrame = null; fitCopy() })
+      }
+      const observer = host && typeof root.ResizeObserver === 'function' ? new root.ResizeObserver(queueFit) : null
+      observer?.observe(host)
+      observer?.observe(el.querySelector('.dash-head'))
+      const themeObserver = host && typeof root.MutationObserver === 'function' ? new root.MutationObserver(queueFit) : null
+      if (themeObserver) themeObserver.observe(el.ownerDocument.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+      fonts?.ready?.then(queueFit, () => {})
+      fonts?.addEventListener?.('loadingdone', queueFit)
+      ctx.trackCleanup?.(() => {
+        released = true
+        if (fitFrame !== null) root.cancelAnimationFrame?.(fitFrame)
+        observer?.disconnect()
+        themeObserver?.disconnect()
+        fonts?.removeEventListener?.('loadingdone', queueFit)
+      })
       const updateBriefing = (frame) => {
-        if (active()) renderBriefing(el, frame)
+        if (active()) { renderBriefing(el, frame); fitCopy() }
       }
       updateBriefing(ctx.homeBriefing.snapshot())
       ctx.trackCleanup?.(ctx.homeBriefing.subscribe(updateBriefing))
       ctx.onTick((now) => {
         if (!active()) return
-        wd.textContent = WEEKDAYS_EN[now.getDay()]
-        md.textContent = `${MONTHS_EN[now.getMonth()]} ${now.getDate()}`
-        year.textContent = String(now.getFullYear())
+        const nextDay = WEEKDAYS_EN[now.getDay()]
+        const nextDate = `${MONTHS_EN[now.getMonth()]} ${now.getDate()}`
+        const nextYear = String(now.getFullYear())
+        const changed = wd.textContent !== nextDay || md.textContent !== nextDate || year.textContent !== nextYear
+        wd.textContent = nextDay
+        md.textContent = nextDate
+        year.textContent = nextYear
+        if (changed) queueFit()
       })
     },
   })

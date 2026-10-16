@@ -50,7 +50,7 @@ test('status bar identifies Mac and reports unavailable after a successful scan'
   assert.equal(view.contributions.at(-1).id, 'odk.briefing.pi-sessions')
   assert.match(view.statementText(), /You have 2 Pi sessions working across 1 workspace, today\./)
   await view.show(failed)
-  assert.equal(view.node('#sb-pi-count').textContent, '--')
+  assert.equal(view.node('#sb-pi-count').textContent, 'Unavailable')
   assert.match(view.node('#sb-pi-status').attrs['aria-label'], /unavailable/i)
   assert.match(view.node('#sb-pi-status').attrs['aria-label'], /Mac \/ SSH/)
   assert.deepEqual(view.statementText(), 'Pi session status is unavailable.')

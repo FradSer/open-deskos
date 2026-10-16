@@ -299,9 +299,10 @@ Read [the Weather surface contract](WEATHER_SURFACE_PLUGIN_CONTRACT.md) when rep
 
 Read [the Hydra surface contract](HYDRA_SURFACE_PLUGIN_CONTRACT.md) when replacing telemetry display, measured cell composition, or surface release behavior.
 
-## Camera surface contract
+## Camera source contract
 
-Read [the Camera surface contract](CAMERA_SURFACE_PLUGIN_CONTRACT.md) when replacing frame display, capture-time formatting, or subscription cleanup.
+Read [the Camera source contract](CAMERA_PLUGIN_CONTRACT.md) when replacing capture, frame caching, or source lifecycle behavior.
+The Camera Widget is retired. The Camera source and peripheral status remain separate.
 
 ## Clock surface contract
 
@@ -313,9 +314,9 @@ Read [calendar and State Bar time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRA
 
 Read [the Pre-order contract](PREORDER_SURFACE_PLUGIN_CONTRACT.md) when replacing countdowns, hero canvas processing, or pending image ownership.
 
-## Static desk tool surface contracts
+## Pomodoro surface contract
 
-Read [static desk tool contracts](DESK_TOOL_SURFACE_PLUGIN_CONTRACT.md) when replacing Settings, Chatbot, or the not-started Pomodoro display.
+Read the [Pomodoro surface contract](POMODORO_SURFACE_PLUGIN_CONTRACT.md) when replacing its not-started display.
 
 ## Quota surface contract
 
@@ -351,14 +352,15 @@ Read [the Open DeskOS Link contract](ODK_LINK_PLUGIN_CONTRACT.md) when implement
 
 Personal Agent supplies Today content through `ctx.homeBriefing`.
 [The Personal Bot contract](../../../integrations/personal-bot/docs/CONTRACT.md#home-briefing) owns generation, source limits, and update rules.
-Today shows source states and measurement times.
+The briefing frame retains source states and measurement times.
 Today reports loading, empty, unavailable, error, and stale states.
 It does not replace unavailable Agent output with fixed plugin sentences.
 
 New home items contain ordered literal segments.
 Context segments contain text; fact segments contain text and an approved icon name.
 The client validates the joined text and the 240-character paragraph limit.
-The page displays source states and measurement times through the Sources disclosure.
+The page has no attribution footer, update timestamp, or Sources controls.
+The briefing paragraph announces availability changes.
 
 ## Home selection declarations
 

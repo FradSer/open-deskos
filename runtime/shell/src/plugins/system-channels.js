@@ -122,9 +122,13 @@ function createSystemChannelPlugins() {
           const sent = client.toggle()
           if (sent) {
             pendingToggle = current.state === 'recording' ? 'sending' : 'starting'
-            broadcast('odk-personal-bot-status', { state: pendingToggle, message: '' })
+            broadcast('odk-personal-bot-status', { ...current, state: pendingToggle, message: '' })
           } else broadcast('odk-personal-bot-status', { ...current, activated: true })
           return { accepted: sent }
+        })
+        bind(ctx, 'odk-personal-bot-text', async (_event, text) => {
+          if (pendingToggle || typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000) return { accepted: false }
+          return { accepted: await client.sendText(text) }
         })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }

@@ -1,4 +1,5 @@
 'use strict'
+const { integrationPath } = require('./helpers/repo-root')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createMainPlugins } = require('../src/plugins/main-composition')
@@ -68,7 +69,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
   await host.get(DESK_PORTS.futu).refresh()
   const code = [
     'import poller, sys',
-    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": ""})',
+    'runtime = poller.create_poller({"ODK_FUTU_SOCKET": sys.argv[1], "ODK_CHANNEL_TOKEN_FILE": sys.argv[2], "ODK_FUTU_CONTROL": "", "ODK_FUTU_TARGETS_FILE": sys.argv[3]})',
     'runtime.start()',
     'publisher = runtime.host.get(poller.PORTS["publisher"])',
     'try:',
@@ -77,7 +78,7 @@ for (const independent of [false, true]) test(`${independent ? 'selected indepen
     ' publisher.wait(2)',
     'finally: runtime.close()',
   ].join('\n')
-  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile], { cwd: path.resolve(__dirname, '../../../integrations/futu-poller') })
+  const child = spawn(pythonExecutable, ['-c', code, endpoint, channel.tokenFile, path.join(root, 'missing-futu-targets.json')], { cwd: integrationPath('futu-poller') })
   t.after(() => { if (child.exitCode === null) child.kill() })
   const completed = once(child, 'exit')
   let stderr = ''

@@ -53,7 +53,6 @@
     ['error', 'Personal Agent could not update your briefing. It will retry.'],
     ['stale', 'Previous briefing. Personal Agent could not confirm current desk state.'],
   ])
-  const clock = value => new Date(value).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   root.odkRendererDevelopment.define({
     id: 'odk.page.dashboard', manifest: { schemaVersion: 1, version: '2.0.0' },
     kind: 'page', surface: 'display',
@@ -75,14 +74,39 @@
       const monthDay = identified('span', '', 'dash-md'), year = identified('span', '', 'dash-y')
       date.append(monthDay, year); header.append(weekday, presence, date)
       const paragraph = identified('p', 'dash-narrative', 'dash-narrative')
-      const footer = make('footer', 'dash-foot'), status = identified('p', 'dash-agent-status', 'dash-agent-status')
-      status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite')
-      const disclosure = make('details', 'dash-provenance'), sourceList = identified('div', '', 'dash-source-list')
-      disclosure.append(make('summary', '', 'Sources'), sourceList)
-      footer.append(status, disclosure); shell.append(header, paragraph, footer); container.replaceChildren(shell)
+      paragraph.setAttribute('role', 'status'); paragraph.setAttribute('aria-live', 'polite'); paragraph.setAttribute('aria-atomic', 'true')
+      shell.append(header, paragraph); container.replaceChildren(shell)
       let released = false
       context.trackCleanup(() => { released = true })
       const current = () => !released && !context.signal?.aborted
+      const host = container.closest('#home-summary')
+      let paint = null
+      function fitCopy() {
+        if (!current() || !host?.clientHeight || !paragraph.clientWidth) return
+        const inset = parseFloat(root.getComputedStyle(shell).paddingBottom) || 0
+        const height = host.clientHeight - paragraph.getBoundingClientRect().top + host.getBoundingClientRect().top - host.scrollTop - inset
+        if (height <= 0) return
+        let size = 48
+        do {
+          paragraph.style.setProperty('--overview-copy-size', size + 'px')
+          if (paragraph.scrollHeight <= height && paragraph.scrollWidth <= paragraph.clientWidth) break
+        } while (--size >= 16)
+      }
+      const resizeCopy = () => {
+        if (!current() || !host || paint !== null) return
+        paint = root.requestAnimationFrame(() => { paint = null; fitCopy() })
+      }
+      const resize = host ? new root.ResizeObserver(resizeCopy) : null
+      resize?.observe(host); resize?.observe(header)
+      const appearance = host ? new root.MutationObserver(resizeCopy) : null
+      appearance?.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+      doc.fonts.ready.then(resizeCopy, () => {})
+      doc.fonts.addEventListener('loadingdone', resizeCopy)
+      context.trackCleanup(() => {
+        if (paint !== null) root.cancelAnimationFrame(paint)
+        resize?.disconnect(); appearance?.disconnect()
+        doc.fonts.removeEventListener('loadingdone', resizeCopy)
+      })
       function literal(parent, text, portfolio, live) {
         const expression = portfolio ? /[+-]?\d+(?:\.\d+)?[°º]C|[°º]C|[+-]?\d+(?:\.\d+)?%/g
           : /[+-]?\d+(?:\.\d+)?[°º]C|[°º]C/g
@@ -108,9 +132,9 @@
         if (!current()) return
         const label = messages.get(frame.state) || messages.get('unavailable')
         presence.dataset.state = frame.state; paragraph.dataset.state = frame.state
-        status.textContent = [label, frame.state === 'loading' && frame.items.length ? ' Previous briefing shown.' : '',
-          frame.generatedAt ? ' · Updated ' + clock(frame.generatedAt) : ''].join('')
-        paragraph.replaceChildren(); sourceList.replaceChildren()
+        paragraph.replaceChildren()
+        if (frame.items.length && frame.state !== 'live') paragraph.append(make('span', 'dash-availability',
+          label + (frame.state === 'loading' ? ' Previous briefing shown.' : '') + ' '))
         frame.items.forEach((item, index) => {
           if (index) paragraph.append(doc.createTextNode(' '))
           const clause = make('span', 'dash-clause'); clause.dataset.briefing = 'agent-' + index
@@ -134,22 +158,21 @@
             clause.append(fact)
           }
           paragraph.append(clause)
-          sourceList.append(make('p', 'dash-sources', item.sources.map(source => [source.label, source.state,
-            source.updatedAt ? clock(source.updatedAt) : 'Measurement time unavailable'].join(' · ')).join(' / ')))
         })
-        disclosure.hidden = frame.items.length === 0 && !frame.omittedSources
         if (frame.items.length === 0) paragraph.append(make('span', 'dash-clause', label))
-        if (frame.omittedSources) sourceList.append(make('p', 'dash-sources', frame.omittedSources +
-          (frame.omittedSources === 1 ? ' source was' : ' sources were') + ' outside the briefing limit.'))
         root.odkIcons.apply(paragraph)
+        fitCopy()
       }
       update(context.homeBriefing.snapshot())
       context.trackCleanup(context.homeBriefing.subscribe(update))
       context.onTick(now => {
         if (!current()) return
-        weekday.textContent = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(now)
-        monthDay.textContent = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(now)
-        year.textContent = String(now.getFullYear())
+        const nextDay = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(now)
+        const nextDate = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(now)
+        const nextYear = String(now.getFullYear())
+        const changed = weekday.textContent !== nextDay || monthDay.textContent !== nextDate || year.textContent !== nextYear
+        weekday.textContent = nextDay; monthDay.textContent = nextDate; year.textContent = nextYear
+        if (changed) resizeCopy()
       })
     },
   })

@@ -89,8 +89,7 @@ app.whenReady().then(async () => {
             }
             await odkAppPlatform.closeApp()
           }
-          const clock = document.querySelector('.w-clock-time')
-          if (clock.tagName !== 'TIME' || !/^\\d{2}:\\d{2}$/.test(clock.dateTime)) failures.push('clock semantic reading')
+          if (document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')) failures.push('retired time or date Widget')
           return failures
         })()`)
         assert.deepEqual(failures, [], `${theme} ${width}x${height}`)

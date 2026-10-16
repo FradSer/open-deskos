@@ -34,6 +34,12 @@ Replacements applied in the shell (free set, 24x24 grid):
 | Shell icon (`data-tabler`) | Pixelarticons icon |
 | --- | --- |
 | ai-scan replacement for `user-scan` | ai-scan |
+| `arrow-up` | arrow-up |
+| `arrow-down` | arrow-down |
+| `camera` | camera |
+| `compass` | compass |
+| `microphone` | mic |
+| `edit` | pencil |
 | `chevron-down` | chevron-down |
 | `chevron-left` | chevron-left |
 | `file-code` | code |

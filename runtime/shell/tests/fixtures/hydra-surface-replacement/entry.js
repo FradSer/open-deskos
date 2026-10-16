@@ -3,7 +3,7 @@
   // Static HTML and Shell CSS preserve appearance; this entry owns behavior.
   root.odkRendererDevelopment.define({
     id: 'odk.tile.hydra', manifest: { schemaVersion: 1, minCell: 120 },
-    kind: 'tile', app: 'Hydra plants', state: 'Unconfigured', interaction: 'display-only',
+    kind: 'tile', app: 'Hydra plants', state: 'Unconfigured', interaction: 'display-only', opensApp: 'hydra',
     mount(element, context) {
       element.innerHTML = `
         <div class="widget-signal hydra-body odk-col">

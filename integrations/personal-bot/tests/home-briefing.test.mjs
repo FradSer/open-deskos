@@ -125,8 +125,10 @@ test('unchanged content still updates its omitted source count without regenerat
 test('generation failure retains stale content, never a fixed fallback', async () => {
   let fail = false
   const frames = []
+  const failures = []
   const home = new HomeBriefing({ list: async () => [reading()], read: async () => reading(fail ? 3 : 2),
-    generate: async () => { if (fail) throw Error('private provider detail'); return output }, publish: f => frames.push(f) })
+    generate: async () => { if (fail) throw Object.assign(Error('private provider detail'), { code: 'ECONNRESET', status: 503 }); return output },
+    onFailure: failure => failures.push(failure), publish: f => frames.push(f) })
   await home.refresh()
   fail = true
   home.invalidate()
@@ -134,6 +136,8 @@ test('generation failure retains stale content, never a fixed fallback', async (
   assert.equal(frames.at(-1).state, 'stale')
   assert.equal(frames.at(-1).items.length, 1)
   assert.doesNotMatch(JSON.stringify(frames.at(-1)), /private provider/)
+  assert.deepEqual(failures, [{ stage: 'generate', kind: 'provider_server_error', name: 'Error', code: 'ECONNRESET', status: 503 }])
+  assert.doesNotMatch(JSON.stringify(failures), /private provider/)
   home.close()
 })
 

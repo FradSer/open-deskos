@@ -499,7 +499,7 @@ app.whenReady().then(async () => {
       })()`)
       assert.equal(await js('replacementAppMounts'), 0, 'Pi page delegated to the replacement App')
       isolatedPageMounts++
-      await js(`const index = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions');
+      await js(`const index = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions');
         document.querySelectorAll('#dots .dot')[index].click()`)
       await wait(`document.querySelectorAll('.pi-overview-cell').length === 2 && document.querySelectorAll('.pi-event').length === 5`)
       const results = [await collect()]
@@ -562,7 +562,7 @@ app.whenReady().then(async () => {
       await reload()
       await js('window.odkShellReady')
       await wait(`document.querySelector('#pi-events-host')?.textContent.includes('Reading session events') && document.querySelectorAll('.pi-overview-cell').length === 2`)
-      await js(`const index = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions');
+      await js(`const index = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions');
         document.querySelectorAll('#dots .dot')[index].click()`)
       results.push(await collect())
       releaseEvents(events)
@@ -578,7 +578,7 @@ app.whenReady().then(async () => {
       await js('window.odkShellReady')
       await wait(`document.querySelector('#pi-view-subtitle').textContent.includes('Loading Pi sessions')`)
       assert.equal(await js(`document.querySelector('.pi-filter-btn').getAttribute('aria-label').includes('count unavailable')`), true)
-      await js(`const index = window.DESKTOP_LAYOUT.pages.findIndex(page => page.id === 'pi-sessions');
+      await js(`const index = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions');
         document.querySelectorAll('#dots .dot')[index].click()`)
       results.push(await collect())
       releaseScan(snapshot(sessions))

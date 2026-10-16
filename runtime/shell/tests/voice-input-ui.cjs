@@ -366,7 +366,9 @@ app.whenReady().then(async () => {
   win.webContents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
     requests.push(details.url); callback({ cancel: true })
   })
-  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
+  // Exercise the fallback voice panel when the resident Agent plugin is disabled.
+  // agent-home.cjs covers voice feedback in the resident Agent.
+  await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.page.personal-agent' } })
   await firstMic()
   await rapidMic()
   for (const theme of ['instrument', 'pixel', 'border-beam']) {

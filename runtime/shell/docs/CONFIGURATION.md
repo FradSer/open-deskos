@@ -58,7 +58,10 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_TASK_CONFIG` | L2 install | pi-tasks unit | integrations/personal-bot/src/task-store.mjs | %h/.config/odk/pi-tasks.json | Private Hosted Pi daemon configuration. Only the daemon reads and checks ownership/mode. Clients read its published endpoint descriptor. |
 | `ODK_TASK_TARGETS_FILE` | L3 device | Bot environment or drop-in | integrations/personal-bot/src/task-client.mjs | Unset | Personal Bot target list. If absent, report that configuration is required. |
 | `ODK_PROACTIVE_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/main.mjs | Unset; no polling | Private owner rules: thresholds, combinations, quiet hours, rate limits and mute state. File mode 0600. See the Personal Bot CONTRACT.md proposal section. |
-| `ODK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Personal profile with skill and credential paths. |
+| `ODK_PERSONAL_BOT_CONFIG` | L3 device (sensitive) | personal-bot.env | integrations/personal-bot/src/personal-config.mjs | coding profile | Private profile, reviewed capability declarations, Skill paths, and fixed plugin selection. |
+| `ODK_AGENT_CATALOG_DIR` | CLI | Operator | integrations/personal-bot/src/agent-catalog/cli.mjs | Unset | CLI catalog path. The resident uses its private state directory. |
+| `ODK_AGENT_PACKAGE_CANDIDATES` | L3 device | personal-bot.env | integrations/personal-bot/src/agent.mjs | Unset | Private staged package candidates. Required only for candidate inspection and installation. |
+| `ODK_AGENT_PLUGIN_TIMEOUT_MS` | L3 device | personal-bot.env | integrations/personal-bot/src/agent.mjs | 90000 | Completion and learning deadline. Accepts 1000 through 180000 milliseconds. |
 | `ODK_PERSONAL_BOT_AUDIO_DEVICE` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | default | ALSA capture device. Windows requires the exact DirectShow device name. |
 | `ODK_PERSONAL_BOT_CAPABILITIES` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | Empty | Paths to trusted capability modules. |
 | `ODK_PERSONAL_BOT_MODEL` | L3 device | personal-bot.env | integrations/personal-bot/src/main.mjs | — | Pi provider/id model selection. |
@@ -112,6 +115,7 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `USERPROFILE` | Environment | Windows user session | runtime/shell/src/plugin-config.js | — | Find the plugin configuration directory when HOME is absent. |
 | `PATH` | Environment | Unit / installer | runtime/shell/scripts/cm5-install.sh | — | Units pin Node and shim directories. Do not depend on an interactive version manager PATH. |
 | `PI_AGENT_DIR` | Environment | Pi runtime | runtime/shell/src/pi-sessions.js | ~/.pi/agent | Pi session and authentication directory. |
+| `PI_CODING_AGENT_DIR` | Environment | Personal Bot verifier | integrations/personal-bot/scripts/test-proactive-docker-live.mjs | ~/.pi/agent | Pi settings and authentication directory for the isolated live verifier. |
 | `ODK_FUTU_SERVICE_REVISION` | L3 device | runtime.env | runtime/shell/src/plugins/desk-runtime.js, integrations/futu-poller/poller.py | dev | Futu revision. The handshake and expected revision use this single declaration. |
 | `SystemRoot` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through SystemRoot and WINDIR in the minimal Windows coding_check child environment. They are session values, not host configuration. |
 | `WINDIR` | Environment | Windows user session | integrations/personal-bot/src/candidate-checks.mjs | — | Pass through with SystemRoot so Windows child processes can resolve system directories. |
@@ -128,6 +132,33 @@ Set `ODK_WEATHER_LAT`, `ODK_WEATHER_LON` and optional `ODK_WEATHER_PLACE` in `ru
 A host with no location asks a keyless IP location service during weather refresh. The default endpoint is `https://ipwho.is/`. It accepts `loc: "lat,lon"` or `latitude`/`longitude` with `city`. The response remains cached for `ODK_LOCATION_REFRESH_MS` (30 minutes by default). This sends a request to a third party. Configure coordinates to prevent it.
 
 Requests have a three-second timeout. A failed lookup reports Unavailable with a reason. It never blocks rendering or invents a city. The renderer does not perform the lookup.
+
+## Personal Bot capability configuration
+
+The [unified architecture](../../../integrations/personal-bot/docs/UNIFIED_ARCHITECTURE.md) separates host tools, shared Shell, external Personal Bot, reviewed capabilities, and Skills.
+On CM5, the resident runs as nonroot `orangepi`.
+Host-installed tools and private state remain outside immutable releases.
+`ODK_WORKSPACE` identifies a writable checkout, not the active release or the resident conversation directory.
+
+`ODK_PERSONAL_BOT_CONFIG` selects a private profile configuration.
+The personal profile uses the canonical `capabilities` map for reviewed `didi` and `browser` declarations.
+The [profile contract](../../../integrations/personal-bot/docs/CONTRACT.md#profiles-and-memory) owns its example and file rules.
+The host registry owns validation, factories, Skills, intents, workflows, tool prefixes, lifecycle hooks, and `childAllowed`.
+Legacy top-level `didi` and `browser` declarations normalize into that map.
+Duplicate declarations fail, including duplicates across legacy and canonical fields.
+The `coding` profile rejects capability declarations.
+Configuration cannot select arbitrary factories or native Pi plugins.
+
+`agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, and `subagents` identities.
+`learning` requires `completion`; `mcp` requires `catalog`.
+These selections identify reviewed DeskOS modules, not arbitrary Pi packages.
+Runtime Skills and declarative MCP packages retain their catalog and workflow limits.
+Repository `.agents/skills/` files guide coding agents and grant no resident authority.
+
+After parent admission, the host selects fixed child `agent_execute` dispatch without a second Jev client.
+Children cannot inherit DiDi, delegate recursively, change identities, alter packages, or invoke core lifecycle mutations.
+A permitted browser uses a separate session under the child's private `stateDir`.
+The [child contract](../../../integrations/personal-bot/docs/AGENT_TASKS.md) owns identity, storage, completion, and avatar rules.
 
 ## Personal Bot judgment and generation
 

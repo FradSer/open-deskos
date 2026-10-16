@@ -39,7 +39,10 @@ const { createPersonalBot } = await import(pathToFileURL(join(integrationDir, 's
 const { loadPersonalConfig } = await import(pathToFileURL(join(integrationDir, 'src', 'personal-config.mjs')).href)
 const { PersonalBotService } = await import(pathToFileURL(join(integrationDir, 'src', 'service.mjs')).href)
 const { listen, channelHandshake } = await import(pathToFileURL(join(integrationDir, 'src', 'socket.mjs')).href)
-const { createAgentSession } = await import(pathToFileURL(join(integrationDir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'index.js')).href)
+const { createDurableAgentSession } = await import(pathToFileURL(join(integrationDir, 'src', 'durable-agent-session.mjs')).href)
+const { BACKGROUND_CONTEXT } = await import(pathToFileURL(join(integrationDir, 'node_modules', '@earendil-works', 'chord', 'dist', 'context', 'index.js')).href)
+const runtimeVersion = JSON.parse(await readFile(join(integrationDir, 'node_modules', '@earendil-works', 'pi-durable', 'package.json'), 'utf8')).version
+if (runtimeVersion !== '1.2.0') throw Error('Expected Pi Durable 1.2.0 runtime required')
 const configured = await loadPersonalConfig(process.env)
 const expectedProfile = process.env.ODK_ACCEPTANCE_EXPECTED_PROFILE || 'personal'
 if (!['coding', 'personal'].includes(expectedProfile) || configured.profile !== expectedProfile) throw Error('Expected resident Personal Agent profile required')
@@ -66,8 +69,8 @@ try {
     createSession: async options => {
       const tools = acceptanceTools(options.customTools || [], request, trace)
       options.customTools = tools.tools
-      failureStage = 'sdk-session'
-      const result = await createAgentSession(options)
+      failureStage = 'durable-session'
+      const result = await createDurableAgentSession(options)
       failureStage = 'factory'
       if (!session) { session = result.session; guardedTools = tools }
       return result
@@ -86,9 +89,11 @@ try {
   failureStage = 'channel-observe'
   client = createConnection(endpoint)
   const outcome = await observePersonalTurn(client, { handshake: channelHandshake(token), states })
-  const routeEvidence = session.messages.filter(message => message.role === 'user').map(message => message.content)
+  const view = await session.runtime.conversation.viewState(BACKGROUND_CONTEXT)
+  const routeEvidence = view.value.entries.flatMap(entry => entry.model ?? []).filter(message => message.role === 'user').map(message => message.content)
+  view.dispose()
   const receipt = { event: 'personal_agent_acceptance', startedAt, completedAt: new Date().toISOString(), installedIntegration: integrationDir, model: agent.generationModel,
-    profile: configured.profile, injectedTranscript: true, microphone: false, states, transcript: outcome.transcript, finalState: outcome.state,
+    profile: configured.profile, runtime: 'pi-durable', runtimeVersion, injectedTranscript: true, microphone: false, states, transcript: outcome.transcript, finalState: outcome.state,
     response: outcome.message, offeredPrompt: guardedTools?.getOffer(), codingTrace: trace, routeEvidence, expectedTaskId: request.taskId, expectedProject: request.project }
   finalReceipt = receipt
   evidenceFile = await saveReceipt(receipt)

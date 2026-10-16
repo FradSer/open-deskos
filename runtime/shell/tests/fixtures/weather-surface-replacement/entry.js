@@ -20,7 +20,7 @@
   }
   root.odkRendererDevelopment.define({
     id: 'odk.tile.weather', manifest: { schemaVersion: 1 }, kind: 'tile', app: 'Weather',
-    state: 'Unavailable', interaction: 'display-only', css: 'plugins/weather.css',
+    state: 'Unavailable', interaction: 'display-only', opensApp: 'weather', css: 'plugins/weather.css',
     mount(element, context) {
       let open = true
       context.trackCleanup(() => { open = false })

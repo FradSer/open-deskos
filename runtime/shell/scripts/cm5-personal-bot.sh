@@ -23,6 +23,25 @@ prepare_personal_bot_release() {
   (cd "${destination}" && run_as_target_user pnpm install --prod --frozen-lockfile --ignore-scripts)
 }
 
+# Resolve service aliases retained by older CM5 installs before enabling a unit.
+# systemd accepts aliases for start and status, but refuses enable when the requested name is an alias.
+enable_user_unit() {
+  local alias="$1" unit_id
+  shift
+  unit_id="$(run_as_target_user systemctl --user show --property=Id --value "$alias")" || return 1
+  case "${alias}:${unit_id}" in
+    odk-personal-bot.service:odk-personal-bot.service|odk-personal-bot.service:open-deskos-personal-bot.service|\
+    odk-link.service:odk-link.service|odk-link.service:open-deskos-desk-link.service|\
+    odk-remote-bridge.service:odk-remote-bridge.service|odk-remote-bridge.service:open-deskos-remote-bridge.service|\
+    odk-pi-tasks.service:odk-pi-tasks.service|odk-pi-tasks.service:open-deskos-pi-tasks.service) ;;
+    *)
+      echo "Could not resolve the canonical user unit for ${alias}" >&2
+      return 1
+      ;;
+  esac
+  run_as_target_user systemctl --user enable "$@" "$unit_id"
+}
+
 # The Personal Bot and Hosted Pi control are required components of the runtime, so their units are
 # staged from the candidate release before activation: a staging failure fails the installation while
 # the previous release is still the active one. Starting them is a separate step, because the unit
@@ -43,7 +62,7 @@ stage_personal_bot_service() {
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
   run_as_target_user systemctl --user daemon-reload || return 1
-  run_as_target_user systemctl --user enable odk-personal-bot.service
+  enable_user_unit odk-personal-bot.service
 }
 
 # Stages the hosted Pi session service on the stable release symlink, so an operator never
@@ -76,7 +95,7 @@ stage_odk_link_service() {
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
   run_as_target_user systemctl --user daemon-reload || return 1
-  run_as_target_user systemctl --user enable odk-link.service
+  enable_user_unit odk-link.service
 }
 
 # Runs after activation, so both services execute the release that is now active, and after a fresh
@@ -93,9 +112,9 @@ start_required_services() {
   # one it stays stopped rather than running unauthenticated.
   if [ -f "${TARGET_HOME}/.config/systemd/user/odk-link.service" ]; then
     if grep -qE '^(ODK_LINK_TOKEN|ODK_LINK_TOKEN_FILE)=' "${TARGET_HOME}/.config/odk/runtime.env" 2>/dev/null; then
-      run_as_target_user systemctl --user enable --now odk-link.service
+      enable_user_unit odk-link.service --now
     else
-      echo "Open DeskOS Link unit staged but not enabled: set ODK_LINK_TOKEN_FILE (preferred) or ODK_LINK_TOKEN in ${TARGET_HOME}/.config/odk/runtime.env, then run 'systemctl --user enable --now odk-link.service'." >&2
+      echo "Open DeskOS Link unit staged but not started: set ODK_LINK_TOKEN_FILE (preferred) or ODK_LINK_TOKEN in ${TARGET_HOME}/.config/odk/runtime.env, then run 'systemctl --user start odk-link.service'." >&2
     fi
   fi
   # The daemon refuses to start without its private configuration and the unit restarts on failure,
@@ -104,5 +123,5 @@ start_required_services() {
     echo "Managed Pi tasks staged but not enabled: create ${config}, then run 'systemctl --user enable --now odk-pi-tasks.service'." >&2
     return 0
   fi
-  run_as_target_user systemctl --user enable --now odk-pi-tasks.service
+  enable_user_unit odk-pi-tasks.service --now
 }

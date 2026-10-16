@@ -102,7 +102,25 @@
     if (Number.isFinite(Number(plugin.manifest?.minCell))) tile.dataset.minCell = String(plugin.manifest.minCell)
     placeTile(page, tile, widgetDef, plugin)
     if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
+    attachTileLauncher(tile, widgetDef, plugin, uiCtx)
     return tile
+  }
+
+  function attachTileLauncher(tile, widgetDef, plugin, uiCtx) {
+    const appId = widgetDef.opensApp || tile.dataset.openApp || plugin.opensApp
+    if (appId && !tile.querySelector('.widget-launch')) {
+      const launch = document.createElement('button')
+      launch.type = 'button'
+      launch.className = 'widget-launch'
+      launch.setAttribute('aria-label', `Open ${plugin.app}`)
+      launch.title = `Open ${plugin.app}`
+      tile.dataset.openApp = appId
+      launch.addEventListener('click', () => {
+        Promise.resolve(uiCtx.platform.openApp({ appId, widgetId: plugin.id, route: 'home' }))
+          .catch(error => console.error('Widget App failed:', error))
+      })
+      tile.append(launch)
+    }
   }
 
   // The geometry the layout model has just produced: the cell every tile is given,
@@ -125,7 +143,8 @@
     if (!widgetDef.col) return
     if (!widgetDef.row) return
     const { spanCells, honorsSpan, gridHasLines, pageFitsGrid } = root.odkGridPlacement
-    const { cellWidth, cellHeight, columns, rows } = gridMetrics()
+    const { cellWidth, cellHeight, columns, rows: defaultRows } = gridMetrics()
+    const rows = page.gridRows || defaultRows
     // The grid has to be able to give the span its lines, the page has to be a
     // grid its composition was drawn for, and the cell the span produces has to
     // reach what the instrument declared it reads at. Failing any of those leaves
@@ -196,14 +215,17 @@
     const section = document.createElement('section')
     const surface = page.surface || (page.kind === 'page' ? root.odkPlugins.get(page.plugin).surface : 'display') || 'display'
     section.className = `page page-${surface} flex flex-col`
-    section.dataset.page = String(index)
+    section.dataset.page = page.persistent ? page.persistent : String(track.children.length)
     section.dataset.pageId = page.id
     section.dataset.surface = surface
     section.dataset.builtBy = 'composer'
     if (page.kind === 'page') section.dataset.plugin = page.plugin
     section.setAttribute('aria-label', page.name)
-    if (before) track.insertBefore(section, before)
-    else track.append(section)
+    const host = page.persistent ? document.getElementById(page.persistent) : track
+    if (!host) throw Error('Persistent page host unavailable')
+    if (page.persistent) section.dataset.persistent = page.persistent
+    if (before) host.insertBefore(section, before)
+    else host.append(section)
     if (page.kind === 'grid') {
       const grid = document.createElement('div')
       grid.className = 'widget-grid grid'
@@ -270,7 +292,7 @@
         .filter(plugin => ['disabled', 'blocked'].includes(plugin.state)).map(plugin => plugin.manifest.id))
       const selected = filterLayout(layout, exclusions)
       const wantedPages = new Set(selected.pages.map(page => page.id))
-      const ownedPages = new Map([...track.children].filter(section => section.dataset.builtBy === 'composer')
+      const ownedPages = new Map([...track.children, ...(document.querySelectorAll?.('#home-summary > .page, #personal-agent > .page') || [])].filter(section => section.dataset.builtBy === 'composer')
         .map(section => [section.dataset.pageId, section]))
       const declarations = new Map(layout.pages.map(page => [page.id, page]))
       for (const [id, section] of ownedPages) {
@@ -296,13 +318,15 @@
         section.remove()
         ownedPages.delete(id)
       }
-      let cursor = track.firstChild
+      const cursors = new Map()
       for (const [index, page] of selected.pages.entries()) {
+        const host = page.persistent ? document.getElementById(page.persistent) : track
+        const cursor = cursors.has(host) ? cursors.get(host) : host.firstChild
         let section = ownedPages.get(page.id)
         const created = !section
         if (!section) section = buildPage(page, index, track, uiCtx, cursor)
-        else if (section !== cursor) track.insertBefore(section, cursor)
-        cursor = section.nextSibling
+        else if (section !== cursor) host.insertBefore(section, cursor)
+        cursors.set(host, section.nextSibling)
         if (created) continue
         if (page.kind !== 'grid') {
           const plugin = root.odkPlugins.get(page.plugin)
@@ -334,6 +358,7 @@
             tile.replaceChildren()
             if (!root.odkPlugins.activate(plugin, tile, uiCtx)) markActivationError(tile, plugin)
           }
+          attachTileLauncher(tile, widget, plugin, uiCtx)
           placeTile(page, tile, widget, plugin)
           tileCursor = tile.nextSibling
         }

@@ -1,4 +1,5 @@
 'use strict'
+const { integrationURL } = require('./helpers/repo-root')
 
 const test = require('node:test')
 if (require('./not-ported').notPortedOnWindows(test, 'unix-socket')) return
@@ -23,8 +24,8 @@ for (const independent of [false, true]) {
 
   test(`${independent ? 'selected independent' : 'default'} Hosted Pi diagnosis reads the actual composition and preserves task requests`, { timeout: 5000 }, async t => {
     const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
-    const { createTaskComposition } = await import('../../../integrations/personal-bot/src/task-composition.mjs')
-    const { serveTasks, requestTask } = await import('../../../integrations/personal-bot/src/task-protocol.mjs')
+    const { createTaskComposition } = await import(integrationURL('personal-bot/src/task-composition.mjs'))
+    const { serveTasks, requestTask } = await import(integrationURL('personal-bot/src/task-protocol.mjs'))
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hdiag-'))
     const endpoint = path.join(directory, 'task.sock')
     const descriptor = path.join(directory, 'odk', 'hosted-pi', 'endpoint.json')
@@ -94,7 +95,7 @@ for (const independent of [false, true]) {
 
   test(`${independent ? 'selected independent' : 'default'} older Hosted Pi refuses diagnosis without changing ordinary task control`, { timeout: 3000 }, async t => {
     const { HOSTED_PI_RUNTIME_PORT } = require('../src/plugins/hosted-pi-diagnostics')
-    const { serveTasks, requestTask } = await import('../../../integrations/personal-bot/src/task-protocol.mjs')
+    const { serveTasks, requestTask } = await import(integrationURL('personal-bot/src/task-protocol.mjs'))
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hold-'))
     const endpoint = path.join(directory, 'task.sock')
     const commands = []

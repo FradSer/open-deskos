@@ -92,6 +92,7 @@
     app: 'Hydra plants',
     state: 'Unconfigured',
     interaction: 'display-only',
+    opensApp: 'hydra',
     mount(el, ctx) {
       let released = false
       const alive = () => !released && !ctx.signal?.aborted

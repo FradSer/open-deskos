@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
   await host.start()
   assert.ok(host.list().every(plugin => plugin.state === 'running'), JSON.stringify(host.list()))
   const load = async () => {
-    await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query: { disabledPlugins: 'odk.tile.camera' } })
+    await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
     await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkTheme.ready, window.odkRendererDiagnosis.ready])')
   }
   await load()
@@ -141,7 +141,7 @@ app.whenReady().then(async () => {
       for (const theme of ['pixel', 'instrument', 'border-beam']) {
         window.odkTheme.set(theme); await document.fonts.ready;
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const el = document.querySelector('[data-widget="odk.tile.clock"] time'); const box = el.getBoundingClientRect(); const style = getComputedStyle(el);
+        const el = document.querySelector('.sb-time'); const box = el.getBoundingClientRect(); const style = getComputedStyle(el);
         result[theme] = { text: el.textContent, font: style.fontFamily, size: style.fontSize, width: box.width, height: box.height,
           radius: getComputedStyle(document.documentElement).getPropertyValue('--odk-radius-card').trim(),
           primary: getComputedStyle(document.documentElement).getPropertyValue('--odk-primary').trim() };
@@ -151,7 +151,7 @@ app.whenReady().then(async () => {
     const selected = await measure()
     if (process.platform !== 'win32') {
       await win.webContents.executeJavaScript(`window.__appearanceDocument = document;
-        window.__appearanceClock = document.querySelector('[data-widget="odk.tile.clock"] time');`)
+        window.__appearanceClock = document.querySelector('.sb-time');`)
       const configPath = resolveConfigPath(env)
       const validConfig = fs.readFileSync(configPath, 'utf8')
       const validPolicy = fs.readFileSync(policy, 'utf8')
@@ -169,7 +169,7 @@ app.whenReady().then(async () => {
       assert.equal(fs.readFileSync(configPath, 'utf8'), configBefore)
       assert.equal(fs.readFileSync(policy, 'utf8'), policyBefore)
       assert.equal(await win.webContents.executeJavaScript(`document === window.__appearanceDocument &&
-        document.querySelector('[data-widget="odk.tile.clock"] time') === window.__appearanceClock`), true)
+        document.querySelector('.sb-time') === window.__appearanceClock`), true)
       if (!emptyStartup) assert.deepEqual((await trace()).slice(-3), ['stop', 'destroy', 'cleanup'])
       assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('odk.theme')"), 'pixel')
       assert.deepEqual(await measure(), selected)
@@ -198,7 +198,7 @@ app.whenReady().then(async () => {
         assert.equal(activated.state, 'running')
         assert.equal(fs.readFileSync(configPath, 'utf8'), updatedConfig)
         assert.equal(await win.webContents.executeJavaScript(`document === window.__appearanceDocument &&
-          document.querySelector('[data-widget="odk.tile.clock"] time') === window.__appearanceClock &&
+          document.querySelector('.sb-time') === window.__appearanceClock &&
           window.__nativeAppearanceVersion === '4.0.0' && localStorage.getItem('odk.theme') === 'pixel'`), true)
         assert.deepEqual(await measure(), selected)
         assert.deepEqual(await trace(), attempt ? ['stop', 'destroy', 'cleanup', 'create', 'start'] : ['create', 'start'])

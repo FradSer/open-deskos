@@ -75,10 +75,12 @@ The listener is an execution surface with the host user's capability. Keep it LA
 
 The operator reversed the former edit/test prompt guardrail, then removed direct implementation from the resident coordinator. One Hosted Pi worker capability serves voice and Console requests. It can commit, push, install, deploy, activate releases and restart services under the request's authorization. A transcript is not blanket authorization. Mis-transcribed delegated speech remains an accepted capability risk. No global second confirmation or restricted voice worker was adopted.
 
-Active resident SDKs and host CLIs use Pi 1.0.0; sealed rollback releases stay unchanged.
-Register each reviewed capability once as a direct SDK tool.
+The candidate resident uses Pi Durable; Hosted Pi workers retain Coding Agent.
+The [Personal Bot manifest](../../../integrations/personal-bot/package.json) owns their pinned versions.
+Installed host CLIs require separate version verification.
+Register each reviewed capability once as a Durable tool.
 Jev selects the intent; code activates that intent's execution allowlist.
-Code Mode `only` hides separate schemas from the model.
+The provider transport advertises only Code Mode while the execution configuration retains active reviewed names.
 Direct and nested calls use the same parameter validation, executor, and turn-level mutation reservations.
 Completion, failure, and cancellation deactivate the selected tools.
 The [intent-routing contract](../../../integrations/personal-bot/docs/CONTRACT.md#intent-routing) owns this mechanism.

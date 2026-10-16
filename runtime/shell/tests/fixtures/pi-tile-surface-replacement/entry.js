@@ -15,7 +15,7 @@
   }
   root.odkRendererDevelopment.define({
     id: 'odk.tile.pi-sessions', manifest: { schemaVersion: 1, version: '2.0.0', minCell: 217 },
-    kind: 'tile', app: 'Pi Sessions', state: 'Live', interaction: 'display-only',
+    kind: 'tile', app: 'Pi Sessions', state: 'Live', interaction: 'display-only', opensApp: 'pi-sessions',
     mount(el, ctx) {
       el.innerHTML = `
         <div class="pi-widget-body odk-col items-center justify-center w-full">

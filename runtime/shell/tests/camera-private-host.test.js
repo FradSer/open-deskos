@@ -46,15 +46,11 @@ for (const platform of ['darwin', 'linux']) {
   })
 }
 
-test('Camera Main activation uses the private host in both Main and CLI without a Windows skip', () => {
-  const parent = fs.readFileSync(path.join(__dirname, 'camera-main-surface.test.js'), 'utf8')
+test('Camera Main source bootstrap uses the private host without a Windows skip', () => {
   const sourceParent = fs.readFileSync(path.join(__dirname, 'camera-main-bootstrap.test.js'), 'utf8')
   const child = fs.readFileSync(path.join(__dirname, 'camera-main-bootstrap.cjs'), 'utf8')
-  assert.match(parent, /ODK_CAMERA_PRIVATE_PIPE_PREFIX/)
   assert.match(sourceParent, /ODK_CAMERA_PRIVATE_PIPE_PREFIX/)
-  assert.match(parent, /'--require',.*camera-private-host/)
-  assert.doesNotMatch(parent, /posixOnlyReason|runtimeSkip/)
-  assert.match(parent, /Camera control pipe release/)
   assert.match(child, /require\('\.\/helpers\/camera-private-host\.cjs'\)/)
   assert.ok(child.indexOf('camera-private-host.cjs') < child.indexOf("require('../src/main')"))
+  assert.doesNotMatch(sourceParent, /camera-main-surface|CAMERA_SURFACE/)
 })

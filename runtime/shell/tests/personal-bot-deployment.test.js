@@ -42,6 +42,7 @@ test('required components are staged before activation and started after it', ()
   assert.ok(shellUnit < installer.indexOf('stage_personal_bot_service'), 'the shell unit is written before the required components')
   assert.ok(installer.indexOf('stage_personal_bot_service') < activation)
   assert.ok(installer.indexOf('stage_task_host_service') < activation)
+  assert.match(installer, /enable_user_unit odk-remote-bridge\.service --now/)
   assert.ok(installer.indexOf('start_required_services') > activation, 'required services start after activation')
   assert.doesNotMatch(installer, /(?:Requires|Wants)=odk-personal-bot/)
 })
@@ -130,6 +131,12 @@ test('required units are staged from the candidate on the stable runtime path', 
     const releaseRoot = path.join(dir, 'runtime/releases/20260101T000000Z-1')
     const candidate = path.join(releaseRoot, 'integrations/personal-bot')
     fs.mkdirSync(path.join(candidate, 'systemd'), { recursive: true })
+    const unitDir = path.join(home, '.config/systemd/user')
+    fs.mkdirSync(unitDir, { recursive: true })
+    fs.writeFileSync(path.join(unitDir, 'open-deskos-personal-bot.service'), '[Service]\nExecStart=/legacy/release/main.mjs\n')
+    fs.symlinkSync('open-deskos-personal-bot.service', path.join(unitDir, 'odk-personal-bot.service'))
+    fs.writeFileSync(path.join(unitDir, 'open-deskos-desk-link.service'), '[Service]\nExecStart=/legacy/release/link.mjs\n')
+    fs.symlinkSync('open-deskos-desk-link.service', path.join(unitDir, 'odk-link.service'))
     for (const unit of ['odk-personal-bot.service', 'odk-pi-tasks.service']) {
       fs.copyFileSync(path.join(integrationTree(), 'systemd', unit), path.join(candidate, 'systemd', unit))
     }
@@ -148,7 +155,15 @@ test('required units are staged from the candidate on the stable runtime path', 
       SUDO=""
       LOG="$2/systemctl.log"
       run_as_target_user() { "$@"; }
-      systemctl() { printf '%s\n' "$*" >> "$LOG"; }
+      systemctl() {
+        printf '%s\n' "$*" >> "$LOG"
+        case "$*" in
+          "--user show --property=Id --value odk-personal-bot.service") printf 'open-deskos-personal-bot.service\n' ;;
+          "--user show --property=Id --value odk-link.service") printf 'open-deskos-desk-link.service\n' ;;
+          "--user show --property=Id --value odk-remote-bridge.service") printf 'open-deskos-remote-bridge.service\n' ;;
+          "--user show --property=Id --value odk-pi-tasks.service") printf 'open-deskos-pi-tasks.service\n' ;;
+        esac
+      }
       apt-get() { :; }
       usermod() { :; }
       stage_personal_bot_service
@@ -159,19 +174,62 @@ test('required units are staged from the candidate on the stable runtime path', 
     const units = path.join(home, '.config/systemd/user')
     const tasks = fs.readFileSync(path.join(units, 'odk-pi-tasks.service'), 'utf8')
     const voice = fs.readFileSync(path.join(units, 'odk-personal-bot.service'), 'utf8')
+    const canonicalVoice = fs.readFileSync(path.join(units, 'open-deskos-personal-bot.service'), 'utf8')
     const link = fs.readFileSync(path.join(units, 'odk-link.service'), 'utf8')
+    const canonicalLink = fs.readFileSync(path.join(units, 'open-deskos-desk-link.service'), 'utf8')
     for (const unit of [tasks, voice, link]) {
       assert.ok(unit.includes('__ODK_') === false, unit)
       assert.doesNotMatch(unit, /releases\//, 'a staged unit must use the stable runtime path')
     }
     assert.ok(tasks.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/personal-bot/src/task-daemon.mjs`), tasks)
     assert.ok(tasks.includes(`WorkingDirectory=${dir}/runtime/current/integrations/personal-bot`), tasks)
+    assert.ok(canonicalVoice.includes(`ExecStart=/opt/node/bin/node ${dir}/runtime/current/integrations/personal-bot/src/main.mjs`), canonicalVoice)
+    assert.equal(fs.lstatSync(path.join(units, 'odk-personal-bot.service')).isSymbolicLink(), true)
+    assert.equal(fs.lstatSync(path.join(units, 'odk-link.service')).isSymbolicLink(), true)
     assert.ok(link.includes(`ExecStart=/usr/bin/env node ${dir}/runtime/current/scripts/odk-link-service.js`), link)
+    assert.ok(canonicalLink.includes(`ExecStart=/usr/bin/env node ${dir}/runtime/current/scripts/odk-link-service.js`), canonicalLink)
     const calls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
     assert.match(calls, /--user daemon-reload/)
-    assert.match(calls, /--user enable odk-personal-bot\.service/)
-    assert.match(calls, /--user enable odk-link\.service/)
-    assert.doesNotMatch(calls, /restart|pi-tasks/)
+    assert.match(calls, /--user show --property=Id --value odk-personal-bot\.service/)
+    assert.match(calls, /--user show --property=Id --value odk-link\.service/)
+    assert.match(calls, /--user enable open-deskos-personal-bot\.service/)
+    assert.match(calls, /--user enable open-deskos-desk-link\.service/)
+    assert.doesNotMatch(calls, /restart/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('service enable resolves every supported legacy alias before enable and --now', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-unit-alias-'))
+  try {
+    const result = spawnSync('bash', ['-c', `
+      set -euo pipefail
+      source "$1"
+      LOG="$2/systemctl.log"
+      run_as_target_user() { "$@"; }
+      systemctl() {
+        printf '%s\\n' "$*" >> "$LOG"
+        case "$*" in
+          "--user show --property=Id --value odk-personal-bot.service") printf 'open-deskos-personal-bot.service\\n' ;;
+          "--user show --property=Id --value odk-link.service") printf 'open-deskos-desk-link.service\\n' ;;
+          "--user show --property=Id --value odk-remote-bridge.service") printf 'open-deskos-remote-bridge.service\\n' ;;
+          "--user show --property=Id --value odk-pi-tasks.service") printf 'open-deskos-pi-tasks.service\\n' ;;
+        esac
+      }
+      enable_user_unit odk-personal-bot.service --now
+      enable_user_unit odk-link.service --now
+      enable_user_unit odk-remote-bridge.service --now
+      enable_user_unit odk-pi-tasks.service --now
+    `, 'test', helperPath, dir], { encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    const calls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
+    assert.match(calls, /--user show --property=Id --value odk-remote-bridge\.service/)
+    assert.match(calls, /--user show --property=Id --value odk-pi-tasks\.service/)
+    assert.match(calls, /--user enable --now open-deskos-personal-bot\.service/)
+    assert.match(calls, /--user enable --now open-deskos-desk-link\.service/)
+    assert.match(calls, /--user enable --now open-deskos-remote-bridge\.service/)
+    assert.match(calls, /--user enable --now open-deskos-pi-tasks\.service/)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
@@ -190,7 +248,13 @@ test('required services start after activation and wait for the task configurati
       RUNTIME_ROOT="/fixture/runtime"
       LOG="$2/systemctl.log"
       run_as_target_user() { if [[ "$1" == "$NODE_BIN/node" ]]; then printf '%s\n' "$*" >> "$LOG"; else "$@"; fi; }
-      systemctl() { printf '%s\n' "$*" >> "$LOG"; }
+      systemctl() {
+        printf '%s\n' "$*" >> "$LOG"
+        case "$*" in
+          "--user show --property=Id --value odk-link.service") printf 'open-deskos-desk-link.service\n' ;;
+          "--user show --property=Id --value odk-pi-tasks.service") printf 'open-deskos-pi-tasks.service\n' ;;
+        esac
+      }
       start_required_services
     `, 'test', helperPath, dir], { encoding: 'utf8' })
 
@@ -208,7 +272,8 @@ test('required services start after activation and wait for the task configurati
     const configured = run()
     assert.equal(configured.status, 0, configured.stderr)
     const configuredCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
-    assert.match(configuredCalls, /--user enable --now odk-pi-tasks\.service/)
+    assert.match(configuredCalls, /--user show --property=Id --value odk-pi-tasks\.service/)
+    assert.match(configuredCalls, /--user enable --now open-deskos-pi-tasks\.service/)
     assert.doesNotMatch(configured.stderr, /staged but not enabled/)
 
     // Open DeskOS Link listens on the LAN, so a staged unit without its own token must stay stopped and say
@@ -220,12 +285,14 @@ test('required services start after activation and wait for the task configurati
     const tokenless = run()
     assert.equal(tokenless.status, 0, tokenless.stderr)
     assert.match(tokenless.stderr, /ODK_LINK_TOKEN/)
+    assert.match(tokenless.stderr, /staged but not started/)
     assert.doesNotMatch(fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8'), /odk-link/)
     fs.writeFileSync(path.join(home, '.config/odk/runtime.env'), 'ODK_LINK_TOKEN=private\n', { mode: 0o600 })
     fs.writeFileSync(path.join(dir, 'systemctl.log'), '')
     const tokened = run()
     assert.equal(tokened.status, 0, tokened.stderr)
-    assert.match(fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8'), /--user enable --now odk-link\.service/)
+    const tokenedCalls = fs.readFileSync(path.join(dir, 'systemctl.log'), 'utf8')
+    assert.match(tokenedCalls, /--user enable --now open-deskos-desk-link\.service/)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
