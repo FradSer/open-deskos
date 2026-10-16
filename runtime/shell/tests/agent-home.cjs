@@ -85,7 +85,6 @@ app.whenReady().then(async () => {
   win.webContents.setZoomFactor(1)
   // Hidden windows can start at 1x1 before their first layout on Linux.
   await resize(1920, 1280)
-  await evaluate(`window.dispatchEvent(new Event('resize'))`)
   await evaluate('document.fonts.ready')
   assert.equal(await evaluate(`!!document.querySelector('#personal-agent textarea')`), true, 'resident Agent has a composer')
   assert.equal(await evaluate(`document.querySelector('[data-page-id="today"]').parentElement.id`), 'home-summary', 'briefing retains its plugin host')

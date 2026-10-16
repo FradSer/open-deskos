@@ -7482,12 +7482,16 @@ Pre-order has a dedicated three-by-three page.
 Reading retains its three-by-three WeRead Widget.
 Desk retains Hydra.
 
-Focused Node checks passed 60 tests on 2026-10-17.
+Focused Node checks passed 156 tests on 2026-10-17.
 The style build generated 45 utilities.
-Full Linux and rendered acceptance are pending for this candidate.
+Private CM5 runs passed the complete geometry, E2E, and smoke commands with Electron 43.5.0.
+The subsequent Quota fill repair passed all six affected Electron checks on CM5.
+These checks cover the default App, production Main, development page, signed page, and authenticated page recovery.
+They measure actual meter widths under the existing Content Security Policy.
+The combined Linux full suite remains pending after the fixture and meter repairs.
 The density fixture measures the unavailable Quota placeholder.
 It does not establish the density of a live account reading.
 
 No device deployment is included in this change.
-Physical input, device pixels, and screen-reader output remain unverified.
+Physical input, production device pixels, and screen-reader output remain unverified.
 Independent replacements of `odk.app.quota` and `odk.tile.quota` remain unproven.

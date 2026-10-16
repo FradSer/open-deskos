@@ -29,11 +29,9 @@ The heading counts failed accounts as subscriptions.
 Unavailable status with retained accounts identifies the previous response.
 Unauthorized, unconfigured, unavailable, and empty responses retain their distinct recovery messages.
 
-The current default's inline fill widths are blocked by the Shell document's Content Security Policy.
-The independent fixture preserves that existing behavior alongside its numeric and accessible meter readings.
-Agreement does not certify correct visual meter fill or repair this existing issue.
-A separate repair needs an updated behavior scenario and verification of affected consumers.
-The quota Widget writes its own meter through CSSOM, which the policy permits, so it carries a real fill width.
+The default and independent page set meter widths through CSSOM under the existing Content Security Policy.
+Actual Electron checks compare the rendered fill width with each known percentage, including zero and fractional values.
+The quota Widget also writes its meter through CSSOM.
 
 ## Refresh and lifecycle
 

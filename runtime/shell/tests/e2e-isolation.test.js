@@ -158,22 +158,49 @@ test('Home fixture establishes its requested viewport after hidden loading', asy
   const start = source.indexOf('  await win.loadFile(')
   const end = source.indexOf('  assert.equal(await evaluate', start)
   assert.ok(start > 0 && end > start)
+  const helperStart = source.indexOf('async function resize(')
+  const helperEnd = source.indexOf('async function send(', helperStart)
+  assert.ok(helperStart > 0 && helperEnd > helperStart)
   const calls = []
   let width, height
-  await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
-    __dirname, path,
+  const renderer = vm.createContext({
+    innerWidth: 1, innerHeight: 1, devicePixelRatio: 1, __odkGrid: { width: 1, height: 1 },
+    document: { fonts: { ready: Promise.resolve() } },
+    Event: class { constructor(type) { this.type = type } },
+  })
+  renderer.window = { dispatchEvent(event) {
+    assert.equal(event.type, 'resize')
+    renderer.__odkGrid = { width: renderer.innerWidth, height: renderer.innerHeight }
+    calls.push('resize')
+  } }
+  await vm.runInNewContext(`(async () => { ${source.slice(helperStart, helperEnd)} ${source.slice(start, end)} })()`, {
+    __dirname, path, assert, setTimeout,
     win: {
-      async loadFile() { width = height = 1; calls.push('load') },
+      async loadFile() { renderer.innerWidth = renderer.innerHeight = 1; calls.push('load') },
       setContentSize(w, h) { width = w; height = h; calls.push('size') },
+      webContents: {
+        debugger: {
+          attach(version) { assert.equal(version, '1.3'); calls.push('attach') },
+          async sendCommand(command, metrics) {
+            if (command === 'Page.enable') { calls.push('enable'); return }
+            assert.equal(command, 'Emulation.setDeviceMetricsOverride')
+            assert.equal(width, 1920); assert.equal(height, 1280)
+            assert.equal(metrics.width, width); assert.equal(metrics.height, height)
+            assert.equal(metrics.deviceScaleFactor, 1); assert.equal(metrics.mobile, false)
+            renderer.innerWidth = width; renderer.innerHeight = height
+            calls.push('metrics')
+          },
+        },
+        setZoomFactor(value) { assert.equal(value, 1); calls.push('zoom') },
+      },
     },
     async evaluate(script) {
-      assert.equal(width, 1920)
-      assert.equal(height, 1280)
-      if (script.includes('resize')) calls.push('resize')
-      else assert.equal(script, 'document.fonts.ready')
+      assert.equal(width, 1920); assert.equal(height, 1280)
+      if (script.includes('innerWidth ===')) calls.push('settled')
+      return vm.runInContext(script, renderer)
     },
   })
-  assert.deepEqual(calls, ['load', 'size', 'resize'])
+  assert.deepEqual(calls, ['load', 'attach', 'enable', 'zoom', 'size', 'metrics', 'resize', 'settled'])
 })
 
 test('first MIC check waits for control receipt without replaying input', async () => {

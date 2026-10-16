@@ -97,6 +97,9 @@ app.whenReady().then(async () => {
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const box = card.getBoundingClientRect();
         const reading = meter.getBoundingClientRect();
+        const expectedFill = meter.clientWidth * Number(meter.getAttribute('aria-valuenow')) / 100;
+        const actualFill = meter.querySelector('.provider-quota-fill').getBoundingClientRect().width;
+        if (Math.abs(actualFill - expectedFill) > 1) throw Error('Rendered quota fill does not match its percentage');
         if (reading.width <= 0 || reading.height <= 0 || reading.left < box.left || reading.right > box.right + 1
           || reading.top < box.top || reading.bottom > box.bottom + 1) throw Error('Quota meter outside account');
         if (reading.left < 0 || reading.right > innerWidth + 1 || reading.top < 0 || reading.bottom > innerHeight + 1) throw Error('Quota meter outside viewport');

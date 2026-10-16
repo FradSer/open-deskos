@@ -35,6 +35,13 @@ Feature: Read AI quotas with clear provenance and recovery
     Then it says Unavailable and does not expose a numeric meter
     And a real zero remains a numeric exhausted quota
 
+  Scenario: Rendered quota bars retain the numeric reading under the Shell policy
+    Given the Shell enforces its existing Content Security Policy
+    When the default App or an independent page displays a known quota percentage
+    Then the actual bar width matches that percentage
+    And a zero reading has no filled width
+    And the policy does not require unsafe-inline
+
   Scenario: Refresh and recover
     Given previously retrieved accounts
     When a refresh is pending

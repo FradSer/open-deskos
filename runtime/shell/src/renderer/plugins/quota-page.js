@@ -49,7 +49,7 @@
           ${known ? '<span class="provider-quota-unit">remaining</span>' : ''}</span>
       </div>
       ${known ? `<div class="provider-quota-meter" role="meter" aria-label="${escapeHtml(quota.label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${remaining}" aria-valuetext="${formatPercent(remaining)} remaining">
-        <span class="provider-quota-fill is-${level}" style="width:${remaining}%"></span>
+        <span class="provider-quota-fill is-${level}"></span>
       </div>` : '<div class="provider-quota-unknown-rule" aria-hidden="true"></div>'}
       <div class="provider-quota-reset">${escapeHtml(quota.description || (quota.resetAt ? `Resets ${formatReset(quota.resetAt)}` : 'Reset time unavailable'))}</div>
     </div>`
@@ -144,6 +144,9 @@
       const focused = details.find((node) => node.contains(document.activeElement))?.dataset.account
       metrics.innerHTML = markup
       previousMarkup = markup
+      for (const meter of metrics.querySelectorAll?.('.provider-quota-meter') || []) {
+        meter.querySelector('.provider-quota-fill').style.width = `${meter.getAttribute('aria-valuenow')}%`
+      }
       for (const node of metrics.querySelectorAll?.('.provider-details') || []) {
         node.open = expanded.has(node.dataset.account)
         if (node.dataset.account === focused) node.querySelector('summary').focus({ preventScroll: true })

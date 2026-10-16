@@ -78,6 +78,11 @@ function prepareQuotaMainView(BrowserWindow, mode) {
         const status = await js('odkServices.subscription.refresh()')
         assert.deepEqual(status, responses[index])
         const view = await js(`(()=>{const page=quotaMainPage;
+          for(const meter of page.querySelectorAll('[role=meter]')){
+            const fill=meter.querySelector('.provider-quota-fill');
+            const expected=meter.clientWidth*Number(meter.getAttribute('aria-valuenow'))/100;
+            if(meter.clientWidth<=0||Math.abs(fill.getBoundingClientRect().width-expected)>1)throw Error('Production quota fill does not match its percentage');
+          }
           return{heading:page.querySelector('h1').textContent,count:page.querySelector('#quota-count').textContent,
             feedback:page.querySelector('#quota-feedback').textContent,
             readings:[...page.querySelectorAll('.provider-plan,.provider-quota-account,.provider-quota-availability,.provider-quota-label,.provider-quota-value,.provider-quota-reset')].map(node=>node.textContent.trim()),
