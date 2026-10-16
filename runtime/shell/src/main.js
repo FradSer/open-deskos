@@ -198,10 +198,15 @@ function finishSmoke(result) {
 }
 
 function runSmokeCheck(win, expected) {
+  let settled = false
   const timer = setTimeout(() => {
+    if (settled) return
+    settled = true
     finishSmoke({ ok: false, reason: 'timeout' })
   }, 15000)
   win.webContents.once('did-finish-load', () => {
+    if (settled) return
+    settled = true
     clearTimeout(timer)
     const actual = win.getContentBounds()
     const ok = actual.width === expected.width && actual.height === expected.height

@@ -281,6 +281,12 @@ if [ -r /var/log/Xorg.0.log ]; then
   fi
 fi
 
+if BGRA_DETAIL="$(bash "${SOURCE_DIR}/scripts/cm5-gpu-userspace.sh" verify 2>&1)"; then
+  check "xorg-bgra-module" "true" "false" "hardware" "$BGRA_DETAIL"
+else
+  check "xorg-bgra-module" "false" "false" "hardware" "$BGRA_DETAIL"
+fi
+
 TOUCH="$(grep -iE 'Name=.*(touch|gt911|goodix|ilitek|elan)' /proc/bus/input/devices 2>/dev/null | sed 's/.*Name="//; s/"$//' | tr '\n' ';' )"
 if [ -n "$TOUCH" ]; then
   check "touch-devices" "true" "true" "hardware" "$(printf '%s' "$TOUCH" | sed 's/;$//')"

@@ -37,3 +37,10 @@ test('CM5 GPU userspace installer verifies firmware, blob, soname resolution, gl
 test('CM5 GPU userspace installer refuses non-arm64 hosts', () => {
   assert.match(script, /uname -m\)" != "aarch64"/)
 })
+
+test('Mali installation and removal include the matching glamor module', () => {
+  assert.match(script, /source .*cm5-glamor-bgra\.sh/)
+  assert.ok(script.indexOf('  install_glamor') < script.indexOf('  install_firmware\n'))
+  assert.match(script, /verify_glamor \|\| status=1/)
+  assert.match(script, /remove_glamor/)
+})
