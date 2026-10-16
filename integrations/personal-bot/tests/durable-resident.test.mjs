@@ -4,7 +4,8 @@ import { mkdtemp, realpath, rm, readFile, mkdir, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { createPersonalBot } from '../src/agent.mjs'
+import { createPersonalBot, sessionAdapter } from '../src/agent.mjs'
+import { createIntentTurn, guardIntentTools } from '../src/intent-routing.mjs'
 import { assistant, fixtureModel, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
@@ -231,13 +232,25 @@ test('production recovery blocks old tool authority while a fresh persisted requ
     }
     return assistant([{ type: 'toolCall', id: `fixture-${request}`, name: 'codemode', arguments: { code: 'text(await tools.reviewed_change({}));' } }], 'toolUse')
   })
-  const { session } = await createDurableAgentSession({ cwd: dir, durableDirectory: directory, customTools: [capability],
+  const events = []
+  const turn = createIntentTurn({ route: async () => { events.push('jev'); return { intent: 'extension' } }, profile: 'personal', tools: [capability.name] })
+  const guarded = guardIntentTools([capability], turn.getIntent)
+  const { session } = await createDurableAgentSession({ cwd: dir, durableDirectory: directory, customTools: guarded,
     excludeTools: ['read'], modelRuntime, model: fixtureModel, settingsManager: SettingsManager.inMemory({}) })
   t.after(() => session.dispose())
-  await session.recover()
-  assert.equal(oldRejected, true)
-  assert.equal(effects, 0)
-  await session.prompt('new fixture request')
+  const adapter = sessionAdapter(session, {
+    prepareTurn: turn.prepare,
+    beginTurn: text => {
+      if (text) {
+        events.push('begin')
+        assert.equal(oldRejected, true, 'Pending work must settle before the new owner turn begins')
+        assert.equal(effects, 0, 'A recovered submission cannot borrow the newly selected extension intent')
+        assert.equal(turn.getIntent(), 'extension')
+      } else turn.clear()
+    },
+  })
+  assert.equal(await adapter.prompt('new fixture request'), '新的请求已执行。')
+  assert.deepEqual(events, ['jev', 'begin'])
   assert.equal(effects, 1)
   const view = await session.runtime.conversation.viewState(BACKGROUND_CONTEXT)
   assert(view.value.entries.some(entry => entry.model?.some(message => message.role === 'assistant' && message.content.some(part => part.type === 'text' && part.text === '新的请求已执行。'))))
