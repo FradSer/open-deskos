@@ -1,7 +1,7 @@
 'use strict'
 
 module.exports = [
-  { file: 'pomodoro', id: 'odk.tile.pomodoro', app: 'Pomodoro', state: 'Not started', minCell: 186,
+  { file: 'pomodoro', id: 'odk.tile.pomodoro', app: 'Pomodoro', state: 'App timer', minCell: 186,
     readings: ['.pomodoro-state', '.ring-mmss', '.pomodoro-context'],
-    text: ['Not started', '--:--', 'Focus'] },
+    text: ['App timer', '--:--', 'Open Pomodoro'] },
 ]

@@ -66,7 +66,7 @@ Widgets display readings. Put interactive controls on an App page or built-in vi
 
 ### Built-in App view replacement
 
-Calendar, Clock, Pomodoro, Year progress, and Built-in views use `odk.app.*` identities in the existing Renderer registry.
+Calendar, Clock, Pomodoro, Year progress, Built-in views, and AI usage use `odk.app.*` identities in the existing Renderer registry.
 Use the existing Renderer controller and public App intents for replacement and opening.
 The [alternative view fixture](../tests/fixtures/builtin-view-replacements.js) owns these interiors without calling packaged mount functions.
 It shares Shell styles, navigation, Tick delivery, and the Main App Manager.

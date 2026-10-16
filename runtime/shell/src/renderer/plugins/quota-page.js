@@ -110,6 +110,245 @@
     </article>`
   }
 
+  // The same subscription surface is mounted in two containers: the desktop
+  // App view, whose `.runtime-app` already draws the frame, and the page
+  // surface, which draws its own card. Only the root classes differ.
+  function mountQuotaContent(el, ctx, rootClass) {
+    el.innerHTML = `
+      <div class="${rootClass}">
+        <header class="quota-page-head">
+          <div class="quota-heading"><h1 class="quota-title">AI usage &amp; quotas</h1><span id="quota-count">Subscriptions unavailable</span></div>
+          <div class="quota-header-controls">
+            <div class="quota-checked" id="quota-checked"></div>
+            <button class="button-pill button-primary" id="quota-refresh" data-remote-initial-focus type="button">Refresh quotas</button>
+          </div>
+        </header>
+        <div class="quota-service-row"><p id="quota-feedback" role="status" aria-live="polite"></p>
+          <span class="quota-source">Source: CLIProxyAPI</span></div>
+        <div class="provider-quota-grid" id="quota-metrics"></div>
+      </div>`
+
+    const metrics = el.querySelector('#quota-metrics')
+    const checked = el.querySelector('#quota-checked')
+    const feedback = el.querySelector('#quota-feedback')
+    const count = el.querySelector('#quota-count')
+    let refreshing = false
+    let refreshFailed = false
+    let disposed = false
+    let previousMarkup = ''
+    const showAccounts = (accounts) => {
+      const markup = accounts.map(accountCard).join('')
+      if (markup === previousMarkup) return
+      const details = [...(metrics.querySelectorAll?.('.provider-details') || [])]
+      const expanded = new Set(details.filter((node) => node.open).map((node) => node.dataset.account))
+      const focused = details.find((node) => node.contains(document.activeElement))?.dataset.account
+      metrics.innerHTML = markup
+      previousMarkup = markup
+      for (const node of metrics.querySelectorAll?.('.provider-details') || []) {
+        node.open = expanded.has(node.dataset.account)
+        if (node.dataset.account === focused) node.querySelector('summary').focus({ preventScroll: true })
+      }
+    }
+    const render = (status = ctx.subscription.status()) => {
+      if (disposed) return
+      checked.textContent = ctx.subscription.lastCheck()
+      const accounts = status.snapshot?.accounts
+      const total = Array.isArray(accounts) ? accounts.length : 0
+      const available = total ? accounts.filter((account) => !account.error).length : 0
+      count.textContent = Array.isArray(accounts)
+        ? `${total} subscription${total === 1 ? '' : 's'}`
+        : 'Subscriptions unavailable'
+      const recovery = status.state === 'unauthorized'
+        ? 'Check the CM5 quota-service credential, then refresh.'
+        : status.state === 'unconfigured'
+          ? 'Configure the quota service on CM5, then refresh.'
+          : status.state === 'available'
+            ? (total ? `${available} of ${total} accounts available` : 'No connected accounts. Check the quota-service configuration.')
+            : 'Quotas unavailable. Check the connection and refresh.'
+      feedback.textContent = refreshing ? 'Refreshing quotas…'
+        : refreshFailed ? 'Refresh failed. Check the connection and try again. Displayed quotas are from the previous response.'
+          : `${recovery}${total && status.state !== 'available' ? ' Showing the previous response; quotas may be out of date.' : ''}`
+      if (Array.isArray(accounts) && accounts.length) {
+        showAccounts(accounts)
+        return
+      }
+      const unavailable = status.state === 'unauthorized'
+        ? 'Quota service rejected the management key. Check the CM5 device credential.'
+        : status.reason || 'Actual quotas have not been retrieved.'
+      previousMarkup = ''
+      metrics.innerHTML = `<div class="provider-quota-empty">${escapeHtml(unavailable)}</div>`
+    }
+    ctx.trackCleanup(ctx.subscription.subscribe(render))
+    const refreshButton = el.querySelector('#quota-refresh')
+    const refresh = async () => {
+      if (refreshButton.disabled) return
+      refreshing = true
+      refreshFailed = false
+      refreshButton.disabled = true
+      refreshButton.setAttribute('aria-busy', 'true')
+      render()
+      try {
+        await ctx.subscription.refresh()
+      } catch {
+        refreshFailed = true
+      } finally {
+        refreshing = false
+        if (!disposed) {
+          refreshButton.disabled = false
+          refreshButton.removeAttribute('aria-busy')
+          render()
+        }
+      }
+    }
+    void refresh()
+    refreshButton.addEventListener('click', refresh)
+    ctx.trackCleanup(() => {
+      disposed = true
+      refreshButton.removeEventListener('click', refresh)
+    })
+  }
+
+  root.odkPlugins.register({
+    id: 'odk.tile.quota',
+    manifest: { schemaVersion: 1, minCell: 186 },
+    kind: 'tile',
+    app: 'AI usage',
+    state: 'Live',
+    interaction: 'display-only',
+    opensApp: 'quota',
+    css: 'plugins/quota-page.css',
+    mount(el, ctx) {
+      el.innerHTML = `
+        <span class="quota-state w-state">Loading</span>
+        <div class="quota-tile-body widget-signal odk-col items-center justify-center">
+          <span class="quota-tile-value runtime-value">--%</span>
+          <div class="quota-tile-meter" role="meter" aria-valuemin="0" aria-valuemax="100" hidden>
+            <span class="quota-tile-meter-fill"></span>
+          </div>
+          <div class="quota-tile-unknown" aria-hidden="true" hidden></div>
+          <span class="quota-tile-context">AI usage</span>
+        </div>`
+
+      const stateNode = el.querySelector('.quota-state')
+      const valueNode = el.querySelector('.quota-tile-value')
+      const meterNode = el.querySelector('.quota-tile-meter')
+      const fillNode = el.querySelector('.quota-tile-meter-fill')
+      const unknownNode = el.querySelector('.quota-tile-unknown')
+      const contextNode = el.querySelector('.quota-tile-context')
+
+      let disposed = false
+      ctx.trackCleanup(() => { disposed = true })
+
+      const text = (node, value) => {
+        if (node && node.textContent !== value) node.textContent = value
+      }
+      // A window that produced a finite percentage is the only thing this Widget
+      // may draw as a meter. Every other reading states itself in words and hides
+      // the meter, so an unavailable window is never presented as 0 or 100.
+      const showWindow = (state, window, percent) => {
+        text(stateNode, state)
+        text(valueNode, `${percent}%`)
+        text(contextNode, window)
+        if (meterNode) {
+          if (meterNode.hidden) meterNode.hidden = false
+          if (meterNode.getAttribute('aria-label') !== window) meterNode.setAttribute('aria-label', window)
+          const reading = String(percent)
+          if (meterNode.getAttribute('aria-valuenow') !== reading) meterNode.setAttribute('aria-valuenow', reading)
+          const spoken = `${percent}% remaining`
+          if (meterNode.getAttribute('aria-valuetext') !== spoken) meterNode.setAttribute('aria-valuetext', spoken)
+        }
+        if (fillNode) {
+          const width = `${percent}%`
+          if (fillNode.style.width !== width) fillNode.style.width = width
+          const low = state === 'Low'
+          if (fillNode.classList.contains('is-low') !== low) fillNode.classList.toggle('is-low', low)
+        }
+        if (unknownNode && !unknownNode.hidden) unknownNode.hidden = true
+      }
+      const showWords = (state, value, context) => {
+        text(stateNode, state)
+        text(valueNode, value)
+        text(contextNode, context)
+        if (meterNode) {
+          // A hidden meter keeps no accessible reading and no window name.
+          meterNode.removeAttribute('aria-valuenow')
+          meterNode.removeAttribute('aria-valuetext')
+          meterNode.removeAttribute('aria-label')
+          if (!meterNode.hidden) meterNode.hidden = true
+        }
+        if (fillNode) {
+          if (fillNode.style.width !== '0%') fillNode.style.width = '0%'
+          if (fillNode.classList.contains('is-low')) fillNode.classList.toggle('is-low', false)
+        }
+        if (unknownNode && unknownNode.hidden) unknownNode.hidden = false
+      }
+
+      const render = (status = ctx.subscription.status()) => {
+        if (disposed) return
+        const accounts = status.snapshot?.accounts
+        const total = Array.isArray(accounts) ? accounts.length : 0
+
+        if (status.state === 'unconfigured') {
+          showWords('Unconfigured', '--%', 'CLIProxyAPI')
+          return
+        }
+        if (status.state === 'unavailable' || status.state === 'unauthorized') {
+          const unauthorized = status.state === 'unauthorized'
+          showWords(unauthorized ? 'Unauthorized' : 'Unavailable', '--%', unauthorized ? 'Invalid key' : 'Check connection')
+          return
+        }
+
+        const windows = (Array.isArray(accounts) ? accounts : [])
+          .filter((account) => !account.error)
+          .flatMap((account) => (account.groups || []).flatMap((group) => group.quotas || []))
+          .filter((quota) => isPercent(quota.remainingPct))
+
+        if (windows.length > 0) {
+          // The tightest window is the one that can stop work, so it leads.
+          const lowest = windows.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), windows[0])
+          const percent = Math.round(lowest.remainingPct)
+          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent)
+          return
+        }
+        // Accounts that returned no usable window are a count, never a reading.
+        if (total > 0) {
+          if (accounts.every((account) => account.error)) {
+            showWords('Unavailable', '--%', 'Check connection')
+            return
+          }
+          showWords('Available', String(total), total === 1 ? '1 account' : `${total} accounts`)
+          return
+        }
+        showWords('Available', '--%', 'No quotas returned')
+      }
+
+      ctx.onTick(() => render())
+      render()
+    },
+  })
+
+  root.odkPlugins.register({
+    id: 'odk.app.quota',
+    manifest: { schemaVersion: 1 },
+    kind: 'app',
+    appId: 'quota',
+    app: 'AI usage & quotas',
+    name: 'AI usage & quotas',
+    appKind: 'ui',
+    source: 'builtin',
+    capabilities: [],
+    css: 'plugins/quota-page.css',
+    lifecycle: {
+      mount(el, ctx) {
+        el.innerHTML = '<div class="runtime-app quota-app" data-view="quota"><header class="app-surface-header"><h2 class="app-surface-heading">AI usage &amp; quotas</h2></header><div class="quota-app-host"></div></div>'
+        mountQuotaContent(el.querySelector('.quota-app-host'), ctx, 'quota-card quota-app-card odk-stack')
+      },
+      unmount(el) {
+        el.replaceChildren()
+      },
+    },
+  })
+
   root.odkPlugins.register({
     id: 'odk.page.quota',
     manifest: { schemaVersion: 1 },
@@ -117,98 +356,7 @@
     surface: 'app',
     css: 'plugins/quota-page.css',
     mount(el, ctx) {
-      el.innerHTML = `
-        <div class="card quota-card app-surface-card odk-stack">
-          <header class="quota-page-head">
-            <div class="quota-heading"><h1 class="quota-title">AI usage &amp; quotas</h1><span id="quota-count">Subscriptions unavailable</span></div>
-            <div class="quota-header-controls">
-              <div class="quota-checked" id="quota-checked"></div>
-              <button class="button-pill button-primary" id="quota-refresh" data-remote-initial-focus type="button">Refresh quotas</button>
-            </div>
-          </header>
-          <div class="quota-service-row"><p id="quota-feedback" role="status" aria-live="polite"></p>
-            <span class="quota-source">Source: CLIProxyAPI</span></div>
-          <div class="provider-quota-grid" id="quota-metrics"></div>
-        </div>`
-
-      const metrics = el.querySelector('#quota-metrics')
-      const checked = el.querySelector('#quota-checked')
-      const feedback = el.querySelector('#quota-feedback')
-      const count = el.querySelector('#quota-count')
-      let refreshing = false
-      let refreshFailed = false
-      let disposed = false
-      let previousMarkup = ''
-      const showAccounts = (accounts) => {
-        const markup = accounts.map(accountCard).join('')
-        if (markup === previousMarkup) return
-        const details = [...(metrics.querySelectorAll?.('.provider-details') || [])]
-        const expanded = new Set(details.filter((node) => node.open).map((node) => node.dataset.account))
-        const focused = details.find((node) => node.contains(document.activeElement))?.dataset.account
-        metrics.innerHTML = markup
-        previousMarkup = markup
-        for (const node of metrics.querySelectorAll?.('.provider-details') || []) {
-          node.open = expanded.has(node.dataset.account)
-          if (node.dataset.account === focused) node.querySelector('summary').focus({ preventScroll: true })
-        }
-      }
-      const render = (status = ctx.subscription.status()) => {
-        if (disposed) return
-        checked.textContent = ctx.subscription.lastCheck()
-        const accounts = status.snapshot?.accounts
-        const total = Array.isArray(accounts) ? accounts.length : 0
-        const available = total ? accounts.filter((account) => !account.error).length : 0
-        count.textContent = Array.isArray(accounts)
-          ? `${total} subscription${total === 1 ? '' : 's'}`
-          : 'Subscriptions unavailable'
-        const recovery = status.state === 'unauthorized'
-          ? 'Check the CM5 quota-service credential, then refresh.'
-          : status.state === 'unconfigured'
-            ? 'Configure the quota service on CM5, then refresh.'
-            : status.state === 'available'
-              ? (total ? `${available} of ${total} accounts available` : 'No connected accounts. Check the quota-service configuration.')
-              : 'Quotas unavailable. Check the connection and refresh.'
-        feedback.textContent = refreshing ? 'Refreshing quotas…'
-          : refreshFailed ? 'Refresh failed. Check the connection and try again. Displayed quotas are from the previous response.'
-            : `${recovery}${total && status.state !== 'available' ? ' Showing the previous response; quotas may be out of date.' : ''}`
-        if (Array.isArray(accounts) && accounts.length) {
-          showAccounts(accounts)
-          return
-        }
-        const unavailable = status.state === 'unauthorized'
-          ? 'Quota service rejected the management key. Check the CM5 device credential.'
-          : status.reason || 'Actual quotas have not been retrieved.'
-        previousMarkup = ''
-        metrics.innerHTML = `<div class="provider-quota-empty">${escapeHtml(unavailable)}</div>`
-      }
-      ctx.trackCleanup?.(ctx.subscription.subscribe(render))
-      const refreshButton = el.querySelector('#quota-refresh')
-      const refresh = async () => {
-        if (refreshButton.disabled) return
-        refreshing = true
-        refreshFailed = false
-        refreshButton.disabled = true
-        refreshButton.setAttribute('aria-busy', 'true')
-        render()
-        try {
-          await ctx.subscription.refresh()
-        } catch {
-          refreshFailed = true
-        } finally {
-          refreshing = false
-          if (!disposed) {
-            refreshButton.disabled = false
-            refreshButton.removeAttribute('aria-busy')
-            render()
-          }
-        }
-      }
-      void refresh()
-      refreshButton.addEventListener('click', refresh)
-      ctx.trackCleanup?.(() => {
-        disposed = true
-        refreshButton.removeEventListener('click', refresh)
-      })
+      mountQuotaContent(el, ctx, 'card quota-card app-surface-card odk-stack')
     },
   })
 })(typeof window !== 'undefined' ? window : globalThis)

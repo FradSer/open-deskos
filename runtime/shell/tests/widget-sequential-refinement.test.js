@@ -208,20 +208,6 @@ for (const phase of ['pending', 'failure']) test(`Catalog search preserves ${pha
 })
 
 
-test('Pomodoro mount offers no unsupported timer operation', () => {
-  const plugins = []
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/apps.js'), 'utf8'), {
-    odkPlugins: { register(value) { plugins.push(value) } },
-  })
-  const plugin = plugins.find(value => value.appId === 'pomodoro')
-  const el = { innerHTML: '', querySelector() { return { addEventListener() {} } } }
-  plugin.lifecycle.mount(el, {})
-  assert.match(el.innerHTML, /Timer unavailable/)
-  assert.doesNotMatch(el.innerHTML, /<button|Running|Start timer/)
-  assert.equal(plugin.handleAction, null)
-})
-
-
 function mountLocalApp(id) {
   const plugins = []
   const nodes = new Map()

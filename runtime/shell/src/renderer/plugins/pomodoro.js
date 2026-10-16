@@ -9,7 +9,7 @@
     manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     app: 'Pomodoro',
-    state: 'Not started',
+    state: 'App timer',
     interaction: 'display-only',
     opensApp: 'pomodoro',
     mount(el) {
@@ -22,7 +22,7 @@
               <circle class="ring-arc" cx="60" cy="60" r="50"/>
             </svg>
             <span class="ring-mmss">--:--</span>
-            <span class="pomodoro-context">Focus</span>
+            <span class="pomodoro-context">Open Pomodoro</span>
           </div>
         </div>`
     },

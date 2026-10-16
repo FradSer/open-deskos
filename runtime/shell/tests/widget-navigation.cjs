@@ -164,6 +164,9 @@ app.whenReady().then(async () => {
       const reading = document.querySelector('[data-page-id="reading"] .widget-grid');
       const excerpt = reading.querySelector('.w-weread');
       if (getComputedStyle(excerpt).gridColumn !== '1 / 4' || getComputedStyle(excerpt).gridRow !== '1 / 4') throw Error('WeRead must be 3x3');
+      const countdown = document.querySelector('[data-page-id="preorder"] .widget-grid').querySelector('.w-preorder');
+      if (getComputedStyle(countdown).gridColumn !== '1 / 4' || getComputedStyle(countdown).gridRow !== '1 / 4') throw Error('Pre-order countdown must be 3x3');
+      if (document.querySelectorAll('[data-page-id="desk"] .w-preorder').length) throw Error('Pre-order must own its page');
     })()`)
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type:'mouseMoved',x:0,y:0})
     // Compare every source and continuation after native launches, not just Futu.
@@ -183,13 +186,15 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features:[]})
     await js(`(async () => { await odkAppPlatform.openApp({ appId: 'futu' }); await until(() => document.querySelectorAll('.futu-app .futu-holding').length === 40); })()`)
     await capture(`${theme}-futu`)
-    await js(`(async () => { await odkAppPlatform.closeApp(); document.querySelectorAll('.dot')[2].click(); })()`)
+    await js(`(async () => { await odkAppPlatform.closeApp(); document.querySelectorAll('.dot')[3].click(); })()`)
     await capture(`${theme}-reading`)
+    await js(`document.querySelectorAll('.dot')[2].click()`)
+    await capture(`${theme}-preorder`)
     await js(`document.querySelectorAll('.dot')[1].click()`)
     await capture(`${theme}-desk`)
     await js(`document.querySelectorAll('.dot')[0].click()`)
     await capture(`${theme}-home`)
-    console.log(`PASS ${theme}: native mouse and touch on all Widgets, pane bounds, focus, materials, complete scrolling holdings, 3x3 reading`)
+    console.log(`PASS ${theme}: native mouse and touch on all Widgets, pane bounds, focus, materials, complete scrolling holdings, 3x3 reading, 3x3 pre-order countdown`)
   }
   for (const [width, height] of [[1280, 776], [960, 640], [480, 854], [320, 480]]) {
     win.setContentSize(width, height)
@@ -276,7 +281,7 @@ app.whenReady().then(async () => {
   })()`)
   console.log('PASS disable, replacement, and recovery preserve exactly one App continuation')
   console.log('PASS Futu empty, unconfigured, unauthorized, unavailable, and loading states')
-  assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 8)
+  assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 9)
   console.log('WIDGET_NAVIGATION_EVIDENCE ' + evidence)
   finish(0)
 }).catch(async error => {

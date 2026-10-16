@@ -1,17 +1,16 @@
 Feature: Legible Widget and App interiors
 
   Scenario: Frames distinguish readings from interactive Apps
-    Given Home has read-only Widgets and separate interactive App pages
+    Given Home has read-only Widgets and each App opens into its own interactive view
     When the desk renders in Instrument, Pixel, or Border Beam
     Then Widgets have a static one-pixel neutral border without gaining controls
-    And App surfaces have a brighter two-pixel border
-    When an App receives focus or pointer input
-    Then its frame has a bright border and an outer focus outline without changing its size
-    And leaving the App restores its resting frame
-    And an opened foreground App keeps its active frame until Back
+    And an App view shares their border width, border colour, and radius
+    When an App takes focus or receives a pointer press
+    Then its frame keeps that size, colour, and radius, and the focused control carries its own outline
+    And leaving the App restores the desk
 
   Scenario: Every Widget retains readable content in a compact window
-    Given the shell displays all ten Home Widgets
+    Given the shell displays every Home, Desk, and Reading Widget
     When the window is 320 by 480, 480 by 854, 960 by 640, or zoomed to 200 percent
     Then each Widget keeps a square readable surface with at least 12 pixel supporting text
     And all Widget text wraps inside its surface without overlap or clipping
@@ -21,7 +20,7 @@ Feature: Legible Widget and App interiors
     And the Desk status icon, readiness label, resolution, and context form a centered vertical group
 
   Scenario: App content uses the available compact width
-    Given the shell displays Pi Sessions or Usage
+    Given the shell displays Pi Sessions or the AI usage App
     When the window is narrower than the desktop grid
     Then the App uses the available width within the page margins
     And every filter, refresh action, and search field is at least 44 pixels high
@@ -40,7 +39,7 @@ Feature: Legible Widget and App interiors
 
   Scenario: Usage distinguishes numbers from status prose
     Given the provider returns either usage metrics or an unavailable state
-    When Usage renders
+    When the AI usage App renders
     Then each metric keeps its visible label
     And percentages are prominent tabular numerals
     And reset instructions and the empty-state explanation use readable body typography
@@ -73,11 +72,11 @@ Feature: Legible Widget and App interiors
     And horizontal arrows move the caret without changing the field value
 
   Scenario: App surfaces keep native vertical keyboard scrolling
-    Given the compact Usage App is scrollable and a control inside it is focused
+    Given the compact AI usage App is scrollable and a control inside it is focused
     When the user presses ArrowDown and then ArrowUp
     Then neither keyboard event is cancelled by the shell
     And the App scrolls down and back up using native browser behavior
-    And Usage remains selected after each key
+    And the App remains open after each key
 
   Scenario: Remote Touchpad vertical input stays separate from keyboard scrolling
     Given Home is selected and scrolled partway down
@@ -97,7 +96,7 @@ Feature: Legible Widget and App interiors
 
   Scenario: Desktop geometry remains stable
     Given the shell is 1920 by 1280 or 1920 by 1080
-    When Home, Pi Sessions, or Usage is displayed
+    When Home, Pi Sessions, or the AI usage App is displayed
     Then the five-column three-row Widget layout retains its existing footprint
     And the direct App surfaces match that footprint
     And the existing token palette, truthful states, and navigation behavior are preserved

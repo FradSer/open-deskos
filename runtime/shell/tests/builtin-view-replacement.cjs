@@ -280,8 +280,19 @@ app.whenReady().then(async () => {
       if (id === 'calendar') assert.equal(await js("document.querySelector('#app-runtime time').dateTime"), '2028-03-01')
       if (id === 'year') assert.equal(await js("document.querySelector('#app-runtime .runtime-value').textContent"), '0%')
       if (id === 'pomodoro') {
-        assert.equal(await js("document.querySelector('#app-runtime .runtime-state').textContent"), 'Timer unavailable')
-        assert.equal(await js("document.querySelectorAll('#app-runtime button').length"), 0)
+        assert.equal(await js("document.querySelector('#app-runtime .runtime-state').textContent"), 'Focus')
+        // Start is the only control a not-started session offers.
+        assert.equal(await js("document.querySelectorAll('#app-runtime button:not([hidden])').length"), 1)
+        assert.equal(await js("document.querySelector('#app-runtime .pomodoro-toggle').textContent"), 'Start')
+        // Both implementations own a session behind those controls, so the same
+        // input produces the same visible outcome before the phase is left.
+        await js("document.querySelector('#app-runtime .pomodoro-toggle').click()")
+        assert.equal(await js("document.querySelector('#app-runtime .runtime-state').textContent"), 'Focusing')
+        assert.equal(await js("document.querySelector('#app-runtime .pomodoro-toggle').textContent"), 'Pause')
+        assert.equal(await js("document.querySelector('#app-runtime .pomodoro-reset').hidden"), false)
+        await js("document.querySelector('#app-runtime .pomodoro-reset').click()")
+        assert.equal(await js("document.querySelector('#app-runtime .runtime-state').textContent"), 'Focus')
+        assert.equal(await js("document.querySelector('#app-runtime .pomodoro-toggle').textContent"), 'Start')
       }
       await back()
       assert.equal(await js('document.activeElement===viewFocusOrigin'), true)

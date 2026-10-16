@@ -279,7 +279,7 @@ Feature: Personal Agent home briefing
 
   Scenario: App account values remain readable beside the Agent
     Given the Agent occupies the left side of a compact desk
-    When the user opens the Usage page on the right
+    When the user opens the AI usage App from its Home Widget
     Then account values have a font size of at least 14 pixels
     And all account details remain reachable by scrolling
 

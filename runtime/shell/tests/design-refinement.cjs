@@ -13,8 +13,15 @@ async function today(win, check) {
 }
 
 async function usage(win, check) {
+  // Usage is a Widget App: the quota surface lives in the App view now.
+  await win.webContents.executeJavaScript(`(async()=>{
+    if(odkAppPlatform.active()?.appId!=='quota')await odkAppPlatform.openApp({appId:'quota'})
+    const deadline=performance.now()+4000
+    while(!document.querySelector('#app-runtime .quota-card')){
+      if(performance.now()>deadline)throw Error('Quota App did not render');await new Promise(resolve=>setTimeout(resolve,10))}
+  })()`)
   const result = await win.webContents.executeJavaScript(`(() => {
-    const card = document.querySelector('.quota-card')
+    const card = document.querySelector('#app-runtime .quota-card')
     const actions = card.querySelector('.quota-header-controls')
     const metrics = card.querySelector('.provider-quota-grid')
     return {
@@ -44,6 +51,7 @@ async function usage(win, check) {
   check('Usage omits its redundant provider badge', result.noBadge)
   check('Usage exposes the provider quota grid', result.hasQuotaGrid)
   check('inactive focus has a quiet neutral dial', result.quietDial)
+  await win.webContents.executeJavaScript(`odkAppPlatform.closeApp()`)
 }
 
 async function pagerMotion(win, check) {

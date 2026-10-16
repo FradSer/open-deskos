@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
             await odkAppPlatform.openApp({ appId: id })
             const surface = document.querySelector('#app-runtime .runtime-app')
             if (surface.scrollWidth > surface.clientWidth + 1) failures.push(id + ': overflow')
-            if (id === 'pomodoro' && (!surface.textContent.includes('Timer unavailable') || surface.querySelector('button'))) failures.push('unsupported timer')
+            if (id === 'pomodoro' && (!surface.querySelector('.pomodoro-dial') || !surface.querySelector('button'))) failures.push('pomodoro missing timer')
             if (id === 'calendar' && !surface.querySelector('time').dateTime) failures.push('calendar missing date')
             if (id === 'clock' && !/^\\d{2}:\\d{2}$/.test(surface.querySelector('time').dateTime)) failures.push('clock missing time')
             if (id === 'year' && !surface.querySelector('.runtime-value').textContent.includes('%')) failures.push('year missing progress')

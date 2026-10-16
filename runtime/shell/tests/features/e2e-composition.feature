@@ -39,9 +39,9 @@ Feature: E2E validates the current declarative desktop
     Then each required selector resolves to a mounted element
     And a missing element reports its selector instead of an anonymous null textContent error
 
-  Scenario: Unconfigured quotas remain truthful in the current Usage page
+  Scenario: Unconfigured quotas remain truthful in the current Usage App
     Given the quota service fixture is not configured
-    When E2E opens Usage and refreshes quotas
+    When E2E opens the AI usage App from its Home Widget and refreshes quotas
     Then the live quota metrics region explains that actual quotas have not been retrieved
     And no account cards, quota meters or fabricated percentages are rendered
     And the last-check label remains visible
