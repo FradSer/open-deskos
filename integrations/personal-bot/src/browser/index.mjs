@@ -37,8 +37,15 @@ function checkedLocation(value) {
 
 // Validate observed locations before exposing page content. This does not stop
 // a browser network request or replace a network-level egress policy.
-function checkPageLocations(data, boundary) {
-  for (const location of [data.url, data.finalUrl, data.origin, boundary?.origin]) checkedLocation(location)
+async function checkPageLocations(session, data, boundary) {
+  try {
+    for (const location of [data.url, data.finalUrl, data.origin, boundary?.origin]) checkedLocation(location)
+  } catch (error) {
+    // Retire the refused page before subsequent actions. closePage rotates its
+    // epoch even when cleanup cannot be confirmed; never reuse that daemon.
+    await session.closePage()
+    throw error
+  }
 }
 
 /** Host-owned delimiters remain unpredictable even without CLI boundary metadata. */
@@ -81,7 +88,7 @@ export function createBrowserTools(session) {
         try {
           const target = checkedTarget(url)
           const { data, boundary } = await session.command(['open', target], { mutation: true })
-          checkPageLocations(data, boundary)
+          await checkPageLocations(session, data, boundary)
           return ok({ url: typeof data.url === 'string' ? data.url : target, title: shortTitle(data.title) }, `Opened ${data.url ?? target}`)
         } catch (error) { return failure(error) }
       },
@@ -96,7 +103,7 @@ export function createBrowserTools(session) {
         try {
           const args = url === undefined ? ['read'] : ['read', checkedTarget(url)]
           const { data, boundary } = await session.command(args)
-          checkPageLocations(data, boundary)
+          await checkPageLocations(session, data, boundary)
           const page = boundedPageText(data.content, boundary, session.maxOutputChars)
           return ok({
             url: typeof data.url === 'string' ? data.url : '',
@@ -115,7 +122,7 @@ export function createBrowserTools(session) {
       async execute() {
         try {
           const { data, boundary } = await session.command(['snapshot', '-i'])
-          checkPageLocations(data, boundary)
+          await checkPageLocations(session, data, boundary)
           const page = boundedPageText(data.snapshot, boundary, session.maxOutputChars)
           return ok({ url: typeof data.origin === 'string' ? data.origin : '', truncated: page.truncated, untrusted: true }, page.text)
         } catch (error) { return failure(error) }
