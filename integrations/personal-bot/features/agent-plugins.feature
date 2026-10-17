@@ -4,6 +4,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     When completion and learning receive that receipt through the actual SDK
     Then each original receipt text occurs once as literal untrusted data
     And host metadata and retry feedback retain every original value
+    And only top-level host format correction supplies retry instructions
     And embedded headers cannot create receipt identities or grant authority
     And exact citation checks and the shared two-attempt deadline remain unchanged
 
