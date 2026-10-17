@@ -49,6 +49,15 @@ test('shared live request budget refuses dispatch after its exact limit', () => 
 })
 
 test('explicit output resources retain independent request and execution bounds', async () => {
+  assert.equal(createLivePlan().deadlineMs, 900000)
+  for (const deadlineMs of [900001, 1800000]) {
+    const explicit = createLivePlan({ deadlineMs })
+    assert.equal(explicit.deadlineMs, deadlineMs)
+    assert.equal(explicit.maxRequests, 80); assert.equal(explicit.maxOutputTokens, 2048)
+  }
+  for (const deadlineMs of [0, -1, 1800001, 1.5, NaN, Infinity, '1800000', null]) {
+    assert.throws(() => createLivePlan({ deadlineMs }), /execution limit/)
+  }
   assert.equal(createLivePlan().maxOutputTokens, 2048)
   const plan = createLivePlan({ maxOutputTokens: 16384 })
   assert.equal(plan.maxOutputTokens, 16384)
@@ -203,8 +212,12 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   return { report, code, diagnostics, acceptedExperience }
 }
 
-for (const [resources, plan] of [['default', agentLivePlan], ['explicit', createLivePlan({ maxOutputTokens: 16384 })]]) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
+for (const resources of ['default', 'explicit']) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
+  const plan = resources === 'explicit' ? createLivePlan({ maxOutputTokens: 16384, deadlineMs: 1800000 }) : agentLivePlan
   const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
+  assert.equal(report.limits.deadlineMs, resources === 'explicit' ? 1800000 : 900000)
+  assert.equal(report.limits.maxRequests, 80)
+  assert.equal(report.limits.maxOutputTokens, resources === 'explicit' ? 16384 : 2048)
   assert.equal(report.limits.pluginTimeoutMs, resources === 'explicit' ? 180000 : 90000)
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.equal(report.passed, false, 'a container cannot approve its own source validation')

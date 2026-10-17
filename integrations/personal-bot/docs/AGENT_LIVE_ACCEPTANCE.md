@@ -57,7 +57,10 @@ Plugin validation uses a 90000-millisecond timeout by default.
 The runner validates `ODK_AGENT_PLUGIN_TIMEOUT_MS` and passes it through the private envelope.
 Valid values range from 1000 to 180000 milliseconds.
 The report records the effective value in `limits.pluginTimeoutMs`.
-The run has a 15-minute deadline.
+The default run deadline is 15 minutes.
+Use `--deadline-ms=N` to select an explicit deadline from 1 to 1800000 milliseconds (30 minutes).
+This option does not change request, output, or plugin timeout limits.
+Scenarios, validators, and scoring remain unchanged.
 Budget exhaustion stops dependent stages without retry.
 The limit counts requests; it is not a monetary cost limit.
 
@@ -108,8 +111,9 @@ A failed run preserves partial counts and outcomes.
 It does not retry a failed task automatically.
 
 Use `--max-requests=N` and `--deadline-ms=N` to retain the remaining authorization budget after a failed attempt.
-Both options can reduce the original limits.
-They cannot increase them.
+Explicit options must satisfy per-attempt limits and the remaining aggregate authorization.
+Start each full attempt from the beginning.
+Do not combine partial results from failed full attempts.
 Include consumed requests and active execution time from all earlier attempts.
 An unlimited aggregate authorization does not remove the runner's per-attempt safeguards.
 

@@ -57,13 +57,15 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
     await writeFile(join(bin, 'docker'), `#!${process.execPath}
   let input='';for await(const chunk of process.stdin)input+=chunk;await import('node:fs/promises').then(fs=>fs.writeFile(process.env.ODK_LIVE_TEST_CAPTURE,input));
   `, { mode: 0o700 })
-    await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, mode)}`, ...(mode === 'direct' ? [] : ['--host-relay']), ...(mode === 'relay-provider' ? ['--max-output-tokens=16384', '--max-requests=160'] : [])], {
+    await rm(capture, { force: true })
+    await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, mode)}`, ...(mode === 'direct' ? [] : ['--host-relay']), ...(mode === 'relay-provider' ? ['--max-output-tokens=16384', '--max-requests=160', '--deadline-ms=1800000'] : [])], {
       cwd: new URL('../', import.meta.url), timeout: 15000,
       env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture, ...(mode === 'relay-provider' ? { ODK_AGENT_PLUGIN_TIMEOUT_MS: '180000' } : {}) },
     }), error => error.code === 1) // The fake container cannot establish acceptance.
     const envelope = JSON.parse(await readFile(capture, 'utf8'))
     assert.deepEqual((await readdir(agentDir)).sort(), ['models.json', 'settings.json'], 'normalization creates no auth or model cache files')
     assert.equal(envelope.pluginTimeoutMs, mode === 'relay-provider' ? 180000 : 90000)
+    assert.equal(envelope.plan.deadlineMs, mode === 'relay-provider' ? 1800000 : 900000)
     assert.equal(envelope.plan.maxRequests, mode === 'relay-provider' ? 160 : 80)
     assert.equal(envelope.plan.maxOutputTokens, mode === 'relay-provider' ? 16384 : 2048)
     const runtime = await ModelRuntime.create({ authPath: join(directory, 'auth.json'), modelsPath: null, refreshOnCreate: false })
@@ -94,7 +96,7 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
     if (mode === 'direct') assert.equal(envelope.model.baseUrl, selected.baseUrl)
     else { assert.equal(envelope.transport, 'private_host_relay'); assert.equal(envelope.model.baseUrl, envelope.providerConfig.baseUrl) }
   }
-  const invalid = [['--max-requests=0'], ['--max-requests=257'], ['--max-requests=1.5'], ['--max-requests=invalid'], ['--max-requests=80', '--max-requests=160'], ['--max-output-tokens=0'], ['--max-output-tokens=16385'], ['--max-output-tokens=1.5'], ['--max-output-tokens=invalid'], ['--max-output-tokens=2048', '--max-output-tokens=4096']]
+  const invalid = [['--deadline-ms=0'], ['--deadline-ms=1800001'], ['--deadline-ms=1.5'], ['--deadline-ms=invalid'], ['--deadline-ms=900000', '--deadline-ms=1800000'], ['--max-requests=0'], ['--max-requests=257'], ['--max-requests=1.5'], ['--max-requests=invalid'], ['--max-requests=80', '--max-requests=160'], ['--max-output-tokens=0'], ['--max-output-tokens=16385'], ['--max-output-tokens=1.5'], ['--max-output-tokens=invalid'], ['--max-output-tokens=2048', '--max-output-tokens=4096']]
   for (const [index, options] of invalid.entries()) {
     await rm(capture, { force: true })
     await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, `invalid-${index}`)}`, ...options], {

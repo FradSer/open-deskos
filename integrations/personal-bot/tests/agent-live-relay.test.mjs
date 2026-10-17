@@ -13,7 +13,7 @@ import { createLivePlan, createLiveRequestBudget, createBudgetedFetch } from './
 test('an explicit live plan retains independent request and execution ceilings', () => {
   assert.equal(createLivePlan({ maxRequests: 78, deadlineMs: 880000 }).maxRequests, 78)
   for (const maxRequests of [0, 257, 1.5]) assert.throws(() => createLivePlan({ maxRequests }), /limit/)
-  for (const deadlineMs of [0, 900001, 1.5]) assert.throws(() => createLivePlan({ deadlineMs }), /limit/)
+  for (const deadlineMs of [0, 1800001, 1.5]) assert.throws(() => createLivePlan({ deadlineMs }), /limit/)
 })
 
 test('a loopback relay preserves bytes, provider path and authority without changing the remote target', async t => {
