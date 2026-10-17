@@ -11,11 +11,12 @@ export const agentLivePlan = Object.freeze({ maxRequests: 80, maxOutputTokens: 2
 
 /** Count generation and Jev requests before dispatch, including correction attempts. */
 export function createLiveRequestBudget(maxRequests = agentLivePlan.maxRequests) {
-  if (!Number.isSafeInteger(maxRequests) || maxRequests < 1 || maxRequests > 80) throw Error('Invalid live request limit')
+  if (!Number.isSafeInteger(maxRequests) || maxRequests < 1 || maxRequests > 256) throw Error('Invalid live request limit')
   const calls = []
-  return { calls, reserve(kind, phase) {
+  let exhausted = false
+  return { calls, get exhausted() { return exhausted }, reserve(kind, phase) {
     if (!['generation', 'jev'].includes(kind) || typeof phase !== 'string') throw Error('Invalid live request metadata')
-    if (calls.length >= maxRequests) throw Error('Live request budget exhausted')
+    if (calls.length >= maxRequests) { exhausted = true; throw Error('Live request budget exhausted') }
     const call = { kind, phase, startedAt: new Date().toISOString() }
     calls.push(call)
     return call
@@ -89,6 +90,24 @@ export function recordLiveGenerationUsage(call, message) {
   call.outputTokens = message.usage?.output
   const reasoning = message.usage?.reasoning
   if (Number.isFinite(reasoning) && reasoning >= 0) call.reasoningTokens = reasoning
+}
+
+/** One new handle or one exact continuation is a fresh host admission. */
+export function selectLiveChildAdmission(before, tasks, identity = null) {
+  const changed = tasks.filter(task => !before.has(task.taskId) || before.get(task.taskId) !== task.turn)
+  if (changed.length !== 1) throw Error('Exactly one fresh child admission is required')
+  const task = changed[0], continued = before.has(task.taskId)
+  const admission = { taskId: task.taskId, turn: continued ? before.get(task.taskId) + 1 : 1,
+    identity: identity ? { id: identity.id, revision: identity.revision } : null, continued }
+  assertLiveChildTurn(admission, task)
+  return admission
+}
+
+export function assertLiveChildTurn(admission, task) {
+  if (task?.taskId !== admission.taskId || task?.turn !== admission.turn
+    || (admission.identity ? task.identity?.id !== admission.identity.id || task.identity?.revision !== admission.identity.revision : task.identity !== null)) {
+    throw Error('Child task turn or identity changed')
+  }
 }
 
 export function learningComparison(pairs) {

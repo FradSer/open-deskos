@@ -36,12 +36,15 @@ They cannot obtain the method by reading another report.
 These pairs check supplied-data analysis and experience transfer; they do not establish MCP execution.
 The host grades numerical results independently of the model's completion judgment.
 The report records actual full-entry retrieval separately.
+A saved child can continue its exact inactive task with one new turn.
+Acceptance binds the task handle, turn, identity, and identity revision before it grades the result.
 Saved-child activity must carry the expected avatar metadata.
 Rendered avatar acceptance remains a separate check.
 
 ## Limits and isolation
 
 The default per-run limit is 80 shared generation and Jev requests, including format corrections.
+Use `--max-requests=N` to select an explicit allowance from 1 to 256 shared requests.
 The operator must also retain any authorized aggregate limit across attempts.
 The transport counts HTTP requests before dispatch.
 It refuses redirects and disables SDK request retries.

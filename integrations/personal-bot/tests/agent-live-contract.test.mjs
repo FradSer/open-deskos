@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createHash } from 'node:crypto'
-import { agentLivePlan, createLivePlan, capLiveModelOutput, recordLiveGenerationUsage, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
+import { agentLivePlan, createLivePlan, capLiveModelOutput, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
 import { reportData, reportScore, reportProcedure } from './fixtures/agent-learning-reports.mjs'
 
 test('synthetic report grading is independent of assistant claims and keeps holdout procedures hidden', () => {
@@ -33,9 +33,18 @@ test('shared live request budget refuses dispatch after its exact limit', () => 
   const budget = createLiveRequestBudget(2)
   budget.reserve('generation', 'training')
   budget.reserve('jev', 'training')
+  assert.equal(budget.exhausted, false)
   assert.throws(() => budget.reserve('generation', 'correction'), /budget exhausted/)
+  assert.equal(budget.exhausted, true)
   assert.equal(budget.calls.length, 2)
-  assert.throws(() => createLiveRequestBudget(81), /limit/)
+  assert.equal(createLivePlan().maxRequests, 80)
+  assert.equal(createLivePlan({ maxRequests: 160 }).maxRequests, 160)
+  const maximum = createLiveRequestBudget(256)
+  for (let index = 0; index < 256; index++) maximum.reserve(index % 2 ? 'jev' : 'generation', 'explicit-budget')
+  assert.throws(() => maximum.reserve('generation', 'correction'), /budget exhausted/)
+  assert.equal(maximum.calls.length, 256)
+  for (const limit of [0, -1, 257, 1.5, NaN, Infinity, '160']) assert.throws(() => createLivePlan({ maxRequests: limit }), /limit/)
+  assert.equal(createLivePlan({ maxRequests: 256 }).deadlineMs, 900000)
   assert.equal(agentLivePlan.maxOutputTokens, 2048)
 })
 
@@ -98,6 +107,29 @@ test('generation usage records reported reasoning only and excludes message cont
   }
 })
 
+test('child acceptance binds one fresh admission to its exact turn and identity revision', () => {
+  const identity = { id: 'reporter', revision: 'a'.repeat(64) }
+  const before = new Map([['existing', 1]])
+  const prior = { taskId: 'existing', turn: 1, identity }
+  const next = { ...prior, turn: 2 }
+  const admitted = selectLiveChildAdmission(before, [next], identity)
+  assert.equal(admitted.taskId, 'existing'); assert.equal(admitted.turn, 2); assert.equal(admitted.continued, true)
+  assertLiveChildTurn(admitted, next)
+  const temporary = { taskId: 'new', turn: 1, identity: null }
+  assert.equal(selectLiveChildAdmission(before, [prior, temporary], null).continued, false)
+  assert.equal(selectLiveChildAdmission(before, [{ ...temporary, identity }], identity).turn, 1)
+  for (const tasks of [[prior], [{ ...next, turn: 3 }], [{ ...next, turn: 0 }], [{ ...temporary, turn: 2 }],
+    [next, { ...temporary, identity }], [{ ...next, identity: { ...identity, id: 'different' } }],
+    [{ ...next, identity: { ...identity, revision: 'b'.repeat(64) } }], [{ ...next, identity: null }]]) {
+    assert.throws(() => selectLiveChildAdmission(before, tasks, identity), /child|Child/)
+  }
+  assert.throws(() => selectLiveChildAdmission(before, [{ ...temporary, identity }], null), /Child/)
+  for (const changed of [{ ...next, taskId: 'different' }, { ...next, turn: 1 }, { ...next, turn: 3 },
+    { ...next, identity: { ...identity, revision: 'b'.repeat(64) } }, { ...next, identity: null }]) {
+    assert.throws(() => assertLiveChildTurn(admitted, changed), /Child/)
+  }
+})
+
 test('learning comparison does not turn persistence, a tie or three examples into general benefit', () => {
   const passed = { passed: true }, failed = { passed: false }
   assert.match(learningComparison([{ baseline: passed, candidate: passed }]).conclusion, /No improvement/)
@@ -157,6 +189,8 @@ for (const [resources, plan] of [['default', agentLivePlan], ['explicit', create
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.equal(report.passed, false, 'a container cannot approve its own source validation')
   assert.equal(report.functionalPassed, true)
+  const restart = report.taskChecks.find(check => check.phase === 'saved-restart')
+  assert.equal(restart.turn, 2); assert.equal(restart.continued, true)
   assert.equal(report.status, 'pending_host_validation')
   assert.equal(finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true }).passed, true)
   assert.equal(report.truncatedGenerationCalls, report.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length)

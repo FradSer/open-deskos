@@ -134,6 +134,15 @@ Feature: Personal Agent owns a bounded plugin runtime
     And default zero rates do not establish actual charges or free service
     And normalization reads no authentication store and makes no network request
 
+  Scenario: Live delegation accepts one exact fresh child turn
+    Given a saved child completed an earlier task before restart
+    When the coordinator uses agent_input on that inactive task
+    Then acceptance recognizes the same task handle with exactly one new turn
+    And a new handle must start at turn one
+    And the requested identity and revision stay fixed through the exact completed turn
+    And stale turns, skipped turns, multiple admissions, and different identities fail acceptance
+    And finished state, completion verification, and independent report grading remain required
+
   Scenario: Live generation limits include provider reasoning tokens
     Given a reasoning model with a larger configured token limit and the default live resources
     When the acceptance runner builds a generation request
@@ -147,6 +156,14 @@ Feature: Personal Agent owns a bounded plugin runtime
     And a lower configured model limit reduces both SDK options and the final HTTP allowance
     And duplicate, invalid, and excessive options are refused
     And request counts, deadlines, and quality checks remain unchanged
+
+  Scenario: Explicit live request resources retain the default and execution bounds
+    Given the default live request allowance is 80 shared requests
+    When an operator explicitly selects an allowance up to 256 requests
+    Then generation and Jev share that exact allowance
+    And invalid, duplicate, and excessive options fail before dispatch
+    And deadlines, output limits, scenarios, and quality checks remain unchanged
+    And request exhaustion requires a refused dispatch, not only an exactly used allowance
 
   Scenario: A live acceptance retry retains the remaining authorization limits
     Given an authorized attempt used part of the request and execution budget

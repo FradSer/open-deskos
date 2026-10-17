@@ -10,7 +10,7 @@ import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
 import { reportScore, reportData, reportSkill } from '../fixtures/agent-learning-reports.mjs'
-import { capLiveModelOutput, createLivePlan, recordLiveGenerationUsage, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
+import { capLiveModelOutput, createLivePlan, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
 let input = ''
@@ -121,14 +121,17 @@ async function newBot(stateDir, extra = {}) {
 }
 async function close(bot) { await bot.close(); bots.delete(bot) }
 async function delegated(bot, text, id, saved, fixtureAdmission = false) {
-  const before = new Set(bot.agentTasks.list().tasks.map(task => task.taskId))
+  const identity = saved ? bot.agentTasks.identities().find(identity => identity.id === 'reporter') : null
+  assert(!saved || identity, 'Requested saved identity is unavailable')
+  const before = new Map(bot.agentTasks.list().tasks.map(task => [task.taskId, task.turn]))
   if (fixtureAdmission) bot.agentTasks.start({ request: text, ...(saved ? { identityId: 'reporter' } : { role: 'Analyze the supplied synthetic report through its applicable procedure.' }) })
   else await bot.prompt(text)
-  const tasks = bot.agentTasks.list().tasks.filter(task => !before.has(task.taskId))
+  const tasks = bot.agentTasks.list().tasks.filter(task => !before.has(task.taskId) || before.get(task.taskId) !== task.turn)
   report.taskChecks.push({ phase, admissions: tasks.length, fixtureAdmission, coordinatorInference: !fixtureAdmission })
-  assert.equal(tasks.length, 1, 'Exactly one child admission is required')
-  const task = await bot.agentTasks.wait(tasks[0].taskId)
-  Object.assign(report.taskChecks.at(-1), { state: task.state, verification: task.verification.status, learning: task.learning, score: reportScore(id, task.response) })
+  const admission = selectLiveChildAdmission(before, tasks, identity)
+  const task = await bot.agentTasks.wait(admission.taskId)
+  assertLiveChildTurn(admission, task)
+  Object.assign(report.taskChecks.at(-1), { turn: task.turn, continued: admission.continued, state: task.state, verification: task.verification.status, learning: task.learning, score: reportScore(id, task.response) })
   assert.equal(task.identity?.id ?? null, saved ? 'reporter' : null)
   assert.equal(task.state, 'finished')
   assert.equal(task.verification.status, 'passed')
@@ -250,7 +253,7 @@ try {
   report.passed = true
 } catch (error) {
   report.passed = false
-  report.failure = { phase, reason: budget.calls.length >= plan.maxRequests ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven' }
+  report.failure = { phase, reason: budget.exhausted ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven' }
   if (offline) report.failure.fixtureError = String(error.message)
   process.exitCode = 1
 } finally {
