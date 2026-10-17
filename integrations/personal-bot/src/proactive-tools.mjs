@@ -4,8 +4,15 @@ import { Type } from 'typebox'
 const result = value => ({ content: [{ type: /** @type {const} */ ('text'), text: JSON.stringify(value) }], details: {}, structuredContent: value })
 
 /** No model-supplied text can confirm a proposal: the actual Spoken Turn is retained by the host. */
-export function createProposalTools(getWatch, currentTurn) {
+export function createProposalTools(getWatch, currentTurn, { intentPreviews = false, currentTurnId = () => Number(0) } = {}) {
   return [
+    ...(intentPreviews ? [defineTool({ name: 'personal_bot_ride_preview', label: 'Refresh selected ride details', exposure: 'codemode', executionMode: 'sequential',
+      namespace: { name: 'personal_bot', description: 'Read-only proposal details, never order authority.' },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      description: 'Refresh a saved ride preview only after the actual owner selected its displayed endpoints and the old handle expired or was lost after restart. New results have new handles and require a new owner selection. Do not use old coordinates or restore order confirmation.',
+      parameters: Type.Object({ handle: Type.String({ minLength: 1, maxLength: 80 }) }, { additionalProperties: false }),
+      execute: async (_id, { handle }, signal) => { const watch = getWatch(); if (!watch?.intents) throw Error('Intent ride details unavailable'); const owner = currentTurn(), turn = currentTurnId(); return result(await watch.intents.refreshPreview(handle, watch, owner, signal, () => currentTurn() === owner && currentTurnId() === turn)) },
+    })] : []),
     defineTool({ name: 'personal_bot_proposals', label: 'Personal Bot suggestions', exposure: 'codemode',
       namespace: { name: 'personal_bot', description: 'Private read-only proposals, separate from Open DeskOS Data.' },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },

@@ -32,6 +32,23 @@ Skills and MEMORY cannot authorize payment, orders, cancellation, or credential 
 8. Report the actual result. `active` with a verified order identity confirms the order. For `unknown`, say `可能已下单，结果尚未核实`.
 9. Never retry an order automatically after a timeout, disconnect, or unknown result.
 
+## Suggested ride details
+
+A background preview searches and estimates without changing the interactive quote or confirmation turn.
+It does not submit or cancel orders.
+Only actual returned cities and place coordinates enter its bounded projection.
+Ambiguous places remain selectable candidates; a requested city does not establish the result city.
+The preview excludes account details, provider trace identifiers, and external links.
+
+The suggestion opens a read-only route view.
+The owner selects both actual place handles before requesting a current quote.
+That control sends an actual owner text turn through Jev.
+Use `didi_estimate_preview` with its exact preview and endpoint handles.
+The host requires the actual selection request and rejects stale, muted, changed, or expired handles.
+It obtains a new interactive quote; the preview price cannot authorize a purchase.
+Continue with product selection and the separate later confirmation phrase above.
+The selected route remains a plan, not proof of the owner's present location.
+
 ## Status and cancellation
 
 - Call `didi_status({})` to read the order. Account orders, old orders, and `reconciliation.identityVerified: false` cannot identify an uncertain submission.
