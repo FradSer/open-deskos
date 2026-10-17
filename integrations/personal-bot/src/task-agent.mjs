@@ -1,5 +1,5 @@
 import { createAgentSession, createCodemodeExtension, DefaultResourceLoader, getAgentDir, ModelRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
-import { privateDirectory } from './task-store.mjs'
+import { privateDirectory, resumeSessionHeader } from './task-store.mjs'
 import { boundedText } from './task-service.mjs'
 import { createCodingCheckTool } from './candidate-checks.mjs'
 
@@ -151,12 +151,13 @@ function historyPage(entries, after = 0, limit = 64) {
 /**
  * Creates one persistent Hosted Pi session. The caller owns its lifecycle and may
  * prompt it repeatedly; cancelling a turn does not dispose the session.
- * @param {{task:{project:string},sessionDir:string,model?:string,onEvent?:(event:object)=>void}} input
+ * @param {{task:{project:string,sessionFile?:string},sessionDir:string,model?:string,onEvent?:(event:object)=>void,signal?:AbortSignal,resume?:boolean}} input
  * @param {{createSession?:typeof createAgentSession,createRuntime?:typeof ModelRuntime.create}} [dependencies]
  */
 export async function createHostedSession(input, { createSession = createAgentSession, createRuntime = options => ModelRuntime.create(options) } = {}) {
   const { task, sessionDir, model, onEvent } = input
-  await privateDirectory(sessionDir)
+  const admittedOriginal = input.resume ? await resumeSessionHeader(task, sessionDir) : undefined
+  if (!input.resume) await privateDirectory(sessionDir)
   // Same untrusted-project policy as the resident coordinator: only the
   // operator's agent dir configures this session.
   const settingsManager = SettingsManager.create(task.project, getAgentDir(), { projectTrusted: false })
@@ -171,11 +172,16 @@ export async function createHostedSession(input, { createSession = createAgentSe
     appendSystemPrompt: ['Use codemode to batch independent inspection with awaited Promise.allSettled; keep dependent operations and mutations sequential. Full coding tools remain available. Pi v1.2 guards unknown tool members; use "name" in tools or discovery, not typeof tools.name, for optional tools. A typo suggestion does not authorize replay of earlier mutations. Prefer coding_check for test/typecheck/lint/build commands so host-observed process outcomes and source samples accompany them. A failed script does not undo side effects or authorize retry. Matching source samples and exit zero are not independent verification.'],
   })
   await resourceLoader.reload()
-  const modelRuntime = await createRuntime({ signal: AbortSignal.timeout(15000) })
+  input.signal?.throwIfAborted()
+  const modelRuntime = await createRuntime({ signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) })
   const separator = model?.indexOf('/') ?? -1
   const selected = model ? modelRuntime.getModel(model.slice(0, separator), model.slice(separator + 1)) : undefined
   if (model && !selected) throw new Error('未找到配置的模型')
-  const sessionManager = SessionManager.create(task.project, sessionDir)
+  input.signal?.throwIfAborted()
+  const original = input.resume ? await resumeSessionHeader(task, sessionDir) : undefined
+  if (original && original.id !== admittedOriginal.id) throw Error('原会话身份不匹配')
+  const sessionManager = original ? SessionManager.open(original.file, sessionDir) : SessionManager.create(task.project, sessionDir)
+  if (original && (sessionManager.getSessionId() !== original.id || sessionManager.getSessionFile() !== original.file)) throw Error('原会话身份不匹配')
   settingsManager.applyOverrides({
     // Full coding capability plus orchestration; codemode batches work without
     // narrowing the worker's own tools.
@@ -183,7 +189,8 @@ export async function createHostedSession(input, { createSession = createAgentSe
   })
   const { session } = await createSession({ cwd: task.project, resourceLoader, sessionManager, modelRuntime, settingsManager,
     customTools: [createCodingCheckTool(task.project)], ...(selected ? { model: selected } : {}) })
-  await session.bindExtensions({})
+  try { input.signal?.throwIfAborted(); await session.bindExtensions({}); input.signal?.throwIfAborted() }
+  catch (error) { session.dispose(); throw error }
   let publishedPosition = sessionManager.getEntries().length
   let flushScheduled = false
   const flushEntries = () => {

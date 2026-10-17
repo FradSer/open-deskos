@@ -522,12 +522,20 @@ Never create a replacement for an existing session merely to continue it.
 
 An unfinished launch reports starting; an ended identity reports ended.
 Do not classify either as unknown project.
-Repeated End on ended/interrupted sessions changes nothing.
+End also disables restoration after idle expiry, eviction, or daemon restart.
+Repeated End after an explicit End changes nothing.
 End during launch claims the receipt and disposes any session created later.
 Idle unattached sessions release project overlap locks but still count against the host cap.
 Resume reacquires the project lock.
 Bounded idle expiry ends the session without prompt replay.
 A daemon restart marks launching/working sessions interrupted and keeps their logs readable.
+No restart or expiry replays a prompt.
+A new owner prompt can restore an expired, evicted, or host-interrupted identity.
+Restoration opens the recorded Pi 1.2 session file and sends only the new prompt.
+It preserves the task ID, session ID, file prefix, and original goal.
+The new mutation receipt precedes restoration, and status reports `launching` during initialization.
+Project admission, host capacity, revision checks, and private-path checks still apply.
+An explicit End or an unsafe original file prevents restoration.
 Prompt, steer, cancel, and end receipts show acceptance, not completed work.
 Query status/history before claiming progress.
 Console control uses the authenticated Control Link; voice uses the configured helper to the same daemon.

@@ -85,8 +85,8 @@ Feature: Durable per-host Hosted Pi sessions
     Then it is refused as an unknown session
     And a different project identity is refused for the same session
 
-  Scenario: A prompt to an ended session is refused as ended
-    Given a Hosted Pi whose lifecycle is ended
+  Scenario: A prompt to an explicitly ended session is refused as ended
+    Given a Hosted Pi that the owner explicitly ended
     When a further prompt names that session with its own project
     Then the request is refused stating that the Hosted Pi has ended
     And it is not reported as a malformed prompt
@@ -234,3 +234,25 @@ Feature: Durable per-host Hosted Pi sessions
     When a start request uses a lone surrogate instead
     Then the request is rejected before receipt persistence
     And the session service can restart normally
+  Scenario: A new owner prompt restores an expired original session
+    Given an idle-expired or evicted Hosted Pi with its original private session file
+    When a new owner prompt names its exact task and current revision
+    Then the host opens that exact session file without creating another task or session
+    And its original UUID, file prefix, and prior history remain unchanged
+    And only the new prompt runs after its mutation receipt is durable
+    And status reports launching while the session opens
+
+  Scenario: Restart recovery requires a new owner prompt
+    Given a host-restart interrupted task with its original private session file
+    When the daemon restarts without another owner instruction
+    Then it replays no prompt and opens no coding session
+    When a new owner prompt requests that exact task
+    Then it opens the original session and executes only the new instruction
+
+  Scenario: Unsafe or conflicting original sessions cannot resume
+    Given an expired task whose original file is missing, unsafe, invalid, or belongs to another project
+    When a new prompt requests recovery
+    Then the host refuses before receipt admission or provider creation
+    And stale revisions, duplicate mutations, occupied projects, and full host capacity cannot launch extra work
+    And a failed reopen releases its slot without replacing the original file
+    And cancelling an initializer retains its slot and project lock until disposal

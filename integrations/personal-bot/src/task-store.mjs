@@ -1,5 +1,7 @@
-import { chmod, mkdir, open, readFile, readdir, rename, unlink, realpath, stat } from 'node:fs/promises'
-import { isAbsolute, join, normalize, relative, sep } from 'node:path'
+import { constants } from 'node:fs'
+import { checkProactivePath } from './proactive-private.mjs'
+import { chmod, mkdir, open, readFile, readdir, rename, unlink, realpath, stat, lstat } from 'node:fs/promises'
+import { isAbsolute, join, normalize, relative, sep, dirname, basename } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /** @typedef {{roots:string[],stateDir:string,socketPath:string,model?:string}} TaskConfig */
@@ -150,4 +152,28 @@ export async function loadRecords(stateDir) {
     }
   }
   return records
+}
+
+/** Validate the exact host-recorded Pi 1.2 file before reopening it. Never repair it.
+ * @param {{sessionFile?:string,project:string}} task @param {string} sessionDir */
+export async function resumeSessionHeader(task, sessionDir) {
+  const file = task.sessionFile
+  if (!file || !isAbsolute(file) || normalize(file) !== file || dirname(file) !== sessionDir) throw Error('原会话文件不可安全恢复')
+  for (const path of [join(sessionDir, '..', '..'), dirname(sessionDir), sessionDir, file]) {
+    const info = await lstat(path)
+    if (info.isSymbolicLink() || await realpath(path) !== path || (path === file ? !info.isFile() || info.nlink !== 1 : !info.isDirectory())) throw Error('原会话文件不可安全恢复')
+    if (process.platform === 'win32') checkProactivePath(path)
+    else if (info.uid !== process.getuid() || (info.mode & (path === file ? 0o022 : 0o077))) throw Error('原会话文件不可安全恢复')
+  }
+  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  try {
+    const before = await handle.stat(), bytes = Buffer.alloc(65536)
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
+    const end = bytes.subarray(0, bytesRead).indexOf(10)
+    if (end < 0 || !before.isFile() || before.nlink !== 1 || process.platform !== 'win32' && (before.uid !== process.getuid() || (before.mode & 0o022))) throw Error('原会话文件不可安全恢复')
+    const header = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, end)))
+    const after = await handle.stat()
+    if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || header.type !== 'session' || header.version !== 3 || typeof header.id !== 'string' || !TASK_ID.test(header.id) || header.cwd !== task.project || !basename(file).endsWith(`_${header.id}.jsonl`)) throw Error('原会话身份不匹配')
+    return { id: header.id, file }
+  } finally { await handle.close() }
 }

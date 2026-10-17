@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { admittedProject, atomicRecord, loadRecords, privateDirectory, RECORD_LIMIT, serializeRecord, validText, validateConfig, within } from './task-store.mjs'
+import { admittedProject, atomicRecord, loadRecords, privateDirectory, RECORD_LIMIT, serializeRecord, validText, validateConfig, within, resumeSessionHeader } from './task-store.mjs'
 
 export const TASK_TEXT_LIMIT = 16 * 1024
 const INCOMPLETE_RESPONSE = '任务执行未正常完成，请检查本机会话记录'
@@ -64,7 +64,7 @@ export function boundedText(text, limit = TASK_TEXT_LIMIT) {
   return bytes.subarray(0, end).toString('utf8')
 }
 /** @typedef {{taskId:string,project:string,prompt:string,state:string,lifecycle?:string,activity?:string,turnOutcome?:string,verification:string,createdAt:string,updatedAt:string,response:string,sessionFile?:string,controlledBy?:{machineName:string,sessionId:string},controlAudit?:Array<{machineName:string,sessionId:string,at:string}>,mutationReceipts?:Array<{command:string,mutationId:string,digest:string}>,currentTurnId?:string,endedReason?:string}} Task */
-/** @typedef {{task:Task,signal:AbortSignal,sessionDir:string,model?:string,onEvent?:(event:object)=>void}} TaskInput */
+/** @typedef {{task:Task,signal:AbortSignal,sessionDir:string,model?:string,onEvent?:(event:object)=>void,resume?:boolean}} TaskInput */
 
 function validConsole(value) {
   return value && typeof value === 'object' && !Array.isArray(value) &&
@@ -89,8 +89,9 @@ export async function createTaskService(input, adapter) {
   const config = await validateConfig(input)
   const records = await loadRecords(config.stateDir)
   const idleMs = Number.isSafeInteger(input.idleMs) && input.idleMs >= 0 ? input.idleMs : DEFAULT_IDLE_MS
-  /** @type {Map<string,{hosted:any,controller:AbortController,turn?:Promise<void>,attached?:{connectionId:string,attachmentId?:string,send?:(event:object)=>void,liveAfter?:number},idleTimer?:NodeJS.Timeout,persistent:boolean}>} */
+  /** @type {Map<string,{hosted:any,controller:AbortController,turn?:Promise<void>,attached?:{connectionId:string,attachmentId?:string,send?:(event:object)=>void,liveAfter?:number},idleTimer?:NodeJS.Timeout,persistent:boolean,initialization?:Promise<void>,resumePrevious?:Task}>} */
   const live = new Map()
+  const initializations = new Set()
   const mutations = new Map()
   const mutationRoot = join(config.stateDir, 'mutations')
   await privateDirectory(mutationRoot)
@@ -139,9 +140,9 @@ export async function createTaskService(input, adapter) {
   const publicTask = task => ({ ...JSON.parse(JSON.stringify(task)), revision: taskRevision(task) })
   const overlaps = project => [...live.entries()].some(([id, value]) => {
     const task = records.get(id)
-    return ['launching', 'live'].includes(task?.lifecycle) && (task.lifecycle === 'launching' || task.activity === 'working' || value.attached) && (within(task.project, project) || within(project, task.project))
+    return (value.initialization || ['launching', 'live'].includes(task?.lifecycle) && (task.lifecycle === 'launching' || task.activity === 'working' || value.attached)) && (within(task.project, project) || within(project, task.project))
   })
-  const liveCount = () => [...live.keys()].filter(id => records.get(id)?.lifecycle === 'live' || records.get(id)?.lifecycle === 'launching').length
+  const liveCount = () => [...live.entries()].filter(([id, entry]) => entry.initialization || records.get(id)?.lifecycle === 'live' || records.get(id)?.lifecycle === 'launching').length
 
   async function persist(task) {
     task.updatedAt = new Date().toISOString()
@@ -183,6 +184,22 @@ export async function createTaskService(input, adapter) {
     return task.lifecycle === 'launching' ? 'Hosted Pi 正在启动' : 'Hosted Pi 已结束'
   }
 
+  const resumable = task => !!adapter.createSession && !!task.sessionFile && ['idle_expired', 'evicted', 'host_restart'].includes(task.endedReason) && ['ended', 'interrupted'].includes(task.lifecycle)
+  async function checkPrompt(request) {
+    const task = findTask(request), entry = live.get(task.taskId)
+    const restoring = !entry && resumable(task)
+    if (!restoring) { const refusal = refusalFor(task, entry); if (refusal) throw Error(refusal) }
+    if (request.expectedRevision !== undefined && request.expectedRevision !== taskRevision(task)) throw Error('Task revision 已变化')
+    if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw Error('Hosted Pi prompt 无效')
+    if (restoring) {
+      if (!request.mutationId) throw Error('恢复原会话需要新的 mutation identity')
+      if (await admittedProject(config, task.project) !== task.project) throw Error('原会话项目已变化')
+      if (liveCount() >= HOST_CAP || overlaps(task.project)) throw Error('项目或主机任务已满')
+      await resumeSessionHeader(task, join(config.stateDir, 'sessions', task.taskId))
+    } else if ((task.activity === 'working' || entry.hosted.isStreaming) && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('流式提示需要 delivery behavior')
+    return restoring
+  }
+
   function publish(task, event) {
     const attached = live.get(task.taskId)?.attached
     if (!attached?.send) return
@@ -191,7 +208,7 @@ export async function createTaskService(input, adapter) {
   }
 
   async function finishTurn(task, entry, result, failure = false) {
-    if (task.lifecycle !== 'live') return
+    if (task.lifecycle !== 'live' || live.get(task.taskId) !== entry) return
     const cancelled = entry.controller.signal.aborted || result?.stopReason === 'aborted'
     task.response = boundedText(result?.text || '')
     if (entry.hosted.sessionFile !== undefined) task.sessionFile = entry.hosted.sessionFile
@@ -228,15 +245,26 @@ export async function createTaskService(input, adapter) {
     entry.turn = turn
   }
 
-  async function createHosted(task, entry) {
+  function initialize(task, entry, promptText = task.prompt, resume = false) {
+    const work = new Promise(resolve => setImmediate(resolve)).then(() => createHosted(task, entry, promptText, resume)).catch(() => { storageFailure = true })
+    entry.initialization = work
+    initializations.add(work)
+    void work.then(() => {
+      initializations.delete(work)
+      entry.initialization = undefined
+      if (live.get(task.taskId) === entry && ['ended', 'interrupted'].includes(task.lifecycle)) live.delete(task.taskId)
+    })
+  }
+
+  async function createHosted(task, entry, promptText = task.prompt, resume = false) {
     try {
       if (adapter.createSession) {
         entry.hosted = await adapter.createSession({
-          task: { ...task },
+          task: { ...task }, resume,
           signal: entry.controller.signal,
           sessionDir: join(config.stateDir, 'sessions', task.taskId),
           model: config.model,
-          onEvent: event => enqueue(() => { publish(task, event) }),
+          onEvent: event => enqueue(() => { if (live.get(task.taskId) === entry) publish(task, event) }),
         })
       } else {
         entry.hosted = {
@@ -249,20 +277,23 @@ export async function createTaskService(input, adapter) {
           history() { return { events: [], entries: [], boundary: 0, continuation: null } },
         }
       }
+      if (resume && entry.hosted.sessionFile !== task.sessionFile) throw Error('原会话身份不匹配')
       await enqueue(async () => {
-        if (closing || task.lifecycle !== 'launching') { entry.hosted.dispose(); return }
+        if (closing || task.lifecycle !== 'launching' || live.get(task.taskId) !== entry) { await entry.hosted.dispose(); return }
         if (entry.hosted.sessionFile !== undefined) task.sessionFile = entry.hosted.sessionFile
         task.lifecycle = 'live'
         await persist(task)
-        beginTurn(task, entry, task.prompt)
+        beginTurn(task, entry, promptText)
       })
     } catch {
+      try { await entry.hosted?.dispose() } catch {}
       await enqueue(async () => {
         // An explicit end or a host restart during the launch owns the receipt by now, so a session
         // that could not be built must not rewrite a terminal state as failed.
-        if (closing || task.lifecycle !== 'launching') return
+        if (closing || task.lifecycle !== 'launching' || live.get(task.taskId) !== entry) return
         live.delete(task.taskId)
         task.state = 'failed'; task.lifecycle = 'ended'; task.activity = undefined; task.turnOutcome = 'failed'; task.response = '任务执行失败，请检查本机会话记录'
+        if (resume) task.endedReason = entry.resumePrevious.endedReason
         await persist(task).catch(() => {})
       })
     }
@@ -312,7 +343,7 @@ export async function createTaskService(input, adapter) {
     records.set(stored.taskId, stored)
     const entry = { hosted: undefined, controller: new AbortController(), turn: undefined, attached: undefined, idleTimer: undefined, persistent: !!adapter.createSession }
     live.set(stored.taskId, entry)
-    setImmediate(() => createHosted(stored, entry))
+    initialize(stored, entry)
     return { task: publicTask(stored) }
   }
 
@@ -325,9 +356,15 @@ export async function createTaskService(input, adapter) {
   async function prompt(request) {
     const task = findTask(request)
     const entry = live.get(task.taskId)
-    const refusal = refusalFor(task, entry)
-    if (refusal) throw new Error(refusal)
-    if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('任务 ID 或提示无效')
+    if (await checkPrompt(request)) {
+      const previous = structuredClone(task)
+      task.lifecycle = 'launching'; task.state = 'running'; task.activity = undefined; task.endedReason = undefined; task.controlledBy = undefined
+      try { await persist(task) } catch (error) { Object.assign(task, previous); throw error }
+      const restored = { hosted: undefined, controller: new AbortController(), persistent: true, resumePrevious: previous }
+      live.set(task.taskId, restored)
+      initialize(task, restored, request.prompt, true)
+      return { task: publicTask(task), accepted: true, resuming: true }
+    }
     if (task.activity === 'working' || entry.hosted.isStreaming) {
       if (!['steer', 'followUp'].includes(request.streamingBehavior)) throw new Error('流式提示需要 delivery behavior')
       if (entry.hosted.deliver) await entry.hosted.deliver(request.prompt, request.streamingBehavior)
@@ -343,7 +380,10 @@ export async function createTaskService(input, adapter) {
     const task = findTask(request)
     const entry = live.get(task.taskId)
     if (request.expectedTurnId !== undefined && request.expectedTurnId !== task.currentTurnId) throw new Error('Turn identity 已变化')
-    if (entry?.turn && task.activity === 'working') {
+    if (entry?.resumePrevious && task.lifecycle === 'launching') {
+      entry.controller.abort()
+      task.lifecycle = 'ended'; task.activity = undefined; task.state = 'cancelled'; task.turnOutcome = 'cancelled'; task.endedReason = entry.resumePrevious.endedReason; task.response = '恢复已取消，原会话记录已保留'; await persist(task)
+    } else if (entry?.turn && task.activity === 'working') {
       entry.controller.abort()
       await entry.hosted.abort()
     }
@@ -352,14 +392,16 @@ export async function createTaskService(input, adapter) {
 
   async function end(request) {
     const task = findTask(request)
-    // Ending a session that has already ended or been interrupted changes nothing, and recomputing
-    // its terminal fields would rewrite a finished turn as cancelled. Every path that reaches a
-    // terminal lifecycle also releases its live entry, so there is nothing left to dispose either.
-    if (task.lifecycle === 'ended' || task.lifecycle === 'interrupted') return { task: publicTask(task), accepted: true }
+    // Preserve the last turn outcome while an explicit End disables later restoration.
+    if (task.lifecycle === 'ended' || task.lifecycle === 'interrupted') {
+      if (resumable(task)) { task.endedReason = 'explicit'; await persist(task) }
+      return { task: publicTask(task), accepted: true }
+    }
     const entry = live.get(task.taskId)
     if (entry) {
       clearIdle(entry)
       if (entry.turn) { entry.controller.abort(); await entry.hosted.abort() }
+      else if (task.lifecycle === 'launching') entry.controller.abort()
       // A session ended while its launch was still in flight has no hosted adapter yet; its
       // createHosted completion already disposes whatever it built once the lifecycle is not
       // launching, so ending here must not dereference one.
@@ -382,7 +424,7 @@ export async function createTaskService(input, adapter) {
     task.controlledBy = undefined
     await persist(task)
     publish(task, { type: 'state', state: task.state, lifecycle: task.lifecycle, activity: task.activity, turnOutcome: task.turnOutcome, response: task.response })
-    if (entry) { entry.attached = undefined; live.delete(task.taskId) }
+    if (entry) { entry.attached = undefined; if (!entry.initialization) live.delete(task.taskId) }
     return { task: publicTask(task), accepted: true }
   }
 
@@ -514,15 +556,7 @@ export async function createTaskService(input, adapter) {
     const task = findTask(request)
     // Validate the requested transition before writing an accepted receipt.
     if (request.command === 'prompt') {
-      const entry = live.get(task.taskId)
-      // A session that has ended, a launch that has not produced a session yet, and a prompt that
-      // cannot be used are three different refusals: a spoken request must not be answered as if
-      // its text were malformed, and a session that is still starting must not be called over.
-      const refusal = refusalFor(task, entry)
-      if (refusal) throw new Error(refusal)
-      if (request.expectedRevision !== undefined && request.expectedRevision !== taskRevision(task)) throw new Error('Task revision 已变化')
-      if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('Hosted Pi prompt 无效')
-      if ((task.activity === 'working' || entry.hosted.isStreaming) && !['steer', 'followUp'].includes(request.streamingBehavior)) throw new Error('流式提示需要 delivery behavior')
+      await checkPrompt(request)
     } else if (request.command === 'cancel' && request.expectedTurnId !== undefined && request.expectedTurnId !== task.currentTurnId) {
       throw new Error('Turn identity 已变化')
     }
@@ -603,6 +637,8 @@ export async function createTaskService(input, adapter) {
         clearIdle(entry)
         if (entry.turn) { entry.controller.abort(); await entry.hosted?.abort().catch(() => {}) }
       }
+      for (const entry of live.values()) if (entry.initialization) entry.controller.abort()
+      await Promise.all(initializations)
       await Promise.all([...live.values()].map(entry => entry.turn).filter(Boolean))
       for (const entry of live.values()) entry.hosted?.dispose()
       live.clear()
