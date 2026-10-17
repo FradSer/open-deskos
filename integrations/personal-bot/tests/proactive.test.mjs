@@ -199,14 +199,6 @@ test('mute suppresses every pending proposal of the same owner rule', async () =
   assert.equal(f.frames.at(-1).popup, false)
 })
 
-test('a launched receipt tracks tasks that finish before the first watch poll', async () => {
-  const c = config(); c.rules = [{ id: 'coding-complete', delivery: 'immediate', urgent: false, advice: '查看完成回合。', coding: { target: 'mac', project: '/project' } }]
-  const task = { taskId: 'e311a280-c0b9-4411-96cd-4e1e92385349', project: '/project/app', state: 'finished', lifecycle: 'ended', turnOutcome: 'finished', updatedAt: time, verification: 'not_run' }
-  const f = fixture({ config: c, codingList: async () => [task], codingStatus: async () => task })
-  f.watch.observeTask('mac', { ...task, state: 'running', activity: 'working', lifecycle: 'live', turnOutcome: undefined })
-  await f.watch.tick(); assert.equal(f.watch.list()[0].action.tool, 'coding_task_history')
-})
-
 test('execution reservation survives restart even if owner cooldown cannot be saved', async () => {
   let saved
   const f = fixture({ saveState: state => { saved = structuredClone(state) }, save: async () => { throw Error('owner unavailable') }, execute: async () => { throw Error('unknown outcome') } })
@@ -294,4 +286,67 @@ test('explicit proposal list respects routine due time and acknowledged owner da
     const f = fixture({ config: c }); await f.watch.tick(); f.watch.interact(true)
     assert.equal(f.frames.at(-1).popup, false)
   }
+})
+
+
+test('restoration initialization cannot turn a preserved result into a new coding completion',async t=>{
+ for(const ingress of ['event','poll'])for(const outcome of ['cancel','end','initialization_failure']){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'immediate',urgent:false,advice:'查看任务结果。',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'finished',lifecycle:'ended',turnOutcome:'finished',response:'original result',lastTurnId:'e311a280-c0b9-4411-96cd-4e1e92385351',updatedAt:time,verification:'not_run'}
+  const f=fixture({config:c,codingList:async()=>[task],codingStatus:async()=>task});t.after(()=>f.watch.close())
+  for(let attempt=0;attempt<2;attempt++){
+   task={...task,state:'running',lifecycle:'launching',activity:undefined,updatedAt:new Date(now+attempt*2000+1).toISOString()};f.clock(now+attempt*2000+1)
+   if(ingress==='event')f.watch.observeTask('mac',task);else await f.watch.tick()
+   task={...task,state:'finished',lifecycle:'ended',activity:undefined,endedReason:outcome==='end'?'explicit':'idle_expired',updatedAt:new Date(now+attempt*2000+2).toISOString()};f.clock(now+attempt*2000+2)
+   await f.watch.tick();assert.deepEqual(f.watch.list(),[],ingress+':'+outcome+':'+attempt);assert.equal(f.frames.filter(frame=>frame.popup).length,0)
+  }
+ }
+})
+
+test('actual working turns still announce initial and subsequent completions for canonical and legacy tasks',async t=>{
+ for(const legacy of [false,true])for(const ingress of ['event','poll']){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'immediate',urgent:false,advice:'查看任务结果。',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',updatedAt:time,verification:'not_run'}
+  const f=fixture({config:c,codingList:async()=>[task],codingStatus:async()=>task});t.after(()=>f.watch.close())
+  for(let turn=0;turn<2;turn++){
+   const start=now+turn*3600002;f.clock(start);task={...task,state:'running',...(legacy?{}:{lifecycle:'live',activity:'working'}),turnOutcome:undefined,updatedAt:new Date(start).toISOString()}
+   if(legacy){delete task.lifecycle;delete task.activity}
+   if(ingress==='event')f.watch.observeTask('mac',task);else await f.watch.tick()
+   f.clock(start+1);task={...task,state:'settled',activity:'idle',turnOutcome:'finished',updatedAt:new Date(start+1).toISOString()}
+   await f.watch.tick();const proposals=f.watch.list().filter(p=>p.status==='pending');assert.equal(proposals.length,1,legacy+':'+ingress+':'+turn)
+   await f.watch.presented([proposals[0].id]);await f.watch.respond(proposals[0].id,'ignore')
+  }
+ }
+})
+
+
+test('an unconsumed terminal notice requires the same execution identity across metadata updates',async t=>{
+ const oldId='e311a280-c0b9-4411-96cd-4e1e92385351',newId='e311a280-c0b9-4411-96cd-4e1e92385352'
+ for(const change of [{lastTurnId:undefined},{turnOutcome:'failed'},{turnOutcome:'cancelled'},{lifecycle:'launching',state:'running',activity:undefined}]){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'silent',urgent:false,advice:'View result.',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'running',lifecycle:'launching',lastTurnId:oldId,updatedAt:time}
+  const f=fixture({config:c,codingStatus:async()=>task});t.after(()=>f.watch.close());f.watch.observeTask('mac',task)
+  task={...task,state:'settled',lifecycle:'live',activity:'idle',turnOutcome:'finished',lastTurnId:newId}
+  const identity={target:'mac',project:task.project,taskId:task.taskId}
+  assert.ok(await f.watch.codingEvidence(c.rules[0],identity))
+  task={...task,...change}
+  assert.equal(await f.watch.codingEvidence(c.rules[0],identity),null,JSON.stringify(change))
+ }
+})
+
+
+test('legacy completed turns survive daemon restart only after working was observed',async t=>{
+ for(const ingress of ['event','poll','cold','launching'])for(const outcome of ['finished','failed','cancelled','interrupted']){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'silent',urgent:false,advice:'View result.',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'running',updatedAt:time}
+  const f=fixture({config:c,codingStatus:async()=>task});t.after(()=>f.watch.close())
+  const identity={target:'mac',project:task.project,taskId:task.taskId}
+  if(ingress==='event')f.watch.observeTask('mac',task)
+  if(ingress==='poll')assert.equal(await f.watch.codingEvidence(c.rules[0],identity),null)
+  if(ingress==='launching'){task={...task,lifecycle:'launching',turnOutcome:'finished'};f.watch.observeTask('mac',task)}
+  task={...task,state:'interrupted',lifecycle:'interrupted',endedReason:'host_restart',turnOutcome:outcome,activity:undefined}
+  const evidence=await f.watch.codingEvidence(c.rules[0],identity)
+  assert.equal(Boolean(evidence),['event','poll'].includes(ingress)&&outcome==='finished',ingress+':'+outcome)
+  if(evidence){f.watch.consumeCoding(c.rules[0],identity,evidence);assert.equal(await f.watch.codingEvidence(c.rules[0],identity),null)}
+ }
 })

@@ -159,6 +159,13 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then a proposal names target, project, task identity and observed outcome
     And it states verification separately and offers to read coding_task_history
 
+  Scenario: Restoration initialization does not establish a new coding turn
+    Given a saved turn finished before its session expired
+    When restoration is cancelled, ended, or fails before a new turn begins
+    Then event observation and status polling do not announce another completion
+    And repeated restoration attempts do not announce the old result
+    But a live working turn or a legacy running turn can still establish a new completion
+
   Scenario: Active local input remains authoritative
     Given focus is on a local Shell control
     When a proactive proposal is presented
@@ -304,3 +311,24 @@ Feature: Owner controlled proactive Personal Bot proposals
     When its configuration selects the fixed Intent plugin
     Then configuration and runtime creation reject that unsupported combination
     And no provider or background Intent work starts
+
+  Scenario: A fast Hosted turn has a distinct completion identity
+    Given an owner receives a real Hosted launch or restoration receipt
+    When the new turn finishes before the next watch poll
+    Then its host-generated terminal turn identity establishes one completion notice
+    And restoration without a new turn cannot announce the preserved result
+    And reading historical completion identities does not create a notice
+    And ending or restarting the host preserves a completed new turn identity
+    And metadata changes retain an unconsumed notice for that same terminal turn
+
+  Scenario: A direct remote prompt completes between watch polls
+    Given the watch already observed the task's previous terminal identity
+    When Console or remote follow-up completes a new turn before the next poll
+    Then the changed terminal identity establishes one new completion notice
+    And a first scan of that finished task does not establish a new turn
+
+  Scenario: A legacy completed turn survives a daemon restart
+    Given the watch observed the legacy session working without a terminal identity
+    When the daemon restarts after that turn finishes
+    Then its preserved finished outcome can establish completion
+    But cold history and restoration preparation cannot establish completion

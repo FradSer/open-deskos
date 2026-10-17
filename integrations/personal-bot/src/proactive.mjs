@@ -12,6 +12,9 @@ const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const OPS = { lt: (a, b) => a < b, lte: (a, b) => a <= b, gt: (a, b) => a > b, gte: (a, b) => a >= b, eq: (a, b) => a === b }
 const ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'])
 const pending = p => p.status === 'pending'
+const codingWorking = task => task.lifecycle === undefined
+  ? task.activity === 'working' || task.state === 'running'
+  : task.lifecycle === 'live' && task.activity === 'working'
 const own = (object, keys) => object && typeof object === 'object' && !Array.isArray(object) && Object.keys(object).every(key => keys.includes(key))
 const text = (value, limit) => typeof value === 'string' && value.trim() && value.length <= limit && !/[\x00-\x08]/.test(value)
 function pathValid(value) {
@@ -331,7 +334,13 @@ export class ProactiveWatch {
       const scope = rule.coding
       if (!scope || scope.target !== target || (scope.taskId && scope.taskId !== task.taskId) ||
           typeof task.project !== 'string' || !(task.project === scope.project || (!scope.taskId && task.project.startsWith(scope.project.replace(/\/$/, '') + '/')))) continue
-      if (task.activity === 'working' || task.state === 'running') this.seenTurns.set(`${rule.id}:${task.taskId}`, { working: true, updatedAt: task.updatedAt, finished: false })
+      const key = `${rule.id}:${task.taskId}`
+      const previous = this.seenTurns.get(key)
+      if (codingWorking(task) || task.lifecycle === 'launching') this.seenTurns.set(key, {
+        working: codingWorking(task), updatedAt: task.updatedAt, finished: false,
+        lastTurnId: task.lastTurnId,
+        deliveredTurnId: previous?.deliveredTurnId,
+      })
     }
   }
   async codingEvidence(rule, identity) {
@@ -341,10 +350,18 @@ export class ProactiveWatch {
     const key = `${rule.id}:${identity.taskId}`
     if (task?.taskId !== identity.taskId || task.project !== identity.project) return null
     const previous = this.seenTurns.get(key)
-    const working = task.activity === 'working' || task.state === 'running'
-    const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished'))
-    const finishedPending = finished && (previous?.working || (previous?.finishedPending && previous.updatedAt === task.updatedAt))
-    this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending })
+    const working = codingWorking(task)
+    const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished') ||
+      task.lifecycle === 'interrupted')
+    const newTerminalTurn = previous !== undefined && typeof task.lastTurnId === 'string' && task.lastTurnId !== previous.lastTurnId
+    const finishedPending = finished && (!task.lastTurnId || task.lastTurnId !== previous?.deliveredTurnId) &&
+      (previous?.working || newTerminalTurn || (previous?.finishedPending &&
+        (task.lastTurnId !== undefined || previous.lastTurnId !== undefined
+          ? typeof task.lastTurnId === 'string' && previous.lastTurnId === task.lastTurnId
+          : previous.updatedAt === task.updatedAt)))
+    this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending,
+      lastTurnId: task.lastTurnId, deliveredTurnId: previous?.deliveredTurnId,
+    })
     const existing = this.proposals.some(p => p.ruleId === rule.id && p.subject === identity.taskId && pending(p))
     if (!finished || (!finishedPending && !existing)) return null
     return [{ readingId: `pi-tasks:${rule.coding.target}:${task.taskId}`, field: 'turnOutcome', value: 'finished', state: 'live', measuredAt: task.updatedAt, ruleId: rule.id },
@@ -353,7 +370,10 @@ export class ProactiveWatch {
   consumeCoding(rule, identity, evidence) {
     if (!rule.coding) return
     const receipt = this.seenTurns.get(`${rule.id}:${identity.taskId}`)
-    if (receipt?.updatedAt === evidence[0].measuredAt) receipt.finishedPending = false
+    if (receipt?.updatedAt === evidence[0].measuredAt) {
+      receipt.finishedPending = false
+      receipt.deliveredTurnId = receipt.lastTurnId
+    }
   }
   judgmentFailed(candidates) {
     for (const c of candidates) this.failedJudgments.add(c.ruleId)

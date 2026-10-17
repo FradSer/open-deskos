@@ -1,5 +1,7 @@
-import { chmod, mkdir, open, readFile, readdir, rename, unlink, realpath, stat } from 'node:fs/promises'
-import { isAbsolute, join, normalize, relative, sep } from 'node:path'
+import { constants } from 'node:fs'
+import { checkProactivePath } from './proactive-private.mjs'
+import { chmod, mkdir, open, readFile, readdir, rename, unlink, realpath, stat, lstat } from 'node:fs/promises'
+import { isAbsolute, join, normalize, relative, sep, dirname, basename } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /** @typedef {{roots:string[],stateDir:string,socketPath:string,model?:string}} TaskConfig */
@@ -88,6 +90,7 @@ function validRecord(record, name) {
     (record.activity === undefined || ['working', 'idle'].includes(record.activity)) &&
     (record.turnOutcome === undefined || ['finished', 'failed', 'cancelled', 'interrupted'].includes(record.turnOutcome)) &&
     (record.currentTurnId === undefined || (typeof record.currentTurnId === 'string' && TASK_ID.test(record.currentTurnId))) &&
+    (record.lastTurnId === undefined || (typeof record.lastTurnId === 'string' && TASK_ID.test(record.lastTurnId))) &&
     (record.endedReason === undefined || ['explicit', 'idle_expired', 'evicted', 'host_restart'].includes(record.endedReason)) &&
     (record.sessionFile === undefined || (validProject(record.sessionFile) && normalize(record.sessionFile) === record.sessionFile)) &&
     (record.controlledBy === undefined || validControlIdentity(record.controlledBy)) &&
@@ -150,4 +153,39 @@ export async function loadRecords(stateDir) {
     }
   }
   return records
+}
+
+/** Validate the exact host-recorded Pi 1.2 file before reopening it. Never repair it.
+ * @param {{sessionFile?:string,project:string}} task @param {string} sessionDir */
+export async function resumeSessionHeader(task, sessionDir) {
+  try {
+    for (const path of [join(sessionDir, '..', '..'), dirname(sessionDir), sessionDir]) {
+      const info = await lstat(path)
+      if (!info.isDirectory() || info.isSymbolicLink() || await realpath(path) !== path) throw Error()
+      if (process.platform === 'win32') checkProactivePath(path)
+      else if (info.uid !== process.getuid() || (info.mode & 0o077)) throw Error()
+    }
+  } catch { throw Error('原会话目录必须使用真实私有规范路径') }
+  const file = task.sessionFile
+  let handle
+  try {
+    if (!file || !isAbsolute(file) || normalize(file) !== file || dirname(file) !== sessionDir) throw Error()
+    const info = await lstat(file)
+    if (info.isSymbolicLink() || await realpath(file) !== file || !info.isFile() || info.nlink !== 1) throw Error()
+    if (process.platform === 'win32') checkProactivePath(file)
+    else if (info.uid !== process.getuid() || (info.mode & 0o022)) throw Error()
+    handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  } catch { throw Error('原会话文件不可安全恢复') }
+  try {
+    const before = await handle.stat(), bytes = Buffer.alloc(65536)
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
+    const end = bytes.subarray(0, bytesRead).indexOf(10)
+    if (end < 0 || !before.isFile() || before.nlink !== 1 || process.platform !== 'win32' && (before.uid !== process.getuid() || (before.mode & 0o022))) throw Error('原会话文件不可安全恢复')
+    let header
+    try { header = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, end))) }
+    catch { throw Error('原会话头无效') }
+    const after = await handle.stat()
+    if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || !header || typeof header !== 'object' || header.type !== 'session' || header.version !== 3 || typeof header.id !== 'string' || !TASK_ID.test(header.id) || header.cwd !== task.project || !basename(file).endsWith(`_${header.id}.jsonl`)) throw Error('原会话身份不匹配')
+    return { id: header.id, file }
+  } finally { await handle.close() }
 }
