@@ -173,9 +173,32 @@ install_all() {
   verify_all || true
 }
 
+remove_mapping_observer() (
+  local parent owner mode policy=/etc/sudoers.d/odk-xorg-bgra-verify
+  for parent in / /usr /usr/local /usr/local/libexec /etc /etc/sudoers.d; do
+    if [ -e "$parent" ] || [ -L "$parent" ]; then
+      [ -d "$parent" ] && [ ! -L "$parent" ] || return 1
+      owner="$(stat -c '%u:%g' "$parent")"; mode="$(stat -c '%a' "$parent")"
+      [ "$owner" = 0:0 ] && [ "$((0$mode & 022))" -eq 0 ] || return 1
+    fi
+  done
+  if [ -e "$policy" ] || [ -L "$policy" ]; then
+    if [ ! -f "$policy" ] || [ -L "$policy" ] ||
+      [ "$($SUDO cat "$policy")" != 'orangepi ALL=(root) NOPASSWD: /usr/local/libexec/odk-xorg-bgra-verify ""' ]; then
+      echo "Preserved changed verifier policy; removal is incomplete." >&2
+      return 1
+    fi
+    $SUDO rm -f -- "$policy" || { echo "Verifier policy revocation failed; removal is incomplete." >&2; return 1; }
+  fi
+  $SUDO rm -f -- /usr/local/libexec/odk-xorg-bgra-verify /usr/local/libexec/odk-xorg-bgra-verify.py || {
+    echo "Verifier host files remain; removal is incomplete." >&2; return 1;
+  }
+)
+
 remove_all() {
   check_arch
   require_tools
+  remove_mapping_observer
   remove_glamor
   echo "== removing Mali userspace blob =="
   for soname in "${SONAMES[@]}"; do

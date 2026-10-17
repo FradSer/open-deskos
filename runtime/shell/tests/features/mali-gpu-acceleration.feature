@@ -51,6 +51,19 @@ Feature: Mali GPU acceleration for the CM5 shell
     Then verification fails with an unavailable observation diagnostic
     And it does not recommend a graphical restart without mapping evidence
 
+  Scenario: Removal revokes the fixed host observer
+    Given the installer provisioned its exact verifier policy and two host files
+    When the operator removes Mali userspace
+    Then removal revokes that policy before it removes the two host files
+    And other policies and parent directories remain unchanged
+    And a changed policy or failed revocation prevents completed removal
+
+  Scenario: Unavailable Xorg logs cannot diagnose a module restart
+    Given the fixed host verifier confirmed current mappings
+    When the Xorg log is absent or its read fails
+    Then verification fails with an unavailable log diagnostic
+    And a readable log without the load line reports missing log evidence
+
   Scenario: Installation finds the kiosk graphical session after terminal sessions
     Given the kiosk user's first session has no Display
     And an inactive closing session still publishes an old Display

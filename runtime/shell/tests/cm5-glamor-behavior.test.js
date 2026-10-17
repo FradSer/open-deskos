@@ -125,10 +125,19 @@ test('a kiosk user verifies protected mappings through only the fixed host obser
   const setup = `source '${copied}'; ${f.vars}; SUDO='${sudo}'; id() { echo 1000; }; GLAMOR_PATCH='${path.join(path.dirname(helper), 'patches/xorg-glamor-bgra.patch')}'; mkdir -p "$GLAMOR_MODULE_DIR" "$GLAMOR_STATE_DIR"; printf module > "$GLAMOR_MODULE_DIR/libglamoregl.so"; glamor_manifest > "$GLAMOR_STATE_DIR/manifest"; xorg_source_version() { echo "$XORG_SOURCE_VERSION"; }; glamor_session_ids() { echo 'boot 456'; }; GLAMOR_XORG_LOG='${f.root}/Xorg.log'; echo "Loading $GLAMOR_MODULE_DIR/libglamoregl.so" > "$GLAMOR_XORG_LOG";`
   // Configuration fixture commands remain unprivileged; only mapping observation uses the sudo port.
   const command = `${setup} SUDO=''; install_glamor_config; SUDO='${sudo}'; verify_glamor`
-  const execute = () => spawnSync('bash', ['-c', `set -euo pipefail; ${command}`], { encoding: 'utf8' })
+  const execute = (probe = ':') => spawnSync('bash', ['-c', `set -euo pipefail; ${command.replace(/verify_glamor$/, '')} ${probe}; verify_glamor`], { encoding: 'utf8' })
   const accepted = execute()
   assert.equal(accepted.status, 0, accepted.stderr)
   assert.deepEqual(fs.readFileSync(calls, 'utf8').trim().split('\n'), ['-n', '--', '/usr/local/libexec/odk-xorg-bgra-verify'])
+  for (const probe of ['rm -f "$GLAMOR_XORG_LOG"', 'grep() { return 2; }']) {
+    const unavailable = execute(probe)
+    assert.notEqual(unavailable.status, 0)
+    assert.match(unavailable.stderr, /log observation unavailable/i)
+    assert.doesNotMatch(unavailable.stderr, /restart the graphical session/)
+  }
+  const noLoad = execute('printf "unrelated log\\n" > "$GLAMOR_XORG_LOG"')
+  assert.notEqual(noLoad.status, 0)
+  assert.match(noLoad.stderr, /log lacks the expected BGRA load message/); assert.doesNotMatch(noLoad.stderr, /restart the graphical session/)
   fs.writeFileSync(path.join(f.root, 'deny'), '')
   const denied = execute()
   assert.notEqual(denied.status, 0)
@@ -170,7 +179,8 @@ test('the privileged entry has a fixed interpreter and permits no arguments', ()
   const observer = fs.readFileSync(path.join(__dirname, '../scripts/cm5-xorg-bgra-verify.py'), 'utf8')
   assert.ok(observer.includes(`MODULE = Path('${moduleDirectory}/libglamoregl.so')`), 'observer and installer module pins must agree')
   const installer = fs.readFileSync(path.join(__dirname, '../scripts/cm5-gpu-userspace.sh'), 'utf8')
-  const rules = installer.split('\n').filter(line => line.includes('NOPASSWD:'))
+  const installPort = installer.slice(installer.indexOf('install_mapping_observer() ('), installer.indexOf('\ninstall_all() {'))
+  const rules = installPort.split('\n').filter(line => line.includes('NOPASSWD:'))
   assert.equal(rules.length, 1)
   assert.ok(rules[0].includes('orangepi ALL=(root) NOPASSWD: /usr/local/libexec/odk-xorg-bgra-verify ""'))
   assert.ok(installer.indexOf('visudo -cf') < installer.indexOf('0440 "$temporary"'))
@@ -211,4 +221,39 @@ test('the fixed entry clears caller environment and rejects unsafe tool paths', 
   fs.unlinkSync(observer)
   fs.symlinkSync(poison, observer)
   assert.equal(execute().status, 2)
+})
+
+
+test('removal revokes only its exact observer policy before deleting the host files', t => {
+  const f = fixture(t), host = path.join(f.root, 'host')
+  const tools = path.join(host, 'libexec'), policies = path.join(host, 'sudoers.d')
+  fs.mkdirSync(tools, { recursive: true }); fs.mkdirSync(policies)
+  const policy = path.join(policies, 'odk-xorg-bgra-verify')
+  const wrapper = path.join(tools, 'odk-xorg-bgra-verify'), python = `${wrapper}.py`
+  const rule = `orangepi ALL=(root) NOPASSWD: ${wrapper} ""\n`
+  const unrelated = path.join(policies, 'other'); fs.writeFileSync(unrelated, 'unrelated policy\n')
+  const installer = fs.readFileSync(path.join(__dirname, '../scripts/cm5-gpu-userspace.sh'), 'utf8')
+  const functions = installer.slice(installer.indexOf('install_mapping_observer() ('), installer.indexOf('\nverify_all() {'))
+    .replaceAll('/usr/local/libexec', tools).replaceAll('/etc/sudoers.d', policies)
+    .replaceAll(`for parent in / /usr /usr/local ${tools} /etc ${policies}; do`, `for parent in '${host}' '${tools}' '${policies}'; do`)
+  const reset = () => { fs.writeFileSync(policy, rule); fs.writeFileSync(wrapper, 'wrapper'); fs.writeFileSync(python, 'observer') }
+  const execute = (override = '') => spawnSync('bash', ['-c', `set -euo pipefail; ${functions}
+    SUDO=''; SONAMES=(unused); MESA_FILES=(unused); LIB_DIR='${f.root}'; MESA_DIVERSION_DIR='${f.root}/mesa'; MALI_BLOB_DIR='${f.root}/mali'; FIRMWARE_DIR='${f.root}'; MALI_FIRMWARE_FILE=firmware; MALI_FIRMWARE_SHA256=expected;
+    check_arch() { :; }; require_tools() { :; }; remove_glamor() { :; }; sha256_of() { :; }; ldconfig() { :; };
+    stat() { case "$2" in '%u:%g') echo 0:0 ;; '%a') echo 755 ;; *) return 1 ;; esac; };
+    rm() { case "$*" in *'${wrapper}'*) [ ! -e '${policy}' ] || return 99 ;; esac; command rm "$@"; };
+    ${override || ':'}; remove_all`], { encoding: 'utf8' })
+  reset()
+  const removed = execute(); assert.equal(removed.status, 0, removed.stderr)
+  for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), false, file)
+  assert.equal(fs.readFileSync(unrelated, 'utf8'), 'unrelated policy\n')
+  assert.equal(fs.existsSync(tools), true); assert.equal(fs.existsSync(policies), true)
+  assert.equal(execute().status, 0, 'repeated removal remains safe')
+  reset(); fs.appendFileSync(policy, '# operator change\n')
+  const changed = execute(); assert.notEqual(changed.status, 0); assert.doesNotMatch(changed.stdout, /== removed ==/)
+  for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)
+  reset()
+  const failed = execute(`rm() { return 1; }`)
+  assert.notEqual(failed.status, 0); assert.doesNotMatch(failed.stdout, /== removed ==/)
+  for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)
 })

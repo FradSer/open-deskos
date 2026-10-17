@@ -136,7 +136,7 @@ install_glamor() (
 )
 
 verify_glamor() {
-  local sessions boot_id pid receipt
+  local sessions boot_id pid receipt log_status
   check_glamor_version || return 1
   if ! glamor_module_current || ! cmp -s <(glamor_module_config) "$GLAMOR_CONFIG"; then
     echo "  BGRA glamor module is missing or changed; run cm5-gpu-userspace.sh install." >&2
@@ -169,8 +169,19 @@ verify_glamor() {
       fi
     done <<< "$sessions"
   fi
-  if ! grep -Fq "Loading ${GLAMOR_MODULE_DIR}/libglamoregl.so" "$GLAMOR_XORG_LOG"; then
-    echo "  Xorg has not loaded the BGRA module; restart the graphical session." >&2
+  if [ ! -r "$GLAMOR_XORG_LOG" ]; then
+    echo "  Xorg log observation unavailable; cannot verify the module load message." >&2
+    return 1
+  fi
+  if grep -Fq "Loading ${GLAMOR_MODULE_DIR}/libglamoregl.so" "$GLAMOR_XORG_LOG" 2>/dev/null; then
+    :
+  else
+    log_status=$?
+    if [ "$log_status" -eq 1 ]; then
+      echo "  Xorg log lacks the expected BGRA load message; verify the selected log and graphical session." >&2
+    else
+      echo "  Xorg log observation unavailable; cannot verify the module load message." >&2
+    fi
     return 1
   fi
   echo "  BGRA glamor: matching module loaded; distribution module unchanged"
