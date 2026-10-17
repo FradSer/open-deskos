@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, mkdir, writeFile, readFile } from 'node:fs/promi
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { protectProactivePath } from '../src/proactive-private.mjs'
-import { RemoteConversation, validateRemoteSummary } from '../src/remote-conversation.mjs'
+import { RemoteConversation, validateRemoteSummary, validateRemoteReview } from '../src/remote-conversation.mjs'
 const row = (key,revision='a'.repeat(64)) => ({ key, machine:'synthetic-mac',sessionId:key,project:'/synthetic/project',revision,updatedAt:1,state:'settled',conclusion:'Computed total: 6',truncated:false,control:'report_only' })
 test('all connected conclusions are paged, synthesized once, and retain source context after restart',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-conversation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
@@ -191,4 +191,15 @@ test('a reappeared source remains present before a failed synthesis can expose i
  const checkpoint=JSON.parse(await readFile(file,'utf8'))
  assert(checkpoint.present.includes('reappeared'),'host inventory is durable even when its new synthesis fails')
  assert.equal(remote.reference('reappeared').source.revision,'a'.repeat(64))
+})
+
+
+test('faithfulness review uses exact report references without execution certification fields',()=>{
+ const records=[row('one'),row('two','b'.repeat(64))]
+ const review={status:'passed',reason:'Both are attributed reports, not independently verified calculations.',citations:records.map(record=>({key:record.key,revision:record.revision,field:'conclusion',quote:'Computed total: 6'}))}
+ assert.equal(validateRemoteReview(review,records),review)
+ assert.equal(validateRemoteReview({...review,status:'needs_review'},records).status,'needs_review')
+ for(const patch of [{status:'verified'},{reason:''},{reason:'x'.repeat(1001)},{executionVerified:true},{computationVerified:true},{scope:'completion'},{citations:[]},{citations:[review.citations[0],review.citations[0]]},{citations:[{...review.citations[0],revision:'c'.repeat(64)},review.citations[1]]},{citations:[{...review.citations[0],quote:'Computed total: 7'},review.citations[1]]}])assert.throws(()=>validateRemoteReview({...review,...patch},records))
+ const unavailable={...row('missing'),conclusion:'',availability:'unavailable'}
+ assert.equal(validateRemoteReview({status:'needs_review',reason:'The unavailable report cannot support this summary.',citations:[{key:unavailable.key,revision:unavailable.revision,field:'availability',quote:'unavailable'}]},[unavailable]).status,'needs_review')
 })

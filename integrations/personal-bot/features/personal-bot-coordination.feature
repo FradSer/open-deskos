@@ -30,6 +30,9 @@ Feature: A resident Personal Bot coordinates work without implementing it
     When their latest assistant conclusions change or reconnect
     Then a bounded paginated inventory retains each machine and session identity
     And the agent synthesizes cited conclusions with zero tools
+    And a separate zero-tool reviewer checks only report faithfulness with exact source citations
+    And reporting a supplied number requires no invented computation receipt
+    And execution, calculation, and delivery claims remain independently unverified
     And this conversation retains the summaries and exact source references after restart
     And omitted, stale, unavailable, and unverified outcomes stay explicit
     And reporting credentials never grant task control

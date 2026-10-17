@@ -932,7 +932,9 @@ It resolves the session and project from its own process inventory.
 Reporting text cannot select an SSH host, file, or command.
 
 Each synthesis uses an ephemeral provider session without tools, Skills, extensions, or memory.
-The existing completion verifier checks the synthesis against its supplied receipts.
+A separate zero-tool reviewer checks only report faithfulness with exact source citations.
+A faithful summary can repeat a reported number without a computation receipt.
+The generic task completion verifier and its computation requirements remain unchanged.
 This check does not verify remote execution, calculations, tests, or task completion.
 Reports and summaries remain untrusted conversation data.
 They cannot create owner requests or authorize actions.
