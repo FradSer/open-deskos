@@ -31,6 +31,39 @@ test('child activity stays separate from conversation state and clears during se
   assert.deepEqual(service.status.agents.tasks, [])
 })
 
+test('successful suggestion snapshots clear old errors without hiding later failures', () => {
+  const { service } = fixture(), statuses = []
+  service.subscribe(status => statuses.push(status))
+  service.setState('idle', 'Current reply', 'Current request')
+  const briefing = { state: 'live', items: [], generatedAt: 1, omittedSources: 0 }
+  for (const proposals of [[], [{ id: 'current-advice', advice: 'Current advice' }]]) {
+    service.propose({ proposals: [], popup: false, error: 'generation_unavailable' })
+    const failure = statuses.at(-1)
+    assert.equal(service.status.proposalError, 'generation_unavailable')
+    assert.equal(failure.proposalError, 'generation_unavailable')
+    service.publishAgents([]); service.publishBriefing(briefing)
+    assert.equal(statuses.at(-1).proposalError, 'generation_unavailable')
+
+    service.propose({ proposals, popup: true, interaction: true })
+    const recovered = statuses.at(-1)
+    assert.equal(Object.hasOwn(service.status, 'proposalError'), false)
+    assert.equal(Object.hasOwn(recovered, 'proposalError'), false)
+    assert.deepEqual(recovered.proposals, proposals)
+    assert.equal(recovered.proposalPopup, true); assert.equal(recovered.proposalInteraction, true)
+    assert.equal(service.status.proposalPopup, false); assert.equal(service.status.proposalInteraction, false)
+    assert.equal(service.status.message, 'Current reply'); assert.equal(service.status.transcript, 'Current request')
+    assert.equal(failure.proposalError, 'generation_unavailable', 'earlier emitted errors remain truthful')
+    const beforePublish = statuses.length
+    service.publishAgents([]); service.publishBriefing(briefing); service.setState('idle', 'Current reply')
+    for (const status of [service.status, ...statuses.slice(beforePublish)]) assert.equal(Object.hasOwn(status, 'proposalError'), false)
+  }
+  service.propose({ proposals: [], popup: false, error: 'generation_unavailable' })
+  assert.equal(service.status.proposalError, 'generation_unavailable')
+  assert.equal(statuses.at(-1).proposalError, 'generation_unavailable')
+  service.setState('thinking', 'Current reply')
+  assert.equal(service.status.proposalError, 'generation_unavailable')
+})
+
 test('notifications stay separate from replies and flush one message per event', () => {
   const { service } = fixture()
   service.setState('thinking', 'Partial answer', 'Ride status?')

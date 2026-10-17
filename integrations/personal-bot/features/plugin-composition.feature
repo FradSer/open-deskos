@@ -109,6 +109,13 @@ Feature: Personal Bot plugin composition
     When an action fails after reservation
     Then its result remains unknown and provider recovery cannot replay it
 
+  Scenario: Recovered suggestions clear the service error snapshot
+    Given the service published an unavailable suggestion error
+    When a later suggestion update succeeds with empty or nonempty proposals
+    Then current status and subscriber updates omit the previous proposal error
+    And later child activity, briefing, and conversation updates do not restore it
+    And a new suggestion failure remains visible until another successful update
+
   Scenario: Selected Agent runtime preserves Home template updates
     Given Home uses the default Pi adapter or a trusted external Agent runtime
     When Home generates a template from a synthetic plugin reading
