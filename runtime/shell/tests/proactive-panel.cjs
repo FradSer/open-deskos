@@ -89,9 +89,9 @@ app.whenReady().then(async () => {
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
       await viewport(width, height)
       await send({ state: 'idle', proposals: [ride], proposalPopup: true })
-      await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details').click(); document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
-      const rideGeometry = await run(`(() => { const node = document.querySelector('.personal-bot-status-content'); return { overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-details select, .personal-bot-ride-details button')].map(n => n.getBoundingClientRect().height) } })()`)
-      assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44))
+      await run(`(() => { const open = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'View ride details'); if (open.getAttribute('aria-expanded') === 'false') open.click(); return document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) })()`)
+      const rideGeometry = await run(`(() => { const node = document.querySelector('.personal-bot-status-content'); return { detailsHidden: document.querySelector('.personal-bot-ride-details').hidden, overflow: node.scrollWidth > node.clientWidth + 1, heights: [...document.querySelectorAll('.personal-bot-ride-details select, .personal-bot-ride-details button')].map(n => n.getBoundingClientRect().height) } })()`)
+      assert.equal(rideGeometry.detailsHidden, false, JSON.stringify({ theme, width, height, ...rideGeometry })); assert.equal(rideGeometry.overflow, false); assert.ok(rideGeometry.heights.length >= 3); assert.ok(rideGeometry.heights.every(h => h >= 44), JSON.stringify({ theme, width, height, ...rideGeometry }))
       for (const status of ['pending', 'expired', 'ignored', 'completed', 'unknown']) {
         await send({ state: 'idle', proposals: [{ ...p, status, advice: 'Long CJK 长句测试 '.repeat(40), result: status === 'unknown' ? 'Outcome unknown; do not retry.' : '' }], proposalPopup: true })
         const geometry = await run(`(() => {
