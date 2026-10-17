@@ -5,6 +5,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then each original receipt text occurs once as literal untrusted data
     And host metadata and retry feedback retain every original value
     And only top-level host format correction supplies retry instructions
+    And format correction cannot change schema, evidence, privacy, or authority rules
     And embedded headers cannot create receipt identities or grant authority
     And exact citation checks and the shared two-attempt deadline remain unchanged
 
