@@ -103,7 +103,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     // Only the daemon's own fixed refusals are reflected. A reason an operator can act on is
     // worthless if it arrives as "rejected": a session that has already ended and a working turn
     // that needs a stated delivery behavior are exactly the two a spoken request hits.
-    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'Task revision 已变化', '此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
+    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'Task revision 已变化', '原会话目录必须使用真实私有规范路径', '原会话文件不可安全恢复', '原会话头无效', '原会话身份不匹配', '此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
     throw Error(safeReasons.includes(response.error) ? response.error : 'Managed task request rejected')
   }
   return response

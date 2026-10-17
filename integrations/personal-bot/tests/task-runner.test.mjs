@@ -1106,10 +1106,11 @@ test('eviction and restart restore only after a new prompt; explicit end never r
 })
 
 test('unsafe, missing, wrong-project or stale original session refuses before admission and provider creation',async t=>{
- for(const kind of ['missing','header','project','version','alias','hardlink','mode','revision','mutation']) {
+ for(const kind of ['missing','header','project','version','bom','alias','hardlink','mode','revision','mutation']) {
   if(process.platform==='win32' && ['alias','hardlink','mode'].includes(kind))continue
   const f=await originalSessionFixture(t);let providers=0
   if(kind==='missing')await rm(f.sessionFile)
+  if(kind==='bom')await writeFile(f.sessionFile,'\ufeff'+f.prefix)
   if(['header','project','version'].includes(kind)){const header=JSON.parse(f.prefix);if(kind==='header')header.id=randomUUID();if(kind==='project')header.cwd=f.root+'/other';if(kind==='version')header.version=2;await writeFile(f.sessionFile,JSON.stringify(header)+'\n')}
   if(kind==='alias'){const backup=f.sessionFile+'.original';await writeFile(backup,f.prefix,{mode:0o600});await rm(f.sessionFile);await symlink(backup,f.sessionFile)}
   if(kind==='hardlink')await link(f.sessionFile,f.sessionFile+'.other')
@@ -1130,14 +1131,14 @@ test('a pending reopen reports launching, rejects overlaps, and end fences its l
  assert.equal((await service.handle(start(f.root))).ok,false)
  assert.equal((await service.handle(request('end',{project:f.root,taskId:f.task.taskId,mutationId:randomUUID()}))).ok,true)
  finish();await service.close();assert.equal(prompts,0);assert.equal(disposed,1)
- const record=JSON.parse(await readFile(join(f.config.stateDir,f.task.taskId+'.json'),'utf8'));assert.equal(record.endedReason,'explicit');assert.equal(record.sessionFile,f.sessionFile)
+ const record=JSON.parse(await readFile(join(f.config.stateDir,f.task.taskId+'.json'),'utf8'));assert.equal(record.endedReason,'explicit');assert.equal(record.sessionFile,f.sessionFile);assert.equal(record.state,f.task.state);assert.equal(record.turnOutcome,f.task.turnOutcome);assert.equal(record.response,f.task.response)
 })
 
 test('reopen failure releases its slot and preserves the original identity and bytes',async t=>{
  const f=await originalSessionFixture(t);let opens=0
  const service=await createTaskService(f.config,{createSession:async()=>{opens++;throw Error('synthetic reopen failure')}});t.after(()=>service.close())
  const req=request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'new',mutationId:randomUUID()});assert.equal((await service.handle(req)).ok,true)
- const failed=await waitState(service,f.task.taskId,'failed');assert.equal(failed.lifecycle,'ended');assert.equal(failed.endedReason,'idle_expired');assert.equal(failed.sessionFile,f.sessionFile);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
+ const failed=await waitState(service,f.task.taskId,f.task.state);assert.equal(failed.turnOutcome,f.task.turnOutcome);assert.equal(failed.response,f.task.response);assert.equal(failed.lifecycle,'ended');assert.equal(failed.endedReason,'idle_expired');assert.equal(failed.sessionFile,f.sessionFile);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
  await service.handle(req);assert.equal(opens,1);assert.equal((await service.handle(start(f.root))).ok,true)
 })
 
@@ -1155,9 +1156,9 @@ test('cancelled reopen holds its project and host slot until its initializer exi
  const f=await originalSessionFixture(t);let release,opened,prompts=0,disposed=0,closed;const ready=new Promise(resolve=>{opened=resolve}),disposedReady=new Promise(resolve=>{closed=resolve})
  const service=await createTaskService(f.config,{createSession:async()=>{opened();if(!disposed)await new Promise(resolve=>{release=resolve});return {sessionFile:f.sessionFile,prompt:async()=>{prompts++;return {text:'bad',stopReason:'stop'}},dispose(){disposed++;closed()},abort:async()=>{}}}});t.after(()=>service.close())
  assert.equal((await service.handle(request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'new',mutationId:randomUUID()}))).ok,true);await ready
- assert.equal((await service.handle(request('cancel',{project:f.root,taskId:f.task.taskId,mutationId:randomUUID()}))).ok,true)
+ const cancelled=await service.handle(request('cancel',{project:f.root,taskId:f.task.taskId,mutationId:randomUUID()}));assert.equal(cancelled.ok,true)
  assert.equal((await service.handle(start(f.root))).ok,false)
  assert.equal((await service.handle(request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'another',mutationId:randomUUID()}))).ok,false)
- release();await disposedReady;await service.handle(request('status',{taskId:f.task.taskId}));assert.equal(prompts,0);assert.equal(disposed,1)
+ release();await disposedReady;await service.handle(request('status',{taskId:f.task.taskId}));assert.equal(prompts,0);assert.equal(disposed,1);assert.equal(cancelled.task.state,f.task.state);assert.equal(cancelled.task.turnOutcome,f.task.turnOutcome);assert.equal(cancelled.task.response,f.task.response)
  assert.equal((await service.handle(request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'fresh after disposal',mutationId:randomUUID()}))).ok,true);await waitState(service,f.task.taskId,'settled');assert.equal(prompts,1);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
 })

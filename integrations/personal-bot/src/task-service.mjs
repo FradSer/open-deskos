@@ -292,8 +292,8 @@ export async function createTaskService(input, adapter) {
         // that could not be built must not rewrite a terminal state as failed.
         if (closing || task.lifecycle !== 'launching' || live.get(task.taskId) !== entry) return
         live.delete(task.taskId)
-        task.state = 'failed'; task.lifecycle = 'ended'; task.activity = undefined; task.turnOutcome = 'failed'; task.response = '任务执行失败，请检查本机会话记录'
-        if (resume) task.endedReason = entry.resumePrevious.endedReason
+        if (resume) Object.assign(task, entry.resumePrevious)
+        else { task.state = 'failed'; task.lifecycle = 'ended'; task.activity = undefined; task.turnOutcome = 'failed'; task.response = '任务执行失败，请检查本机会话记录' }
         await persist(task).catch(() => {})
       })
     }
@@ -382,7 +382,8 @@ export async function createTaskService(input, adapter) {
     if (request.expectedTurnId !== undefined && request.expectedTurnId !== task.currentTurnId) throw new Error('Turn identity 已变化')
     if (entry?.resumePrevious && task.lifecycle === 'launching') {
       entry.controller.abort()
-      task.lifecycle = 'ended'; task.activity = undefined; task.state = 'cancelled'; task.turnOutcome = 'cancelled'; task.endedReason = entry.resumePrevious.endedReason; task.response = '恢复已取消，原会话记录已保留'; await persist(task)
+      Object.assign(task, entry.resumePrevious)
+      await persist(task)
     } else if (entry?.turn && task.activity === 'working') {
       entry.controller.abort()
       await entry.hosted.abort()
@@ -398,6 +399,7 @@ export async function createTaskService(input, adapter) {
       return { task: publicTask(task), accepted: true }
     }
     const entry = live.get(task.taskId)
+    const restoring = task.lifecycle === 'launching' && !!entry?.resumePrevious
     if (entry) {
       clearIdle(entry)
       if (entry.turn) { entry.controller.abort(); await entry.hosted.abort() }
@@ -407,12 +409,13 @@ export async function createTaskService(input, adapter) {
       // launching, so ending here must not dereference one.
       entry.hosted?.dispose()
     }
+    if (restoring) Object.assign(task, entry.resumePrevious)
     task.lifecycle = 'ended'
     task.activity = undefined
     task.endedReason = 'explicit'
-    if (task.state === 'settled') {
+    if (!restoring && task.state === 'settled') {
       task.state = task.turnOutcome === 'cancelled' ? 'cancelled' : task.turnOutcome === 'failed' ? 'failed' : 'finished'
-    } else {
+    } else if (!restoring) {
       // Ending before the session settled aborts work that never completed, so the receipt must
       // record a terminal state instead of leaving the previous `running` behind.
       task.turnOutcome = 'cancelled'

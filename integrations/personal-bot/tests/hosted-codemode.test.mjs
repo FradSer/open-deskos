@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, realpath, rm, readFile, mkdir, chmod, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, realpath, rm, readFile, mkdir, chmod, stat, writeFile, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHostedSession, readHostedHistory } from '../src/task-agent.mjs'
@@ -57,6 +57,7 @@ test('adapter refuses an unsafe or absent original directory without repairing i
  const sessionDir=join(dir,'sessions','task'),file=join(sessionDir,'2026-01-01_11111111-1111-4111-8111-111111111111.jsonl');await mkdir(sessionDir,{recursive:true,mode:0o700})
  await writeFile(file,JSON.stringify({type:'session',version:3,id:'11111111-1111-4111-8111-111111111111',cwd:dir})+'\n',{mode:0o600})
  let calls=0;const dependencies={createRuntime:async()=>{calls++;throw Error('must not initialize')},createSession:async()=>{calls++;throw Error('must not create')}}
- await chmod(sessionDir,0o755);await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies));assert.equal((await stat(sessionDir)).mode&0o777,0o755);assert.equal(calls,0)
- await rm(sessionDir,{recursive:true});await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies));await assert.rejects(stat(sessionDir),{code:'ENOENT'});assert.equal(calls,0)
+ const alias=join(dir,'sessions-alias');await symlink(join(dir,'sessions'),alias);await assert.rejects(createHostedSession({task:{project:dir,sessionFile:join(alias,'task',file.split('/').at(-1))},sessionDir:join(alias,'task'),resume:true},dependencies),/原会话目录必须使用真实私有规范路径/);assert.equal(calls,0)
+ await chmod(sessionDir,0o755);await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies),/原会话目录必须使用真实私有规范路径/);assert.equal((await stat(sessionDir)).mode&0o777,0o755);assert.equal(calls,0)
+ await rm(sessionDir,{recursive:true});await assert.rejects(createHostedSession({task:{project:dir,sessionFile:file},sessionDir,resume:true},dependencies),/原会话目录必须使用真实私有规范路径/);await assert.rejects(stat(sessionDir),{code:'ENOENT'});assert.equal(calls,0)
 })

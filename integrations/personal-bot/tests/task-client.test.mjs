@@ -126,7 +126,7 @@ test('reject uncorrelated, oversized and failed responses', async t => {
 })
 
 test('known daemon rejections preserve safe reasons and hide unknown text', async t => {
-  for (const reason of ['项目或主机任务已满', '未找到任务', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
+  for (const reason of ['项目或主机任务已满', '未找到任务', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', '原会话目录必须使用真实私有规范路径', '原会话文件不可安全恢复', '原会话头无效', '原会话身份不匹配', 'private provider diagnostic']) {
     const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
     await assert.rejects(taskRequest(configured, { command: 'list', project: local('/work') }), error => {
       assert.equal(error.message, reason === 'private provider diagnostic' ? 'Managed task request rejected' : reason)
@@ -138,7 +138,7 @@ test('known daemon rejections preserve safe reasons and hide unknown text', asyn
 // A daemon that refuses a prompt before accepting it leaves nothing to reconcile, so the operator
 // must be told why instead of being handed the unknown-outcome warning that exists for timeouts.
 test('a refused prompt reports the reason rather than an unknown outcome', async t => {
-  for (const reason of ['Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'private provider diagnostic']) {
+  for (const reason of ['Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', '原会话目录必须使用真实私有规范路径', '原会话文件不可安全恢复', '原会话头无效', '原会话身份不匹配', 'private provider diagnostic']) {
     const configured = await fixture(t, `process.stdin.once('data',data=>{const r=JSON.parse(data);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:${JSON.stringify(reason)}}))})`)
     await assert.rejects(taskRequest(configured, { command: 'prompt', project: local('/work'), taskId: '12345678-1234-1234-1234-123456789abc', prompt: '继续完成测试' }), error => {
       assert.doesNotMatch(error.message, /outcome unknown|do not retry/i)

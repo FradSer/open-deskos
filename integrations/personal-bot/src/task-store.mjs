@@ -157,23 +157,34 @@ export async function loadRecords(stateDir) {
 /** Validate the exact host-recorded Pi 1.2 file before reopening it. Never repair it.
  * @param {{sessionFile?:string,project:string}} task @param {string} sessionDir */
 export async function resumeSessionHeader(task, sessionDir) {
+  try {
+    for (const path of [join(sessionDir, '..', '..'), dirname(sessionDir), sessionDir]) {
+      const info = await lstat(path)
+      if (!info.isDirectory() || info.isSymbolicLink() || await realpath(path) !== path) throw Error()
+      if (process.platform === 'win32') checkProactivePath(path)
+      else if (info.uid !== process.getuid() || (info.mode & 0o077)) throw Error()
+    }
+  } catch { throw Error('原会话目录必须使用真实私有规范路径') }
   const file = task.sessionFile
-  if (!file || !isAbsolute(file) || normalize(file) !== file || dirname(file) !== sessionDir) throw Error('原会话文件不可安全恢复')
-  for (const path of [join(sessionDir, '..', '..'), dirname(sessionDir), sessionDir, file]) {
-    const info = await lstat(path)
-    if (info.isSymbolicLink() || await realpath(path) !== path || (path === file ? !info.isFile() || info.nlink !== 1 : !info.isDirectory())) throw Error('原会话文件不可安全恢复')
-    if (process.platform === 'win32') checkProactivePath(path)
-    else if (info.uid !== process.getuid() || (info.mode & (path === file ? 0o022 : 0o077))) throw Error('原会话文件不可安全恢复')
-  }
-  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  let handle
+  try {
+    if (!file || !isAbsolute(file) || normalize(file) !== file || dirname(file) !== sessionDir) throw Error()
+    const info = await lstat(file)
+    if (info.isSymbolicLink() || await realpath(file) !== file || !info.isFile() || info.nlink !== 1) throw Error()
+    if (process.platform === 'win32') checkProactivePath(file)
+    else if (info.uid !== process.getuid() || (info.mode & 0o022)) throw Error()
+    handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  } catch { throw Error('原会话文件不可安全恢复') }
   try {
     const before = await handle.stat(), bytes = Buffer.alloc(65536)
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
     const end = bytes.subarray(0, bytesRead).indexOf(10)
     if (end < 0 || !before.isFile() || before.nlink !== 1 || process.platform !== 'win32' && (before.uid !== process.getuid() || (before.mode & 0o022))) throw Error('原会话文件不可安全恢复')
-    const header = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, end)))
+    let header
+    try { header = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, end))) }
+    catch { throw Error('原会话头无效') }
     const after = await handle.stat()
-    if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || header.type !== 'session' || header.version !== 3 || typeof header.id !== 'string' || !TASK_ID.test(header.id) || header.cwd !== task.project || !basename(file).endsWith(`_${header.id}.jsonl`)) throw Error('原会话身份不匹配')
+    if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || !header || typeof header !== 'object' || header.type !== 'session' || header.version !== 3 || typeof header.id !== 'string' || !TASK_ID.test(header.id) || header.cwd !== task.project || !basename(file).endsWith(`_${header.id}.jsonl`)) throw Error('原会话身份不匹配')
     return { id: header.id, file }
   } finally { await handle.close() }
 }

@@ -256,3 +256,4 @@ Feature: Durable per-host Hosted Pi sessions
     And stale revisions, duplicate mutations, occupied projects, and full host capacity cannot launch extra work
     And a failed reopen releases its slot without replacing the original file
     And cancelling an initializer retains its slot and project lock until disposal
+    And cancellation, End, or initialization failure before a new turn preserves the previous turn result

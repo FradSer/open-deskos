@@ -536,6 +536,12 @@ It preserves the task ID, session ID, file prefix, and original goal.
 The new mutation receipt precedes restoration, and status reports `launching` during initialization.
 Project admission, host capacity, revision checks, and private-path checks still apply.
 An explicit End or an unsafe original file prevents restoration.
+Restoration requires a canonical private `stateDir`, `sessions` directory, and task directory.
+Each directory must use its real path without symlink components.
+POSIX directories require the current owner and mode `0700`; Windows directories require the private ACL check.
+The host reports directory failures separately from unsafe files and invalid headers.
+It never rewrites stored paths or repairs existing permissions.
+Cancellation, End, or initialization failure before a new turn preserves the previous turn result.
 Prompt, steer, cancel, and end receipts show acceptance, not completed work.
 Query status/history before claiming progress.
 Console control uses the authenticated Control Link; voice uses the configured helper to the same daemon.
