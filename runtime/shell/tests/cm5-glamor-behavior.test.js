@@ -253,6 +253,19 @@ test('removal revokes only its exact observer policy before deleting the host fi
   const changed = execute(); assert.notEqual(changed.status, 0); assert.doesNotMatch(changed.stdout, /== removed ==/)
   for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)
   reset()
+  for (const [owner, mode] of [['1000:1000', '755'], ['0:0', '777']]) {
+    const unsafe = execute(`stat() { case "$2" in '%u:%g') echo ${owner} ;; '%a') echo ${mode} ;; *) return 1 ;; esac; }`)
+    assert.notEqual(unsafe.status, 0); assert.doesNotMatch(unsafe.stdout, /== removed ==/)
+    assert.match(unsafe.stderr, /Unsafe ownership or mode.*removal is incomplete/)
+    for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)
+  }
+  const movedTools = `${tools}-original`
+  fs.renameSync(tools, movedTools); fs.symlinkSync(movedTools, tools, 'dir')
+  const unsafeType = execute()
+  assert.notEqual(unsafeType.status, 0); assert.doesNotMatch(unsafeType.stdout, /== removed ==/)
+  assert.match(unsafeType.stderr, /Unsafe parent directory.*removal is incomplete/)
+  for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)
+  fs.unlinkSync(tools); fs.renameSync(movedTools, tools)
   const failed = execute(`rm() { return 1; }`)
   assert.notEqual(failed.status, 0); assert.doesNotMatch(failed.stdout, /== removed ==/)
   for (const file of [policy, wrapper, python]) assert.equal(fs.existsSync(file), true)

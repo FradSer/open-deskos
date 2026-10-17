@@ -57,6 +57,10 @@ Feature: Mali GPU acceleration for the CM5 shell
     Then removal revokes that policy before it removes the two host files
     And other policies and parent directories remain unchanged
     And a changed policy or failed revocation prevents completed removal
+    Given an observer parent has an unsafe type, owner, or mode
+    When the operator removes the observer
+    Then removal reports the unsafe parent and remains incomplete
+    And the policy and host files remain unchanged
 
   Scenario: Unavailable Xorg logs cannot diagnose a module restart
     Given the fixed host verifier confirmed current mappings

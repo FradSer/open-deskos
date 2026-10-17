@@ -177,9 +177,9 @@ remove_mapping_observer() (
   local parent owner mode policy=/etc/sudoers.d/odk-xorg-bgra-verify
   for parent in / /usr /usr/local /usr/local/libexec /etc /etc/sudoers.d; do
     if [ -e "$parent" ] || [ -L "$parent" ]; then
-      [ -d "$parent" ] && [ ! -L "$parent" ] || return 1
+      [ -d "$parent" ] && [ ! -L "$parent" ] || { echo "Unsafe parent directory ${parent}; removal is incomplete." >&2; return 1; }
       owner="$(stat -c '%u:%g' "$parent")"; mode="$(stat -c '%a' "$parent")"
-      [ "$owner" = 0:0 ] && [ "$((0$mode & 022))" -eq 0 ] || return 1
+      [ "$owner" = 0:0 ] && [ "$((0$mode & 022))" -eq 0 ] || { echo "Unsafe ownership or mode on ${parent}; removal is incomplete." >&2; return 1; }
     fi
   done
   if [ -e "$policy" ] || [ -L "$policy" ]; then
