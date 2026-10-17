@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createHash } from 'node:crypto'
-import { agentLivePlan, createLivePlan, capLiveModelOutput, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
+import { agentLivePlan, createLivePlan, parseLiveOptions, classifyLiveFailure, fullExperienceReceipt, assertLivePairResults, capLiveModelOutput, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
 import { reportData, reportScore, reportProcedure } from './fixtures/agent-learning-reports.mjs'
 
 test('synthetic report grading is independent of assistant claims and keeps holdout procedures hidden', () => {
@@ -173,7 +173,7 @@ test('plan inspection needs no credentials, provider, Docker or external request
   const { stdout } = await promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--plan'], {
     cwd: new URL('../', import.meta.url), env: {}, timeout: 10000,
   })
-  assert.deepEqual(JSON.parse(stdout), agentLivePlan)
+  assert.deepEqual(JSON.parse(stdout), createLivePlan())
 })
 
 test('invalid envelope plugin timeouts stop before child initialization or dispatch', { timeout: 15000 }, async t => {
@@ -212,7 +212,7 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   return { report, code, diagnostics, acceptedExperience }
 }
 
-for (const resources of ['default', 'explicit']) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
+for (const resources of ['default', 'explicit']) test(`the delivery core runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
   const plan = resources === 'explicit' ? createLivePlan({ maxOutputTokens: 16384, deadlineMs: 1800000 }) : agentLivePlan
   const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
   assert.equal(report.limits.deadlineMs, resources === 'explicit' ? 1800000 : 900000)
@@ -225,16 +225,21 @@ for (const resources of ['default', 'explicit']) test(`the complete acceptance r
   const restart = report.taskChecks.find(check => check.phase === 'saved-restart')
   assert.equal(restart.turn, 2); assert.equal(restart.continued, true)
   assert.equal(report.status, 'pending_host_validation')
-  assert.equal(finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true }).passed, true)
+  const final = finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true })
+  assert.equal(final.passed, true); assert.equal(final.deliveryCorePassed, true)
+  assert.equal(final.learningEvaluationPassed, false); assert.equal(final.targetedPassed, false)
+  assert.equal(report.deliveryCorePassed, false)
   assert.equal(report.truncatedGenerationCalls, report.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length)
   assert.equal(report.model.pricingKnown, false)
   assert.equal(report.model.actualCharge, 'not_established')
   assert.equal(report.realModel, false)
   assert.equal(report.realJev, false)
   assert.equal(report.externalRequests, 0)
-  assert.equal(report.pairs.length, 3)
-  assert(report.pairs.every(pair => pair.candidate.experienceReads > 0))
+  assert.equal(report.coverage, 'delivery_core')
+  assert.equal(report.pairs.length, 0)
+  assert.equal(report.learning.status, 'not_run')
   assert.equal(report.learning.generalLearningBenefit, 'not_established')
+  assert(restart.experienceReads > 0)
   assert.equal(report.acceptedExperience.entries, 1)
   assert.equal(report.acceptedExperience.sha256, createHash('sha256').update(acceptedExperience).digest('hex'))
   const saved = JSON.parse(acceptedExperience)
@@ -254,30 +259,130 @@ test('budget exhaustion stops the real runner before dependent stages without re
   assert.equal(report.externalRequests, 0)
 })
 
-test('task evaluation labels seeded setup and keeps actual execution and paired learning checks', { timeout: 60000 }, async t => {
+test('targeted saved-report labels seeded setup and checks one actual child only', { timeout: 60000 }, async t => {
   const { report, code, diagnostics } = await offlineReport(t, agentLivePlan, { taskEvaluation: true })
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.deepEqual(report.setup, { method: 'host_fixture', naturalLanguageVerified: false })
   assert.equal(report.scenarios.some(scenario => ['install-skill', 'install-mcp', 'save-identity'].includes(scenario.name)), false)
-  assert.deepEqual(report.scenarios.map(scenario => scenario.name), ['saved-training', 'saved-restart', 'temporary-child', 'paired-heldout'])
-  assert.equal(report.pairs.length, 3)
+  assert.equal(report.coverage, 'targeted_saved_report')
+  const final = finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true })
+  assert.equal(final.targetedPassed, true); assert.equal(final.deliveryCorePassed, false)
+  assert.deepEqual(report.scenarios.map(scenario => scenario.name), ['saved-training'])
+  assert.equal(report.taskChecks.length, 1)
+  assert.equal(report.pairs.length, 0)
+  assert.equal(report.learning.status, 'not_run')
   assert(report.calls.every(call => !['install-skill', 'install-mcp', 'save-identity'].includes(call.phase)))
 })
 
-test('continuation separates supplied-data pairs, fixture admission, and original live training proof', { timeout: 60000 }, async t => {
+test('independent learning runs pairs without setup, child admission, or original delivery claims', { timeout: 60000 }, async t => {
   const experience = { version: 1, entries: [{ id: createHash('sha256').update(reportProcedure).digest('hex').slice(0, 32),
     title: 'Desk report conversion', body: reportProcedure, sources: [{ tool: 'agent_mcp_call', digest: 'a'.repeat(64) }], createdAt: '2026-10-16T00:00:00.000Z' }] }
   const { report, code, diagnostics } = await offlineReport(t, agentLivePlan, { continuation: { experience, source: { reportSha256: 'a'.repeat(64), experienceSha256: createHash('sha256').update(JSON.stringify(experience)).digest('hex'), candidate: 'a'.repeat(40) } } })
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
-  assert.equal(report.coverage, 'isolated_continuation')
-  assert.deepEqual(report.scenarios.map(scenario => scenario.name), ['paired-heldout', 'saved-restart', 'temporary-child'])
+  assert.equal(report.coverage, 'learning_benefit')
+  const final = finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true })
+  assert.equal(final.learningEvaluationPassed, true); assert.equal(final.deliveryCorePassed, false)
+  assert.deepEqual(report.scenarios.map(scenario => scenario.name), ['paired-heldout'])
   assert.equal(report.pairProtocol.mcpEnabled, false)
   assert.equal(report.pairProtocol.input, 'supplied_synthetic_data')
   assert(report.pairs.every(pair => pair.candidate.passed && pair.candidate.experienceReads > 0 && !pair.baseline.passed))
-  assert(report.taskChecks.every(check => check.fixtureAdmission && check.coordinatorInference === false))
+  assert.deepEqual(report.taskChecks, [])
+  assert(report.pairs.every(pair => pair.candidate.verification === 'passed'))
   assert.equal(report.calls.filter(call => call.kind === 'jev').length, 0)
   assert.deepEqual(report.routes, [])
-  assert(report.routes.every(route => route.mcpCapabilities === 0))
-  assert.equal(report.restartFixture.sameIdentityRevision, true)
+  assert.equal(report.restartFixture, undefined)
   assert.equal(report.externalRequests, 0)
+})
+
+
+test('provider-health is a fixed two-request targeted diagnostic without agent actions', { timeout: 15000 }, async t => {
+  const { report, code, diagnostics } = await offlineReport(t, { ...agentLivePlan, mode: 'targeted', scenario: 'provider-health' })
+  assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
+  assert.equal(report.coverage, 'provider_health')
+  assert.equal(report.calls.length, 2)
+  assert.deepEqual(report.calls.map(call => call.kind), ['generation', 'jev'])
+  assert.deepEqual(report.taskChecks, [])
+  assert.deepEqual(report.toolChecks, [])
+  assert.deepEqual(report.pairs, [])
+  assert.equal(report.setup.method, 'none')
+  assert.equal(report.health.generation.available, true)
+  assert.equal(report.health.jev.available, true)
+  assert.equal(report.externalRequests, 0)
+})
+
+test('evaluation plans keep core, targeted and learning coverage separate', () => {
+  assert.equal(createLivePlan().mode, 'core')
+  assert.equal(createLivePlan().scenarios.length, 6)
+  assert.equal(createLivePlan({ mode: 'learning' }).scenarios.length, 1)
+  assert.equal(createLivePlan({ mode: 'targeted', scenario: 'saved-report' }).scenarios.length, 1)
+  assert.equal(createLivePlan({ mode: 'targeted', scenario: 'provider-health' }).scenarios.length, 2)
+  for (const selection of [{ mode: 'unknown' }, { mode: 'core', scenario: 'saved-report' }, { mode: 'learning', scenario: 'provider-health' }, { mode: 'targeted', scenario: 'unknown' }]) assert.throws(() => createLivePlan(selection))
+})
+
+
+test('scope conflicts and invalid resources stop before credentials or container dispatch', async () => {
+  assert.equal(parseLiveOptions(['--live', '--continue-from=accepted']).selection.mode, 'learning')
+  assert.equal(parseLiveOptions(['--live', '--task-evaluation']).selection.scenario, 'saved-report')
+  assert.equal(parseLiveOptions(['--plan', '--mode=learning']).plan.coverage, 'learning_benefit')
+  const invalid = [[], ['--live', '--plan'], ['--live', '--mode=learning'],
+    ['--live', '--mode=core', '--continue-from=accepted'], ['--live', '--scenario=saved-report'],
+    ['--live', '--task-evaluation', '--scenario=provider-health'], ['--live', '--mode=targeted', '--continue-from=accepted'],
+    ['--live', '--mode=unknown'], ['--live', '--mode=core', '--mode=targeted'],
+    ['--live', '--max-requests=257'], ['--live', '--deadline-ms=1800001'], ['--live', '--max-output-tokens=0']]
+  for (const args of invalid) assert.throws(() => parseLiveOptions(args))
+  for (const args of invalid.slice(2, 8)) await assert.rejects(promisify(execFile)(process.execPath,
+    ['scripts/test-agent-runtime-live.mjs', ...args], { cwd: new URL('../', import.meta.url), env: {}, timeout: 10000 }),
+    error => error.code === 1 && /Usage:/.test(error.stderr) && !/credential|models.json|Docker/.test(error.stderr))
+})
+
+test('failure classification preserves each causal provider operation without authorizing replay', async () => {
+  const calls = [{ kind: 'generation', phase: 'provider-health:generation', httpStatus: 503 },
+    { kind: 'jev', phase: 'provider-health:jev', httpStatus: 200 }]
+  const failure = classifyLiveFailure(calls.filter(call => call.phase === 'provider-health:generation'))
+  assert.deepEqual(failure, { category: 'external_transient', provider: 'generation', operation: 'provider-health:generation', retryEligible: true, externalBlocked: false })
+  for (const [httpStatus, category] of [[451, 'provider_rejected'], [401, 'authorization'], [403, 'authorization'], [422, 'provider_rejected']]) {
+    assert.deepEqual(classifyLiveFailure([{ httpStatus }]), { category, retryEligible: false, externalBlocked: false, provider: undefined, operation: undefined })
+  }
+  for (const [options, category] of [[{ exhausted: true }, 'resource'], [{ deadline: true }, 'resource'], [{ errorCode: 'EACCES' }, 'permission'], [{ errorCode: 'ENOENT' }, 'configuration']]) {
+    assert.equal(classifyLiveFailure([], options).category, category)
+    assert.equal(classifyLiveFailure([], options).externalBlocked, false)
+  }
+  for (const code of ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'UNKNOWN']) {
+    const budget = createLiveRequestBudget(1)
+    const request = createBudgetedFetch({ budget, kind: 'jev', phase: () => 'probe', fetchImpl: async () => { throw Object.assign(Error('private text'), { cause: { code } }) } })
+    await assert.rejects(request('https://invalid.example'))
+    assert.equal(classifyLiveFailure(budget.calls).retryEligible, code !== 'UNKNOWN')
+    assert.equal(JSON.stringify(budget.calls).includes('private text'), false)
+  }
+})
+
+
+test('a paired evaluation requires every candidate result, completion, and complete memory read', () => {
+  const pairs = Array.from({ length: 3 }, () => ({ baseline: { passed: false, verification: 'needs_review', experienceReads: 0 },
+    candidate: { passed: true, verification: 'passed', experienceReads: 1 } }))
+  assert.doesNotThrow(() => assertLivePairResults(pairs))
+  for (const update of [{ passed: false }, { verification: 'needs_review' }, { experienceReads: 0 }]) {
+    const invalid = structuredClone(pairs); Object.assign(invalid[1].candidate, update)
+    assert.throws(() => assertLivePairResults(invalid))
+  }
+  assert.throws(() => assertLivePairResults(pairs.slice(0, 2)))
+  const receipt = { tool: 'experience_read', status: 'succeeded', truncated: false }
+  assert.equal(fullExperienceReceipt(receipt), true)
+  for (const update of [{ truncated: true }, { status: 'failed' }, { tool: 'experience_list' }]) {
+    assert.equal(fullExperienceReceipt({ ...receipt, ...update }), false)
+  }
+})
+
+
+test('layer acceptance flags require the same host source, process, and cleanup gates', () => {
+  for (const [flag, mode] of [['deliveryCorePassed', 'core'], ['learningEvaluationPassed', 'learning'], ['targetedPassed', 'targeted']]) {
+    const provisional = { functionalPassed: true, cleanupPassed: true, hostValidationRequired: true, evaluation: { mode }, [flag]: true }
+    for (const options of [{ exitCode: 1, sourceUnchanged: true }, { exitCode: 0, sourceUnchanged: false },
+      { exitCode: 0, sourceUnchanged: true, sourceFailure: true }, { exitCode: 0, sourceUnchanged: true, forcedCleanup: true }]) {
+      const failed = finalizeAgentAcceptance(provisional, options)
+      assert.equal(failed[flag], false); assert.equal(failed.functionalPassed, true)
+    }
+    assert.equal(finalizeAgentAcceptance({ ...provisional, cleanupPassed: false }, { exitCode: 0, sourceUnchanged: true })[flag], false)
+    assert.equal(finalizeAgentAcceptance(provisional, { exitCode: 0, sourceUnchanged: true })[flag], true)
+  }
 })

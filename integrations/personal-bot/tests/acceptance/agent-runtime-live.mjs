@@ -11,15 +11,17 @@ import { createJevIntentRouter } from '../../src/intent-routing.mjs'
 import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
+import { createJevClient } from '../../src/jev-client.mjs'
 import { reportScore, reportData, reportSkill } from '../fixtures/agent-learning-reports.mjs'
-import { capLiveModelOutput, createLivePlan, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
+import { capLiveModelOutput, fullExperienceReceipt, assertLivePairResults, createLivePlan, selectLiveEvaluation, classifyLiveFailure, liveStopPolicy, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
 let input = ''
 for await (const chunk of process.stdin) { input += chunk; if (Buffer.byteLength(input) > 262144) throw Error('Live configuration exceeds its limit') }
 const credentials = JSON.parse(input)
 input = ''
-const plan = createLivePlan(credentials.plan)
+const evaluation = selectLiveEvaluation({ mode: credentials.evaluation?.mode ?? credentials.plan?.mode, scenario: credentials.evaluation?.scenario ?? credentials.plan?.scenario, taskEvaluation: credentials.taskEvaluation === true, hasContinuation: Boolean(credentials.continuation) })
+const plan = createLivePlan({ ...credentials.plan, ...evaluation })
 const pluginTimeoutMs = generationDeadlineMs(credentials.pluginTimeoutMs)
 const offline = credentials.offlineFixture === true
 const fixture = offline ? await import('../helpers/agent-live-offline.mjs') : undefined
@@ -30,8 +32,8 @@ const report = { candidate: credentials.candidate, fingerprints: credentials.fin
   limits: { pluginTimeoutMs, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
   platform: process.platform, arch: process.arch, syntheticData: true, realModel: false, realJev: false, offlineFixture: offline,
   productionWrites: false, physicalCapture: false, renderedUI: false, calls: budget.calls, scenarios: [], pairs: [], routes: [], taskChecks: [], pluginChecks: [], toolChecks: [],
-  coverage: credentials.continuation ? 'isolated_continuation' : credentials.taskEvaluation ? 'task_evaluation' : 'full',
-  setup: { method: credentials.taskEvaluation || credentials.continuation ? 'host_fixture' : 'natural_language', naturalLanguageVerified: false },
+  coverage: evaluation.coverage, evaluation, stopPolicy: liveStopPolicy, learning: { status: 'not_run', generalLearningBenefit: 'not_established' },
+  setup: { method: evaluation.mode === 'core' ? 'natural_language' : evaluation.mode === 'learning' ? 'accepted_experience' : evaluation.scenario === 'provider-health' ? 'none' : 'host_fixture', naturalLanguageVerified: false },
   ...(credentials.continuation ? { experienceSource: credentials.continuation.source } : {}) }
 const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), plan.deadlineMs)
 const bots = new Set()
@@ -60,45 +62,46 @@ function recordReceipts(context) {
   const text = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
   try {
     const value = parsePluginInput(text.slice('Personal Bot request:\n'.length))
-    for (const receipt of value.receipts.filter(receipt => receipt.tool === 'experience_read' && receipt.status === 'succeeded')) {
+    for (const receipt of value.receipts.filter(fullExperienceReceipt)) {
       const key = `${phase}:${receipt.id}:${receipt.text}`
       if (!retrieved.has(key)) { retrieved.add(key); retrievals++ }
     }
   } catch { /* Receipt assertions remain owned by the runtime. */ }
 }
+async function createRuntime() {
+  const runtime = offline ? fixture.createOfflineAcceptanceRuntime(() => phase) : await ModelRuntime.create({ authPath: join(base, 'agent-settings', 'auth.json'), modelsPath: null, refreshOnCreate: false })
+  runtime.registerProvider(credentials.provider, { ...credentials.providerConfig, models: [credentials.model] })
+  return new Proxy(runtime, { get(target, key) {
+    if (key === 'streamSimple') return (model, context, options) => {
+      controller.signal.throwIfAborted()
+      const calls = []
+      const toolCheck = toolExecutionMetadata(context)
+      if (toolCheck && report.toolChecks.length < 128) report.toolChecks.push({ phase, ...toolCheck })
+      if (offline) calls.push(budget.reserve('generation', phase))
+      recordReceipts(context)
+      const judgment = pluginInput(context), callPhase = phase
+      const effectiveModel = capLiveModelOutput(model, plan.maxOutputTokens)
+      const effectiveMaxTokens = effectiveModel.maxTokens
+      const stream = target.streamSimple(effectiveModel, context, { ...options, maxTokens: effectiveMaxTokens, maxRetries: 0,
+        fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: effectiveMaxTokens, onCall: call => calls.push(call) }) })
+      void stream.result().then(message => {
+        const call = calls.at(-1)
+        recordLiveGenerationUsage(call, message)
+        if (judgment) {
+          try { report.pluginChecks.push({ phase: callPhase, ...pluginEvidenceMetadata(judgment, message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) }) }
+          catch { report.pluginChecks.push({ phase: callPhase, diagnosticUnavailable: true }) }
+        }
+      }).catch(() => { for (const call of calls) call.failed = true })
+      return stream
+    }
+    const value = Reflect.get(target, key, target)
+    return typeof value === 'function' ? value.bind(target) : value
+  } })
+}
 async function newBot(stateDir, extra = {}) {
   const bot = await createPersonalBot({ stateDir, model: modelName, signal: controller.signal, env,
     personal: { profile: 'personal', skillPaths: [], memoryFile: join(stateDir, 'notes.json'), agentPlugins: { enabled: plugins } }, ...extra }, {
-    createRuntime: async () => {
-      const runtime = offline ? fixture.createOfflineAcceptanceRuntime(() => phase) : await ModelRuntime.create({ authPath: join(base, 'agent-settings', 'auth.json'), modelsPath: null, refreshOnCreate: false })
-      runtime.registerProvider(credentials.provider, { ...credentials.providerConfig, models: [credentials.model] })
-      return new Proxy(runtime, { get(target, key) {
-        if (key === 'streamSimple') return (model, context, options) => {
-          controller.signal.throwIfAborted()
-          const calls = []
-          const toolCheck = toolExecutionMetadata(context)
-          if (toolCheck && report.toolChecks.length < 128) report.toolChecks.push({ phase, ...toolCheck })
-          if (offline) calls.push(budget.reserve('generation', phase))
-          recordReceipts(context)
-          const judgment = pluginInput(context), callPhase = phase
-          const effectiveModel = capLiveModelOutput(model, plan.maxOutputTokens)
-          const effectiveMaxTokens = effectiveModel.maxTokens
-          const stream = target.streamSimple(effectiveModel, context, { ...options, maxTokens: effectiveMaxTokens, maxRetries: 0,
-            fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: effectiveMaxTokens, onCall: call => calls.push(call) }) })
-          void stream.result().then(message => {
-            const call = calls.at(-1)
-            recordLiveGenerationUsage(call, message)
-            if (judgment) {
-              try { report.pluginChecks.push({ phase: callPhase, ...pluginEvidenceMetadata(judgment, message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) }) }
-              catch { report.pluginChecks.push({ phase: callPhase, diagnosticUnavailable: true }) }
-            }
-          }).catch(() => { for (const call of calls) call.failed = true })
-          return stream
-        }
-        const value = Reflect.get(target, key, target)
-        return typeof value === 'function' ? value.bind(target) : value
-      } })
-    },
+    createRuntime,
     createIntentRouter: () => {
       const route = offline ? async () => { budget.reserve('jev', phase); return { intent: phase.startsWith('install-') ? 'package_manage' : phase === 'save-identity' ? 'agent_identity' : 'agent_work' } } : createJevIntentRouter({ env, fetchImpl: async (url, options) => {
       controller.signal.throwIfAborted()
@@ -142,51 +145,72 @@ async function delegated(bot, text, id, saved, fixtureAdmission = false) {
   assert.equal(score.passed, true, 'Host report assertions rejected the child answer')
   return { task, score }
 }
+async function runProviderHealth() {
+  await mkdir(process.env.PI_CODING_AGENT_DIR, { recursive: true, mode: 0o700 })
+  report.health = {}
+  const failures = []
+  phase = 'provider-health:generation'
+  try {
+    const runtime = await createRuntime()
+    const model = runtime.getModel(credentials.provider, credentials.model.id)
+    const stream = runtime.streamSimple(model, { messages: [{ role: 'user', content: 'Reply READY for this isolated synthetic health check.', timestamp: Date.now() }] },
+      { apiKey: credentials.providerConfig.apiKey, maxRetries: 0, signal: controller.signal })
+    const message = await stream.result()
+    report.health.generation = { available: message.stopReason === 'stop' && message.content.some(part => part.type === 'text' && part.text.trim()) }
+  } catch (error) { report.health.generation = { available: false, failure: classifyLiveFailure(budget.calls.filter(call => call.phase === phase), { exhausted: budget.exhausted, deadline: controller.signal.aborted, errorCode: error?.code }) } }
+  if (!report.health.generation.available) {
+    failures.push(phase)
+    report.health.generation.failure ??= classifyLiveFailure(budget.calls.filter(call => call.phase === phase))
+  }
+  phase = 'provider-health:jev'
+  try {
+    if (offline) { budget.reserve('jev', phase); report.health.jev = { available: true } }
+    else {
+      const request = createJevClient({ env, fetchImpl: async (url, options) => {
+        let call
+        const fetch = createBudgetedFetch({ budget, kind: 'jev', phase: () => phase, signal: controller.signal, onCall: value => { call = value } })
+        const captured = await liveJevResponse(await fetch(url, options), ['health'])
+        Object.assign(call, captured.metadata)
+        return captured.response
+      } })
+      const result = await request({ signal: controller.signal, state: { status: 'ready' }, questions: { health: { type: 'choice',
+        criteria: { ready: 'The synthetic status is ready.', waiting: 'The synthetic status is waiting.' }, instructions: 'Choose the supplied fixed synthetic status.' } } })
+      report.health.jev = { available: result.answers.health?.type === 'choice' && ['ready', 'waiting'].includes(result.answers.health.choice) }
+    }
+  } catch (error) { report.health.jev = { available: false, failure: classifyLiveFailure(budget.calls.filter(call => call.phase === phase), { exhausted: budget.exhausted, deadline: controller.signal.aborted, errorCode: error?.code }) } }
+  if (!report.health.jev.available) {
+    failures.push(phase)
+    report.health.jev.failure ??= classifyLiveFailure(budget.calls.filter(call => call.phase === phase))
+  }
+  if (failures.length) { phase = failures[0]; throw Error('Fixed provider health was not established') }
+  mark('provider-health', { generation: true, jev: true })
+}
 async function run() {
+  if (evaluation.scenario === 'provider-health') return runProviderHealth()
   await mkdir(join(candidates, 'report-helper'), { recursive: true, mode: 0o700 })
   await mkdir(join(candidates, 'learning-reports'), { mode: 0o700 })
   await mkdir(process.env.PI_CODING_AGENT_DIR, { mode: 0o700 })
   await writeFile(join(process.env.PI_CODING_AGENT_DIR, 'settings.json'), JSON.stringify({ retry: { enabled: false }, compaction: { enabled: false } }), { mode: 0o600 })
   await writeFile(join(candidates, 'report-helper', 'SKILL.md'), skill, { mode: 0o600 })
   await writeFile(join(candidates, 'learning-reports', 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 })
-  const stateDir = join(base, 'resident'), activity = []
-  const config = { onAgentUpdate: tasks => activity.push(...tasks.map(task => ({ state: task.state, identity: task.identity }))) }
-  const catalog = await openAgentCatalog(join(stateDir, 'personal-agent', 'packages'))
-  if (credentials.taskEvaluation || credentials.continuation) {
-    await catalog.installSkill(join(candidates, 'report-helper'))
-    await catalog.installMcp(manifest)
-  }
   if (credentials.continuation) {
     const imported = join(base, 'imported', 'experience.json')
     await mkdir(join(base, 'imported'), { recursive: true, mode: 0o700 })
     await writeFile(imported, JSON.stringify(credentials.continuation.experience), { mode: 0o600 })
     assert(createExperienceStore(imported).load().entries.length > 0)
     await runPairs(imported)
-    const enabled = plugins.filter(id => id !== 'mcp')
-    const isolated = { ...config, personal: { profile: 'personal', skillPaths: [], memoryFile: join(stateDir, 'notes.json'), agentPlugins: { enabled, autoLearn: false } } }
-    let resident = await newBot(stateDir, isolated)
-    const identity = resident.agentTasks.saveIdentity({ id: 'reporter', name: 'Reporter', avatar: 'book', role: 'Use report-helper and applicable accepted experience for the supplied report.' })
-    const home = join(stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter', 'personal-agent')
-    await mkdir(home, { recursive: true, mode: 0o700 })
-    await copyFile(imported, join(home, 'experience.json'))
-    await close(resident)
-    resident = await newBot(stateDir, isolated)
-    assert.equal(resident.agentTasks.identities().find(item => item.id === 'reporter')?.revision, identity.revision)
-    report.restartFixture = { sameIdentityRevision: true, restoredExperienceSha256: createHash('sha256').update(await readFile(imported)).digest('hex'), conversationHistory: false }
-    phase = 'saved-restart'
-    const before = retrievals
-    const restarted = await delegated(resident, suppliedRequest('restart'), 'restart', true, true)
-    assert(retrievals > before, 'A restored child must retrieve actual full experience')
-    assert(activity.some(task => task.state === 'running' && task.identity?.id === 'reporter' && task.identity.avatar === 'book'))
-    mark(phase, { score: restarted.score, experienceReads: retrievals - before, fixtureAdmission: true, activeAvatarMetadata: true })
-    phase = 'temporary-child'
-    const temporary = await delegated(resident, suppliedRequest('temporary'), 'temporary', false, true)
-    mark(phase, { score: temporary.score, fixtureAdmission: true })
-    await close(resident)
     return
   }
-  let bot = await newBot(stateDir, config)
-  if (credentials.taskEvaluation) {
+  const stateDir = join(base, 'resident'), activity = []
+  const config = { onAgentUpdate: tasks => activity.push(...tasks.map(task => ({ state: task.state, identity: task.identity }))) }
+  const catalog = await openAgentCatalog(join(stateDir, 'personal-agent', 'packages'))
+  if (evaluation.mode === 'targeted') {
+    await catalog.installSkill(join(candidates, 'report-helper'))
+    await catalog.installMcp(manifest)
+  }
+  const botConfig = evaluation.mode === 'targeted' ? { ...config, personal: { profile: 'personal', skillPaths: [], memoryFile: join(stateDir, 'notes.json'), agentPlugins: { enabled: plugins, autoLearn: false } } } : config
+  let bot = await newBot(stateDir, botConfig)
+  if (evaluation.mode === 'targeted') {
     bot.agentTasks.saveIdentity({ id: 'reporter', name: 'Reporter', avatar: 'book', role: 'Use the report-helper Skill to analyze reports and return RESULT=<number>.' })
   } else {
     phase = 'install-skill'
@@ -202,6 +226,7 @@ async function run() {
   }
   phase = 'saved-training'
   const training = await delegated(bot, '让固化子代理 reporter 使用 learning-reports 分析 training 报告，并以 RESULT=<number> 返回结果。', 'training', true)
+  if (evaluation.mode === 'targeted') { mark(phase, { score: training.score }); await close(bot); return }
   assert.equal(training.task.learning, 'applied')
   assert(activity.some(task => task.state === 'running' && task.identity?.id === 'reporter' && task.identity.avatar === 'book'))
   const experience = join(stateDir, 'personal-agent', 'children', 'homes', 'saved', 'reporter', 'personal-agent', 'experience.json')
@@ -214,18 +239,21 @@ async function run() {
   await close(bot)
   phase = 'saved-restart'
   bot = await newBot(stateDir, config)
+  const beforeRestartRetrieval = retrievals
   const restarted = await delegated(bot, '让固化子代理 reporter 使用 learning-reports 分析 restart 报告，并以 RESULT=<number> 返回结果。', 'restart', true)
-  mark(phase, { score: restarted.score })
+  assert(retrievals > beforeRestartRetrieval, 'A restarted saved child must retrieve actual full accepted experience')
+  mark(phase, { score: restarted.score, experienceReads: retrievals - beforeRestartRetrieval })
+  report.taskChecks.at(-1).experienceReads = retrievals - beforeRestartRetrieval
   phase = 'temporary-child'
   const temporary = await delegated(bot, '请用临时子代理分析 learning-reports 的 temporary 报告，以 RESULT=<number> 返回结果。不要使用或创建固化身份。', 'temporary', false)
   mark(phase, { score: temporary.score })
   await close(bot)
-  await runPairs(experience)
 }
 function suppliedRequest(id) {
   return `Use the report-helper Skill to analyze this supplied current synthetic report. It uses the same procedure as the training report. If the procedure is absent, retrieve matching accepted experience; do not invent a missing method. Do not read other reports. Return exactly one RESULT=<number> marker when supported. Supplied current synthetic report (JSON): ${JSON.stringify(reportData(id))}`
 }
 async function runPairs(experience) {
+  report.learning = { status: 'in_progress', generalLearningBenefit: 'not_established' }
   // Fresh conversations have identical packages and role. Only accepted experience differs.
   report.pairProtocol = { input: 'supplied_synthetic_data', mcpEnabled: false, autoLearn: false, conversationHistory: false, difference: 'accepted_experience_only' }
   const pairedCatalog = await openAgentCatalog(join(base, 'paired-packages'))
@@ -246,9 +274,8 @@ async function runPairs(experience) {
       await close(worker)
     }
   }
-  report.learning = learningComparison(report.pairs)
-  assert(report.pairs.every(pair => pair.candidate.passed), 'Accepted experience did not support every held-out result')
-  assert(report.pairs.some(pair => pair.candidate.experienceReads > 0), 'No actual full-entry experience retrieval was observed')
+  assertLivePairResults(report.pairs)
+  report.learning = { status: 'completed', ...learningComparison(report.pairs) }
   mark('paired-heldout', report.learning)
 }
 try {
@@ -256,7 +283,8 @@ try {
   report.passed = true
 } catch (error) {
   report.passed = false
-  report.failure = { phase, reason: budget.exhausted ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven' }
+  report.failure = { phase, reason: budget.exhausted ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven',
+    ...(report.health?.[phase.split(':')[1]]?.failure ?? classifyLiveFailure(budget.calls.filter(call => call.phase === phase), { exhausted: budget.exhausted, deadline: controller.signal.aborted, errorCode: error?.code })) }
   if (offline) report.failure.fixtureError = String(error.message)
   process.exitCode = 1
 } finally {
@@ -271,6 +299,10 @@ try {
   report.realModel = !offline && budget.calls.some(call => call.kind === 'generation')
   report.realJev = !offline && budget.calls.some(call => call.kind === 'jev')
   report.functionalPassed = report.passed === true
+  report.deliveryCorePassed = evaluation.mode === 'core' && report.functionalPassed && credentials.hostValidationRequired !== true
+  report.learningEvaluationPassed = evaluation.mode === 'learning' && report.functionalPassed && credentials.hostValidationRequired !== true
+  report.targetedPassed = evaluation.mode === 'targeted' && report.functionalPassed && credentials.hostValidationRequired !== true
+  if (report.learning.status === 'in_progress') report.learning.status = 'incomplete'
   report.hostValidationRequired = credentials.hostValidationRequired === true
   report.status = !report.functionalPassed ? 'failed' : report.hostValidationRequired ? 'pending_host_validation' : 'passed'
   if (report.hostValidationRequired) report.passed = false
