@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createHash } from 'node:crypto'
-import { agentLivePlan, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
+import { agentLivePlan, createLivePlan, capLiveModelOutput, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
 import { reportData, reportScore, reportProcedure } from './fixtures/agent-learning-reports.mjs'
 
 test('synthetic report grading is independent of assistant claims and keeps holdout procedures hidden', () => {
@@ -33,10 +33,38 @@ test('shared live request budget refuses dispatch after its exact limit', () => 
   const budget = createLiveRequestBudget(2)
   budget.reserve('generation', 'training')
   budget.reserve('jev', 'training')
+  assert.equal(budget.exhausted, false)
   assert.throws(() => budget.reserve('generation', 'correction'), /budget exhausted/)
+  assert.equal(budget.exhausted, true)
   assert.equal(budget.calls.length, 2)
-  assert.throws(() => createLiveRequestBudget(81), /limit/)
+  assert.equal(createLivePlan().maxRequests, 80)
+  assert.equal(createLivePlan({ maxRequests: 160 }).maxRequests, 160)
+  const maximum = createLiveRequestBudget(256)
+  for (let index = 0; index < 256; index++) maximum.reserve(index % 2 ? 'jev' : 'generation', 'explicit-budget')
+  assert.throws(() => maximum.reserve('generation', 'correction'), /budget exhausted/)
+  assert.equal(maximum.calls.length, 256)
+  for (const limit of [0, -1, 257, 1.5, NaN, Infinity, '160']) assert.throws(() => createLivePlan({ maxRequests: limit }), /limit/)
+  assert.equal(createLivePlan({ maxRequests: 256 }).deadlineMs, 900000)
   assert.equal(agentLivePlan.maxOutputTokens, 2048)
+})
+
+test('explicit output resources retain independent request and execution bounds', async () => {
+  assert.equal(createLivePlan().maxOutputTokens, 2048)
+  const plan = createLivePlan({ maxOutputTokens: 16384 })
+  assert.equal(plan.maxOutputTokens, 16384)
+  assert.equal(plan.maxRequests, 80); assert.equal(plan.deadlineMs, 900000)
+  assert.equal(capLiveModelOutput({ maxTokens: 8192 }, plan.maxOutputTokens).maxTokens, 8192)
+  for (const maxOutputTokens of [0, -1, 16385, 1.5, NaN, Infinity, '16384']) {
+    assert.throws(() => createLivePlan({ maxOutputTokens }), /output limit/)
+  }
+  let dispatched = 0
+  const budget = createLiveRequestBudget(2)
+  const request = createBudgetedFetch({ budget, kind: 'generation', phase: () => 'explicit-output', maxOutputTokens: 16384,
+    fetchImpl: async () => { dispatched++; return new Response('{}') } })
+  await request('https://example.invalid', { body: JSON.stringify({ max_tokens: 16384 }) })
+  await assert.rejects(request('https://example.invalid', { body: JSON.stringify({ max_tokens: 16385 }) }), /output limit/)
+  assert.equal(dispatched, 1); assert.equal(budget.calls.length, 1)
+
 })
 
 test('actual HTTP dispatch shares the limit, refuses redirects and preserves failed attempts', async () => {
@@ -68,6 +96,38 @@ test('generation transport refuses unbounded or overridden output limits before 
   assert.equal(budget.calls.length, 0)
   await request('https://example.invalid', { body: JSON.stringify({ max_tokens: 2048 }) })
   assert.equal(dispatched, 1)
+})
+
+test('generation usage records reported reasoning only and excludes message content', () => {
+  for (const reasoning of [undefined, null, '4', -1, NaN, Infinity, 0, 4]) {
+    const call = { kind: 'generation' }
+    recordLiveGenerationUsage(call, { stopReason: 'length', usage: { input: 5, output: 7, reasoning }, content: 'private fixture text' })
+    assert.deepEqual(call, { kind: 'generation', stopReason: 'length', inputTokens: 5, outputTokens: 7,
+      ...(typeof reasoning === 'number' && Number.isFinite(reasoning) && reasoning >= 0 ? { reasoningTokens: reasoning } : {}) })
+  }
+})
+
+test('child acceptance binds one fresh admission to its exact turn and identity revision', () => {
+  const identity = { id: 'reporter', revision: 'a'.repeat(64) }
+  const before = new Map([['existing', 1]])
+  const prior = { taskId: 'existing', turn: 1, identity }
+  const next = { ...prior, turn: 2 }
+  const admitted = selectLiveChildAdmission(before, [next], identity)
+  assert.equal(admitted.taskId, 'existing'); assert.equal(admitted.turn, 2); assert.equal(admitted.continued, true)
+  assertLiveChildTurn(admitted, next)
+  const temporary = { taskId: 'new', turn: 1, identity: null }
+  assert.equal(selectLiveChildAdmission(before, [prior, temporary], null).continued, false)
+  assert.equal(selectLiveChildAdmission(before, [{ ...temporary, identity }], identity).turn, 1)
+  for (const tasks of [[prior], [{ ...next, turn: 3 }], [{ ...next, turn: 0 }], [{ ...temporary, turn: 2 }],
+    [next, { ...temporary, identity }], [{ ...next, identity: { ...identity, id: 'different' } }],
+    [{ ...next, identity: { ...identity, revision: 'b'.repeat(64) } }], [{ ...next, identity: null }]]) {
+    assert.throws(() => selectLiveChildAdmission(before, tasks, identity), /child|Child/)
+  }
+  assert.throws(() => selectLiveChildAdmission(before, [{ ...temporary, identity }], null), /Child/)
+  for (const changed of [{ ...next, taskId: 'different' }, { ...next, turn: 1 }, { ...next, turn: 3 },
+    { ...next, identity: { ...identity, revision: 'b'.repeat(64) } }, { ...next, identity: null }]) {
+    assert.throws(() => assertLiveChildTurn(admitted, changed), /Child/)
+  }
 })
 
 test('learning comparison does not turn persistence, a tie or three examples into general benefit', () => {
@@ -107,6 +167,25 @@ test('plan inspection needs no credentials, provider, Docker or external request
   assert.deepEqual(JSON.parse(stdout), agentLivePlan)
 })
 
+test('invalid envelope plugin timeouts stop before child initialization or dispatch', { timeout: 15000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'odk-agent-invalid-timeout-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  for (const pluginTimeoutMs of ['invalid', 180001]) {
+    const child = spawn(process.execPath, ['tests/acceptance/agent-runtime-live.mjs'], {
+      cwd: new URL('../', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
+      env: { PATH: process.env.PATH, HOME: root, PI_OFFLINE: '1' },
+    })
+    const exited = once(child, 'exit')
+    t.after(async () => { if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited } })
+    let diagnostics = ''
+    child.stderr.on('data', chunk => { diagnostics += chunk })
+    child.stdin.end(JSON.stringify({ plan: agentLivePlan, pluginTimeoutMs, offlineFixture: true, fixtureDirectory: root }))
+    const [code] = await exited
+    assert.equal(code, 1); assert.match(diagnostics, /Invalid proactive generation timeout/)
+    await assert.rejects(readFile(join(root, 'report.json')), { code: 'ENOENT' })
+  }
+})
+
 async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-live-contract-')))
   const child = spawn(process.execPath, ['tests/acceptance/agent-runtime-live.mjs'], { cwd: new URL('../', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
@@ -124,13 +203,19 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   return { report, code, diagnostics, acceptedExperience }
 }
 
-test('the complete acceptance runner proves its own contract with zero external calls', { timeout: 60000 }, async t => {
-  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t)
+for (const [resources, plan] of [['default', agentLivePlan], ['explicit', createLivePlan({ maxOutputTokens: 16384 })]]) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
+  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
+  assert.equal(report.limits.pluginTimeoutMs, resources === 'explicit' ? 180000 : 90000)
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.equal(report.passed, false, 'a container cannot approve its own source validation')
   assert.equal(report.functionalPassed, true)
+  const restart = report.taskChecks.find(check => check.phase === 'saved-restart')
+  assert.equal(restart.turn, 2); assert.equal(restart.continued, true)
   assert.equal(report.status, 'pending_host_validation')
   assert.equal(finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true }).passed, true)
+  assert.equal(report.truncatedGenerationCalls, report.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length)
+  assert.equal(report.model.pricingKnown, false)
+  assert.equal(report.model.actualCharge, 'not_established')
   assert.equal(report.realModel, false)
   assert.equal(report.realJev, false)
   assert.equal(report.externalRequests, 0)

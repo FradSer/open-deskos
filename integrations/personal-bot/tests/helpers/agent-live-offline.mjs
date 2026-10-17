@@ -4,7 +4,8 @@ import { reportData, reportProcedure } from '../fixtures/agent-learning-reports.
 /** Scripted provider for the acceptance runner's own contract tests, never live quality evidence. */
 export function createOfflineAcceptanceRuntime(phase) {
   return { getAvailable: async () => [fixtureModel], getModel: () => fixtureModel, registerProvider() {},
-    streamSimple: (_model, context) => {
+    streamSimple: (model, context, options) => {
+      if (options.maxTokens > model.maxTokens) throw Error('Acceptance exceeded the model output limit')
       const result = Promise.resolve().then(() => {
         const all = JSON.stringify(context.messages)
         const user = context.messages.findLast(message => message.role === 'user')
@@ -19,7 +20,7 @@ export function createOfflineAcceptanceRuntime(phase) {
           const computed = input.receipts.find(receipt => receipt.kind === 'computation' && receipt.status === 'succeeded'
             && /RESULT=-?\d/.test(receipt.text.split('\nObserved output:\n')[1]?.split('\nDiagnostics (JSON):\n')[0] ?? ''))
           const source = computed ?? input.receipts.find(receipt => receipt.kind !== 'computation' && receipt.status === 'succeeded'
-            && ['agent_package_install', 'agent_identity_save', 'agent_start', 'agent_mcp_call'].includes(receipt.tool))
+            && ['agent_package_install', 'agent_identity_save', 'agent_start', 'agent_input', 'agent_mcp_call'].includes(receipt.tool))
           const completed = source && !input.answer.includes('Procedure unavailable')
           return assistant(JSON.stringify({ status: completed ? 'passed' : 'needs_review', summary: completed ? 'Fixture receipts checked.' : 'Procedure is unavailable.', checks: [{
             requirement: 'Requested fixture outcome', scope: computed ? 'derivation' : source?.admissionOnly ? 'admission' : 'completion', status: completed ? 'passed' : 'needs_review',
@@ -36,7 +37,10 @@ export function createOfflineAcceptanceRuntime(phase) {
             code = 'text(await tools.agent_identity_save({id:"reporter",name:"Reporter",role:"Use the report-helper Skill to analyze reports and return RESULT=<number>.",avatar:"book"}));'
           } else if (!child) {
             const id = phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
-            code = `text(await tools.agent_start({request:${JSON.stringify(`Analyze learning-reports report ${id} and return RESULT=<number>.`)},${id === 'temporary' ? 'role:"Analyze the requested synthetic report."' : 'identityId:"reporter"'}}));`
+            const request = JSON.stringify(`Analyze learning-reports report ${id} and return RESULT=<number>.`)
+            code = phase() === 'saved-restart'
+              ? `const list=await tools.agent_list({});const task=list.value.tasks.find(task=>task.identity?.id==="reporter"&&!['starting','running','cancelling'].includes(task.state));if(!task)throw Error("Saved fixture task unavailable");text(await tools.agent_input({taskId:task.taskId,request:${request}}));`
+              : `text(await tools.agent_start({request:${request},${id === 'temporary' ? 'role:"Analyze the requested synthetic report."' : 'identityId:"reporter"'}}));`
           } else {
             const id = phase().split(':')[0].startsWith('holdout-') ? phase().split(':')[0] : phase() === 'saved-training' ? 'training' : phase() === 'saved-restart' ? 'restart' : 'temporary'
             code = `const e=await tools.experience_list({});if(e.entries.length)text(await tools.experience_read({id:e.entries[0].id}));text(await tools.agent_skill_read({id:"report-helper"}));`

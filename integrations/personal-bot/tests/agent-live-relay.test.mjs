@@ -10,9 +10,9 @@ import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { openLiveHostRelay } from './helpers/agent-live-relay.mjs'
 import { createLivePlan, createLiveRequestBudget, createBudgetedFetch } from './helpers/agent-live-contract.mjs'
 
-test('a reduced live plan cannot expand the authorized request or execution limits', () => {
+test('an explicit live plan retains independent request and execution ceilings', () => {
   assert.equal(createLivePlan({ maxRequests: 78, deadlineMs: 880000 }).maxRequests, 78)
-  for (const maxRequests of [0, 81, 1.5]) assert.throws(() => createLivePlan({ maxRequests }), /limit/)
+  for (const maxRequests of [0, 257, 1.5]) assert.throws(() => createLivePlan({ maxRequests }), /limit/)
   for (const deadlineMs of [0, 900001, 1.5]) assert.throws(() => createLivePlan({ deadlineMs }), /limit/)
 })
 

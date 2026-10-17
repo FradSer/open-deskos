@@ -125,11 +125,53 @@ Feature: Personal Agent owns a bounded plugin runtime
     And a shared request limit stops dependent inference without retry
     And plan inspection makes no external request and reads no credentials
 
+  Scenario: Live custom models use SDK defaults without inventing billing evidence
+    Given a configured custom model omits optional cost rates
+    When the live runner prepares that exact model for the SDK
+    Then synthetic streaming can account for input and output tokens
+    And the provider, model identity, API, endpoint, and explicit behavior remain unchanged
+    And the private host relay preserves that model selection
+    And default zero rates do not establish actual charges or free service
+    And normalization reads no authentication store and makes no network request
+
+  Scenario: Live plugin validation retains the configured bounded timeout
+    Given the default plugin timeout is 90000 milliseconds
+    When the host explicitly configures a valid plugin timeout up to 180000 milliseconds
+    Then the private envelope and isolated Bot use that validated timeout
+    And the report records the effective timeout
+    And invalid timeouts fail before request dispatch
+    And task quality checks and the overall deadline remain unchanged
+
+  Scenario: Live delegation accepts one exact fresh child turn
+    Given a saved child completed an earlier task before restart
+    When the coordinator uses agent_input on that inactive task
+    Then acceptance recognizes the same task handle with exactly one new turn
+    And a new handle must start at turn one
+    And the requested identity and revision stay fixed through the exact completed turn
+    And stale turns, skipped turns, multiple admissions, and different identities fail acceptance
+    And finished state, completion verification, and independent report grading remain required
+
   Scenario: Live generation limits include provider reasoning tokens
-    Given a reasoning model with a larger configured token limit
+    Given a reasoning model with a larger configured token limit and the default live resources
     When the acceptance runner builds a generation request
     Then the final HTTP payload permits at most 2048 total output tokens
     And a sampling override above that limit is refused before dispatch
+
+  Scenario: Explicit live output resources preserve the default and independent bounds
+    Given the default live output limit is 2048 tokens
+    When an operator explicitly selects an output limit up to 16384 tokens
+    Then the plan, model cap, and actual HTTP adapter use that limit
+    And a lower configured model limit reduces both SDK options and the final HTTP allowance
+    And duplicate, invalid, and excessive options are refused
+    And request counts, deadlines, and quality checks remain unchanged
+
+  Scenario: Explicit live request resources retain the default and execution bounds
+    Given the default live request allowance is 80 shared requests
+    When an operator explicitly selects an allowance up to 256 requests
+    Then generation and Jev share that exact allowance
+    And invalid, duplicate, and excessive options fail before dispatch
+    And deadlines, output limits, scenarios, and quality checks remain unchanged
+    And request exhaustion requires a refused dispatch, not only an exactly used allowance
 
   Scenario: A live acceptance retry retains the remaining authorization limits
     Given an authorized attempt used part of the request and execution budget
@@ -153,6 +195,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then it retains only bounded status, count, and evidence-match facts
     And it identifies the configured model used in that attempt
     And it excludes generated text, quoted text, and receipt content
+    And generation diagnostics retain only reported reasoning counts and output truncation counts
     And plugin failures retain only fixed host validation categories
     And tool failures retain only fixed tool identities and error categories
     And report grading retains only a fixed marker category without answer text

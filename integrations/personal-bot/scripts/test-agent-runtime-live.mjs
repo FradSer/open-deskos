@@ -1,15 +1,15 @@
-import { agentLivePlan, createLivePlan, capLiveModelOutput, finalizeAgentAcceptanceFile } from '../tests/helpers/agent-live-contract.mjs'
+import { agentLivePlan, createLivePlan, normalizeLiveModel, finalizeAgentAcceptanceFile } from '../tests/helpers/agent-live-contract.mjs'
+import { generationDeadlineMs } from '../src/proactive-generation-session.mjs'
 import { openLiveHostRelay } from '../tests/helpers/agent-live-relay.mjs'
-import { loadLiveContinuation } from '../tests/helpers/agent-live-continuation.mjs'
 
 const args = process.argv.slice(2)
 if (args.length === 1 && args[0] === '--plan') {
   console.log(JSON.stringify(agentLivePlan))
 } else {
-  if (!args.includes('--live') || args.some(arg => !['--live', '--host-relay', '--task-evaluation'].includes(arg) && !['--output=', '--max-requests=', '--deadline-ms=', '--continue-from='].some(prefix => arg.startsWith(prefix)))
-    || ['--output=', '--max-requests=', '--deadline-ms=', '--continue-from='].some(prefix => args.filter(arg => arg.startsWith(prefix)).length > 1)
+  if (!args.includes('--live') || args.some(arg => !['--live', '--host-relay', '--task-evaluation'].includes(arg) && !['--output=', '--max-requests=', '--max-output-tokens=', '--deadline-ms=', '--continue-from='].some(prefix => arg.startsWith(prefix)))
+    || ['--output=', '--max-requests=', '--max-output-tokens=', '--deadline-ms=', '--continue-from='].some(prefix => args.filter(arg => arg.startsWith(prefix)).length > 1)
     || (args.includes('--task-evaluation') && args.some(arg => arg.startsWith('--continue-from=')))) {
-    throw Error('Usage: node scripts/test-agent-runtime-live.mjs --plan | --live [--output=NEW_DIRECTORY] [--host-relay] [--task-evaluation | --continue-from=EVIDENCE_DIRECTORY] [--max-requests=N] [--deadline-ms=N]')
+    throw Error('Usage: node scripts/test-agent-runtime-live.mjs --plan | --live [--output=NEW_DIRECTORY] [--host-relay] [--task-evaluation | --continue-from=EVIDENCE_DIRECTORY] [--max-requests=N] [--max-output-tokens=N] [--deadline-ms=N]')
   }
   const { spawn, execFileSync } = await import('node:child_process')
   const { createHash } = await import('node:crypto')
@@ -20,10 +20,12 @@ if (args.length === 1 && args[0] === '--plan') {
   let relay
   try {
     const plan = createLivePlan({ maxRequests: Number(args.find(arg => arg.startsWith('--max-requests='))?.slice(15) ?? agentLivePlan.maxRequests),
+      maxOutputTokens: Number(args.find(arg => arg.startsWith('--max-output-tokens='))?.slice('--max-output-tokens='.length) ?? agentLivePlan.maxOutputTokens),
       deadlineMs: Number(args.find(arg => arg.startsWith('--deadline-ms='))?.slice(14) ?? agentLivePlan.deadlineMs) })
+    const pluginTimeoutMs = generationDeadlineMs(process.env.ODK_AGENT_PLUGIN_TIMEOUT_MS)
     const continuationDirectory = args.find(arg => arg.startsWith('--continue-from='))?.slice(16)
     if (continuationDirectory === '') throw Error('Continuation evidence directory is required')
-    const continuation = continuationDirectory ? await loadLiveContinuation(continuationDirectory) : undefined
+    const continuation = continuationDirectory ? await (await import('../tests/helpers/agent-live-continuation.mjs')).loadLiveContinuation(continuationDirectory) : undefined
     const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
     const agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi/agent')
     const settings = JSON.parse(await readFile(join(agentDir, 'settings.json'), 'utf8'))
@@ -35,13 +37,13 @@ if (args.length === 1 && args[0] === '--plan') {
     if (!jevKey) throw Error('TYPESAFE_API_KEY is required for this explicit live run')
     const api = selected.api ?? source.api
     if (!['openai-responses', 'openai-completions', 'anthropic-messages'].includes(api)) throw Error('This verifier requires a fetch-based custom model API')
-    const model = capLiveModelOutput({ ...selected, api, compat: { ...source.compat, ...selected.compat } })
+    const { model, pricingKnown } = await normalizeLiveModel({ modelsPath: join(agentDir, 'models.json'), provider, selected, source, limit: plan.maxOutputTokens })
     const providerConfig = Object.fromEntries(['name', 'baseUrl', 'api', 'headers', 'authHeader'].filter(key => source[key] !== undefined).map(key => [key, source[key]]))
     providerConfig.apiKey = process.env[source.apiKey] || source.apiKey
     if (args.includes('--host-relay')) {
       relay = await openLiveHostRelay(selected.baseUrl ?? source.baseUrl)
       providerConfig.baseUrl = relay.baseUrl
-      if (selected.baseUrl) model.baseUrl = relay.baseUrl
+      model.baseUrl = relay.baseUrl
       providerConfig.headers = { ...providerConfig.headers, ...relay.headers }
     }
     const requested = args.find(arg => arg.startsWith('--output='))?.slice(9)
@@ -70,7 +72,7 @@ if (args.length === 1 && args[0] === '--plan') {
       return result
     }
     const fingerprints = await fingerprint()
-    const envelope = { provider, providerConfig, model, jevKey, plan, fingerprints, continuation, taskEvaluation: args.includes('--task-evaluation'), hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
+    const envelope = { provider, providerConfig, model, pricingKnown, jevKey, plan, pluginTimeoutMs, fingerprints, continuation, taskEvaluation: args.includes('--task-evaluation'), hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
       candidate: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }
     const container = `odk-agent-live-${process.pid}-${createHash('sha256').update(output).digest('hex').slice(0, 12)}`
     console.log(JSON.stringify({ evidence: output, container, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs, transport: envelope.transport }))

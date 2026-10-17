@@ -4,27 +4,29 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { generationDeadlineMs } from '../../src/proactive-generation-session.mjs'
 import { createPersonalBot } from '../../src/agent.mjs'
 import { createJevIntentRouter } from '../../src/intent-routing.mjs'
 import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
 import { reportScore, reportData, reportSkill } from '../fixtures/agent-learning-reports.mjs'
-import { capLiveModelOutput, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
+import { capLiveModelOutput, createLivePlan, recordLiveGenerationUsage, selectLiveChildAdmission, assertLiveChildTurn, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
 let input = ''
 for await (const chunk of process.stdin) { input += chunk; if (Buffer.byteLength(input) > 262144) throw Error('Live configuration exceeds its limit') }
 const credentials = JSON.parse(input)
 input = ''
-const { plan } = credentials
+const plan = createLivePlan(credentials.plan)
+const pluginTimeoutMs = generationDeadlineMs(credentials.pluginTimeoutMs)
 const offline = credentials.offlineFixture === true
 const fixture = offline ? await import('../helpers/agent-live-offline.mjs') : undefined
 const budget = createLiveRequestBudget(plan.maxRequests)
 const report = { candidate: credentials.candidate, fingerprints: credentials.fingerprints, startedAt: new Date().toISOString(),
-  model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api },
+  model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api, pricingKnown: credentials.pricingKnown === true, actualCharge: 'not_established' },
   fixtureProtocol: 'shared_method_supplied_data_v2',
-  limits: { maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
+  limits: { pluginTimeoutMs, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
   platform: process.platform, arch: process.arch, syntheticData: true, realModel: false, realJev: false, offlineFixture: offline,
   productionWrites: false, physicalCapture: false, renderedUI: false, calls: budget.calls, scenarios: [], pairs: [], routes: [], taskChecks: [], pluginChecks: [], toolChecks: [],
   coverage: credentials.continuation ? 'isolated_continuation' : credentials.taskEvaluation ? 'task_evaluation' : 'full',
@@ -37,7 +39,7 @@ const retrieved = new Set()
 const base = offline ? credentials.fixtureDirectory : '/tmp/agent-runtime-live', candidates = join(base, 'candidates')
 process.env.PI_CODING_AGENT_DIR = join(base, 'agent-settings')
 const plugins = ['experience', 'completion', 'learning', 'catalog', 'mcp', 'subagents']
-const env = { ODK_AGENT_PACKAGE_CANDIDATES: candidates, TYPESAFE_API_KEY: credentials.jevKey }
+const env = { ODK_AGENT_PLUGIN_TIMEOUT_MS: String(pluginTimeoutMs), ODK_AGENT_PACKAGE_CANDIDATES: candidates, TYPESAFE_API_KEY: credentials.jevKey }
 const manifest = { schemaVersion: 1, kind: 'mcp', id: 'learning-reports', name: 'Synthetic report connector', transport: {
   type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../fixtures/agent-learning-server.mjs', import.meta.url))],
 } }
@@ -78,11 +80,13 @@ async function newBot(stateDir, extra = {}) {
           if (offline) calls.push(budget.reserve('generation', phase))
           recordReceipts(context)
           const judgment = pluginInput(context), callPhase = phase
-          const stream = target.streamSimple(capLiveModelOutput(model, plan.maxOutputTokens), context, { ...options, maxTokens: plan.maxOutputTokens, maxRetries: 0,
-            fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: plan.maxOutputTokens, onCall: call => calls.push(call) }) })
+          const effectiveModel = capLiveModelOutput(model, plan.maxOutputTokens)
+          const effectiveMaxTokens = effectiveModel.maxTokens
+          const stream = target.streamSimple(effectiveModel, context, { ...options, maxTokens: effectiveMaxTokens, maxRetries: 0,
+            fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: effectiveMaxTokens, onCall: call => calls.push(call) }) })
           void stream.result().then(message => {
             const call = calls.at(-1)
-            if (call) { call.stopReason = message.stopReason; call.inputTokens = message.usage?.input; call.outputTokens = message.usage?.output }
+            recordLiveGenerationUsage(call, message)
             if (judgment) {
               try { report.pluginChecks.push({ phase: callPhase, ...pluginEvidenceMetadata(judgment, message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) }) }
               catch { report.pluginChecks.push({ phase: callPhase, diagnosticUnavailable: true }) }
@@ -119,14 +123,17 @@ async function newBot(stateDir, extra = {}) {
 }
 async function close(bot) { await bot.close(); bots.delete(bot) }
 async function delegated(bot, text, id, saved, fixtureAdmission = false) {
-  const before = new Set(bot.agentTasks.list().tasks.map(task => task.taskId))
+  const identity = saved ? bot.agentTasks.identities().find(identity => identity.id === 'reporter') : null
+  assert(!saved || identity, 'Requested saved identity is unavailable')
+  const before = new Map(bot.agentTasks.list().tasks.map(task => [task.taskId, task.turn]))
   if (fixtureAdmission) bot.agentTasks.start({ request: text, ...(saved ? { identityId: 'reporter' } : { role: 'Analyze the supplied synthetic report through its applicable procedure.' }) })
   else await bot.prompt(text)
-  const tasks = bot.agentTasks.list().tasks.filter(task => !before.has(task.taskId))
+  const tasks = bot.agentTasks.list().tasks.filter(task => !before.has(task.taskId) || before.get(task.taskId) !== task.turn)
   report.taskChecks.push({ phase, admissions: tasks.length, fixtureAdmission, coordinatorInference: !fixtureAdmission })
-  assert.equal(tasks.length, 1, 'Exactly one child admission is required')
-  const task = await bot.agentTasks.wait(tasks[0].taskId)
-  Object.assign(report.taskChecks.at(-1), { state: task.state, verification: task.verification.status, learning: task.learning, score: reportScore(id, task.response) })
+  const admission = selectLiveChildAdmission(before, tasks, identity)
+  const task = await bot.agentTasks.wait(admission.taskId)
+  assertLiveChildTurn(admission, task)
+  Object.assign(report.taskChecks.at(-1), { turn: task.turn, continued: admission.continued, state: task.state, verification: task.verification.status, learning: task.learning, score: reportScore(id, task.response) })
   assert.equal(task.identity?.id ?? null, saved ? 'reporter' : null)
   assert.equal(task.state, 'finished')
   assert.equal(task.verification.status, 'passed')
@@ -248,7 +255,7 @@ try {
   report.passed = true
 } catch (error) {
   report.passed = false
-  report.failure = { phase, reason: budget.calls.length >= plan.maxRequests ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven' }
+  report.failure = { phase, reason: budget.exhausted ? 'request_limit' : controller.signal.aborted ? 'deadline' : 'acceptance_not_proven' }
   if (offline) report.failure.fixtureError = String(error.message)
   process.exitCode = 1
 } finally {
@@ -259,6 +266,7 @@ try {
   if (!report.cleanupPassed) { report.passed = false; process.exitCode = 1 }
   report.completedAt = new Date().toISOString()
   report.externalRequests = offline ? 0 : budget.calls.length
+  report.truncatedGenerationCalls = budget.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length
   report.realModel = !offline && budget.calls.some(call => call.kind === 'generation')
   report.realJev = !offline && budget.calls.some(call => call.kind === 'jev')
   report.functionalPassed = report.passed === true
