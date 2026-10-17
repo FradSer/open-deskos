@@ -77,6 +77,13 @@ Feature: Immutable runtime release deployment
     And release commands use the candidate as ODK_RUNTIME_ROOT
     And preflight never reads ambient copies outside the candidate
 
+  Scenario: Complete preflight has a separate aggregate command budget
+    Given the complete reference CM5 test command previously passed in 3051 seconds
+    When the updater runs all preflight checks before activation
+    Then the aggregate command has a 3600-second limit
+    And post-activation verification keeps its 60-second limit and single attempt
+    And individual test and smoke deadlines remain unchanged
+
   Scenario: A stalled verifier cannot retain the update lock
     Given a candidate verifier and its child ignore SIGTERM
     When the command deadline expires

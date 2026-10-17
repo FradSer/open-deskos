@@ -9,6 +9,10 @@ const {
   validateRuntimeComposition,
 } = require('./lib/runtime-release')
 
+// docs/PLUGIN_COVERAGE.md records a complete reference CM5 test pass in 3051 seconds.
+// Bound the full test/style/smoke aggregate separately from each individual watchdog.
+const PREFLIGHT_TIMEOUT_SECONDS = 3600
+
 function requiredEnv(name) {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is required`)
@@ -163,7 +167,7 @@ function main() {
       const composition = validateRuntimeComposition(releasePath)
       if (!composition.ok) return composition
       const preflight = preflightRelease(releasePath, {
-        run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk, 900),
+        run: (target) => runReleaseCommand(target, ['pnpm', 'preflight'], kiosk, PREFLIGHT_TIMEOUT_SECONDS),
       })
       return preflight.ok ? sealRelease(releasePath) : preflight
     },
