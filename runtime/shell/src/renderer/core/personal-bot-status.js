@@ -80,6 +80,76 @@
     node.addEventListener('click', callback)
     return node
   }
+  function rideDetails(article, proposal) {
+    const preview = proposal.ridePreview
+    if (!preview || typeof preview !== 'object') return
+    const panel = document.createElement('section')
+    panel.className = 'personal-bot-ride-details'
+    panel.id = `ride-details-${proposal.id}`
+    panel.setAttribute('aria-label', 'Ride details')
+    panel.hidden = true
+    const opening = button('View ride details', () => {
+      panel.hidden = !panel.hidden
+      opening.setAttribute('aria-expanded', String(!panel.hidden))
+    })
+    opening.setAttribute('aria-expanded', 'false')
+    opening.setAttribute('aria-controls', panel.id)
+    const note = document.createElement('p')
+    const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
+    note.textContent = current() ? `Estimate observed ${preview.measuredAt}. Expires ${new Date(preview.expiresAt).toISOString()}. Planned pickup; current location is not verified. This preview has not placed an order.` : 'Ride preview is expired or needs a location. Ask the Agent to search again. This preview has not placed an order.'
+    panel.append(note)
+    if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = '沙箱测试，不代表真实车辆或真实行程'; panel.append(sandbox) }
+    for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
+      const line = document.createElement('p')
+      line.textContent = `${String(item.productName ?? '').slice(0, 256)}: ${String(item.priceText ?? '').slice(0, 256)}`
+      panel.append(line)
+    }
+    const selectors = []
+    for (const [key, caption] of [['from', 'Pickup'], ['to', 'Destination']]) {
+      const label = document.createElement('label')
+      label.textContent = caption
+      const select = document.createElement('select')
+      select.setAttribute('aria-label', caption)
+      const choices = Array.isArray(preview[key]) ? preview[key].slice(0, 8) : []
+      const blank = document.createElement('option')
+      blank.value = ''; blank.textContent = `Choose ${caption.toLowerCase()}`
+      select.append(blank)
+      for (const place of choices) {
+        const option = document.createElement('option')
+        option.value = typeof place.handle === 'string' ? place.handle : ''
+        option.textContent = `${String(place.name ?? '').slice(0, 256)} — ${String(place.city ?? '').slice(0, 80)} ${String(place.address ?? '').slice(0, 256)}`
+        select.append(option)
+      }
+      select.value = choices.length === 1 ? choices[0].handle : ''
+      label.append(select); panel.append(label); selectors.push(select)
+    }
+    if (current()) panel.append(button('Get current quote', async function () {
+      const handles = [preview.handle, ...selectors.map(select => select.value)]
+      if (!current() || !handles.every(value => typeof value === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(value)) || !selectors.every((select, index) => preview[index === 0 ? 'from' : 'to'].some(p => p.handle === select.value))) {
+        note.textContent = 'Choose both actual places. If the preview expired, ask the Agent to search again.'
+        return
+      }
+      for (const control of [...selectors, quoteButton]) control.disabled = true
+      try {
+        const receipt = await window.odkPersonalBot.sendText(`查看报价 ${handles.join(' ')}`)
+        if (!receipt?.accepted) throw Error('Unavailable')
+      } catch {
+        note.textContent = 'Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.'
+      }
+    }))
+    const quoteButton = panel.children[panel.children.length - 1]
+    if (typeof preview.handle === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(preview.handle) && ['pending', 'expired'].includes(proposal.status)) {
+      const refresh = button('Refresh preview', async () => {
+        refresh.disabled = true
+        try {
+          const receipt = await window.odkPersonalBot.sendText(`刷新行程 ${preview.handle}`)
+          if (!receipt?.accepted) throw Error('Unavailable')
+        } catch { note.textContent = 'Preview refresh delivery is uncertain. Check the Agent conversation before trying again.' }
+      })
+      panel.append(refresh)
+    }
+    article.append(opening, panel)
+  }
   function renderProposals(status) {
     if (!Array.isArray(status.proposals)) return
     if (!proposals) {
@@ -126,6 +196,7 @@
           next.textContent = `Next: ${p.action.tool} ${JSON.stringify(p.action.params ?? {})}. Confirmation: ${p.confirmation}`
           article.append(next)
         }
+        if (p.ridePreview) rideDetails(article, p)
         if (p.result) {
           const result = document.createElement('p')
           result.textContent = p.result

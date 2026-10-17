@@ -50,6 +50,7 @@ export async function loadPersonalConfig(env = process.env) {
     const value = JSON.parse(readLocalFile(env.ODK_PERSONAL_BOT_CONFIG, 16384));
     if (!objectWithKeys(value, ['profile', 'skillPaths', 'memoryFile', 'didi', 'browser', 'capabilities', 'agentPlugins']) || !['coding', 'personal'].includes(value.profile)) throw new Error();
     const agentPlugins = value.agentPlugins === undefined ? undefined : validateAgentPlugins(value.agentPlugins);
+    if (value.profile !== 'personal' && agentPlugins?.enabled.includes('intent')) throw new Error();
     const skillPaths = value.skillPaths ?? [];
     if (!Array.isArray(skillPaths) || skillPaths.length > 32 || new Set(skillPaths).size !== skillPaths.length || !skillPaths.every((path) => isLocalAbsolutePath(path) && extname(path) === '.md')) throw new Error();
     if (value.profile === 'personal' && !isLocalAbsolutePath(value.memoryFile)) throw new Error();

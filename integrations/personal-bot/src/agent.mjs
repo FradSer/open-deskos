@@ -1,3 +1,7 @@
+import { createIntentStore, createIntentRuntime } from './intents.mjs'
+import { createIntentJudge } from './intent-jev.mjs'
+import { createIntentTools } from './intent-tools.mjs'
+import { odkDataRequest } from './odk-data.mjs'
 import { resolveHomeTemplate, homeTemplateVariables } from './home-template.mjs'
 import { generateWithinDeadline } from './proactive-generation-session.mjs'
 import { homeInstructions, validateHomeBriefing } from './home-briefing.mjs'
@@ -80,11 +84,12 @@ export function agentOptions(cwd, stateDir, customTools, profile = 'coding', set
   }
 }
 
-export async function createPersonalBot(config, { createSession = createDurableAgentSession, createRuntime = options => ModelRuntime.create(options), createIntentRouter = createJevIntentRouter } = {}) {
+export async function createPersonalBot(config, { createSession = createDurableAgentSession, createRuntime = options => ModelRuntime.create(options), createIntentRouter = createJevIntentRouter, createIntentJudgment = createIntentJudge } = {}) {
   const signal = config.signal
   signal?.throwIfAborted()
   const profile = config.personal?.profile || 'coding'
   const personal = profile === 'personal'
+  if (!personal && config.personal?.agentPlugins?.enabled.includes('intent')) throw Error('Intent plugin requires the personal profile')
   const declarations = normalizeCapabilityDeclarations(config.personal ?? { profile })
   // A child has already passed the parent's admission boundary. Only the host
   // composition selects this mode; no child text can create a routing client.
@@ -133,6 +138,11 @@ export async function createPersonalBot(config, { createSession = createDurableA
     signal?.throwIfAborted()
     const skillPaths = personal ? [...new Set([...(reviewed?.skillPaths ?? []), ...(config.personal.skillPaths ?? [])])] : []
     let currentTurn = ''
+    const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env }) : undefined
+    const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
+      memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
+      read: async (id, signal) => (await odkDataRequest('read', { id, signal, env: config.env ?? process.env })).reading,
+      judge: intentJudgment.condition, previewRide: (route, signal, valid) => reviewed.previewRide(route, signal, valid) }) : undefined
     /** @type {NonNullable<import('@earendil-works/pi-coding-agent').CreateAgentSessionOptions['customTools']>} */
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths)
     signal?.throwIfAborted()
@@ -149,7 +159,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
           onRideUpdate: undefined, onAgentUpdate: undefined, getWatch: undefined,
           personal: { ...config.personal, memoryFile: personal ? join(spec.home, 'notes.json') : undefined, didi: undefined, browser: undefined,
             ...(personal ? { capabilities: childCapabilityDeclarations(declarations) } : {}),
-            agentPlugins: { ...config.personal.agentPlugins, enabled: config.personal.agentPlugins.enabled.filter(id => id !== 'subagents') } },
+            agentPlugins: { ...config.personal.agentPlugins, enabled: config.personal.agentPlugins.enabled.filter(id => !['subagents', 'intent'].includes(id)) } },
         }, { createSession, createRuntime: async () => modelRuntime, createIntentRouter }),
       })
       customTools.push(...createAgentTaskTools(tasks))
@@ -167,7 +177,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
       }
     }
     const actionTools = [...customTools]
-    if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn))
+    if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
+    if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
     const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent),
       capabilities: () => customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
       extensionTools: () => customTools.filter(tool => isExtensionTool(tool) || tool.name.startsWith('agent_mcp_')).map(tool => ({ name: tool.name,
@@ -238,6 +249,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     })
     return { ...adapter,
       agentTasks: tasks,
+      intents,
       rideStatus: () => reviewed?.rideStatus(),
       get lastTaskResult() { return structuredClone(lastTaskResult) },
       generationModel: session.model ? `${session.model.provider}/${session.model.id}` : config.model ?? 'default',

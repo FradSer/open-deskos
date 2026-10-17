@@ -57,7 +57,7 @@ The runtime supplies notes and a bounded experience index as untrusted model con
 `experience_read` retrieves full entries; `experience_list` searches entries omitted from the index.
 Neither memory form establishes current evidence or authorization.
 
-The fixed plugin identities are `experience`, `completion`, `learning`, `catalog`, `mcp`, and `subagents`.
+The fixed plugin identities are `experience`, `completion`, `learning`, `catalog`, `mcp`, `subagents`, and `intent`.
 These identities implement memory retrieval, completion harness checks, procedural learning, packages, connectors, and child execution.
 They are DeskOS modules, not native Pi plugin packages.
 `learning` requires `completion`; `mcp` requires `catalog`.

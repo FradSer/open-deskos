@@ -14,7 +14,7 @@ const DESCRIPTORS = Object.freeze({
   didi: Object.freeze({
     intent: 'ride', toolPrefixes: ['didi_'], childAllowed: false,
     criteria: 'DiDi ride planning, current quote/order query, or an actual subsequent ride confirmation/cancellation.',
-    workflow: 'Read the reviewed DiDi skill and follow its current quote and exact subsequent-confirmation transaction rules. Never retry an unknown order outcome.',
+    workflow: 'Read the reviewed DiDi skill and follow its current quote and exact subsequent-confirmation transaction rules. For a displayed ride preview, use didi_estimate_preview with its exact handle and the endpoint handles explicitly selected by the owner. Do not choose among multiple candidates for the owner. An owner request 刷新行程 followed by its displayed handle is a read-only saved preview refresh. If a displayed handle expired or was lost after restart, call personal_bot_ride_preview with that old handle once to refresh saved details. New search results require a fresh owner endpoint selection; never reuse or map old handles. Always obtain a fresh interactive quote; the background preview grants no confirmation. Never retry an unknown order outcome.',
     skillPath: skillPath('didi'),
     validate(value, context) {
       if (!objectWithKeys(value, ['environment', 'keyFile']) || !['sandbox', 'production'].includes(value.environment) || !localPath(value.keyFile)) throw invalid();
@@ -25,6 +25,7 @@ const DESCRIPTORS = Object.freeze({
       const controller = await createDidiController({ keyFile: declaration.keyFile, sandbox: declaration.environment === 'sandbox',
         stateFile: join(stateDir, 'personal', declaration.environment, 'rides.json'), onUpdate: onRideUpdate });
       return { tools: createDidiTools(controller), beginTurn: text => controller.beginTurn(text),
+        previewRide: (route, signal, valid) => controller.previewRide(route, signal, valid),
         close: () => controller.close(), rideStatus: () => controller.snapshot() };
     },
   }),
@@ -103,6 +104,7 @@ export async function createReviewedCapabilities({ declarations = {}, stateDir, 
     skillPaths: active.map(({ id }) => DESCRIPTORS[id].skillPath),
     beginTurn: text => { for (const { runtime } of active) runtime.beginTurn(text); },
     close,
+    previewRide: (route, signal, valid) => { const didi = active.find(({ id }) => id === 'didi'); if (!didi) throw Error('Reviewed ride capability not enabled'); return didi.runtime.previewRide(route, signal, valid); },
     rideStatus: () => active.find(({ id }) => id === 'didi')?.runtime.rideStatus?.(),
   };
 }

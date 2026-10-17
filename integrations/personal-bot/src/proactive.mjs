@@ -1,3 +1,4 @@
+import { isIntentRuleId } from './intents.mjs'
 import { randomUUID } from 'node:crypto'
 import { rename, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -99,8 +100,9 @@ function localTime(now, zone) {
 
 /** Jev judges relevance; code owns observations, delivery and explicit actions. */
 export class ProactiveWatch {
-  constructor({ config, read, publish, save, phrase, execute, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
+  constructor({ config, intents = undefined, read, publish, save, phrase, execute, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
     this.config = validateOwnerConfig(config)
+    this.intents = intents
     this.read = read
     this.publish = publish
     this.save = save
@@ -114,10 +116,19 @@ export class ProactiveWatch {
     this.codingList = codingList
     this.now = now
     this.saveState = saveState
-    this.proposals = structuredClone(loadState().proposals)
+    const restored = loadState()
+    this.hasIntentState = Boolean(intents || restored.intentClaims)
+    this.intentClaims = structuredClone(restored.intentClaims ?? [])
+    this.intentWatermarks = structuredClone(restored.intentWatermarks ?? {})
+    this.intentArchive = structuredClone(restored.intentArchive ?? { count: 0, byStatus: {} })
+    for (const claim of this.intentClaims) {
+      if (['checking', 'preparing'].includes(claim.status)) claim.status = 'interrupted'
+      else if (claim.status === 'ready') claim.status = 'expired'
+    }
+    this.proposals = structuredClone(restored.proposals)
     for (const p of this.proposals) {
       if (p.status === 'executing') { p.status = 'unknown'; p.result = '服务中断，执行结果未确认；请通过原工具核实，不要重复执行。' }
-      const rule = this.config.rules.find(r => r.id === p.ruleId)
+      const rule = this.rules().find(r => r.id === p.ruleId)
       if (pending(p) && (p.ruleVersion !== JSON.stringify(rule) || !this.authorizedAction(p, rule))) p.status = 'expired'
       if (pending(p) && !p.judgment) p.status = 'expired'
       if (pending(p) && !p.presented && rule?.delivery === 'immediate') p.offered = false
@@ -141,7 +152,8 @@ export class ProactiveWatch {
     this.failedJudgments = new Set()
     this.seenTurns = new Map()
   }
-  persist() { this.saveState({ version: 1, proposals: structuredClone(this.proposals) }) }
+  rules() { return [...this.config.rules, ...(this.intents?.rules() ?? [])] }
+  persist() { this.saveState({ version: 1, proposals: structuredClone(this.proposals), ...(this.hasIntentState ? { intentClaims: structuredClone(this.intentClaims), intentWatermarks: structuredClone(this.intentWatermarks), intentArchive: structuredClone(this.intentArchive) } : {}) }) }
   start() {
     if (this.started || this.closed) return
     this.started = true
@@ -177,7 +189,7 @@ export class ProactiveWatch {
     return true
   }
   selectedSources() {
-    return new Set(this.config.rules.flatMap(rule => rule.coding ? [`pi-tasks.${rule.coding.target}`] : (rule.observations ?? rule.conditions).map(c => c.readingId)))
+    return new Set([...(this.intents?.sources() ?? []), ...this.rules().flatMap(rule => rule.coding ? [`pi-tasks.${rule.coding.target}`] : (rule.observations ?? rule.conditions).map(c => c.readingId))])
   }
   schedulePush() {
     if (this.closed || this.pushTimer) return
@@ -197,6 +209,7 @@ export class ProactiveWatch {
     return q.start < q.end ? time >= q.start && time < q.end : time >= q.start || time < q.end
   }
   fresh(p) {
+    if (isIntentRuleId(p.ruleId) && !this.intents?.valid(p)) return false
     return p.evidence.every(e => e.state === 'live' && Number.isFinite(Date.parse(e.measuredAt)) && this.now() >= Date.parse(e.measuredAt) && this.now() - Date.parse(e.measuredAt) <= this.config.maxAgeMs)
   }
   list() {
@@ -205,7 +218,7 @@ export class ProactiveWatch {
   }
   async presented(ids) {
     const displayed = this.proposals.filter(p => ids.includes(p.id) && pending(p) && p.offered && !p.presented)
-    const routine = displayed.filter(p => this.config.rules.find(r => r.id === p.ruleId)?.delivery === 'routine')
+    const routine = displayed.filter(p => this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine')
     for (const p of displayed) p.presented = true
     try { this.persist() } catch { this.emit(); return }
     if (routine.length) {
@@ -225,6 +238,7 @@ export class ProactiveWatch {
     if (this.closed) return
     this.list()
     const eligible = this.busy || this.storageFailure || this.judgmentError ? [] : this.proposals.filter(p => pending(p) && ((this.revealAll && this.recoverable(p)) || (!p.offered && this.deliverable(p, interaction)) || (interaction && p.offered && !p.presented && this.recoverable(p))))
+    if (interaction && this.revealAll && !this.busy && !this.storageFailure && !this.judgmentError) eligible.push(...this.proposals.filter(p => p.status === 'expired' && p.ridePreview?.handle))
     const priority = p => pending(p) ? (p.offered ? 1 : 0) : 2
     const display = []
     for (const p of this.list().sort((a, b) => priority(a) - priority(b))) {
@@ -234,7 +248,7 @@ export class ProactiveWatch {
     const popup = !this.busy && eligible.some(p => display.some(d => d.id === p.id))
     if (popup) for (const p of eligible) if (display.some(d => d.id === p.id)) {
       p.offered = true
-      if (this.config.rules.find(r => r.id === p.ruleId)?.delivery === 'routine') p.routineDay = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC').date
+      if (this.rules().find(r => r.id === p.ruleId)?.delivery === 'routine') p.routineDay = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC').date
     }
     try { this.persist() } catch {
       this.storageFailure = true
@@ -246,12 +260,13 @@ export class ProactiveWatch {
   }
   interact(revealAll = false) { this.revealAll ||= revealAll; this.emit(true) }
   recoverable(p) {
-    const rule = this.config.rules.find(r => r.id === p.ruleId)
+    const rule = this.rules().find(r => r.id === p.ruleId)
     const clock = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC')
     return rule && !this.config.suppressed.includes(rule.id) && (rule.delivery !== 'routine' || (clock.time >= rule.at && this.config.routineDays[rule.id] !== clock.date))
   }
   authorizedAction(p, rule) {
     if (!rule) return false
+    if (rule.intentRevision) return p.action === null
     if (this.config.version === 2) return p.action === null
     if (!rule.coding) return JSON.stringify(p.action ?? null) === JSON.stringify(rule.action ?? null)
     const params = p.action?.params
@@ -262,7 +277,7 @@ export class ProactiveWatch {
       Object.keys(params).every(key => ['target', 'project', 'taskId'].includes(key))
   }
   deliverable(p, interaction = false) {
-    const rule = this.config.rules.find(r => r.id === p.ruleId)
+    const rule = this.rules().find(r => r.id === p.ruleId)
     if (!rule || this.config.suppressed.includes(rule.id)) return false
     if (rule.delivery === 'routine') {
       const clock = localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC')
@@ -274,6 +289,7 @@ export class ProactiveWatch {
     return true
   }
   async evidence(rule, enforceCriteria = false) {
+    if (rule.intentRevision) return this.intents?.evidence(rule.id) ?? null
     if (rule.observations) {
       const evidence = []
       for (const o of rule.observations) {
@@ -374,6 +390,9 @@ export class ProactiveWatch {
     return this.inflight
   }
   async pollRules(trigger) {
+    await this.intents?.prepare(this)
+    if (this.closed || this.responding) return
+    if (this.config.version === 1 && this.intents) await pollGenerated(this, trigger, { now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'), quiet: this.quiet(), busy: this.busy }, this.intents.rules())
     if (this.config.version === 2) return pollGenerated(this, trigger, { now: new Date(this.now()).toISOString(), local: localTime(this.now(), this.config.quietHours?.timeZone ?? 'UTC'), quiet: this.quiet(), busy: this.busy })
     const revision = this.revision
     const candidates = []
@@ -467,6 +486,12 @@ export class ProactiveWatch {
     this.responding = true
     try {
       if (['ignore', 'mute'].includes(decision)) {
+        if (isIntentRuleId(p.ruleId)) {
+          if (decision === 'mute') this.intents.mute(p.ruleId)
+          for (const related of this.proposals) if (related.ruleId === p.ruleId && pending(related)) related.status = 'ignored'
+          this.persist()
+          return structuredClone(p)
+        }
         const next = structuredClone(this.config)
         if (decision === 'mute') next.suppressed = [...new Set([...next.suppressed, p.ruleId])]
         next.snoozed[p.ruleId] = this.now() + next.cooldownMs
@@ -477,7 +502,7 @@ export class ProactiveWatch {
       } else if (decision === 'accept') {
         if (!p.presented) throw Error('Proposal must be presented before confirmation')
         if (!p.action || confirmation !== p.confirmation) throw Error('Exact confirmation required')
-        const rule = this.config.rules.find(r => r.id === p.ruleId)
+        const rule = this.rules().find(r => r.id === p.ruleId)
         if (!this.authorizedAction(p, rule)) { p.status = 'expired'; throw Error('Proposal action no longer authorized') }
         const expectedConfirmation = p.action.tool === 'memory_update' ? `记住 ${p.action.params.category}：${p.action.params.value}` : `确认执行 ${p.id}`
         if (confirmation !== expectedConfirmation) throw Error('Exact owner action confirmation required')

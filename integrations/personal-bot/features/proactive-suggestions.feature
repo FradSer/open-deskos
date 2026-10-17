@@ -239,3 +239,68 @@ Feature: Owner controlled proactive Personal Bot proposals
     When one source pushes while another topic is generating or being judged
     Then only candidates depending on the changed source are discarded
     And unchanged topics can finish their judgment and delivery
+
+  Scenario: Conversational Intent conditions precede ride discovery
+    Given the owner saves a natural language daily Intent through a Jev-routed turn
+    When the existing heartbeat enters its local time window
+    Then Jev checks the condition against relevant Memory and fresh observations before MCP discovery
+    And unknown conditions cause no ride search or estimate
+    And a missed window does not trigger late catch-up
+
+  Scenario: Intent revisions reserve discovery and invalidate stale results
+    Given a private proposal checkpoint claims an Intent occurrence before discovery
+    When the service restarts or another heartbeat occurs on the same local day
+    Then it does not repeat discovery or popup
+    And editing or muting the Intent invalidates late responses
+    And failed occurrences remain queryable without replay
+
+  Scenario: Ride details cannot authorize a paid order
+    Given real MCP search candidates and a current estimate
+    When the owner opens the ride suggestion
+    Then the view shows actual candidates and quote expiry without ordering
+    And ambiguous places require an explicit owner choice
+    And continuing enters the Jev-routed ride workflow with reviewed handles
+    And only a later exact owner confirmation can submit an order
+
+  Scenario: Intent windows and history remain safe across days
+    Given a daily Intent window crosses local midnight
+    When a heartbeat occurs inside that window
+    Then its occurrence belongs to the preceding local date
+    And bounded old history archives outcome counts without blocking new days
+    And a persisted date watermark prevents clock rollback from replaying archived discovery
+
+  Scenario: Real context updates invalidate Intent work
+    Given an enabled Intent selects a real desk observation
+    When the existing service push reports that observation changed
+    Then the Watch accepts that source identifier and rejects its older condition or preview result
+    And a newer context can receive a new condition judgment before any discovery started
+
+  Scenario: Unchanged Intent context does not repeat paid condition judgments
+    Given a negative or unknown condition judgment with unchanged selected Memory and source values
+    When another heartbeat observes that same context
+    Then it reuses the bounded private judgment checkpoint
+    And a relevant context change permits a fresh judgment
+    And a context-only Intent has at most one clock-driven recheck each hour
+
+  Scenario: Relevant Memory changes the real ride discovery
+    Given an owner Intent references named company, gym, and city notes
+    When those actual notes supply different gym values on different occurrences
+    Then the real MCP search receives the corresponding current note value
+    And changing a relevant note rejects older preview handles and late quotes
+    And an explicitly named owner route overrides conflicting older notes
+    And saved places never establish the owner's current location
+
+  Scenario: The owner refreshes restored ride details without replaying a scheduled offer
+    Given a restart expired a saved ride preview and its volatile handles
+    When the owner explicitly reads suggestions and selects Refresh preview
+    Then the request enters the normal Jev-routed owner text channel
+    And current unchanged Intent data supplies a fresh read-only MCP search
+    And new place handles require a new owner selection
+    And manual reading works after the daily offer window without adding an occurrence or automatic popup
+    And changed or muted Intents cannot restore old handles or order confirmation
+
+  Scenario: The Intent plugin requires the personal profile
+    Given the coding profile has no private owner Memory
+    When its configuration selects the fixed Intent plugin
+    Then configuration and runtime creation reject that unsupported combination
+    And no provider or background Intent work starts

@@ -22,6 +22,7 @@ export function createDidiTools(controller) {
   /** @type {Array<[string,string,string,string,import('typebox').TSchema]>} */
   const specs = [
     ['didi_search','搜索地点','使用城市和关键词获取真实地点坐标。不得编造起点。','search',Type.Object({keywords:Type.String(),city:Type.String()})],
+    ['didi_estimate_preview','继续建议行程','用已展示的预览和用户明确选择的起终点handle重新报价；不下单。不得更改地点、从多个候选中代替用户选择或使用过期/已改版建议。','estimatePreview',Type.Object({handle:Type.String(),from:Type.String(),to:Type.String()})],
     ['didi_estimate','打车估价','用本次搜索的起终点名称及字符串坐标估价。','estimate',route],
     ['didi_propose','确认车型','选择报价中的车型，向用户完整展示路线、预估价和精确确认口令，等待下一轮用户回复。','propose',Type.Object({productCategory:Type.String()})],
     ['didi_submit','确认下单','仅在用户下一轮完整回复确认口令后尝试一次下单；结果不明不得重试。','submit',empty],

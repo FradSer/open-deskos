@@ -251,3 +251,9 @@
 .personal-bot-proposals button:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .personal-bot-proposals button:disabled { color: var(--odk-secondary-strong); }
 #personal-bot-status[data-suggestions='true'] .personal-bot-proposals { display: grid; gap: var(--odk-space-3); }
+
+.personal-bot-ride-details { display: grid; gap: 12px; }
+.personal-bot-ride-details[hidden] { display: none; }
+.personal-bot-ride-details label { display: grid; gap: 8px; font-size: 14px; color: var(--odk-secondary-strong); }
+.personal-bot-ride-details select { min-height: 44px; width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); border-radius: 8px; }
+.personal-bot-ride-details select:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
