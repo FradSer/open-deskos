@@ -32,6 +32,8 @@
       let revision = 0
       let turn = null
       const seenNotifications = new Set()
+      const remoteMessages = new Map()
+      let remoteCoverage
       const children = new Map()
       let lastStatus = 'unknown'
       let pending = false
@@ -91,11 +93,41 @@
         }
         for (const [id, row] of children) if (!active.has(id)) { row.remove(); children.delete(id) }
       }
+      function renderRemote(frame) {
+        if (!frame || frame.state === 'disabled') return
+        for (const item of [...(frame.messages ?? [])].reverse()) {
+          if (remoteMessages.has(item.id)) continue
+          const body = message('assistant', item.text)
+          remoteMessages.set(item.id, body.closest('article'))
+          while(remoteMessages.size>64) { const first=remoteMessages.keys().next().value;remoteMessages.get(first)?.remove();remoteMessages.delete(first) }
+          const details = document.createElement('details')
+          const title = document.createElement('summary')
+          title.textContent = 'Pi sources · reported, not independently verified'
+          details.append(title)
+          for (const source of item.sources ?? []) {
+            const line = document.createElement('p')
+            line.textContent = `${source.machine} · ${source.sessionId} · ${source.project} · ${source.control === 'configured' ? 'Configured control target' : 'Report only'} · ${source.availability} · bounded history`
+            details.append(line)
+          }
+          if (item.omittedSources) { const note=document.createElement('p');note.textContent=`${item.omittedSources} source references omitted from this frame. Ask for remote Pi updates to inspect them.`;details.append(note) }
+          body.append(details)
+        }
+        if (!remoteCoverage) {
+          remoteCoverage = document.createElement('p')
+          remoteCoverage.className = 'agent-status-detail'
+          remoteCoverage.setAttribute('role', 'status')
+          conversation.append(remoteCoverage)
+        }
+        const historyOmitted=Math.max(0,(frame.total || 0)-(frame.messages?.length || 0))
+        remoteCoverage.textContent = !historyOmitted && !frame.expiredMessages && frame.state === 'live' && !frame.hasMore && !frame.omitted && !frame.heldCount ? ''
+          : `Remote Pi updates: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired. Ask for remote Pi updates to inspect history.`
+      }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
         renderAgents(status.agents)
+        renderRemote(status.remote)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
         const newTurn = status.transcript && (!turn || status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking'))
         if (newTurn) turn = { prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }

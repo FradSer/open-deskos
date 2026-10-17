@@ -37,7 +37,7 @@ export function createAgentPluginRuntime({ store, config, infer }) {
   async function observe(name, execute, durable = false) {
     const owner = turn
     const receipt = { id: `tool-${(owner?.receipts.length ?? 0) + 1}`, tool: name, status: 'running', text: '', truncated: false,
-      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input'].includes(name), learningEligible: name !== 'coding_task_verify' }
+      admissionOnly: ['coding_task_start', 'coding_task_prompt', 'agent_start', 'agent_input', 'remote_pi_followup'].includes(name), learningEligible: !['coding_task_verify','remote_pi_updates','remote_pi_followup'].includes(name) }
     // Reserve before awaiting; custom and inspection calls share one inventory.
     if (owner && !owner.finished && owner.receipts.length < 64) owner.receipts.push(receipt)
     else if (owner) owner.overflow = true

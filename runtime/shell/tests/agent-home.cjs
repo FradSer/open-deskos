@@ -75,6 +75,30 @@ async function assertNotificationMessagesAreIndependent() {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'replayed notification events do not duplicate messages')
 }
 
+async function assertRemoteConversationHistory() {
+  const remote={state:'partial',messages:[{id:'synthetic-remote-update',text:'A remote Pi reports a conclusion. <img src=x onerror=alert(1)>',sources:[{machine:'synthetic-Mac',sessionId:'synthetic-session',project:'/synthetic/project',revision:'a'.repeat(64),control:'report_only',availability:'unavailable'}]}],omitted:8,heldCount:0,hasMore:true}
+  const frame={state:'idle',transcript:'Question 中文',message:'Final response',remote}
+  win.webContents.send('odk-personal-bot-status',frame)
+  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  win.webContents.send('odk-personal-bot-status',frame)
+  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  const observed=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message-assistant')],remote=all.filter(node=>node.textContent.includes('A remote Pi reports'));return {count:remote.length,text:remote[0]?.textContent,images:remote[0]?.querySelectorAll('img').length,details:remote[0]?.querySelector('details')?.textContent,coverage:document.querySelector('.agent-conversation > .agent-status-detail')?.textContent}})()`)
+  assert.equal(observed.count,1,'replayed retained frames do not duplicate the same conversation synthesis')
+  assert.equal(observed.images,0,'remote text is never HTML')
+  assert.match(observed.details,/synthetic-Mac.*synthetic-session.*Report only/)
+  assert.match(observed.coverage,/partial.*8 sources/)
+  for(const theme of ['instrument','pixel','border-beam']) {
+    await evaluate(`window.odkTheme.set(${JSON.stringify(theme)})`)
+    for(const [width,height] of [[960,640],[320,480]]) {
+      await resize(width,height)
+      const geometry=await evaluate(`(()=>{const region=document.querySelector('.agent-conversation'),summary=region.querySelector('details > summary');return {width:region.clientWidth,overflow:region.scrollWidth-region.clientWidth,touch:summary.getBoundingClientRect().height,font:parseFloat(getComputedStyle(summary).fontSize),composer:document.querySelector('.agent-composer').getBoundingClientRect().bottom}})()`)
+      assert.ok(geometry.overflow<=1,JSON.stringify(geometry));assert.ok(geometry.touch>=44,JSON.stringify(geometry));assert.ok(geometry.font>=14,JSON.stringify(geometry));assert.ok(geometry.composer<=height,JSON.stringify(geometry))
+    }
+  }
+  await resize(1920,1280)
+}
+
+
 app.whenReady().then(async () => {
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
     webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true,
@@ -154,6 +178,7 @@ app.whenReady().then(async () => {
     win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
     await evaluate(`new Promise(r => setTimeout(r, 30))`)
     await assertNotificationMessagesAreIndependent()
+    await assertRemoteConversationHistory()
     console.log('PASS Personal Agent keeps each reply and notification separate with a 20px gap')
     finish(0)
     return
@@ -378,6 +403,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('.agent-message-assistant .agent-message-body').textContent.includes('Final response')`), true)
   assert.equal(await evaluate(`document.querySelector('.agent-message-bubble') === window.agentStreamBubble && document.querySelector('.agent-message-assistant .agent-message-body') === window.agentStreamBody && getComputedStyle(window.agentStreamBubble).backgroundColor !== 'rgba(0, 0, 0, 0)'`), true, 'streaming and reconnect retain the same message background and body')
   await assertNotificationMessagesAreIndependent()
+  await assertRemoteConversationHistory()
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')

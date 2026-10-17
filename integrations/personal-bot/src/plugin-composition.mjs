@@ -62,7 +62,7 @@ export function loadPersonalBotManagementModules(base = import.meta.url) {
   }
 }
 
-function loadShellModule(name, base) {
+export function loadShellModule(name, base = import.meta.url) {
   const candidates = [`../../../runtime/shell/src/${name}`, `../../../src/${name}`]
     .map(relative => fileURLToPath(new URL(relative, base)))
   const source = candidates.find(candidate => existsSync(candidate))

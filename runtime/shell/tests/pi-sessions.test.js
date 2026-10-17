@@ -985,3 +985,12 @@ test('scanPiSessions carries no session events so the scan stays lightweight', a
   assert.equal(result.sessions.every((session) => session.events === undefined), true)
   fs.rmSync(agentDir, { recursive: true, force: true })
 })
+
+test('readSessionEvents retains bounded assistant identity and stop reason for conclusion selection',()=>{
+ const agentDir=fs.mkdtempSync(path.join(os.tmpdir(),'odk-conclusion-events-')),cwd='/synthetic/project',sessionId='11111111-1111-4111-8111-111111111111'
+ try {
+  writeSessionLog(agentDir,cwd,sessionId,[JSON.stringify({type:'message',id:'finished-entry',message:{role:'assistant',stopReason:'stop',content:[{type:'text',text:'Reported conclusion'}]}}),JSON.stringify({type:'message',id:'working-entry',message:{role:'assistant',stopReason:'toolUse',content:[{type:'text',text:'I will run another tool'},{type:'toolCall',id:'one',name:'read',arguments:{path:'synthetic'}}]}})])
+  const events=readSessionEvents({agentDir,cwd,sessionId}).events.filter(event=>event.kind==='assistant')
+  assert.equal(events[0].eventId,'finished-entry');assert.equal(events[0].stopReason,'stop');assert.equal(events[1].stopReason,'toolUse')
+ }finally{fs.rmSync(agentDir,{recursive:true,force:true})}
+})

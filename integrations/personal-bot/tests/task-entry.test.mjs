@@ -163,3 +163,36 @@ test('CLI shutdown during service initialization cleans the late service without
   client?.destroy()
   assert.equal(client, undefined, 'a stopped daemon must not accept clients')
 })
+
+test('resident unit passes the canonical local task configuration to the actual helper', { skip: process.platform === 'win32' ? 'Unix service fixture' : false }, async t => {
+  const paths = await host(t)
+  const canonical = join(paths.dir, '.config/odk/pi-tasks.json')
+  await mkdir(join(paths.dir, '.config/odk'), {recursive:true,mode:0o700})
+  await writeFile(canonical, await readFile(paths.config), {mode:0o600})
+  const unit = await readFile(join(integration, 'systemd/odk-personal-bot.service'), 'utf8')
+  const configured = /^Environment=ODK_TASK_CONFIG=(.+)$/m.exec(unit)?.[1]?.replace('%h', paths.dir)
+  const daemon = start(paths.entry, {...paths,config:canonical});t.after(()=>daemon.kill())
+  let connection
+  for(let n=0;n<200 && !connection && daemon.exitCode===null;n++) {connection=await connector(paths.socket);if(!connection)await new Promise(resolve=>setTimeout(resolve,25))}
+  assert(connection);connection.destroy()
+  const child = spawn(process.execPath,[join(integration,'src/task-cli.mjs')], {env:{PATH:process.env.PATH,HOME:paths.dir,...(configured?{ODK_TASK_CONFIG:configured}:{})},stdio:['pipe','pipe','pipe']})
+  let output='';child.stdout.on('data',chunk=>{output+=chunk});child.stdin.end(JSON.stringify({version:1,requestId:'resident-local-list',command:'list'})+'\n')
+  const exit=await new Promise(resolve=>child.once('exit',resolve))
+  assert.equal(exit,0,'the resident helper must inherit the same canonical config as the daemon')
+  assert.equal(JSON.parse(output).ok,true)
+})
+
+test('the installed local helper has its own canonical configuration and stable release path', { skip: process.platform === 'win32' ? 'Unix executable helper fixture' : false }, async t => {
+ const paths=await host(t)
+ const template=await readFile(join(integration,'systemd/pi-task-control.sh'),'utf8')
+ const helper=join(paths.dir,'control')
+ await writeFile(helper,template.replaceAll('__ODK_TASK_CONFIG__',paths.config).replaceAll('__ODK_NODE_BIN__',process.execPath.slice(0,process.execPath.lastIndexOf('/'))).replaceAll('__ODK_PERSONAL_BOT_DIR__',join(paths.dir,'current')),{mode:0o700})
+ const daemon=start(paths.entry,paths);t.after(()=>daemon.kill())
+ let connection
+ for(let n=0;n<200 && !connection && daemon.exitCode===null;n++) {connection=await connector(paths.socket);if(!connection)await new Promise(resolve=>setTimeout(resolve,25))}
+ assert(connection);connection.destroy()
+ const child=spawn(helper,[],{env:{PATH:process.env.PATH,HOME:paths.dir},stdio:['pipe','pipe','pipe']})
+ let output='';child.stdout.on('data',chunk=>output+=chunk);child.stdin.end(JSON.stringify({version:1,requestId:'self-configured-helper',command:'list'})+'\n')
+ assert.equal(await new Promise(resolve=>child.once('exit',resolve)),0)
+ assert.equal(JSON.parse(output).ok,true)
+})

@@ -296,8 +296,9 @@ Private memory files, credentials, and live readings are excluded.
 
 | Intent | Allowed workflow |
 | --- | --- |
-| `session_continue` | Resolve identity and prompt the existing session |
-| `task_query` | Read targets, list, status, and history |
+| `session_continue` | Resolve the exact existing session or retained remote source reference, then prompt it |
+| `task_query` | Read targets, session status, history, and retained remote Pi conclusions |
+| `intent_manage` | Create, edit, mute, or read owner-authored natural-language Intents; a wish does not authorize an order |
 | `session_control` | Cancel a turn or end a resolved session |
 | `coding_work` | Start work on an explicit configured target/project |
 | `agent_work` | Admit or continue a general DeskOS child task |
@@ -894,3 +895,62 @@ Home content cannot accept proposals or execute actions.
 Run `node --test tests/home-briefing.test.mjs` for generation and transport contracts.
 Run the Shell's `tests/agent-home.cjs` for isolated renderer fixtures.
 Fixture results do not establish live-model quality or CM5 and Windows device acceptance.
+
+## Remote Pi conversation
+
+`agentPlugins.enabled` can include the fixed `remote_conversation` identity.
+This identity requires `completion` and runs only in the resident parent.
+It does not load native Pi plugins or grant task control.
+
+The parent reads all connected reporting-machine and session identities through bounded Link pages.
+Reporting-machine identity remains separate from configured control targets.
+An assistant event is a reported conclusion; activity and tool results are not conclusions.
+Missing conclusions remain unavailable.
+Cached event tails remain bounded history, including after a reconnect.
+
+An operator can bind one read-only SSH collector with `ODK_PI_SSH_MACHINE`.
+This value must match the reporting-machine name.
+The existing SSH host, Node path, and collector path remain operator configuration.
+The collector accepts its exact executable paths and one `--events=<UUID>` argument through `SSH_ORIGINAL_COMMAND`.
+It resolves the session and project from its own process inventory.
+Reporting text cannot select an SSH host, file, or command.
+
+Each synthesis uses an ephemeral provider session without tools, Skills, extensions, or memory.
+The existing completion verifier checks the synthesis against its supplied receipts.
+This check does not verify remote execution, calculations, tests, or task completion.
+Reports and summaries remain untrusted conversation data.
+They cannot create owner requests or authorize actions.
+
+The private `personal-agent/remote-conversation.json` checkpoint retains source revisions, attempted revisions, pagination, and cited conversation messages.
+The service restores these messages into the existing Agent conversation and its current model context.
+It retains at most 64 messages and 8,192 source watermarks within a 2 MiB checkpoint.
+Byte limits can expire superseded history.
+A complete inventory can also permit expiry of disconnected-source history.
+Incomplete inventories never permit that expiry.
+Current source references and all watermarks remain retained.
+Capacity exhaustion with only current sources remains partial or held for review.
+The history reports expired-message counts.
+A separate bounded remote frame exposes omitted history and source counts without consuming the owner reply frame budget.
+`remote_pi_updates` reads further history or one exact source reference.
+Failed synthesis holds that revision for review; pushes do not silently retry it.
+
+The resident checks updates after existing Pi reading pushes and at an idle 60-second cadence.
+Each collection reads at most four pages, with four sources per page.
+A changed batch contains at most seven sources and 128 KiB of input.
+Each source read has a 30-second deadline.
+Partial inventory and unavailable sources remain visible; they do not prove that no task exists.
+
+An owner follow-up still enters Jev first.
+`remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
+It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
+Report-only sources refuse control.
+The host checks current task state before sending.
+Hosted endpoints also reject a changed task revision before admission.
+Native current-session endpoints retain their existing non-atomic status check and unknown-delivery semantics.
+Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
+Follow-up receipts prove admission only and cannot train learned experience.
+
+The CM5 installer maintains `~/.local/bin/odesk-pi-task-control` from the reviewed helper template.
+The helper follows `RUNTIME_ROOT/current` and defaults to `~/.config/odk/pi-tasks.json`.
+An explicit `ODK_TASK_CONFIG` overrides that default.
+The Bot unit supplies the same default before operator EnvironmentFiles.

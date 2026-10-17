@@ -32,11 +32,13 @@ const MAX_QUEUED_BYTES = 2 * MAX_FRAME_BYTES
 const sentStatuses = new WeakMap()
 const sentFrames = new WeakMap()
 const sentBriefings = new WeakMap()
+const sentRemoteFrames = new WeakMap()
 
 export function statusFrames(status) {
-  const { briefing, ...voice } = status
+  const { briefing, remote, ...voice } = status
   const frames = [`${JSON.stringify(voice)}\n`]
   if (briefing) frames.push(`${JSON.stringify({ v: 1, type: 'briefing', briefing })}\n`)
+  if (remote) frames.push(`${JSON.stringify({v:1,type:'remote_conversation',remote})}\n`)
   if (frames.some(frame => Buffer.byteLength(frame) > MAX_FRAME_BYTES)) throw Error('Status frame too large')
   return frames
 }
@@ -291,8 +293,9 @@ function send(client, status) {
     && Object.entries(status).every(([key, value]) => Object.hasOwn(previous, key) && (key === 'level' || previous[key] === value))) return
   let frames
   try { frames = statusFrames(status) } catch { client.destroy(); return }
-  const home = frames[1]
-  if (home && sentBriefings.get(client) === home) frames.pop()
+  const home = status.briefing ? frames[1] : undefined
+  const remote = status.remote ? frames.at(-1) : undefined
+  frames=frames.filter((frame,index)=>index===0 || frame===home && sentBriefings.get(client)!==home || frame===remote && sentRemoteFrames.get(client)!==remote)
   const frame = frames.join('')
   // Open DeskOS Data pushes can echo the current snapshot while the reader is busy.
   // Only byte-identical snapshots are redundant; popup/error/content changes send.
@@ -303,5 +306,6 @@ function send(client, status) {
     sentStatuses.set(client, status)
     sentFrames.set(client, frame)
     if (home) sentBriefings.set(client, home)
+    if (remote) sentRemoteFrames.set(client, remote)
   }
 }

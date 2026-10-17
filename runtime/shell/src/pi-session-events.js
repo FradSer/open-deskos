@@ -36,6 +36,12 @@ function bodyText(value, maxBytes) {
   return { text: bytes.subarray(0, end).toString('utf8'), truncated: true }
 }
 
+function assistantMetadata(event) {
+  if(event.kind!=='assistant')return {}
+  return {...(typeof event.eventId==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(event.eventId)?{eventId:event.eventId}:{}),
+    ...(['stop','toolUse','length','error','aborted'].includes(event.stopReason)?{stopReason:event.stopReason}:{})}
+}
+
 function boundedEvent(event) {
   if (!event || typeof event !== 'object' || !EVENT_KINDS.has(event.kind)) return null
   const body = bodyText(event.text, BODY_BYTES[event.kind])
@@ -44,6 +50,7 @@ function boundedEvent(event) {
   return {
     kind: event.kind,
     ...body,
+    ...assistantMetadata(event),
     ...(toolName ? { toolName } : {}),
     ...boundedToolFields(event),
     ...(event.truncated === true ? { truncated: true } : {}),
@@ -68,7 +75,7 @@ function retainEvents(events, maxEvents = MAX_EVENTS) {
   let bytes = 0
   for (let index = events.length - 1; index >= 0 && retained.length < maxEvents; index -= 1) {
     const event = events[index]
-    const size = Buffer.byteLength(event.text) + Buffer.byteLength(event.toolName || '')
+    const size = Buffer.byteLength(event.text) + Buffer.byteLength(event.toolName || '') + Buffer.byteLength(event.eventId || '') + Buffer.byteLength(event.stopReason || '')
     if (bytes + size > MAX_SESSION_EVENT_BYTES) break
     retained.push(event)
     bytes += size
@@ -77,7 +84,7 @@ function retainEvents(events, maxEvents = MAX_EVENTS) {
 }
 
 module.exports = {
-  boundedEvent, retainEvents, summaryText,
+  boundedEvent, retainEvents, summaryText, assistantMetadata,
   MAX_EVENTS, MAX_RESULT_BYTES, MAX_MESSAGE_BYTES, MAX_USER_BYTES, MAX_THINKING_BYTES, MAX_TOOL_BYTES,
   MAX_SESSION_EVENT_BYTES, BODY_BYTES,
 }

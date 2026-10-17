@@ -106,6 +106,8 @@ A `sensitive` value is a credential or credential path. Keep it in a mode-`0600`
 | `ODK_MODEL_MIGRATION_LIBRARY` | L3 device | SSD migration script | runtime/shell/scripts/cm5-migrate-models-to-ssd.sh | — | Migration library path. |
 | `ODK_MODEL_SSD_MOUNT` | L3 device | SSD migration script | runtime/shell/scripts/cm5-migrate-models-to-ssd.sh | — | SSD mount point. |
 | `ODK_MODEL_SSD_ROOT` | L3 device | SSD migration script | runtime/shell/scripts/cm5-migrate-models-to-ssd.sh | — | Model storage root on the SSD. |
+| `SSH_ORIGINAL_COMMAND` | L3 host | SSH forced command | runtime/shell/scripts/pi-sessions-snapshot.js | — | SSH supplies the original command. The collector accepts only its fixed snapshot or exact-session request. |
+| `ODK_PI_SSH_MACHINE` | L3 device | runtime.env | runtime/shell/src/pi-session-backfill.js | — | Explicit reporting-machine binding for the configured read-only conclusion collector. |
 | `ODK_PI_SSH_COLLECTOR` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Absolute collector path on the remote host. |
 | `ODK_PI_SSH_HOST` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Remote Pi collection host. |
 | `ODK_PI_SSH_NODE` | L3 device | shell drop-in | runtime/shell/src/pi-sessions-source.js | — | Absolute Node path on the remote host. |
@@ -154,8 +156,9 @@ Duplicate declarations fail, including duplicates across legacy and canonical fi
 The `coding` profile rejects capability declarations.
 Configuration cannot select arbitrary factories or native Pi plugins.
 
-`agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, and `subagents` identities.
-`learning` requires `completion`; `mcp` requires `catalog`.
+`agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, `subagents`, and `remote_conversation` identities.
+`learning` and `remote_conversation` require `completion`; `mcp` requires `catalog`.
+The [remote conversation contract](../../../integrations/personal-bot/docs/CONTRACT.md#remote-pi-conversation) owns collection, history, and follow-up limits.
 These selections identify reviewed DeskOS modules, not arbitrary Pi packages.
 Runtime Skills and declarative MCP packages retain their catalog and workflow limits.
 Repository `.agents/skills/` files guide coding agents and grant no resident authority.

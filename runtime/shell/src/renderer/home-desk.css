@@ -94,6 +94,9 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-message-bubble { width: fit-content; min-width: 0; max-width: 96%; padding: 16px 20px; background: var(--odk-surface); border-radius: 28px; }
 .agent-message-body { white-space: pre-wrap; }
 .agent-message-body p { margin: 0 0 12px; }
+.agent-message-body details { white-space: normal; overflow-wrap: anywhere; }
+.agent-message-body details > summary { min-height: 44px; display: flex; align-items: center; color: var(--odk-secondary-strong); cursor: pointer; font-size: 14px; }
+.agent-message-body details > summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 .agent-message-body > :last-child { margin-bottom: 0; }
 .agent-message-body pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .agent-message-body a { color: var(--odk-primary); text-decoration: underline; }

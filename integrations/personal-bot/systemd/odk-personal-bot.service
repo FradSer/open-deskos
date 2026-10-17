@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=__ODK_PERSONAL_BOT_DIR__
+Environment=ODK_TASK_CONFIG=%h/.config/odk/pi-tasks.json
 # Legacy configuration is read first during upgrades; canonical settings win.
 EnvironmentFile=-%h/.config/odk/voice-agent.env
 EnvironmentFile=-%h/.config/odk/personal-bot.env

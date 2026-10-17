@@ -216,7 +216,9 @@ test('escaped terminal responses fit complete receipts and survive restart witho
     assert.ok(Buffer.byteLength(record.response) <= 16 * 1024)
     const restarted = await createTaskService(f.config, { runTask: async () => ({ text: 'next', stopReason: 'stop' }) })
     try {
-      assert.deepEqual((await restarted.handle(request('status', { taskId: req.taskId }))).task, record)
+      const {revision,...restored}=(await restarted.handle(request('status', { taskId: req.taskId }))).task
+      assert.deepEqual(restored, record)
+      assert.equal(revision,createHash('sha256').update(JSON.stringify(record)).digest('hex'))
       assert.equal((await restarted.handle(start(f.root))).ok, true)
     } finally {
       await restarted.close()
@@ -1055,4 +1057,17 @@ test('atomic task records remain readable after replacement on the current host'
   await atomicRecord(file, { identity: 'same-task', state: 'pending' })
   await atomicRecord(file, { identity: 'same-task', state: 'settled' })
   assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { identity: 'same-task', state: 'settled' })
+})
+
+test('a remote follow-up refuses a stale Hosted Pi turn before admitting a mutation', async t => {
+  const f=await fixture(t), adapter=persistentAdapter();await f.service.close()
+  const service=await createTaskService({...f.config,idleMs:60000},adapter);t.after(()=>service.close())
+  const initial=start(f.root);await service.handle(initial)
+  while(!adapter.sessions[0]?.isStreaming)await new Promise(resolve=>setImmediate(resolve))
+  adapter.sessions[0].release();const original=await waitState(service,initial.taskId,'settled')
+  assert.equal((await service.handle(request('prompt',{taskId:initial.taskId,project:f.root,mutationId:randomUUID(),prompt:'new owner turn'}))).ok,true)
+  await waitState(service,initial.taskId,'settled')
+  const before=adapter.sessions[0].prompts.length
+  const stale=await service.handle(request('prompt',{taskId:initial.taskId,project:f.root,mutationId:randomUUID(),prompt:'late follow-up',expectedRevision:original.revision}))
+  assert.equal(stale.ok,false);assert.match(stale.error,/Task revision/);assert.equal(adapter.sessions[0].prompts.length,before)
 })
