@@ -318,3 +318,18 @@ test('actual working turns still announce initial and subsequent completions for
   }
  }
 })
+
+
+test('an unconsumed terminal notice requires the same execution identity across metadata updates',async t=>{
+ const oldId='e311a280-c0b9-4411-96cd-4e1e92385351',newId='e311a280-c0b9-4411-96cd-4e1e92385352'
+ for(const change of [{lastTurnId:undefined},{lastTurnId:oldId},{turnOutcome:'failed'},{turnOutcome:'cancelled'},{lifecycle:'launching',state:'running',activity:undefined}]){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'silent',urgent:false,advice:'View result.',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'running',lifecycle:'launching',lastTurnId:oldId,updatedAt:time}
+  const f=fixture({config:c,codingStatus:async()=>task});t.after(()=>f.watch.close());f.watch.observeTask('mac',task)
+  task={...task,state:'settled',lifecycle:'live',activity:'idle',turnOutcome:'finished',lastTurnId:newId}
+  const identity={target:'mac',project:task.project,taskId:task.taskId}
+  assert.ok(await f.watch.codingEvidence(c.rules[0],identity))
+  task={...task,...change}
+  assert.equal(await f.watch.codingEvidence(c.rules[0],identity),null,JSON.stringify(change))
+ }
+})

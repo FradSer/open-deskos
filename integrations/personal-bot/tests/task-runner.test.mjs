@@ -1174,9 +1174,9 @@ test('actual launch and restored fast turns notify once without observing workin
   const adapter = { createSession: async () => ({
    ...(restored ? { sessionFile:f.sessionFile } : {}), prompt:async()=>({text:'same result',stopReason:'stop'}), dispose(){}, abort:async()=>{}
   }) }; let service = await createTaskService(f.config,adapter); t.after(()=>service.close())
-  let clock=Date.now()
+  let clock=Date.now(),failJudgment=false
   const config={version:1,pollMs:60000,maxAgeMs:86400000,cooldownMs:3600000,quietHours:{start:'22:00',end:'08:00',timeZone:'UTC'},rules:[{id:'coding-complete',delivery:'immediate',urgent:true,advice:'View the completed turn.',coding:{target:'cm5',project:f.root}}],suppressed:[],snoozed:{}}
-  const options={judge:fixtureJudge,config,now:()=>clock,read:async()=>null,publish(){},save:async()=>{},phrase:async()=> 'View the completed turn.',codingList:async()=>(await service.handle(request('list'))).tasks,codingStatus:async identity=>(await service.handle(request('status',{taskId:identity.taskId}))).task}
+  const options={judge:async input=>{if(failJudgment)throw Error('synthetic judgment unavailable');return fixtureJudge(input)},config,now:()=>clock,read:async()=>null,publish(){},save:async()=>{},phrase:async()=> 'View the completed turn.',codingList:async()=>(await service.handle(request('list'))).tasks,codingStatus:async identity=>(await service.handle(request('status',{taskId:identity.taskId}))).task}
   const watch=new ProactiveWatch(options);t.after(()=>watch.close())
   const accepted=await service.handle(restored ? request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'new owner instruction',mutationId:randomUUID()}) : start(f.root))
   assert.equal(accepted.ok,true,accepted.error);assert.equal(accepted.task.lifecycle,'launching')
@@ -1184,7 +1184,10 @@ test('actual launch and restored fast turns notify once without observing workin
   if(ingress==='event')watch.observeTask('cm5',accepted.task)
   else { const status=watch.codingStatus;watch.codingStatus=async()=>accepted.task;await watch.tick();watch.codingStatus=status }
   const done=await waitState(service,accepted.task.taskId,'settled')
-  if(terminal==='ended')assert.equal((await service.handle(request('end',{taskId:done.taskId,mutationId:randomUUID()}))).ok,true)
+  if(terminal==='ended'){
+   clock=Date.now();failJudgment=true;await watch.tick();assert.deepEqual(watch.list(),[]);failJudgment=false
+   assert.equal((await service.handle(request('end',{taskId:done.taskId,mutationId:randomUUID()}))).ok,true)
+  }
   if(terminal==='host_restart'){await service.close();service=await createTaskService(f.config,adapter);assert.equal((await service.handle(request('status',{taskId:done.taskId}))).task.endedReason,'host_restart')}
   clock=Date.now()
   await watch.tick();assert.equal(watch.list().length,1,`${restored}:${ingress}`)

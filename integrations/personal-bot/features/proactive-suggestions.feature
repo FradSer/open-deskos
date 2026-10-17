@@ -319,3 +319,4 @@ Feature: Owner controlled proactive Personal Bot proposals
     And restoration without a new turn cannot announce the preserved result
     And reading historical completion identities does not create a notice
     And ending or restarting the host preserves a completed new turn identity
+    And metadata changes retain an unconsumed notice for that same terminal turn

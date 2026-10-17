@@ -355,7 +355,10 @@ export class ProactiveWatch {
       (task.lifecycle === 'interrupted' && typeof task.lastTurnId === 'string'))
     const newTerminalTurn = previous?.launchBaseline !== undefined && typeof task.lastTurnId === 'string' && task.lastTurnId !== previous.launchBaseline
     const finishedPending = finished && (!task.lastTurnId || task.lastTurnId !== previous?.deliveredTurnId) &&
-      (previous?.working || newTerminalTurn || (previous?.finishedPending && previous.updatedAt === task.updatedAt))
+      (previous?.working || newTerminalTurn || (previous?.finishedPending &&
+        (task.lastTurnId !== undefined || previous.lastTurnId !== undefined
+          ? typeof task.lastTurnId === 'string' && previous.lastTurnId === task.lastTurnId
+          : previous.updatedAt === task.updatedAt)))
     this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending,
       ...(task.lifecycle === 'launching' ? { launchBaseline: previous?.launchBaseline ?? task.lastTurnId ?? null } : {}),
       lastTurnId: task.lastTurnId, deliveredTurnId: previous?.deliveredTurnId,
