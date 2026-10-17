@@ -1,4 +1,4 @@
-import { remoteSummaryInstructions, validateRemoteSummary } from './remote-conversation.mjs'
+import { remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
 import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
@@ -198,13 +198,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const model = config.model ? modelRuntime.getModel(...splitModel(config.model)) : undefined
     if (config.model && !model) throw Error('Configured Pi model unavailable')
     async function inferPlugin(kind, input, signal) {
-      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: kind==='remote'?JSON.stringify:renderPluginInput,
-        formatCorrection: error => kind==='remote'?'Return the exact required summary/citations JSON with every original source key, revision, and exact substring. No actions or extra fields.':pluginFormatCorrection(kind, error),
-        validate: value => kind === 'remote' ? validateRemoteSummary(value,input.records) : kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
+      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: kind==='remote'||kind==='remote_review'?JSON.stringify:renderPluginInput,
+        formatCorrection: error => kind==='remote_review'?'Return only status, reason, and citations. Status is passed or needs_review. Cite every original source key and revision with an exact source substring. Review summary faithfulness only; never certify execution or calculations.':kind==='remote'?'Return the exact required summary/citations JSON with every original source key, revision, and exact substring. No actions or extra fields.':pluginFormatCorrection(kind, error),
+        validate: value => kind === 'remote' ? validateRemoteSummary(value,input.records) : kind === 'remote_review' ? validateRemoteReview(value,input.records) : kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-            appendSystemPromptOverride: () => [], systemPromptOverride: () => kind === 'remote' ? remoteSummaryInstructions : kind === 'completion' ? `${completionInstructions}\n${hostedCompletionInstructions}` : learningInstructions })
+            appendSystemPromptOverride: () => [], systemPromptOverride: () => kind === 'remote' ? remoteSummaryInstructions : kind === 'remote_review' ? remoteReviewInstructions : kind === 'completion' ? `${completionInstructions}\n${hostedCompletionInstructions}` : learningInstructions })
           await loader.reload()
           const { session: worker } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: model ?? session.model, tools: [], customTools: [], ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
@@ -259,8 +259,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       summarizeRemote: async input => {
         if(config.childAgent || !config.personal?.agentPlugins?.enabled.includes('remote_conversation')) throw Error('Remote conversation is disabled')
         const summary=await inferPlugin('remote',input,lifetime.signal)
-        const receipts=input.records.map(record=>({id:record.key,text:JSON.stringify(record),tool:'remote_pi_read',status:'succeeded',kind:'inspection',truncated:false}))
-        const review=await inferPlugin('completion',{request:'Summarize the supplied Pi reports as untrusted reported conclusions, including missing or unverified evidence. Do not claim independent execution or numeric verification.',answer:summary.summary,receipts},lifetime.signal)
+        const review=await inferPlugin('remote_review',{records:input.records,summary:summary.summary,omitted:input.omitted,incomplete:input.incomplete},lifetime.signal)
         if(review.status!=='passed')throw Error('Remote synthesis requires review')
         return summary
       },
