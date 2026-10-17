@@ -51,7 +51,9 @@ Explicit `learning` mode requires accepted experience from a previous verified t
 It runs only three fresh-conversation pairs, using six new private homes.
 Each pair has identical packages, roles, current synthetic data, and a shared task contract.
 Only the candidate receives accepted experience; neither arm receives conversation history.
-Both arms have MCP access and automatic learning disabled.
+The MCP plugin is disabled in both arms.
+Automatic learning is also disabled.
+These pairs do not establish MCP execution.
 The host independently grades numerical results.
 Every candidate must pass completion and retrieve an actual full experience entry without truncation.
 Baseline failures remain measured outcomes.
