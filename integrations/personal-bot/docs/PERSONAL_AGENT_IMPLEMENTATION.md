@@ -4,7 +4,7 @@ The current runtime integration candidate defines implemented behavior.
 The [unified architecture](UNIFIED_ARCHITECTURE.md) owns the five-layer model and authority boundaries.
 This ledger distinguishes previous checks, live results, and work that remains unverified.
 This work includes reviewed commits, pull requests, and merges into `main`.
-It does not include production deployment or activation.
+Production deployment and physical acceptance require separate host evidence.
 
 ## Implemented scope
 
@@ -18,39 +18,15 @@ It does not include production deployment or activation.
 | Completion harness | Zero-tool receipt checks; derived answers retain actual computation evidence | Model judgments do not replace independent grading |
 | Automatic procedural learning | Validated private lessons; three later synthetic cases improve with accepted experience | General learning benefit remains unestablished |
 | Temporary children | Separate Durable sessions and homes; controlled live execution passes | Broader live workloads |
-| Saved identities | Revision checks, persistent homes, and one active task per identity; controlled live restart passes | Original natural-language connector restart retains review |
+| Saved identities | Revision checks, persistent homes, and one active task per identity; controlled live restart passes | Broader live workloads and physical interaction |
 | Conversation avatars | Bounded activity through service, client, Main, preload, and renderer | Physical-input acceptance |
 | Reviewed capabilities | Canonical registry and isolated browser lifecycle; all seven browser command kinds run on CM5 | Live model-driven browser tasks |
 
-## Worktree ownership
+## Integrated pull requests
 
-- `feat/personal-agent-runtime` owns the integrated resident candidate and conversation surface.
-- `feat/personal-agent-catalog` owns declarative package installation and MCP connector modules.
-- `feat/personal-agent-subagents` owns child execution and saved identity modules.
-- `feat/personal-agent-unify-capabilities` supplies the reviewed descriptor registry and configuration migration.
-- `feat/personal-agent-unify-routing` supplies external routing and fixed child dispatch.
-- `feat/personal-agent-unify-browser` supplies isolated browser execution and host provisioning changes.
-
-These branches started from `aaae801a` after synchronization with `origin/main`.
-The runtime candidate integrates their modules without modifying the original `main` checkout.
-Source and acceptance evidence must identify the candidate that they checked.
-
-## Pull request stack
-
-Merge these pull requests in table order.
-Each pull request initially used the previous feature branch as its base.
-After each merge, retarget the next pull request to `main`.
-Review fixes move forward through normal merges.
-The original worktrees retain their uncommitted source snapshots.
-
-| Order | Pull request | Scope |
-| --- | --- | --- |
-| 1 | [#26](https://github.com/FradSer/open-deskos/pull/26) | Browser capability and host provisioning |
-| 2 | [#27](https://github.com/FradSer/open-deskos/pull/27) | Reviewed capability declarations |
-| 3 | [#28](https://github.com/FradSer/open-deskos/pull/28) | Jev routing and turn authority |
-| 4 | [#29](https://github.com/FradSer/open-deskos/pull/29) | Skill and MCP catalog, private storage |
-| 5 | [#30](https://github.com/FradSer/open-deskos/pull/30) | Child identities and conversation avatars |
-| 6 | [#31](https://github.com/FradSer/open-deskos/pull/31) | Resident integration, memory, completion, and learning |
+The capability, browser, routing, catalog, child, and resident changes are merged into `main`.
+Pull requests [#26](https://github.com/FradSer/open-deskos/pull/26) through [#31](https://github.com/FradSer/open-deskos/pull/31) retain their reviews.
+Source and acceptance evidence identify the exact candidate they checked.
 
 Review corrections retain cleanup failures across concurrent close calls.
 New owner requests clear previous completion results, including routed shortcut answers.
@@ -102,47 +78,41 @@ Each attempt retains its request, output, and deadline safeguards.
 Failed reports remain unchanged.
 No live acceptance process or container remains active.
 
-The bounded live evidence combines two reports from identical source before the Windows permission changes.
-Both fingerprint maps contain 212 files and matched the checkout at that checkpoint.
-Both reports confirm source validation and successful cleanup.
-These fingerprints cover declared runtime JavaScript, JSON, runner scripts, fixtures, and lockfiles.
-They exclude the two bundled Skill Markdown files and `proactive-private.ps1`.
-The separate 71-file source digest above included those files.
-These reports do not validate the later Windows permission implementation.
+The fresh `full-10` run passed all seven original scenarios with 84 actual requests on CM5.
+Its exact candidate was `9b21983fc3ebd2b33a78c0f8ab45231122835f84`.
+Its 213 source fingerprints remained unchanged, and its 204 runtime files matched the active release.
+The run used the configured `bailian/deepseek-v4.1-flash` model and real Jev judgments.
+All requests returned HTTP 200, and cleanup passed.
+The run completed in approximately 18 minutes and 29 seconds.
+It retained explicit limits of 160 requests, 16384 output tokens, and 30 minutes.
+Plugin validation used the actual 180000-millisecond runtime setting.
 
-| Report | Actual inference and setup | Observed result |
-| --- | --- | --- |
-| `BKsKSw/report.json` | Configured `gpt-6.1-sol`; real Jev; natural-language setup | Skill installation, MCP installation, saved identity, training, completion, and automatic learning passed |
-| `g1xSot/report.json` | Same model and source; real generation; host-prepared continuation; no Jev calls | All three pairs, saved restart, temporary child, completion, and avatar metadata passed |
+Natural-language Skill installation, MCP installation, and saved identity creation passed.
+The saved training result was 6, equal to the expected value 6; this is a numeric comparison, not six scored checks.
+Training completion and accepted learning passed.
+Saved restart returned 9, and the temporary child returned 3; both passed completion.
+The saved child retained its exact handle, next turn, identity revision, and active avatar metadata.
 
-The original full report remains failed at its later restart check.
-That child returned the host-correct value, but its citation failed completion validation.
-The continuation does not rewrite this failure or establish a single complete natural-language run.
+The three paired expected values were 4, 13, and 3.
+The baseline produced zero correct results, and the candidate produced all three correct results.
+Each candidate completion passed and recorded four actual experience reads.
+Both arms used fresh conversations, identical supplied data and roles, disabled MCP access, and disabled automatic learning.
+Only the candidate received accepted experience.
+This demonstrates improvement on these three synthetic cases only.
+General learning benefit remains `not_established`.
 
-Continuation restores only the original task's accepted experience with verified report and experience digests.
-It supplies no previous conversation history.
-Both comparison arms receive identical packages, roles, and current synthetic data.
-MCP access and automatic learning remain disabled during these comparisons.
-Only the candidate receives accepted experience.
+The report retained 166775 generation input tokens and 124630 generation output tokens.
+The reported 110646 reasoning tokens are included in output tokens, not additional tokens.
+Jev usage was 28984 input tokens and 1104 output tokens.
+Configured prices and actual charges remain unknown.
+No generation reached its output limit, and no timeout or SDK error was recorded.
+Intermediate invalid judgments remain in the evidence; the final pass does not mean every model judgment was valid.
 
-The baseline supplied no correct numerical result in three cases.
-The candidate supplied three correct results and retrieved the full learned method in every case.
-All three candidate completion checks passed.
-Independent host grading establishes this result; model completion judgments do not replace that grading.
-Baseline completion checks passed despite missing numerical answers.
-The comparison demonstrates improvement on these synthetic cases only, not general learning benefit.
-
-The controlled saved child retained its identity revision across close and reopen.
-It retrieved the restored method, returned the correct value, and passed completion.
-The temporary child also returned the correct value and passed completion.
-Both admissions use host APIs and retain `fixtureAdmission: true` without a coordinator inference claim.
-Running saved-child activity retained the expected avatar metadata.
-The separate rendered pipeline above establishes activity through actual Shell channels.
-
-The `bailian/deepseek-v4.1-flash` model also completed training and automatic learning in an earlier attempt.
-Its later continuation returned three correct held-out results, with two passed completion checks.
-Other scope or schema errors retained `needs_review`.
-Alternate-model checks used private temporary configuration copies.
+Earlier failed runs remain failed.
+Their recorded boundaries include operator assembly errors, output or time limits, invalid citations, unresolved checks, and an upstream HTTP 451 response.
+No earlier phase was combined with `full-10` to obtain its pass.
+The new core, targeted, and separate learning modes have offline contract coverage.
+They have not received a new live evaluation merely because the original full run passed.
 The [live acceptance plan](AGENT_LIVE_ACCEPTANCE.md) owns isolation, grading, and continuation rules.
 
 ## Windows isolated acceptance

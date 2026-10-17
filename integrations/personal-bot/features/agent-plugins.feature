@@ -125,15 +125,34 @@ Feature: Personal Agent owns a bounded plugin runtime
     And saved identities preserve their identity and experience across restarts
     And a running saved child displays its avatar in the conversation
 
-  Scenario: Live acceptance remains separate from offline execution evidence
-    Given an explicitly selected live verification run with synthetic reports
-    When the real model installs packages and delegates report tasks
-    Then host assertions grade the actual tool results and child answers
-    And a restarted saved child retains its identity and learned experience
-    And paired fresh conversations differ only in accepted learned experience
-    And the report separates task success, retrieval, and observed learning benefit
-    And a shared request limit stops dependent inference without retry
+  Scenario: Delivery core acceptance excludes the separate learning experiment
+    Given the default live evaluation and isolated synthetic state
+    When the real model installs packages and delegates saved and temporary reports
+    Then all six core scenarios retain host grading and completion checks
+    And a restarted saved child retrieves actual full-entry accepted experience
+    And no paired holdout runs or learning benefit claim is included
     And plan inspection makes no external request and reads no credentials
+
+  Scenario: Targeted verification has a fixed and limited scope
+    Given targeted saved-report verification or the task-evaluation compatibility option
+    When the runner prepares isolated packages and an identity through host APIs
+    Then it checks one real saved report execution and completion
+    And it claims no natural-language setup, restart, or paired learning coverage
+
+  Scenario: Provider health is a bounded non-mutating diagnostic
+    Given an explicit targeted provider-health run
+    When the runner sends fixed synthetic input without tools to each provider
+    Then it records one generation request and one Jev judgment without response text
+    And it claims only provider health and no task or deployment acceptance
+
+  Scenario: External failure policy preserves operation and provider boundaries
+    Given a failed operation with its provider and counted request metadata
+    When the runner classifies its stop reason
+    Then only explicitly temporary HTTP or transport failures permit an explicit targeted retry
+    And an operator can use at most one health check and one explicit targeted retry for that provider operation
+    And persistent temporary failure requires external-blocked evidence across those reports
+    And HTTP 451, configuration, permission, resource, evidence, and quality failures are not retried automatically
+    And no complete workflow or mutation is replayed automatically
 
   Scenario: Live custom models use SDK defaults without inventing billing evidence
     Given a configured custom model omits optional cost rates
@@ -195,18 +214,11 @@ Feature: Personal Agent owns a bounded plugin runtime
   Scenario: A live acceptance retry retains the remaining authorization limits
     Given an authorized attempt used part of the request and execution budget
     When an operator starts another isolated attempt
-    Then reduced limits cannot exceed the original plan
+    Then explicit limits respect the remaining authorization and per-attempt safeguards
     And an optional private host relay reaches only the configured HTTP provider
     And the relay closes every connection after acceptance
     And an accepted idle TCP connection can close with an explicit connection reset
     And the listener refuses new connections after shutdown
-
-  Scenario: Task evaluation preserves its fixture boundary
-    Given prior natural-language package and identity checks have separate evidence
-    When an operator selects task evaluation with prepared synthetic packages and identity
-    Then the report marks that setup as a host fixture
-    And it does not claim natural-language setup passed in this attempt
-    And actual task, completion, restart, and learning checks retain the same limits
 
   Scenario: Live plugin diagnostics preserve private content
     Given a completion or learning judgment and its actual tool receipts
@@ -226,13 +238,13 @@ Feature: Personal Agent owns a bounded plugin runtime
     And the report identifies its digest and entry count
     And the artifact excludes conversation history and raw provider responses
 
-  Scenario: Independent continuation preserves accepted learning and experimental controls
+  Scenario: Independent learning evaluation preserves accepted evidence and experimental controls
     Given a private real training report with correct host grading and accepted experience
     When continuation checks the report, experience schema, and matching digest
     Then it restores only accepted experience without conversation or task history
     And both paired arms receive identical current synthetic input and a shared-method contract
     And both paired arms have MCP access and automatic learning disabled
+    And only paired holdouts run in new conversation homes
+    And every candidate result has correct host grading, passed completion, and actual full-entry retrieval
+    And the original source report remains unchanged, including any later failure
     And only the candidate receives accepted experience
-    And host API admissions are labeled without a coordinator inference claim
-    And saved identity persistence is checked across close and reopen
-    And the original failed report remains unchanged

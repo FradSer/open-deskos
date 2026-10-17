@@ -15,31 +15,47 @@ pnpm test:agent:live --plan
 Plan inspection makes no external requests.
 It does not read provider credentials or require Docker.
 
-The plan covers these scenarios:
+## Select the evaluation layer
+
+Daily checks use affected offline tests and, when necessary, one authorized targeted live scenario.
+A deterministic service fix does not require a complete model evaluation.
+Deployment acceptance uses the delivery core.
+Learning benefit uses a separate paired evaluation.
+
+The default `core` mode covers six scenarios:
 
 1. Install a staged Skill through a natural-language request.
 2. Install a staged MCP connector through a natural-language request.
 3. Create a saved identity with a name, role, and built-in avatar.
-4. Delegate a report to that identity.
-5. Check the actual report answer, completion result, and learned experience.
-6. Restart the resident and reuse the saved identity.
-7. Run a separate temporary child.
-8. Compare three fresh-conversation pairs with identical packages and roles.
+4. Execute a saved report and check its result, completion, and accepted experience.
+5. Restart the resident and check the saved identity, current result, completion, and a new full-entry experience read.
+6. Execute a separate temporary child and check its result and completion.
 
-Each comparison pair differs only in accepted learned experience.
-The baseline receives no learned experience.
-The candidate receives the saved child's accepted experience without its conversation history.
-Both receive the same current synthetic report directly in the task.
-The shared task states that the training procedure applies without disclosing that procedure.
-Both have MCP access and automatic learning disabled.
-They cannot obtain the method by reading another report.
-These pairs check supplied-data analysis and experience transfer; they do not establish MCP execution.
-The host grades numerical results independently of the model's completion judgment.
-The report records actual full-entry retrieval separately.
-A saved child can continue its exact inactive task with one new turn.
-Acceptance binds the task handle, turn, identity, and identity revision before it grades the result.
+The restart read must occur after restart; a training-stage read cannot satisfy this check.
+It proves accepted experience retrieval, not a read of the owner's `MEMORY.md`.
+Child acceptance binds the task handle, turn, identity, and identity revision before grading.
 Saved-child activity must carry the expected avatar metadata.
-Rendered avatar acceptance remains a separate check.
+Rendered avatar acceptance remains separate.
+The core does not run paired holdouts or claim learning benefit.
+
+Targeted mode supports two fixed scenarios:
+
+- `saved-report` prepares packages and an identity through host APIs, then checks one saved child's execution and completion.
+- `provider-health` checks one fixed tool-free model response and one fixed synthetic Jev typed choice.
+
+Targeted setup has `naturalLanguageVerified: false`.
+It does not prove natural-language installation, restart, or paired learning.
+The compatibility flag `--task-evaluation` now selects targeted `saved-report`; it no longer starts the previous long task pipeline.
+
+Explicit `learning` mode requires accepted experience from a previous verified training stage.
+It runs only three fresh-conversation pairs, using six new private homes.
+Each pair has identical packages, roles, current synthetic data, and a shared task contract.
+Only the candidate receives accepted experience; neither arm receives conversation history.
+Both arms have MCP access and automatic learning disabled.
+The host independently grades numerical results.
+Every candidate must pass completion and retrieve an actual full experience entry without truncation.
+Baseline failures remain measured outcomes.
+A tie does not establish improvement, and three synthetic cases do not establish general benefit.
 
 ## Limits and isolation
 
@@ -117,31 +133,56 @@ Do not combine partial results from failed full attempts.
 Include consumed requests and active execution time from all earlier attempts.
 An unlimited aggregate authorization does not remove the runner's per-attempt safeguards.
 
-Use `--task-evaluation` to check tasks after separate natural-language setup checks have passed.
-This mode prepares the same synthetic packages and saved identity through host APIs.
-It reports that setup as `host_fixture`, with `naturalLanguageVerified: false`.
-It does not mark installation or identity-creation scenarios as passed.
-Task execution, restart, completion, learning, and paired comparisons retain their original checks.
-Retain the earlier setup report when interpreting combined coverage.
+Select a targeted scenario explicitly:
 
-Use `--continue-from=CANONICAL_EVIDENCE_DIRECTORY` to resume independent checks from accepted synthetic learning.
-Do not combine this option with `--task-evaluation`.
+```sh
+pnpm test:agent:live --live --mode=targeted --scenario=saved-report --output=/absolute/new/task-evidence
+pnpm test:agent:live --live --mode=targeted --scenario=provider-health --max-requests=2 --deadline-ms=30000 --max-output-tokens=16384 --output=/absolute/new/health-evidence
+```
+
+The health command permits two requests within 30 seconds.
+Its output allowance accommodates reasoning without changing the global defaults.
+A health deadline or request limit is a resource failure, not external blockage.
+Completed probe metadata remains in the failed report.
+
+Run learning separately:
+
+```sh
+pnpm test:agent:live --live --mode=learning --continue-from=/absolute/accepted-training --output=/absolute/new/learning-evidence
+```
+
+`--continue-from` without `--mode` also selects learning.
+A conflicting mode, scenario, or compatibility flag fails before credential access or dispatch.
+Plan inspection can select learning without an artifact because it makes no requests.
+
 The source must contain private, owner-held `report.json` and `accepted-experience.json` files.
 The loader requires real inference, correct training grading, passed completion, applied learning, source validation, and successful cleanup.
 It checks the experience schema, entry count, and SHA-256 digest before model calls.
-It restores only accepted experience into new private homes.
-It retains the source report path and content digests.
-The source report remains unchanged.
+A later failure in that source run does not invalidate its independently accepted training artifact.
+The loader restores only accepted experience, records its provenance, and leaves the original report unchanged.
+Independent evaluation does not convert a failed source run into a passed delivery core.
+Protocol `shared_method_supplied_data_v2` identifies the pair task contract.
 
-Continuation runs the three supplied-data pairs before saved and temporary child checks.
-These children also receive current synthetic report data and have MCP access and automatic learning disabled.
-Their host API admissions have `fixtureAdmission: true` and `coordinatorInference: false`.
-The saved identity and restored experience are prepared before the resident closes and reopens.
-This proves persistence of prepared state; it does not prove new natural-language identity creation or complete conversation restoration.
-Current results, actual experience reads, completion, and active avatar metadata remain separate checks.
-The report labels this coverage `isolated_continuation`.
-Protocol `shared_method_supplied_data_v2` identifies the clarified task contract.
-Earlier results retain their original source and fixture fingerprints.
+## Stop after a failure
+
+The runner never retries an SDK request, a complete turn, or a mutation automatically.
+It records `stopPolicy`, the failed operation, its provider kind, and a bounded failure category.
+A single failure has `externalBlocked: false`.
+An unknown error or one rejected response does not prove persistent external blockage.
+
+For each provider and operation, the operator can authorize one fixed health check and one explicit targeted retry.
+Retry eligibility requires an explicit temporary condition: HTTP 429, 502, 503, 504, or a recognized temporary transport error.
+Do not retry HTTP 451 automatically.
+Do not replay a mutation to test availability.
+Configuration, permission, authorization, resource, evidence, and quality failures are not external blockage.
+A resource failure requires a separately authorized limit or smaller scope; it does not justify a hidden retry.
+
+Record the original failure, health report, explicit retry report, and their hashes in private operation evidence.
+Use `external_blocked` only when this bounded sequence establishes a persistent temporary external failure.
+Keep provider kinds and operations separate.
+A successful Jev probe cannot clear a failed model probe.
+A fresh HTTP 200 proves only that probe's availability; it does not rewrite an earlier failure.
+Do not restart the full workflow automatically or combine partial runs into a passed result.
 
 Use `--host-relay` when Docker cannot reach a configured HTTP provider that the host can reach.
 The container must resolve `host.docker.internal` to the host.
@@ -156,9 +197,12 @@ HTTPS providers use the direct path.
 
 `realModel` and `realJev` identify actual inference.
 These flags come from recorded requests, not the requested test mode.
-Host-admitted continuation children use fixed execution dispatch and make no second Jev request.
-An isolated continuation can therefore record `realModel: true` and `realJev: false`.
+Learning evaluation can record `realModel: true` and `realJev: false`.
 It does not verify the external owner-routing entry.
+`functionalPassed` refers only to the selected coverage.
+`deliveryCorePassed`, `learningEvaluationPassed`, and `targetedPassed` identify the accepted layer after host source validation.
+These fields remain false while host validation is pending or fails.
+A targeted or learning pass does not establish delivery-core coverage.
 `offlineFixture: true` identifies the runner's scripted contract test.
 That contract test cannot establish model quality or learning benefit.
 

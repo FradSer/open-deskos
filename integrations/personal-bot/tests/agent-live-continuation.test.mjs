@@ -57,3 +57,13 @@ test('shared synthetic task contract permits experience without disclosing the l
   assert.equal(reportSkill.includes(reportProcedure), false)
   assert.doesNotMatch(reportSkill, /subtract 7|divide by 5/)
 })
+
+
+test('independent learning can use accepted training without rewriting a later failed delivery run', async t => {
+  const f = await evidence(t)
+  Object.assign(f.report, { passed: false, functionalPassed: false, status: 'failed', failure: { phase: 'saved-restart' } })
+  await f.save()
+  const before = await readFile(join(f.root, 'report.json'), 'utf8')
+  assert.equal((await loadLiveContinuation(f.root)).experience.entries.length, 1)
+  assert.equal(await readFile(join(f.root, 'report.json'), 'utf8'), before)
+})

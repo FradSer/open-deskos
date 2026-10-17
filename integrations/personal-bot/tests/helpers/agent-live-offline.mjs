@@ -8,6 +8,7 @@ export function createOfflineAcceptanceRuntime(phase) {
     streamSimple: (model, context, options) => {
       if (options.maxTokens > model.maxTokens) throw Error('Acceptance exceeded the model output limit')
       const result = Promise.resolve().then(() => {
+        if (phase() === 'provider-health:generation') return assistant('READY')
         const all = JSON.stringify(context.messages)
         const user = context.messages.findLast(message => message.role === 'user')
         const raw = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
