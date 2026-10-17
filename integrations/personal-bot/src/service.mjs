@@ -66,6 +66,7 @@ export class PersonalBotService {
   propose({ proposals, popup, interaction, hiddenCount, error }) {
     this.proposalFrame = { proposals, proposalPopup: false, proposalHiddenCount: hiddenCount ?? 0, ...(error ? { proposalError: error } : {}) }
     const frame = { ...this.status, ...this.proposalFrame, message: boundedText(this.status.message, proposals.length ? 8192 : 16384, 'Response'), proposalPopup: popup, proposalInteraction: interaction === true, ...(error ? { proposalError: error } : {}) }
+    if (!error) delete frame.proposalError
     this.status = { ...frame, proposalPopup: false, proposalInteraction: false }
     for (const listener of this.listeners) listener(frame)
   }
