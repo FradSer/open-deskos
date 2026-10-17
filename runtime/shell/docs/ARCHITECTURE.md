@@ -137,6 +137,11 @@ Rebuild the module before GPU acceptance.
 Verify the module after the graphical session restarts.
 A version mismatch fails verification.
 
+User verification reads protected Xorg mappings through the root-owned host tool `/usr/local/libexec/odk-xorg-bgra-verify`.
+The installer permits `orangepi` to invoke only this tool without arguments through sudo.
+The tool uses a fixed interpreter and environment, and checks the current executable, boot, process start, and module identity.
+An unavailable observation fails verification without diagnosing a required graphical restart.
+
 `scripts/start-kiosk.sh` selects HDMI-1 RGB with 8-bit channels when the Rockchip color properties are present.
 A DPMS cycle clears stale color conversion before the launcher disables screen blanking.
 Device acceptance requires Mali EGL, the loaded BGRA module, correct test colors, and physical display confirmation.
