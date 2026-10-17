@@ -1,6 +1,7 @@
 import { stat, readFile, writeFile } from 'node:fs/promises'
 
 const MAX_LIVE_OUTPUT_TOKENS = 16384
+const MAX_LIVE_DEADLINE_MS = 1800000
 
 export const agentLivePlan = Object.freeze({ maxRequests: 80, maxOutputTokens: 2048, deadlineMs: 900000,
   syntheticData: true, providerCallsRequireLiveFlag: true, productionWrites: false, physicalCapture: false,
@@ -25,7 +26,7 @@ export function createLiveRequestBudget(maxRequests = agentLivePlan.maxRequests)
 
 export function createLivePlan({ maxRequests = agentLivePlan.maxRequests, deadlineMs = agentLivePlan.deadlineMs, maxOutputTokens = agentLivePlan.maxOutputTokens } = {}) {
   createLiveRequestBudget(maxRequests)
-  if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > agentLivePlan.deadlineMs) throw Error('Invalid live execution limit')
+  if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > MAX_LIVE_DEADLINE_MS) throw Error('Invalid live execution limit')
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > MAX_LIVE_OUTPUT_TOKENS) throw Error('Invalid live output limit')
   return { ...agentLivePlan, maxRequests, deadlineMs, maxOutputTokens }
 }

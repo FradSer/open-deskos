@@ -183,6 +183,15 @@ Feature: Personal Agent owns a bounded plugin runtime
     And deadlines, output limits, scenarios, and quality checks remain unchanged
     And request exhaustion requires a refused dispatch, not only an exactly used allowance
 
+  Scenario: Explicit live execution resources preserve the default and quality gates
+    Given the default live execution deadline is 900000 milliseconds
+    When an operator explicitly selects a deadline up to 1800000 milliseconds
+    Then the plan and child report use that exact deadline
+    And invalid, duplicate, and excessive options fail before dispatch
+    And request, output, and plugin timeout limits remain unchanged
+    And all scenarios, validators, and scoring remain unchanged
+    And a full acceptance retry starts from the beginning without combining partial results
+
   Scenario: A live acceptance retry retains the remaining authorization limits
     Given an authorized attempt used part of the request and execution budget
     When an operator starts another isolated attempt
