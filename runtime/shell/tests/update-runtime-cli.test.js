@@ -113,6 +113,48 @@ test('CM5 migration CLI is user-scoped and does not enable experiments', () => {
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8'), /ODK_KIOSK_UID="\$\{TARGET_UID\}"/)
 })
 
+test('updater gives complete preflight one hour while post-activation verification stays at 60 seconds', () => {
+  const vm = require('node:vm')
+  const commands = []
+  const candidate = '/runtime/releases/candidate'
+  const fakeProcess = { getuid: () => 0, env: {
+    ODK_RUNTIME_ROOT: '/runtime', ODK_CANDIDATE_RELEASE: candidate,
+    ODK_KIOSK_USER: 'kiosk', ODK_KIOSK_UID: '1000', ODK_KIOSK_HOME: '/home/kiosk',
+    ODK_KIOSK_NODE_BIN: '/node/bin', ODK_KIOSK_BIN_DIR: '/kiosk/bin',
+  } }
+  const modules = {
+    'node:fs': {
+      mkdirSync() {}, openSync: () => 1, writeFileSync() {}, closeSync() {}, rmSync() {},
+      existsSync: () => true, realpathSync: () => candidate,
+    },
+    'node:path': path,
+    'node:child_process': { spawnSync: (file, args, options) => {
+      commands.push({ file, args: Array.from(args), options })
+      return { status: 0 }
+    } },
+    './lib/runtime-release': {
+      validateRuntimeComposition: () => ({ ok: true }),
+      preflightRelease: (target, { run }) => ({ ok: run(target).status === 0 }),
+      activateRelease: ({ candidatePath, preflight, verify }) => {
+        const checked = preflight(candidatePath)
+        return checked.ok ? verify('candidate') : checked
+      },
+      readRuntimeState: () => ({}),
+    },
+  }
+  const context = vm.createContext({ process: fakeProcess, console: { log() {}, error(message) { assert.fail(message) } },
+    require: name => { assert.ok(Object.hasOwn(modules, name), name); return modules[name] } })
+  vm.runInContext(updater, context)
+  assert.equal(fakeProcess.exitCode, 0)
+  const supervised = commands.filter(command => command.file === 'timeout')
+  assert.equal(supervised.length, 2, 'preflight and post-activation verification each run once')
+  assert.deepEqual(supervised[0].args.slice(0, 3), ['--signal=KILL', '3600s', 'runuser'])
+  assert.deepEqual(supervised[0].args.slice(-2), ['pnpm', 'preflight'])
+  assert.deepEqual(supervised[1].args.slice(0, 3), ['--signal=KILL', '60s', 'runuser'])
+  assert.deepEqual(supervised[1].args.slice(-2), ['bash', 'scripts/verify-release.sh'])
+  for (const command of supervised) assert.equal(command.options.cwd, candidate)
+})
+
 function gnuTimeoutUnavailableReason() {
   const { spawnSync } = require('node:child_process')
   const probe = spawnSync('timeout', ['--version'], {
