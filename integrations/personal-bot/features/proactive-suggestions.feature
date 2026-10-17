@@ -311,3 +311,11 @@ Feature: Owner controlled proactive Personal Bot proposals
     When its configuration selects the fixed Intent plugin
     Then configuration and runtime creation reject that unsupported combination
     And no provider or background Intent work starts
+
+  Scenario: A fast Hosted turn has a distinct completion identity
+    Given an owner receives a real Hosted launch or restoration receipt
+    When the new turn finishes before the next watch poll
+    Then its host-generated terminal turn identity establishes one completion notice
+    And restoration without a new turn cannot announce the preserved result
+    And reading historical completion identities does not create a notice
+    And ending or restarting the host preserves a completed new turn identity

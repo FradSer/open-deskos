@@ -199,14 +199,6 @@ test('mute suppresses every pending proposal of the same owner rule', async () =
   assert.equal(f.frames.at(-1).popup, false)
 })
 
-test('a launched receipt tracks tasks that finish before the first watch poll', async () => {
-  const c = config(); c.rules = [{ id: 'coding-complete', delivery: 'immediate', urgent: false, advice: '查看完成回合。', coding: { target: 'mac', project: '/project' } }]
-  const task = { taskId: 'e311a280-c0b9-4411-96cd-4e1e92385349', project: '/project/app', state: 'finished', lifecycle: 'ended', turnOutcome: 'finished', updatedAt: time, verification: 'not_run' }
-  const f = fixture({ config: c, codingList: async () => [task], codingStatus: async () => task })
-  f.watch.observeTask('mac', { ...task, state: 'running', activity: 'working', lifecycle: 'live', turnOutcome: undefined })
-  await f.watch.tick(); assert.equal(f.watch.list()[0].action.tool, 'coding_task_history')
-})
-
 test('execution reservation survives restart even if owner cooldown cannot be saved', async () => {
   let saved
   const f = fixture({ saveState: state => { saved = structuredClone(state) }, save: async () => { throw Error('owner unavailable') }, execute: async () => { throw Error('unknown outcome') } })
@@ -300,7 +292,7 @@ test('explicit proposal list respects routine due time and acknowledged owner da
 test('restoration initialization cannot turn a preserved result into a new coding completion',async t=>{
  for(const ingress of ['event','poll'])for(const outcome of ['cancel','end','initialization_failure']){
   const c=config();c.rules=[{id:'coding-complete',delivery:'immediate',urgent:false,advice:'查看任务结果。',coding:{target:'mac',project:'/project'}}]
-  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'finished',lifecycle:'ended',turnOutcome:'finished',response:'original result',updatedAt:time,verification:'not_run'}
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'finished',lifecycle:'ended',turnOutcome:'finished',response:'original result',lastTurnId:'e311a280-c0b9-4411-96cd-4e1e92385351',updatedAt:time,verification:'not_run'}
   const f=fixture({config:c,codingList:async()=>[task],codingStatus:async()=>task});t.after(()=>f.watch.close())
   for(let attempt=0;attempt<2;attempt++){
    task={...task,state:'running',lifecycle:'launching',activity:undefined,updatedAt:new Date(now+attempt*2000+1).toISOString()};f.clock(now+attempt*2000+1)

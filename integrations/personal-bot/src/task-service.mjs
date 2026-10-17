@@ -63,7 +63,7 @@ export function boundedText(text, limit = TASK_TEXT_LIMIT) {
   while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--
   return bytes.subarray(0, end).toString('utf8')
 }
-/** @typedef {{taskId:string,project:string,prompt:string,state:string,lifecycle?:string,activity?:string,turnOutcome?:string,verification:string,createdAt:string,updatedAt:string,response:string,sessionFile?:string,controlledBy?:{machineName:string,sessionId:string},controlAudit?:Array<{machineName:string,sessionId:string,at:string}>,mutationReceipts?:Array<{command:string,mutationId:string,digest:string}>,currentTurnId?:string,endedReason?:string}} Task */
+/** @typedef {{taskId:string,project:string,prompt:string,state:string,lifecycle?:string,activity?:string,turnOutcome?:string,verification:string,createdAt:string,updatedAt:string,response:string,sessionFile?:string,controlledBy?:{machineName:string,sessionId:string},controlAudit?:Array<{machineName:string,sessionId:string,at:string}>,mutationReceipts?:Array<{command:string,mutationId:string,digest:string}>,currentTurnId?:string,lastTurnId?:string,endedReason?:string}} Task */
 /** @typedef {{task:Task,signal:AbortSignal,sessionDir:string,model?:string,onEvent?:(event:object)=>void,resume?:boolean}} TaskInput */
 
 function validConsole(value) {
@@ -213,6 +213,7 @@ export async function createTaskService(input, adapter) {
     task.response = boundedText(result?.text || '')
     if (entry.hosted.sessionFile !== undefined) task.sessionFile = entry.hosted.sessionFile
     task.turnOutcome = cancelled ? 'cancelled' : !failure && result?.stopReason === 'stop' ? 'finished' : 'failed'
+    task.lastTurnId = task.currentTurnId
     task.currentTurnId = undefined
     if (task.turnOutcome !== 'finished' && !task.response.trim()) task.response = task.turnOutcome === 'cancelled' ? '任务已取消' : INCOMPLETE_RESPONSE
     if (entry.persistent) {

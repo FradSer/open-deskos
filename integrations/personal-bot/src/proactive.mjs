@@ -334,7 +334,13 @@ export class ProactiveWatch {
       const scope = rule.coding
       if (!scope || scope.target !== target || (scope.taskId && scope.taskId !== task.taskId) ||
           typeof task.project !== 'string' || !(task.project === scope.project || (!scope.taskId && task.project.startsWith(scope.project.replace(/\/$/, '') + '/')))) continue
-      if (codingWorking(task)) this.seenTurns.set(`${rule.id}:${task.taskId}`, { working: true, updatedAt: task.updatedAt, finished: false })
+      const key = `${rule.id}:${task.taskId}`
+      const previous = this.seenTurns.get(key)
+      if (codingWorking(task) || task.lifecycle === 'launching') this.seenTurns.set(key, {
+        working: codingWorking(task), updatedAt: task.updatedAt, finished: false,
+        ...(task.lifecycle === 'launching' ? { launchBaseline: task.lastTurnId ?? null } : {}),
+        deliveredTurnId: previous?.deliveredTurnId,
+      })
     }
   }
   async codingEvidence(rule, identity) {
@@ -345,9 +351,15 @@ export class ProactiveWatch {
     if (task?.taskId !== identity.taskId || task.project !== identity.project) return null
     const previous = this.seenTurns.get(key)
     const working = codingWorking(task)
-    const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished'))
-    const finishedPending = finished && (previous?.working || (previous?.finishedPending && previous.updatedAt === task.updatedAt))
-    this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending })
+    const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished') ||
+      (task.lifecycle === 'interrupted' && typeof task.lastTurnId === 'string'))
+    const newTerminalTurn = previous?.launchBaseline !== undefined && typeof task.lastTurnId === 'string' && task.lastTurnId !== previous.launchBaseline
+    const finishedPending = finished && (!task.lastTurnId || task.lastTurnId !== previous?.deliveredTurnId) &&
+      (previous?.working || newTerminalTurn || (previous?.finishedPending && previous.updatedAt === task.updatedAt))
+    this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending,
+      ...(task.lifecycle === 'launching' ? { launchBaseline: previous?.launchBaseline ?? task.lastTurnId ?? null } : {}),
+      lastTurnId: task.lastTurnId, deliveredTurnId: previous?.deliveredTurnId,
+    })
     const existing = this.proposals.some(p => p.ruleId === rule.id && p.subject === identity.taskId && pending(p))
     if (!finished || (!finishedPending && !existing)) return null
     return [{ readingId: `pi-tasks:${rule.coding.target}:${task.taskId}`, field: 'turnOutcome', value: 'finished', state: 'live', measuredAt: task.updatedAt, ruleId: rule.id },
@@ -356,7 +368,10 @@ export class ProactiveWatch {
   consumeCoding(rule, identity, evidence) {
     if (!rule.coding) return
     const receipt = this.seenTurns.get(`${rule.id}:${identity.taskId}`)
-    if (receipt?.updatedAt === evidence[0].measuredAt) receipt.finishedPending = false
+    if (receipt?.updatedAt === evidence[0].measuredAt) {
+      receipt.finishedPending = false
+      receipt.deliveredTurnId = receipt.lastTurnId
+    }
   }
   judgmentFailed(candidates) {
     for (const c of candidates) this.failedJudgments.add(c.ruleId)

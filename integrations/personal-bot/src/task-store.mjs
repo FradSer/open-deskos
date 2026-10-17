@@ -90,6 +90,7 @@ function validRecord(record, name) {
     (record.activity === undefined || ['working', 'idle'].includes(record.activity)) &&
     (record.turnOutcome === undefined || ['finished', 'failed', 'cancelled', 'interrupted'].includes(record.turnOutcome)) &&
     (record.currentTurnId === undefined || (typeof record.currentTurnId === 'string' && TASK_ID.test(record.currentTurnId))) &&
+    (record.lastTurnId === undefined || (typeof record.lastTurnId === 'string' && TASK_ID.test(record.lastTurnId))) &&
     (record.endedReason === undefined || ['explicit', 'idle_expired', 'evicted', 'host_restart'].includes(record.endedReason)) &&
     (record.sessionFile === undefined || (validProject(record.sessionFile) && normalize(record.sessionFile) === record.sessionFile)) &&
     (record.controlledBy === undefined || validControlIdentity(record.controlledBy)) &&

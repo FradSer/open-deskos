@@ -542,6 +542,8 @@ POSIX directories require the current owner and mode `0700`; Windows directories
 The host reports directory failures separately from unsafe files and invalid headers.
 It never rewrites stored paths or repairs existing permissions.
 Cancellation, End, or initialization failure before a new turn preserves the previous turn result.
+The optional `lastTurnId` records the host-generated identity of the last terminal execution turn.
+The host updates it only when an actual turn finishes; restoration preparation preserves it.
 Prompt, steer, cancel, and end receipts show acceptance, not completed work.
 Query status/history before claiming progress.
 Console control uses the authenticated Control Link; voice uses the configured helper to the same daemon.
@@ -680,7 +682,7 @@ Legacy actions are static reviewed `memory_update`, `user_app_install`, `coding_
 Profile availability still applies; plugin fields cannot become parameters.
 A proposal never confirms a DiDi order.
 Coding rules require an explicit target/project and optional task ID.
-Observe a session working before treating its finished turn as completion.
+Observe a session working, or compare a launch baseline with its new terminal `lastTurnId`, before announcing completion.
 Startup history, failed/cancelled turns, absent targets, and unreachable services cannot establish completion.
 Real launch/prompt receipts track work that finishes between polls.
 `verification: not_run` remains unverified.

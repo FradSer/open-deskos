@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile, ch
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
+import { ProactiveWatch } from '../src/proactive.mjs'
+import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import { createTaskService, goalPreviews, reserveTaskRecord } from '../src/task-service.mjs'
 
 async function fixture(t, runTask = async () => ({ text: '完成', stopReason: 'stop' })) {
@@ -98,6 +100,7 @@ test('malformed persisted receipts fail closed without rewriting or replay', asy
     { project: 'relative' }, { project: '/tmp/../dev' }, { project: '/dev\u0000bad' },
     { requestedProject: 'relative' }, { project: null },
     { prompt: '' }, { prompt: ' ' }, { prompt: 4 }, { prompt: '汉'.repeat(22000) },
+    { lastTurnId: null }, { lastTurnId: 'not-a-turn' },
     { response: null }, { response: '汉'.repeat(5500) }, { response: '\ud800' },
     { createdAt: 'yesterday' }, { updatedAt: '2026-02-30T00:00:00.000Z' },
     { updatedAt: '2025-01-01T00:00:00.000Z' }, { response: undefined },
@@ -1078,7 +1081,7 @@ async function originalSessionFixture(t,reason='idle_expired') {
  await mkdir(sessionDir,{recursive:true,mode:0o700})
  const sessionFile=join(sessionDir,`2026-01-01T00-00-00-000Z_${sessionId}.jsonl`),prefix=JSON.stringify({type:'session',version:3,id:sessionId,cwd:f.root,timestamp:'2026-01-01T00:00:00.000Z'})+'\n'
  await writeFile(sessionFile,prefix,{mode:0o600})
- const task=receipt(f.root,{taskId,sessionFile,state:reason==='host_restart'?'interrupted':'finished',lifecycle:reason==='host_restart'?'interrupted':'ended',turnOutcome:'finished',endedReason:reason,response:'original answer'})
+ const task=receipt(f.root,{taskId,sessionFile,state:reason==='host_restart'?'interrupted':'finished',lifecycle:reason==='host_restart'?'interrupted':'ended',turnOutcome:'finished',endedReason:reason,response:'original answer',lastTurnId:randomUUID()})
  await writeFile(join(stateDir,taskId+'.json'),JSON.stringify(task),{mode:0o600})
  return {...f,config:{...f.config,stateDir},task,sessionFile,prefix}
 }
@@ -1131,14 +1134,14 @@ test('a pending reopen reports launching, rejects overlaps, and end fences its l
  assert.equal((await service.handle(start(f.root))).ok,false)
  assert.equal((await service.handle(request('end',{project:f.root,taskId:f.task.taskId,mutationId:randomUUID()}))).ok,true)
  finish();await service.close();assert.equal(prompts,0);assert.equal(disposed,1)
- const record=JSON.parse(await readFile(join(f.config.stateDir,f.task.taskId+'.json'),'utf8'));assert.equal(record.endedReason,'explicit');assert.equal(record.sessionFile,f.sessionFile);assert.equal(record.state,f.task.state);assert.equal(record.turnOutcome,f.task.turnOutcome);assert.equal(record.response,f.task.response)
+ const record=JSON.parse(await readFile(join(f.config.stateDir,f.task.taskId+'.json'),'utf8'));assert.equal(record.endedReason,'explicit');assert.equal(record.sessionFile,f.sessionFile);assert.equal(record.state,f.task.state);assert.equal(record.turnOutcome,f.task.turnOutcome);assert.equal(record.response,f.task.response);assert.equal(record.lastTurnId,f.task.lastTurnId)
 })
 
 test('reopen failure releases its slot and preserves the original identity and bytes',async t=>{
  const f=await originalSessionFixture(t);let opens=0
  const service=await createTaskService(f.config,{createSession:async()=>{opens++;throw Error('synthetic reopen failure')}});t.after(()=>service.close())
  const req=request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'new',mutationId:randomUUID()});assert.equal((await service.handle(req)).ok,true)
- const failed=await waitState(service,f.task.taskId,f.task.state);assert.equal(failed.turnOutcome,f.task.turnOutcome);assert.equal(failed.response,f.task.response);assert.equal(failed.lifecycle,'ended');assert.equal(failed.endedReason,'idle_expired');assert.equal(failed.sessionFile,f.sessionFile);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
+ const failed=await waitState(service,f.task.taskId,f.task.state);assert.equal(failed.turnOutcome,f.task.turnOutcome);assert.equal(failed.response,f.task.response);assert.equal(failed.lastTurnId,f.task.lastTurnId);assert.equal(failed.lifecycle,'ended');assert.equal(failed.endedReason,'idle_expired');assert.equal(failed.sessionFile,f.sessionFile);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
  await service.handle(req);assert.equal(opens,1);assert.equal((await service.handle(start(f.root))).ok,true)
 })
 
@@ -1159,6 +1162,45 @@ test('cancelled reopen holds its project and host slot until its initializer exi
  const cancelled=await service.handle(request('cancel',{project:f.root,taskId:f.task.taskId,mutationId:randomUUID()}));assert.equal(cancelled.ok,true)
  assert.equal((await service.handle(start(f.root))).ok,false)
  assert.equal((await service.handle(request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'another',mutationId:randomUUID()}))).ok,false)
- release();await disposedReady;await service.handle(request('status',{taskId:f.task.taskId}));assert.equal(prompts,0);assert.equal(disposed,1);assert.equal(cancelled.task.state,f.task.state);assert.equal(cancelled.task.turnOutcome,f.task.turnOutcome);assert.equal(cancelled.task.response,f.task.response)
+ release();await disposedReady;await service.handle(request('status',{taskId:f.task.taskId}));assert.equal(prompts,0);assert.equal(disposed,1);assert.equal(cancelled.task.state,f.task.state);assert.equal(cancelled.task.turnOutcome,f.task.turnOutcome);assert.equal(cancelled.task.response,f.task.response);assert.equal(cancelled.task.lastTurnId,f.task.lastTurnId)
  assert.equal((await service.handle(request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'fresh after disposal',mutationId:randomUUID()}))).ok,true);await waitState(service,f.task.taskId,'settled');assert.equal(prompts,1);assert.equal(await readFile(f.sessionFile,'utf8'),f.prefix)
+})
+
+
+test('actual launch and restored fast turns notify once without observing working', async t => {
+ for (const restored of [false,true]) for (const ingress of ['event','poll']) for(const terminal of ['settled','ended','host_restart']) {
+  const f = restored ? await originalSessionFixture(t) : await fixture(t)
+  await f.service.close()
+  const adapter = { createSession: async () => ({
+   ...(restored ? { sessionFile:f.sessionFile } : {}), prompt:async()=>({text:'same result',stopReason:'stop'}), dispose(){}, abort:async()=>{}
+  }) }; let service = await createTaskService(f.config,adapter); t.after(()=>service.close())
+  let clock=Date.now()
+  const config={version:1,pollMs:60000,maxAgeMs:86400000,cooldownMs:3600000,quietHours:{start:'22:00',end:'08:00',timeZone:'UTC'},rules:[{id:'coding-complete',delivery:'immediate',urgent:true,advice:'View the completed turn.',coding:{target:'cm5',project:f.root}}],suppressed:[],snoozed:{}}
+  const options={judge:fixtureJudge,config,now:()=>clock,read:async()=>null,publish(){},save:async()=>{},phrase:async()=> 'View the completed turn.',codingList:async()=>(await service.handle(request('list'))).tasks,codingStatus:async identity=>(await service.handle(request('status',{taskId:identity.taskId}))).task}
+  const watch=new ProactiveWatch(options);t.after(()=>watch.close())
+  const accepted=await service.handle(restored ? request('prompt',{project:f.root,taskId:f.task.taskId,prompt:'new owner instruction',mutationId:randomUUID()}) : start(f.root))
+  assert.equal(accepted.ok,true,accepted.error);assert.equal(accepted.task.lifecycle,'launching')
+  // The actual launch response, rather than a fabricated live/working snapshot, establishes the baseline.
+  if(ingress==='event')watch.observeTask('cm5',accepted.task)
+  else { const status=watch.codingStatus;watch.codingStatus=async()=>accepted.task;await watch.tick();watch.codingStatus=status }
+  const done=await waitState(service,accepted.task.taskId,'settled')
+  if(terminal==='ended')assert.equal((await service.handle(request('end',{taskId:done.taskId,mutationId:randomUUID()}))).ok,true)
+  if(terminal==='host_restart'){await service.close();service=await createTaskService(f.config,adapter);assert.equal((await service.handle(request('status',{taskId:done.taskId}))).task.endedReason,'host_restart')}
+  clock=Date.now()
+  await watch.tick();assert.equal(watch.list().length,1,`${restored}:${ingress}`)
+  assert.match(done.lastTurnId,/^[0-9a-f-]{36}$/);assert.equal(done.currentTurnId,undefined)
+  assert.equal(JSON.parse(await readFile(join(f.config.stateDir,done.taskId+'.json'),'utf8')).lastTurnId,done.lastTurnId)
+  const proposal=watch.list()[0];await watch.presented([proposal.id]);await watch.respond(proposal.id,'ignore')
+  clock+=3600001
+  watch.observeTask('cm5',accepted.task);await watch.tick()
+  assert.equal(watch.list().filter(p=>p.status==='pending').length,0,'a stale launch receipt cannot announce the same terminal turn twice')
+  const historical=new ProactiveWatch({...options,now:()=>Date.parse(done.updatedAt)});t.after(()=>historical.close());await historical.tick()
+  assert.deepEqual(historical.list(),[],'a historical terminal identity alone is not a completion transition')
+  if(restored && terminal!=='ended'){
+   const again=await service.handle(request('prompt',{taskId:done.taskId,project:f.root,prompt:'another owner instruction',mutationId:randomUUID()}));assert.equal(again.ok,true,again.error)
+   watch.observeTask('cm5',again.task)
+   const next=await waitState(service,done.taskId,'settled');assert.notEqual(next.lastTurnId,done.lastTurnId)
+   await watch.tick();assert.equal(watch.list().filter(p=>p.status==='pending').length,1,'a distinct real turn can notify again')
+  }
+ }
 })
