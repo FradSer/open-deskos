@@ -13,7 +13,9 @@ if (typeof modelSpec !== 'string' || !modelSpec.includes('/')) throw Error('Expl
 const repository = fileURLToPath(new URL('../../../..', import.meta.url))
 const packageDir = process.env.ODK_REAL_NATIVE_PACKAGE_DIR || join(dirname(repository), 'pi-packages/packages/open-deskos')
 const root = process.env.ODK_REAL_NATIVE_PROJECT_ROOT || '/private/tmp/odk-session-demo'
-const runtimeDir = '/Users/FradSer/.local/run/odk/sessions'
+const runtimeDir = process.env.ODK_REAL_NATIVE_RUNTIME_DIR || process.env.ODK_SESSION_HOST_SOCKET || '/Users/FradSer/.local/run/odk/sessions'
+const planOnly = process.argv.length === 3 && process.argv[2] === '--plan'
+if (process.argv.length > 2 && !planOnly) throw Error('Only the read-only --plan option is supported')
 const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
 const operatorAgentDir = getAgentDir()
 let project, session, originalId, originalFile, closing = false
@@ -99,6 +101,9 @@ try {
     if (!info.isDirectory() || info.uid !== process.getuid()) throw Error('Unexpected fixture directory owner')
     if ((info.mode & 0o777) !== 0o700) throw Error('Endpoint directory must already be private')
   }
+  if (planOnly) {
+    emit({ event: 'plan', runtimeDirectory: runtimeDir, providerCalls: 0, productionWrites: false })
+  } else {
   const modelRuntime = await ModelRuntime.create({ authPath: join(operatorAgentDir, 'auth.json'), modelsPath: join(operatorAgentDir, 'models.json'), allowModelNetwork: false })
   const split = modelSpec.indexOf('/'), provider = modelSpec.slice(0, split), id = modelSpec.slice(split + 1)
   const model = (await modelRuntime.getAvailable(provider)).find(candidate => candidate.id === id)
@@ -139,6 +144,7 @@ try {
       else if (request.command === 'close') { input.close(); break }
       else throw Error('Only read-only status/verify or close is supported')
     } catch { emit({ event: 'observer_error', reason: 'Read-only fixture observation failed' }) }
+  }
   }
 } catch {
   emit({ event: 'fixture_error', reason: 'Native real-provider fixture failed; inspect authorized model and private paths' })

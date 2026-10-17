@@ -48,3 +48,9 @@ Scenario: The resident Linux coordinator reaches the canonical local task daemon
   When the resident calls its configured local task helper
   Then the real task CLI reaches the daemon with the inherited absolute configuration
   And a missing configuration does not appear as an empty task inventory
+
+Scenario: Native acceptance uses the configured endpoint directory
+  Given a private existing native endpoint directory configured on the host
+  When the operator plans an isolated native fixture
+  Then the fixture uses its explicit endpoint override or the inherited host endpoint
+  And it validates the real directory owner and private mode without changing other descriptors
