@@ -284,8 +284,9 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
   test(`${name} preserve projection bounds, nulls, omissions, and unknown counts`, async t => {
     const rows = Array.from({ length: 23 }, (_, i) => ({ ...session, uuid: `row-${i}`, sessionId: `row-${i}`,
       status: i === 0 ? '' : i % 2 ? 'settled' : 'running', latestGoal: '目'.repeat(170), activity: null,
+      reportedBy: 'r'.repeat(170), control: 'configured', target: 'cm5', endpoint: 'https://untrusted.invalid',
       controlAttribution: { machine: 'private', sessionId: 'private' } }))
-    rows[0] = { ...rows[0], sessionId: undefined, id: undefined, latestGoal: undefined, workspaceName: undefined, cwd: undefined, updatedAt: undefined }
+    rows[0] = { ...rows[0], sessionId: undefined, id: undefined, latestGoal: undefined, workspaceName: undefined, cwd: undefined, updatedAt: undefined, reportedBy: undefined }
     const f = await fixture(t, replacement, { scanLocal: () => ({ ...snapshot(rows), updatedAt: undefined }) })
     const reading = (await f.reading()).reading
     assert.equal(reading.value.asOf, undefined)
@@ -293,9 +294,13 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal(reading.value.truncated, true)
     assert.equal(reading.value.sessions.length, 20)
     assert.deepEqual(reading.value.counts, { running: 11, settled: 11, unknown: 1 })
-    assert.deepEqual(reading.value.sessions[0], { state: '', goal: null, activity: null, updatedAt: null })
+    assert.deepEqual(reading.value.sessions[0], { reportingMachine: null, control: 'report_only', state: '', goal: null, activity: null, updatedAt: null })
     assert.equal(reading.value.sessions[1].goal, '目'.repeat(160) + '...')
     assert.equal('controlAttribution' in reading.value.sessions[1], false)
+    assert.equal(reading.value.sessions[1].reportingMachine, 'r'.repeat(160) + '...')
+    assert.equal(reading.value.sessions[1].control, 'report_only')
+    assert.equal('target' in reading.value.sessions[1], false)
+    assert.equal('endpoint' in reading.value.sessions[1], false)
   })
 
   for (const connected of [false, true]) test(`${name} preserve configured SSH precedence (${connected ? 'reported' : 'SSH'})`, async t => {
@@ -409,7 +414,7 @@ for (const replacement of [false, true, 'signed', 'signed-pi']) {
     assert.equal(reading.id, 'odk.app.pi-sessions')
     assert.equal(reading.value.total, 1)
     assert.deepEqual(reading.value.counts, { running: 1 })
-    assert.deepEqual(reading.value.sessions[0], { id: 'fixture', project: 'Fixture', workingDirectory: '/fixture',
+    assert.deepEqual(reading.value.sessions[0], { id: 'fixture', reportingMachine: null, control: 'report_only', project: 'Fixture', workingDirectory: '/fixture',
       state: 'running', goal: 'Keep behavior', activity: null, updatedAt: '2026-10-08T00:00:00.000Z' })
     await f.host.setEnabled(ids[0], false)
     assert.equal(f.host.get(DATA_PORTS.piSessions), null)

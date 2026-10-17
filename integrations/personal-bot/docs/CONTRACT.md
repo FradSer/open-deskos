@@ -950,7 +950,9 @@ Native current-session endpoints retain their existing non-atomic status check a
 Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
 Follow-up receipts prove admission only and cannot train learned experience.
 
-The CM5 installer maintains `~/.local/bin/odesk-pi-task-control` from the reviewed helper template.
+The CM5 installer maintains `~/.local/bin/odk-pi-task-control` from the reviewed helper template.
 The helper follows `RUNTIME_ROOT/current` and defaults to `~/.config/odk/pi-tasks.json`.
 An explicit `ODK_TASK_CONFIG` overrides that default.
 The Bot unit supplies the same default before operator EnvironmentFiles.
+The installer does not rewrite existing target configuration or remove earlier helpers.
+After the new helper is verified, the operator must migrate existing executable references with a backed-up, exact configuration update.

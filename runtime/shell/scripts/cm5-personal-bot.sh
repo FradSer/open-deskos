@@ -79,7 +79,7 @@ stage_task_host_service() {
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
   local helper_dir="${TARGET_HOME}/.local/bin"
-  local helper="${helper_dir}/odesk-pi-task-control" prepared
+  local helper="${helper_dir}/odk-pi-task-control" prepared
   run_as_target_user mkdir -p "${helper_dir}" || return 1
   prepared="$(mktemp)" || return 1
   if ! sed -e "s|__ODK_PERSONAL_BOT_DIR__|${install_dir}|g" \

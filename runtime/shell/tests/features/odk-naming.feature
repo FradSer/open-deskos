@@ -23,3 +23,9 @@ Feature: One ODK technical namespace
     Given the Personal Bot loads the data capability
     When it registers that capability
     Then the tool is odk_data in the odk namespace
+
+  Scenario: The CM5 Hosted Pi helper uses the canonical namespace
+    Given a release includes the reviewed Hosted Pi control helper
+    When the installer stages its user-owned executable
+    Then its name is odk-pi-task-control
+    And active installer source contains no retired helper prefix

@@ -1,5 +1,12 @@
 Feature: Local Pi Sessions Monitoring
 
+  Scenario: Independent Pi sources preserve reporting provenance without control authority
+    Given default, linked, or signed independent Pi sources publish session readings
+    When a reported source claims control and supplies a long machine name
+    Then each reading keeps the bounded machine name and report_only control
+    And missing provenance remains null and private control attribution stays omitted
+    And update, rollback, removal, and default restoration preserve that same projection
+
   Scenario: Shell detects and exposes local Pi sessions
     Given local Pi session metadata directories exist in the agent state
     When the shell queries active Pi sessions

@@ -239,9 +239,24 @@ test('a reading renames a source field plainly and reports a ratio as the percen
   const sessions = (await control.dispatch({ command: 'read', readingId: 'odk.app.pi-sessions' })).reading
   assert.equal(sessions.value.total, 1)
   assert.deepEqual(sessions.value.sessions, [{
-    id: 's-1', project: 'odk', workingDirectory: '/home/desk/odk',
+    id: 's-1', reportingMachine: 'mac', control: 'report_only', project: 'odk', workingDirectory: '/home/desk/odk',
     state: 'running', goal: '部署，实际测试', activity: 'bash: pnpm test', updatedAt: new Date(5).toISOString(),
   }])
+})
+
+test('reported session provenance cannot promote a reading into configured control', async () => {
+  const control = createOdkDataControl(shellOdkData({ piSessions: { scan: async () => ({
+    ok: true, updatedAt: 4, sessions: [
+      { sessionId: 'reported', reportedBy: 'mac', control: 'configured', target: 'cm5',
+        endpoint: 'https://untrusted.invalid', controlAttribution: { machine: 'cm5', sessionId: 'other' } },
+      { sessionId: 'unattributed', control: 'configured' },
+    ],
+  }) } }).registry)
+  const reading = (await control.dispatch({ command: 'read', readingId: 'odk.app.pi-sessions' })).reading
+  assert.deepEqual(reading.value.sessions, [
+    { id: 'reported', reportingMachine: 'mac', control: 'report_only', goal: null, activity: null, updatedAt: null },
+    { id: 'unattributed', reportingMachine: null, control: 'report_only', goal: null, activity: null, updatedAt: null },
+  ])
 })
 
 test('a reading that is not live carries no reading at all', async () => {

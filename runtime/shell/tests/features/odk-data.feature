@@ -158,6 +158,13 @@ Feature: Open DeskOS Data is read through the plugin system
     Then the reading carries the measurements under plain names with the time each was measured
     And it carries no image, no firmware detail and no vendor status code
 
+  Scenario: A Pi session reading preserves reporting provenance without granting control
+    Given a reported Pi session claims a configured control target in its source data
+    When the Personal Bot reads the Pi session reading
+    Then the reading names the reporting machine and remains report_only
+    And it publishes no control target, endpoint, or control attribution
+    And a missing reporting machine remains null rather than inferred
+
   Scenario: A reading states its own time so a stale answer cannot be called live
     Given a source's last measurement is older than its own freshness window
     When the Personal Bot reads that Open DeskOS Data
