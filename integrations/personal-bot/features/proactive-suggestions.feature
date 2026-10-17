@@ -320,3 +320,15 @@ Feature: Owner controlled proactive Personal Bot proposals
     And reading historical completion identities does not create a notice
     And ending or restarting the host preserves a completed new turn identity
     And metadata changes retain an unconsumed notice for that same terminal turn
+
+  Scenario: A direct remote prompt completes between watch polls
+    Given the watch already observed the task's previous terminal identity
+    When Console or remote follow-up completes a new turn before the next poll
+    Then the changed terminal identity establishes one new completion notice
+    And a first scan of that finished task does not establish a new turn
+
+  Scenario: A legacy completed turn survives a daemon restart
+    Given the watch observed the legacy session working without a terminal identity
+    When the daemon restarts after that turn finishes
+    Then its preserved finished outcome can establish completion
+    But cold history and restoration preparation cannot establish completion

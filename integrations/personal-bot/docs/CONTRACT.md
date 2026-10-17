@@ -682,7 +682,7 @@ Legacy actions are static reviewed `memory_update`, `user_app_install`, `coding_
 Profile availability still applies; plugin fields cannot become parameters.
 A proposal never confirms a DiDi order.
 Coding rules require an explicit target/project and optional task ID.
-Observe a session working, or compare a launch baseline with its new terminal `lastTurnId`, before announcing completion.
+An observed working turn or a changed terminal `lastTurnId` establishes completion after a prior session observation.
 Startup history, failed/cancelled turns, absent targets, and unreachable services cannot establish completion.
 Real launch/prompt receipts track work that finishes between polls.
 `verification: not_run` remains unverified.

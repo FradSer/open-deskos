@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { ProactiveWatch } from '../src/proactive.mjs'
+import { createRemotePiReader } from '../src/remote-pi-reader.mjs'
 import { fixtureJudge } from './helpers/proactive-judge.mjs'
 import { createTaskService, goalPreviews, reserveTaskRecord } from '../src/task-service.mjs'
 
@@ -1197,13 +1198,19 @@ test('actual launch and restored fast turns notify once without observing workin
   clock+=3600001
   watch.observeTask('cm5',accepted.task);await watch.tick()
   assert.equal(watch.list().filter(p=>p.status==='pending').length,0,'a stale launch receipt cannot announce the same terminal turn twice')
-  const historical=new ProactiveWatch({...options,now:()=>Date.parse(done.updatedAt)});t.after(()=>historical.close());await historical.tick()
+  const historical=new ProactiveWatch(options);t.after(()=>historical.close());await historical.tick()
   assert.deepEqual(historical.list(),[],'a historical terminal identity alone is not a completion transition')
   if(restored && terminal!=='ended'){
-   const again=await service.handle(request('prompt',{taskId:done.taskId,project:f.root,prompt:'another owner instruction',mutationId:randomUUID()}));assert.equal(again.ok,true,again.error)
-   watch.observeTask('cm5',again.task)
+   const reader=await createRemotePiReader({link:{stop(){}},backfill:async()=>null,targets:[{id:'cm5',roots:[f.root]}],request:async(_target,payload)=>service.handle(request(payload.command,{...payload,...(payload.command==='prompt'?{mutationId:randomUUID()}:{})}))});t.after(()=>reader.close())
+   const source=(await reader.read('hosted:0')).records.find(record=>record.taskId===done.taskId)
+   // Both real prompt surfaces bypass the agent's observeTask wrapper.
+   const again=terminal==='host_restart'
+    ? await reader.followup(source,{sourceRevision:source.revision,prompt:'another owner instruction'})
+    : await service.handle(request('prompt',{taskId:done.taskId,project:f.root,prompt:'another owner instruction',mutationId:randomUUID()}))
+   assert.equal(again.ok,true,again.error)
    const next=await waitState(service,done.taskId,'settled');assert.notEqual(next.lastTurnId,done.lastTurnId)
-   await watch.tick();assert.equal(watch.list().filter(p=>p.status==='pending').length,1,'a distinct real turn can notify again')
+   await watch.tick();assert.equal(watch.list().filter(p=>p.status==='pending').length,1,'a distinct real turn can notify again without a wrapped launch receipt')
+   await historical.tick();assert.equal(historical.list().length,1,'an observed historical identity is a baseline for a later real turn')
   }
  }
 })

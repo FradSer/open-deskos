@@ -338,7 +338,7 @@ export class ProactiveWatch {
       const previous = this.seenTurns.get(key)
       if (codingWorking(task) || task.lifecycle === 'launching') this.seenTurns.set(key, {
         working: codingWorking(task), updatedAt: task.updatedAt, finished: false,
-        ...(task.lifecycle === 'launching' ? { launchBaseline: task.lastTurnId ?? null } : {}),
+        lastTurnId: task.lastTurnId,
         deliveredTurnId: previous?.deliveredTurnId,
       })
     }
@@ -352,15 +352,14 @@ export class ProactiveWatch {
     const previous = this.seenTurns.get(key)
     const working = codingWorking(task)
     const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished') ||
-      (task.lifecycle === 'interrupted' && typeof task.lastTurnId === 'string'))
-    const newTerminalTurn = previous?.launchBaseline !== undefined && typeof task.lastTurnId === 'string' && task.lastTurnId !== previous.launchBaseline
+      task.lifecycle === 'interrupted')
+    const newTerminalTurn = previous !== undefined && typeof task.lastTurnId === 'string' && task.lastTurnId !== previous.lastTurnId
     const finishedPending = finished && (!task.lastTurnId || task.lastTurnId !== previous?.deliveredTurnId) &&
       (previous?.working || newTerminalTurn || (previous?.finishedPending &&
         (task.lastTurnId !== undefined || previous.lastTurnId !== undefined
           ? typeof task.lastTurnId === 'string' && previous.lastTurnId === task.lastTurnId
           : previous.updatedAt === task.updatedAt)))
     this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending,
-      ...(task.lifecycle === 'launching' ? { launchBaseline: previous?.launchBaseline ?? task.lastTurnId ?? null } : {}),
       lastTurnId: task.lastTurnId, deliveredTurnId: previous?.deliveredTurnId,
     })
     const existing = this.proposals.some(p => p.ruleId === rule.id && p.subject === identity.taskId && pending(p))
