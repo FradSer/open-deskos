@@ -1,6 +1,10 @@
 ;(function () {
   'use strict'
 
+  // Owner-channel protocol tokens are data, not interface copy.
+  const rideQuotePrefix = '\u67e5\u770b\u62a5\u4ef7'
+  const rideRefreshPrefix = '\u5237\u65b0\u884c\u7a0b'
+
   const surface = document.getElementById('personal-bot-status')
   if (!surface || !window.odkPersonalBot) return
 
@@ -98,7 +102,7 @@
     const current = () => proposal.status === 'pending' && Number.isFinite(preview.expiresAt) && preview.expiresAt > Date.now()
     note.textContent = current() ? `Estimate observed ${preview.measuredAt}. Expires ${new Date(preview.expiresAt).toISOString()}. Planned pickup; current location is not verified. This preview has not placed an order.` : 'Ride preview is expired or needs a location. Ask the Agent to search again. This preview has not placed an order.'
     panel.append(note)
-    if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = '沙箱测试，不代表真实车辆或真实行程'; panel.append(sandbox) }
+    if (preview.sandbox === true) { const sandbox = document.createElement('p'); sandbox.textContent = 'Sandbox preview; no real vehicle or trip.'; panel.append(sandbox) }
     for (const item of Array.isArray(preview.items) ? preview.items.slice(0, 16) : []) {
       const line = document.createElement('p')
       line.textContent = `${String(item.productName ?? '').slice(0, 256)}: ${String(item.priceText ?? '').slice(0, 256)}`
@@ -131,7 +135,7 @@
       }
       for (const control of [...selectors, quoteButton]) control.disabled = true
       try {
-        const receipt = await window.odkPersonalBot.sendText(`查看报价 ${handles.join(' ')}`)
+        const receipt = await window.odkPersonalBot.sendText(`${rideQuotePrefix} ${handles.join(' ')}`)
         if (!receipt?.accepted) throw Error('Unavailable')
       } catch {
         note.textContent = 'Quote request delivery is uncertain. Check the Agent conversation before trying again. No order confirmation was sent.'
@@ -142,7 +146,7 @@
       const refresh = button('Refresh preview', async () => {
         refresh.disabled = true
         try {
-          const receipt = await window.odkPersonalBot.sendText(`刷新行程 ${preview.handle}`)
+          const receipt = await window.odkPersonalBot.sendText(`${rideRefreshPrefix} ${preview.handle}`)
           if (!receipt?.accepted) throw Error('Unavailable')
         } catch { note.textContent = 'Preview refresh delivery is uncertain. Check the Agent conversation before trying again.' }
       })

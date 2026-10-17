@@ -60,7 +60,8 @@ function project(data) {
   return { asOf: iso(data.updatedAt) ?? undefined, total: sessions.length,
     counts: Object.fromEntries(states.map(state => [state, sessions.filter(session => (session.status || 'unknown') === state).length])),
     sessions: sessions.slice(0, 20).map(session => Object.fromEntries(Object.entries({
-      id: session.sessionId ?? session.id, project: session.workspaceName, workingDirectory: session.cwd,
+      id: session.sessionId ?? session.id, reportingMachine: text(session.reportedBy), control: 'report_only',
+      project: session.workspaceName, workingDirectory: session.cwd,
       state: session.status, goal: text(session.latestGoal), activity: text(session.activity), updatedAt: iso(session.updatedAt),
     }).filter(([, value]) => value !== undefined))), truncated: sessions.length > 20 }
 }

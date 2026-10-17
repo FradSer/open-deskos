@@ -50,6 +50,14 @@ Feature: Independent CM5 personal bot service deployment
     Then it reads each loaded unit's canonical identity before enabling it
     And it keeps the Personal Bot, Open DeskOS Link, and Hosted Pi tasks on the stable runtime path
 
+  Scenario: Stage the canonical helper without rewriting operator configuration
+    Given a host retains an earlier helper and its configured executable reference
+    When the installer stages the reviewed Hosted Pi helper
+    Then odk-pi-task-control uses the stable current release and private executable permissions
+    And the earlier helper bytes remain unchanged
+    And the existing target configuration bytes remain unchanged
+    And the operator must migrate existing executable references after verifying the new helper
+
   Scenario: Unconfigured voice keeps the shell usable and reports its state
     Given the shell release has been activated
     And STT authentication or the default ALSA microphone is unavailable

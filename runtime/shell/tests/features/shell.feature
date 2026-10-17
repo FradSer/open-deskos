@@ -290,6 +290,8 @@ Feature: Open DeskOS 跨平台 Display Shell
     And built-in view catalog names are English
     And interactive controls and page indicators have English accessible labels
     And no Chinese characters appear in renderer UI source, catalog values, or end-to-end expectations
+    And read-only ride sandbox notices use English copy
+    And internal ride requests retain their exact owner-channel protocol text
 
   Scenario: CM5 activates only a verified staged Open DeskOS release
     Given a known-good Open DeskOS release is active

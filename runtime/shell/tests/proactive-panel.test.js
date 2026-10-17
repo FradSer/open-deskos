@@ -97,10 +97,11 @@ test('unchanged service status preserves an uncertain command warning and disabl
 test('ride details are read-only and explicit endpoint selection enters the ordinary owner channel', async () => {
   const f = fixture(), turns = []
   f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
-  const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
+  const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', sandbox: true, expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
   f.render({ state: 'idle', proposals: [ride], proposalPopup: true })
   const open = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details')
   assert.ok(open); await open.click(); assert.equal(turns.length, 0); assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
+  assert.ok(flatten(f.content).some(n => n.textContent === 'Sandbox preview; no real vehicle or trip.'))
   assert.ok(flatten(f.content).some(n => n.textContent.includes('<script>起点甲</script>')))
   const selects = flatten(f.content).filter(n => n.tagName === 'SELECT')
   const quote = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')

@@ -77,6 +77,7 @@ app.whenReady().then(async () => {
   assert.equal(ownerTurns.length, 0); assert.equal(commands.length, beforeDetails)
   assert.equal(await run(`!!document.querySelector('.personal-bot-ride-details script')`), false)
   assert.equal(await run(`document.querySelector('.personal-bot-ride-details').hidden`), false)
+  assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /Sandbox preview; no real vehicle or trip\./)
   assert.match(await run(`document.querySelector('.personal-bot-ride-details').textContent`), /20元/)
   await run(`[...document.querySelectorAll('.personal-bot-ride-details button')].find(b => b.textContent === 'Get current quote').click()`)
   await delay(); assert.equal(ownerTurns.length, 0)
