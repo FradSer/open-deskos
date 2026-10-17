@@ -933,6 +933,8 @@ Reporting text cannot select an SSH host, file, or command.
 
 Each synthesis uses an ephemeral provider session without tools, Skills, extensions, or memory.
 A separate zero-tool reviewer checks only report faithfulness with exact source citations.
+Both phases require exactly one citation for each supplied source key.
+Their sole format correction states the current source count and keeps the original evidence limits.
 A faithful summary can repeat a reported number without a computation receipt.
 The generic task completion verifier and its computation requirements remain unchanged.
 This check does not verify remote execution, calculations, tests, or task completion.

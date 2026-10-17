@@ -292,6 +292,31 @@ test('remote synthesis uses zero-tool Durable providers and keeps exact referenc
  }finally{await bot.close()}
 })
 
+test('remote summary and faithfulness correction require one citation per actual source',async t=>{
+ for(const count of [1,2])await t.test(`${count} source records`,async t=>{
+  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+  const records=Array.from({length:count},(_,i)=>({key:String(i+1).repeat(64),revision:'b'.repeat(64),machine:'synthetic-Mac',sessionId:`synthetic-${i}`,project:'/synthetic/project',conclusion:'Computed total: 6.',execution:'reported_unverified',conclusionOutcome:'reported_finished',control:'report_only',updatedAt:1,state:'settled'}))
+  const calls={remote:0,review:0},corrections=[]
+  const runtime=offline(context=>{
+   assert.deepEqual(visibleTools(context),[])
+   const user=context.messages.findLast(message=>message.role==='user'),all=JSON.stringify(context.messages),input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
+   const kind=all.includes('Review only the faithfulness of a remote Pi summary')?'review':'remote';calls[kind]++
+   assert.deepEqual(input.records,records)
+   let citations=records.map(record=>({key:record.key,revision:record.revision,field:'conclusion',quote:'Computed total: 6.'}))
+   if(calls[kind]===1){
+    assert.equal(input.formatCorrection,undefined)
+    citations.splice(1,0,...['execution','conclusionOutcome'].map(field=>({key:records[0].key,revision:records[0].revision,field,quote:records[0][field]})))
+   }else{
+    assert.equal(calls[kind],2)
+    corrections.push(input.formatCorrection)
+   }
+   return assistant(JSON.stringify(kind==='review'?{status:'passed',reason:'The summary attributes the supplied report without independent verification.',citations}:{summary:'Pi reports a total of 6; this is not independently verified.',citations}))
+  })
+  const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+  try{const summary=await bot.summarizeRemote({records,omitted:0,incomplete:false});assert.equal(summary.citations.length,count);assert.deepEqual(calls,{remote:2,review:2});assert.equal(corrections.length,2);for(const correction of corrections){assert.match(correction,new RegExp('exactly '+count+' citations'));assert.match(correction,/each unique (?:source )?key exactly once/);assert.match(correction,/512/)}}finally{await bot.close()}
+ })
+})
+
 test('remote faithfulness review holds unsupported numeric, execution, and evidence-gap claims',async t=>{
  for(const badSummary of ['The supplied total is independently verified as 6.','The remote task passed all tests and completed delivery.','Pi reported a total of 7.','All connected task conclusions are complete and current.'])await t.test(badSummary,async t=>{
   const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}

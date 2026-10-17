@@ -31,6 +31,8 @@ Feature: A resident Personal Bot coordinates work without implementing it
     Then a bounded paginated inventory retains each machine and session identity
     And the agent synthesizes cited conclusions with zero tools
     And a separate zero-tool reviewer checks only report faithfulness with exact source citations
+    And both phases require exactly one citation for each unique source key
+    And a rejected duplicate citation receives the current exact citation count on its sole correction attempt
     And reporting a supplied number requires no invented computation receipt
     And execution, calculation, and delivery claims remain independently unverified
     And this conversation retains the summaries and exact source references after restart
