@@ -33,6 +33,116 @@ test('parseProcessTable finds Pi executables and derives elapsed start times', (
   assert.equal(processes[0].isAlive, true)
 })
 
+function darwinProcessFixture(execute) {
+  const vm = require('node:vm')
+  const { createRequire } = require('node:module')
+  const file = path.join(__dirname, '../src/pi-sessions.js')
+  const actualRequire = createRequire(file)
+  const module = { exports: {} }
+  vm.runInNewContext(fs.readFileSync(file, 'utf8'), {
+    module, exports: module.exports, process: { platform: 'darwin', env: {}, kill: process.kill.bind(process) },
+    require(name) {
+      if (name === 'node:child_process') return { spawnSync: execute }
+      if (name === 'node:fs') return { ...fs, realpathSync(value) {
+        if (value.startsWith('/proc/')) throw Object.assign(Error('No procfs'), { code: 'ENOENT' })
+        return fs.realpathSync(value)
+      } }
+      return actualRequire(name)
+    },
+  }, { filename: file })
+  return module.exports
+}
+
+test('macOS resolves all Pi cwd values with one bounded process lookup', () => {
+  const now = 1_700_000_000_000
+  const pids = Array.from({ length: 83 }, (_, i) => 4000 + i)
+  const calls = []
+  const fixture = darwinProcessFixture((file, args, options) => {
+    calls.push({ file, args, options })
+    if (file === 'ps') return { status: 0, stdout: [...pids.map(pid => `${pid} 1 00:01:00 node node /opt/tools/pi`), '9999 1 10 node node app.js --name pi'].join('\n') }
+    assert.equal(file, 'lsof')
+    return { status: 0, stdout: pids.map(pid => `p${pid}\nn/fixture/work ${pid}`).join('\n') }
+  })
+  const rows = fixture.listPiProcesses(now, true)
+  const lookups = calls.filter(call => call.file === 'lsof')
+  assert.equal(lookups.length, 1)
+  assert.deepEqual(Array.from(rows, row => row.pid), pids)
+  for (const row of rows) {
+    assert.equal(row.cwd, `/fixture/work ${row.pid}`)
+    assert.equal(row.startedAt, now - 60000)
+    assert.equal(row.ppid, 1)
+    assert.equal(row.isAlive, true)
+  }
+  assert.deepEqual(Array.from(lookups[0].args), ['-a', '-p', pids.join(','), '-d', 'cwd', '-Fpn'])
+  assert.equal(lookups[0].options.timeout, 3000)
+  assert.equal(lookups[0].options.killSignal, 'SIGKILL')
+  assert.equal(lookups[0].options.maxBuffer, 4 * 1024 * 1024)
+})
+
+test('macOS partial cwd lookup preserves metadata identity and orphan accounting', async () => {
+  const now = 1_700_000_000_000
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-pi-batch-'))
+  try {
+    const metadata = path.join(dir, 'directory-sessions', 'fixture')
+    fs.mkdirSync(metadata, { recursive: true })
+    fs.writeFileSync(path.join(metadata, 'session.json'), JSON.stringify({
+      sessionId: 'batch-01a062fe-a0a6-7922-a757-abb790ef9977', pid: 4000,
+      cwd: '/fixture/matched workspace', startedAt: now - 60000, updatedAt: now,
+      status: 'running', latestGoal: 'Registered session', modifiedFiles: [],
+    }))
+    const calls = []
+    const fixture = darwinProcessFixture((file, args) => {
+      calls.push(file)
+      if (file === 'ps') return { status: 0, stdout: '4000 1 00:01:00 pi pi\n4001 1 00:01:00 pi pi' }
+      return { status: 1, stdout: 'p9999\nn/foreign\np4000\nn/fixture/matched workspace' }
+    })
+    const result = await fixture.scanPiSessions({ agentDir: dir, now, checkProcessAlive: () => true })
+    assert.equal(result.ok, true)
+    assert.equal(result.sessions.length, 1)
+    assert.equal(result.sessions[0].cwd, '/fixture/matched workspace')
+    assert.equal(result.sessions[0].latestGoal, 'Registered session')
+    assert.equal(result.summary.running, 1)
+    assert.equal(result.orphanProcesses, 1)
+    assert.deepEqual(calls, ['ps', 'lsof'])
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+})
+
+for (const failure of [
+  { status: null, error: Object.assign(Error('Timeout'), { code: 'ETIMEDOUT' }) },
+  { status: 2 }, { status: null, signal: 'SIGKILL' },
+]) test(`macOS failed cwd lookup preserves Pi rows (${failure.error?.code || failure.signal || failure.status})`, () => {
+  let calls = 0
+  const fixture = darwinProcessFixture(file => {
+    if (file === 'ps') return { status: 0, stdout: '4000 1 60 pi pi' }
+    calls++
+    return { ...failure, stdout: 'p4000\nn/partial/must-not-be-used' }
+  })
+  const rows = fixture.listPiProcesses(1_700_000_000_000, true)
+  assert.equal(calls, 1)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].pid, 4000)
+  assert.equal(rows[0].cwd, '')
+  assert.equal(rows[0].isAlive, true)
+})
+
+test('macOS cwd parser cannot attach another PID or ambiguous paths', () => {
+  const fixture = darwinProcessFixture(file => file === 'ps'
+    ? { status: 0, stdout: '4000 1 60 pi pi\n4001 1 60 pi pi\n4002 1 60 pi pi' }
+    : { status: 0, stdout: 'p4001\nn/own path\np4000\nn/first\nn/second\np9999\nn/foreign\npbad\nn/invalid\np4002\nnrelative' })
+  assert.deepEqual(Array.from(fixture.listPiProcesses(), row => row.cwd), ['', '/own path', ''])
+})
+
+test('macOS does not query cwd without Pi processes and retains strict ps failure', () => {
+  const fixture = darwinProcessFixture(file => {
+    assert.equal(file, 'ps')
+    return { status: 0, stdout: '9999 1 60 node node app.js --name pi' }
+  })
+  assert.equal(fixture.listPiProcesses().length, 0)
+  const failed = darwinProcessFixture(() => ({ status: 1, stdout: '' }))
+  assert.throws(() => failed.listPiProcesses(Date.now(), true), /Pi process inspection unavailable/)
+  assert.equal(failed.listPiProcesses(Date.now(), false).length, 0)
+})
+
 test('scanPiSessions returns empty summary when agent directory does not exist', async () => {
   const nonExistentDir = path.join(os.tmpdir(), `pi-test-agent-${Date.now()}`)
   const result = await scanPiSessions({ agentDir: nonExistentDir, listProcesses: () => [] })

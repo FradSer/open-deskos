@@ -286,3 +286,11 @@ Scenario: Slow scans still produce readings while the next poll is pending
     And the Pi App opens through the public App platform and actual App Manager
     Then the Pi App retains session filters, detail, and close behavior
     And the App does not call the replacement page mount function
+
+Scenario: A macOS process snapshot resolves Pi work directories in one bounded lookup
+  Given many live Pi processes include registered sessions and orphan processes
+  When the collector reads their work directories on macOS
+  Then one bounded lsof call maps each returned directory to its own PID
+  And unrelated processes are not queried or counted as Pi processes
+  And missing or failed directory lookups do not remove Pi process rows
+  And metadata identity and orphan accounting remain unchanged
