@@ -1,3 +1,4 @@
+import { parsePluginInput } from '../../src/agent-plugins/prompt.mjs'
 import { assistant, fixtureModel } from './pi-fixture.mjs'
 import { reportData, reportProcedure } from '../fixtures/agent-learning-reports.mjs'
 
@@ -10,7 +11,7 @@ export function createOfflineAcceptanceRuntime(phase) {
         const user = context.messages.findLast(message => message.role === 'user')
         const raw = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
         if (all.includes('Check the current Personal Agent task after') || all.includes('Extract reusable procedural lessons only')) {
-          const input = JSON.parse(raw.split('Personal Bot request:\n').at(-1))
+          const input = parsePluginInput(raw.slice('Personal Bot request:\n'.length))
           if ('existingExperience' in input) {
             const source = input.receipts.find(receipt => receipt.tool === 'agent_mcp_call' && receipt.text.includes(reportProcedure))
             return assistant(JSON.stringify({ lessons: source && phase() === 'saved-training' ? [{ title: 'Desk report conversion', body: reportProcedure,

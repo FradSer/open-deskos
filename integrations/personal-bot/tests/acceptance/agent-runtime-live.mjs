@@ -1,3 +1,4 @@
+import { parsePluginInput } from '../../src/agent-plugins/prompt.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -49,14 +50,14 @@ function pluginInput(context) {
   if (!all.includes('Check the current Personal Agent task after') && !all.includes('Extract reusable procedural lessons only')) return undefined
   const user = context.messages.findLast(message => message.role === 'user')
   const text = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
-  try { return JSON.parse(text.split('Personal Bot request:\n').at(-1)) } catch { return undefined }
+  try { return parsePluginInput(text.slice('Personal Bot request:\n'.length)) } catch { return undefined }
 }
 function recordReceipts(context) {
   if (!JSON.stringify(context.messages).includes('Check the current Personal Agent task after')) return
   const user = context.messages.findLast(message => message.role === 'user')
   const text = typeof user?.content === 'string' ? user.content : user?.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') ?? ''
   try {
-    const value = JSON.parse(text.split('Personal Bot request:\n').at(-1))
+    const value = parsePluginInput(text.slice('Personal Bot request:\n'.length))
     for (const receipt of value.receipts.filter(receipt => receipt.tool === 'experience_read' && receipt.status === 'succeeded')) {
       const key = `${phase}:${receipt.id}:${receipt.text}`
       if (!retrieved.has(key)) { retrieved.add(key); retrievals++ }
