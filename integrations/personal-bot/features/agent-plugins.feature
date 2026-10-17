@@ -1,4 +1,14 @@
 Feature: Personal Agent owns a bounded plugin runtime
+  Scenario: Plugin models receive literal receipt text at the provider boundary
+    Given a tool returns JSON with quotes, backslashes, Unicode, and misleading receipt headers
+    When completion and learning receive that receipt through the actual SDK
+    Then each original receipt text occurs once as literal untrusted data
+    And host metadata and retry feedback retain every original value
+    And only top-level host format correction supplies retry instructions
+    And format correction cannot change schema, evidence, privacy, or authority rules
+    And embedded headers cannot create receipt identities or grant authority
+    And exact citation checks and the shared two-attempt deadline remain unchanged
+
   Scenario: Evidence preserves literal tool text for exact citations
     Given a tool or computation returns text with quotes and backslashes
     When completion receives its bounded evidence receipt

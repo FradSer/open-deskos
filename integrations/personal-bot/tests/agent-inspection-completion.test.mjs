@@ -1,3 +1,4 @@
+import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, realpath, mkdir, rm, writeFile } from 'node:fs/promises'
@@ -27,7 +28,7 @@ test('actual coding-profile Durable read, grep, find and ls results reach comple
   const models = { getAvailable: async () => [fixtureModel], getModel: () => fixtureModel, streamSimple: (_model, context) => {
     const result = Promise.resolve().then(() => {
       if (JSON.stringify(context.messages).includes('Check the current Personal Agent task after')) {
-        const input = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Bot request:\n')[1])
+        const input = parsePluginInput(context.messages.findLast(message => message.role === 'user').content.slice('Personal Bot request:\n'.length))
         observed = input.receipts
         return assistant(JSON.stringify(passed(input.receipts)))
       }

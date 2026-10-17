@@ -1,3 +1,4 @@
+import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
@@ -91,7 +92,7 @@ test('a saved Durable child uses an installed MCP and retains its own verified l
     const content = context.messages.findLast(message => message.role === 'user').content
     const raw = typeof content === 'string' ? content : content.filter(part => part.type === 'text').map(part => part.text).join('\n')
     if (visibleTools(context).length === 0) {
-      const input = JSON.parse(raw.split('Personal Bot request:\n').at(-1))
+      const input = parsePluginInput(raw.slice('Personal Bot request:\n'.length))
       const receipt = input.receipts.at(-1)
       if ('existingExperience' in input) return assistant(JSON.stringify({ lessons: input.request === 'Child report fixture' ? [{
         title: 'Report region checks', body: 'Check the reported region count before presenting a regional report.', evidence: [{ id: receipt.id, quote: 'Checks: 3 passed' }],

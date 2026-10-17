@@ -2,6 +2,27 @@ import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {generationDeadlineMs, generateWithinDeadline} from '../src/proactive-generation-session.mjs'
 import {AgentValidationError, pluginFormatCorrection} from '../src/agent-plugins/completion.mjs'
+import {renderPluginInput, parsePluginInput} from '../src/agent-plugins/prompt.mjs'
+
+test('a plugin serializer preserves literal receipt data and retry metadata within the same two attempts', async () => {
+  const input = { request: 'Read source', answer: 'Read complete', hostedTask: { id: 'fixture' }, existingExperience: [{ id: 'lesson-fixture' }],
+    receipts: [{ id: 'tool-1', text: String.raw`{"path":"C:\\fixture","emoji":"🧪"}` }] }
+  const before = structuredClone(input)
+  let calls = 0, disposed = 0
+  const result = await generateWithinDeadline({ serialize: renderPluginInput,
+    create: async () => ({ dispose: async () => { disposed++ }, abort: async () => {} }),
+    prompt: async (_session, text) => {
+      const request = parsePluginInput(text)
+      assert(text.includes(input.receipts[0].text))
+      assert.deepEqual(request, { ...input, ...(calls ? { formatCorrection: 'Copy an exact substring.' } : {}) })
+      return ++calls === 1 ? '{invalid' : '{"valid":true}'
+    }, formatCorrection: 'Copy an exact substring.',
+  }, input)
+  assert.deepEqual(result, { valid: true })
+  assert.deepEqual(input, before)
+  assert.equal(calls, 2)
+  assert.equal(disposed, 1)
+})
 
 test('known host validation codes produce exact safe feedback inside the existing two-attempt lifecycle', async () => {
   let calls = 0, disposed = 0, corrections = 0

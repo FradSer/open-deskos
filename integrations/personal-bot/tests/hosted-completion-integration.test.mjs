@@ -1,3 +1,4 @@
+import { parsePluginInput } from '../src/agent-plugins/prompt.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
@@ -79,7 +80,7 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
       const text = JSON.stringify(context.messages)
       if (text.includes('Check the current Personal Agent task after')) {
         assert.deepEqual(visibleTools(context), [])
-        const input = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Bot request:\n')[1])
+        const input = parsePluginInput(context.messages.findLast(message => message.role === 'user').content.slice('Personal Bot request:\n'.length))
         if (input.hostedTask) { assert.equal(input.request, prompt); assert.equal(input.answer, task.response); verifiedOriginal = true }
         const receipt = input.receipts.find(receipt => receipt.tool === 'coding_check')
         assert(receipt)
@@ -89,7 +90,7 @@ test('actual Hosted SDK checks cross the control transport into Durable completi
       }
       if (text.includes('Extract reusable procedural lessons only')) {
         assert.deepEqual(visibleTools(context), [])
-        const input = JSON.parse(context.messages.findLast(message => message.role === 'user').content.split('Personal Bot request:\n')[1])
+        const input = parsePluginInput(context.messages.findLast(message => message.role === 'user').content.slice('Personal Bot request:\n'.length))
         const receipt = input.receipts.find(receipt => receipt.tool === 'coding_check')
         learnedCheck = true
         return assistant(JSON.stringify({ lessons: [{ title: 'Assert report region contracts', body: 'Check region count, uniqueness and string types with assertions.',

@@ -16,6 +16,7 @@ import { createJevIntentRouter, createIntentTurn, guardIntentTools, intentToolNa
 import { normalizeCapabilityDeclarations, createReviewedCapabilities, childCapabilityDeclarations } from './reviewed-capabilities.mjs'
 import { generationInstructions, validateGeneratedBatch } from './proactive-generation.mjs'
 import { createAgentPluginRuntime } from './agent-plugins/runtime.mjs'
+import { renderPluginInput } from './agent-plugins/prompt.mjs'
 import { createExperienceStore } from './agent-plugins/experience.mjs'
 import { createHostedCompletionTool } from './agent-plugins/hosted-completion.mjs'
 import { completionInstructions, hostedCompletionInstructions, learningInstructions, validateCompletion, validateLessons, pluginFormatCorrection } from './agent-plugins/completion.mjs'
@@ -181,7 +182,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const model = config.model ? modelRuntime.getModel(...splitModel(config.model)) : undefined
     if (config.model && !model) throw Error('Configured Pi model unavailable')
     async function inferPlugin(kind, input, signal) {
-      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS,
+      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: renderPluginInput,
         formatCorrection: error => pluginFormatCorrection(kind, error),
         validate: value => kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
         create: async () => {
