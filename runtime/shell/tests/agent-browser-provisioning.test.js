@@ -9,11 +9,12 @@ const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
+const { integrationPath } = require('./helpers/repo-root')
 
 const SCRIPT_PATH = path.join(__dirname, '..', 'scripts', 'cm5-agent-browser.sh')
 const script = fs.readFileSync(SCRIPT_PATH, 'utf8')
 const installer = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'cm5-install.sh'), 'utf8')
-const feature = fs.readFileSync(path.join(__dirname, '../../../integrations/personal-bot/features/browser.feature'), 'utf8')
+const feature = fs.readFileSync(integrationPath('personal-bot/features/browser.feature', __dirname), 'utf8')
 
 // Run the script with a stubbed `uname` so the host guard is asserted by its
 // result on any development host rather than by the absence of its text.
