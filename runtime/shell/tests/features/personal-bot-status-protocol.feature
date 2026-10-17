@@ -67,3 +67,12 @@ Feature: Voice feedback status transport
     Then a later service error and its recovery retain that warning and disabled confirmation controls
     When recording feedback returns to Home
     Then the resident panel owns recording feedback without a modal or inert Home
+
+  Scenario: A ride suggestion opens actual details before a separate owner request
+    Given a pending suggestion contains bounded host-issued ride preview data
+    When the owner opens its ride details
+    Then the view shows the actual route candidates and estimate expiry
+    And opening details sends no conversation turn or order command
+    And ambiguous endpoints require explicit selection before requesting a current quote
+    And an expired preview cannot request a quote
+    And a current quote request uses the existing owner text channel through Jev
