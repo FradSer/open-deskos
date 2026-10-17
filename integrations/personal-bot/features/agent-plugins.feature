@@ -144,7 +144,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     Given the default live output limit is 2048 tokens
     When an operator explicitly selects an output limit up to 16384 tokens
     Then the plan, model cap, and actual HTTP adapter use that limit
-    And the configured model limit can still reduce it
+    And a lower configured model limit reduces both SDK options and the final HTTP allowance
     And duplicate, invalid, and excessive options are refused
     And request counts, deadlines, and quality checks remain unchanged
 

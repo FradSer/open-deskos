@@ -152,8 +152,8 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   return { report, code, diagnostics, acceptedExperience }
 }
 
-test('the complete acceptance runner proves its own contract with zero external calls', { timeout: 60000 }, async t => {
-  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t)
+for (const [resources, plan] of [['default', agentLivePlan], ['explicit', createLivePlan({ maxOutputTokens: 16384 })]]) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
+  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan)
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.equal(report.passed, false, 'a container cannot approve its own source validation')
   assert.equal(report.functionalPassed, true)

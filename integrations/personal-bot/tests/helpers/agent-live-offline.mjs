@@ -4,7 +4,8 @@ import { reportData, reportProcedure } from '../fixtures/agent-learning-reports.
 /** Scripted provider for the acceptance runner's own contract tests, never live quality evidence. */
 export function createOfflineAcceptanceRuntime(phase) {
   return { getAvailable: async () => [fixtureModel], getModel: () => fixtureModel, registerProvider() {},
-    streamSimple: (_model, context) => {
+    streamSimple: (model, context, options) => {
+      if (options.maxTokens > model.maxTokens) throw Error('Acceptance exceeded the model output limit')
       const result = Promise.resolve().then(() => {
         const all = JSON.stringify(context.messages)
         const user = context.messages.findLast(message => message.role === 'user')

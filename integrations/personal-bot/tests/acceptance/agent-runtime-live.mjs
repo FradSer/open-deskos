@@ -78,8 +78,10 @@ async function newBot(stateDir, extra = {}) {
           if (offline) calls.push(budget.reserve('generation', phase))
           recordReceipts(context)
           const judgment = pluginInput(context), callPhase = phase
-          const stream = target.streamSimple(capLiveModelOutput(model, plan.maxOutputTokens), context, { ...options, maxTokens: plan.maxOutputTokens, maxRetries: 0,
-            fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: plan.maxOutputTokens, onCall: call => calls.push(call) }) })
+          const effectiveModel = capLiveModelOutput(model, plan.maxOutputTokens)
+          const effectiveMaxTokens = effectiveModel.maxTokens
+          const stream = target.streamSimple(effectiveModel, context, { ...options, maxTokens: effectiveMaxTokens, maxRetries: 0,
+            fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: effectiveMaxTokens, onCall: call => calls.push(call) }) })
           void stream.result().then(message => {
             const call = calls.at(-1)
             recordLiveGenerationUsage(call, message)

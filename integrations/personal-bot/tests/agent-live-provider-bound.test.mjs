@@ -11,26 +11,27 @@ import { capLiveModelOutput, recordLiveGenerationUsage, createLiveRequestBudget,
 test('supported actual SDK adapters honor counted HTTP and disable provider retries', async t => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-provider-bound-')))
   t.after(() => rm(directory, { recursive: true, force: true }))
-  for (const api of ['openai-responses', 'openai-completions', 'anthropic-messages']) for (const limit of [2048, 16384]) await t.test(`${api}/${limit}`, async () => {
+  for (const api of ['openai-responses', 'openai-completions', 'anthropic-messages']) for (const limit of [2048, 16384]) for (const configured of [1024, 16384]) await t.test(`${api}/${limit}/${configured}`, async () => {
     const runtime = await ModelRuntime.create({ authPath: join(directory, `${api}.json`), modelsPath: null, refreshOnCreate: false })
     runtime.registerProvider('contract-fixture', { api, baseUrl: 'https://example.invalid/v1', apiKey: 'offline-only', models: [{
-      id: 'fixture', name: 'Fixture', reasoning: true, input: ['text'], contextWindow: 32768, maxTokens: 16384,
+      id: 'fixture', name: 'Fixture', reasoning: true, input: ['text'], contextWindow: 32768, maxTokens: configured,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     }] })
+    const effectiveModel = capLiveModelOutput(runtime.getModel('contract-fixture', 'fixture'), limit)
     const budget = createLiveRequestBudget(5)
     let dispatched = 0, emittedCeiling
-    const fetch = createBudgetedFetch({ budget, kind: 'generation', phase: () => api, maxOutputTokens: limit, fetchImpl: async (_url, options) => {
+    const fetch = createBudgetedFetch({ budget, kind: 'generation', phase: () => api, maxOutputTokens: effectiveModel.maxTokens, fetchImpl: async (_url, options) => {
       dispatched++
       assert.equal(options.redirect, 'error')
       const payload = JSON.parse(options.body)
       emittedCeiling = payload.max_output_tokens ?? payload.max_completion_tokens ?? payload.max_tokens
       return new Response(JSON.stringify({ error: { type: 'overloaded_error', message: 'Controlled offline error' } }), { status: 503, headers: { 'Content-Type': 'application/json' } })
     } })
-    const stream = runtime.streamSimple(capLiveModelOutput(runtime.getModel('contract-fixture', 'fixture'), limit), {
+    const stream = runtime.streamSimple(effectiveModel, {
       messages: [{ role: 'user', content: 'Offline transport contract', timestamp: Date.now() }],
-    }, { apiKey: 'offline-only', maxTokens: limit, reasoning: 'medium', maxRetries: 0, fetch })
+    }, { apiKey: 'offline-only', maxTokens: effectiveModel.maxTokens, reasoning: 'medium', maxRetries: 0, fetch })
     const result = await stream.result()
-    assert.equal(emittedCeiling, limit, `${api} must honor the selected output allowance`)
+    assert.equal(emittedCeiling, Math.min(limit, configured), `${api} must honor the selected output allowance`)
     assert.equal(result.stopReason, 'error')
     assert.equal(dispatched, 1, 'the SDK must not retry a failed HTTP request')
     assert.equal(budget.calls.length, 1)
