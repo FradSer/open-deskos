@@ -12,6 +12,9 @@ const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const OPS = { lt: (a, b) => a < b, lte: (a, b) => a <= b, gt: (a, b) => a > b, gte: (a, b) => a >= b, eq: (a, b) => a === b }
 const ACTIONS = new Set(['memory_update', 'user_app_install', 'coding_task_start', 'coding_task_history'])
 const pending = p => p.status === 'pending'
+const codingWorking = task => task.lifecycle === undefined
+  ? task.activity === 'working' || task.state === 'running'
+  : task.lifecycle === 'live' && task.activity === 'working'
 const own = (object, keys) => object && typeof object === 'object' && !Array.isArray(object) && Object.keys(object).every(key => keys.includes(key))
 const text = (value, limit) => typeof value === 'string' && value.trim() && value.length <= limit && !/[\x00-\x08]/.test(value)
 function pathValid(value) {
@@ -331,7 +334,7 @@ export class ProactiveWatch {
       const scope = rule.coding
       if (!scope || scope.target !== target || (scope.taskId && scope.taskId !== task.taskId) ||
           typeof task.project !== 'string' || !(task.project === scope.project || (!scope.taskId && task.project.startsWith(scope.project.replace(/\/$/, '') + '/')))) continue
-      if (task.activity === 'working' || task.state === 'running') this.seenTurns.set(`${rule.id}:${task.taskId}`, { working: true, updatedAt: task.updatedAt, finished: false })
+      if (codingWorking(task)) this.seenTurns.set(`${rule.id}:${task.taskId}`, { working: true, updatedAt: task.updatedAt, finished: false })
     }
   }
   async codingEvidence(rule, identity) {
@@ -341,7 +344,7 @@ export class ProactiveWatch {
     const key = `${rule.id}:${identity.taskId}`
     if (task?.taskId !== identity.taskId || task.project !== identity.project) return null
     const previous = this.seenTurns.get(key)
-    const working = task.activity === 'working' || task.state === 'running'
+    const working = codingWorking(task)
     const finished = task.turnOutcome === 'finished' && (task.activity === 'idle' || (task.lifecycle === 'ended' && task.state === 'finished'))
     const finishedPending = finished && (previous?.working || (previous?.finishedPending && previous.updatedAt === task.updatedAt))
     this.seenTurns.set(key, { working, updatedAt: task.updatedAt, finished, finishedPending })

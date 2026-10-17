@@ -159,6 +159,13 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then a proposal names target, project, task identity and observed outcome
     And it states verification separately and offers to read coding_task_history
 
+  Scenario: Restoration initialization does not establish a new coding turn
+    Given a saved turn finished before its session expired
+    When restoration is cancelled, ended, or fails before a new turn begins
+    Then event observation and status polling do not announce another completion
+    And repeated restoration attempts do not announce the old result
+    But a live working turn or a legacy running turn can still establish a new completion
+
   Scenario: Active local input remains authoritative
     Given focus is on a local Shell control
     When a proactive proposal is presented

@@ -295,3 +295,34 @@ test('explicit proposal list respects routine due time and acknowledged owner da
     assert.equal(f.frames.at(-1).popup, false)
   }
 })
+
+
+test('restoration initialization cannot turn a preserved result into a new coding completion',async t=>{
+ for(const ingress of ['event','poll'])for(const outcome of ['cancel','end','initialization_failure']){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'immediate',urgent:false,advice:'查看任务结果。',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',state:'finished',lifecycle:'ended',turnOutcome:'finished',response:'original result',updatedAt:time,verification:'not_run'}
+  const f=fixture({config:c,codingList:async()=>[task],codingStatus:async()=>task});t.after(()=>f.watch.close())
+  for(let attempt=0;attempt<2;attempt++){
+   task={...task,state:'running',lifecycle:'launching',activity:undefined,updatedAt:new Date(now+attempt*2000+1).toISOString()};f.clock(now+attempt*2000+1)
+   if(ingress==='event')f.watch.observeTask('mac',task);else await f.watch.tick()
+   task={...task,state:'finished',lifecycle:'ended',activity:undefined,endedReason:outcome==='end'?'explicit':'idle_expired',updatedAt:new Date(now+attempt*2000+2).toISOString()};f.clock(now+attempt*2000+2)
+   await f.watch.tick();assert.deepEqual(f.watch.list(),[],ingress+':'+outcome+':'+attempt);assert.equal(f.frames.filter(frame=>frame.popup).length,0)
+  }
+ }
+})
+
+test('actual working turns still announce initial and subsequent completions for canonical and legacy tasks',async t=>{
+ for(const legacy of [false,true])for(const ingress of ['event','poll']){
+  const c=config();c.rules=[{id:'coding-complete',delivery:'immediate',urgent:false,advice:'查看任务结果。',coding:{target:'mac',project:'/project'}}]
+  let task={taskId:'e311a280-c0b9-4411-96cd-4e1e92385349',project:'/project/app',updatedAt:time,verification:'not_run'}
+  const f=fixture({config:c,codingList:async()=>[task],codingStatus:async()=>task});t.after(()=>f.watch.close())
+  for(let turn=0;turn<2;turn++){
+   const start=now+turn*3600002;f.clock(start);task={...task,state:'running',...(legacy?{}:{lifecycle:'live',activity:'working'}),turnOutcome:undefined,updatedAt:new Date(start).toISOString()}
+   if(legacy){delete task.lifecycle;delete task.activity}
+   if(ingress==='event')f.watch.observeTask('mac',task);else await f.watch.tick()
+   f.clock(start+1);task={...task,state:'settled',activity:'idle',turnOutcome:'finished',updatedAt:new Date(start+1).toISOString()}
+   await f.watch.tick();const proposals=f.watch.list().filter(p=>p.status==='pending');assert.equal(proposals.length,1,legacy+':'+ingress+':'+turn)
+   await f.watch.presented([proposals[0].id]);await f.watch.respond(proposals[0].id,'ignore')
+  }
+ }
+})
