@@ -9,7 +9,7 @@ const observations = s => JSON.stringify(s.evidence.map(e => JSON.stringify([e.r
 // A negative judgment can expire advice without erasing that it was displayed.
 // Reuse that receipt only for the same rule and observed facts, never a new need.
 function previousProposal(watch, candidate) {
-  const rule = watch.config.rules.find(rule => rule.id === (candidate.ruleId ?? candidate.topicId))
+  const rule = watch.rules().find(rule => rule.id === (candidate.ruleId ?? candidate.topicId))
   const subject = `${rule.id}:${candidate.key}`
   return watch.proposals.findLast(p => p.ruleVersion === JSON.stringify(rule)
     && (p.subject === subject || fingerprint(p) === fingerprint(candidate))
@@ -31,15 +31,15 @@ export function validateGeneratedBatch(raw, topics, maxCandidates) {
 }
 
 /** Generation proposes; Jev owns selection; the existing watch owns delivery. */
-export async function pollGenerated(watch, trigger, context) {
+export async function pollGenerated(watch, trigger, context, rules = watch.rules()) {
   const interactionRevision = watch.interactionRevision
   const current = () => !watch.closed && !watch.responding && interactionRevision === watch.interactionRevision
   const topicRevisions = new Map()
-  const topicCurrent = id => topicRevisions.get(id)?.every(([source, revision]) => (watch.sourceRevisions.get(source) ?? 0) === revision)
+  const topicCurrent = id => watch.rules().some(r => r.id === id) && topicRevisions.get(id)?.every(([source, revision]) => (watch.sourceRevisions.get(source) ?? 0) === revision)
   const topics = []
   const codingReceipts = []
   let evidenceIndex = 0
-  for (const rule of watch.config.rules) {
+  for (const rule of rules) {
     const dependencies = rule.coding ? [`pi-tasks.${rule.coding.target}`] : rule.observations.map(o => o.readingId)
     if (trigger.kind === 'service_push' && !dependencies.some(id => trigger.readingIds.includes(id))) continue
     topicRevisions.set(rule.id, dependencies.map(source => [source, watch.sourceRevisions.get(source) ?? 0]))
@@ -79,12 +79,17 @@ export async function pollGenerated(watch, trigger, context) {
   const recent = watch.proposals.slice(-16).map(({ ruleId, subject, advice, status, presented, evidence }) => ({ ruleId, key: subject.split(':').slice(1).join(':'), advice, status, presented, evidence }))
   let candidates
   try {
-    const input = { trigger, context, topics, recent, maxCandidates: watch.config.maxCandidates, signal: watch.controller.signal }
+    const input = { trigger, context, topics, recent, maxCandidates: (watch.config.maxCandidates ?? 8), signal: watch.controller.signal }
     if (Buffer.byteLength(JSON.stringify({ ...input, signal: undefined })) > 32768) throw Error('Generation input too large')
     const raw = await watch.generate(input)
     if (!current()) return
     const unique = new Map()
-    for (const s of validateGeneratedBatch(raw, topics, watch.config.maxCandidates)) if (!unique.has(fingerprint(s))) unique.set(fingerprint(s), s)
+    const intentTopics = new Set()
+    for (const s of validateGeneratedBatch(raw, topics, (watch.config.maxCandidates ?? 8))) {
+      const occurrence = watch.intents?.key(s.topicId)
+      if (occurrence) { if (intentTopics.has(s.topicId)) continue; intentTopics.add(s.topicId); s.key = occurrence }
+      if (!unique.has(fingerprint(s))) unique.set(fingerprint(s), s)
+    }
     candidates = [...unique.values()].filter(s => topicCurrent(s.topicId)).map((s, i) => {
       const previous = previousProposal(watch, s)
       return { ...s, ...(previous ? { key: previous.subject.slice(s.topicId.length + 1) } : {}), id: `c${i}`, ruleId: s.topicId, goal: topics.find(t => t.id === s.topicId).goal, generated: true, criteria: [] }
@@ -118,17 +123,17 @@ export async function pollGenerated(watch, trigger, context) {
   if (!watch.failedJudgments.size) watch.judgmentError = ''
   if (candidates.length) watch.onJudgment({ trigger: trigger.kind, model: result.model, at: new Date(watch.now()).toISOString(), decisions: candidates.map(c => ({ ruleId: c.ruleId, candidateId: c.id, probability: result.answers[c.id].probability, groundingProbability: result.answers[c.id].groundingProbability, threshold: result.answers[c.id].threshold })) })
   const accepted = candidates.filter(c => { const a = result.answers[c.id]; return a.probability >= a.threshold && a.groundingProbability >= a.threshold && watch.fresh(c) })
-    .sort((a, b) => result.answers[b.id].probability - result.answers[a.id].probability).slice(0, watch.config.maxPush)
+    .sort((a, b) => result.answers[b.id].probability - result.answers[a.id].probability).slice(0, (watch.config.maxPush ?? 3))
   const keys = new Set(accepted.map(c => `${c.ruleId}:${c.key}`))
   for (const p of watch.proposals) if (p.status === 'pending' && evaluatedTopics.some(t => t.id === p.ruleId) && !keys.has(p.subject)) p.status = 'expired'
   for (const c of accepted) {
-    const rule = watch.config.rules.find(r => r.id === c.ruleId)
+    const rule = watch.rules().find(r => r.id === c.ruleId)
     const subject = `${c.ruleId}:${c.key}`
     const answer = result.answers[c.id]
     const judgment = { model: result.model, probability: answer.probability, groundingProbability: answer.groundingProbability, threshold: answer.threshold, trigger: trigger.kind, judgedAt: new Date(watch.now()).toISOString() }
     const existing = previousProposal(watch, c)
     if (existing) { existing.status = 'pending'; existing.evidence = c.evidence; existing.advice = c.advice; existing.judgment = judgment; continue }
-    watch.proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject, status: 'pending', evidence: c.evidence, advice: c.advice, action: null, confirmation: '', offered: false, presented: false, createdAt: new Date(watch.now()).toISOString(), result: '', judgment })
+    watch.proposals.push({ id: randomUUID(), ruleId: rule.id, ruleVersion: JSON.stringify(rule), subject, status: 'pending', evidence: c.evidence, advice: c.advice, action: null, confirmation: '', offered: false, presented: false, createdAt: new Date(watch.now()).toISOString(), result: '', judgment, ...(watch.intents?.details(rule.id) ? { ridePreview: watch.intents.details(rule.id) } : {}) })
     if (watch.proposals.length > 64) {
       const removable = watch.proposals.findIndex(p => !['pending', 'executing', 'unknown'].includes(p.status))
       if (removable >= 0) watch.proposals.splice(removable, 1)

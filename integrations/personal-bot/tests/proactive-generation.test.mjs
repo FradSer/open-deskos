@@ -221,3 +221,24 @@ test('a changed topic is discarded while unchanged topics from a heartbeat remai
  assert.deepEqual(f.watch.list().filter(p=>p.status==='pending').map(p=>p.ruleId),['deliveries'])
  await f.watch.close()
 })
+
+test('Intent occurrence identity survives generated paraphrases and changed semantic keys within one daily window', async () => {
+  const { createIntentStore, createIntentRuntime } = await import('../src/intents.mjs')
+  const { mkdtempSync, realpathSync, rmSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { protectProactivePath } = await import('../src/proactive-private.mjs')
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'odk-intent-paraphrase-'))); protectProactivePath(directory)
+  try {
+    const store = createIntentStore(join(directory, 'intent.md'))
+    store.save({ wish: '每天十点查看待取物品', condition: '每天提醒', at: '10:00', timeZone: 'UTC', windowMinutes: 10, memoryKeys: [], observations: [] })
+    const intents = createIntentRuntime({ store, now: () => Date.parse(stamp), memory: async () => ({}), read: async () => null, judge: async () => ({ model: 'jev-test', status: 'true' }), previewRide: undefined })
+    let attempt = 0
+    const f = fixture({ config: { ...config(), rules: [] }, intents,
+      generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: `generated-${++attempt}`, advice: `建议查看本轮情况${attempt}。`, reason: '按保存的计划查看。', evidenceIds: topics[0].evidence.map(e => e.id) }] }),
+      judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.99, groundingProbability: 0.99, threshold: 0.8 }])) }) })
+    await f.watch.tick(); const proposal = f.watch.list()[0]; await f.watch.presented([proposal.id]); await f.watch.tick()
+    assert.equal(f.watch.list().length, 1); assert.equal(f.watch.list()[0].id, proposal.id); assert.equal(f.frames.at(-1).popup, false)
+    await f.watch.close()
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+})

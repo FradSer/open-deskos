@@ -156,7 +156,7 @@ Duplicate declarations fail, including duplicates across legacy and canonical fi
 The `coding` profile rejects capability declarations.
 Configuration cannot select arbitrary factories or native Pi plugins.
 
-`agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, `subagents`, and `remote_conversation` identities.
+`agentPlugins.enabled` selects fixed `experience`, `completion`, `learning`, `catalog`, `mcp`, `subagents`, `intent`, and `remote_conversation` identities.
 `learning` and `remote_conversation` require `completion`; `mcp` requires `catalog`.
 The [remote conversation contract](../../../integrations/personal-bot/docs/CONTRACT.md#remote-pi-conversation) owns collection, history, and follow-up limits.
 These selections identify reviewed DeskOS modules, not arbitrary Pi packages.

@@ -115,3 +115,12 @@ test('Given personal tools When reading skills Then only indexed reviewed files 
   assert.equal((await tool.execute('id', { index: 0 })).content[0].text, 'reviewed');
   await assert.rejects(tool.execute('id', { index: 1 }), /skill/i);
 });
+
+test('Given a coding profile, Intent selection is rejected before creating providers', async t => {
+  const dir = await fixture(t), file = join(dir, 'intent-config.json')
+  const personal = { profile: 'coding', skillPaths: [], agentPlugins: { enabled: ['intent'] } }
+  await writeFile(file, JSON.stringify(personal))
+  await assert.rejects(loadPersonalConfig({ ODK_PERSONAL_BOT_CONFIG: file }), /Invalid personal/)
+  const { createPersonalBot } = await import('../src/agent.mjs')
+  await assert.rejects(createPersonalBot({ stateDir: join(dir, 'state'), personal }, { createIntentRouter: () => assert.fail('No provider before config rejection') }), /Intent.*personal/)
+})

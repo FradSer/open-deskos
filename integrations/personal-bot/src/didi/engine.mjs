@@ -1,3 +1,4 @@
+import { createRidePreview } from './preview.mjs';
 import { checkProactivePath, protectProactivePath, createProactiveDirectory } from '../proactive-private.mjs';
 import { mkdir, lstat, readFile, open, rename, unlink, rmdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -49,6 +50,7 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
   // Confirmation authority is deliberately volatile and cannot survive restart.
   let turn = 0; let userText = ''; let proposalTurn = -1; let timer; let closed = false; let queue = Promise.resolve();
   const places = new Set();
+  const previews = createRidePreview({ call, now, ttlMs: quoteTtlMs });
   const snapshot = () => structuredClone(state);
   const save = async () => {
     const temporary = `${stateFile}.${randomUUID()}.tmp`;
@@ -80,6 +82,15 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
     if(ms) { timer=setTimer(() => { api.status().catch(() => { if(!closed) schedule(); }); },ms); timer?.unref?.(); }
   };
   const api = {
+    previewRide: async (route, signal, valid) => ({ ...await previews.search(route, signal, valid), sandbox }),
+    estimatePreview(params) {
+      if (userText.trim() !== `查看报价 ${params.handle} ${params.from} ${params.to}`) throw new DidiError('请在行程详情中明确选择起终点并请求当前报价。');
+      let route;
+      try { route = previews.route(params); } catch { throw new DidiError('行程预览已过期或重启失效。请先刷新该建议的行程详情，重新选择起终点，再请求当前报价。'); }
+      places.add(JSON.stringify([route.from_name, route.from_lng, route.from_lat]));
+      places.add(JSON.stringify([route.to_name, route.to_lng, route.to_lat]));
+      return api.estimate(route, turn);
+    },
     beginTurn(input) { turn++; userText=typeof input === 'string' ? input : ''; },
     snapshot,
     search: args => serial(async () => {
@@ -89,13 +100,15 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
       for(const p of valid) places.add(JSON.stringify([p.display_name,String(p.location.lng),String(p.location.lat)]));
       return valid;
     }),
-    estimate: route => serial(async () => {
+    estimate: (route, expectedTurn = undefined) => serial(async () => {
+      if (expectedTurn !== undefined && expectedTurn !== turn) throw new DidiError('当前用户输入已结束；请重新请求报价。');
       requireFree(); disarm(); state.proposal=null;state.quote=null;state.order=null;state.phase='idle'; await save();
       for(const prefix of ['from','to']) {
         if(!places.has(JSON.stringify([route[`${prefix}_name`],route[`${prefix}_lng`],route[`${prefix}_lat`]]))) throw new DidiError('起终点必须使用本次地点搜索返回的名称和坐标。');
       }
       const args=Object.fromEntries(['from_lng','from_lat','from_name','to_lng','to_lat','to_name'].map(k=>[k,route[k]]));
       const result=await call('taxi_estimate',args);
+      if (expectedTurn !== undefined && expectedTurn !== turn) throw new DidiError('当前用户输入已结束；请重新请求报价。');
       if(!text(result.traceId) || !Array.isArray(result.items) || !result.items.length || !result.items.every(p=>text(p.productName)&&text(p.productCategory)&&text(p.priceText))) throw new DidiError('滴滴报价数据不完整。');
       state.quote={id:randomUUID(),traceId:result.traceId,items:result.items,route:args,expiresAt:now()+quoteTtlMs};state.phase='quoted';await save();return snapshot().quote;
     }),
@@ -154,7 +167,7 @@ export async function createRideEngine({stateFile, call, sandbox = true, now = D
       if(state.phase!=='active' || !state.order) throw new DidiError('没有已确认的进行中订单。');
       return call('taxi_get_driver_location',{order_id:state.order.orderId});
     }),
-    async close() { if(closed) return;closed=true; if(timer) clearTimer(timer); disarm();await queue;await release(); },
+    async close() { if(closed) return;closed=true; previews.clear(); if(timer) clearTimer(timer); disarm();await queue;await release(); },
   };
   try { await save(); schedule();return api; } catch(error) { await release();throw error; }
 }

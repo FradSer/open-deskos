@@ -93,3 +93,86 @@ test('unchanged service status preserves an uncertain command warning and disabl
   assert.equal(flatten(f.content).find(n => n.textContent === p.confirmation), confirmation)
   assert.equal(f.commands.length, count)
 })
+
+test('ride details are read-only and explicit endpoint selection enters the ordinary owner channel', async () => {
+  const f = fixture(), turns = []
+  f.window.odkPersonalBot.sendText = async text => { turns.push(text); return { accepted: true } }
+  const ride = { ...proposal(), action: null, confirmation: '', ridePreview: { handle: 'preview-handle', status: 'choose_places', expiresAt: Date.now() + 60000, measuredAt: new Date().toISOString(), from: [{ handle: 'from-a', name: '<script>起点甲</script>', city: '测试市', address: '测试路' }, { handle: 'from-b', name: '起点乙', city: '测试市' }], to: [{ handle: 'to-a', name: '终点', city: '测试市' }] } }
+  f.render({ state: 'idle', proposals: [ride], proposalPopup: true })
+  const open = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details')
+  assert.ok(open); await open.click(); assert.equal(turns.length, 0); assert.equal(f.commands.filter(c => c.type === 'proposal_respond').length, 0)
+  assert.ok(flatten(f.content).some(n => n.textContent.includes('<script>起点甲</script>')))
+  const selects = flatten(f.content).filter(n => n.tagName === 'SELECT')
+  const quote = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
+  await quote.click(); assert.equal(turns.length, 0, 'ambiguous pickup must not default to the first place')
+  selects[0].value = 'from-b'; selects[1].value = 'to-a'; await quote.click()
+  assert.equal(turns[0], '查看报价 preview-handle from-b to-a'); assert.equal(quote.disabled, true)
+  f.render({ state: 'idle', proposals: [{ ...ride, ridePreview: { ...ride.ridePreview, expiresAt: Date.now() - 1 } }], proposalPopup: true })
+  const expired = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Get current quote')
+  assert.equal(expired, undefined)
+  const refresh = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview')
+  assert.ok(refresh); await refresh.click(); assert.equal(turns.at(-1), '刷新行程 preview-handle')
+})
+
+test('actual service, private socket and Shell client deliver restored ride refresh into the renderer', { timeout: 10000 }, async t => {
+  const { integrationURL } = require('./helpers/repo-root')
+  const { tmpdir } = require('node:os')
+  const load = file => import(integrationURL(`personal-bot/src/${file}`, __dirname))
+  const { PersonalBotService } = await load('service.mjs'), { listen } = await load('socket.mjs')
+  const { createIntentStore, createIntentRuntime } = await load('intents.mjs'), { proposalStateStore } = await load('proactive-state.mjs')
+  const { createRidePreview } = await load('didi/preview.mjs'), { ProactiveWatch } = await load('proactive.mjs')
+  const { createProposalTools } = await load('proactive-tools.mjs'), { guardIntentTools } = await load('intent-routing.mjs')
+  const { protectProactivePath } = await load('proactive-private.mjs')
+  const { createPersonalBotClient } = require('../src/personal-bot-client.js')
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(tmpdir(), 'odk-ride-wire-'))); protectProactivePath(dir)
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const store = createIntentStore(path.join(dir, 'intent.md')), checkpoint = proposalStateStore(path.join(dir, 'state.json'))
+  let now = Date.now(), turns = [], calls = 0, watch, currentText = ''
+  const at = new Date(now).toISOString().slice(11, 16)
+  store.save({ wish: '查看午间行程', condition: '每天提醒', at, timeZone: 'UTC', windowMinutes: 10, memoryKeys: [], observations: [], ride: { city: '测试市', from: '测试办公楼', to: '测试健身馆' } })
+  const f = fixture()
+  const service = new PersonalBotService({ record: async () => assert.fail('No capture'), transcribe: async () => assert.fail('No transcription'), prompt: async text => {
+    turns.push(text); currentText = text
+    const tool = guardIntentTools(createProposalTools(() => watch, () => currentText, { intentPreviews: true }), () => 'ride').find(t => t.name === 'personal_bot_ride_preview')
+    await tool.execute('owner-refresh', { handle: text.split(' ')[1] }, new AbortController().signal)
+    return '新预览已刷新，请重新选择地点。'
+  } })
+  const make = () => {
+    const previews = createRidePreview({ now: () => now, call: async (name, args) => { calls++; return name === 'maps_textsearch' ? [{ display_name: args.keywords, city: args.city, location: { lng: 1, lat: 2 } }] : { traceId: 'never-expose-this-trace', phoneNumberSuffix: 'never-expose-account', items: [{ productName: '测试车型', productCategory: '1', priceText: '20元' }] } } })
+    const intents = createIntentRuntime({ store, memory: async () => ({}), read: async () => null, judge: async () => ({ status: 'true', model: 'jev-test' }), previewRide: previews.search, now: () => now })
+    return { previews, watch: new ProactiveWatch({ config: { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} }, intents, now: () => now,
+      loadState: checkpoint.load, saveState: checkpoint.save, publish: frame => service.propose(frame), save: async () => {}, read: async () => null,
+      generate: async ({ topics }) => ({ suggestions: [{ topicId: topics[0].id, key: 'ride', advice: '查看行程。', reason: '按保存计划查看。', evidenceIds: topics[0].evidence.map(e => e.id) }] }),
+      judge: async ({ candidates }) => ({ model: 'jev-test', answers: Object.fromEntries(candidates.map(c => [c.id, { probability: 0.95, groundingProbability: 0.95, threshold: 0.8 }])) }) }) }
+  }
+  watch = make().watch; service.attachWatch(watch); service.setState('idle', 'Ready')
+  await watch.tick(); const old = watch.list()[0].ridePreview; await watch.presented([watch.list()[0].id]); await watch.close()
+  now += 20 * 60000 // Manual refresh remains possible outside the scheduled offer window.
+  const restarted = make(); watch = restarted.watch; service.attachWatch(watch)
+  t.after(() => watch.close())
+  assert.throws(() => restarted.previews.route({ handle: old.handle, from: old.from[0].handle, to: old.to[0].handle }), /expired/)
+  await watch.tick(); assert.equal(calls, 3, 'Restart cannot repeat scheduled MCP discovery')
+  const endpoint = process.platform === 'win32' ? '\\\\.\\pipe\\odk-ride-wire-' + process.pid : path.join(dir, 'agent.sock')
+  const token = 'a'.repeat(64), server = await listen(endpoint, service, { token })
+  t.after(() => server.close())
+  const client = createPersonalBotClient({ socketPath: endpoint, token, reconnectDelayMs: 60000 })
+  t.after(() => client.stop())
+  f.window.odkPersonalBot.sendText = async text => ({ accepted: await client.sendText(text) })
+  f.window.odkPersonalBot.proposalCommand = async cmd => ({ accepted: client.proposalCommand(cmd) })
+  client.subscribe(frame => f.render(frame))
+  const until = predicate => new Promise(resolve => { let off = () => {}; off = client.subscribe(frame => { if (predicate(frame)) { off(); resolve(frame) } }) })
+  const connected = until(frame => frame.state === 'idle'); client.start(); await connected
+  const shown = until(frame => frame.proposalPopup === true); await watch.readProposals(); await shown
+  assert.equal(watch.list()[0].status, 'expired')
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'View ride details').click()
+  const updated = until(frame => frame.proposals?.[0]?.ridePreview?.handle && frame.proposals[0].ridePreview.handle !== old.handle)
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Refresh preview').click()
+  const frame = await updated
+  assert.deepEqual(turns, [`刷新行程 ${old.handle}`]); assert.equal(calls, 6)
+  assert.notEqual(frame.proposals[0].ridePreview.from[0].handle, old.from[0].handle)
+  assert.equal(frame.proposals[0].action, null); assert.equal(frame.proposals[0].confirmation, '')
+  assert.equal(frame.proposals[0].offered, true); assert.equal(frame.proposals[0].presented, true)
+  assert.equal(checkpoint.load().intentClaims.length, 1); assert.equal(frame.proposalPopup, false)
+  assert.equal(JSON.stringify(frame).includes('never-expose'), false)
+  assert.ok(flatten(f.content).some(n => n.textContent === 'View ride details'))
+})

@@ -1,4 +1,4 @@
-const PLUGINS = Object.freeze(['experience', 'completion', 'learning', 'catalog', 'mcp', 'subagents', 'remote_conversation'])
+const PLUGINS = Object.freeze(['experience', 'completion', 'learning', 'catalog', 'mcp', 'subagents', 'intent', 'remote_conversation'])
 
 /** Select reviewed DeskOS implementations, never native extension packages or paths. */
 export function validateAgentPlugins(value = { enabled: [] }) {

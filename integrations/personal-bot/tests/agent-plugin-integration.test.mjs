@@ -285,3 +285,21 @@ test('remote synthesis uses zero-tool Durable providers and keeps exact referenc
    assert.equal(synthesisCalls,1);assert.equal(routes,1);assert.equal(ownerCalls,1);assert.equal(checks,1)
  }finally{await bot.close()}
 })
+
+test('explicit Intent plugin persists through actual Durable Code Mode only after the current owner route', async t => {
+  const { config } = await fixture(t)
+  config.personal.agentPlugins = { enabled: ['intent'] }
+  const order = [], input = { wish: '每天午间看行程', condition: '每天提醒', at: '11:30', memoryKeys: [], observations: [] }
+  const models = offline(context => {
+    if (context.messages.at(-1).role !== 'toolResult') return assistant([{ type: 'toolCall', id: 'intent-save', name: 'codemode', arguments: { code: `text(await tools.intent_save(${JSON.stringify(input)}));` } }], 'toolUse')
+    assert.equal(context.messages.at(-1).isError, false)
+    return assistant('已保存提醒意愿；没有下单权限。')
+  })
+  const bot = await createPersonalBot(config, { createRuntime: async () => models,
+    createIntentRouter: () => async () => { order.push('owner-Jev'); return { intent: 'intent_manage' } },
+    createIntentJudgment: () => ({ authorize: async ({ ownerText }) => { order.push('faithful-Jev'); assert.equal(ownerText, '每天午间十一点半提醒我看行程'); return true }, condition: async () => assert.fail('No timer in the agent') }) })
+  try {
+    await bot.prompt('每天午间十一点半提醒我看行程')
+    assert.deepEqual(order, ['owner-Jev', 'faithful-Jev']); assert.equal(bot.intents.store.list()[0].wish, input.wish)
+  } finally { await bot.close() }
+})

@@ -147,12 +147,22 @@ test('long UTF8 summaries evict superseded history by bytes without losing curre
  for(let index=0;index<4;index++)assert.equal(remote.reference(`source-${index}`).source.revision,(36).toString(16).padStart(64,'0'))
 })
 
-test('legal remote and proposal payloads do not consume the owner voice frame byte budget',async()=>{
+test('legal remote and RidePreview proposal payloads do not consume the owner voice frame byte budget',async t=>{
  const {statusFrames}=await import('../src/socket.mjs')
- const status={v:1,type:'status',state:'idle',message:'中'.repeat(8192),transcript:'中'.repeat(4096),proposals:[{advice:'x'.repeat(48000)}],remote:{state:'live',messages:[{text:'x'.repeat(49000)}]}}
+ const {validRidePreview}=await import('../src/didi/preview.mjs')
+ const place={handle:'place',name:'地点'.repeat(32),city:'测试市',address:'地址'.repeat(32),location:{lng:1,lat:2}}
+ const ridePreview={handle:'preview',status:'quoted',from:[place],to:[place],expiresAt:120000,measuredAt:new Date(0).toISOString(),items:Array.from({length:16},()=>({productName:'中'.repeat(128),productCategory:'1',priceText:'元'.repeat(64)}))}
+ assert(validRidePreview(ridePreview))
+ const {proposalStateStore}=await import('../src/proactive-state.mjs')
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-ride-frame-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const proposals=Array.from({length:3},(_,index)=>{const id=`00000000-0000-4000-8000-${String(index).padStart(12,'0')}`;return {id,ruleId:`intent-${id}`,subject:'synthetic',ruleVersion:'1',status:'pending',advice:'中'.repeat(1000),confirmation:'',result:'',createdAt:new Date(0).toISOString(),action:null,offered:true,presented:true,evidence:[{readingId:'fixture',field:'value',ruleId:`intent-${id}`,state:'live',measuredAt:new Date(0).toISOString(),value:'中'.repeat(100)}],ridePreview}})
+ assert(Buffer.byteLength(JSON.stringify(proposals))<=48000)
+ const store=proposalStateStore(join(directory,'state.json'));store.save({version:1,proposals});assert.deepEqual(store.load().proposals,proposals)
+ const status={v:1,type:'status',state:'idle',message:'中'.repeat(8192),transcript:'中'.repeat(4096),proposals,remote:{state:'live',messages:Array.from({length:4},()=>({text:'中'.repeat(4000)}))}}
  const frames=statusFrames(status).map(frame=>JSON.parse(frame))
  assert.equal(frames[0].message,status.message);assert.equal(frames[0].transcript,status.transcript);assert.equal(frames[0].remote,undefined)
- assert.equal(frames.find(frame=>frame.type==='remote_conversation').remote.messages[0].text.length,49000)
+ assert.deepEqual(frames[0].proposals[0].ridePreview,ridePreview)
+ assert.deepEqual(frames.find(frame=>frame.type==='remote_conversation').remote.messages,status.remote.messages)
 })
 
 test('alternating failed source revisions cannot silently replay a previous failed synthesis',async t=>{

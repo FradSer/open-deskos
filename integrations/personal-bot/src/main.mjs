@@ -112,12 +112,14 @@ async function main() {
   const env = personalBotEnvironment(process.env)
   const platform = process.platform
   const control = { endpoint: personalBotControlEndpoint(env, platform), stateDir: dirname(channelTokenFile(env, platform)), platform }
+  let intentSelected = false
+  try { intentSelected = (await loadPersonalConfig(env)).agentPlugins?.enabled.includes('intent') ?? false } catch { /* Runtime reports invalid profile through its existing boundary. */ }
   const disabled = loadPersonalBotPluginConfig().resolveStartupDisabled(env)
   if (values.plugins) {
     const unavailable = () => { throw Error('inspection must not start providers') }
     const inspection = createPersonalBotComposition({ replacementPlugins, disabled, control,
       createService: unavailable, openChannel: unavailable, initialize: unavailable,
-      createHome: unavailable, ...(env.ODK_PROACTIVE_CONFIG ? { createWatch: unavailable } : {}),
+      createHome: unavailable, ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { createWatch: unavailable } : {}),
     })
     inspection.validate()
     console.info(JSON.stringify({ host: 'personal-agent', instance: 'personal-bot', scope: 'declarations',
@@ -189,17 +191,17 @@ async function main() {
       service.attachHome(home)
       context.onCleanup(() => { service.attachHome(undefined); home = undefined })
     },
-    ...(env.ODK_PROACTIVE_CONFIG ? { async createWatch(_runtime, _service) {
-      const config = loadProactiveConfig(env.ODK_PROACTIVE_CONFIG)
+    ...((env.ODK_PROACTIVE_CONFIG || intentSelected) ? { async createWatch(_runtime, _service) {
+      const config = env.ODK_PROACTIVE_CONFIG ? loadProactiveConfig(env.ODK_PROACTIVE_CONFIG) : { version: 2, pollMs: 60000, maxAgeMs: 300000, cooldownMs: 60000, maxCandidates: 8, maxPush: 3, rules: [], suppressed: [], snoozed: {} }
       const targets = await loadTargets(env.ODK_TASK_TARGETS_FILE)
       const state = proposalStateStore(join((await prepareHostDirectories(env, platform)).state, 'proactive', 'state.json'))
-      watch = new ProactiveWatch({ config, loadState: state.load, saveState: state.save,
+      watch = new ProactiveWatch({ config, intents: runtime.agent.intents, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
         judge: createJevJudge({ env }),
         onJudgment: record => console.info(JSON.stringify({ event: 'proactive_jev', ...record })),
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
-        save: ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config),
+        save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
         phrase: runtime.agent.phraseProposal,
         execute: runtime.agent.executeProposal,
         codingList: async (scope, signal) => {

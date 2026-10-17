@@ -28,6 +28,14 @@ Configuration changes require a new resident instance.
 The [package catalog contract](AGENT_CATALOG.md) owns Skill installation, installed resource reads, and MCP execution.
 The [child task contract](AGENT_TASKS.md) owns temporary tasks, saved identities, lifecycle, and conversation avatars.
 
+## Intent wishes
+
+Add the fixed `intent` identity to `agentPlugins.enabled` to enable conversational Intent wishes.
+It does not require a Pi extension, an arbitrary package, or a separate profile field.
+The plugin requires the personal profile.
+Children cannot inherit this plugin.
+The [Intent contract](INTENTS.md) owns natural-language editing, condition judgment, occurrence history, and ride preview limits.
+
 ## Experience
 
 Explicit user notes retain the current-turn policy in [memory.mjs](../src/memory.mjs).

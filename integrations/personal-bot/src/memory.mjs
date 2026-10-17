@@ -1,6 +1,6 @@
 import { lstatSync, realpathSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { isLocalAbsolutePath } from './personal-config.mjs';
 import { checkProactivePath, createProactiveDirectory, readProactiveFile, openProactiveTemporary } from './proactive-private.mjs';
 
@@ -74,6 +74,11 @@ export function createMemoryStore(memoryFile) {
     grant = undefined;
   }
   return {
+    /** Host-only fingerprint of relevant notes; not current-location or action authority. */
+    version(keys) {
+      const data = load();
+      return createHash('sha256').update(JSON.stringify(keys.map(key => [key, Object.hasOwn(data, key) ? data[key] : null]))).digest('hex');
+    },
     /** Call only with the actual current user text; clear on turn completion.
      * @param {string} text
      */

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { createTaskComposition, hostedPiManifest, TASK_PORTS } from '../src/task-composition.mjs'
 import { loadHostedPiReplacements } from '../src/development-plugins.mjs'
 
@@ -255,12 +255,13 @@ test('independent Hosted Pi service preserves existing terminal records without 
   await writeFile(selected.entry, `
 const { loadRecords } = require(${JSON.stringify(fileURLToPath(new URL('../src/task-store.mjs', import.meta.url)))});
 const { goalPreviews } = require(${JSON.stringify(fileURLToPath(new URL('../src/task-service.mjs', import.meta.url)))});
+const { createHash } = require('node:crypto');
 exports.create = async () => {
   let tasks = [...(await loadRecords(${JSON.stringify(stateDir)})).values()];
   let closed = false;
   return {
     handle(request) {
-      const base = { version: 1, requestId: request.requestId };
+      const base = { version: 1, endpointKind: 'hosted', requestId: request.requestId };
       if (closed) return { ...base, ok: false, error: '任务服务不可用' };
       if (request.command === 'list') {
         const ordered = tasks.toSorted((left, right) => left.updatedAt !== right.updatedAt
@@ -268,7 +269,7 @@ exports.create = async () => {
         return { ...base, ok: true, tasks: goalPreviews(ordered.slice(0, 100)), truncated: ordered.length > 100 };
       }
       const task = request.command === 'status' && tasks.find(task => task.taskId === request.taskId);
-      return task ? { ...base, ok: true, task: structuredClone(task) }
+      return task ? { ...base, ok: true, task: { ...structuredClone(task), revision: createHash('sha256').update(JSON.stringify(task)).digest('hex') } }
         : { ...base, ok: false, error: '未知任务命令' };
     },
     disconnect() {},
@@ -305,7 +306,7 @@ exports.create = async () => {
           assert.equal(typeof task.goal, 'string')
           for (const key of ['prompt', 'response', 'sessionFile', 'controlAudit']) assert.equal(Object.hasOwn(task, key), false)
         }
-        for (let index = 0; index < records.length; index++) assert.deepEqual(results[index + 1].task, records[index])
+        for (let index = 0; index < records.length; index++) assert.deepEqual(results[index + 1].task, { ...records[index], revision: createHash('sha256').update(JSON.stringify(records[index])).digest('hex') })
       } else assert.deepEqual(results, baseline)
       await composition.setEnabled('odk.hosted-pi.service', false)
       assert.equal(composition.port(TASK_PORTS.listener), listener)
