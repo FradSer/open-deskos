@@ -45,7 +45,9 @@ The default per-run limit is 80 shared generation and Jev requests, including fo
 The operator must also retain any authorized aggregate limit across attempts.
 The transport counts HTTP requests before dispatch.
 It refuses redirects and disables SDK request retries.
-Each generation request permits at most 2048 output tokens.
+By default, each generation request permits at most 2048 output tokens.
+Use `--max-output-tokens=N` to select an explicit limit from 1 to 16384 tokens.
+The configured model can reduce this limit.
 The limit includes reasoning tokens.
 The transport checks the final HTTP payload and refuses larger sampling overrides before dispatch.
 The run has a 15-minute deadline.
@@ -58,11 +60,17 @@ MCP executes the local synthetic report server.
 The run creates no production task, deployment, service, order, or capture.
 
 The runner uses the configured custom model and an explicit Jev credential.
+The SDK supplies missing model defaults without a credential lookup or network refresh.
+The report identifies explicitly configured prices with `pricingKnown`.
+Default zero prices do not prove free service.
+The report retains `actualCharge: not_established`; token counts do not establish actual charges.
 Supported model APIs are `openai-responses`, `openai-completions`, and `anthropic-messages`.
 It refuses unsupported model configuration instead of selecting another provider.
 Credentials enter the container through standard input.
 Credentials and provider responses do not enter host logs or evidence.
 The report retains request counts, token counts, stage outcomes, scores, and source fingerprints.
+It retains reported reasoning counts and counts generation calls that reach the output limit.
+Missing reasoning counts remain unknown.
 Plugin diagnostics retain bounded statuses, receipt-match facts, and counts without generated explanations or receipt text.
 Fixed host validation categories identify rejected structure, scope, citations, and lesson text.
 Report grading identifies missing, multiple, invalid, or valid result markers without retaining answer text.

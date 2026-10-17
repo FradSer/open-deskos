@@ -10,19 +10,19 @@ import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
 import { createExperienceStore } from '../../src/agent-plugins/experience.mjs'
 import { liveJevResponse } from '../fixtures/live-jev-response.mjs'
 import { reportScore, reportData, reportSkill } from '../fixtures/agent-learning-reports.mjs'
-import { capLiveModelOutput, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
+import { capLiveModelOutput, createLivePlan, recordLiveGenerationUsage, createLiveRequestBudget, createBudgetedFetch, learningComparison } from '../helpers/agent-live-contract.mjs'
 import { pluginEvidenceMetadata, toolExecutionMetadata } from '../helpers/agent-live-plugin-evidence.mjs'
 
 let input = ''
 for await (const chunk of process.stdin) { input += chunk; if (Buffer.byteLength(input) > 262144) throw Error('Live configuration exceeds its limit') }
 const credentials = JSON.parse(input)
 input = ''
-const { plan } = credentials
+const plan = createLivePlan(credentials.plan)
 const offline = credentials.offlineFixture === true
 const fixture = offline ? await import('../helpers/agent-live-offline.mjs') : undefined
 const budget = createLiveRequestBudget(plan.maxRequests)
 const report = { candidate: credentials.candidate, fingerprints: credentials.fingerprints, startedAt: new Date().toISOString(),
-  model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api },
+  model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api, pricingKnown: credentials.pricingKnown === true, actualCharge: 'not_established' },
   fixtureProtocol: 'shared_method_supplied_data_v2',
   limits: { maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
   platform: process.platform, arch: process.arch, syntheticData: true, realModel: false, realJev: false, offlineFixture: offline,
@@ -82,7 +82,7 @@ async function newBot(stateDir, extra = {}) {
             fetch: createBudgetedFetch({ budget, kind: 'generation', phase: () => phase, signal: controller.signal, maxOutputTokens: plan.maxOutputTokens, onCall: call => calls.push(call) }) })
           void stream.result().then(message => {
             const call = calls.at(-1)
-            if (call) { call.stopReason = message.stopReason; call.inputTokens = message.usage?.input; call.outputTokens = message.usage?.output }
+            recordLiveGenerationUsage(call, message)
             if (judgment) {
               try { report.pluginChecks.push({ phase: callPhase, ...pluginEvidenceMetadata(judgment, message.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) }) }
               catch { report.pluginChecks.push({ phase: callPhase, diagnosticUnavailable: true }) }
@@ -259,6 +259,7 @@ try {
   if (!report.cleanupPassed) { report.passed = false; process.exitCode = 1 }
   report.completedAt = new Date().toISOString()
   report.externalRequests = offline ? 0 : budget.calls.length
+  report.truncatedGenerationCalls = budget.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length
   report.realModel = !offline && budget.calls.some(call => call.kind === 'generation')
   report.realJev = !offline && budget.calls.some(call => call.kind === 'jev')
   report.functionalPassed = report.passed === true

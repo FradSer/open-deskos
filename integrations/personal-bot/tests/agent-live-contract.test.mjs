@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createHash } from 'node:crypto'
-import { agentLivePlan, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
+import { agentLivePlan, createLivePlan, capLiveModelOutput, recordLiveGenerationUsage, createLiveRequestBudget, createBudgetedFetch, learningComparison, finalizeAgentAcceptance, finalizeAgentAcceptanceFile } from './helpers/agent-live-contract.mjs'
 import { reportData, reportScore, reportProcedure } from './fixtures/agent-learning-reports.mjs'
 
 test('synthetic report grading is independent of assistant claims and keeps holdout procedures hidden', () => {
@@ -37,6 +37,25 @@ test('shared live request budget refuses dispatch after its exact limit', () => 
   assert.equal(budget.calls.length, 2)
   assert.throws(() => createLiveRequestBudget(81), /limit/)
   assert.equal(agentLivePlan.maxOutputTokens, 2048)
+})
+
+test('explicit output resources retain independent request and execution bounds', async () => {
+  assert.equal(createLivePlan().maxOutputTokens, 2048)
+  const plan = createLivePlan({ maxOutputTokens: 16384 })
+  assert.equal(plan.maxOutputTokens, 16384)
+  assert.equal(plan.maxRequests, 80); assert.equal(plan.deadlineMs, 900000)
+  assert.equal(capLiveModelOutput({ maxTokens: 8192 }, plan.maxOutputTokens).maxTokens, 8192)
+  for (const maxOutputTokens of [0, -1, 16385, 1.5, NaN, Infinity, '16384']) {
+    assert.throws(() => createLivePlan({ maxOutputTokens }), /output limit/)
+  }
+  let dispatched = 0
+  const budget = createLiveRequestBudget(2)
+  const request = createBudgetedFetch({ budget, kind: 'generation', phase: () => 'explicit-output', maxOutputTokens: 16384,
+    fetchImpl: async () => { dispatched++; return new Response('{}') } })
+  await request('https://example.invalid', { body: JSON.stringify({ max_tokens: 16384 }) })
+  await assert.rejects(request('https://example.invalid', { body: JSON.stringify({ max_tokens: 16385 }) }), /output limit/)
+  assert.equal(dispatched, 1); assert.equal(budget.calls.length, 1)
+
 })
 
 test('actual HTTP dispatch shares the limit, refuses redirects and preserves failed attempts', async () => {
@@ -68,6 +87,15 @@ test('generation transport refuses unbounded or overridden output limits before 
   assert.equal(budget.calls.length, 0)
   await request('https://example.invalid', { body: JSON.stringify({ max_tokens: 2048 }) })
   assert.equal(dispatched, 1)
+})
+
+test('generation usage records reported reasoning only and excludes message content', () => {
+  for (const reasoning of [undefined, null, '4', -1, NaN, Infinity, 0, 4]) {
+    const call = { kind: 'generation' }
+    recordLiveGenerationUsage(call, { stopReason: 'length', usage: { input: 5, output: 7, reasoning }, content: 'private fixture text' })
+    assert.deepEqual(call, { kind: 'generation', stopReason: 'length', inputTokens: 5, outputTokens: 7,
+      ...(typeof reasoning === 'number' && Number.isFinite(reasoning) && reasoning >= 0 ? { reasoningTokens: reasoning } : {}) })
+  }
 })
 
 test('learning comparison does not turn persistence, a tie or three examples into general benefit', () => {
@@ -131,6 +159,9 @@ test('the complete acceptance runner proves its own contract with zero external 
   assert.equal(report.functionalPassed, true)
   assert.equal(report.status, 'pending_host_validation')
   assert.equal(finalizeAgentAcceptance(report, { exitCode: code, sourceUnchanged: true }).passed, true)
+  assert.equal(report.truncatedGenerationCalls, report.calls.filter(call => call.kind === 'generation' && call.stopReason === 'length').length)
+  assert.equal(report.model.pricingKnown, false)
+  assert.equal(report.model.actualCharge, 'not_established')
   assert.equal(report.realModel, false)
   assert.equal(report.realJev, false)
   assert.equal(report.externalRequests, 0)
