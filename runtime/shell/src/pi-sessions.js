@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
-const { boundedEvent, retainEvents } = require('./pi-session-events')
+const { boundedEvent, retainEvents, assistantMetadata } = require('./pi-session-events')
 const { resolveShellHost } = require('./platform')
 const { tokenizeWindowsCommandLine } = require('./platform/win32-command-line')
 
@@ -210,7 +210,7 @@ function sessionEventsFromEntry(entry) {
   if (message.role === 'assistant') {
     // One reply may stream as several text parts; Pi reads them as one body.
     const said = content.filter(part => part?.type === 'text' && typeof part.text === 'string' && part.text.trim())
-    if (said.length > 0) events.push({ kind: 'assistant', text: said.map(part => part.text).join('\n\n') })
+    if (said.length > 0) events.push({ kind: 'assistant', text: said.map(part => part.text).join('\n\n'), eventId:entry.id, stopReason:message.stopReason })
   }
   return events
 }
@@ -222,6 +222,7 @@ function boundEventBodyOf(event) {
   const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId.trim() : ''
   return {
     kind: event.kind,
+    ...assistantMetadata(event),
     text: body.text,
     ...(toolName ? { toolName } : {}),
     ...(toolCallId ? { toolCallId } : {}),

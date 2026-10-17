@@ -393,3 +393,11 @@ Feature: Personal Agent home briefing
     Then Chromium reports the requested viewport at unit scale
     And layout measurements wait for the matching grid, fonts, and frames
     And the original State Bar and interaction assertions remain required
+
+Scenario: Remote Pi synthesis stays in the same Agent conversation
+  Given the reviewed remote conversation capability has retained synthesized Pi reports
+  When the Agent page opens or receives an updated service frame
+  Then the existing conversation shows each retained synthesis once
+  And source disclosures identify the machine and exact session without granting controls
+  And partial, stale, and unavailable remote coverage remains visible
+  And incoming reports do not submit owner messages

@@ -790,3 +790,22 @@ test('the service drops peers that never authenticate', async () => {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('conclusion reads keep every reporting identity and correlate bounded pages over the actual runtime socket', async () => {
+  await withService(async (service,socketPath) => {
+    const first=await openReporter(service.port,{machine:'synthetic-first'}),second=await openReporter(service.port,{machine:'synthetic-second'})
+    await first.identify([{v:1,type:'sessions',sessions:[runningSession('shared')]},{v:1,type:'events',sessionId:'shared',events:[{kind:'assistant',text:'First reported conclusion.'}]}])
+    await second.identify([{v:1,type:'sessions',sessions:[runningSession('shared')]},{v:1,type:'events',sessionId:'shared',events:[{kind:'tool',text:'Do not mistake this tool output for a conclusion.'}]}])
+    const client=createOdkLinkClient({socketPath})
+    let page
+    for(let n=0;n<100;n++) {page=await client.conclusions({limit:1});if(page.total===2)break;await new Promise(resolve=>setImmediate(resolve))}
+    assert.equal(page.ok,true);assert.equal(page.total,2);assert.equal(page.records.length,1);assert.equal(page.omitted,1)
+    const next=await client.conclusions({limit:1,cursor:page.nextCursor})
+    const rows=[...page.records,...next.records]
+    assert.equal(new Set(rows.map(row=>row.key)).size,2);assert(rows.every(row=>row.control==='report_only'))
+    assert.equal(rows.find(row=>row.machine==='synthetic-first').conclusion,'First reported conclusion.')
+    assert.equal(rows.find(row=>row.machine==='synthetic-second').conclusion,'')
+    assert.equal((await client.conclusions({cursor:'f'.repeat(64)})).reason,'cursor_expired')
+    await client.stop();first.close();second.close()
+  })
+})

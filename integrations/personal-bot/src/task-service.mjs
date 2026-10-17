@@ -76,7 +76,7 @@ function validMutationId(value) {
 }
 function canonicalMutation(request) {
   const payload = { command: ['start', 'launch'].includes(request.command) ? 'launch' : request.command, taskId: request.taskId }
-  for (const key of ['project', 'prompt', 'streamingBehavior', 'expectedTurnId']) if (request[key] !== undefined) payload[key] = request[key]
+  for (const key of ['project', 'prompt', 'streamingBehavior', 'expectedTurnId', 'expectedRevision']) if (request[key] !== undefined) payload[key] = request[key]
   return JSON.stringify(payload)
 }
 function mutationDigest(payload) {
@@ -135,7 +135,8 @@ export async function createTaskService(input, adapter) {
     serial = result.then(() => {}, () => {})
     return result
   }
-  const publicTask = task => JSON.parse(JSON.stringify(task))
+  const taskRevision = task => createHash('sha256').update(JSON.stringify(task)).digest('hex')
+  const publicTask = task => ({ ...JSON.parse(JSON.stringify(task)), revision: taskRevision(task) })
   const overlaps = project => [...live.entries()].some(([id, value]) => {
     const task = records.get(id)
     return ['launching', 'live'].includes(task?.lifecycle) && (task.lifecycle === 'launching' || task.activity === 'working' || value.attached) && (within(task.project, project) || within(project, task.project))
@@ -519,6 +520,7 @@ export async function createTaskService(input, adapter) {
       // its text were malformed, and a session that is still starting must not be called over.
       const refusal = refusalFor(task, entry)
       if (refusal) throw new Error(refusal)
+      if (request.expectedRevision !== undefined && request.expectedRevision !== taskRevision(task)) throw new Error('Task revision 已变化')
       if (!validText(request.prompt, 64 * 1024) || !request.prompt.trim()) throw new Error('Hosted Pi prompt 无效')
       if ((task.activity === 'working' || entry.hosted.isStreaming) && !['steer', 'followUp'].includes(request.streamingBehavior)) throw new Error('流式提示需要 delivery behavior')
     } else if (request.command === 'cancel' && request.expectedTurnId !== undefined && request.expectedTurnId !== task.currentTurnId) {
@@ -577,7 +579,7 @@ export async function createTaskService(input, adapter) {
   return {
     handle(request, context = undefined) {
       return enqueue(async () => {
-        const base = { version: 1, requestId: typeof request?.requestId === 'string' ? request.requestId : '' }
+        const base = { version: 1, endpointKind: 'hosted', requestId: typeof request?.requestId === 'string' ? request.requestId : '' }
         try { return { ...base, ok: true, ...await dispatch(request, context) } }
         catch (error) { return { ...base, ok: false, error: error instanceof Error && !('code' in error) ? error.message : '任务请求失败' } }
       })

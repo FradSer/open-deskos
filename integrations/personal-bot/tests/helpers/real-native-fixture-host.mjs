@@ -1,6 +1,6 @@
 // Explicit operator acceptance process. This uses the real provider and a new
 // native Pi SDK session; it never creates a Hosted Pi or prompts an older session.
-import { access, lstat, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createInterface } from 'node:readline'
@@ -11,9 +11,11 @@ if (process.env.ODK_REAL_NATIVE_ACCEPTANCE !== '1') throw Error('Explicit ODK_RE
 const modelSpec = process.env.ODK_REAL_NATIVE_MODEL
 if (typeof modelSpec !== 'string' || !modelSpec.includes('/')) throw Error('Explicit available provider/model required')
 const repository = fileURLToPath(new URL('../../../..', import.meta.url))
-const packageDir = join(dirname(repository), 'pi-packages/packages/open-deskos')
-const root = '/private/tmp/odk-session-demo'
-const runtimeDir = '/Users/FradSer/.local/run/odk/sessions'
+const packageDir = process.env.ODK_REAL_NATIVE_PACKAGE_DIR || join(dirname(repository), 'pi-packages/packages/open-deskos')
+const root = process.env.ODK_REAL_NATIVE_PROJECT_ROOT || '/private/tmp/odk-session-demo'
+const runtimeDir = process.env.ODK_REAL_NATIVE_RUNTIME_DIR || process.env.ODK_SESSION_HOST_SOCKET || '/Users/FradSer/.local/run/odk/sessions'
+const planOnly = process.argv.length === 3 && process.argv[2] === '--plan'
+if (process.argv.length > 2 && !planOnly) throw Error('Only the read-only --plan option is supported')
 const emit = value => process.stdout.write(JSON.stringify(value) + '\n')
 const operatorAgentDir = getAgentDir()
 let project, session, originalId, originalFile, closing = false
@@ -90,12 +92,18 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 })
 
 try {
-  await access(join(packageDir, 'index.ts'))
+  if(!isAbsolute(packageDir) || resolve(packageDir)!==packageDir || await realpath(packageDir)!==packageDir)throw Error('Invalid fixture package path')
+  const packageInfo=await lstat(packageDir),entryInfo=await lstat(join(packageDir,'index.ts'))
+  if(!packageInfo.isDirectory() || !entryInfo.isFile() || entryInfo.isSymbolicLink() || packageInfo.uid!==process.getuid() || entryInfo.uid!==process.getuid() || ((packageInfo.mode|entryInfo.mode)&0o022))throw Error('Unexpected fixture package owner or mode')
   for (const path of [root, runtimeDir]) {
-    const info = await stat(path)
+    if(!isAbsolute(path) || resolve(path)!==path || await realpath(path)!==path)throw Error('Invalid fixture directory path')
+    const info = await lstat(path)
     if (!info.isDirectory() || info.uid !== process.getuid()) throw Error('Unexpected fixture directory owner')
-    if (path === runtimeDir && (info.mode & 0o777) !== 0o700) throw Error('Endpoint directory must already be private')
+    if ((info.mode & 0o777) !== 0o700) throw Error('Endpoint directory must already be private')
   }
+  if (planOnly) {
+    emit({ event: 'plan', runtimeDirectory: runtimeDir, providerCalls: 0, productionWrites: false })
+  } else {
   const modelRuntime = await ModelRuntime.create({ authPath: join(operatorAgentDir, 'auth.json'), modelsPath: join(operatorAgentDir, 'models.json'), allowModelNetwork: false })
   const split = modelSpec.indexOf('/'), provider = modelSpec.slice(0, split), id = modelSpec.slice(split + 1)
   const model = (await modelRuntime.getAvailable(provider)).find(candidate => candidate.id === id)
@@ -136,6 +144,7 @@ try {
       else if (request.command === 'close') { input.close(); break }
       else throw Error('Only read-only status/verify or close is supported')
     } catch { emit({ event: 'observer_error', reason: 'Read-only fixture observation failed' }) }
+  }
   }
 } catch {
   emit({ event: 'fixture_error', reason: 'Native real-provider fixture failed; inspect authorized model and private paths' })

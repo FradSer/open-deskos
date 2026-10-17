@@ -10,6 +10,8 @@ const projectSessions = snapshot => {
     counts: Object.fromEntries([...new Set(sessions.map(session => session.status || 'unknown'))].sort().map(state => [state, sessions.filter(session => (session.status || 'unknown') === state).length])),
     sessions: sessions.slice(0, READING_LIMIT).map(session => pick(session, {
       id: session => session.sessionId ?? session.id,
+      reportingMachine: session => text(session.reportedBy, GOAL_LIMIT),
+      control: () => 'report_only',
       project: session => session.workspaceName,
       workingDirectory: session => session.cwd,
       state: session => session.status,

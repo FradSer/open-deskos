@@ -24,3 +24,33 @@ Feature: A resident Personal Bot coordinates work without implementing it
     When its session is created
     Then the host's full coding tool set is available
     And there is no voice-origin edit-and-test-only profile
+
+  Scenario: Connected Pi conclusions enter the existing owner conversation
+    Given several reporting machines and separately configured control targets
+    When their latest assistant conclusions change or reconnect
+    Then a bounded paginated inventory retains each machine and session identity
+    And the agent synthesizes cited conclusions with zero tools
+    And this conversation retains the summaries and exact source references after restart
+    And omitted, stale, unavailable, and unverified outcomes stay explicit
+    And reporting credentials never grant task control
+
+  Scenario: Owner follow-up continues the exact remote task
+    Given a previously summarized configured task and its current revision
+    When the owner asks to change that task
+    Then Jev routes the owner request before any mutation
+    And the original target, project, task, and expected turn remain bound
+    And an unknown delivery outcome is reconciled without replay
+    And remote output cannot create an owner request or select an endpoint
+
+Scenario: The resident Linux coordinator reaches the canonical local task daemon
+  Given the Bot and task daemon use the same canonical task configuration
+  And no operator EnvironmentFile overrides that configuration
+  When the resident calls its configured local task helper
+  Then the real task CLI reaches the daemon with the inherited absolute configuration
+  And a missing configuration does not appear as an empty task inventory
+
+Scenario: Native acceptance uses the configured endpoint directory
+  Given a private existing native endpoint directory configured on the host
+  When the operator plans an isolated native fixture
+  Then the fixture uses its explicit endpoint override or the inherited host endpoint
+  And it validates the real directory owner and private mode without changing other descriptors

@@ -128,6 +128,10 @@ function createOdkLinkClient({ signal, ...options } = {}) {
       }
       return record
     },
+    async conclusions({ cursor = null, limit = 16, signal } = {}) {
+      const record = response(await ask({ v: ODK_LINK_PROTOCOL, type: 'conclusions', cursor, limit }, signal), { signal })
+      return record?.ok === true && Array.isArray(record.records) ? record : { ok:false, reason:record?.reason==='cursor_expired'?'cursor_expired':'conclusions_unavailable', records:[] }
+    },
     async hostedSessions(options = {}) {
       if (!resolved) return { ok: false, reason: 'odk-link-unconfigured', sessions: [], scannedAt: null }
       const record = response(await ask({ v: ODK_LINK_PROTOCOL, type: 'hosted-sessions' }, options.signal), options)

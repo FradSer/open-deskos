@@ -17,9 +17,10 @@ import { createJevJudge } from './proactive-jev.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
 import { createRideNotifier } from './ride-notification.mjs'
+import { attachRemoteConversation } from './remote-pi-reader.mjs'
 import { HomeBriefing } from './home-briefing.mjs'
 
-async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined) {
+async function initialize(env, report, onRideUpdate, platform = process.platform, getWatch = undefined, signal = undefined, onAgentUpdate = undefined, onRemoteUpdate = undefined) {
   signal?.throwIfAborted()
   report('Check ODK_PERSONAL_BOT_CONFIG: personal profile, reviewed Skills, private MEMORY and DiDi credential path; restart service')
   const personal = await loadPersonalConfig(env)
@@ -84,8 +85,9 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
     capabilityPaths: personal.profile === 'coding' && env.ODK_PERSONAL_BOT_CAPABILITIES ? JSON.parse(env.ODK_PERSONAL_BOT_CAPABILITIES) : [],
     personal, onRideUpdate, onAgentUpdate, getWatch, env, signal,
   })
+  const remote = await attachRemoteConversation({agent,env,stateDir:directories.state,publish:onRemoteUpdate})
   return {
-    agent,
+    agent, remote,
     stt: {
       url: url.href,
       provider,
@@ -165,9 +167,10 @@ async function main() {
         },
       }
     },
-    initialize: (service, context) => initialize(env, message => service.setState('error', message), notifyRide, platform, () => watch, context.signal, tasks => service.publishAgents(tasks)),
+    initialize: (service, context) => initialize(env, message => service.setState('error', message), notifyRide, platform, () => watch, context.signal, tasks => service.publishAgents(tasks), frame => service.publishRemote(frame)),
     onRuntime(value, context) {
       runtime = value
+      service.attachRemoteUpdates(runtime?.remote)
       service.publishAgents(runtime ? runtime.agent.agentTasks?.activity() ?? [] : undefined)
       if (runtime) service.setState('idle')
       else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')

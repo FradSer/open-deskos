@@ -78,6 +78,24 @@ stage_task_host_service() {
     "${template}/systemd/odk-pi-tasks.service" > "${unit}" || return 1
   $SUDO chown "${TARGET_UID}:${TARGET_GID}" "${unit}" || return 1
   $SUDO chmod 0644 "${unit}" || return 1
+  local helper_dir="${TARGET_HOME}/.local/bin"
+  local helper="${helper_dir}/odesk-pi-task-control" prepared
+  run_as_target_user mkdir -p "${helper_dir}" || return 1
+  prepared="$(mktemp)" || return 1
+  if ! sed -e "s|__ODK_PERSONAL_BOT_DIR__|${install_dir}|g" \
+    -e "s|__ODK_NODE_BIN__|${NODE_BIN}|g" \
+    -e "s|__ODK_TASK_CONFIG__|${TARGET_HOME}/.config/odk/pi-tasks.json|g" \
+    "${template}/systemd/pi-task-control.sh" > "${prepared}"; then
+    rm -f -- "${prepared}"
+    return 1
+  fi
+  chmod 0644 "${prepared}" || { rm -f -- "${prepared}"; return 1; }
+  # Install as the owner: a user-controlled destination must never receive a privileged write.
+  if ! run_as_target_user install -m 0700 -- "${prepared}" "${helper}"; then
+    rm -f -- "${prepared}"
+    return 1
+  fi
+  rm -f -- "${prepared}"
   run_as_target_user systemctl --user daemon-reload
 }
 

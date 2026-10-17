@@ -43,6 +43,28 @@ export class PersonalBotService {
 
   attachHome(home) { this.home = home }
 
+  attachRemoteUpdates(remote) {
+    clearInterval(this.remoteTimer)
+    this.remote = remote
+    this.publishRemote(remote?.snapshot() ?? { state: 'disabled', messages: [] })
+    if (remote) {
+      this.remoteTimer = setInterval(() => this.refreshRemote(), 60000)
+      this.remoteTimer.unref?.()
+      this.refreshRemote()
+    }
+  }
+
+  refreshRemote() {
+    if (!this.closed && !this.starting && ['idle', 'error'].includes(this.status.state)) void this.remote?.poll()
+  }
+
+  publishRemote(remote) {
+    if (this.closed) return
+    this.remoteFrame = structuredClone(remote)
+    this.status = { ...this.status, remote: this.remoteFrame }
+    for (const listener of this.listeners) listener(this.status)
+  }
+
   publishAgents(tasks) {
     if (this.closed) return
     this.agentFrame = Array.isArray(tasks) ? { state: 'live', tasks: structuredClone(tasks) } : { state: 'unavailable', tasks: [] }
@@ -59,6 +81,7 @@ export class PersonalBotService {
 
   servicePush(readingIds) {
     this.home?.invalidate()
+    if (readingIds?.includes('odk.app.pi-sessions')) this.refreshRemote()
     if (this.closed || !this.watch) return false
     return this.watch.push(readingIds)
   }
@@ -90,7 +113,7 @@ export class PersonalBotService {
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, agents: this.agentFrame, ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -256,6 +279,8 @@ export class PersonalBotService {
   }
 
   async shutdown() {
+    clearInterval(this.remoteTimer)
+    this.remote = undefined
     this.closed = true
     this.agentFrame = { state: 'unavailable', tasks: [] }
     this.captureId++

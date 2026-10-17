@@ -137,7 +137,7 @@ test('required units are staged from the candidate on the stable runtime path', 
     fs.symlinkSync('open-deskos-personal-bot.service', path.join(unitDir, 'odk-personal-bot.service'))
     fs.writeFileSync(path.join(unitDir, 'open-deskos-desk-link.service'), '[Service]\nExecStart=/legacy/release/link.mjs\n')
     fs.symlinkSync('open-deskos-desk-link.service', path.join(unitDir, 'odk-link.service'))
-    for (const unit of ['odk-personal-bot.service', 'odk-pi-tasks.service']) {
+    for (const unit of ['odk-personal-bot.service', 'odk-pi-tasks.service', 'pi-task-control.sh']) {
       fs.copyFileSync(path.join(integrationTree(), 'systemd', unit), path.join(candidate, 'systemd', unit))
     }
     // Open DeskOS Link is templated at the release root, not inside the voice integration.
@@ -171,6 +171,12 @@ test('required units are staged from the candidate on the stable runtime path', 
       stage_odk_link_service
     `, 'test', helperPath, dir], { encoding: 'utf8' })
     assert.equal(staged.status, 0, staged.stderr)
+    const helper=path.join(home,'.local/bin/odesk-pi-task-control')
+    const helperText=fs.readFileSync(helper,'utf8')
+    assert.ok(helperText.includes(`${dir}/runtime/current/integrations/personal-bot/src/task-cli.mjs`))
+    assert.ok(helperText.includes(`${home}/.config/odk/pi-tasks.json`))
+    assert.doesNotMatch(helperText,/__ODK_|open-deskos\/current|releases\//)
+    assert.equal(fs.statSync(helper).mode&0o777,0o700)
     const units = path.join(home, '.config/systemd/user')
     const tasks = fs.readFileSync(path.join(units, 'odk-pi-tasks.service'), 'utf8')
     const voice = fs.readFileSync(path.join(units, 'odk-personal-bot.service'), 'utf8')

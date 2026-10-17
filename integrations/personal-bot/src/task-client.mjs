@@ -74,6 +74,7 @@ function validateRequest(request, remote = false) {
   if (['start', 'launch', 'prompt'].includes(request.command) && (typeof request.prompt !== 'string' || !request.prompt.trim() || request.prompt.length > 16_384)) throw Error('Invalid task prompt')
   if (request.command === 'prompt' && request.streamingBehavior !== undefined && !['steer', 'followUp'].includes(request.streamingBehavior)) throw Error('Invalid streaming behavior')
   if (['status', 'prompt', 'cancel', 'end', 'history'].includes(request.command) && !UUID.test(request.taskId ?? '')) throw Error('Invalid task ID')
+  if (request.expectedRevision !== undefined && (typeof request.expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(request.expectedRevision))) throw Error('Invalid task revision')
   if (request.command === 'history' && (request.position !== undefined && (!Number.isSafeInteger(request.position) || request.position < 0))) throw Error('Invalid history position')
 }
 
@@ -87,6 +88,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     ...(request.command === 'prompt' ? { taskId: request.taskId, mutationId, prompt: request.prompt, ...(request.streamingBehavior ? { streamingBehavior: request.streamingBehavior } : {}) } : {}),
     ...(['status', 'cancel', 'end', 'history'].includes(request.command) ? { taskId: request.taskId } : {}),
     ...(['cancel', 'end'].includes(request.command) ? { mutationId } : {}),
+    ...(request.command === 'prompt' && request.expectedRevision !== undefined ? {expectedRevision:request.expectedRevision} : {}),
     ...(request.command === 'history' && request.position !== undefined ? { position: request.position } : {}),
   }
   const mutation = ['start', 'launch', 'prompt', 'cancel', 'end'].includes(request.command)
@@ -101,7 +103,7 @@ export async function taskRequest(target, request, signal = undefined, timeout =
     // Only the daemon's own fixed refusals are reflected. A reason an operator can act on is
     // worthless if it arrives as "rejected": a session that has already ended and a working turn
     // that needs a stated delivery behavior are exactly the two a spoken request hits.
-    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', '此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
+    const safeReasons = ['项目或主机任务已满', '未找到任务', '任务服务不可用', '任务服务正在启动', '项目不在允许的开发目录内', '任务 ID 已用于不同请求', 'Hosted Pi 已结束', 'Hosted Pi 正在启动', '流式提示需要 delivery behavior', 'Task revision 已变化', '此端点是当前 Pi 会话，不是 Hosted Pi 任务服务', '指令未送达：该会话正在运行，且这条消息没有被排队']
     throw Error(safeReasons.includes(response.error) ? response.error : 'Managed task request rejected')
   }
   return response

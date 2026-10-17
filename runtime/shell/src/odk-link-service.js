@@ -1,3 +1,4 @@
+const { conclusionPage } = require('./pi-conclusions')
 const net = require('node:net')
 const os = require('node:os')
 const fs = require('node:fs')
@@ -914,6 +915,10 @@ function createOdkLinkService({
       for (const record of readRecords(chunk)) {
         if (!record || typeof record !== 'object' || record.v !== ODK_LINK_PROTOCOL) continue
         if (record.type === 'snapshot') writeRuntime(snapshot(), record.requestId)
+        else if (record.type === 'conclusions') {
+          try { writeRuntime(conclusionPage(machines, { cursor: record.cursor ?? null, limit: record.limit ?? 16 }), record.requestId) }
+          catch { writeRuntime({ok:false,reason:'invalid_conclusion_page'},record.requestId) }
+        }
         else if (record.type === 'events') {
           const sessionId = String(record.sessionId ?? '')
           if (record.hostedPi === true) hostedEventsForSession(sessionId).then(reply => writeRuntime(reply, record.requestId))
