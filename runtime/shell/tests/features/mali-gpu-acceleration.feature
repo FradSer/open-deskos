@@ -37,6 +37,20 @@ Feature: Mali GPU acceleration for the CM5 shell
     When the operator verifies Mali userspace
     Then the historical load message cannot pass verification
 
+  Scenario: User acceptance reads protected Xorg mappings through a fixed host verifier
+    Given the kiosk user cannot read the root Xorg mappings
+    And the installer provisioned a root-owned verifier without argument permissions
+    When the kiosk user verifies the corrected module
+    Then the verifier reads fresh mappings of the actual Xorg executable
+    And its bounded receipt identifies the boot, process start, and module digest
+    And no general privileged command is authorized
+
+  Scenario: An unavailable privileged observation cannot diagnose a missing module
+    Given the kiosk user cannot invoke the fixed host verifier
+    When the kiosk user verifies the corrected module
+    Then verification fails with an unavailable observation diagnostic
+    And it does not recommend a graphical restart without mapping evidence
+
   Scenario: Installation finds the kiosk graphical session after terminal sessions
     Given the kiosk user's first session has no Display
     And an inactive closing session still publishes an old Display

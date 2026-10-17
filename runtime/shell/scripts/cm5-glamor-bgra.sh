@@ -136,7 +136,7 @@ install_glamor() (
 )
 
 verify_glamor() {
-  local sessions boot_id pid
+  local sessions boot_id pid receipt
   check_glamor_version || return 1
   if ! glamor_module_current || ! cmp -s <(glamor_module_config) "$GLAMOR_CONFIG"; then
     echo "  BGRA glamor module is missing or changed; run cm5-gpu-userspace.sh install." >&2
@@ -152,13 +152,23 @@ verify_glamor() {
     echo "  Xorg still uses the previous module; restart the graphical session." >&2
     return 1
   fi
-  while read -r boot_id pid; do
-    if ! $SUDO awk -v module="${GLAMOR_MODULE_DIR}/libglamoregl.so" \
-      '$6 == module && NF == 6 { loaded=1 } END { exit !loaded }' "${GLAMOR_PROC_DIR}/${pid}/maps"; then
-      echo "  Xorg ${pid} does not map the installed BGRA module; restart the graphical session." >&2
+  if [ "$(id -u)" -ne 0 ]; then
+    if receipt="$(/usr/bin/timeout 5s /usr/bin/sudo -n -- /usr/local/libexec/odk-xorg-bgra-verify 2>&1)"; then
+      printf '  %s\n' "$receipt"
+    else
+      printf '  %s\n' "$receipt" >&2
+      echo "  BGRA mapping observation unavailable or failed; run the installed host verifier as root for diagnostics." >&2
       return 1
     fi
-  done <<< "$sessions"
+  else
+    while read -r boot_id pid; do
+      if ! awk -v module="${GLAMOR_MODULE_DIR}/libglamoregl.so" \
+        '$6 == module && NF == 6 { loaded=1 } END { exit !loaded }' "${GLAMOR_PROC_DIR}/${pid}/maps"; then
+        echo "  Xorg ${pid} does not map the installed BGRA module; restart the graphical session." >&2
+        return 1
+      fi
+    done <<< "$sessions"
+  fi
   if ! grep -Fq "Loading ${GLAMOR_MODULE_DIR}/libglamoregl.so" "$GLAMOR_XORG_LOG"; then
     echo "  Xorg has not loaded the BGRA module; restart the graphical session." >&2
     return 1

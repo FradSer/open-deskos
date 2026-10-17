@@ -131,12 +131,42 @@ install_firmware() {
   download_verified "${MALI_BASE_URL}/firmware/g610/${MALI_FIRMWARE_FILE}" "${FIRMWARE_DIR}/${MALI_FIRMWARE_FILE}" "$MALI_FIRMWARE_SHA256" "Mali CSF firmware"
 }
 
+install_mapping_observer() (
+  # Provision a fixed host tool, never a privileged entry into a caller's source tree.
+  local parent owner mode file temporary
+  for parent in / /usr /usr/local /usr/local/libexec /etc /etc/sudoers.d; do
+    if [ ! -e "$parent" ] && [ ! -L "$parent" ]; then
+      $SUDO install -d -o root -g root -m 0755 "$parent"
+    fi
+    [ -d "$parent" ] && [ ! -L "$parent" ] || return 1
+    owner="$(stat -c '%u:%g' "$parent")"; mode="$(stat -c '%a' "$parent")"
+    [ "$owner" = 0:0 ] && [ "$((0$mode & 022))" -eq 0 ] || return 1
+  done
+  for file in /usr/local/libexec/odk-xorg-bgra-verify /usr/local/libexec/odk-xorg-bgra-verify.py /etc/sudoers.d/odk-xorg-bgra-verify; do
+    [ ! -L "$file" ] || return 1
+    if [ -e "$file" ]; then
+      [ -f "$file" ] || return 1
+      owner="$(stat -c '%u:%g' "$file")"; mode="$(stat -c '%a' "$file")"
+      [ "$owner" = 0:0 ] && [ "$((0$mode & 022))" -eq 0 ] || return 1
+    fi
+  done
+  [ -x /usr/bin/python3 ] && [ -x /usr/sbin/visudo ] || return 1
+  temporary="$($SUDO mktemp /etc/sudoers.d/.odk-xorg-bgra-verify.XXXXXX)"
+  trap '$SUDO rm -f "$temporary"' EXIT
+  printf '%s\n' 'orangepi ALL=(root) NOPASSWD: /usr/local/libexec/odk-xorg-bgra-verify ""' | $SUDO tee "$temporary" >/dev/null
+  $SUDO /usr/sbin/visudo -cf "$temporary" || return 1
+  $SUDO install -o root -g root -m 0755 "$(dirname -- "${BASH_SOURCE[0]}")/cm5-xorg-bgra-verify.sh" /usr/local/libexec/odk-xorg-bgra-verify
+  $SUDO install -o root -g root -m 0644 "$(dirname -- "${BASH_SOURCE[0]}")/cm5-xorg-bgra-verify.py" /usr/local/libexec/odk-xorg-bgra-verify.py
+  $SUDO install -o root -g root -m 0440 "$temporary" /etc/sudoers.d/odk-xorg-bgra-verify
+)
+
 install_all() {
   check_arch
   require_tools
   install_glamor
   install_firmware
   install_blob
+  install_mapping_observer
   echo "== installed =="
   echo "The GPU stays unused until a client opens /dev/mali0 and the X session"
   echo "re-initialises glamor; restart the graphical session (or reboot) next."
