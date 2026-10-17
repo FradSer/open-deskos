@@ -1,4 +1,11 @@
 Feature: Independent CM5 personal bot service deployment
+  Scenario: Browser provisioning checks use the packaged integration
+    Given a flat CM5 release with its browser feature and peripheral sources
+    And an unrelated integration tree exists outside the release
+    When the browser provisioning checks run from the release
+    Then they read the feature inside the release
+    And all browser provisioning checks pass without host installation
+
   Scenario: Windows preserves UTF-8 microphone names from device configuration
     Given a Windows PowerShell 5.1 host with a Chinese DirectShow microphone name
     And its device environment file is UTF-8 without a BOM
