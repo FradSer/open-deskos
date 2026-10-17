@@ -53,6 +53,10 @@ Use `--max-output-tokens=N` to select an explicit limit from 1 to 16384 tokens.
 The configured model can reduce this limit.
 The limit includes reasoning tokens.
 The transport checks the final HTTP payload and refuses larger sampling overrides before dispatch.
+Plugin validation uses a 90000-millisecond timeout by default.
+The runner validates `ODK_AGENT_PLUGIN_TIMEOUT_MS` and passes it through the private envelope.
+Valid values range from 1000 to 180000 milliseconds.
+The report records the effective value in `limits.pluginTimeoutMs`.
 The run has a 15-minute deadline.
 Budget exhaustion stops dependent stages without retry.
 The limit counts requests; it is not a monetary cost limit.

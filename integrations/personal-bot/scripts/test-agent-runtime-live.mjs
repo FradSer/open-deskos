@@ -1,4 +1,5 @@
 import { agentLivePlan, createLivePlan, normalizeLiveModel, finalizeAgentAcceptanceFile } from '../tests/helpers/agent-live-contract.mjs'
+import { generationDeadlineMs } from '../src/proactive-generation-session.mjs'
 import { openLiveHostRelay } from '../tests/helpers/agent-live-relay.mjs'
 
 const args = process.argv.slice(2)
@@ -21,6 +22,7 @@ if (args.length === 1 && args[0] === '--plan') {
     const plan = createLivePlan({ maxRequests: Number(args.find(arg => arg.startsWith('--max-requests='))?.slice(15) ?? agentLivePlan.maxRequests),
       maxOutputTokens: Number(args.find(arg => arg.startsWith('--max-output-tokens='))?.slice('--max-output-tokens='.length) ?? agentLivePlan.maxOutputTokens),
       deadlineMs: Number(args.find(arg => arg.startsWith('--deadline-ms='))?.slice(14) ?? agentLivePlan.deadlineMs) })
+    const pluginTimeoutMs = generationDeadlineMs(process.env.ODK_AGENT_PLUGIN_TIMEOUT_MS)
     const continuationDirectory = args.find(arg => arg.startsWith('--continue-from='))?.slice(16)
     if (continuationDirectory === '') throw Error('Continuation evidence directory is required')
     const continuation = continuationDirectory ? await (await import('../tests/helpers/agent-live-continuation.mjs')).loadLiveContinuation(continuationDirectory) : undefined
@@ -70,7 +72,7 @@ if (args.length === 1 && args[0] === '--plan') {
       return result
     }
     const fingerprints = await fingerprint()
-    const envelope = { provider, providerConfig, model, pricingKnown, jevKey, plan, fingerprints, continuation, taskEvaluation: args.includes('--task-evaluation'), hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
+    const envelope = { provider, providerConfig, model, pricingKnown, jevKey, plan, pluginTimeoutMs, fingerprints, continuation, taskEvaluation: args.includes('--task-evaluation'), hostValidationRequired: true, transport: relay ? 'private_host_relay' : 'direct',
       candidate: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }
     const container = `odk-agent-live-${process.pid}-${createHash('sha256').update(output).digest('hex').slice(0, 12)}`
     console.log(JSON.stringify({ evidence: output, container, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs, transport: envelope.transport }))

@@ -4,6 +4,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { generationDeadlineMs } from '../../src/proactive-generation-session.mjs'
 import { createPersonalBot } from '../../src/agent.mjs'
 import { createJevIntentRouter } from '../../src/intent-routing.mjs'
 import { openAgentCatalog } from '../../src/agent-catalog/catalog.mjs'
@@ -18,13 +19,14 @@ for await (const chunk of process.stdin) { input += chunk; if (Buffer.byteLength
 const credentials = JSON.parse(input)
 input = ''
 const plan = createLivePlan(credentials.plan)
+const pluginTimeoutMs = generationDeadlineMs(credentials.pluginTimeoutMs)
 const offline = credentials.offlineFixture === true
 const fixture = offline ? await import('../helpers/agent-live-offline.mjs') : undefined
 const budget = createLiveRequestBudget(plan.maxRequests)
 const report = { candidate: credentials.candidate, fingerprints: credentials.fingerprints, startedAt: new Date().toISOString(),
   model: { provider: credentials.provider, id: credentials.model.id, api: credentials.model.api, pricingKnown: credentials.pricingKnown === true, actualCharge: 'not_established' },
   fixtureProtocol: 'shared_method_supplied_data_v2',
-  limits: { maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
+  limits: { pluginTimeoutMs, maxRequests: plan.maxRequests, maxOutputTokens: plan.maxOutputTokens, deadlineMs: plan.deadlineMs }, transport: credentials.transport ?? 'direct',
   platform: process.platform, arch: process.arch, syntheticData: true, realModel: false, realJev: false, offlineFixture: offline,
   productionWrites: false, physicalCapture: false, renderedUI: false, calls: budget.calls, scenarios: [], pairs: [], routes: [], taskChecks: [], pluginChecks: [], toolChecks: [],
   coverage: credentials.continuation ? 'isolated_continuation' : credentials.taskEvaluation ? 'task_evaluation' : 'full',
@@ -37,7 +39,7 @@ const retrieved = new Set()
 const base = offline ? credentials.fixtureDirectory : '/tmp/agent-runtime-live', candidates = join(base, 'candidates')
 process.env.PI_CODING_AGENT_DIR = join(base, 'agent-settings')
 const plugins = ['experience', 'completion', 'learning', 'catalog', 'mcp', 'subagents']
-const env = { ODK_AGENT_PACKAGE_CANDIDATES: candidates, TYPESAFE_API_KEY: credentials.jevKey }
+const env = { ODK_AGENT_PLUGIN_TIMEOUT_MS: String(pluginTimeoutMs), ODK_AGENT_PACKAGE_CANDIDATES: candidates, TYPESAFE_API_KEY: credentials.jevKey }
 const manifest = { schemaVersion: 1, kind: 'mcp', id: 'learning-reports', name: 'Synthetic report connector', transport: {
   type: 'stdio', command: process.execPath, args: [fileURLToPath(new URL('../fixtures/agent-learning-server.mjs', import.meta.url))],
 } }

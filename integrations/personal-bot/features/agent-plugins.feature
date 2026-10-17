@@ -134,6 +134,14 @@ Feature: Personal Agent owns a bounded plugin runtime
     And default zero rates do not establish actual charges or free service
     And normalization reads no authentication store and makes no network request
 
+  Scenario: Live plugin validation retains the configured bounded timeout
+    Given the default plugin timeout is 90000 milliseconds
+    When the host explicitly configures a valid plugin timeout up to 180000 milliseconds
+    Then the private envelope and isolated Bot use that validated timeout
+    And the report records the effective timeout
+    And invalid timeouts fail before request dispatch
+    And task quality checks and the overall deadline remain unchanged
+
   Scenario: Live delegation accepts one exact fresh child turn
     Given a saved child completed an earlier task before restart
     When the coordinator uses agent_input on that inactive task

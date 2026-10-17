@@ -167,6 +167,25 @@ test('plan inspection needs no credentials, provider, Docker or external request
   assert.deepEqual(JSON.parse(stdout), agentLivePlan)
 })
 
+test('invalid envelope plugin timeouts stop before child initialization or dispatch', { timeout: 15000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'odk-agent-invalid-timeout-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  for (const pluginTimeoutMs of ['invalid', 180001]) {
+    const child = spawn(process.execPath, ['tests/acceptance/agent-runtime-live.mjs'], {
+      cwd: new URL('../', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
+      env: { PATH: process.env.PATH, HOME: root, PI_OFFLINE: '1' },
+    })
+    const exited = once(child, 'exit')
+    t.after(async () => { if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited } })
+    let diagnostics = ''
+    child.stderr.on('data', chunk => { diagnostics += chunk })
+    child.stdin.end(JSON.stringify({ plan: agentLivePlan, pluginTimeoutMs, offlineFixture: true, fixtureDirectory: root }))
+    const [code] = await exited
+    assert.equal(code, 1); assert.match(diagnostics, /Invalid proactive generation timeout/)
+    await assert.rejects(readFile(join(root, 'report.json')), { code: 'ENOENT' })
+  }
+})
+
 async function offlineReport(t, plan = agentLivePlan, extra = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'odk-agent-live-contract-')))
   const child = spawn(process.execPath, ['tests/acceptance/agent-runtime-live.mjs'], { cwd: new URL('../', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
@@ -185,7 +204,8 @@ async function offlineReport(t, plan = agentLivePlan, extra = {}) {
 }
 
 for (const [resources, plan] of [['default', agentLivePlan], ['explicit', createLivePlan({ maxOutputTokens: 16384 })]]) test(`the complete acceptance runner proves its own contract with zero external calls (${resources})`, { timeout: 60000 }, async t => {
-  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan)
+  const { report, code, diagnostics, acceptedExperience } = await offlineReport(t, plan, resources === 'explicit' ? { pluginTimeoutMs: 180000 } : {})
+  assert.equal(report.limits.pluginTimeoutMs, resources === 'explicit' ? 180000 : 90000)
   assert.equal(code, 0, JSON.stringify({ report, diagnostics }))
   assert.equal(report.passed, false, 'a container cannot approve its own source validation')
   assert.equal(report.functionalPassed, true)

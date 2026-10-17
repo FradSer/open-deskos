@@ -59,10 +59,11 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
   `, { mode: 0o700 })
     await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, mode)}`, ...(mode === 'direct' ? [] : ['--host-relay']), ...(mode === 'relay-provider' ? ['--max-output-tokens=16384', '--max-requests=160'] : [])], {
       cwd: new URL('../', import.meta.url), timeout: 15000,
-      env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture },
+      env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture, ...(mode === 'relay-provider' ? { ODK_AGENT_PLUGIN_TIMEOUT_MS: '180000' } : {}) },
     }), error => error.code === 1) // The fake container cannot establish acceptance.
     const envelope = JSON.parse(await readFile(capture, 'utf8'))
     assert.deepEqual((await readdir(agentDir)).sort(), ['models.json', 'settings.json'], 'normalization creates no auth or model cache files')
+    assert.equal(envelope.pluginTimeoutMs, mode === 'relay-provider' ? 180000 : 90000)
     assert.equal(envelope.plan.maxRequests, mode === 'relay-provider' ? 160 : 80)
     assert.equal(envelope.plan.maxOutputTokens, mode === 'relay-provider' ? 16384 : 2048)
     const runtime = await ModelRuntime.create({ authPath: join(directory, 'auth.json'), modelsPath: null, refreshOnCreate: false })
@@ -102,5 +103,14 @@ test('the formal runner normalizes a cost-omitting model before actual SDK strea
     }), error => { assert.equal(error.code, 1); if (options.length > 1) assert.match(error.stderr, /Usage:/); return true })
     await assert.rejects(readFile(capture), { code: 'ENOENT' }, 'invalid options cannot dispatch the fake container from an otherwise valid setup')
   }
+  for (const [index, timeout] of ['invalid', '180001'].entries()) {
+    await rm(capture, { force: true })
+    await assert.rejects(promisify(execFile)(process.execPath, ['scripts/test-agent-runtime-live.mjs', '--live', `--output=${join(directory, `invalid-timeout-${index}`)}`], {
+      cwd: new URL('../', import.meta.url), timeout: 15000,
+      env: { PATH: `${bin}:${process.env.PATH}`, HOME: directory, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: '1', TYPESAFE_API_KEY: 'offline-only', ODK_LIVE_TEST_CAPTURE: capture, ODK_AGENT_PLUGIN_TIMEOUT_MS: timeout },
+    }), error => error.code === 1)
+    await assert.rejects(readFile(capture), { code: 'ENOENT' }, 'invalid plugin timeout cannot dispatch a container')
+  }
+
 
 })
