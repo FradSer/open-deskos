@@ -52,13 +52,14 @@
   let proactive = false
   let proposalSnapshot = ''
   let proposalError = ''
+  let proposalCommandError = ''
 
   async function command(value) {
     try {
       const receipt = await window.odkPersonalBot.proposalCommand(value)
       if (!receipt?.accepted) throw Error('Unavailable')
     } catch {
-      proposalError = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
+      proposalCommandError = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
       showProposalError()
     }
   }
@@ -70,7 +71,7 @@
       error.setAttribute('role', 'status')
       proposals.appendChild(error)
     }
-    error.textContent = proposalError
+    error.textContent = proposalCommandError || proposalError
   }
   function button(label, callback) {
     const node = document.createElement('button')
@@ -92,6 +93,7 @@
     if (snapshot !== proposalSnapshot) {
       proposalSnapshot = snapshot
       proposals.replaceChildren()
+      proposalCommandError = ''
       if (!status.proposals.length) return
       const header = document.createElement('div')
       header.className = 'personal-bot-proposals-header'
@@ -145,7 +147,9 @@
         proposals.append(article)
       }
     }
-    if (status.proposalError) { proposalError = status.proposalError; showProposalError() }
+    proposalError = status.proposalError || ''
+    if (proposalError || proposalCommandError) showProposalError()
+    else proposals.querySelector('.personal-bot-proposal-error')?.remove()
   }
 
   let active = false

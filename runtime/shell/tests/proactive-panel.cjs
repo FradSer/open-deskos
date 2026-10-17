@@ -13,8 +13,9 @@ const timer = setTimeout(() => app.exit(1), 60000)
 const delay = () => new Promise(resolve => setTimeout(resolve, 100))
 app.whenReady().then(async () => {
   const commands = []
+  let rejectResponse = false
   for (const channel of ['odk-opencode-go-status', 'odk-pi-sessions', 'odk-hydra-status', 'odk-weread-highlight', 'odk-futu-holdings', 'odk-weather-status', 'odk-user-apps-list', 'odk-camera-frame', 'odk-app-manager-list', 'odk-personal-bot-status', 'odk-remote-publish-page-state']) ipcMain.handle(channel, () => ({ ok: false, sessions: [], workspaces: [], apps: [] }))
-  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => { commands.push(command); return { accepted: true } })
+  ipcMain.handle('odk-personal-bot-proposal', (_event, command) => { commands.push(command); if (rejectResponse && command.type === 'proposal_respond') throw Error('Controlled offline delivery failure'); return { accepted: true } })
   const win = new BrowserWindow({ show: false, width: 480, height: 854, useContentSize: true, webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, sandbox: true } })
   win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: /^https?:/.test(details.url) }))
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
@@ -33,6 +34,28 @@ app.whenReady().then(async () => {
   await delay(); assert.equal(commands.some(c => c.type === 'proposal_respond'), false)
   await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
   await delay(); assert.equal(commands.at(-1).confirmation, p.confirmation)
+  await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true, proposalError: 'generation_unavailable' })
+  assert.equal(await run(`document.querySelector('.personal-bot-proposal-error')?.textContent`), 'generation_unavailable')
+  await run(`window.__proposalControls = [...document.querySelectorAll('.personal-bot-proposals button')]`)
+  await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false })
+  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-error')`), false)
+  assert.equal(await run(`window.__proposalControls.every((node, index) => document.querySelectorAll('.personal-bot-proposals button')[index] === node)`), true)
+  await send({ state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'checkpoint_failed' })
+  assert.equal(await run(`!!document.querySelector('.personal-bot-proposal-error')`), true)
+  const uncertain = { ...p, id: 'a91cb070-410b-42a8-b15e-f0508d2f9dbf' }
+  await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: true })
+  rejectResponse = true
+  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === 'Accept').click()`)
+  await run(`[...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土').click()`)
+  await delay()
+  const commandCount = commands.length
+  await run(`window.__disabledConfirmation = [...document.querySelectorAll('.personal-bot-proposals button')].find(b => b.textContent === '记住 watering：检查盆土')`)
+  await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false, proposalError: 'generation_unavailable' })
+  await send({ state: 'idle', proposals: [uncertain], proposalHiddenCount: 0, proposalPopup: false })
+  assert.match(await run(`document.querySelector('.personal-bot-proposal-error')?.textContent ?? ''`), /not delivered.*do not repeat an uncertain action/)
+  assert.equal(await run(`window.__disabledConfirmation.isConnected && window.__disabledConfirmation.disabled`), true)
+  assert.equal(commands.length, commandCount)
+  rejectResponse = false
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await run(`odkTheme.set(${JSON.stringify(theme)}); document.fonts.ready.then(() => true)`)
     for (const [width, height] of [[320, 480], [480, 854], [1920, 1280]]) {
@@ -59,7 +82,10 @@ app.whenReady().then(async () => {
   await send({ state: 'starting' })
   await send({ state: 'recording' })
   assert.equal(await run(`document.getElementById('personal-bot-status').dataset.proactive`), 'false')
-  assert.equal(await run(`document.getElementById('pages-viewport').inert`), true)
-  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 3 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text')
+  assert.equal(await run(`document.getElementById('personal-bot-status').hidden`), true)
+  assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening…')
+  assert.equal(await run(`document.querySelector('.agent-mic').getAttribute('aria-label')`), 'Stop recording')
+  assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)
+  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 3 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery')
   clearTimeout(timer); win.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

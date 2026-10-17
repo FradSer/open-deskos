@@ -13,7 +13,8 @@ class Element {
   setAttribute(name, value) { this.attributes[name] = value }
   contains(node) { return this === node || this.children.some(child => child.contains(node)) }
   focus() { this.focused = true }
-  querySelector(selector) { return this.selectors?.[selector] ?? null }
+  querySelector(selector) { return this.selectors?.[selector] ?? this.children.find(child => child.className?.split(/\s+/).includes(selector.slice(1))) ?? this.children.map(child => child.querySelector(selector)).find(Boolean) ?? null }
+  remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1) }
   scrollBy() {}
   async click() { await this.events.click?.() }
 }
@@ -57,4 +58,38 @@ test('silent data does not open, expiry removes execution and a voice turn takes
   assert.ok(!flatten(f.content).some(n => n.tagName === 'BUTTON' && n.textContent === 'Accept'))
   f.render({ state: 'recording' }); assert.equal(f.surface.dataset.proactive, 'false')
   assert.equal(f.local.inert, true); assert.equal(f.content.focused, true)
+})
+
+test('a recovered service error clears without replacing the same suggestion controls', () => {
+  const f = fixture(), status = { state: 'idle', proposals: [proposal()], proposalHiddenCount: 1, proposalPopup: true }
+  f.render({ ...status, proposalError: 'generation_unavailable' })
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error').textContent, 'generation_unavailable')
+  const section = f.content.children[0], controls = flatten(section).filter(n => n.tagName === 'BUTTON')
+  f.render({ ...status, proposalPopup: false })
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null)
+  assert.equal(f.content.children[0], section)
+  assert.deepEqual(flatten(section).filter(n => n.tagName === 'BUTTON'), controls)
+  assert.equal(f.surface.hidden, false)
+  f.render({ ...status, proposalError: 'checkpoint_failed' })
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error').textContent, 'checkpoint_failed')
+})
+
+test('unchanged service status preserves an uncertain command warning and disabled confirmation', async () => {
+  const f = fixture(), p = proposal(), status = { state: 'idle', proposals: [p], proposalHiddenCount: 0, proposalPopup: true }
+  f.render(status)
+  f.window.odkPersonalBot.proposalCommand = async command => { f.commands.push(command); throw Error('Controlled offline delivery failure') }
+  await flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === 'Accept').click()
+  const confirmation = flatten(f.content).find(n => n.tagName === 'BUTTON' && n.textContent === p.confirmation)
+  await confirmation.click()
+  const warning = f.content.querySelector('.personal-bot-proposal-error')
+  assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
+  assert.equal(confirmation.disabled, true)
+  const count = f.commands.length
+  f.render({ ...status, proposalPopup: false, proposalError: 'generation_unavailable' })
+  f.render({ ...status, proposalPopup: false })
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), warning)
+  assert.match(warning.textContent, /not delivered.*do not repeat an uncertain action/)
+  assert.equal(confirmation.disabled, true)
+  assert.equal(flatten(f.content).find(n => n.textContent === p.confirmation), confirmation)
+  assert.equal(f.commands.length, count)
 })

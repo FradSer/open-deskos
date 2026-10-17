@@ -57,3 +57,13 @@ Feature: Voice feedback status transport
     And accepted, ignored and muted decisions return over the same private socket
     And a busy Spoken Turn defers presentation
     And combined proposal, transcript and response frames stay within transport bounds
+
+  Scenario: Suggestion recovery clears only the current service error
+    Given the popup displays a service suggestion error
+    When a recovered status retains the same proposals and hidden count
+    Then the popup removes the service error without rebuilding confirmation controls
+    And a later genuine service error remains visible
+    When a proposal command has an uncertain delivery failure
+    Then a later service error and its recovery retain that warning and disabled confirmation controls
+    When recording feedback returns to Home
+    Then the resident panel owns recording feedback without a modal or inert Home
