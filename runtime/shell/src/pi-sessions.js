@@ -304,6 +304,32 @@ function readProcessCwd(pid) {
   }
 }
 
+// One Darwin snapshot must not launch one lsof process for every Pi process.
+function readDarwinProcessCwds(processes) {
+  const pids = new Set(processes.map(info => info.pid))
+  const directories = new Map()
+  if (!pids.size) return directories
+  const result = spawnSync('lsof', ['-a', '-p', [...pids].join(','), '-d', 'cwd', '-Fpn'], {
+    encoding: 'utf8', timeout: 3000, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024,
+  })
+  // A process can exit between ps and lsof. Exit 1 may still include other PIDs.
+  if (result.error || result.signal || ![0, 1].includes(result.status)) return directories
+  let pid = null
+  const ambiguous = new Set()
+  for (const line of (result.stdout || '').split(/\r?\n/)) {
+    if (line.startsWith('p')) {
+      const candidate = /^p[1-9]\d*$/.test(line) ? Number(line.slice(1)) : null
+      pid = pids.has(candidate) ? candidate : null
+    } else if (pid !== null && line.startsWith('n/')) {
+      const cwd = line.slice(1)
+      if (directories.has(pid) && directories.get(pid) !== cwd) ambiguous.add(pid)
+      directories.set(pid, cwd)
+    }
+  }
+  for (const pid of ambiguous) directories.delete(pid)
+  return directories
+}
+
 function executableName(value) {
   if (!value || typeof value !== 'string') return ''
   const trimmed = value.trim().replace(/^['"]|['"]$/g, '')
@@ -495,7 +521,7 @@ function isPiProcess(processInfo) {
   return isPiInvocation(tokens)
 }
 
-function parseProcessTable(output, now = Date.now()) {
+function parseProcessTable(output, now = Date.now(), resolveCwd = readProcessCwd) {
   if (!output || typeof output !== 'string') return []
   const processes = []
   for (const line of output.split(/\r?\n/)) {
@@ -512,7 +538,7 @@ function parseProcessTable(output, now = Date.now()) {
       ppid,
       comm,
       command: comm,
-      cwd: readProcessCwd(pid),
+      cwd: resolveCwd(pid),
       elapsedSeconds,
       startedAt: Math.max(0, now - elapsedSeconds * 1000),
       isAlive: true,
@@ -555,6 +581,12 @@ function listPiProcesses(now = Date.now(), strict = false, options = {}) {
   if (result.status !== 0) {
     if (strict) throw new Error('Pi process inspection unavailable')
     return []
+  }
+  if (process.platform === 'darwin') {
+    const processes = parseProcessTable(result.stdout, now, () => '')
+    const directories = readDarwinProcessCwds(processes)
+    for (const info of processes) info.cwd = directories.get(info.pid) || ''
+    return processes
   }
   return parseProcessTable(result.stdout, now)
 }
