@@ -195,7 +195,7 @@ Diagnosis does not extend task service availability or alter ordinary task respo
 
 ## Profiles and memory
 
-Both resident profiles use mandatory Jev routing and Pi Durable 1.2.0 Code Mode.
+Both resident profiles use mandatory typed intent routing and Pi Durable 1.2.0 Code Mode.
 Neither profile has TTS.
 The coding coordinator has `read`, `grep`, `find`, and `ls` plus reviewed system capabilities.
 It has no generic `write`, `edit`, `bash`, or `powershell`, including after resume.
@@ -287,8 +287,8 @@ Never restore transaction state from before a possibly accepted order.
 
 ## Intent routing
 
-Every resident owner turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
-Touch proposal confirmation also routes its actual phrase through Jev.
+Every resident owner turn receives a typed intent judgment before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
+Touch proposal confirmation also classifies its actual phrase before execution.
 No regex shortcut bypasses routing.
 The TypeSafe Choice API selects a closed intent; code owns dispatch.
 Router state contains unchanged user text, bounded previous-turn context, available tools, and displayed proposal phrases.
@@ -325,7 +325,7 @@ The package-management workflow permits MCP calls only for an explicitly request
 The [agent package contract](AGENT_CATALOG.md) owns installation, revision, credential, and connector lifecycle rules.
 The [child task contract](AGENT_TASKS.md) owns general task execution and saved identities.
 After parent admission, the host selects the fixed internal `agent_execute` workflow for that child.
-A child creates no second Jev client and performs no second intent classification.
+A child creates no Jev client and performs no second intent classification.
 Only the composition root can select child execution.
 Task text and role guidance cannot select it or expand its tools.
 Tool discovery and evidence collection occur during execution; admission does not certify feasibility or completion.
@@ -353,22 +353,29 @@ Unknown tools and invalid arguments are call errors, not proof of service unavai
 Historical readings do not establish current conditions.
 Raw metrics cannot establish assessments without applicable thresholds or source assessments.
 
-Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`, even with proposals disabled.
-`ODK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
+Jev is optional for both profiles, including Overview generation and owner follow-ups.
+`ODK_JEV_PROVIDER=disabled` prevents Jev client construction and network requests.
+When Jev is unavailable or not configured, the configured ordinary model supplies typed judgments in a separate zero-tool session.
+The host validates answer types, intent identifiers, probabilities, and thresholds before it activates capabilities.
+Ordinary model confidence is a model estimate; it is not calibrated Jev confidence.
+A failed optional Jev transport is not retried during the same runtime.
+Jev credentials use private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE` for the TypeSafe provider.
+`ODK_JEV_MODEL` defaults to the selected provider's Jev model and accepts only Jev models.
 `ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
 `ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
 Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
-The resident service checks Jev once at startup with one fixed public Noul request.
-Its status frame retains `jev.status`: `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
-A valid typed response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
+The resident service checks optional Jev once at startup with one fixed public Noul request.
+Its independent `jev.status` reports `disabled`, `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
+The `judgment` frame reports the active provider and readiness separately.
+A valid typed Jev response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
 HTTP 401 or 403 reports rejected access, not a claim that the key is necessarily wrong.
 Unavailable reasons distinguish timeout, network, rate limiting, upstream failure, invalid response, request rejection, configuration, and credential access.
 Frames contain no credential, key path, or upstream body.
 Client reconnects retain the result without another request; service shutdown aborts the check and rejects late results.
-Missing credentials stop initialization.
-Failed, malformed, or oversized inference never falls back to regexes or Pi routing.
+Missing Jev credentials do not stop initialization.
+Failed ordinary model judgments never fall back to regexes or capability execution.
 Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
@@ -1043,7 +1050,7 @@ A changed batch contains at most seven sources and 128 KiB of input.
 Each source read has a 30-second deadline.
 Partial inventory and unavailable sources remain visible; they do not prove that no task exists.
 
-An owner follow-up still enters Jev first.
+An owner follow-up still receives a typed intent judgment before capability execution.
 `remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
 Report-only sources refuse control.
@@ -1069,7 +1076,7 @@ The resident matches the complete tuple against one retained message source.
 A historical message remains usable after a later completion in that session.
 An invented revision, missing source, or ambiguous duplicate tuple is refused.
 
-Jev routes the actual owner text with the bound session reference.
+The intent classifier routes the actual owner text with the bound session reference.
 The reference supplies context, never action authorization.
 During that turn, mutation tools cannot escape to another session or start a replacement task.
 Only the bound `remote_pi_followup` can send an admitted continuation.

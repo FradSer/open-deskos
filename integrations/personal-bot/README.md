@@ -1,6 +1,6 @@
 # Personal Bot
 
-Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory Jev intent routing and optional proactive proposals.
+Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory typed intent routing and optional proactive proposals.
 Electron is the control/status client.
 There is no TTS or wake word.
 Linux uses ALSA and a private Unix socket; Windows uses ffmpeg DirectShow and the authenticated `\\.\pipe\odk-personal-bot` channel.
@@ -25,7 +25,8 @@ Configuration files are private (0600 on POSIX; protected user ACLs on Windows):
 
 - `~/.config/odk/runtime.env`: shared `ODK_WORKSPACE` and optional `ODK_STT_PORT` (default 17840).
 - `~/.config/odk/personal-bot.env`: bot-specific paths/provider settings. Authenticate Pi as this user through `/login` or its supported environment, under `PI_CODING_AGENT_DIR` (default `~/.pi/agent`). Optional `ODK_PERSONAL_BOT_MODEL=provider/model-id` selects the model.
-- Both profiles require `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`. Opt into the personal profile through `ODK_PERSONAL_BOT_CONFIG`; otherwise coding coordination is the default.
+- Both profiles use the configured ordinary model when Jev is disabled, unavailable, or not configured. Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests.
+- Jev credentials are optional. Opt into the personal profile through `ODK_PERSONAL_BOT_CONFIG`; otherwise coding coordination is the default.
 
 STT defaults to the [device-local bridge](../local-stt-bridge/README.md) at `http://127.0.0.1:<ODK_STT_PORT>/inference`, which needs no key.
 An invalid port stops startup.

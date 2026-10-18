@@ -2,6 +2,7 @@ import { createAgentSession, createCodemodeExtension, DefaultResourceLoader, get
 import { privateDirectory, resumeSessionHeader } from './task-store.mjs'
 import { boundedText } from './task-service.mjs'
 import { createCodingCheckTool } from './candidate-checks.mjs'
+import { configureProviderRuntime } from './provider-endpoints.mjs'
 
 const CHECK_ENTRY = 'odk-coding-check'
 
@@ -174,6 +175,9 @@ export async function createHostedSession(input, { createSession = createAgentSe
   await resourceLoader.reload()
   input.signal?.throwIfAborted()
   const modelRuntime = await createRuntime({ signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) })
+  input.signal?.throwIfAborted()
+  await configureProviderRuntime(modelRuntime, model)
+  input.signal?.throwIfAborted()
   const separator = model?.indexOf('/') ?? -1
   const selected = model ? modelRuntime.getModel(model.slice(0, separator), model.slice(separator + 1)) : undefined
   if (model && !selected) throw new Error('未找到配置的模型')

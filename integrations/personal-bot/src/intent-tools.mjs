@@ -18,7 +18,7 @@ export function createIntentTools({ runtime, judge, currentTurn, getWatch, memor
     annotations: { readOnlyHint: !mutate, destructiveHint: mutate, idempotentHint: !mutate, openWorldHint: false }, execute })
   async function authorized(operation, candidate, signal) {
     const owner = currentTurn()
-    if (!owner.text || owner.intent !== 'intent_manage') throw Error('Intent changes require an actual Jev-routed owner request')
+    if (!owner.text || owner.intent !== 'intent_manage') throw Error('Intent changes require an actual intent-routed owner request')
     const notes = await memory()
     const accepted = await judge.authorize({ operation, ownerText: owner.text, candidate, previous: candidate.id ? runtime.store.list().find(e => e.id === candidate.id) : null, memory: notes, signal })
     const after = currentTurn()

@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {createJudgmentClient, isJudgmentModel, validateJudgmentAnswers} from '../src/judgment-client.mjs'
+import {createJudgmentClient, createOptionalJevHealthCheck, isJudgmentModel, validateJudgmentAnswers} from '../src/judgment-client.mjs'
 
 const questions = {intent: {type: 'choice', criteria: {conversation: 'A conversation', clarify: 'Unclear'}}}
 const answers = {intent: {type: 'choice', choice: 'conversation', confidence: 0.95, probabilities: {conversation: 0.95, clarify: 0.05}}}
@@ -73,4 +73,17 @@ test('Given malformed optional Jev answers, ordinary model judgments still work'
     createJev: () => async () => ({model: 'jev-1.13-free', answers: {intent: {type: 'choice', choice: 'arbitrary'}}}),
     generate: async () => ({answers})})
   assert.equal((await client.request({state: {}, questions})).model, 'fixture/ordinary')
+})
+
+test('Given an abandoned startup check, its late failure cannot poison a replacement runtime', async () => {
+  const controller = new AbortController()
+  let finish; let mutations = 0
+  let currentAgent = {setJevHealth: () => {mutations++}}
+  const check = createOptionalJevHealthCheck({check: async () => new Promise(resolve => {finish = resolve}), getAgent: () => currentAgent})
+  const result = check(controller.signal)
+  controller.abort()
+  currentAgent = {setJevHealth: () => {mutations++}}
+  finish({status: 'unavailable'})
+  await assert.rejects(result, {name: 'AbortError'})
+  assert.equal(mutations, 0)
 })

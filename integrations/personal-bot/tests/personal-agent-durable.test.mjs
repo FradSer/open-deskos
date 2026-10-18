@@ -204,7 +204,7 @@ test('the Durable capability bridge retains the actual host intent guard after a
       code: 'await tools.reviewed_change({});',
     } }], 'toolUse')
     assert.equal(result.isError, true)
-    assert.match(JSON.stringify(result.content), /Jev intent/)
+    assert.match(JSON.stringify(result.content), /selected intent/)
     return assistant('本次请求未执行。')
   })
   const runtime = await openDurableRuntime({ directory: join(await state(t), 'guard'), models: runtimeModels, model, tools: [durableCapability(guarded)] })

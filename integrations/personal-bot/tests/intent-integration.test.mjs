@@ -69,15 +69,15 @@ for (const profile of ['coding', 'personal']) {
         options.sessionManager.appendMessage(assistant('之前没有读到花卉数据。'))
         return { session: (await offlineSession(options, async context => {
           events.push('pi')
-          assert.match(JSON.stringify(context.messages), new RegExp(`Jev-selected workflow: ${selected}`))
+          assert.match(JSON.stringify(context.messages), new RegExp(`Model-selected workflow: ${selected}`))
           if (selected === 'task_query') {
             const targets = guardedTools.find(tool => tool.name === 'coding_targets')
             assert.deepEqual((await targets.execute('test', {})).structuredContent, { targets: [] })
             for (const name of ['coding_task_start', 'coding_task_prompt', 'coding_task_cancel', 'user_app_install']) {
-              await assert.rejects(guardedTools.find(tool => tool.name === name).execute('test', {}), /Jev intent/)
+              await assert.rejects(guardedTools.find(tool => tool.name === name).execute('test', {}), /selected intent/)
             }
           }
-          if (selected === 'session_continue') await assert.rejects(guardedTools.find(tool => tool.name === 'coding_task_start').execute('test', {}), /Jev intent/)
+          if (selected === 'session_continue') await assert.rejects(guardedTools.find(tool => tool.name === 'coding_task_start').execute('test', {}), /selected intent/)
           if (selected === 'odk_data') {
             assert.match(JSON.stringify(context.messages), /await tools\.<exact name>\(args\)/, 'all routes teach the actual Pi v1 call entry')
             const result = context.messages.findLast(message => message.role === 'toolResult' && message.toolCallId === 'desk-read-' + states.length)
@@ -85,7 +85,7 @@ for (const profile of ['coding', 'personal']) {
               assert.equal(result.isError, false)
               assert.match(JSON.stringify(result.content), /soilPercent/)
               assert.match(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n'), new RegExp(`"soilPercent":${requests.length}`))
-              await assert.rejects(guardedTools.find(tool => tool.name === 'coding_task_start').execute('test', {}), /Jev intent/)
+              await assert.rejects(guardedTools.find(tool => tool.name === 'coding_task_start').execute('test', {}), /selected intent/)
               return assistant('offline routed response')
             }
             return assistant([{ type: 'toolCall', id: 'desk-read-' + states.length, name: 'codemode', arguments: {
@@ -107,13 +107,12 @@ for (const profile of ['coding', 'personal']) {
     assert.equal(events.filter(event => event === 'jev').length, 6)
     assert.deepEqual(requests.map(request => request.command), ['list', 'read', 'list', 'read'])
     assert.equal(states[1].previous.text, '现在任务怎样了')
-    await assert.rejects(guardedTools.find(tool => tool.name === 'coding_targets').execute('late', {}), /Jev intent/)
+    await assert.rejects(guardedTools.find(tool => tool.name === 'coding_targets').execute('late', {}), /selected intent/)
   })
 }
 
-test('mandatory routing startup and provider failures never reach the conversation model or private memory', async t => {
+test('failed typed routing never reaches the conversation model or private memory', async t => {
   let modelCalls = 0
-  await assert.rejects(createPersonalBot({ env: {}, stateDir: '/unused' }, { createRuntime: async () => { modelCalls++; throw Error() } }), /Jev credential/)
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'odk-intent-failure-')))
   t.after(() => rm(dir, { recursive: true, force: true }))
   await isolateAgentDirectory(t, dir)
@@ -124,7 +123,7 @@ test('mandatory routing startup and provider failures never reach the conversati
   })
   t.after(() => agent.close())
   const answer = await agent.prompt('记住 note：不能绕过 Jev')
-  assert.match(answer, /Jev.*不可用/)
+  assert.match(answer, /意图判断暂时不可用/)
   assert.doesNotMatch(answer, /PRIVATE_PROVIDER_DETAIL/)
   assert.equal(modelCalls, 0)
   await assert.rejects(readFile(join(dir, 'memory.json')), { code: 'ENOENT' })

@@ -25,7 +25,7 @@ test('Given no explicit plugin selection or another workflow, Intent cannot be e
   await assert.rejects(guarded.find(t => t.name === 'intent_save').execute('call', candidate), /unavailable/)
   assert.equal(f.store.list().length, 0)
 })
-test('Given a Jev-routed current owner, the tool saves language with host defaults and preserves mute during edits', async t => {
+test('Given an intent-routed current owner, the tool saves language with host defaults and preserves mute during edits', async t => {
   const f = fixture(t), save = f.tools.find(t => t.name === 'intent_save'), mute = f.tools.find(t => t.name === 'intent_mute')
   await save.execute('save', candidate)
   const entry = f.store.list()[0]; assert.equal(entry.timeZone, 'Asia/Shanghai'); assert.equal(entry.windowMinutes, 10)

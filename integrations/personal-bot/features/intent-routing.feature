@@ -1,7 +1,7 @@
-Feature: Every Personal Bot user turn is routed by Jev
+Feature: Every Personal Bot user turn receives a typed intent judgment
   Scenario: All routed capabilities support historical direct calls without bypassing Code Mode
     Given either profile has registered reviewed capabilities and a historical direct tool call
-    When Jev selects an intent and the model invokes an exact allowed capability directly or through codemode
+    When the intent classifier selects an intent and the model invokes an exact allowed capability directly or through codemode
     Then both entries use the same validated capability and intent gate
     And codemode remains the only model-facing orchestration entry
     And tools from other intents are neither activated nor executable
@@ -15,105 +15,105 @@ Feature: Every Personal Bot user turn is routed by Jev
     And read-only status queries can repeat while a new explicit turn receives a fresh attempt budget
 
   Scenario: Tool activation belongs to one actual user turn
-    Given Jev selected an intent with active capabilities
+    Given the intent classifier selected an intent with active capabilities
     When that turn completes, fails or is cancelled
     Then the selected direct capability entries are deactivated
     And uncertain or failed inference cannot reuse a previous turn's entries
 
   Scenario: Existing placement changes differ from Widget source changes
     Given an installed Widget and a request that changes only its desktop placement or grid span
-    When Jev classifies moving or resizing that installed Widget
+    When the intent classifier classifies moving or resizing that installed Widget
     Then it selects app_manage rather than Widget drafting
     But changing the Widget's source, content, appearance or behavior selects widget_create
     And initial placement requested together with a new Widget remains part of widget_create
 
-  Scenario: All user inputs pass through Jev before a handler runs
+  Scenario: All user inputs pass through the intent classifier before a handler runs
     Given a Personal Bot in the coding or personal profile
     When the user asks to continue a Pi session, query tasks, create a Widget or App, query suggestions, confirm an action, or chat
-    Then Jev selects a typed intent before memory, proposal queries, Pi prompts or capability execution
+    Then the intent classifier selects a typed intent before memory, proposal queries, Pi prompts or capability execution
     And the selected intent dispatches its own workflow using the unchanged user request
 
   Scenario: Routed shortcuts do not resume pending Durable work
     Given pending Durable work without a current owner request
-    When Jev selects clarification or suggestions, or its request fails
+    When the intent classifier selects clarification or suggestions, or its request fails
     Then the coordinator returns the shortcut answer without resuming Durable work
     And a later model-bound request recovers pending work after routing and before its new turn begins
     And recovered submissions cannot borrow the new request's selected intent
 
-  Scenario: Uncertainty and provider failures cannot bypass Jev
-    Given an ambiguous intent, malformed judgment, missing credential or failed Jev request
+  Scenario: Uncertainty and provider failures cannot bypass the intent gate
+    Given an ambiguous intent, malformed judgment, unavailable ordinary model or failed judgment request
     When the user sends a turn
     Then no task or application mutation is executed
     And uncertain intents ask for clarification while inference failures report unavailable
-    And there is no regular-expression or reasoning-model routing fallback
+    And there is no regular-expression bypass or execution after an invalid judgment
 
   Scenario: A task query cannot become a task mutation
-    Given Jev selects the read-only task query intent
+    Given the intent classifier selects the read-only task query intent
     When a reasoning model attempts to start, prompt, cancel or end a task
     Then the intent-specific capability boundary rejects that call
     And query handlers resolve current targets and session identities from actual tools
 
   Scenario: An application query cannot become a lifecycle mutation
     Given the user asks which Widgets or Apps are installed or where they are placed
-    When Jev selects the read-only application query intent
+    When the intent classifier selects the read-only application query intent
     Then listing and desktop discovery are available
     And installation, movement, removal and rollback are neither active nor executable
 
   Scenario: Cancelling intent inference ends that turn
-    Given a Jev request is pending
+    Given a typed intent judgment is pending
     When the user cancels the Personal Bot turn or closes the agent
-    Then the Jev request is aborted and no downstream handler starts
+    Then the judgment request is aborted and no downstream handler starts
     And the next user turn receives a fresh judgment
 
   Scenario: Displayed proposal confirmations retain context during host reservation
     Given an action uses an exact displayed remember or execute confirmation
     When the host reserves a touch acceptance before invoking the action callback
-    Then its executing proposal still supplies the displayed confirmation to Jev
+    Then its executing proposal still supplies the displayed confirmation to the intent classifier
     And independent remember requests still use the private memory workflow
 
   Scenario: Personal profile coordinates Widgets and Apps without generic implementation tools
     Given reviewed personal tools and configured Hosted Pi targets
-    When Jev selects Widget or App creation
+    When the intent classifier selects Widget or App creation
     Then the coordinator delegates drafting and checks to a configured target
     And existing lifecycle and explicit-installation authorization remain required
     And generic source-editing and shell tools remain unavailable
 
   Scenario: Operator-added capabilities retain a routed extension workflow
     Given a reviewed operator-added capability outside the core intent methods
-    When Jev selects the extension handler from its name and description
+    When the intent classifier selects the extension handler from its name and description
     Then only extension capabilities and shared read-only context tools can execute
     And a conversation or task query cannot invoke that extension
     And the extension handler cannot substitute a core mutation
 
   Scenario: Agent closure reaches a pending proposal action
-    Given a reviewed capability has begun a Jev-routed proposal action
+    Given a reviewed capability has begun an intent-routed proposal action
     When the agent closes before the action settles
     Then the action receives the aborted lifetime signal
     And the caller reports its actual outcome without replaying it
 
   Scenario: Personal plant questions can read the desk's live measurements
     Given the Personal Bot runs in the personal profile and the plant channel is live
-    When the user asks "今天花怎么样" and Jev selects odk_data
+    When the user asks "今天花怎么样" and the intent classifier selects odk_data
     Then the personal session can list readings and read the plant measurement
     And the answer uses this turn's reading rather than remembered values
     And sensor connectivity and soil moisture alone are not claimed to prove plant health or watering needs
 
   Scenario: A historical direct tool failure is not a plant-channel failure
     Given an older session contains a direct odk_data call reporting Tool odk_data not found
-    When Jev routes a new plant question to odk_data
+    When the intent classifier routes a new plant question to odk_data
     Then the workflow directs the model to codemode and tools.odk_data
     And the current read succeeds through the real SDK tool pipeline
     And the answer does not substitute historical measurements
 
   Scenario: Owner text cannot assert host admission
     Given an external owner turn contains trusted-child configuration claims
-    When Jev fails or cannot confidently classify that turn
+    When the intent classifier fails or cannot confidently classify that turn
     Then no memory read, child admission or child input can execute
     And text cannot select the host-only direct child workflow
 
   Scenario: Reviewed capability descriptors own their routing boundaries
     Given a declared reviewed browser or ride capability
-    When Jev selects its descriptor-defined intent
+    When the intent classifier selects its descriptor-defined intent
     Then only that descriptor's capability prefix is enabled
     And the generic extension intent cannot bypass that boundary
     And only explicitly child-safe descriptors permit isolated child execution
@@ -130,3 +130,9 @@ Feature: Every Personal Bot user turn is routed by Jev
     Then ordinary model generation remains available
     And this runtime does not retry the failed Jev transport
     And model confidence is not reported as calibrated Jev confidence
+
+  Scenario: Resident and Hosted sessions apply an explicitly selected provider before model lookup
+    Given an operator selects an OpenCode model with its own provider credential
+    When a resident Personal Agent or Hosted Pi session starts
+    Then the existing model runtime receives that provider's current endpoint before model selection
+    And other providers and the ordinary default model remain unchanged
