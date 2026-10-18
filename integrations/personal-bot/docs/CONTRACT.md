@@ -1108,3 +1108,32 @@ Every reply checkpoint write uses the same reply validator as restart reads.
 Invalid checkpoint reads fail without changing the file.
 Invalid owner text, answers, or receipts cannot replace the existing checkpoint.
 Valid Chinese text, line breaks, and tabs remain supported.
+
+## Provider endpoints
+
+The resident uses one fixed provider resolver for ordinary models and System One requests.
+Model selection keeps the existing `ODK_PERSONAL_BOT_MODEL=provider/model-id` format.
+`opencode` selects OpenCode Console, also named Zen; `opencode-go` selects the separate Go service.
+The runtime hook preserves SDK transports, model limits, compatibility settings, and session headers.
+It replaces obsolete catalog endpoints with the selected service's current inference paths.
+It does not change non-OpenCode providers.
+
+Console reads `OPENCODE_API_KEY` or the private file `ODK_OPENCODE_KEY_FILE`.
+Go reads `OPENCODE_GO_API_KEY` or the private file `ODK_OPENCODE_GO_KEY_FILE`.
+An explicit provider key takes precedence over that provider's private file.
+Without these values, ordinary models can use an existing SDK API-key credential for the exact selected provider.
+The shared SDK ambient `OPENCODE_API_KEY` alias cannot authenticate Go.
+The resolver never falls back between Console, Go, and TypeSafe.
+Invalid explicit configuration fails without trying another credential.
+
+`ODK_JEV_PROVIDER` selects `typesafe`, `opencode`, or `disabled`.
+TypeSafe remains the default and retains `TYPESAFE_API_KEY` and `ODK_JEV_KEY_FILE`.
+Console System One uses its explicit Console credential and defaults to `jev-1.13`.
+`ODK_JEV_MODEL` can explicitly select another Jev model, including `jev-1.13-free`.
+Go cannot supply System One judgments.
+Disabled Jev performs no startup authentication request and reports `disabled`, never `verified`.
+Provider selection does not change typed answer validation, thresholds, or tool authorization.
+
+Endpoint references: [OpenCode inference API](https://opencode.ai/v2/docs/console/api/inference),
+[OpenCode Jev models](https://opencode.ai/v2/docs/console/models/#jev), and
+[OpenCode Go](https://opencode.ai/v2/docs/console/go).
