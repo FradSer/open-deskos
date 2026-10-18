@@ -1214,3 +1214,71 @@ test('actual launch and restored fast turns notify once without observing workin
   }
  }
 })
+
+
+test('a read-only socket observer receives only a durably completed turn without claiming Console ownership', {timeout:5000}, async t=>{
+ const {serveTasks,streamTaskCompletions}=await import('../src/task-protocol.mjs')
+ let finish;const f=await fixture(t,async({signal})=>new Promise(resolve=>{finish=resolve;signal.addEventListener('abort',()=>resolve({text:'cancelled',stopReason:'aborted'}),{once:true})}))
+ const server=await serveTasks(f.config.socketPath,(r,c)=>f.service.handle(r,c),id=>f.service.disconnect(id))
+ t.after(()=>server.close());const controller=new AbortController(),frames=[]
+ const watched=streamTaskCompletions(f.config.socketPath,request('subscribe_completions',{projects:[f.root]}),frame=>frames.push(frame),controller.signal)
+ t.after(async()=>{controller.abort();await watched.catch(()=>{})})
+ for(let n=0;n<100&&!frames.length;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ assert.equal(frames[0]?.subscription,'completions')
+ const launched=await f.service.handle(start(f.root));assert.equal(launched.ok,true)
+ for(let n=0;n<100&&!finish;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ assert.equal(frames.length,1,'running is not a completion event')
+ finish({text:'Final owned result',stopReason:'stop'});const task=await settled(f.service,launched.task.taskId)
+ for(let n=0;n<100&&frames.length<2;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ assert.equal(frames.length,2);assert.equal(frames[1].type,'completion');assert.equal(frames[1].lastTurnId,task.lastTurnId)
+ const disk=JSON.parse(await readFile(join(f.config.stateDir,task.taskId+'.json'),'utf8'))
+ assert.equal(disk.lastTurnId,frames[1].lastTurnId);assert.equal(disk.currentTurnId,undefined)
+ assert.equal(JSON.stringify(frames).includes('Final owned result'),false);assert.equal(task.controlledBy,undefined)
+ controller.abort();await watched
+})
+
+
+test('configured completion travels through the actual CLI subscription without stealing a Console', {timeout:7000}, async t=>{
+ const {serveTasks}=await import('../src/task-protocol.mjs')
+ const {watchTaskCompletions}=await import('../src/task-client.mjs')
+ const {nodeExecutable}=await import('./helpers/node-executable.mjs')
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'odk-terminal-stream-'))),root=join(dir,'project')
+ await mkdir(root);const config={roots:[root],stateDir:join(dir,'state'),socketPath:join(dir,'socket','tasks.sock')}
+ const adapter=persistentAdapter(),service=await createTaskService(config,adapter)
+ const server=await serveTasks(config.socketPath,(r,c)=>service.handle(r,c),id=>service.disconnect(id))
+ let subscription
+ t.after(async()=>{await subscription?.close();await server.close();await service.close();await rm(dir,{recursive:true,force:true})})
+ const configFile=join(dir,'config.json');await writeFile(configFile,JSON.stringify(config),{mode:0o600})
+ const helper=join(dir,'helper');await writeFile(helper,`#!/usr/bin/env node
+process.env.ODK_TASK_CONFIG=${JSON.stringify(configFile)};import(${JSON.stringify(new URL('../src/task-cli.mjs',import.meta.url).href)});`,{mode:0o700})
+ let hints=0
+ subscription=watchTaskCompletions({id:'cm5',executable:await nodeExecutable(t,helper),roots:[root]},{onCompletion:()=>{hints++}})
+ for(let n=0;n<200&&!hints;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ assert.equal(hints,1,'subscription acknowledgement requests one catchup')
+ const launched=await service.handle(start(root));assert.equal(launched.ok,true)
+ await waitState(service,launched.task.taskId,'running')
+ for(let n=0;n<100&&!adapter.sessions[0]?.isStreaming;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ const owner={machineName:'owned-console',sessionId:'owned-console-session'}
+ const attached=await service.handle(request('attach',{project:root,taskId:launched.task.taskId,console:owner}),{connectionId:'exclusive-console',send:()=>{}})
+ assert.equal(attached.ok,true);assert.equal(hints,1)
+ adapter.sessions[0].release();const task=await waitState(service,launched.task.taskId,'settled')
+ for(let n=0;n<100&&hints<2;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ assert.equal(hints,2);assert.deepEqual(task.controlledBy,owner)
+ await subscription.close()
+ const after=(await service.handle(request('status',{taskId:task.taskId}))).task
+ assert.deepEqual(after.controlledBy,owner,'observer disconnect does not detach the Console')
+})
+
+
+test('a completion subscription rejects subsequent mutation frames and scopes roots before registration', {timeout:4000},async t=>{
+ const {serveTasks}=await import('../src/task-protocol.mjs');const {createConnection}=await import('node:net');const {once}=await import('node:events')
+ const f=await fixture(t),server=await serveTasks(f.config.socketPath,(r,c)=>f.service.handle(r,c),id=>f.service.disconnect(id))
+ t.after(()=>server.close())
+ const refused=await f.service.handle(request('subscribe_completions',{projects:[join(f.dir,'outside')]}),{connectionId:'outside',send:()=>{}})
+ assert.equal(refused.ok,false)
+ const socket=createConnection(f.config.socketPath);t.after(()=>socket.destroy());await once(socket,'connect');socket.resume()
+ const closed=once(socket,'close')
+ socket.write(JSON.stringify(request('subscribe_completions',{projects:[f.root]}))+'\n'+JSON.stringify(start(f.root))+'\n')
+ await closed
+ assert.equal((await f.service.handle(request('list',{project:f.root}))).tasks.length,0)
+})

@@ -106,6 +106,9 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.doesNotMatch(instructions, /live sessions/)
   assert.doesNotMatch(instructions, /without markdown/)
   assert.match(instructions, /Markdown/)
+  assert.match(instructions, /retain the exact target\/project\/taskId in tool references and internal context/)
+  assert.match(instructions, /raw identifiers only when explicitly requested/)
+  assert.match(instructions, /accepted, queued, or running admission from completed execution/)
 })
 
 async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}) {

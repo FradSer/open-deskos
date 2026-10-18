@@ -78,13 +78,30 @@ Scenario: Native acceptance uses the configured endpoint directory
     And restart and history pagination preserve their order and exact references without another model call
     And old messages and held revisions keep their original data and behavior
 
-  Scenario: A successful legacy report receives one assistant presentation upgrade
-    Given a fresh source revision was already summarized before assistant updates existed
-    And no assistant update references that exact revision
-    When the source is read again
-    Then one read-only synthesis can append its new assistant presentation
-    And old messages and source references remain unchanged
-    And an attempted or held revision cannot be retried for presentation
-    And a failed upgrade remains durably held without another model call
-    And a successful upgrade survives restart without another synthesis
-    And its presentation watermark survives disconnected history expiry
+  Scenario: Previously reported legacy revisions are not presentation migrations
+    Given retained legacy messages and exact seen revisions
+    When completion subscriptions reconnect after an upgrade
+    Then those revisions do not call a model or rewrite retained history
+    And only a new explicit terminal identity can produce another update
+
+  Scenario: Remote assistants speak only for completed turns with a conclusion
+    Given connected reported sessions and configured Hosted Pi tasks
+    When a read-only completion event arrives or a subscription reconnects
+    Then the resident reads a bounded completion inventory without a periodic progress timer
+    And active turns, missing conclusions, and unavailable sources cause no summary model call
+    And a completed failed or cancelled turn retains its actual outcome
+    And repeated metadata changes for the same completed turn do not repeat a message
+    And busy turns retain one pending refresh and paginated completions drain without another event
+    And restart retains old history, seen watermarks, and held revisions
+
+  Scenario: Task admission stays understandable without losing exact control references
+    Given a durable launch, queued prompt, or unknown mutation outcome
+    When the coordinator replies to the owner
+    Then it uses the natural task name and distinguishes admission from completed execution
+    And exact control references remain internal unless the owner explicitly requests them
+
+  Scenario: Restart catchup preserves a completed turn but not interrupted work
+    Given a Hosted Pi reload with a retained lastTurnId and no active turn
+    When its explicit outcome is finished, failed, or cancelled
+    Then an unreported completion can enter the conversation once
+    But an interrupted in-flight outcome cannot become a completion message

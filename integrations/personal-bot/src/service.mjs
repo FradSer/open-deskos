@@ -64,18 +64,31 @@ export class PersonalBotService {
   attachHome(home) { this.home = home }
 
   attachRemoteUpdates(remote) {
-    clearInterval(this.remoteTimer)
+    this.remoteUnsubscribe?.()
     this.remote = remote
+    this.remoteRefreshQueued = Boolean(remote)
     this.publishRemote(remote?.snapshot() ?? { state: 'disabled', messages: [] })
-    if (remote) {
-      this.remoteTimer = setInterval(() => this.refreshRemote(), 60000)
-      this.remoteTimer.unref?.()
-      this.refreshRemote()
-    }
+    this.remoteUnsubscribe = remote?.subscribe?.(() => this.refreshRemote())
+    this.drainRemote()
   }
 
   refreshRemote() {
-    if (!this.closed && !this.starting && ['idle', 'error'].includes(this.status.state)) void this.remote?.poll()
+    if(this.closed || !this.remote)return
+    this.remoteRefreshQueued=true
+    return this.drainRemote()
+  }
+
+  drainRemote() {
+    if(this.closed || this.starting || !['idle','error'].includes(this.status.state) || !this.remoteRefreshQueued || !this.remote || this.remoteRefreshing)return this.remoteRefreshing
+    const remote=this.remote
+    this.remoteRefreshQueued=false
+    const pending=Promise.resolve().then(()=>remote.drain?.()??remote.poll()).catch(()=>{}).finally(()=>{
+      if(this.remoteRefreshing!==pending)return
+      this.remoteRefreshing=undefined
+      this.drainRemote()
+    })
+    this.remoteRefreshing=pending
+    return pending
   }
 
   publishRemote(remote) {
@@ -101,7 +114,7 @@ export class PersonalBotService {
 
   servicePush(readingIds) {
     this.home?.invalidate()
-    if (readingIds?.includes('odk.app.pi-sessions')) this.refreshRemote()
+    if (readingIds?.includes('odk.app.pi-sessions.completed')) this.refreshRemote()
     if (this.closed || !this.watch) return false
     return this.watch.push(readingIds)
   }
@@ -138,6 +151,7 @@ export class PersonalBotService {
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
+    this.drainRemote()
   }
 
   async toggle() {
@@ -168,6 +182,7 @@ export class PersonalBotService {
       if (!this.closed) this.setState('error', 'Microphone unavailable')
     } finally {
       this.starting = false
+      this.drainRemote()
       if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message)
       this.watch?.setBusy(!['idle', 'error'].includes(this.status.state))
     }
@@ -299,7 +314,9 @@ export class PersonalBotService {
   }
 
   async shutdown() {
-    clearInterval(this.remoteTimer)
+    this.remoteUnsubscribe?.()
+    this.remoteUnsubscribe=undefined
+    this.remoteRefreshQueued=false
     this.remote = undefined
     this.closed = true
     if (this.jev?.status === 'checking') this.jev = { status: 'unavailable' }

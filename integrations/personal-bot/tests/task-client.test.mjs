@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, symlink, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { carriedProject, loadTargets, taskCommand, taskRequest } from '../src/task-client.mjs'
+import { carriedProject, loadTargets, taskCommand, taskCompletionCommand, taskRequest } from '../src/task-client.mjs'
 
 const local = value => process.platform === 'win32' ? value.replaceAll('/', '\\') : value
 const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: [local('/work')] }
@@ -22,6 +22,8 @@ test('strict SSH invocation quotes spaces and apostrophes without shell payloads
   assert.deepEqual(taskCommand("/work/it's helper", 'user@mac.local'), {
     executable: 'ssh', args: ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '--', 'user@mac.local', "'/work/it'\\''s helper'"],
   })
+  const stream=taskCompletionCommand('/work/helper','user@mac.local')
+  assert.deepEqual(stream.args,['-T','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=5','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2','--','user@mac.local',"'/work/helper'"])
   for (const host of ['-oProxyCommand=bad', 'mac;whoami', 'mac\n']) assert.throws(() => taskCommand('/bin/helper', host), /Invalid SSH/)
   assert.throws(() => taskCommand('helper'), /absolute/)
   assert.throws(() => taskCommand('/bin/helper\n'), /Invalid/)
@@ -219,4 +221,34 @@ test('remote target configuration rejects POSIX production roots on every desk h
     await writeFile(path, JSON.stringify({ targets: [{ ...target, host: 'user@mac.local', roots: [root] }] }))
     await assert.rejects(loadTargets(path), /Invalid task target configuration/)
   }
+})
+
+
+test('internal completion watcher keeps one read-only process and closes it without inventory fallback', {timeout:5000}, async t=>{
+ const {watchTaskCompletions}=await import('../src/task-client.mjs')
+ const helper=await fixture(t,`const fs=require('node:fs');const r=JSON.parse(fs.readFileSync(0,'utf8'));if(r.command!=='subscribe_completions'||r.projects.length!==1)process.exit(3);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,subscription:'completions'}));console.log(JSON.stringify({version:1,requestId:r.requestId,type:'completion',taskId:'${TASK_ID}',lastTurnId:'${TASK_ID}',project:r.projects[0],outcome:'finished'}));setInterval(()=>{},1000)`)
+ const states=[];let hints=0
+ const subscription=watchTaskCompletions(helper,{onCompletion:()=>{hints++},onState:state=>states.push(state)})
+ t.after(()=>subscription.close())
+ for(let n=0;n<100&&hints<2;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ assert.equal(hints,2);assert.deepEqual(states,['connected']);await subscription.close()
+ assert.equal(hints,2)
+ const unsupported=await fixture(t,`const r=JSON.parse(require('node:fs').readFileSync(0,'utf8'));if(r.command!=='subscribe_completions')process.exit(3);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:'unsupported'}))`)
+ const errors=[];let unexpected=0
+ const old=watchTaskCompletions(unsupported,{onCompletion:()=>{unexpected++},onState:state=>errors.push(state)})
+ for(let n=0;n<100&&!errors.length;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ assert.deepEqual(errors,['unavailable']);assert.equal(unexpected,0);await old.close()
+})
+
+
+test('an old helper exiting without an acknowledgement is unavailable without an automatic relaunch timer', {timeout:3000},async t=>{
+ const {watchTaskCompletions}=await import('../src/task-client.mjs')
+ const scheduled=[],setTimeoutOriginal=globalThis.setTimeout
+ t.mock.method(globalThis,'setTimeout',(callback,delay,...args)=>{scheduled.push(delay);return setTimeoutOriginal(callback,delay,...args)})
+ const helper=await fixture(t,`require('node:fs').readFileSync(0,'utf8');process.exit(0)`)
+ let unavailable=false
+ const subscription=watchTaskCompletions(helper,{onCompletion:()=>assert.fail('No handshake'),onState:()=>{unavailable=true}})
+ t.after(()=>subscription.close())
+ for(let n=0;n<100&&!unavailable;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ assert.equal(unavailable,true);assert.equal(scheduled.includes(5000),false)
 })

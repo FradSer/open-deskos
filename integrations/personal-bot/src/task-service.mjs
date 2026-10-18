@@ -89,6 +89,7 @@ export async function createTaskService(input, adapter) {
   const config = await validateConfig(input)
   const records = await loadRecords(config.stateDir)
   const idleMs = Number.isSafeInteger(input.idleMs) && input.idleMs >= 0 ? input.idleMs : DEFAULT_IDLE_MS
+  const completionObservers = new Map()
   /** @type {Map<string,{hosted:any,controller:AbortController,turn?:Promise<void>,attached?:{connectionId:string,attachmentId?:string,send?:(event:object)=>void,liveAfter?:number},idleTimer?:NodeJS.Timeout,persistent:boolean,initialization?:Promise<void>,resumePrevious?:Task}>} */
   const live = new Map()
   const initializations = new Set()
@@ -225,6 +226,10 @@ export async function createTaskService(input, adapter) {
       task.state = task.turnOutcome
     }
     await persist(task)
+    if(task.response.trim() && task.lastTurnId)for(const observer of completionObservers.values()) {
+      if(!observer.projects.some(project=>within(project,task.project)))continue
+      try { observer.send({version:1,type:'completion',requestId:observer.requestId,taskId:task.taskId,project:task.project,lastTurnId:task.lastTurnId,outcome:task.turnOutcome}) } catch { /* Connection cleanup removes the observer. */ }
+    }
     publish(task, { type: 'state', state: task.state, lifecycle: task.lifecycle, activity: task.activity, turnOutcome: task.turnOutcome, response: task.response })
     entry.turn = undefined
     if (entry.persistent) scheduleIdle(task, entry)
@@ -589,6 +594,12 @@ export async function createTaskService(input, adapter) {
     if (closing || storageFailure) throw new Error('任务服务不可用')
     if (!request || request.version !== 1 || typeof request.requestId !== 'string' || !request.requestId || request.requestId.length > 128) throw new Error('任务协议无效')
     if (Buffer.byteLength(JSON.stringify(request)) > 64 * 1024) throw new Error('请求过大')
+    if(request.command==='subscribe_completions') {
+      if(!context?.connectionId || typeof context.send!=='function' || Object.keys(request).some(key=>!['version','requestId','command','projects'].includes(key)) || !Array.isArray(request.projects) || !request.projects.length || request.projects.length>32 || completionObservers.size>=32)throw Error('Invalid completion subscription')
+      const projects=await Promise.all(request.projects.map(project=>admittedProject(config,project)))
+      completionObservers.set(context.connectionId,{projects,send:context.send,requestId:request.requestId})
+      return {subscription:'completions'}
+    }
     if (['start', 'launch'].includes(request.command)) return launchMutation(request)
     if (request.command === 'list') {
       const project = request.project === undefined ? undefined : await admittedProject(config, request.project)
@@ -624,6 +635,7 @@ export async function createTaskService(input, adapter) {
     },
     disconnect(connectionId) {
       return enqueue(async () => {
+        completionObservers.delete(connectionId)
         for (const [id, entry] of live) {
           if (entry.attached?.connectionId !== connectionId) continue
           entry.attached = undefined
@@ -636,6 +648,7 @@ export async function createTaskService(input, adapter) {
     },
     async close() {
       closing = true
+      completionObservers.clear()
       await serial
       for (const entry of live.values()) {
         clearIdle(entry)

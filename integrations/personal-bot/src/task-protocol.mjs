@@ -94,6 +94,7 @@ export async function serveTasks(socketPath, handle, disconnect = () => {}) {
   const server = createServer(socket => {
     const connectionId = randomUUID()
     let held = false
+    let readOnlySubscription = false
     let chain = Promise.resolve()
     sockets.add(socket)
     socket.on('error', () => {})
@@ -113,15 +114,22 @@ export async function serveTasks(socketPath, handle, disconnect = () => {}) {
     const fail = (_error = undefined) => socket.destroy()
     lineReader(socket, request => {
       chain = chain.then(async () => {
+        if(readOnlySubscription)throw Error('Completion subscription is read-only')
+        let registering=request.command==='subscribe_completions'
+        let bufferedCompletion
+        const completionSend=event=>{if(registering){bufferedCompletion=event;return}send(event)}
         /** @type {any} */
-        const response = await handle(request, { connectionId, send })
+        const response = await handle(request, { connectionId, send: registering?completionSend:send })
         const frame = `${JSON.stringify(response)}\n`
         if (Buffer.byteLength(frame) > RESPONSE_LIMIT) throw new Error('任务响应过大')
         if (socket.destroyed) return
-        if (request.command === 'attach' && response?.ok) {
+        if (['attach','subscribe_completions'].includes(request.command) && response?.ok) {
+          readOnlySubscription=request.command==='subscribe_completions'
           held = true
           socket.setTimeout(0)
           socket.write(frame)
+          registering=false
+          if(bufferedCompletion)send(bufferedCompletion)
           return
         }
         if (held) socket.write(frame)
@@ -158,4 +166,38 @@ export async function serveTasks(socketPath, handle, disconnect = () => {}) {
       await listenerClosing
     },
   }
+}
+
+
+/** Internal read-only stream; the first correlated acknowledgement is bounded, idle streams do not poll. */
+export function streamTaskCompletions(socketPath, request, onRecord, signal = undefined) {
+  const input=JSON.stringify(request)+'\n'
+  if(Buffer.byteLength(input)>REQUEST_LIMIT)return Promise.reject(Error('Completion subscription request too large'))
+  return new Promise((resolve,reject)=>{
+    if(signal?.aborted){resolve(undefined);return}
+    const socket=createConnection(socketPath),decoder=new StringDecoder('utf8');let pending='',ready=false,finished=false
+    const timer=setTimeout(()=>finish(Error('Completion subscription handshake timed out')),REQUEST_TIMEOUT)
+    const abort=()=>finish()
+    function finish(error=undefined) {
+      if(finished)return
+      finished=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);socket.destroy()
+      error?reject(error):resolve(undefined)
+    }
+    signal?.addEventListener('abort',abort,{once:true})
+    socket.once('connect',()=>socket.write(input))
+    socket.on('error',()=>finish(Error('Completion subscription unavailable')))
+    socket.once('close',()=>finish(signal?.aborted?undefined:Error('Completion subscription disconnected')))
+    socket.on('data',chunk=>{
+      pending+=decoder.write(chunk)
+      if(Buffer.byteLength(pending)>RESPONSE_LIMIT)return finish(Error('Completion subscription frame too large'))
+      const lines=pending.split('\n');pending=lines.pop()??''
+      for(const line of lines)try{
+        const record=JSON.parse(line)
+        if(record.version!==1 || record.requestId!==request.requestId)throw Error()
+        if(!ready){if(!record.ok || record.subscription!=='completions'){finish(Error('Completion subscription unsupported'));return}ready=true;clearTimeout(timer)}
+        else if(Object.keys(record).some(key=>!['version','requestId','type','taskId','project','lastTurnId','outcome'].includes(key)) || record.type!=='completion' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(record.taskId) || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(record.lastTurnId) || typeof record.project!=='string' || !['finished','failed','cancelled'].includes(record.outcome))throw Error()
+        onRecord(record)
+      }catch{finish(Error('Invalid completion subscription'));break}
+    })
+  })
 }
