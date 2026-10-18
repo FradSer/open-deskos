@@ -1090,3 +1090,12 @@ At capacity, only terminal replies outside retained message chains can expire.
 The expired reply count remains visible.
 Unknown delivery and visible message chains remain preserved.
 Capacity refusal preserves the remaining messages and receipts.
+
+On startup, interrupted queued replies become failed, and interrupted dispatching replies become unknown.
+The resident saves this recovery once without changing message references, receipts, or existing terminal outcomes.
+It does not replay an owner turn or task instruction.
+Unknown delivery remains locked across reporting-machine mapping changes.
+An unavailable origin reference cannot prove that an unresolved delivery is safe to repeat.
+Every reply checkpoint write uses the same reply validator as restart reads.
+Invalid owner text, answers, or receipts cannot replace the existing checkpoint.
+Valid Chinese text, line breaks, and tabs remain supported.

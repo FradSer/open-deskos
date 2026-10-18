@@ -258,3 +258,20 @@ Feature: Personal Agent owns a bounded plugin runtime
     And no replacement task or freely supplied target can receive the reply
     And the owner turn and receipt retain the original message and stable session thread
     And later completion revisions retain that same thread after restart
+
+  Scenario: Interrupted owner replies retain truthful delivery state after restart
+    Given an owner reply was saved before delivery or while delivery was in progress
+    When the resident restarts without replaying the owner turn
+    Then a queued reply becomes failed and an in-progress delivery becomes unknown
+    And its original message reference, thread, text, time, and receipt remain unchanged
+    And completed and unknown replies retain their existing states
+    And a reporting-machine mapping change cannot release unknown delivery
+    And missing origin history keeps a conservative unknown-session lock
+    And a second restart performs no checkpoint write or model or task call
+
+  Scenario: Reply writes use the same private checkpoint contract as restart reads
+    Given a reply text or model answer contains a forbidden control character
+    When the resident prepares the reply checkpoint
+    Then the shared reply validator rejects the complete snapshot before any write
+    And the previous delivery state and mutation receipt remain byte-for-byte unchanged
+    And ordinary Chinese text, line breaks, and tabs remain valid

@@ -576,10 +576,10 @@ test('reply capacity expires only terminal history outside visible message chain
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-expiry-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('结果已返回。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
  await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision}
- const replies=Array.from({length:128},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),text:'历史请求',replyTo:{...replyTo,messageId:'f'.repeat(64)},at:i,status:i===0?'unknown':'answered'}))
+ const replies=Array.from({length:128},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),sessionId:'00000000-0000-0000-0000-000000000009',text:'历史请求',replyTo:{...replyTo,messageId:'f'.repeat(64)},at:i,status:i===0?'unknown':'answered'}))
  remote.save({...remote.data,replies});remote.beginReply(replyTo,'新回复')
  assert.equal(remote.data.replies.length,128);assert.equal(remote.data.expiredReplies,1);assert.equal(remote.data.replies[0].status,'unknown')
- const protectedReplies=remote.data.replies.map(reply=>({...reply,replyTo}));remote.save({...remote.data,replies:protectedReplies})
+ const protectedReplies=remote.data.replies.map(reply=>reply.status==='unknown'?reply:{...reply,replyTo});remote.save({...remote.data,replies:protectedReplies})
  assert.throws(()=>remote.beginReply(replyTo,'不能丢可见链'),/capacity/);assert.equal(remote.data.replies.length,128)
 })
 
@@ -595,4 +595,74 @@ test('explicit reply accepts legal live terminal projections without admitting u
   }
   assert.equal(prompts,3)
  }finally{await reader.close()}
+})
+
+test('startup resolves interrupted reply admission without replay and persists that recovery once',async t=>{
+ const {stat}=await import('node:fs/promises')
+ for(const status of ['queued','dispatching','unknown','delivered'])await t.test(status,async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-restart-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  let models=0,reads=0
+  const options={file:join(directory,'remote.json'),read:async()=>{reads++;return {ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}},synthesize:async input=>{models++;return {updates:updates('已返回结果。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}}
+  const remote=new RemoteConversation(options);await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision},reply=remote.beginReply(replyTo,'继续原会话')
+  remote.completeReply(reply.id,{status,receipt:{mutationId:'00000000-0000-0000-0000-000000000001'}})
+  const before=JSON.parse(await readFile(options.file,'utf8')),inode=(await stat(options.file)).ino
+  const recovered=new RemoteConversation(options),expected=status==='queued'?'failed':status==='dispatching'?'unknown':status
+  assert.equal(recovered.data.replies[0].status,expected)
+  const after=JSON.parse(await readFile(options.file,'utf8'))
+  assert.deepEqual(after,{...before,replies:before.replies.map(r=>({...r,status:expected}))})
+  const firstRecoveredInode=(await stat(options.file)).ino
+  if(status==='queued'||status==='dispatching')assert.notEqual(firstRecoveredInode,inode)
+  else assert.equal(firstRecoveredInode,inode)
+  const reopened=new RemoteConversation(options);assert.deepEqual(reopened.data.replies,recovered.data.replies)
+  assert.equal((await stat(options.file)).ino,firstRecoveredInode,'Second restart must not save again')
+  assert.equal(models,1);assert.equal(reads,1,'Restart must not read or replay a task')
+ })
+})
+
+test('unknown reply locks survive reporting-machine mapping changes and expired origins',async t=>{
+ const {sessionThread}=await import('../src/session-replies.mjs')
+ for(const status of ['unknown','dispatching'])await t.test(status,async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-mapping-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  let mapped=false,current={...row('source'),sessionId:'00000000-0000-0000-0000-000000000001'}
+  const options={file:join(directory,'remote.json'),thread:source=>sessionThread(source,mapped?'mac':undefined),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('任务已完成。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+  const remote=new RemoteConversation(options);await remote.poll();const original=remote.data.messages[0],replyTo={messageId:original.id,sourceKey:'source',sourceRevision:current.revision},reply=remote.beginReply(replyTo,'继续')
+  remote.completeReply(reply.id,{status,receipt:{mutationId:'00000000-0000-0000-0000-000000000002'}})
+  const immutable=structuredClone(remote.data.replies[0]);mapped=true
+  const restored=new RemoteConversation(options)
+  assert.throws(()=>restored.resolveReply(replyTo),/unknown/,'Mapping cannot release an unresolved original source')
+  current={...current,revision:'b'.repeat(64),eventId:'later-entry'};await restored.poll()
+  const latest=restored.data.messages.at(-1),nextReply={messageId:latest.id,sourceKey:'source',sourceRevision:current.revision}
+  assert.throws(()=>restored.resolveReply(nextReply),/unknown/)
+  restored.save({...restored.data,messages:[latest]})
+  assert.throws(()=>restored.resolveReply(nextReply),/unknown/,'Missing origin preserves a conservative session lock')
+  const after=restored.data.replies[0];assert.deepEqual(after,{...immutable,status:'unknown'})
+  assert.equal(after.threadId,immutable.threadId,'Do not rewrite historical receipt identity')
+ })
+})
+
+test('reply checkpoint writes reject invalid answers without corrupting delivery evidence',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-write-contract-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('已返回结果。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision}
+ const reply=remote.beginReply(replyTo,'继续原会话\n保留中文\t输入安卓')
+ for(const status of ['queued','dispatching','unknown','delivered']) {
+  // Independently exercise each persisted delivery window without replaying a task.
+  remote.save({...remote.data,replies:remote.data.replies.map(r=>({...r,status,receipt:{mutationId:'00000000-0000-0000-0000-000000000002'}}))})
+  const before=await readFile(options.file),beforeObject=structuredClone(remote.data)
+  assert.throws(()=>remote.completeReply(reply.id,{status:'answered',answer:'结果\u0001'}),/Invalid/)
+  assert.deepEqual(await readFile(options.file),before);assert.deepEqual(remote.data,beforeObject)
+ }
+ remote.completeReply(reply.id,{status:'answered',answer:'已受理\n等待结果\t不要重发'})
+ const restored=new RemoteConversation(options)
+ assert.equal(restored.data.replies[0].status,'delivered');assert.equal(restored.data.replies[0].text,'继续原会话\n保留中文\t输入安卓');assert.equal(restored.data.replies[0].answer,'已受理\n等待结果\t不要重发')
+ assert.equal(restored.data.replies[0].receipt.mutationId,'00000000-0000-0000-0000-000000000002')
+})
+
+
+test('reply checkpoint writes reject forbidden owner controls before persisting text',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-owner-controls-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json'),remote=new RemoteConversation({file,read:async()=>({ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('已返回结果。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision},before=await readFile(file)
+ assert.throws(()=>remote.beginReply(replyTo,'继续\u0001'),/Invalid/);assert.deepEqual(await readFile(file),before)
+ assert.equal(remote.snapshot().replies.length,0)
 })
