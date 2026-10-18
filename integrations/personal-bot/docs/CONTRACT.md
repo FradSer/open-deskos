@@ -1012,7 +1012,11 @@ The internal `subscribe_completions` command opens a read-only Hosted Pi connect
 The host validates those roots and registers the observer before its acknowledgement.
 A completion hint follows the durable turn record and carries bounded identity metadata, not response text.
 This connection never attaches a Console or submits a prompt.
-One owned helper process per target carries the stream; shutdown closes and joins that process.
+One owned helper process per target carries the stream; shutdown joins the local helper or SSH process.
+After acknowledgement, the helper emits a fixed fifteen-second transport heartbeat with no task data.
+Clients validate and ignore that frame; it never requests inventory or synthesis.
+A closed stdout consumer causes the next heartbeat write to abort IPC and clear the timer.
+This bound does not guarantee remote process exit during a network partition.
 A disconnected stream can reconnect with backoff, but unsupported endpoints have no inventory-poll fallback.
 Legacy records without a stable completion identity remain available through manual reads without automatic notifications.
 Each collection reads at most four pages, with four sources per page.

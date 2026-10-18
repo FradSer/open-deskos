@@ -226,17 +226,17 @@ test('remote target configuration rejects POSIX production roots on every desk h
 
 test('internal completion watcher keeps one read-only process and closes it without inventory fallback', {timeout:5000}, async t=>{
  const {watchTaskCompletions}=await import('../src/task-client.mjs')
- const helper=await fixture(t,`const fs=require('node:fs');const r=JSON.parse(fs.readFileSync(0,'utf8'));if(r.command!=='subscribe_completions'||r.projects.length!==1)process.exit(3);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,subscription:'completions'}));console.log(JSON.stringify({version:1,requestId:r.requestId,type:'completion',taskId:'${TASK_ID}',lastTurnId:'${TASK_ID}',project:r.projects[0],outcome:'finished'}));setInterval(()=>{},1000)`)
- const states=[];let hints=0
- const subscription=watchTaskCompletions(helper,{onCompletion:()=>{hints++},onState:state=>states.push(state)})
+ const helper=await fixture(t,`const fs=require('node:fs');const r=JSON.parse(fs.readFileSync(0,'utf8'));if(r.command!=='subscribe_completions'||r.projects.length!==1)process.exit(3);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,subscription:'completions'}));console.log(JSON.stringify({version:1,requestId:r.requestId,type:'heartbeat'}));console.log(JSON.stringify({version:1,requestId:r.requestId,type:'completion',taskId:'${TASK_ID}',lastTurnId:'${TASK_ID}',project:r.projects[0],outcome:'finished'}));setInterval(()=>{},1000)`)
+ let ready;const received=new Promise(resolve=>{ready=resolve}),states=[];let hints=0
+ const subscription=watchTaskCompletions(helper,{onCompletion:()=>{hints++;if(hints===2)ready()},onState:state=>states.push(state)})
  t.after(()=>subscription.close())
- for(let n=0;n<100&&hints<2;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ await received
  assert.equal(hints,2);assert.deepEqual(states,['connected']);await subscription.close()
  assert.equal(hints,2)
  const unsupported=await fixture(t,`const r=JSON.parse(require('node:fs').readFileSync(0,'utf8'));if(r.command!=='subscribe_completions')process.exit(3);console.log(JSON.stringify({version:1,requestId:r.requestId,ok:false,error:'unsupported'}))`)
- const errors=[];let unexpected=0
- const old=watchTaskCompletions(unsupported,{onCompletion:()=>{unexpected++},onState:state=>errors.push(state)})
- for(let n=0;n<100&&!errors.length;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ let rejected;const unavailable=new Promise(resolve=>{rejected=resolve}),errors=[];let unexpected=0
+ const old=watchTaskCompletions(unsupported,{onCompletion:()=>{unexpected++},onState:state=>{errors.push(state);rejected()}})
+ t.after(()=>old.close());await unavailable
  assert.deepEqual(errors,['unavailable']);assert.equal(unexpected,0);await old.close()
 })
 
@@ -246,9 +246,20 @@ test('an old helper exiting without an acknowledgement is unavailable without an
  const scheduled=[],setTimeoutOriginal=globalThis.setTimeout
  t.mock.method(globalThis,'setTimeout',(callback,delay,...args)=>{scheduled.push(delay);return setTimeoutOriginal(callback,delay,...args)})
  const helper=await fixture(t,`require('node:fs').readFileSync(0,'utf8');process.exit(0)`)
- let unavailable=false
- const subscription=watchTaskCompletions(helper,{onCompletion:()=>assert.fail('No handshake'),onState:()=>{unavailable=true}})
+ let unavailable=false,reported;const result=new Promise(resolve=>{reported=resolve})
+ const subscription=watchTaskCompletions(helper,{onCompletion:()=>assert.fail('No handshake'),onState:()=>{unavailable=true;reported()}})
  t.after(()=>subscription.close())
- for(let n=0;n<100&&!unavailable;n++)await new Promise(resolve=>setTimeout(resolve,10))
+ await result
  assert.equal(unavailable,true);assert.equal(scheduled.includes(5000),false)
+})
+
+
+test('completion heartbeats reject task payloads and wrong request correlation', {timeout:5000},async t=>{
+ const {watchTaskCompletions}=await import('../src/task-client.mjs')
+ for(const wrong of ['payload','correlation']){
+  const source=`const r=JSON.parse(require('node:fs').readFileSync(0,'utf8'));console.log(JSON.stringify({version:1,requestId:r.requestId,ok:true,subscription:'completions'}));console.log(JSON.stringify({version:1,requestId:${wrong==='correlation'?"'other-request'":'r.requestId'},type:'heartbeat'${wrong==='payload'?",text:'must not become a task report'":''}}));setInterval(()=>{},1000)`
+  const helper=await fixture(t,source);let done,hints=0;const rejected=new Promise(resolve=>{done=resolve})
+  const subscription=watchTaskCompletions(helper,{onCompletion:()=>{hints++},onState:state=>{if(state==='unavailable')done()}})
+  t.after(()=>subscription.close());await rejected;assert.equal(hints,1,'only initial catchup, never heartbeat');await subscription.close()
+ }
 })

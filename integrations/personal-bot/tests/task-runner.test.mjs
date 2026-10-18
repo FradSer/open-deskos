@@ -1282,3 +1282,31 @@ test('a completion subscription rejects subsequent mutation frames and scopes ro
  await closed
  assert.equal((await f.service.handle(request('list',{project:f.root}))).tasks.length,0)
 })
+
+
+test('actual completion CLI exits and disconnects when its idle stdout consumer closes', {timeout:4000},async t=>{
+ const {spawn}=await import('node:child_process'),{openSync,closeSync}=await import('node:fs'),{once}=await import('node:events')
+ const {serveTasks,readFrame}=await import('../src/task-protocol.mjs')
+ const f=await fixture(t);let disconnected=0
+ const server=await serveTasks(f.config.socketPath,(r,c)=>f.service.handle(r,c),async id=>{disconnected++;await f.service.disconnect(id)})
+ let child
+ t.after(async()=>{if(child?.exitCode===null&&child?.signalCode===null){child.kill('SIGKILL');await once(child,'close')}await server.close()})
+ const config=join(f.dir,'watch-config.json'),input=join(f.dir,'watch-request.json')
+ await writeFile(config,JSON.stringify(f.config),{mode:0o600})
+ await writeFile(input,JSON.stringify(request('subscribe_completions',{projects:[f.root]}))+'\n',{mode:0o600})
+ // Scale only the production transport heartbeat in this child, preserving the exact CLI and IPC path.
+ const prelude=`const interval=globalThis.setInterval;globalThis.setInterval=(fn,ms,...args)=>interval(fn,ms===15000?20:ms,...args);import(${JSON.stringify(new URL('../src/task-cli.mjs',import.meta.url).href)});`
+ const fd=openSync(input,'r')
+ child=spawn(process.execPath,['--input-type=module','-e',prelude],{stdio:[fd,'pipe','pipe'],env:{PATH:process.env.PATH,HOME:f.dir,ODK_TASK_CONFIG:config}});closeSync(fd)
+ let diagnostics='';child.stderr.on('data',chunk=>{diagnostics=(diagnostics+chunk).slice(0,4096)})
+ let ack
+ try{ack=await readFrame(child.stdout,4096,2000)}catch(error){throw Error(error.message+'; synthetic CLI stderr: '+diagnostics)}
+ assert.equal(ack.subscription,'completions')
+ const closed=once(child,'close');child.stdout.destroy()
+ let timer
+ const exit=await Promise.race([closed.then(result=>result),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),500)})]).finally(()=>clearTimeout(timer))
+ assert.notEqual(exit,null,'idle helper must detect lost stdout without another completion')
+ assert.equal(exit[0],0)
+ for(let n=0;n<50&&!disconnected;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ assert.equal(disconnected,1)
+})

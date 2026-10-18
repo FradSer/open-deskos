@@ -266,3 +266,11 @@ Feature: Durable per-host Hosted Pi sessions
     And a completed turn is persisted before its fixed identity hint is sent
     And the existing Console keeps its exclusive attachment
     And a disconnect removes the observer without mutating task ownership
+
+  Scenario: An idle completion helper exits when its stdout consumer disappears
+    Given a completion subscription uses the existing finite stdin-file transport
+    When its acknowledged stdout consumer closes without another task completion
+    Then a fixed fifteen-second transport heartbeat detects the closed writer
+    And the helper aborts its IPC connection and clears its heartbeat timer
+    And heartbeats contain no task data and never request inventory or model work
+    And this bound does not claim remote exit during a network partition

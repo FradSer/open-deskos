@@ -212,6 +212,7 @@ export function watchTaskCompletions(target, {signal = undefined, onCompletion =
                 if(!record.ok || record.subscription!=='completions'){unsupported=true;stop();return}
                 ready=true;reconnectMs=5000;clearTimeout(timer);onState('connected');onCompletion()
               }else{
+                if(record.type==='heartbeat'){if(Object.keys(record).length!==3 || Object.keys(record).some(key=>!['version','requestId','type'].includes(key)))throw Error();continue}
                 if(Object.keys(record).some(key=>!['version','requestId','type','taskId','project','lastTurnId','outcome'].includes(key)) || record.type!=='completion' || !UUID.test(record.taskId) || !UUID.test(record.lastTurnId) || !carriedProject(record.project,Boolean(target.host)) || !['finished','failed','cancelled'].includes(record.outcome))throw Error()
                 onCompletion()
               }
