@@ -401,3 +401,13 @@ Scenario: Remote Pi synthesis stays in the same Agent conversation
   And source disclosures identify the machine and exact session without granting controls
   And partial, stale, and unavailable remote coverage remains visible
   And incoming reports do not submit owner messages
+
+Scenario: Personal Agent reports remote progress as short conversation messages
+  Given the resident retains legacy task reports and new assistant updates
+  When the conversation receives or reconnects to those messages
+  Then each new update appears once in its original order as an assistant bubble
+  And source identifiers and audit labels stay inside a closed Sources disclosure
+  And legacy reports remain complete in one closed Earlier task updates group
+  And partial or unavailable coverage uses a short readable status
+  And the existing conversation is the only scroll region above the fixed composer
+  And keyboard focus and the current reading position survive repeated frames

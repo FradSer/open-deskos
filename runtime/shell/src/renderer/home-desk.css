@@ -277,3 +277,14 @@ html[data-theme='pixel'] #home-summary .dash {
   #home-desk #dots[data-dragging] .dot::before { background: ButtonText; forced-color-adjust: none; }
   #home-desk { --odk-frame-border: CanvasText; }
 }
+
+/* Agent updates share the existing conversation scroll region. */
+.agent-earlier-updates { min-width: 0; }
+.agent-earlier-updates > summary, .agent-remote-coverage summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; }
+.agent-earlier-updates > summary:focus-visible, .agent-remote-coverage summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
+.agent-earlier-updates > .agent-message { margin-block-start: 20px; }
+.agent-remote-coverage { min-width: 0; font-size: 14px; line-height: 1.6; color: var(--odk-secondary-strong); overflow-wrap: anywhere; }
+.agent-remote-coverage p { margin: 0; }
+.agent-update-sources p { color: var(--odk-secondary-strong); font-size: 14px; }
+.agent-update-sources > summary::after, .agent-earlier-updates > summary::after, .agent-remote-coverage summary::after { content: '+'; margin-inline-start: auto; padding-inline-start: 12px; }
+.agent-update-sources[open] > summary::after, .agent-earlier-updates[open] > summary::after, .agent-remote-coverage details[open] > summary::after { content: '−'; }

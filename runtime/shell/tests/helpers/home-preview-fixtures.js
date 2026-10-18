@@ -54,12 +54,19 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
     text: segments.map(segment => segment.text).join(''), segments,
     sources: ['pi', 'hydra', 'weather'].map(id => ({ id, label: id, state: 'live', updatedAt: now })),
   }] }
-  const prompt = 'What is happening on my desk?'
-  const reply = 'Three Pi sessions are working across three workspaces. Your focus timer has 18:42 remaining. Taipei is 26°C with overcast skies, and both plants have current moisture readings.'
-  replace('odk-personal-bot-status', { state: 'idle', transcript: prompt, message: reply, briefing })
+  // Synthetic training and v8 progress illustrate assistant updates, never live reports.
+  const prompt = ''
+  const reply = ''
+  const source = { key: 'a'.repeat(64), revision: 'b'.repeat(64), machine: 'Synthetic Mac', sessionId: 'synthetic-training', project: '/synthetic/training', control: 'report_only', availability: 'live' }
+  const updates = ['中文识别训练有新进展：验证集 CER 降到 37.35%，最佳和最后检查点已保存到 Drive。控制器仍依赖 Mac 在线，请暂时保留原终端；独立测试还没做。', 'v8 模型完成：前留白缩到 10 mm，前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。']
+  const remote = { state: 'live', total: 3, messages: [
+    ...updates.map((text, index) => ({ id: `synthetic-update-${index}`, text, presentation: 'assistant_update', sources: [{ ...source, ...(index === 1 ? { key: 'c'.repeat(64), sessionId: 'synthetic-v8', project: '/synthetic/v8' } : {}) }], verification: 'reported_unverified', synthesisVerification: 'passed' })).reverse(),
+    { id: 'synthetic-earlier-report', text: 'Synthetic earlier report: source revision and execution audit remain available here.', sources: [source], verification: 'reported_unverified', synthesisVerification: 'passed' },
+  ] }
+  replace('odk-personal-bot-status', { state: 'idle', transcript: prompt, message: reply, briefing, remote })
   ipcMain.handle('odk-personal-bot-text', () => ({ accepted: true }))
   ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: true }))
-  return { synthetic: true, briefing, prompt, reply, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }
+  return { synthetic: true, briefing, prompt, reply, updates, remote, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }
 }
 
 module.exports = { installHomePreviewFixtures }
