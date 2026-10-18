@@ -117,3 +117,16 @@ Feature: Every Personal Bot user turn is routed by Jev
     Then only that descriptor's capability prefix is enabled
     And the generic extension intent cannot bypass that boundary
     And only explicitly child-safe descriptors permit isolated child execution
+
+  Scenario: Ordinary model routing works without Jev
+    Given the ordinary model is available and Jev is disabled or not configured
+    When the owner sends a request
+    Then a zero-tool model judgment selects a known workflow
+    And host capability and source identity checks still apply
+
+  Scenario: Optional Jev failure does not stop the Overview or future requests
+    Given an optional Jev request fails
+    When the owner sends another request or refreshes the Overview
+    Then ordinary model generation remains available
+    And this runtime does not retry the failed Jev transport
+    And model confidence is not reported as calibrated Jev confidence
