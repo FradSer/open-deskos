@@ -566,7 +566,7 @@ test('combined reply and source projections fit the whole remote frame and repor
  const records=Array.from({length:7},(_,i)=>({...row('source-'+i),project:'/'+('long-project/'.repeat(300))}))
  const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async cursor=>({ok:true,records:records.slice(cursor?4:0,cursor?7:4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
  await remote.drain();const message=remote.data.messages[0]
- const replies=Array.from({length:32},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),text:'中'.repeat(1000),answer:'答'.repeat(1000),replyTo:{messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision},at:i,status:'answered'}))
+ const replies=Array.from({length:32},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),sessionId:message.sources[0].sessionId,text:'中'.repeat(1000),answer:'答'.repeat(1000),replyTo:{messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision},at:i,status:'answered'}))
  remote.save({...remote.data,replies});const frame=remote.snapshot()
  assert(Buffer.byteLength(JSON.stringify(frame))<=60*1024);assert.equal(frame.omittedReplies,32-frame.replies.length);assert.equal(frame.total,7)
  if(frame.messages.length<7)assert.equal(frame.nextOffset,frame.messages.length)
@@ -665,4 +665,27 @@ test('reply checkpoint writes reject forbidden owner controls before persisting 
  await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision},before=await readFile(file)
  assert.throws(()=>remote.beginReply(replyTo,'继续\u0001'),/Invalid/);assert.deepEqual(await readFile(file),before)
  assert.equal(remote.snapshot().replies.length,0)
+})
+
+test('reply session identity is required on writes and reads without changing invalid checkpoint bytes',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-required-session-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json'),options={file,read:async()=>({ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('已返回结果。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision}
+ const reply=remote.beginReply(replyTo,'继续原会话');remote.completeReply(reply.id,{status:'unknown'})
+ const valid=structuredClone(remote.data),before=await readFile(file)
+ for(const sessionId of [undefined,'','  ']) {
+  const invalid={...valid,replies:valid.replies.map(r=>({...r,sessionId}))}
+  assert.throws(()=>remote.save(invalid),/Invalid session reply checkpoint/)
+  assert.deepEqual(await readFile(file),before);assert.deepEqual(remote.data,valid)
+  const bytes=JSON.stringify(invalid);await writeFile(file,bytes)
+  assert.throws(()=>new RemoteConversation(options),/Invalid session reply checkpoint/)
+  assert.equal(await readFile(file,'utf8'),bytes,'Invalid reads must not repair or overwrite the file')
+  await writeFile(file,before)
+ }
+ const other={...row('other'),sessionId:'another-session'},otherMessage={...message,id:'e'.repeat(64),sources:[other]}
+ remote.save({...valid,messages:[otherMessage]})
+ assert.equal(remote.resolveReply({messageId:otherMessage.id,sourceKey:other.key,sourceRevision:other.revision}).source.sessionId,'another-session')
+ const same={...other,sessionId:'source'},sameMessage={...otherMessage,sources:[same]}
+ remote.save({...remote.data,messages:[sameMessage]})
+ assert.throws(()=>remote.resolveReply({messageId:sameMessage.id,sourceKey:same.key,sourceRevision:same.revision}),/unknown/)
 })

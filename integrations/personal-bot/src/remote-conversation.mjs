@@ -184,7 +184,7 @@ export class RemoteConversation {
         return this.thread(origin)===threadId || origin.machine===source.machine && origin.project===source.project && origin.sessionId===source.sessionId
       }
       // An expired origin cannot release unknown delivery by changing a host mapping.
-      return !reply.sessionId || reply.sessionId===source.sessionId
+      return reply.sessionId===source.sessionId
     }))throw Error('Previous reply delivery is unknown; reconcile without replay')
     return {replyTo:structuredClone(replyTo),source:structuredClone(source),threadId}
   }

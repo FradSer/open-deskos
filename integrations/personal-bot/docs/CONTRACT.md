@@ -1096,6 +1096,9 @@ The resident saves this recovery once without changing message references, recei
 It does not replay an owner turn or task instruction.
 Unknown delivery remains locked across reporting-machine mapping changes.
 An unavailable origin reference cannot prove that an unresolved delivery is safe to repeat.
+Every reply requires a nonempty, bounded session identity.
+This unreleased format does not support replies without a session identity.
 Every reply checkpoint write uses the same reply validator as restart reads.
+Invalid checkpoint reads fail without changing the file.
 Invalid owner text, answers, or receipts cannot replace the existing checkpoint.
 Valid Chinese text, line breaks, and tabs remain supported.

@@ -275,3 +275,10 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the shared reply validator rejects the complete snapshot before any write
     And the previous delivery state and mutation receipt remain byte-for-byte unchanged
     And ordinary Chinese text, line breaks, and tabs remain valid
+
+  Scenario: Every owner reply retains a session identity
+    Given session replies have not been released as an optional-identity format
+    When a reply checkpoint omits its session identity or uses an empty identity
+    Then the same read and write validator rejects it without changing the checkpoint
+    And an unknown reply with expired origin history blocks only its retained session
+    And another explicitly identified session can receive an owner reply

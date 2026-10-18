@@ -13,7 +13,7 @@ export function validSessionReply(reply) {
  if(!reply || Object.keys(reply).some(key=>!['id','threadId','text','sessionId','replyTo','status','at','answer','receipt'].includes(key))
   || !uuid(reply.id) || !/^[a-f0-9]{64}$/.test(reply.threadId) || !validReplyTo(reply.replyTo)
   || !bounded(reply.text,3000) || !reply.text.trim() || !Number.isFinite(reply.at) || reply.at<0 || !replyStatuses.includes(reply.status)
-  || reply.sessionId!==undefined && (!bounded(reply.sessionId,256) || !reply.sessionId.trim())
+  || (!bounded(reply.sessionId,256) || !reply.sessionId.trim())
   || reply.answer!==undefined && !bounded(reply.answer,4000))return false
  const receipt=reply.receipt
  return receipt===undefined || receipt && typeof receipt==='object' && !Array.isArray(receipt) && Object.keys(receipt).every(key=>['accepted','delivery','mutationId'].includes(key))
