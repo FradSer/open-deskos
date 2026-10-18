@@ -292,3 +292,17 @@ Feature: Personal Agent owns a bounded plugin runtime
     And provider-scoped SDK credentials remain supported without ambient credential fallback
     And disabled Jev performs no authentication request
     And existing typed judgment validation and authorization rules remain unchanged
+
+  Scenario: Optional judgments expose the current provider and validated answers
+    Given Jev returned a valid judgment before a delayed startup health failure
+    When that failure selects the ordinary judgment service
+    Then readiness immediately names the ordinary model without another Jev request
+    And Jev responses expose only validated answer fields and their real model identity
+
+  Scenario: Ordinary typed routing does not require a generated probability table
+    Given the ordinary model selects among many fixed route criteria
+    When it returns one exact choice and a bounded confidence
+    Then the host derives the compatibility distribution without changing confidence
+    And low confidence cannot pass the existing decision gates
+    And the host does not label derived values as calibrated provider probabilities
+    And Jev retains full typed primitive validation
