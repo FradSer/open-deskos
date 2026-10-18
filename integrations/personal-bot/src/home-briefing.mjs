@@ -85,11 +85,21 @@ export function validateHomeBriefing(raw, readings, { requireSegments = false } 
   })
 }
 
+function boundSourceFacts(readings) {
+  const variables = homeTemplateVariables(readings)
+  const segments = variables.flatMap((variable, index) => [
+    ...(index ? [{ text: ', ' }] : []), { text: variable.example, icon: variable.icon },
+  ])
+  const raw = { items: [{ text: segments.map(segment => segment.text).join(''), segments, readingIds: variables.map(variable => variable.id) }] }
+  return validateHomeBriefing(resolveHomeTemplate(raw, readings), readings, { requireSegments: true })
+}
+
 /** A read-only, replaceable home synthesis, independent of voice and proposals. */
 export class HomeBriefing {
   constructor({ list, read, generate, publish, onFailure = (_failure) => {}, now = Date.now, requireBindings = false }) {
     this.requireBindings = requireBindings
     this.template = null
+    this.sourceOnly = false
     this.templateCreatedAt = 0
     this.templateLayout = ''
     this.list = list
@@ -217,7 +227,16 @@ export class HomeBriefing {
           if (this.frame.omittedSources !== omittedSources) this.emit(this.frame.state, { omittedSources })
           return
         }
-        this.emit('loading')
+        if (this.requireBindings && (!this.frame.items.length || this.sourceOnly)) {
+          try {
+            const items = boundSourceFacts(readings)
+            this.sourceOnly = true
+            this.emit('loading', { items, generatedAt: 0, omittedSources })
+          } catch {
+            // Keep the original limits even before a model response is available.
+            this.emit('loading')
+          }
+        } else this.emit('loading')
         stage = 'generate'
         const raw = await this.generate({ readings, omittedSources, previous: this.requireBindings ? (this.template?.items || []).filter(item => item.readingIds.every(id => readings.some(reading => reading.id === id))) : this.frame.items.filter(item => item.sources.every(source => readings.some(reading => reading.id === source.id))), ...(this.requireBindings ? { variables: homeTemplateVariables(readings) } : {}), signal: controller.signal })
         if (!current()) return
@@ -247,6 +266,7 @@ export class HomeBriefing {
           this.templateCreatedAt = this.now()
         }
         this.fingerprint = fingerprint
+        this.sourceOnly = false
         this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
       } catch (error) {
         if (current()) {
@@ -256,19 +276,15 @@ export class HomeBriefing {
           const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : undefined
           const failure = { stage, kind: failureKind(stage, error, code, status), name, ...(code ? { code } : {}), ...(status ? { status } : {}) }
           try { this.onFailure(failure) } catch { /* Diagnostics cannot affect briefing recovery. */ }
-          if (!this.frame.items.length && this.requireBindings && ['generate', 'validate'].includes(stage)) {
+          if ((!this.frame.items.length || this.sourceOnly) && this.requireBindings && ['generate', 'validate'].includes(stage)) {
             try {
               const recheckRevision = this.revision
               const fresh = await snapshot()
               if (!current() || recheckRevision !== this.revision) return
-              const variables = homeTemplateVariables(fresh.readings)
-              const segments = variables.flatMap((variable, index) => [
-                ...(index ? [{ text: ', ' }] : []), { text: variable.example, icon: variable.icon },
-              ])
-              const raw = { items: [{ text: segments.map(segment => segment.text).join(''), segments, readingIds: variables.map(variable => variable.id) }] }
-              const items = validateHomeBriefing(resolveHomeTemplate(raw, fresh.readings), fresh.readings, { requireSegments: true })
+              const items = boundSourceFacts(fresh.readings)
               // These are current bound source values, not a successful model summary.
-              this.emit('error', { items, generatedAt: this.now(), omittedSources: fresh.omittedSources })
+              this.sourceOnly = true
+              this.emit('error', { items, generatedAt: 0, omittedSources: fresh.omittedSources })
               return
             } catch { /* Missing or oversized facts cannot become a fabricated fallback. */ }
           }

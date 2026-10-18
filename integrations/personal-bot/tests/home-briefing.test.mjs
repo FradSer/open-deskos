@@ -356,3 +356,22 @@ test('a source-only confirmation invalidated during pending reads is scheduled a
   while(home.frame.state!=='live'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10))
   assert.equal(calls,2);assert.equal(home.frame.state,'live')
 })
+
+
+test('first startup publishes exact bound facts while generation is pending without a success timestamp', async t => {
+  let total=2,release,entered
+  const source=()=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}})
+  const started=new Promise(resolve=>{entered=resolve})
+  const response=new Promise(resolve=>{release=resolve})
+  const home=new HomeBriefing({requireBindings:true,now:()=>1234,list:async()=>[source()],read:async()=>source(),generate:async()=>{entered();return response},publish:()=>{}})
+  t.after(()=>home.close())
+  const pending=home.refresh();await started
+  assert.equal(home.frame.state,'loading');assert.equal(home.frame.items.length,1)
+  assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source().id])
+  assert.equal(home.frame.generatedAt,0);assert.equal(home.template,null)
+  total=3;home.invalidate()
+  release({items:[{text:'{{synthetic.sessions|total|integer}} {{synthetic.sessions|@label|text}}',segments:[{text:'{{synthetic.sessions|total|integer}} {{synthetic.sessions|@label|text}}',icon:'sessions'}],readingIds:[source().id]}]})
+  await pending
+  assert.equal(home.frame.state,'live');assert.match(home.frame.items[0].text,/3 Synthetic sessions/);assert.equal(home.frame.generatedAt,1234)
+})

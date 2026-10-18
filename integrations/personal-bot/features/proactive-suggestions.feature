@@ -346,3 +346,11 @@ Feature: Owner controlled proactive Personal Bot proposals
     When the generation service fails
     Then validated source-bound facts remain visible with an error state
     And no invented values or successful model summary are reported
+
+  Scenario: First startup shows bound facts before synthesis finishes
+    Given no earlier briefing exists and current Home facts pass the original binding validator
+    When the generation service is still pending
+    Then the loading briefing already shows those exact source facts
+    And generatedAt remains zero until a model summary succeeds
+    And source changes are checked again before the generated template is accepted
+    And oversized or unsupported facts do not bypass the existing required source budget
