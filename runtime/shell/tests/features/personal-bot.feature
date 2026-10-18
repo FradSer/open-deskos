@@ -195,3 +195,30 @@ Feature: Independent resident personal bot
     And repeated identical replies retain their DOM and scroll position
     And Instrument, Pixel, and Border Beam retain meaningful emphasis without synthesizing Pixel weights or styles
     And long English, CJK, code, and tables remain readable and bounded at native and compact sizes
+
+  Scenario: Reply to a specific Pi session from its incoming update
+    Given an incoming update contains retained references for two Pi sessions
+    When the owner selects Reply for one session
+    Then the composer identifies that session and the original update
+    And the owner can cancel the reference without losing the draft
+    When the owner submits the reply
+    Then only the message ID and exact source key and revision accompany the text
+    And the renderer supplies no target, project, or session authority
+    And a failed or disconnected submission retains the draft and reference
+    And accepted replies and later completed updates remain in the same durable session thread
+    And another session requires an explicit selection
+    And ordinary messages do not inherit a prior reply reference
+
+  Scenario: Session replies remain readable and keyboard accessible
+    Given a session identifier is long and the conversation contains many updates
+    When the owner uses a compact window or changes the theme
+    Then each incoming update shows a session identifier with its complete value available
+    And Reply and Cancel reply have keyboard access and touch targets of at least 44 pixels
+    And the selected thread uses the existing conversation scroll region above the fixed composer
+    And returning to all messages retains the original updates
+
+  Scenario: A previous host cannot silently drop a session reference
+    Given the host bridge accepts only ordinary text or the service does not advertise reply input
+    When an incoming Pi update is displayed
+    Then a session reply cannot be dispatched as an ordinary owner message
+    And ordinary text remains available without a reply reference

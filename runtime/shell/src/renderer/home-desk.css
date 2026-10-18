@@ -289,3 +289,20 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-update-sources[open] > summary::after, .agent-earlier-updates[open] > summary::after, .agent-remote-coverage details[open] > summary::after { content: '−'; }
 
 .agent-jev-status { flex: none; min-width: 0; width: 100%; margin: 0; text-align: center; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+
+/* Session replies retain one conversation scroller and a fixed composer. */
+.agent-thread-nav { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; font-size: 14px; color: var(--odk-secondary-strong); }
+.agent-thread-nav > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-panel :is(.agent-thread-nav,.agent-message-session,.agent-reply-context) button { min-height: 44px; min-width: 44px; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--odk-primary); background: transparent; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); cursor: pointer; }
+.agent-message-session { display: flex; align-items: center; gap: 8px; min-width: 0; margin-block-start: 8px; color: var(--odk-secondary-strong); font-size: 14px; }
+.agent-message-session .agent-session-open { min-width: 0; overflow-wrap: anywhere; text-align: start; }
+.agent-message-session .agent-session-reply { margin-inline-start: auto; flex: none; }
+.agent-reply-context { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; border-inline-start: 2px solid var(--odk-stroke-focus); padding-inline-start: 12px; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.4; }
+.agent-reply-context > div { display: grid; min-width: 0; gap: 2px; flex: 1; }
+.agent-reply-context strong { font-weight: 400; color: var(--odk-primary); }
+.agent-reply-context :is(.agent-reply-session,.agent-reply-preview) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-reply-status { display: block; margin-block-start: 8px; color: var(--odk-secondary-strong); font-size: 14px; }
+.agent-panel :is(.agent-thread-nav,.agent-reply-context)[hidden], .agent-panel .agent-message[hidden] { display: none; }
+
+
+.agent-thread-nav button { flex: none; white-space: nowrap; }

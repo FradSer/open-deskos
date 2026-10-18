@@ -1,5 +1,7 @@
 'use strict'
 
+const { parseReplyTo } = require('../personal-bot-reply-reference')
+
 const SYSTEM_PORTS = Object.freeze({
   personalBot: 'odk:system/personal-bot/v1',
   remoteLink: 'odk:transport/remote-link/v1',
@@ -126,9 +128,11 @@ function createSystemChannelPlugins() {
           } else broadcast('odk-personal-bot-status', { ...current, activated: true })
           return { accepted: sent }
         })
-        bind(ctx, 'odk-personal-bot-text', async (_event, text) => {
+        bind(ctx, 'odk-personal-bot-text', async (_event, text, replyTo) => {
+          const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
+          if (reference === null) return { accepted: false }
           if (pendingToggle || typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000) return { accepted: false }
-          return { accepted: await client.sendText(text) }
+          return { accepted: await (reference ? client.sendText(text, reference) : client.sendText(text)) }
         })
         bind(ctx, 'odk-personal-bot-proposal', (_event, command) => {
           if (!command || !['proposal_list', 'proposal_presented', 'proposal_respond'].includes(command.type) || JSON.stringify(command).length > 4096) return { accepted: false }
