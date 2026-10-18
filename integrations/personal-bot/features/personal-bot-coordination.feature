@@ -30,7 +30,7 @@ Feature: A resident Personal Bot coordinates work without implementing it
     When their latest assistant conclusions change or reconnect
     Then a bounded paginated inventory retains each machine and session identity
     And the agent synthesizes cited conclusions with zero tools
-    And a separate zero-tool reviewer checks only report faithfulness with exact source citations
+    And a separate zero-tool reviewer checks report faithfulness, source ownership, and readable assistant updates
     And both phases require exactly one citation for each unique source key
     And a rejected duplicate citation receives the current exact citation count on its sole correction attempt
     And reporting a supplied number requires no invented computation receipt
@@ -59,3 +59,17 @@ Scenario: Native acceptance uses the configured endpoint directory
   When the operator plans an isolated native fixture
   Then the fixture uses its explicit endpoint override or the inherited host endpoint
   And it validates the real directory owner and private mode without changing other descriptors
+
+  Scenario: Remote work becomes short assistant updates with exact source ownership
+    Given several remote tasks have new conclusions or an evidence gap
+    When the parent summarizes those reports without tools
+    Then it returns one to seven short updates instead of an audit report
+    And each update covers one topic and owns its exact source keys
+    And those keys partition every supplied source exactly once
+    And every source still has one exact citation
+    And each update has at most 600 UTF-16 code units within a 2000-unit batch
+    And a separate model checks faithfulness, source attribution, and readability
+    And unsupported actions, verification claims, or swapped source assignments remain held
+    And one transaction appends the ordered messages with stable IDs and the assistant_update presentation
+    And restart and history pagination preserve their order and exact references without another model call
+    And old messages and held revisions keep their original data and behavior

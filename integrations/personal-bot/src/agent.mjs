@@ -200,7 +200,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     async function inferPlugin(kind, input, signal) {
       const remoteCitationCorrection = () => `Return exactly ${input.records.length} citations. Cite each unique source key exactly once; never duplicate a key across fields. Preserve original keys, revisions, and exact source substrings. Each quote must be nonblank and contain 1 to 512 UTF-16 code units.`
       return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: kind==='remote'||kind==='remote_review'?JSON.stringify:renderPluginInput,
-        formatCorrection: error => kind==='remote_review'?`Return only status, reason, and citations. Status is passed or needs_review. Reason must be nonblank and contain 1 to 1000 UTF-16 code units. ${remoteCitationCorrection()} Review summary faithfulness only; never certify execution or calculations.`:kind==='remote'?`Return only summary and citations. Summary must be nonblank and contain 1 to 4000 UTF-16 code units. ${remoteCitationCorrection()} No actions or extra fields.`:pluginFormatCorrection(kind, error),
+        formatCorrection: error => kind==='remote_review'?`Return only status, reason, and citations. Status is passed or needs_review. Reason must be nonblank and contain 1 to 1000 UTF-16 code units. ${remoteCitationCorrection()} Review every update for faithfulness, readability, and attribution only to its own sourceKeys records, not just global citation coverage. Use needs_review for audit dumps, swapped task ownership, unsupported next steps or unarranged promises. Never certify execution or calculations.`:kind==='remote'?`Return only updates and citations. Updates is an array of 1 to ${Math.min(input.records.length,7)} objects with text and sourceKeys only. Each nonblank text has at most 600 UTF-16 code units; the batch total is at most 2000. sourceKeys partition every supplied source exactly once. Use short natural Simplified Chinese assistant updates, one task/topic per message, not audit metadata. ${remoteCitationCorrection()} No actions or extra fields.`:pluginFormatCorrection(kind, error),
         validate: value => kind === 'remote' ? validateRemoteSummary(value,input.records) : kind === 'remote_review' ? validateRemoteReview(value,input.records) : kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
@@ -260,7 +260,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       summarizeRemote: async input => {
         if(config.childAgent || !config.personal?.agentPlugins?.enabled.includes('remote_conversation')) throw Error('Remote conversation is disabled')
         const summary=await inferPlugin('remote',input,lifetime.signal)
-        const review=await inferPlugin('remote_review',{records:input.records,summary:summary.summary,omitted:input.omitted,incomplete:input.incomplete},lifetime.signal)
+        const review=await inferPlugin('remote_review',{records:input.records,updates:summary.updates,omitted:input.omitted,incomplete:input.incomplete},lifetime.signal)
         if(review.status!=='passed')throw Error('Remote synthesis requires review')
         return summary
       },
