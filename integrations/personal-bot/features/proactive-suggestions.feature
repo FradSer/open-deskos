@@ -354,3 +354,9 @@ Feature: Owner controlled proactive Personal Bot proposals
     And generatedAt remains zero until a model summary succeeds
     And source changes are checked again before the generated template is accepted
     And oversized or unsupported facts do not bypass the existing required source budget
+
+  Scenario: A recovered model template replaces the source-only presentation state
+    Given a cached model template becomes applicable after source-only facts were shown
+    When that template is resolved against current sources
+    Then it becomes the model briefing rather than a source-only fallback
+    And a later generation failure retains its complete items as stale
