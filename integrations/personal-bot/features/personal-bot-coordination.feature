@@ -116,3 +116,14 @@ Scenario: Native acceptance uses the configured endpoint directory
     And a new source without legacy history can notify its first completion
     And a live observed running turn remains reportable when that same UUID completes after restart
     But unknown, unavailable, and invalid active identities cannot establish that evidence
+
+  Scenario: Reported completion identities migrate without replaying legacy conclusions
+    Given legacy seen or held reports without their real assistant event identity
+    And a different older reference can already have a real event identity
+    When the reporter supplies the current persisted terminal assistant event identity
+    Then the unknown legacy version establishes only a silent migration baseline
+    And only an exact watermark revision reference can restore a previously known identity
+    And old messages, seen revisions, and held records remain unchanged
+    And restart and metadata changes do not generate that baseline again
+    But a later distinct terminal event and a source without legacy history can notify
+    And progress, unknown outcomes, and unavailable records cannot establish completion evidence

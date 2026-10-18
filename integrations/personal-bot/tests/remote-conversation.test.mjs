@@ -294,7 +294,8 @@ test('an exact-seen legacy report stays unchanged without replaying history or h
  const options={file,read:async()=>({ok:true,records:[current,held],total:2,omitted:0,nextCursor:null}),synthesize:async input=>{calls++;assert.deepEqual(input.records,[current]);return {updates:updates('这项任务已经给出了结果。',input.records),citations:[{key:current.key,revision:current.revision,quote:'total: 6'}]}},publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll();await remote.poll()
  const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,0);assert.equal(next.messages.length,1)
- assert.deepEqual(next.messages[0],legacy);assert.deepEqual(next.seen,prior.seen);assert.deepEqual(next.attempted,prior.attempted)
+ assert.deepEqual(next.messages[0],legacy);assert.deepEqual(next.seen.map(({completion,...source})=>source),prior.seen);assert.deepEqual(next.attempted.map(({completion,...source})=>source),prior.attempted)
+ for(const source of [...next.seen,...next.attempted])assert.match(source.completion,/^[a-f0-9]{64}$/)
  assert.equal(remote.snapshot().heldCount,1)
  const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,0);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
 })
@@ -452,4 +453,37 @@ test('legacy identity migration requires explicit live availability and tolerate
  record=current;await remote.poll();assert.equal(calls,0)
  const saved=JSON.parse(await readFile(file,'utf8'));assert.deepEqual(saved.messages,[legacy]);assert.equal(saved.seen[0].updatedAt,current.updatedAt);assert.match(saved.seen[0].completion,/^[a-f0-9]{64}$/)
  const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,0);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
+})
+
+
+test('reporter identity upgrades baseline legacy reports without replaying conclusions',async t=>{
+ const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ for(const mode of ['seen','held','mixed-older-reference','mixed-held-reference','known-exact-reference','matches-older-reference','progress-first','unknown-first','unavailable-first','new-source'])await t.test(mode,async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-report-migration-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  let source={...row('report'),eventId:null,conclusionOutcome:'unknown'}
+  const reader=await createRemotePiReader({targets:[],link:{conclusions:async()=>({ok:true,records:[source],total:1,omitted:0,nextCursor:null}),stop:async()=>{}},backfill:async()=>null});t.after(()=>reader.close())
+  const old=(await reader.read()).records[0],{conclusion,...reference}=old
+  const older={...reference,revision:'d'.repeat(64),eventId:'persisted-older-entry',conclusionOutcome:'reported_finished'}
+  const known=mode==='known-exact-reference',held=mode==='held'||mode==='mixed-held-reference',fresh=mode==='new-source',mixed=mode.startsWith('mixed')||mode==='matches-older-reference'
+  const legacy={id:'c'.repeat(64),at:1,text:'Earlier result unchanged.',sources:[known?{...older,revision:old.revision}:reference],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
+  const olderMessage={...legacy,id:'e'.repeat(64),sources:[older]}
+  const prior={version:1,seen:fresh||held?[]:[{key:old.key,revision:old.revision,updatedAt:old.updatedAt}],attempted:held?[{key:old.key,revision:old.revision,updatedAt:old.updatedAt}]:[],messages:fresh||held?(mixed?[olderMessage]:[]):mixed?[olderMessage,legacy]:[legacy],cursor:null}
+  const file=join(directory,'remote.json');await writeFile(file,JSON.stringify(prior),{mode:0o600});protectProactivePath(file)
+  let current=old,calls=0
+  const options={file,read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async({records})=>{calls++;return {updates:updates('任务已给出最终结果。',records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}}
+  let remote=new RemoteConversation(options)
+  if(['progress-first','unknown-first','unavailable-first'].includes(mode)) {
+   source={...source,eventId:'persisted-current-entry',conclusionOutcome:mode==='unknown-first'?'unknown':'reported_finished',...(mode==='progress-first'?{state:'running'}:{}),...(mode==='unavailable-first'?{conclusion:''}:{})};current=(await reader.read()).records[0]
+   await remote.poll();assert.equal(calls,0);assert.deepEqual(JSON.parse(await readFile(file,'utf8')).seen,prior.seen)
+   remote=new RemoteConversation(options)
+  }
+  source={...source,state:'settled',conclusion:old.conclusion,eventId:mode==='matches-older-reference'?'persisted-older-entry':'persisted-current-entry',conclusionOutcome:'reported_finished'};current=(await reader.read()).records[0]
+  await remote.poll();const notified=fresh||known
+  assert.equal(calls,notified?1:0,'new reporter metadata is not proof of a new legacy completion')
+  const migrated=JSON.parse(await readFile(file,'utf8'))
+  if(!notified){assert.deepEqual(migrated.messages,prior.messages);assert.deepEqual(migrated.seen.map(({completion,...r})=>r),prior.seen);assert.deepEqual(migrated.attempted.map(({completion,...r})=>r),prior.attempted);assert.equal(remote.snapshot().heldCount,held?1:0)}
+  const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,notified?1:0)
+  source={...source,updatedAt:2,backend:'changed-metadata'};current=(await reader.read()).records[0];await restored.poll();assert.equal(calls,notified?1:0)
+  source={...source,eventId:'persisted-next-entry'};current=(await reader.read()).records[0];await restored.poll();assert.equal(calls,notified?2:1,'different real assistant entries remain reportable even with identical text')
+ })
 })
