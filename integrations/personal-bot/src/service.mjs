@@ -7,7 +7,7 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
 
 export class PersonalBotService {
   /** @param {Dependencies} dependencies */
@@ -32,6 +32,26 @@ export class PersonalBotService {
     this.briefing = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.pendingNotifications = []
     this.agentFrame = { state: 'unavailable', tasks: [] }
+    if (dependencies.checkJev) {
+      this.jev = { status: 'checking' }
+      this.publishJev(this.jev)
+      // One check per service instance. Client subscriptions and runtime resume do not repeat it.
+      const signal = this.controller.signal
+      this.jevCheck = Promise.resolve().then(() => {
+        signal.throwIfAborted()
+        return dependencies.checkJev(signal)
+      }).then(jev => {
+        if (!this.closed && !signal.aborted) this.publishJev(jev)
+      }).catch(() => {
+        if (!this.closed && !signal.aborted) this.publishJev({ status: 'unavailable' })
+      })
+    }
+  }
+
+  publishJev(jev) {
+    this.jev = jev
+    this.status = { ...this.status, jev }
+    for (const listener of this.listeners) listener(this.status)
   }
 
   subscribe(listener) {
@@ -113,7 +133,7 @@ export class PersonalBotService {
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -282,6 +302,7 @@ export class PersonalBotService {
     clearInterval(this.remoteTimer)
     this.remote = undefined
     this.closed = true
+    if (this.jev?.status === 'checking') this.jev = { status: 'unavailable' }
     this.agentFrame = { state: 'unavailable', tasks: [] }
     this.captureId++
     this.controller.abort()

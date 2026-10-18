@@ -567,3 +567,35 @@ test('automatic recorder endpoint submits once even alongside manual MIC', async
   assert.equal(calls.filter(x => x === 'hello').length, 1)
   assert.equal(calls.filter(x => x === 'cleanup').length, 1)
 })
+
+
+test('one startup Jev check survives status updates and subscriptions without retry', async () => {
+  let release, signal, requests = 0
+  const gate = new Promise(resolve => { release = resolve })
+  const {service} = fixture({checkJev: async input => { requests++; signal = input; await gate; return {status:'verified'} }})
+  assert.deepEqual(service.status.jev, {status:'checking'})
+  const frames = []; const unsubscribe = service.subscribe(frame => frames.push(frame))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(requests,1); assert.equal(signal.aborted,false)
+  release(); await service.jevCheck
+  assert.deepEqual(service.status.jev,{status:'verified'})
+  service.setState('thinking','A reply'); service.publishAgents([]); service.publishBriefing({state:'unavailable',items:[]})
+  service.propose({proposals:[],popup:false}); service.setState('idle')
+  assert.ok(frames.every(frame=>frame.jev.status==='verified'))
+  unsubscribe(); service.subscribe(()=>{})
+  assert.equal(requests,1); await service.close()
+})
+
+test('startup Jev failure is durable safe status and a disposed check cannot publish late success', async () => {
+  for (const jev of [{status:'missing_credential'},{status:'auth_rejected'},{status:'unavailable',reason:'network'}]) {
+    const {service}=fixture({checkJev:async()=>jev})
+    await service.jevCheck; service.setState('idle'); assert.deepEqual(service.status.jev,jev)
+    await service.close()
+  }
+  let release, signal
+  const {service}=fixture({checkJev:async input=>{signal=input;await new Promise(resolve=>{release=resolve});return {status:'verified'}}})
+  await new Promise(resolve=>setImmediate(resolve))
+  await service.suspend(); assert.equal(signal.aborted,true)
+  await service.resume(); release(); await service.jevCheck
+  assert.equal(service.status.jev.status,'unavailable'); await service.close()
+})

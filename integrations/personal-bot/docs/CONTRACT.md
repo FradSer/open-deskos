@@ -360,6 +360,13 @@ Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`
 Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
+The resident service checks Jev once at startup with one fixed public Noul request.
+Its status frame retains `jev.status`: `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
+A valid typed response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
+HTTP 401 or 403 reports rejected access, not a claim that the key is necessarily wrong.
+Unavailable reasons distinguish timeout, network, rate limiting, upstream failure, invalid response, request rejection, configuration, and credential access.
+Frames contain no credential, key path, or upstream body.
+Client reconnects retain the result without another request; service shutdown aborts the check and rejects late results.
 Missing credentials stop initialization.
 Failed, malformed, or oversized inference never falls back to regexes or Pi routing.
 Ambiguity asks for clarification.

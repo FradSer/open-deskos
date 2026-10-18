@@ -36,3 +36,12 @@ Feature: Explicit personal assistant configuration and private opt-in note memor
     When skill_read is called
     Then only a listed skill index can be read
     And no model-selected filesystem path is accepted
+
+  Scenario: Startup verifies Jev through one public typed request
+    Given a new resident service and a private Jev credential
+    When the service starts before clients connect
+    Then its status contains Jev checking until one fixed public Noul request completes
+    And only a valid typed response marks authentication verified, regardless of its probability
+    And missing credentials, rejected access and unavailable transport have separate safe statuses
+    And reconnects and later conversation frames retain the result without another request
+    And stopping the service aborts the check and prevents a late verified result

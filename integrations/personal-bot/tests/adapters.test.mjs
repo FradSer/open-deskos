@@ -202,3 +202,25 @@ test('private socket accepts JSONL and rejects invalid framing', async t => {
   client.write('{"v":9,"type":"toggle"}\n')
   await new Promise(resolve => client.once('close', resolve))
 })
+
+
+test('socket reconnect reads the same startup Jev result without another check', {timeout:3000}, async t => {
+  const dir = await temp(t), socketPath = endpoint(dir, 'jev.sock')
+  let release, requests = 0
+  const service = new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async()=>'',
+    checkJev:async()=>{requests++;return new Promise(resolve=>{release=()=>resolve({status:'auth_rejected'})})},
+  })
+  const server = await listen(socketPath,service,{token:fixtureToken})
+  t.after(async()=>{release?.();await service.close();await server.close()})
+  const read = () => new Promise((resolve,reject) => {
+    const client=connect(socketPath);let data=''
+    client.setEncoding('utf8');client.on('error',reject)
+    client.on('connect',()=>client.write((process.platform==='win32'?JSON.stringify({v:1,token:fixtureToken})+'\n':'')+'{"v":1,"type":"status"}\n'))
+    client.on('data',chunk=>{data+=chunk;if(data.includes('\n')){client.destroy();resolve(JSON.parse(data.split('\n')[0]))}})
+  })
+  assert.deepEqual((await read()).jev,{status:'checking'})
+  release();await service.jevCheck;service.setState('idle')
+  assert.deepEqual((await read()).jev,{status:'auth_rejected'})
+  assert.deepEqual((await read()).jev,{status:'auth_rejected'})
+  assert.equal(requests,1)
+})

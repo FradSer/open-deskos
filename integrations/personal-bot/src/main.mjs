@@ -13,6 +13,7 @@ import { prepareHostDirectories } from './host-paths.mjs'
 import { loadPersonalConfig } from './personal-config.mjs'
 import { proposalStateStore } from './proactive-state.mjs'
 import { ProactiveWatch, loadProactiveConfig, ownerConfigWriter } from './proactive.mjs'
+import { checkJevAuthentication } from './jev-client.mjs'
 import { createJevJudge } from './proactive-jev.mjs'
 import { odkDataRequest } from './odk-data.mjs'
 import { loadTargets, taskRequest } from './task-client.mjs'
@@ -143,6 +144,7 @@ async function main() {
     onService(value) { service = value },
     createService() {
       service = new PersonalBotService({
+        checkJev: signal => checkJevAuthentication({ env, signal }),
         failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
         record: async onLevel => {
           if (!runtime) throw Error('Configuration incomplete')
