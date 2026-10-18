@@ -988,6 +988,7 @@ Reported sources require the real persisted assistant entry ID and an explicit t
 For reported sources, only an exact seen or held revision reference can restore its previously known identity.
 A different older reference cannot identify a newer legacy watermark without an event ID.
 A reporter identity upgrade does not itself prove a new completion.
+A known latest source watermark takes precedence over older unidentified held records; those records do not absorb new completions.
 Collector backfill and reporter replay use the same persisted assistant entry ID without a generated replacement.
 An ambiguous result from before migration remains available through manual reads; automatic delivery is not promised.
 A live running UUID observed after migration remains reportable when that same turn completes, including after restart.

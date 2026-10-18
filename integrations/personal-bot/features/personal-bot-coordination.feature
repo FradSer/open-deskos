@@ -127,3 +127,4 @@ Scenario: Native acceptance uses the configured endpoint directory
     And restart and metadata changes do not generate that baseline again
     But a later distinct terminal event and a source without legacy history can notify
     And progress, unknown outcomes, and unavailable records cannot establish completion evidence
+    And an older unidentified held record cannot absorb a new completion after the latest watermark has a real identity

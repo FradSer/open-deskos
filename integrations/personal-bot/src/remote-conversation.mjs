@@ -83,7 +83,8 @@ function migrateLegacyIdentity(data,record) {
     const exact=source=>source.key===record.key && !source.completion && revisions.has(source.revision)
     if([...seen,...attempted].some(exact))return {...data,seen:data.seen.map(source=>exact(source)?{...source,completion}:source),attempted:data.attempted.map(source=>exact(source)?{...source,completion}:source)}
   }
-  if(record.control==='configured' && [...seen,...attempted].some(source=>source.completion) || record.control==='report_only' && [...seen,...attempted].length && [...seen,...attempted].every(source=>source.completion))return data
+  const watermarks=record.control==='configured'?[...seen,...attempted]:seen.length?seen:attempted
+  if(watermarks.some(source=>source.completion))return data
   const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)
   const observed=record.control==='configured' && record.state==='running' && uuid(record.currentTurnId)?record.currentTurnId:null
   if(!observed && (!completion || record.control==='configured' && [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId)))return data
