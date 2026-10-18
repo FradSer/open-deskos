@@ -420,3 +420,14 @@ Scenario: Personal Agent displays its real Jev startup check
   And reconnects and repeated frames do not add notifications
   And a missing or malformed Jev status never claims authentication passed
   And the single scroll region and fixed composer remain usable
+
+Scenario: Overview refresh uses the weekday indicator without adding chat text
+  Given Overview shows a red presence dot beside its weekday
+  When the existing briefing state becomes loading
+  Then that same indicator shows a spinner in the same position
+  And a terminal briefing state restores the red dot, including update failure
+  And loading preserves the previous briefing text without adding refresh narration
+  And an initial load uses the empty placeholder with an accessible busy state
+  And automatic refresh preserves all conversation text and message nodes
+  And explicit owner questions and completed task messages remain available
+  And reduced motion keeps a static busy indicator and accessible busy state

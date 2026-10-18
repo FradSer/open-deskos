@@ -53,7 +53,7 @@
   const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December']
   const LABELS = {
-    loading: 'Personal Agent is updating your briefing.',
+    loading: 'Personal Agent has no new desk briefing.',
     live: 'Personal Agent',
     empty: 'Personal Agent has no new desk briefing.',
     unavailable: 'Personal Agent is unavailable.',
@@ -92,11 +92,12 @@
     const label = LABELS[frame.state] || LABELS.unavailable
     el.querySelector('.dash-presence').dataset.state = frame.state
     narrative.dataset.state = frame.state
+    narrative.setAttribute('aria-busy', String(frame.state === 'loading'))
     narrative.replaceChildren()
-    if (frame.items.length && frame.state !== 'live') {
+    if (frame.items.length && frame.state !== 'live' && frame.state !== 'loading') {
       const availability = doc.createElement('span')
       availability.className = 'dash-availability'
-      availability.textContent = label + (frame.state === 'loading' ? ' Previous briefing shown.' : '') + ' '
+      availability.textContent = label + ' '
       narrative.append(availability)
     }
     for (const [index, item] of frame.items.entries()) {

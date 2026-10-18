@@ -53,6 +53,50 @@ async function send(briefing) {
   publishStatus({ state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
+async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}) {
+  const retained = {state:'idle',message:'',jev:{status:'verified'}}
+  if (ownerConversation) {
+    Object.assign(retained,{transcript:'What is on my desk?',message:'Your existing answer stays here.'})
+    publishStatus({...retained,state:'thinking'})
+    publishStatus(retained)
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Your existing answer stays here/)
+  }
+  await evaluate(`window.overviewChatNodes=[...document.querySelector('.agent-conversation').children];window.overviewChatText=document.querySelector('.agent-conversation').textContent;window.overviewPresence=document.querySelector('.dash-presence')`)
+  for (const theme of ['instrument','pixel','border-beam']) {
+    await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
+    for (const [width,height] of [[1920,1280],[480,854],[320,480]]) {
+      await resize(width,height)
+      let position
+      for (const state of ['empty','loading','live','stale','error','unavailable']) {
+        const items=['live','stale','loading'].includes(state)?[{text:'Synthetic desk reading.',sources:[{id:'desk',label:'Desk',state:'live'}]}]:[]
+        publishStatus({...retained,briefing:{state,items,generatedAt:1000,omittedSources:0}})
+        await evaluate('new Promise(r=>setTimeout(r,30))')
+        assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.textContent===window.overviewChatText&&c.children.length===window.overviewChatNodes.length&&window.overviewChatNodes.every((n,i)=>c.children[i]===n)})()`),true,'automatic Overview refresh never appends conversation text')
+        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
+        assert.equal(result.same,true,'the indicator node survives refresh')
+        assert.ok(result.display!=='none'&&result.width>=12&&result.height>=12&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
+        if(!position)position={left:result.left,top:result.top,width:result.width,height:result.height}
+        assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
+        if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
+        else {assert.equal(result.animation,'none');assert.equal(result.background,result.red)}
+        if((width===480 || width===1920)&&['empty','loading','error'].includes(state))fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-'+theme+'-'+state+'-'+width+'.png'),(await win.webContents.capturePage()).toPNG())
+      }
+    }
+  }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`),true)
+  publishStatus({...retained,briefing:{state:'loading',items:[],generatedAt:1000,omittedSources:0}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.dash-presence'),'::after').animationName`),'none')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').textContent`),'Personal Agent has no new desk briefing.')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').getAttribute('aria-busy')`),'true')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
+  assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`),false)
+  await evaluate('delete window.overviewChatNodes;delete window.overviewChatText;delete window.overviewPresence')
+  await resize(1920,1280);await evaluate("window.odkTheme.set('instrument')")
+}
+
 async function assertJevStartupStatus() {
   const states = [
     ['checking', 'Checking Jev authentication…', 'Checking Jev…'],
@@ -260,6 +304,11 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  if (process.argv.includes('--overview-refresh-only')) {
+    await assertOverviewRefreshIndicator({ownerConversation:true})
+    console.log('PASS Overview red dot, refresh spinner and conversation isolation')
+    finish(0);return
+  }
   if (process.argv.includes('--jev-startup-only')) {
     await assertJevStartupStatus()
     console.log('PASS Jev startup checking, results, repeat frames and compact themes')
@@ -276,6 +325,7 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  await assertOverviewRefreshIndicator()
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
     { text: ' today. Taipei is ' }, { text: '26°C and overcast', icon: 'weather' }, { text: '.' }]

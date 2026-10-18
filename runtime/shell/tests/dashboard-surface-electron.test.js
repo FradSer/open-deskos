@@ -22,10 +22,10 @@ for (const mode of ['development', 'native']) for (const invalid of [false, 'mes
       if (invalid) {
         const entry = path.join(directory, 'entry.js')
         const source = await fs.readFile(entry, 'utf8')
-        const marker = invalid === 'message' ? 'Personal Agent has no new desk briefing.'
+        const marker = invalid === 'message' ? "['empty', 'Personal Agent has no new desk briefing.']"
           : invalid === 'released' ? 'const current = () => !released && !context.signal?.aborted' : 'mount(container, context) {'
         assert.ok(source.includes(marker))
-        await fs.writeFile(entry, source.replace(marker, invalid === 'message' ? 'Controlled invalid Dashboard text.'
+        await fs.writeFile(entry, source.replace(marker, invalid === 'message' ? "['empty', 'Controlled invalid Dashboard text.']"
           : invalid === 'released' ? 'const current = () => true'
             : marker + "\n      if (container.id !== 'dashboard-acceptance') { container.replaceChildren(); return }"))
       }

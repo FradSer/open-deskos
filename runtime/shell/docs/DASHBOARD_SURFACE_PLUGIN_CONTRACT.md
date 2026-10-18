@@ -27,6 +27,13 @@ Home fits the paragraph and inline icons within the space below the date row.
 The date row and card geometry do not change with briefing length.
 Long content remains scrollable at the 16-pixel reading floor.
 The date retains its English weekday, month, day, and year.
+A red presence dot stays beside the weekday.
+The existing `loading` briefing state changes that same dot into a spinner without changing its position.
+Every terminal state restores the red dot; the dot does not indicate service health.
+Reduced motion keeps a static busy ring and an accessible busy state.
+Loading shows the retained briefing without refresh narration.
+An initial load uses the empty placeholder with `aria-busy`.
+Automatic briefing refresh does not add conversation messages.
 Current callbacks update the active placement.
 Released callbacks cannot change former nodes or later placements.
 Failed unsubscribe retains cleanup ownership for retry.

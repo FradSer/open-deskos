@@ -11,7 +11,7 @@ const id = 'odk.page.dashboard'
 function node(document) {
   let literal = ''
   const children = []
-  return { ownerDocument: document, dataset: {}, hidden: false, className: '', children,
+  return { ownerDocument: document, dataset: {}, attributes: {}, setAttribute(name, value) { this.attributes[name] = value }, hidden: false, className: '', children,
     clientWidth: 600, scrollWidth: 600, scrollHeight: 20,
     getBoundingClientRect: () => ({ top: 0 }), style: { setProperty() {} },
     get textContent() { return literal + children.map(child => child.textContent).join('') },
@@ -105,7 +105,7 @@ test('Dashboard omits attribution, update metadata and Sources controls', async 
 test('Dashboard labels retained readings in the paragraph without attribution metadata', async t => {
   const f = await fixture(t)
   const item = { text: 'Retained desk reading.', segments: [{ text: 'Retained desk reading.' }], sources: [] }
-  for (const [state, prefix] of [['stale', 'Previous briefing.'], ['loading', 'Personal Agent is updating your briefing. Previous briefing shown.']]) {
+  for (const [state, prefix] of [['stale', 'Previous briefing.']]) {
     f.briefings[0]({ ...f.frame(state), items: [item] })
     const narrative = f.nodes.get('#dash-narrative')
     assert.ok(narrative.textContent.startsWith(prefix + ' '))
@@ -114,6 +114,22 @@ test('Dashboard labels retained readings in the paragraph without attribution me
   }
   f.briefings[0]({ ...f.frame('live'), items: [item] })
   assert.equal(f.nodes.get('#dash-narrative').textContent, item.text)
+})
+
+test('Overview loading keeps retained text and uses only the existing busy indicator', async t => {
+  const f = await fixture(t)
+  const item = { text: 'Retained desk reading.', segments: [{ text: 'Retained desk reading.' }], sources: [] }
+  f.briefings[0]({ ...f.frame('live'), items: [item] })
+  const narrative = f.nodes.get('#dash-narrative')
+  const before = narrative.textContent
+  f.briefings[0]({ ...f.frame('loading'), items: [item] })
+  assert.equal(narrative.textContent, before)
+  assert.equal(narrative.attributes['aria-busy'], 'true')
+  f.briefings[0](f.frame('loading'))
+  assert.equal(narrative.textContent, 'Personal Agent has no new desk briefing.')
+  f.briefings[0](f.frame('error'))
+  assert.equal(narrative.attributes['aria-busy'], 'false')
+  assert.match(narrative.textContent, /could not update/)
 })
 
 test('released Dashboard briefing cannot overwrite the next placement in the same container', async t => {

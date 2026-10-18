@@ -480,12 +480,25 @@ body.kiosk {
   height: clamp(12px, 1.5vw, 24px);
   border-radius: var(--odk-radius-pill);
   align-self: center;
-  background: var(--odk-stroke-focus);
+  background: var(--odk-accent-red);
   flex: none;
 }
-.dash-presence[data-state="live"] { background: var(--odk-accent-green); }
-.dash-presence[data-state="error"],
-.dash-presence[data-state="stale"] { background: var(--odk-accent-red); }
+.dash-presence[data-state="loading"] { background: transparent; }
+.dash-presence[data-state="loading"]::after {
+  content: '';
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--odk-secondary-strong);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: odk-overview-refresh 0.8s linear infinite;
+}
+@keyframes odk-overview-refresh { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .dash-presence[data-state="loading"]::after { animation: none; }
+}
 
 .dash-date {
   margin-inline-start: auto;

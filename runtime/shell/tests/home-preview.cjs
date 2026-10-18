@@ -247,9 +247,21 @@ app.whenReady().then(async () => {
       assert.ok(staleCjk.fits && staleCjk.font >= 14, theme + ' stale CJK briefing and its availability remain fully visible: ' + JSON.stringify(staleCjk))
       // The deliberately undersized copy fixture uses the narrow-window fallback.
       win.setContentSize(960, 640)
-      await js("window.dispatchEvent(new Event('resize'))")
+      await js(`(async () => {
+        const deadline = performance.now() + 3000;
+        while (innerWidth !== 960 || innerHeight !== 640) {
+          if (performance.now() > deadline) throw Error('Narrow preview viewport not delivered');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        window.dispatchEvent(new Event('resize'));
+        while (getComputedStyle(document.querySelector('#home-summary')).overflowY !== 'auto') {
+          if (performance.now() > deadline) throw Error('Narrow preview scrolling geometry not applied');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+      })()`)
       const floor = await probe(260, 180, longCopy)
       const scrolledRefit = await probe(260, 180, longCopy)
+      console.log('OVERVIEW_FLOOR_CONTEXT ' + JSON.stringify({ theme, floor, viewport: await js('[innerWidth, innerHeight, document.documentElement.dataset.fitCanvas, getComputedStyle(document.querySelector("#home-summary")).overflowY]') }))
       assert.equal(floor.font, 16, theme + ' long copy keeps its readable floor')
       assert.equal(floor.reachable, true, theme + ' long copy remains reachable by scrolling')
       assert.equal(scrolledRefit.font, 16, theme + ' scrolling cannot inflate the fitting budget')
