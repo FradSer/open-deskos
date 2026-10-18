@@ -255,6 +255,12 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the resident resolves the saved reference before Jev routes the owner text
     And only the uniquely configured matching project and session can receive a follow-up
     And stale, ambiguous, unavailable, or unknown delivery references cannot send or replay a prompt
+    And native list summaries and full status records can differ without changing the original session
+    And native identity requires an explicit protocol discriminator or a reviewed host configuration
+    And conflicting endpoint declarations refuse delivery
+    And Hosted replies retain their current revision check before admission
+    And native historical unknown receipts do not block an independent explicit owner operation
+    And an unresolved bound owner reply still blocks another reply to that session
     And no replacement task or freely supplied target can receive the reply
     And the owner turn and receipt retain the original message and stable session thread
     And later completion revisions retain that same thread after restart

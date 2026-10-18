@@ -224,3 +224,12 @@ ODK_OPENCODE_GO_KEY_FILE=/absolute/private/go-key
 Jev can use TypeSafe independently of the ordinary model provider.
 `ODK_JEV_PROVIDER=disabled` disables its startup request; ordinary judgment behavior follows the host's configured judgment service.
 See [Provider endpoints](docs/CONTRACT.md#provider-endpoints) for credential precedence and fixed transport boundaries.
+
+A reviewed native session target can declare `endpointKind: "current_session"`.
+This host-owned declaration supports native helpers without an endpoint discriminator.
+A conflicting protocol discriminator stops the reply.
+Explicit replies retain the original message and session identity.
+Native list summaries and full status records do not share a revision contract.
+Hosted replies retain revision checks and admission CAS.
+Historical native unknown receipts remain unchanged and do not block independent owner operations.
+Unresolved bound replies still block further replies to the same session.
