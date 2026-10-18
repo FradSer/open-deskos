@@ -1053,3 +1053,52 @@ An explicit `ODK_TASK_CONFIG` overrides that default.
 The Bot unit supplies the same default before operator EnvironmentFiles.
 The installer does not rewrite existing target configuration or remove earlier helpers.
 After the new helper is verified, the operator must migrate existing executable references with a backed-up, exact configuration update.
+
+
+### Replies to a Pi conversation message
+
+A text command can include `replyTo: {messageId, sourceKey, sourceRevision}`.
+The channel accepts no target, project, or session override in this object.
+The resident matches the complete tuple against one retained message source.
+A historical message remains usable after a later completion in that session.
+An invented revision, missing source, or ambiguous duplicate tuple is refused.
+
+Jev routes the actual owner text with the bound session reference.
+The reference supplies context, never action authorization.
+During that turn, mutation tools cannot escape to another session or start a replacement task.
+Only the bound `remote_pi_followup` can send an admitted continuation.
+
+A configured control target can declare `reportMachines: ["verified-reporting-machine"]`.
+The operator verifies that host identity before configuring this binding.
+The default empty binding grants no control to report-only sources.
+The resident requires complete control inventories and one exact project and session match.
+It checks the current task revision again before sending.
+Hosted endpoints use their existing revision precondition.
+Native endpoints provide a precheck, not an atomic revision guarantee.
+Unknown delivery retains its mutation identity and cannot be replayed automatically.
+
+Session threads use the configured target, project, and session identity.
+An unmapped report uses its reporting machine instead of a control target.
+Revisions, completion text, and timestamps cannot create a thread identity.
+Each source exposes a `threadId`; a message exposes one only when all sources share it.
+The checkpoint retains at most 128 owner replies in a separate `replies` collection.
+Each reply retains its original reference, text, session, thread, admission state, and bounded receipt.
+These owner messages are not remote reports or independently verified execution.
+Snapshots expose up to 32 recent replies within 24 KiB.
+The complete remote frame stays within 60 KiB; pagination and omitted reply counts describe excluded content.
+At capacity, only terminal replies outside retained message chains can expire.
+The expired reply count remains visible.
+Unknown delivery and visible message chains remain preserved.
+Capacity refusal preserves the remaining messages and receipts.
+
+On startup, interrupted queued replies become failed, and interrupted dispatching replies become unknown.
+The resident saves this recovery once without changing message references, receipts, or existing terminal outcomes.
+It does not replay an owner turn or task instruction.
+Unknown delivery remains locked across reporting-machine mapping changes.
+An unavailable origin reference cannot prove that an unresolved delivery is safe to repeat.
+Every reply requires a nonempty, bounded session identity.
+This unreleased format does not support replies without a session identity.
+Every reply checkpoint write uses the same reply validator as restart reads.
+Invalid checkpoint reads fail without changing the file.
+Invalid owner text, answers, or receipts cannot replace the existing checkpoint.
+Valid Chinese text, line breaks, and tabs remain supported.

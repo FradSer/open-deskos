@@ -151,7 +151,7 @@ async function main() {
           return record(directory, env.ODK_PERSONAL_BOT_AUDIO_DEVICE || 'default', onLevel, { platform })
         },
         transcribe: (path, signal) => transcribe(path, runtime.stt, signal),
-        prompt: (text, onResponseSnapshot) => runtime.agent.prompt(text, onResponseSnapshot),
+        prompt: (text, onResponseSnapshot, reply) => runtime.agent.prompt(text, onResponseSnapshot, reply),
       })
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)

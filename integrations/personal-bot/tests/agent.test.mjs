@@ -589,3 +589,19 @@ test('coding tools list configuration only and route explicit project requests',
     assert.equal(tool.parameters.additionalProperties, false)
   }
 })
+
+test('a failed Jev reply route never enters the model or becomes a delivered reply',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'odk-reply-jev-'));t.after(()=>rm(dir,{recursive:true,force:true}))
+ let modelTurns=0;const states=[]
+ const bot=await createPersonalBot({stateDir:join(dir,'state'),personal:{profile:'personal',memoryFile:join(dir,'memory.json'),skillPaths:[]},env:{}},{
+  createIntentRouter:()=>async()=>{throw Error('synthetic Jev HTTP402')},
+  createRuntime:async()=>({getAvailable:async()=>[{provider:'fixture',id:'model'}]}),
+  createSession:async()=>({session:{isStreaming:false,bindExtensions:async()=>{},setActiveToolsByName:async()=>{},prompt:async()=>{modelTurns++},subscribe:()=>()=>{},abort:async()=>{},dispose:async()=>{}}}),
+ });t.after(()=>bot.close())
+ const replyTo={messageId:'a'.repeat(64),sourceKey:'source',sourceRevision:'b'.repeat(64)},reply={id:'00000000-0000-0000-0000-000000000001',replyTo,text:'用 adb 输入安卓',threadId:'c'.repeat(64),source:{key:'source',revision:'b'.repeat(64),machine:'host',project:'/synthetic',sessionId:'session',control:'report_only'}}
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:(...args)=>bot.prompt(...args)})
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},beginReply:()=>reply,completeReply:(_id,patch)=>states.push(patch.status)})
+ assert.equal(service.sendText(reply.text,replyTo),true);await service.pending
+ assert.equal(modelTurns,0);assert.equal(service.status.state,'error');assert.deepEqual(states,['failed'])
+ await service.close()
+})

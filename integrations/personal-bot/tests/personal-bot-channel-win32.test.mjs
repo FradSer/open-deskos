@@ -629,3 +629,20 @@ test('a queued frame beyond 131072 bytes drops a client that is not reading', as
   service.publish({ v: 1, type: 'status', state: 'idle', message: 'x'.repeat(131_073) })
   await within(once(client, 'close'), 'the client that stopped reading to be dropped')
 })
+
+test('the actual resident socket carries an exact reply reference without endpoint fields',async t=>{
+ const {PersonalBotService}=await import('../src/service.mjs')
+ const dir=await temp(t),endpoint=privateEndpoint(dir,'session-reply'),replyTo={messageId:'a'.repeat(64),sourceKey:'source',sourceRevision:'b'.repeat(64)},bound={id:'00000000-0000-0000-0000-000000000001',replyTo,threadId:'c'.repeat(64),source:{key:'source',revision:'b'.repeat(64),sessionId:'original-session'}}
+ const calls=[];let finished
+ const done=new Promise(resolve=>{finished=resolve})
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async(text,_stream,reply)=>{calls.push({text,reply});finished();return '等待原会话结果。'}})
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},beginReply:(reference,text)=>{assert.deepEqual(reference,replyTo);assert.equal(text,'用 adb 输入安卓');return bound},completeReply:()=>{}})
+ const server=await listen(endpoint,service,{token:fixtureToken});t.after(()=>server.close());t.after(()=>service.close())
+ const client=net.connect(endpoint);t.after(()=>client.destroy());client.setEncoding('utf8')
+ let pending='';const records=[];let admitted
+ const receipt=new Promise(resolve=>{admitted=resolve})
+ client.on('data',chunk=>{pending+=chunk;let n;while((n=pending.indexOf('\n'))>=0){const frame=JSON.parse(pending.slice(0,n));pending=pending.slice(n+1);records.push(frame);if(frame.type==='text_receipt')admitted(frame)}})
+ client.write(channelHandshake(fixtureToken)+JSON.stringify({v:1,type:'text',requestId:'00000000-0000-0000-0000-000000000002',text:'用 adb 输入安卓',replyTo})+'\n')
+ assert.equal((await within(receipt,'reply admission')).accepted,true);await within(done,'bound owner turn');await service.pending
+ assert.equal(calls.length,1);assert.deepEqual(calls[0].reply,bound);assert.deepEqual(service.status.replyTo,replyTo)
+})

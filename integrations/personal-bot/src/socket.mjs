@@ -1,3 +1,4 @@
+import { validReplyTo } from './session-replies.mjs'
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import { dirname, isAbsolute, join } from 'node:path'
@@ -178,10 +179,11 @@ export async function listen(path, service, options = {}) {
           continue
         }
         if (command.type === 'text') {
-          if (Object.keys(command).some(key => !['v', 'type', 'text', 'requestId'].includes(key))
+          if (Object.keys(command).some(key => !['v', 'type', 'text', 'requestId', 'replyTo'].includes(key))
             || typeof command.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(command.requestId)
+            || command.replyTo!==undefined && !validReplyTo(command.replyTo)
             || typeof command.text !== 'string' || !command.text.trim() || Buffer.byteLength(command.text, 'utf8') > 3000) return client.destroy()
-          const accepted = service.sendText(command.text)
+          const accepted = service.sendText(command.text,command.replyTo)
           client.write(`${JSON.stringify({ v: 1, type: 'text_receipt', requestId: command.requestId, accepted })}\n`)
           continue
         }

@@ -248,3 +248,37 @@ Feature: Personal Agent owns a bounded plugin runtime
     And every candidate result has correct host grading, passed completion, and actual full-entry retrieval
     And the original source report remains unchanged, including any later failure
     And only the candidate receives accepted experience
+
+  Scenario: An owner replies to the original Pi session message
+    Given a durable completion message retains its exact source and session
+    When the owner sends text with that message, source key, and source revision
+    Then the resident resolves the saved reference before Jev routes the owner text
+    And only the uniquely configured matching project and session can receive a follow-up
+    And stale, ambiguous, unavailable, or unknown delivery references cannot send or replay a prompt
+    And no replacement task or freely supplied target can receive the reply
+    And the owner turn and receipt retain the original message and stable session thread
+    And later completion revisions retain that same thread after restart
+
+  Scenario: Interrupted owner replies retain truthful delivery state after restart
+    Given an owner reply was saved before delivery or while delivery was in progress
+    When the resident restarts without replaying the owner turn
+    Then a queued reply becomes failed and an in-progress delivery becomes unknown
+    And its original message reference, thread, text, time, and receipt remain unchanged
+    And completed and unknown replies retain their existing states
+    And a reporting-machine mapping change cannot release unknown delivery
+    And missing origin history keeps a conservative unknown-session lock
+    And a second restart performs no checkpoint write or model or task call
+
+  Scenario: Reply writes use the same private checkpoint contract as restart reads
+    Given a reply text or model answer contains a forbidden control character
+    When the resident prepares the reply checkpoint
+    Then the shared reply validator rejects the complete snapshot before any write
+    And the previous delivery state and mutation receipt remain byte-for-byte unchanged
+    And ordinary Chinese text, line breaks, and tabs remain valid
+
+  Scenario: Every owner reply retains a session identity
+    Given session replies have not been released as an optional-identity format
+    When a reply checkpoint omits its session identity or uses an empty identity
+    Then the same read and write validator rejects it without changing the checkpoint
+    And an unknown reply with expired origin history blocks only its retained session
+    And another explicitly identified session can receive an owner reply
