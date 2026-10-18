@@ -258,7 +258,9 @@ Feature: Personal Agent owns a bounded plugin runtime
     And native list summaries and full status records can differ without changing the original session
     And native identity requires an explicit protocol discriminator or a reviewed host configuration
     And conflicting endpoint declarations refuse delivery
-    And Hosted replies retain their current revision check before admission
+    And Hosted list previews establish identity without supplying an admission revision
+    And Hosted replies use the fresh status revision for daemon admission CAS
+    And a revision change after that status read refuses the prompt
     And native historical unknown receipts do not block an independent explicit owner operation
     And an unresolved bound owner reply still blocks another reply to that session
     And no replacement task or freely supplied target can receive the reply

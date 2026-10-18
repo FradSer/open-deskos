@@ -67,15 +67,20 @@ export async function createRemotePiReader({env=process.env,link,targets,request
     const status=await request(target,{command:'status',project:source.project,taskId:bound.taskId},active)
     if(bound.nativeEndpoint && status.endpointKind!==undefined && status.endpointKind!=='current_session')throw Error('Native endpoint conflicts with the status protocol')
     const fresh=status.task
-    // Native list and status have different projections, not a shared revision/CAS contract.
-    const requiresRevision=!explicitReply || !bound.nativeEndpoint
-    if(!fresh || fresh.taskId!==bound.taskId || fresh.project!==source.project || requiresRevision && (fresh.revision??hash(fresh))!==bound.taskRevision)throw Error('Remote task revision changed; read and clarify before sending')
+    // Explicit replies use list only for identity; Hosted status supplies the admission CAS.
+    const requiresSnapshotRevision=!explicitReply || !bound.nativeEndpoint && bound.endpointKind!=='hosted'
+    if(!fresh || fresh.taskId!==bound.taskId || fresh.project!==source.project || requiresSnapshotRevision && (fresh.revision??hash(fresh))!==bound.taskRevision)throw Error('Remote task revision changed; read and clarify before sending')
     if(explicitReply) {
       const live=fresh.lifecycle==='live' && ['settled','running','finished','failed','cancelled'].includes(fresh.state)
       const restorable=bound.endpointKind==='hosted' && ['finished','failed','cancelled','interrupted'].includes(fresh.state) && ['ended','interrupted'].includes(fresh.lifecycle) && ['idle_expired','evicted','host_restart'].includes(fresh.endedReason) && typeof fresh.sessionFile==='string'
       if(!live && !restorable)throw Error('Original session is not live or safely recoverable; no prompt sent')
     }
-    if(requiresRevision && fresh.deliveries?.some(delivery=>delivery.state==='unknown' || delivery.status==='unknown' || delivery.admission==='unknown'))throw Error('Earlier delivery is unknown; reconcile without replay')
+    const requiresKnownDelivery=!explicitReply || !bound.nativeEndpoint
+    if(requiresKnownDelivery && fresh.deliveries?.some(delivery=>delivery.state==='unknown' || delivery.status==='unknown' || delivery.admission==='unknown'))throw Error('Earlier delivery is unknown; reconcile without replay')
+    if(explicitReply && bound.endpointKind==='hosted') {
+      if(typeof fresh.revision!=='string' || !/^[a-f0-9]{64}$/.test(fresh.revision))throw Error('Remote task revision unavailable; read and clarify before sending')
+      bound={...bound,taskRevision:fresh.revision}
+    }
     beforeSend()
     return request(target,{command:'prompt',project:source.project,taskId:bound.taskId,prompt:params.prompt,
       ...(params.streamingBehavior?{streamingBehavior:params.streamingBehavior}:{}),

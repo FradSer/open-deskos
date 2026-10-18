@@ -521,7 +521,7 @@ test('a report reply resolves one configured original session and never invents 
  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
  const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',revision:'c'.repeat(64),state:'settled',lifecycle:'live',deliveries:[]}
  let tasks=[task],incomplete=false,statusChanged=false;const sent=[]
- const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:statusChanged?'hosted':'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'d'.repeat(64)}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
+ const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:statusChanged?'hosted':'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'invalid'}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
  const report={...row('source'),sessionId:task.taskId,project:task.project}
  const reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic'],reportMachines:['synthetic-mac']}],link:{stop:async()=>{},conclusions:async()=>({ok:true,records:[report],nextCursor:null})},backfill:async()=>null,request})
  const source=(await reader.read()).records[0]
@@ -532,7 +532,7 @@ test('a report reply resolves one configured original session and never invents 
  tasks=[task,task];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/ambiguous/i);assert.equal(count(),1)
  tasks=[task];incomplete=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/incomplete/i);assert.equal(count(),1)
  incomplete=false;tasks=[{...task,project:'/different'}];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}));assert.equal(count(),1)
- tasks=[task];statusChanged=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision changed/);assert.equal(count(),1)
+ tasks=[task];statusChanged=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision/);assert.equal(count(),1)
  statusChanged=true;task.deliveries=[{state:'unknown',submitted:true}];task.revision='d'.repeat(64);await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(count(),1)
  task.deliveries=[]
  for(const patch of [{lifecycle:'unknown'},{state:'unknown'},{state:'starting'},{lifecycle:'ended',state:'ended'}]) {
@@ -563,7 +563,7 @@ test('a historical native reply uses fresh session status rather than the list s
  await reader.followup(source,params,undefined,{explicitReply:true});assert.equal(prompts,2)
  for(const kind of ['hosted','unknown',undefined]) {
    fresh={...task,response:'Different status shape'};endpointKind=kind
-   await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision changed/);assert.equal(prompts,2)
+   await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision/);assert.equal(prompts,2)
    fresh={...task,deliveries:[{state:'unknown'}]};task.deliveries=fresh.deliveries
    await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(prompts,2)
    delete task.deliveries
