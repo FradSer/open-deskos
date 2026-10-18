@@ -388,6 +388,12 @@ function createOdkLinkService({
     }
   }
 
+  function publishDiscoveryHint() {
+    // Hints only request a read. Completion identity and verification remain
+    // the reader's responsibility, including for reporters loaded before metadata support.
+    for (const socket of completionSubscribers) safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'completion' })
+  }
+
   function publishCompletion(entry) {
     const event = entry.events.at(-1)
     if (entry.session.status === 'running' || event?.kind !== 'assistant' || event.stopReason !== 'stop' || !event.eventId) return
@@ -395,7 +401,7 @@ function createOdkLinkService({
     if (entry.completedIds.has(event.eventId)) return
     entry.completedIds.add(event.eventId)
     if (entry.completedIds.size > MAX_EVENTS_PER_SESSION) entry.completedIds.delete(entry.completedIds.values().next().value)
-    for (const socket of completionSubscribers) safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'completion' })
+    publishDiscoveryHint()
   }
 
   function applySessions(state, socket, sessions) {
@@ -410,12 +416,15 @@ function createOdkLinkService({
       if (!report) { omittedSessions += 1; continue }
       seen.add(id)
       const existing = state.sessions.get(id)
+      const previousStatus = existing?.session.status
       const entry = existing ?? { session: report, events: [], reports: new Map() }
       entry.reports.delete(socket)
       entry.reports.set(socket, report)
       entry.session = latestReport(entry.reports)
       state.sessions.set(id, entry)
       publishCompletion(entry)
+      const latest = entry.events.at(-1)
+      if (previousStatus === 'running' && entry.session.status !== 'running' && (!latest?.eventId || !latest.stopReason)) publishDiscoveryHint()
     }
     // A Pi process reports its own set, not every process on the machine.
     // Replacement and disconnect are scoped to this authenticated connection.
@@ -432,8 +441,13 @@ function createOdkLinkService({
     if (!entry?.reports.has(socket) || !Array.isArray(events)) return
     const bounded = events.map(boundedEvent).filter(Boolean)
     if (bounded.length === 0) return
+    const previous = entry.events.at(-1)
     entry.events = retainEvents([...entry.events, ...bounded])
     publishCompletion(entry)
+    const latest = entry.events.at(-1)
+    if (entry.session.status !== 'running' && latest?.kind === 'assistant'
+      && (!latest.eventId || !latest.stopReason) && (!latest.stopReason || latest.stopReason === 'stop')
+      && JSON.stringify(latest) !== JSON.stringify(previous)) publishDiscoveryHint()
   }
 
   function explicitVersionMismatch(socket, received) {

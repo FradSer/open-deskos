@@ -250,3 +250,12 @@ Feature: Hosted Pi control over a separate Open DeskOS Link v2 connection
     And equal session identifiers on different machines remain independent
     And reconnect performs one catch-up notification without inventory polling
     And shutdown releases the subscribed socket and transport recovery timer
+
+  Scenario: Existing reporters request read-only completion discovery without fabricating evidence
+    Given an authenticated legacy reporter has no terminal event metadata
+    When its existing session changes from running to settled or exited
+    Or a new assistant event arrives for its settled or exited session
+    Then the runtime publishes a content-free read-only discovery hint
+    And repeated settled inventory and identical event replay publish no extra hint
+    And the hint does not create an event identity or certify completion
+    And the reader still requires the actual persisted entry ID and stop reason

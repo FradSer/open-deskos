@@ -58,7 +58,11 @@ Transport recovery reconnects the subscription; it does not scan Pi progress.
 
 Reported completion requires a settled or exited session and its latest event with `kind: 'assistant'`, `stopReason: 'stop'`, and `eventId`.
 Either arrival order can complete these conditions.
-Legacy events without an identifier remain readable but cannot produce automatic completion hints.
+An existing legacy session that leaves `running` can request read-only discovery.
+A changed assistant event can also request discovery while its session is `settled` or `exited`.
+Repeated idle inventory and identical event replay do not add hints.
+Discovery does not create completion identifiers or establish task completion.
+The reader must still obtain the actual persisted entry ID and terminal stop reason.
 The server suppresses recent repeated event identifiers per reported session.
 Personal Agent owns durable deduplication after it reads current source records.
 Hints do not establish successful task execution.
