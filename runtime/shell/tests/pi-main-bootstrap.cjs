@@ -237,6 +237,7 @@ app.on('browser-window-created', (_event, win) => {
         defaultConstructions: defaults, hidden: !win.isVisible(), consumer,
         viewVersions, viewConsumers, defaultViewMounts, themeChecks: viewConsumers.length, mainPlugins: host.list().length, runtimeChanges }
       await win.webContents.executeJavaScript('window.odkRendererRuntime?.stop()')
+      if (win.webContents.debugger.isAttached()) win.webContents.debugger.detach()
       app.quit()
     })().catch(fail)
   })

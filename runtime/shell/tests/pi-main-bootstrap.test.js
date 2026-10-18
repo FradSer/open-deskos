@@ -48,6 +48,11 @@ for (const omitPage of [false, true]) {
           const record = JSON.parse(pending.trim())
           requests.push(record)
           assert.equal(record.v, 1)
+          if (record.type === 'subscribe-completions') {
+            assert.deepEqual(record, { v: 1, type: 'subscribe-completions' })
+            socket.write(JSON.stringify({ v: 1, type: 'completion' }) + '\n')
+            return
+          }
           assert.ok(Object.hasOwn(replies, record.type))
           socket.end(JSON.stringify(replies[record.type]) + '\n')
         })
@@ -72,6 +77,7 @@ for (const omitPage of [false, true]) {
         const pids = new Set()
         let viewBaseline
         const launch = async version => {
+          const requestOffset = requests.length
           const profile = await fs.mkdtemp(path.join(root, 'electron-'))
           const childEnv = { ...env, ODK_PI_BOOTSTRAP_PROFILE: profile, ODK_PI_BOOTSTRAP_VERSION: version }
           delete childEnv.ELECTRON_RUN_AS_NODE
@@ -87,6 +93,7 @@ for (const omitPage of [false, true]) {
             pids.add(report.pid)
             assert.equal(report.productionMain, true)
             assert.equal(report.actualPreload, true)
+            assert.deepEqual(report.consumer.sessions.completionNotifications, { state: 'live' })
             assert.equal(report.mainPlugins, createMainPlugins().length)
             assert.equal(report.version, version)
             assert.deepEqual(report.executedVersions, [version, version])
@@ -100,11 +107,12 @@ for (const omitPage of [false, true]) {
             assert.equal(report.protocolReleased, true)
             if (!viewBaseline) viewBaseline = report.viewConsumers
             else assert.deepEqual(report.viewConsumers, viewBaseline)
-            await wait(Promise.all(closures), t.signal)
-            assert.equal(sockets.size, 0, 'Each Main process must release its request connections')
             return report.consumer
           } finally {
             await closed
+            await wait(Promise.all(closures), t.signal)
+            assert.equal(sockets.size, 0, 'Each Main process must release its request and completion subscription connections')
+            assert.equal(requests.slice(requestOffset).filter(record => record.type === 'subscribe-completions').length, 1, 'Each Main process owns exactly one completion subscription')
             await fs.rm(profile, { recursive: true, force: true })
           }
         }
