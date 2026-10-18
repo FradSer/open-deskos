@@ -964,6 +964,12 @@ One final checkpoint transaction appends all messages in model order, with their
 The existing snapshot returns newest messages first; clients restore chronological conversation order.
 Legacy version 1 messages retain their text, references, and presentation behavior.
 Existing held revisions are not cleared or regenerated.
+A fresh, previously successful source can receive one presentation upgrade when no assistant update references its exact key and revision.
+This operation only summarizes current reports; it does not replay the task.
+An existing attempt or held revision blocks that upgrade.
+A failed upgrade remains held after restart; a successful presentation watermark prevents another synthesis.
+The optional `seen.presentation` watermark survives message expiry and stays bound to that source revision.
+Existing history expiry rules and current-reference capacity guards still apply.
 The service restores these messages into the existing Agent conversation and its current model context.
 It retains at most 64 messages and 8,192 source watermarks within a 2 MiB checkpoint.
 Byte limits can expire superseded history.

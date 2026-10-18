@@ -17,6 +17,9 @@ test('all connected conclusions are paged, synthesized once, and retain source c
  await remote.poll();assert.equal(calls,1)
  const recovered=new RemoteConversation({file:join(directory,'remote.json'),read,synthesize,publish:()=>{}})
  assert.equal(recovered.snapshot().messages.length,1);assert.match(recovered.context(),/synthetic-mac/)
+ assert.match(recovered.context(),/tool-reference data, not text to recite/)
+ assert.match(recovered.context(),/only when explicitly requested/)
+ assert.match(recovered.context(),/accepted or queued prompt is admission, never completed execution/)
  await recovered.poll();assert.equal(calls,1)
 })
 test('fake source IDs, changed quotes, and raw actions cannot authorize synthesis',()=>{
@@ -176,12 +179,16 @@ test('alternating failed source revisions cannot silently replay a previous fail
 
 test('normal disconnected-session churn archives old messages while retaining every watermark and the current reference',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-churn-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
- let turn=0
- const file=join(directory,'state.json'),remote=new RemoteConversation({file,read:async()=>({ok:true,records:[row(`session-${turn}`)],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('Pi reports a conclusion.',input.records),citations:input.records.map(source=>({key:source.key,revision:source.revision,quote:'total: 6'}))}),publish:()=>{}})
+ let turn=0,calls=0
+ const file=join(directory,'state.json'),remote=new RemoteConversation({file,read:async()=>({ok:true,records:[row(`session-${turn}`)],total:1,nextCursor:null,omitted:0}),synthesize:async input=>{calls++;return {updates:updates('Pi reports a conclusion.',input.records),citations:input.records.map(source=>({key:source.key,revision:source.revision,quote:'total: 6'}))}},publish:()=>{}})
  for(turn=1;turn<=65;turn++)await remote.poll()
  assert.equal(remote.snapshot().state,'live');assert.equal(remote.snapshot().heldCount,0);assert.equal(remote.snapshot().expiredMessages,1)
  assert.equal(remote.reference('session-65').source.sessionId,'session-65')
  assert.equal(JSON.parse(await readFile(file,'utf8')).seen.length,65)
+ assert.equal(calls,65)
+ turn=1;await remote.poll();assert.equal(calls,65,'Expired presentation must not replay a successfully presented revision')
+ const restored=new RemoteConversation({file,read:async()=>({ok:true,records:[row('session-1')],total:1,nextCursor:null,omitted:0}),synthesize:async()=>assert.fail('No repeat after restart'),publish:()=>{}})
+ await restored.poll();assert.equal(restored.snapshot().heldCount,0)
 })
 
 test('a reappeared source remains present before a failed synthesis can expose its retained reference to expiry',async t=>{
@@ -255,6 +262,8 @@ test('legacy checkpoint messages and held revisions survive new updates without 
  const restored=make();await restored.poll();assert.equal(calls,1);assert.deepEqual(JSON.parse(await readFile(file,'utf8')).messages,next.messages)
  const invalid={...next,messages:[{...legacy,presentation:'arbitrary_role'}]};await writeFile(file,JSON.stringify(invalid),{mode:0o600})
  assert.throws(make,/Invalid remote conversation records/)
+ await writeFile(file,JSON.stringify({...next,seen:[{...next.seen[0],presentation:'arbitrary_role'}]}),{mode:0o600})
+ assert.throws(make,/Invalid remote conversation records/)
 })
 
 test('assistant message order and exact references survive restart across an eight-message page',async t=>{
@@ -272,4 +281,47 @@ test('assistant message order and exact references survive restart across an eig
  assert.deepEqual(restored.snapshot(8,8).messages,last.messages)
  for(const r of records)assert.equal(restored.reference(r.key).source.key,r.key)
  await restored.poll();assert.equal(calls,3)
+})
+
+
+test('a fresh exact-seen legacy report upgrades once without rewriting history or replaying held revisions',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json'),current={...row('old'),availability:'live'},held={...row('held'),availability:'live'},legacyRef=Object.fromEntries(Object.entries(current).filter(([key])=>key!=='conclusion'))
+ const legacy={id:'c'.repeat(64),at:1,text:'Earlier report unchanged.',sources:[legacyRef],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
+ const prior={version:1,seen:[current,held].map(r=>({key:r.key,revision:r.revision,updatedAt:r.updatedAt,availability:r.availability})),attempted:[{key:held.key,revision:held.revision,updatedAt:held.updatedAt}],messages:[legacy],cursor:null}
+ await writeFile(file,JSON.stringify(prior),{mode:0o600});protectProactivePath(file)
+ let calls=0
+ const options={file,read:async()=>({ok:true,records:[current,held],total:2,omitted:0,nextCursor:null}),synthesize:async input=>{calls++;assert.deepEqual(input.records,[current]);return {updates:updates('这项任务已经给出了结果。',input.records),citations:[{key:current.key,revision:current.revision,quote:'total: 6'}]}},publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();await remote.poll()
+ const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,1);assert.equal(next.messages.length,2)
+ assert.deepEqual(next.messages[0],legacy);assert.deepEqual(next.seen.map(({presentation,...source})=>source),prior.seen);assert.equal(next.seen.find(source=>source.key===current.key).presentation,'assistant_update');assert.deepEqual(next.attempted,prior.attempted)
+ assert.equal(next.messages[1].presentation,'assistant_update');assert.equal(remote.snapshot().heldCount,1)
+ const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,1);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
+})
+
+test('a failed presentation upgrade holds an already-seen revision across restart',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-held-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json'),current=row('old'),{conclusion,...reference}=current
+ const legacy={id:'c'.repeat(64),at:1,text:'Earlier report unchanged.',sources:[reference],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
+ await writeFile(file,JSON.stringify({version:1,seen:[{key:current.key,revision:current.revision,updatedAt:1}],attempted:[],messages:[legacy],cursor:null}),{mode:0o600});protectProactivePath(file)
+ let calls=0
+ const options={file,read:async()=>({ok:true,records:[current],total:1,omitted:0,nextCursor:null}),synthesize:async()=>{calls++;throw Error('synthetic review rejection')},publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();await remote.poll()
+ const restored=new RemoteConversation(options);await restored.poll()
+ assert.equal(calls,1);assert.equal(restored.snapshot().heldCount,1);assert.equal(restored.snapshot().state,'partial')
+ assert.deepEqual(JSON.parse(await readFile(file,'utf8')).messages,[legacy])
+})
+
+test('presentation upgrade at the history limit retains current references and uses only existing expiry rules',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-capacity-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json'),current=row('current'),{conclusion,...reference}=current
+ const messages=Array.from({length:64},(_,i)=>({id:(i+1).toString(16).padStart(64,'0'),at:i,text:`Earlier report ${i}.`,sources:[{...reference,revision:i===63?current.revision:(i+1).toString(16).padStart(64,'0')}],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}))
+ await writeFile(file,JSON.stringify({version:1,seen:[{key:current.key,revision:current.revision,updatedAt:1}],attempted:[],messages,cursor:null}),{mode:0o600});protectProactivePath(file)
+ let calls=0
+ const options={file,read:async()=>({ok:true,records:[current],total:1,omitted:0,nextCursor:null}),synthesize:async input=>{calls++;return {updates:updates('这项任务的本轮结果已经到了。',input.records),citations:[{key:current.key,revision:current.revision,quote:'total: 6'}]}},publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll()
+ const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,1);assert.equal(next.messages.length,64);assert.equal(next.expiredMessages,1)
+ assert.deepEqual(next.messages.slice(0,63),messages.slice(1));assert.equal(next.messages[63].presentation,'assistant_update')
+ assert.equal(remote.reference(current.key).messageId,next.messages[63].id)
+ const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,1)
 })
