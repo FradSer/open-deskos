@@ -229,3 +229,9 @@ Feature: Independent resident personal bot
     Then the existing message remains one article with its original reply reference
     And its session action and selected thread use the canonical thread
     And a durable reply in that thread remains visible without a Shell restart
+
+  Scenario: Leaving a session thread restores existing coverage notices
+    Given the current remote snapshot has a stale or omitted update notice
+    When the owner opens a session thread and returns to All messages or cancels a reply
+    Then the existing notice is visible without another status frame
+    And a complete snapshot remains free of coverage notices

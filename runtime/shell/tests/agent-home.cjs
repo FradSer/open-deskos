@@ -233,6 +233,22 @@ async function assertRemoteConversationHistory() {
 }
 
 
+async function assertThreadCoverageRestore() {
+  const source={key:'a2'.repeat(32),revision:'b2'.repeat(32),threadId:'c2'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-coverage-session',project:'/synthetic/coverage',control:'report_only',availability:'live'}
+  const item={id:'d2'.repeat(32),at:9000,text:'Synthetic completed task for coverage checks',presentation:'assistant_update',sources:[source]}
+  for(const remote of [{state:'stale',omitted:0},{state:'partial',omitted:1},{state:'live',omitted:0}]) {
+    const complete=remote.state==='live'
+    publishStatus({state:'idle',remote:{...remote,messages:[item],replies:[],total:1}});await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete)
+    await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),true)
+    await evaluate(`document.querySelector('.agent-thread-all').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'All messages restores the current coverage notice without a new frame')
+    await evaluate(`document.querySelector('[data-source-key="${source.key}"]').click();document.querySelector('.agent-reply-cancel').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'Cancel reply restores the current coverage notice without a new frame')
+  }
+}
+
 async function assertThreadProjectionUpdate() {
   const source={key:'a1'.repeat(32),revision:'b1'.repeat(32),threadId:'c1'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-alias-session',project:'/synthetic/alias',control:'report_only',availability:'live'}
   const item={id:'d1'.repeat(32),at:7000,text:'Synthetic completed task with a remapped thread',presentation:'assistant_update',sources:[source]}
@@ -281,7 +297,7 @@ async function assertDuplicateRemoteIds() {
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'synthetic clicks cannot bypass an ambiguous reference')
 }
 
-async function assertSessionReplies() {
+async function assertSessionReplies({ geometry = true } = {}) {
   const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',control:'report_only',availability:'live'}
   const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'1'.repeat(64),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8'}
   const item={id:'a'.repeat(64),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
@@ -318,7 +334,7 @@ async function assertSessionReplies() {
   publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,30))');publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${owner.id}"]').length`),1,'durable owner replies do not duplicate on reconnect')
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.agent-conversation > [data-thread-id="${first.threadId}"]')].map(n=>n.querySelector('.agent-message-body').firstChild.textContent)`),['Keep this draft',completed.text])
-  for(const theme of ['instrument','pixel','border-beam']) {
+  for(const theme of geometry ? ['instrument','pixel','border-beam'] : []) {
     await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
     for(const [width,height] of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height)
@@ -367,6 +383,12 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])
     console.log('PASS legacy single-argument host never silently drops a reply reference');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-coverage-only')) {
+    await assertThreadCoverageRestore();console.log('PASS thread exit restores current coverage');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-state-only')) {
+    await assertSessionReplies({geometry:false});await assertDuplicateRemoteIds();await assertThreadProjectionUpdate();await assertThreadCoverageRestore();console.log('PASS reply state, identities, projections and coverage');finish(0);return
   }
   if (process.argv.includes('--session-reply-projection-only')) {
     await assertThreadProjectionUpdate();console.log('PASS canonical thread projection updates in place');finish(0);return
@@ -730,6 +752,7 @@ app.whenReady().then(async () => {
   await assertSessionReplies()
   await assertDuplicateRemoteIds()
   await assertThreadProjectionUpdate()
+  await assertThreadCoverageRestore()
   console.log('PASS resident Agent identity, typed input, streaming, retained draft, first-page briefing and independent Agent')
   console.log('PASS keyboard and pointer paging remain usable; fixture capture saved')
   finish(0)

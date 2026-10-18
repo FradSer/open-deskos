@@ -42,6 +42,7 @@
       let selectedThread = null
       let earlierUpdates
       let remoteCoverage
+      let lastRemoteComplete = true
       const children = new Map()
       let lastStatus = 'unknown'
       let pending = false
@@ -114,7 +115,7 @@
         }
         for (const row of children.values()) row.hidden = Boolean(thread)
         if (earlierUpdates) earlierUpdates.hidden = Boolean(thread && ![...earlierUpdates.querySelectorAll('.agent-message')].some(node => !node.hidden))
-        if (remoteCoverage && thread) remoteCoverage.hidden = true
+        if (remoteCoverage) remoteCoverage.hidden = Boolean(thread) || lastRemoteComplete
       }
       function replyContext() {
         const context = $('.agent-reply-context')
@@ -305,7 +306,7 @@
         }
         const historyOmitted = Math.max(0, (frame.total || 0) - (frame.messages?.length || 0))
         const complete = !historyOmitted && !frame.expiredMessages && frame.state === 'live' && !frame.hasMore && !frame.omitted && !frame.heldCount && !frame.omittedReplies && !frame.expiredReplies
-        remoteCoverage.hidden = complete
+        lastRemoteComplete = complete
         remoteCoverage.querySelector('[role="status"]').textContent = frame.state === 'unavailable'
           ? 'I cannot reach the other agents right now.' : frame.state === 'stale'
             ? 'These task updates may be out of date.' : frame.heldCount
