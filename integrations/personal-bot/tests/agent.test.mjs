@@ -638,9 +638,7 @@ test('Given no Jev, the ordinary runtime still boots and serves typed judgments 
     let result = {items: []}
     if (input.questions?.startup) result = {answers: {startup: {type: 'noul', noul: 0.99}}}
     if (input.questions?.intent) {
-      const keys = Object.keys(input.questions.intent.criteria)
-      result = {answers: {intent: {type: 'choice', choice: 'conversation', confidence: 0.99,
-        probabilities: Object.fromEntries(keys.map(key => [key, key === 'conversation' ? 0.99 : 0.01 / (keys.length - 1)]))}}}
+      result = {answers: {intent: {type: 'choice', choice: 'conversation', confidence: 0.99}}}
     }
     listener({type: 'message_end', message: {role: 'assistant', content: [{type: 'text', text: JSON.stringify(result)}], stopReason: 'stop'}})
   }, options => {

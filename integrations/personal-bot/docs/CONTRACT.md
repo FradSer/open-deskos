@@ -357,7 +357,9 @@ Jev is optional for both profiles, including Overview generation and owner follo
 `ODK_JEV_PROVIDER=disabled` prevents Jev client construction and network requests.
 When Jev is unavailable or not configured, the configured ordinary model supplies typed judgments in a separate zero-tool session.
 The host validates answer types, intent identifiers, probabilities, and thresholds before it activates capabilities.
-Ordinary model confidence is a model estimate; it is not calibrated Jev confidence.
+Ordinary model confidence is an estimate; it is not calibrated Jev confidence.
+Ordinary choice output contains only the selected option and confidence.
+The host derives a compatibility distribution; it is not a model-generated or calibrated probability distribution.
 A failed optional Jev transport is not retried during the same runtime.
 Jev credentials use private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE` for the TypeSafe provider.
 `ODK_JEV_MODEL` defaults to the selected provider's Jev model and accepts only Jev models.
