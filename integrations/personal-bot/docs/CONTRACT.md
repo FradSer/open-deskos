@@ -932,7 +932,26 @@ It resolves the session and project from its own process inventory.
 Reporting text cannot select an SSH host, file, or command.
 
 Each synthesis uses an ephemeral provider session without tools, Skills, extensions, or memory.
-A separate zero-tool reviewer checks only report faithfulness with exact source citations.
+A separate zero-tool reviewer checks report faithfulness, source ownership, and readable assistant updates.
+The synthesis returns `updates: [{text, sourceKeys}]` and the existing `citations` array.
+Each batch has one to seven updates, with no more updates than source records.
+Each update has at most 600 UTF-16 code units; the batch text limit is 2,000 units.
+Each source key belongs to exactly one update.
+Related reports for the same task can share an update.
+Each message retains only the exact references in its `sourceKeys` list.
+The reviewer checks each message against those sources, not only the complete citation list.
+Swapped task attribution remains held even when all citations are valid.
+
+The host default is short, natural Simplified Chinese.
+Remote source language cannot override that default.
+Updates lead with useful progress, a result, or a blocker.
+Generic reporting and verification notices appear in Sources, not in message bodies.
+The reviewer rejects even one blanket verification closing sentence.
+Updates still explain material task-specific gaps in ordinary language.
+They retain useful metrics and file names, but exclude audit identifiers and raw backend details.
+They include next steps only when the evidence supports them.
+They cannot claim independent verification or promise an action that was not arranged.
+
 Both phases require exactly one citation for each supplied source key.
 Their sole format correction states the current source count and keeps the original evidence limits.
 A faithful summary can repeat a reported number without a computation receipt.
@@ -942,6 +961,17 @@ Reports and summaries remain untrusted conversation data.
 They cannot create owner requests or authorize actions.
 
 The private `personal-agent/remote-conversation.json` checkpoint retains source revisions, attempted revisions, pagination, and cited conversation messages.
+New messages have `presentation: "assistant_update"` and stable IDs derived from the source batch and message ordinal.
+One final checkpoint transaction appends all messages in model order, with their source watermarks and cursor.
+The existing snapshot returns newest messages first; clients restore chronological conversation order.
+Legacy version 1 messages retain their text, references, and presentation behavior.
+Existing held revisions are not cleared or regenerated.
+A fresh, previously successful source can receive one presentation upgrade when no assistant update references its exact key and revision.
+This operation only summarizes current reports; it does not replay the task.
+An existing attempt or held revision blocks that upgrade.
+A failed upgrade remains held after restart; a successful presentation watermark prevents another synthesis.
+The optional `seen.presentation` watermark survives message expiry and stays bound to that source revision.
+Existing history expiry rules and current-reference capacity guards still apply.
 The service restores these messages into the existing Agent conversation and its current model context.
 It retains at most 64 messages and 8,192 source watermarks within a 2 MiB checkpoint.
 Byte limits can expire superseded history.

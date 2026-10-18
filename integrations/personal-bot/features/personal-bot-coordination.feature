@@ -30,7 +30,7 @@ Feature: A resident Personal Bot coordinates work without implementing it
     When their latest assistant conclusions change or reconnect
     Then a bounded paginated inventory retains each machine and session identity
     And the agent synthesizes cited conclusions with zero tools
-    And a separate zero-tool reviewer checks only report faithfulness with exact source citations
+    And a separate zero-tool reviewer checks report faithfulness, source ownership, and readable assistant updates
     And both phases require exactly one citation for each unique source key
     And a rejected duplicate citation receives the current exact citation count on its sole correction attempt
     And reporting a supplied number requires no invented computation receipt
@@ -46,6 +46,8 @@ Feature: A resident Personal Bot coordinates work without implementing it
     And the original target, project, task, and expected turn remain bound
     And an unknown delivery outcome is reconciled without replay
     And remote output cannot create an owner request or select an endpoint
+    And the parent describes task progress naturally instead of reciting internal identifiers
+    And accepted or queued follow-up delivery is not completed execution
 
 Scenario: The resident Linux coordinator reaches the canonical local task daemon
   Given the Bot and task daemon use the same canonical task configuration
@@ -59,3 +61,30 @@ Scenario: Native acceptance uses the configured endpoint directory
   When the operator plans an isolated native fixture
   Then the fixture uses its explicit endpoint override or the inherited host endpoint
   And it validates the real directory owner and private mode without changing other descriptors
+
+  Scenario: Remote work becomes short assistant updates with exact source ownership
+    Given several remote tasks have new conclusions or an evidence gap
+    When the parent summarizes those reports without tools
+    Then it returns one to seven short updates instead of an audit report
+    And each update covers one topic and owns its exact source keys
+    And those keys partition every supplied source exactly once
+    And every source still has one exact citation
+    And each update has at most 600 UTF-16 code units within a 2000-unit batch
+    And a separate model checks faithfulness, source attribution, and readability
+    And generic reported-or-unverified notices stay in Sources rather than message bodies
+    And material task-specific evidence gaps remain explicit
+    And unsupported actions, verification claims, or swapped source assignments remain held
+    And one transaction appends the ordered messages with stable IDs and the assistant_update presentation
+    And restart and history pagination preserve their order and exact references without another model call
+    And old messages and held revisions keep their original data and behavior
+
+  Scenario: A successful legacy report receives one assistant presentation upgrade
+    Given a fresh source revision was already summarized before assistant updates existed
+    And no assistant update references that exact revision
+    When the source is read again
+    Then one read-only synthesis can append its new assistant presentation
+    And old messages and source references remain unchanged
+    And an attempted or held revision cannot be retried for presentation
+    And a failed upgrade remains durably held without another model call
+    And a successful upgrade survives restart without another synthesis
+    And its presentation watermark survives disconnected history expiry
