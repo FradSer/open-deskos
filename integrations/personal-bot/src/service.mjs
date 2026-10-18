@@ -7,13 +7,13 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<string | void>, failureMessage?: string, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
 
 export class PersonalBotService {
   /** @param {Dependencies} dependencies */
   constructor(dependencies) {
     this.dependencies = dependencies
-    this.status = { textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
+    this.status = { replyInput: true, textInput: true, v: 1, type: 'status', state: 'idle', message: '', transcript: '', level: 0 }
     this.listeners = new Set()
     this.closed = false
     this.terminated = false
@@ -146,7 +146,7 @@ export class PersonalBotService {
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, ...this.replyFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), replyInput: true, textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
@@ -165,6 +165,7 @@ export class PersonalBotService {
   }
 
   async start() {
+    this.replyFrame={}
     this.status = { ...this.status, message: '', notifications: [], transcript: '' }
     try {
       const captureId = ++this.captureId
@@ -229,27 +230,32 @@ export class PersonalBotService {
   }
 
   /** Submit a typed turn through the same resident session as voice. */
-  sendText(text) {
+  sendText(text, replyTo = undefined) {
     if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
       || this.closed || this.starting || this.watch?.responding || !['idle', 'error'].includes(this.status.state)) return false
+    let reply
+    try { if(replyTo!==undefined) { if(!this.remote) return false;reply=this.remote.beginReply(replyTo,text.trim()) } }catch{return false}
+    this.replyFrame=reply?{replyTo:reply.replyTo,threadId:reply.threadId}:{}
     this.watch?.setBusy(true)
     this.setState('thinking', '', text.trim())
-    this.pending = this.submitText(text.trim())
+    this.pending = this.submitText(text.trim(),reply)
     return true
   }
 
-  async submitText(text) {
+  async submitText(text, reply = undefined) {
     try {
-      const response = await this.promptResponse(text)
+      const response = await this.promptResponse(text,reply)
+      if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
     } catch {
-      if (!this.closed) this.setState('error', this.dependencies.failureMessage || 'Personal Bot request failed; try again')
+      if(reply)this.remote?.completeReply(reply.id,{status:'failed'})
+      if (!this.closed) this.setState('error', reply?'Reply did not complete. Check its delivery receipt before sending again.':this.dependencies.failureMessage || 'Personal Bot request failed; try again')
     } finally {
       this.watch?.setBusy(false)
     }
   }
 
-  async promptResponse(text) {
+  async promptResponse(text, reply = undefined) {
     let active = true
     let latest = ''
     let timer
@@ -264,7 +270,7 @@ export class PersonalBotService {
           timer = undefined
           if (active && !this.closed && latest !== this.status.message) this.setState('thinking', latest)
         }, 100)
-      }) || ''
+      },reply) || ''
     } finally {
       stop()
       this.cancelStreaming = () => {}

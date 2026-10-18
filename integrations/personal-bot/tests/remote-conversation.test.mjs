@@ -496,3 +496,103 @@ test('reporter identity upgrades baseline legacy reports without replaying concl
   source={...source,eventId:'persisted-next-entry'};current=(await reader.read()).records[0];await restored.poll();assert.equal(calls,notified?2:1,'different real assistant entries remain reportable even with identical text')
  })
 })
+
+test('reply references bind the exact durable message and session thread across restart',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-session-reply-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let current=row('reply-source'),calls=0
+ const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('任务已完成。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll()
+ const message=remote.snapshot().messages[0],replyTo={messageId:message.id,sourceKey:current.key,sourceRevision:current.revision}
+ const bound=remote.resolveReply(replyTo);assert.equal(bound.source.sessionId,current.sessionId);assert.match(bound.threadId,/^[a-f0-9]{64}$/)
+ assert.throws(()=>remote.resolveReply({...replyTo,messageId:'f'.repeat(64)}));assert.throws(()=>remote.resolveReply({...replyTo,sourceRevision:'f'.repeat(64)}));assert.throws(()=>remote.resolveReply({...replyTo,target:'mac'}))
+ const turn=remote.beginReply(replyTo,'请继续使用 adb 输入安卓');assert.equal(turn.threadId,bound.threadId)
+ remote.completeReply(turn.id,{status:'answered',answer:'已受理，尚未完成。'})
+ const recovered=new RemoteConversation(options);assert.deepEqual(recovered.data.replies[0].replyTo,replyTo)
+ current={...current,revision:'b'.repeat(64),eventId:'next-entry'};await recovered.poll()
+ assert.equal(recovered.snapshot().messages[0].sources[0].threadId,bound.threadId)
+ assert.equal(recovered.snapshot().messages[1].sources[0].sessionId,current.sessionId)
+ assert.equal(recovered.resolveReply(replyTo).source.revision,replyTo.sourceRevision,'A historical immutable message still refers to the same session')
+})
+
+test('a report reply resolves one configured original session and never invents a replacement',async()=>{
+ const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',revision:'c'.repeat(64),state:'settled',lifecycle:'live',deliveries:[]}
+ let tasks=[task],incomplete=false,statusChanged=false;const sent=[]
+ const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'d'.repeat(64)}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
+ const report={...row('source'),sessionId:task.taskId,project:task.project}
+ const reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic'],reportMachines:['synthetic-mac']}],link:{stop:async()=>{},conclusions:async()=>({ok:true,records:[report],nextCursor:null})},backfill:async()=>null,request})
+ const source=(await reader.read()).records[0]
+ const params={sourceRevision:source.revision,prompt:'Use adb to input 安卓'}
+ await reader.followup(source,params,undefined,{explicitReply:true})
+ assert.deepEqual(sent.at(-1),{target:'mac',command:'prompt',project:task.project,taskId:task.taskId,prompt:params.prompt})
+ const count=()=>sent.filter(r=>r.command==='prompt').length
+ tasks=[task,task];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/ambiguous/i);assert.equal(count(),1)
+ tasks=[task];incomplete=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/incomplete/i);assert.equal(count(),1)
+ incomplete=false;tasks=[{...task,project:'/different'}];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}));assert.equal(count(),1)
+ tasks=[task];statusChanged=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision changed/);assert.equal(count(),1)
+ statusChanged=false;task.deliveries=[{state:'unknown',submitted:true}];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(count(),1)
+ task.deliveries=[]
+ for(const patch of [{lifecycle:'unknown'},{state:'unknown'},{state:'starting'},{lifecycle:'ended',state:'ended'}]) {
+   const previous={state:task.state,lifecycle:task.lifecycle};Object.assign(task,patch)
+   await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/not live/);Object.assign(task,previous);assert.equal(count(),1)
+ }
+ await assert.rejects(reader.followup(source,params));assert.equal(count(),1)
+ await reader.close()
+})
+
+test('historical duplicate message IDs resolve only the complete immutable reply tuple',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-duplicate-reply-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('first'),row('second')],total:2,omitted:0,nextCursor:null}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ await remote.poll();const [first,second]=remote.data.messages
+ remote.save({...remote.data,messages:[first,{...second,id:first.id}]})
+ const replyTo={messageId:first.id,sourceKey:'second',sourceRevision:second.sources[0].revision}
+ assert.equal(remote.resolveReply(replyTo).source.sessionId,'second')
+ assert.throws(()=>remote.resolveReply({...replyTo,sourceKey:'third'}))
+})
+
+test('unknown reply delivery remains durable and cannot be resent after restart',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-unknown-reply-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('source')],total:1,omitted:0,nextCursor:null}),synthesize:async input=>({updates:updates('任务已完成。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision},reply=remote.beginReply(replyTo,'继续')
+ let attempts=0
+ await assert.rejects(remote.dispatchReply(reply,async beforeSend=>{beforeSend();attempts++;throw Error('outcome unknown mutationId=00000000-0000-0000-0000-000000000001')}))
+ remote.completeReply(reply.id,{status:'failed'});assert.equal(remote.data.replies[0].status,'unknown')
+ const restored=new RemoteConversation(options);assert.throws(()=>restored.beginReply(replyTo,'继续'),/unknown/)
+ await assert.rejects(restored.dispatchReply(reply,async()=>{attempts++}));assert.equal(attempts,1)
+})
+
+test('combined reply and source projections fit the whole remote frame and report omitted history',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-budget-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const records=Array.from({length:7},(_,i)=>({...row('source-'+i),project:'/'+('long-project/'.repeat(300))}))
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async cursor=>({ok:true,records:records.slice(cursor?4:0,cursor?7:4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ await remote.drain();const message=remote.data.messages[0]
+ const replies=Array.from({length:32},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),text:'中'.repeat(1000),answer:'答'.repeat(1000),replyTo:{messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision},at:i,status:'answered'}))
+ remote.save({...remote.data,replies});const frame=remote.snapshot()
+ assert(Buffer.byteLength(JSON.stringify(frame))<=60*1024);assert.equal(frame.omittedReplies,32-frame.replies.length);assert.equal(frame.total,7)
+ if(frame.messages.length<7)assert.equal(frame.nextOffset,frame.messages.length)
+})
+
+test('reply capacity expires only terminal history outside visible message chains',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-expiry-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('source')],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('结果已返回。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ await remote.poll();const message=remote.data.messages[0],replyTo={messageId:message.id,sourceKey:'source',sourceRevision:message.sources[0].revision}
+ const replies=Array.from({length:128},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),text:'历史请求',replyTo:{...replyTo,messageId:'f'.repeat(64)},at:i,status:i===0?'unknown':'answered'}))
+ remote.save({...remote.data,replies});remote.beginReply(replyTo,'新回复')
+ assert.equal(remote.data.replies.length,128);assert.equal(remote.data.expiredReplies,1);assert.equal(remote.data.replies[0].status,'unknown')
+ const protectedReplies=remote.data.replies.map(reply=>({...reply,replyTo}));remote.save({...remote.data,replies:protectedReplies})
+ assert.throws(()=>remote.beginReply(replyTo,'不能丢可见链'),/capacity/);assert.equal(remote.data.replies.length,128)
+})
+
+test('explicit reply accepts legal live terminal projections without admitting unknown lifecycle',async()=>{
+ const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic',state:'finished',lifecycle:'live',revision:'c'.repeat(64),updatedAt:'2026-10-18T00:00:00Z',response:'Result'}
+ let prompts=0
+ const reader=await createRemotePiReader({targets:[{id:'cm5',roots:['/synthetic']}],link:{stop:async()=>{}},backfill:async()=>null,request:async(_target,p)=>p.command==='list'?{tasks:[task],endpointKind:'hosted'}:p.command==='status'?{task}:(prompts++,{accepted:true,task})})
+ try {
+  for(const state of ['finished','failed','cancelled']) {
+   task.state=state;const source=(await reader.read('hosted:0')).records[0]
+   await reader.followup(source,{sourceRevision:source.revision,prompt:'继续原任务'},undefined,{explicitReply:true})
+  }
+  assert.equal(prompts,3)
+ }finally{await reader.close()}
+})

@@ -248,3 +248,13 @@ Feature: Personal Agent owns a bounded plugin runtime
     And every candidate result has correct host grading, passed completion, and actual full-entry retrieval
     And the original source report remains unchanged, including any later failure
     And only the candidate receives accepted experience
+
+  Scenario: An owner replies to the original Pi session message
+    Given a durable completion message retains its exact source and session
+    When the owner sends text with that message, source key, and source revision
+    Then the resident resolves the saved reference before Jev routes the owner text
+    And only the uniquely configured matching project and session can receive a follow-up
+    And stale, ambiguous, unavailable, or unknown delivery references cannot send or replay a prompt
+    And no replacement task or freely supplied target can receive the reply
+    And the owner turn and receipt retain the original message and stable session thread
+    And later completion revisions retain that same thread after restart

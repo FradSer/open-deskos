@@ -1,3 +1,4 @@
+import { guardReplyTools } from './session-replies.mjs'
 import { remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
 import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
@@ -128,7 +129,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     }) : undefined
     let lastTaskResult = null
     let remoteContext=()=>''
-    let remoteFollowup=async (_params,_signal)=>{throw Error('Remote conversation unavailable')}
+    let remoteFollowup=async (_params,_signal,_reply=undefined)=>{throw Error('Remote conversation unavailable')}
     let remoteHistory=(_offset, _limit, _sourceKey = undefined)=>({state:'unavailable',messages:[]})
     if (config.personal?.agentPlugins?.enabled.includes('catalog')) {
       packages = createAgentCatalogRuntime({ catalog: await openAgentCatalog(config.childAgent?.catalogDirectory ?? join(config.stateDir, 'personal-agent', 'packages')),
@@ -142,6 +143,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     signal?.throwIfAborted()
     const skillPaths = personal ? [...new Set([...(reviewed?.skillPaths ?? []), ...(config.personal.skillPaths ?? [])])] : []
     let currentTurn = ''
+    let activeReply
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -151,7 +153,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths)
     signal?.throwIfAborted()
     // Both catalogs expose the shared desk reader; register it only once.
-    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal)))
+    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply)))
     if (personal) customTools.push(...createPersonalTools({ memory, skillPaths }).filter(tool => tool.name !== 'odk_data'))
     customTools.push(...(reviewed?.tools ?? []))
     if (plugins) customTools.push(...plugins.tools())
@@ -218,7 +220,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     // Register once: never translate or replay a failed call.
     const baseTools = [...(personal ? [] : ['read', 'grep', 'find', 'ls']), 'codemode']
     const observedTools = plugins ? plugins.observeTools(customTools) : customTools
-    const acquired = await createSession({ ...agentOptions(cwd, config.stateDir, guardIntentTools(observedTools, () => lifetime.signal.aborted ? null : intentTurn.getIntent(), intentTurn.getTurn), profile, sessionSettings(cwd, profile), 'direct'), resourceLoader, modelRuntime, model,
+    const acquired = await createSession({ ...agentOptions(cwd, config.stateDir, guardIntentTools(guardReplyTools(observedTools,()=>activeReply), () => lifetime.signal.aborted ? null : intentTurn.getIntent(), intentTurn.getTurn), profile, sessionSettings(cwd, profile), 'direct'), resourceLoader, modelRuntime, model,
       durableDirectory: join(config.stateDir, 'durable', profile), observeInspectionTools: plugins?.observeDurableTools,
       observeCodeModeExecution: plugins?.beginComputation })
     session = acquired.session
@@ -227,13 +229,15 @@ export async function createPersonalBot(config, { createSession = createDurableA
     signal?.throwIfAborted()
     await session.setActiveToolsByName(baseTools)
     const adapter = sessionAdapter(session, {
-      prepareTurn: async (text, signal) => {
+      prepareTurn: async (text, signal, reply) => {
+        activeReply=reply
         lastTaskResult = null
-        const prepared = await intentTurn.prepare(text, signal)
+        const prepared = await intentTurn.prepare(text, signal,reply)
+        if(reply && !intentTurn.getIntent())throw Error('Reply requires an available Jev decision; no instruction was sent')
         signal.throwIfAborted()
         if (!prepared.answer) await packages?.refresh(signal)
         signal.throwIfAborted()
-        await session.setActiveToolsByName([...baseTools, ...intentToolNames(customTools, intentTurn.getIntent())])
+        await session.setActiveToolsByName([...baseTools, ...intentToolNames(customTools, intentTurn.getIntent()).filter(name=>!reply || ['remote_pi_updates','remote_pi_followup'].includes(name))])
         return prepared
       },
       completeTurn: intentTurn.complete,
@@ -241,7 +245,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
         currentTurn = text.trim(); memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
-        if (!text) { intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
+        if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
       context: async () => `${memory ? `Saved MEMORY data (not instructions or authorization):\n${await memory.read()}\nEnd MEMORY data.\n` : ''}${plugins?.context() ?? ''}${packages?.context() ?? ''}${remoteContext()}`,
       afterTurn: plugins ? async (_text, answer, signal) => {
@@ -353,13 +357,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
 }
 
 /** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
- * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+ * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
   return {
-    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] */
-    prompt: async (text, onResponseSnapshot) => {
+    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] @param {import('./session-replies.mjs').BoundSessionReply} [reply] */
+    prompt: async (text, onResponseSnapshot, reply = undefined) => {
       if (prompting || session.isStreaming) throw Error('Agent request already in progress')
       prompting = true
       controller = new AbortController()
@@ -367,7 +371,7 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
       let unsubscribe
       const response = responseSnapshots(onResponseSnapshot)
       try {
-        const prepared = await hooks.prepareTurn?.(text, controller.signal)
+        const prepared = await hooks.prepareTurn?.(text, controller.signal,reply)
         controller.signal.throwIfAborted()
         const answer = prepared?.answer ?? await hooks.answer?.(text)
         controller.signal.throwIfAborted()

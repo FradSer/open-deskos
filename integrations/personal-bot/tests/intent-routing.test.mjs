@@ -248,3 +248,16 @@ test('descriptor intents gate reviewed tools without generic extension bypass', 
   const turn = createIntentTurn({ route: async () => ({ intent: 'browse' }), profile: 'personal', tools: names })
   assert.match((await turn.prepare('Read that webpage')).context, /browser/i)
 })
+
+test('host-bound replies still pass Jev and cannot escape their original session tools',async()=>{
+ const {guardReplyTools}=await import('../src/session-replies.mjs')
+ const reply={text:'用 adb 输入安卓',replyTo:{messageId:'a'.repeat(64),sourceKey:'source',sourceRevision:'b'.repeat(64)},threadId:'c'.repeat(64),source:{key:'source',revision:'b'.repeat(64),machine:'reported-host',project:'/synthetic',sessionId:'original-session'}}
+ const f=routerFixture(response('session_continue')),turn=createIntentTurn({route:f.route,profile:'personal',tools:['remote_pi_updates','remote_pi_followup','coding_task_prompt','coding_task_start']})
+ const prepared=await turn.prepare('用 adb 输入安卓',undefined,reply)
+ assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.state.replySource.sessionId,'original-session');assert.match(prepared.context,/Host-bound reply reference/)
+ let mutations=0;const tools=guardIntentTools(guardReplyTools(['remote_pi_followup','coding_task_prompt','coding_task_start'].map(name=>({name,execute:async()=>{mutations++;return 'accepted'}})),()=>reply),turn.getIntent,turn.getTurn)
+ await assert.rejects(tools[1].execute('x',{target:'other'}),/bound/);await assert.rejects(tools[2].execute('x',{}));await assert.rejects(tools[0].execute('x',{sourceKey:'other',sourceRevision:reply.source.revision,prompt:reply.text}),/changed/)
+ await assert.rejects(tools[0].execute('x',{sourceKey:reply.source.key,sourceRevision:reply.source.revision,prompt:'Unrequested extra instruction'}),/exact owner reply/)
+ assert.equal(mutations,0);assert.equal(await tools[0].execute('x',{sourceKey:reply.source.key,sourceRevision:reply.source.revision,prompt:reply.text}),'accepted')
+ const unavailable=createIntentTurn({route:async()=>{throw Error('offline')},profile:'personal',tools:['remote_pi_followup']});assert.match((await unavailable.prepare('继续',undefined,reply)).answer,/Jev/)
+})
