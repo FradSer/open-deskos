@@ -257,3 +257,20 @@ Feature: Durable per-host Hosted Pi sessions
     And a failed reopen releases its slot without replacing the original file
     And cancelling an initializer retains its slot and project lock until disposal
     And cancellation, End, or initialization failure before a new turn preserves the previous turn result
+
+  Scenario: Read-only completion subscriptions do not attach a Console
+    Given a private Hosted Pi task channel and reviewed project roots
+    When a client subscribes to completion hints
+    Then the host registers its read-only observer before acknowledging the subscription
+    And it sends no prompt, task response text, or progress event
+    And a completed turn is persisted before its fixed identity hint is sent
+    And the existing Console keeps its exclusive attachment
+    And a disconnect removes the observer without mutating task ownership
+
+  Scenario: An idle completion helper exits when its stdout consumer disappears
+    Given a completion subscription uses the existing finite stdin-file transport
+    When its acknowledged stdout consumer closes without another task completion
+    Then a fixed fifteen-second transport heartbeat detects the closed writer
+    And the helper aborts its IPC connection and clears its heartbeat timer
+    And heartbeats contain no task data and never request inventory or model work
+    And this bound does not claim remote exit during a network partition

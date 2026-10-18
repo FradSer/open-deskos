@@ -360,6 +360,13 @@ Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`
 Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
+The resident service checks Jev once at startup with one fixed public Noul request.
+Its status frame retains `jev.status`: `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
+A valid typed response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
+HTTP 401 or 403 reports rejected access, not a claim that the key is necessarily wrong.
+Unavailable reasons distinguish timeout, network, rate limiting, upstream failure, invalid response, request rejection, configuration, and credential access.
+Frames contain no credential, key path, or upstream body.
+Client reconnects retain the result without another request; service shutdown aborts the check and rejects late results.
 Missing credentials stop initialization.
 Failed, malformed, or oversized inference never falls back to regexes or Pi routing.
 Ambiguity asks for clarification.
@@ -545,6 +552,10 @@ Cancellation, End, or initialization failure before a new turn preserves the pre
 The optional `lastTurnId` records the host-generated identity of the last terminal execution turn.
 The host updates it only when an actual turn finishes; restoration preparation preserves it.
 Prompt, steer, cancel, and end receipts show acceptance, not completed work.
+Owner-facing replies use natural task names and distinguish accepted, queued, or running work from completed execution.
+Exact target, project, task, and mutation identities stay in tool references and internal context.
+The coordinator gives raw identifiers only when the owner explicitly requests them.
+Unknown outcomes retain those identities for status reconciliation and never authorize automatic retries.
 Query status/history before claiming progress.
 Console control uses the authenticated Control Link; voice uses the configured helper to the same daemon.
 Control Attribution names only a connected Console.
@@ -944,7 +955,7 @@ Swapped task attribution remains held even when all citations are valid.
 
 The host default is short, natural Simplified Chinese.
 Remote source language cannot override that default.
-Updates lead with useful progress, a result, or a blocker.
+Updates lead with a completed result, final failure, or evidenced blocker.
 Generic reporting and verification notices appear in Sources, not in message bodies.
 The reviewer rejects even one blanket verification closing sentence.
 Updates still explain material task-specific gaps in ordinary language.
@@ -966,11 +977,12 @@ One final checkpoint transaction appends all messages in model order, with their
 The existing snapshot returns newest messages first; clients restore chronological conversation order.
 Legacy version 1 messages retain their text, references, and presentation behavior.
 Existing held revisions are not cleared or regenerated.
-A fresh, previously successful source can receive one presentation upgrade when no assistant update references its exact key and revision.
-This operation only summarizes current reports; it does not replay the task.
-An existing attempt or held revision blocks that upgrade.
-A failed upgrade remains held after restart; a successful presentation watermark prevents another synthesis.
-The optional `seen.presentation` watermark survives message expiry and stays bound to that source revision.
+An exact seen revision is not summarized again, including legacy messages without the new presentation marker.
+Only a new explicit completed-turn identity can produce another update.
+Optional completion watermarks bind the exact source key to its real assistant event ID or Hosted Pi `lastTurnId`.
+Retained references can recover those identities; message text never supplies an identity.
+Metadata changes alone do not repeat a completed result.
+Existing attempts and held revisions remain blocked, including after reconnect or restart.
 Existing history expiry rules and current-reference capacity guards still apply.
 The service restores these messages into the existing Agent conversation and its current model context.
 It retains at most 64 messages and 8,192 source watermarks within a 2 MiB checkpoint.
@@ -984,7 +996,29 @@ A separate bounded remote frame exposes omitted history and source counts withou
 `remote_pi_updates` reads further history or one exact source reference.
 Failed synthesis holds that revision for review; pushes do not silently retry it.
 
-The resident checks updates after existing Pi reading pushes and at an idle 60-second cadence.
+The resident has no periodic Pi progress timer.
+It reads once at startup, after a completion hint, and after a completion subscription reconnects.
+Generic Pi reading changes do not request summaries.
+The service retains completion hints while busy and drains them when idle.
+One hint drains bounded inventory pages while the checkpoint makes progress; a held batch is not regenerated.
+Only available terminal results with a nonblank conclusion and an explicit outcome can reach synthesis.
+Reported sessions require a stable assistant event ID; configured Hosted Pi tasks require a valid `lastTurnId`.
+Active turns, unknown outcomes, unavailable sources, and missing conclusions generate no model call or placeholder.
+After a host restart, an explicit retained terminal outcome and `lastTurnId` can support an unreported completion.
+An interrupted in-flight outcome cannot support that notification.
+A failed or cancelled terminal result remains a report of failure or cancellation, never success.
+
+The internal `subscribe_completions` command opens a read-only Hosted Pi connection for reviewed roots.
+The host validates those roots and registers the observer before its acknowledgement.
+A completion hint follows the durable turn record and carries bounded identity metadata, not response text.
+This connection never attaches a Console or submits a prompt.
+One owned helper process per target carries the stream; shutdown joins the local helper or SSH process.
+After acknowledgement, the helper emits a fixed fifteen-second transport heartbeat with no task data.
+Clients validate and ignore that frame; it never requests inventory or synthesis.
+A closed stdout consumer causes the next heartbeat write to abort IPC and clear the timer.
+This bound does not guarantee remote process exit during a network partition.
+A disconnected stream can reconnect with backoff, but unsupported endpoints have no inventory-poll fallback.
+Legacy records without a stable completion identity remain available through manual reads without automatic notifications.
 Each collection reads at most four pages, with four sources per page.
 A changed batch contains at most seven sources and 128 KiB of input.
 Each source read has a 30-second deadline.

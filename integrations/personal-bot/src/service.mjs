@@ -7,7 +7,7 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void) => Promise<string | void>, failureMessage?: string, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
 
 export class PersonalBotService {
   /** @param {Dependencies} dependencies */
@@ -32,6 +32,26 @@ export class PersonalBotService {
     this.briefing = { state: 'unavailable', items: [], generatedAt: 0, omittedSources: 0 }
     this.pendingNotifications = []
     this.agentFrame = { state: 'unavailable', tasks: [] }
+    if (dependencies.checkJev) {
+      this.jev = { status: 'checking' }
+      this.publishJev(this.jev)
+      // One check per service instance. Client subscriptions and runtime resume do not repeat it.
+      const signal = this.controller.signal
+      this.jevCheck = Promise.resolve().then(() => {
+        signal.throwIfAborted()
+        return dependencies.checkJev(signal)
+      }).then(jev => {
+        if (!this.closed && !signal.aborted) this.publishJev(jev)
+      }).catch(() => {
+        if (!this.closed && !signal.aborted) this.publishJev({ status: 'unavailable' })
+      })
+    }
+  }
+
+  publishJev(jev) {
+    this.jev = jev
+    this.status = { ...this.status, jev }
+    for (const listener of this.listeners) listener(this.status)
   }
 
   subscribe(listener) {
@@ -44,18 +64,31 @@ export class PersonalBotService {
   attachHome(home) { this.home = home }
 
   attachRemoteUpdates(remote) {
-    clearInterval(this.remoteTimer)
+    this.remoteUnsubscribe?.()
     this.remote = remote
+    this.remoteRefreshQueued = Boolean(remote)
     this.publishRemote(remote?.snapshot() ?? { state: 'disabled', messages: [] })
-    if (remote) {
-      this.remoteTimer = setInterval(() => this.refreshRemote(), 60000)
-      this.remoteTimer.unref?.()
-      this.refreshRemote()
-    }
+    this.remoteUnsubscribe = remote?.subscribe?.(() => this.refreshRemote())
+    this.drainRemote()
   }
 
   refreshRemote() {
-    if (!this.closed && !this.starting && ['idle', 'error'].includes(this.status.state)) void this.remote?.poll()
+    if(this.closed || !this.remote)return
+    this.remoteRefreshQueued=true
+    return this.drainRemote()
+  }
+
+  drainRemote() {
+    if(this.closed || this.starting || !['idle','error'].includes(this.status.state) || !this.remoteRefreshQueued || !this.remote || this.remoteRefreshing)return this.remoteRefreshing
+    const remote=this.remote
+    this.remoteRefreshQueued=false
+    const pending=Promise.resolve().then(()=>remote.drain?.()??remote.poll()).catch(()=>{}).finally(()=>{
+      if(this.remoteRefreshing!==pending)return
+      this.remoteRefreshing=undefined
+      this.drainRemote()
+    })
+    this.remoteRefreshing=pending
+    return pending
   }
 
   publishRemote(remote) {
@@ -81,7 +114,7 @@ export class PersonalBotService {
 
   servicePush(readingIds) {
     this.home?.invalidate()
-    if (readingIds?.includes('odk.app.pi-sessions')) this.refreshRemote()
+    if (readingIds?.includes('odk.app.pi-sessions.completed')) this.refreshRemote()
     if (this.closed || !this.watch) return false
     return this.watch.push(readingIds)
   }
@@ -113,11 +146,12 @@ export class PersonalBotService {
     const reply = boundedText(message, limit, 'Response')
     const notifications = !this.starting && ['idle', 'error'].includes(state) ? this.pendingNotifications.splice(0) : []
     this.status = {
-      ...this.proposalFrame, agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
+      ...this.proposalFrame, ...(this.jev ? { jev: this.jev } : {}), agents: this.agentFrame, ...(this.remoteFrame ? { remote: this.remoteFrame } : {}), ...(this.home || this.status.briefing ? { briefing: this.briefing } : {}), textInput: true, v: 1, type: 'status', state, level: 0,
       message: reply, ...(notifications.length ? { notifications } : {}),
       transcript: boundedText(transcript, 4096, 'Transcript'),
     }
     for (const listener of this.listeners) listener(this.status)
+    this.drainRemote()
   }
 
   async toggle() {
@@ -148,6 +182,7 @@ export class PersonalBotService {
       if (!this.closed) this.setState('error', 'Microphone unavailable')
     } finally {
       this.starting = false
+      this.drainRemote()
       if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message)
       this.watch?.setBusy(!['idle', 'error'].includes(this.status.state))
     }
@@ -279,9 +314,12 @@ export class PersonalBotService {
   }
 
   async shutdown() {
-    clearInterval(this.remoteTimer)
+    this.remoteUnsubscribe?.()
+    this.remoteUnsubscribe=undefined
+    this.remoteRefreshQueued=false
     this.remote = undefined
     this.closed = true
+    if (this.jev?.status === 'checking') this.jev = { status: 'unavailable' }
     this.agentFrame = { state: 'unavailable', tasks: [] }
     this.captureId++
     this.controller.abort()

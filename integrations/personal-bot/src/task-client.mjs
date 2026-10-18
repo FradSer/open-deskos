@@ -25,6 +25,13 @@ export function taskCommand(executable, host) {
   return { executable: 'ssh', args: ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '--', host, quoted] }
 }
 
+/** Read-only streams detect dead SSH transports without changing mutation request arguments. */
+export function taskCompletionCommand(executable, host) {
+  const command=taskCommand(executable,host)
+  if(host)command.args.splice(command.args.indexOf('--'),0,'-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2')
+  return command
+}
+
 export async function loadTargets(path = process.env.ODK_TASK_TARGETS_FILE) {
   if (!path) return []
   if (!cleanPath(path)) throw Error('Invalid task targets configuration path')
@@ -167,4 +174,61 @@ function exchange(command, input, signal, timeout, failure, remote) {
       finish(code === 0 ? failure('Invalid task response') : failure('Task control failed'))
     })
   })
+}
+
+
+/** Internal completion-only subscription. It never issues inventory queries or mutations. */
+export function watchTaskCompletions(target, {signal = undefined, onCompletion = () => {}, onState = (_state) => {}} = {}) {
+  if(!Array.isArray(target.roots) || !target.roots.length || target.roots.length>32 || !target.roots.every(root=>carriedProject(root,Boolean(target.host))))throw Error('Invalid completion roots')
+  const command=taskCompletionCommand(target.executable,target.host),lifetime=new AbortController()
+  const abort=()=>lifetime.abort()
+  if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true})
+  let child,timer,unsupported=false,reconnectMs=5000
+  const loop=(async()=>{
+    while(!lifetime.signal.aborted && !unsupported) {
+      const requestId=randomUUID(),payload={version:1,requestId,command:'subscribe_completions',projects:target.roots}
+      if(Buffer.byteLength(JSON.stringify(payload))>65535)throw Error('Completion subscription request too large')
+      const directory=mkdtempSync(join(tmpdir(),'odk-task-completions-')),file=join(directory,'request.json')
+      let stdin
+      try {
+        writeFileSync(file,JSON.stringify(payload)+'\n',{mode:0o600});stdin=openSync(file,'r')
+        await new Promise(resolve=>{
+          let ready=false,pending=''
+          child=spawn(command.executable,command.args,{stdio:[stdin,'pipe','ignore'],...(target.host?{env:sshEnvironment()}:{} )})
+          const stop=()=>child?.kill('SIGKILL')
+          lifetime.signal.addEventListener('abort',stop,{once:true})
+          timer=setTimeout(stop,10000)
+          child.once('error',()=>{})
+          child.once('close',code=>{if(!ready && code!==255)unsupported=true;clearTimeout(timer);lifetime.signal.removeEventListener('abort',stop);child=undefined;resolve(undefined)})
+          child.stdout.setEncoding('utf8')
+          child.stdout.on('data',chunk=>{
+            pending+=chunk
+            if(Buffer.byteLength(pending)>262144){unsupported=true;stop();return}
+            const lines=pending.split('\n');pending=lines.pop()??''
+            for(const line of lines)try{
+              const record=JSON.parse(line)
+              if(record.version!==1 || record.requestId!==requestId)throw Error()
+              if(!ready){
+                if(!record.ok || record.subscription!=='completions'){unsupported=true;stop();return}
+                ready=true;reconnectMs=5000;clearTimeout(timer);onState('connected');onCompletion()
+              }else{
+                if(record.type==='heartbeat'){if(Object.keys(record).length!==3 || Object.keys(record).some(key=>!['version','requestId','type'].includes(key)))throw Error();continue}
+                if(Object.keys(record).some(key=>!['version','requestId','type','taskId','project','lastTurnId','outcome'].includes(key)) || record.type!=='completion' || !UUID.test(record.taskId) || !UUID.test(record.lastTurnId) || !carriedProject(record.project,Boolean(target.host)) || !['finished','failed','cancelled'].includes(record.outcome))throw Error()
+                onCompletion()
+              }
+            }catch{unsupported=true;stop();return}
+          })
+          if(lifetime.signal.aborted)stop()
+        })
+      } finally {if(stdin!==undefined)closeSync(stdin);await rm(directory,{recursive:true,force:true})}
+      if(lifetime.signal.aborted)break
+      onState('unavailable')
+      if(!unsupported)await new Promise(resolve=>{
+        const done=()=>{clearTimeout(timer);lifetime.signal.removeEventListener('abort',done);resolve(undefined)}
+        timer=setTimeout(done,reconnectMs);reconnectMs=Math.min(reconnectMs*2,60000);lifetime.signal.addEventListener('abort',done,{once:true})
+        if(lifetime.signal.aborted)done()
+      })
+    }
+  })().catch(()=>onState('unavailable'))
+  return {async close(){abort();clearTimeout(timer);child?.kill('SIGKILL');await loop;signal?.removeEventListener('abort',abort)}}
 }

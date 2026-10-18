@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 import { RemoteConversation, validateRemoteSummary, validateRemoteReview } from '../src/remote-conversation.mjs'
-const row = (key,revision='a'.repeat(64)) => ({ key, machine:'synthetic-mac',sessionId:key,project:'/synthetic/project',revision,updatedAt:1,state:'settled',conclusion:'Computed total: 6',truncated:false,control:'report_only' })
+const row = (key,revision='a'.repeat(64)) => ({ key, machine:'synthetic-mac',sessionId:key,project:'/synthetic/project',revision,updatedAt:1,state:'settled',availability:'live',conclusionOutcome:'reported_finished',eventId:revision,latestEventIsAssistant:true,conclusionIsLatestAssistant:true,conclusion:'Computed total: 6',truncated:false,control:'report_only' })
 const updates = (value, records) => [{text:value,sourceKeys:records.map(record=>record.key)}]
 test('all connected conclusions are paged, synthesized once, and retain source context after restart',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-conversation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
@@ -44,7 +44,7 @@ test('service publishes durable remote history without making an owner turn',asy
  const frame={state:'live',messages:[{id:'synthetic',text:'Pi reports a result.',sources:[]}]}
  service.attachRemoteUpdates({snapshot:()=>frame,poll:async()=>{polls++}})
  service.setState('idle','Owner reply');assert.deepEqual(service.status.remote,frame)
- service.servicePush(['odk.app.pi-sessions']);await Promise.resolve();assert.equal(polls,2);assert.equal(turns,0)
+ await new Promise(resolve=>setImmediate(resolve));service.servicePush(['odk.app.pi-sessions.completed']);await new Promise(resolve=>setImmediate(resolve));assert.equal(polls,2);assert.equal(turns,0)
  await service.close()
 })
 
@@ -284,7 +284,7 @@ test('assistant message order and exact references survive restart across an eig
 })
 
 
-test('a fresh exact-seen legacy report upgrades once without rewriting history or replaying held revisions',async t=>{
+test('an exact-seen legacy report stays unchanged without replaying history or held revisions',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const file=join(directory,'remote.json'),current={...row('old'),availability:'live'},held={...row('held'),availability:'live'},legacyRef=Object.fromEntries(Object.entries(current).filter(([key])=>key!=='conclusion'))
  const legacy={id:'c'.repeat(64),at:1,text:'Earlier report unchanged.',sources:[legacyRef],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
@@ -293,26 +293,26 @@ test('a fresh exact-seen legacy report upgrades once without rewriting history o
  let calls=0
  const options={file,read:async()=>({ok:true,records:[current,held],total:2,omitted:0,nextCursor:null}),synthesize:async input=>{calls++;assert.deepEqual(input.records,[current]);return {updates:updates('这项任务已经给出了结果。',input.records),citations:[{key:current.key,revision:current.revision,quote:'total: 6'}]}},publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll();await remote.poll()
- const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,1);assert.equal(next.messages.length,2)
- assert.deepEqual(next.messages[0],legacy);assert.deepEqual(next.seen.map(({presentation,...source})=>source),prior.seen);assert.equal(next.seen.find(source=>source.key===current.key).presentation,'assistant_update');assert.deepEqual(next.attempted,prior.attempted)
- assert.equal(next.messages[1].presentation,'assistant_update');assert.equal(remote.snapshot().heldCount,1)
- const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,1);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
+ const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,0);assert.equal(next.messages.length,1)
+ assert.deepEqual(next.messages[0],legacy);assert.deepEqual(next.seen,prior.seen);assert.deepEqual(next.attempted,prior.attempted)
+ assert.equal(remote.snapshot().heldCount,1)
+ const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,0);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
 })
 
-test('a failed presentation upgrade holds an already-seen revision across restart',async t=>{
+test('new completion rejection remains held while already-seen legacy history stays intact',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-held-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const file=join(directory,'remote.json'),current=row('old'),{conclusion,...reference}=current
  const legacy={id:'c'.repeat(64),at:1,text:'Earlier report unchanged.',sources:[reference],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
  await writeFile(file,JSON.stringify({version:1,seen:[{key:current.key,revision:current.revision,updatedAt:1}],attempted:[],messages:[legacy],cursor:null}),{mode:0o600});protectProactivePath(file)
  let calls=0
- const options={file,read:async()=>({ok:true,records:[current],total:1,omitted:0,nextCursor:null}),synthesize:async()=>{calls++;throw Error('synthetic review rejection')},publish:()=>{}}
+ const options={file,read:async()=>({ok:true,records:[{...current,revision:'e'.repeat(64),eventId:'new-failed-turn',updatedAt:2}],total:1,omitted:0,nextCursor:null}),synthesize:async()=>{calls++;throw Error('synthetic review rejection')},publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll();await remote.poll()
  const restored=new RemoteConversation(options);await restored.poll()
  assert.equal(calls,1);assert.equal(restored.snapshot().heldCount,1);assert.equal(restored.snapshot().state,'partial')
  assert.deepEqual(JSON.parse(await readFile(file,'utf8')).messages,[legacy])
 })
 
-test('presentation upgrade at the history limit retains current references and uses only existing expiry rules',async t=>{
+test('already-seen legacy history at capacity is not rewritten or expired by reconnect',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-upgrade-capacity-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const file=join(directory,'remote.json'),current=row('current'),{conclusion,...reference}=current
  const messages=Array.from({length:64},(_,i)=>({id:(i+1).toString(16).padStart(64,'0'),at:i,text:`Earlier report ${i}.`,sources:[{...reference,revision:i===63?current.revision:(i+1).toString(16).padStart(64,'0')}],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}))
@@ -320,8 +320,76 @@ test('presentation upgrade at the history limit retains current references and u
  let calls=0
  const options={file,read:async()=>({ok:true,records:[current],total:1,omitted:0,nextCursor:null}),synthesize:async input=>{calls++;return {updates:updates('这项任务的本轮结果已经到了。',input.records),citations:[{key:current.key,revision:current.revision,quote:'total: 6'}]}},publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll()
- const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,1);assert.equal(next.messages.length,64);assert.equal(next.expiredMessages,1)
- assert.deepEqual(next.messages.slice(0,63),messages.slice(1));assert.equal(next.messages[63].presentation,'assistant_update')
+ const next=JSON.parse(await readFile(file,'utf8'));assert.equal(calls,0);assert.equal(next.messages.length,64);assert.equal(next.expiredMessages,0)
+ assert.deepEqual(next.messages,messages)
  assert.equal(remote.reference(current.key).messageId,next.messages[63].id)
+ const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,0)
+})
+
+
+test('remote synthesis waits for a real terminal conclusion and deduplicates metadata-only revisions',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-completion-only-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'state.json');let current={...row('task'),state:'running'},calls=0
+ const options={file,read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async({records})=>{calls++;return {updates:updates('任务有最终结果。',records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}},publish:()=>{}}
+ const remote=new RemoteConversation(options)
+ await remote.poll();assert.equal(calls,0,'progress is not a completion')
+ current={...row('task'),conclusion:''};await remote.poll();assert.equal(calls,0,'missing result is not a message')
+ for(const patch of [{eventId:null},{conclusionOutcome:undefined},{conclusionOutcome:'unknown'},{latestEventIsAssistant:false},{currentTurnId:'active-turn'}]){current={...row('task'),...patch};await remote.poll();assert.equal(calls,0,'missing identity or terminal evidence never creates a placeholder')}
+ current={...row('task'),availability:'unavailable'};await remote.poll();assert.equal(calls,0)
+ current=row('task');await remote.poll();assert.equal(calls,1)
+ current={...current,revision:'b'.repeat(64),updatedAt:2};await remote.poll();assert.equal(calls,1,'same event with changed metadata is not new work')
  const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,1)
+ current={...row('task','c'.repeat(64)),state:'cancelled',conclusionOutcome:'cancelled',conclusion:'The task was cancelled.'}
+ await restored.poll();assert.equal(calls,2);assert.equal(restored.snapshot().messages[0].sources[0].state,'cancelled')
+})
+
+test('remote refresh is event driven and retains a completion hint received while busy',async t=>{
+ const {PersonalBotService}=await import('../src/service.mjs');let timers=0,polls=0
+ t.mock.method(globalThis,'setInterval',()=>{timers++;return {unref(){}}})
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async()=>''})
+ t.after(()=>service.close())
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{polls++}})
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(timers,0);assert.equal(polls,1)
+ service.setState('thinking');service.servicePush(['odk.app.pi-sessions.completed']);service.servicePush(['odk.app.pi-sessions.completed'])
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(polls,1)
+ service.setState('idle');await new Promise(resolve=>setImmediate(resolve));assert.equal(polls,2)
+ service.servicePush(['odk.app.pi-sessions']);await new Promise(resolve=>setImmediate(resolve));assert.equal(polls,2,'generic progress is not a completion hint')
+})
+
+
+test('replacing a remote source during a pending drain cannot lose the replacement catchup',async()=>{
+ const {PersonalBotService}=await import('../src/service.mjs');let release,reads=0
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async()=>''})
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:()=>new Promise(resolve=>{release=resolve})})
+ await new Promise(resolve=>setImmediate(resolve))
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{reads++}})
+ release();await new Promise(resolve=>setImmediate(resolve));assert.equal(reads,1)
+ await service.close()
+})
+
+
+test('one completion hint drains paginated results and leaves a rejected batch held without model retry',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-completion-drain-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ for(const rejectFirst of [false,true]){
+  const records=Array.from({length:7},(_,i)=>row('completed-'+i));let calls=0
+  const options={file:join(directory,`state-${rejectFirst}.json`),read:async cursor=>({ok:true,records:cursor?records.slice(4):records.slice(0,4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>{
+   calls++;if(rejectFirst&&calls===1)throw Error('owned review held')
+   return {updates:input.records.map(r=>({text:'这项任务已经结束。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}
+  },publish:()=>{}}
+  const remote=new RemoteConversation(options);await remote.drain()
+  assert.equal(calls,2);assert.equal(remote.snapshot().hasMore,false)
+  assert.equal(remote.snapshot().messages.length,rejectFirst?3:7);assert.equal(remote.snapshot().heldCount,rejectFirst?4:0)
+  const restored=new RemoteConversation(options);await restored.drain();assert.equal(calls,2,'restart does not replay successful or held turns')
+ }
+})
+
+
+test('restarted Hosted Pi preserves an unreported completed turn but never promotes interrupted work',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-completed-restart-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let calls=0,current={...row('configured'),control:'configured',target:'cm5',taskId:'12345678-1234-1234-1234-123456789abc',taskRevision:'f'.repeat(64),lastTurnId:'12345678-1234-1234-1234-123456789abd',currentTurnId:null,state:'interrupted',turnOutcome:'finished'}
+ const options={file:join(directory,'state.json'),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async({records})=>{calls++;return {updates:updates('任务已有最终结果。',records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}},publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();assert.equal(calls,1)
+ assert.equal(remote.snapshot().messages[0].sources[0].lastTurnId,current.lastTurnId)
+ current={...current,revision:'b'.repeat(64),updatedAt:2};const recovered=new RemoteConversation(options);await recovered.poll();assert.equal(calls,1)
+ current={...current,revision:'c'.repeat(64),lastTurnId:'12345678-1234-1234-1234-123456789abe',turnOutcome:'interrupted'};await recovered.poll();assert.equal(calls,1)
 })

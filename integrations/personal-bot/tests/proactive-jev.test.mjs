@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { checkJevAuthentication } from '../src/jev-client.mjs'
 import { createJevJudge } from '../src/proactive-jev.mjs'
 import { ProactiveWatch } from '../src/proactive.mjs'
 
@@ -133,4 +134,49 @@ test('HTTP adapter batches typed Nouls, bounds outputs and never follows redirec
   assert.throws(() => createJevJudge({ env: {} }), /credential/)
   const malformed = createJevJudge({ env: { TYPESAFE_API_KEY: 'fixture-key' }, fetchImpl: async () => new Response(JSON.stringify({ model: 'other-model', answers: {} })) })
   await assert.rejects(malformed({ candidates: [{ id: 'c0', advice: 'test' }], signal: new AbortController().signal }))
+})
+
+
+test('startup Jev authentication uses one public typed request and distinguishes safe failure classes', async () => {
+  const env = { TYPESAFE_API_KEY: 'fixture-private-key' }, calls = []
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body), redirect: options.redirect })
+    return Response.json({ model: 'jev-fixture', answers: { startup: { type: 'noul', noul: 0.01 } } })
+  }
+  assert.deepEqual(await checkJevAuthentication({ env, fetchImpl }), { status: 'verified' })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, 'https://api.typesafe.ai/v1/systemone')
+  assert.equal(calls[0].redirect, 'error')
+  assert.equal(calls[0].body.questions.startup.type, 'noul')
+  assert.doesNotMatch(JSON.stringify(calls), /fixture-private-key|owner|memory|session/i)
+  assert.deepEqual(await checkJevAuthentication({ env: {}, fetchImpl: () => assert.fail('missing credential cannot dispatch') }), { status: 'missing_credential' })
+  for (const [status, expected] of [[401, {status:'auth_rejected'}], [403, {status:'auth_rejected'}], [429, {status:'unavailable',reason:'rate_limited'}], [500,{status:'unavailable',reason:'upstream'}], [529,{status:'unavailable',reason:'upstream'}], [422,{status:'unavailable',reason:'request_rejected'}]]) {
+    let requests = 0
+    const actual = await checkJevAuthentication({ env, fetchImpl: async () => { requests++; return new Response('secret upstream body', {status}) } })
+    assert.deepEqual(actual, expected); assert.equal(requests, 1)
+    assert.doesNotMatch(JSON.stringify(actual), /secret|fixture-private-key/)
+  }
+  for (const answer of [null, {type:'noul',noul:1.1}, {type:'noul',noul:'1'}, {type:'choice',noul:1}]) {
+    assert.deepEqual(await checkJevAuthentication({ env, fetchImpl: async () => Response.json({model:'jev-fixture',answers:{startup:answer}}) }), {status:'unavailable',reason:'invalid_response'})
+  }
+  assert.deepEqual(await checkJevAuthentication({env,fetchImpl:async()=>{throw Error('secret network detail')}}), {status:'unavailable',reason:'network'})
+  assert.deepEqual(await checkJevAuthentication({env,fetchImpl:async()=>new Response(new ReadableStream({start(controller){controller.error(Error('private stream fault'))}}))}), {status:'unavailable',reason:'network'})
+  assert.deepEqual(await checkJevAuthentication({env,fetchImpl:async()=>{throw new DOMException('secret timeout','TimeoutError')}}), {status:'unavailable',reason:'timeout'})
+})
+
+
+test('startup Jev request honors its real deadline and caller cancellation without retries', async () => {
+  let requests = 0, aborted = 0
+  const fetchImpl = async (_url, {signal}) => { requests++; return new Promise((_resolve,reject) => {
+    signal.addEventListener('abort',()=>{aborted++;reject(signal.reason)}, {once:true})
+  }) }
+  const env = {TYPESAFE_API_KEY:'fixture-private-key',ODK_JEV_TIMEOUT_MS:'1000'}
+  assert.deepEqual(await checkJevAuthentication({env,fetchImpl}), {status:'unavailable',reason:'timeout'})
+  assert.equal(requests,1); assert.equal(aborted,1)
+  const controller = new AbortController()
+  const pending = checkJevAuthentication({env,fetchImpl,signal:controller.signal})
+  controller.abort(); await assert.rejects(pending,{name:'AbortError'})
+  assert.equal(requests,2); assert.equal(aborted,2)
+  await assert.rejects(checkJevAuthentication({env,fetchImpl,signal:controller.signal}),{name:'AbortError'})
+  assert.equal(requests,2)
 })

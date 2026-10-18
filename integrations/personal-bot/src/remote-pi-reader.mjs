@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { RemoteConversation } from './remote-conversation.mjs'
 import { createHash } from 'node:crypto'
 import { loadShellModule } from './plugin-composition.mjs'
-import { loadTargets, taskRequest, carriedProject } from './task-client.mjs'
+import { loadTargets, taskRequest, carriedProject, watchTaskCompletions } from './task-client.mjs'
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex')
 /** @param {{env?: NodeJS.ProcessEnv, link?: any, targets?: any[], request?: typeof taskRequest, backfill?: (source: any, options?: {signal?: AbortSignal}) => Promise<any>}} [options]
  * Shared Link reports and separately configured control targets never infer authority from each other. */
@@ -11,6 +11,7 @@ export async function createRemotePiReader({env=process.env,link,targets,request
   const fill=backfill??loadShellModule('pi-session-backfill.js').createPiBackfill({env})
   const configured=targets??await loadTargets(env.ODK_TASK_TARGETS_FILE)
   const lifetime=new AbortController()
+  const subscriptions=[],subscriptionStates=new Map()
   let inventory=[],unavailable=0,incomplete=0
   let active=lifetime.signal
   async function loadInventory() {
@@ -29,7 +30,11 @@ export async function createRemotePiReader({env=process.env,link,targets,request
       }catch{unavailable++}
     }
   }
-  return {close:()=>{lifetime.abort();return client.stop?.()},async followup(source,params,signal) {
+  return {subscribe(onCompletion,onUnavailable=(_count)=>{}){
+    if(subscriptions.length || lifetime.signal.aborted)return ()=>{}
+    for(const target of configured)subscriptions.push(watchTaskCompletions(target,{signal:lifetime.signal,onCompletion,onState:state=>{subscriptionStates.set(target.id,state);onUnavailable([...subscriptionStates.values()].filter(value=>value==='unavailable').length)}}))
+    return ()=>{for(const subscription of subscriptions)void subscription.close().catch(()=>{})}
+  },async close(){lifetime.abort();await Promise.all(subscriptions.map(subscription=>subscription.close()));await client.stop?.()},async followup(source,params,signal) {
     if(source?.control!=='configured' || source.revision!==params.sourceRevision || source.key!==hash([source.target,source.project,source.taskId]))throw Error('Remote source is stale or report-only')
     const target=configured.find(target=>target.id===source.target)
     if(!target)throw Error('Remote control target is unavailable')
@@ -66,8 +71,8 @@ export async function createRemotePiReader({env=process.env,link,targets,request
       try{const candidate=(await request(target,{command:'status',project:task.project,taskId:task.taskId},active)).task;if(!candidate || candidate.taskId!==task.taskId || candidate.project!==task.project)throw Error();current=candidate}catch{available=false}
       const record={key,machine:target.id,sessionId:task.taskId,taskId:task.taskId,target:target.id,project:task.project,
         updatedAt:Number.isFinite(Date.parse(current.updatedAt))?Date.parse(current.updatedAt):0,state:current.state??'unknown',
-        currentTurnId:current.currentTurnId??null,taskRevision:current.revision??hash(current),endpointKind,control:'configured',conclusion:available&&typeof current.response==='string'?current.response.slice(0,2048):'',
-        truncated:(current.response?.length??0)>2048,historyTruncated:true,execution:'reported_unverified',conclusionOutcome:current.turnOutcome==='finished'?'reported_finished':'unknown',availability:available?'live':'unavailable'}
+        currentTurnId:current.currentTurnId??null,lastTurnId:current.lastTurnId??null,...(current.turnOutcome?{turnOutcome:current.turnOutcome}:{}),taskRevision:current.revision??hash(current),endpointKind,control:'configured',conclusion:available&&typeof current.response==='string'?current.response.slice(0,2048):'',
+        truncated:(current.response?.length??0)>2048,historyTruncated:true,execution:'reported_unverified',conclusionOutcome:current.turnOutcome==='finished'?'reported_finished':['failed','cancelled'].includes(current.turnOutcome)?current.turnOutcome:'unknown',availability:available?'live':'unavailable'}
       records.push({...record,revision:hash(record)})
     }
     active.throwIfAborted()
@@ -85,6 +90,7 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
     const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),publish})
     agent.attachRemoteContext(()=>remote.context(),(offset,limit,sourceKey)=>sourceKey?remote.reference(sourceKey):remote.snapshot(offset,limit),
       (params,signal)=>reader.followup(remote.reference(params.sourceKey).source,params,signal))
+    remote.subscribe=onCompletion=>reader.subscribe?.(onCompletion,count=>remote.subscriptionState(count))
     const close=agent.close
     agent.close=async()=>{const pending=remote.close();try{await close()}finally{await reader.close();await pending}}
     return remote
