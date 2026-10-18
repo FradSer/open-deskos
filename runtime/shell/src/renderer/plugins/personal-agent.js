@@ -183,6 +183,7 @@
         const threads = [...new Set(ids.filter(Boolean))]
         article.dataset.threadIds = JSON.stringify(threads)
         if (threads.length === 1) article.dataset.threadId = threads[0]
+        else delete article.dataset.threadId
         if (Number.isFinite(at)) timeline.set(article, at)
       }
       function renderReplies(replies) {
@@ -195,10 +196,18 @@
             row = { article, status, answer: null };durableReplies.set(reply.id, row)
             timelineEntry(article, reply.at, [reply.threadId])
           }
+          const origins = [...remoteRecords.values()].filter(item => item.id === reply.replyTo.messageId).flatMap(item => item.sources.filter(source => source.key === reply.replyTo.sourceKey && source.revision === reply.replyTo.sourceRevision))
+          const threadId = origins.length === 1 && origins[0].threadId ? origins[0].threadId : reply.threadId
+          timelineEntry(row.article, reply.at, [threadId])
+          if (row.threadId !== threadId) {
+            row.article.querySelector('.agent-message-session')?.remove()
+            if (reply.sessionId) row.article.append(sessionLabel({ sessionId: reply.sessionId, threadId }, {}))
+            row.threadId = threadId
+          }
           row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed', answered: 'Personal Agent replied', failed: 'Reply was not sent' })[reply.status] || 'Status unavailable'
-          if (reply.sessionId && !row.article.querySelector('.agent-message-session')) row.article.append(sessionLabel({ sessionId: reply.sessionId, threadId: reply.threadId }, {}))
           if (reply.answer) {
-            if (!row.answer) { row.answer = message('assistant', '');timelineEntry(row.answer.closest('article'), reply.at + 0.5, [reply.threadId]) }
+            if (!row.answer) { row.answer = message('assistant', '');timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId]) }
+            timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
             root.odkPersonalBotReply.render(row.answer, reply.answer)
           }
         }
@@ -221,7 +230,28 @@
         if (!frame || frame.state === 'disabled') return
         for (const item of [...(frame.messages ?? [])].reverse()) {
           const recordKey = JSON.stringify([item.id,item.at??null,item.text,(item.sources || []).map(source => [source.key,source.revision])])
-          if (remoteMessages.has(recordKey)) continue
+          if (remoteMessages.has(recordKey)) {
+            const previous = remoteRecords.get(recordKey)
+            remoteRecords.set(recordKey, item)
+            if (item.sources.some((source, index) => source.threadId !== previous.sources[index].threadId)) {
+              const article = remoteMessages.get(recordKey), body = article.querySelector('.agent-message-body')
+              const focused = [...body.querySelectorAll('.agent-message-session')].findIndex(row => row.contains(document.activeElement))
+              const replyFocused = document.activeElement?.classList.contains('agent-session-reply')
+              for (const row of body.querySelectorAll('.agent-message-session')) row.remove()
+              for (const source of item.sources) body.append(sessionLabel(source, item, recordKey))
+              timelineEntry(article, item.at, item.sources.map(source => source.threadId))
+              for (const [index, source] of item.sources.entries()) {
+                const oldThread = previous.sources[index].threadId
+                if (selectedThread && selectedThread.id === oldThread) selectedThread = source.threadId ? { id: source.threadId, sessionId: source.sessionId } : null
+                if (selectedReply?.reference.messageId === item.id && selectedReply.reference.sourceKey === source.key && selectedReply.reference.sourceRevision === source.revision) {
+                  selectedReply = Object.freeze({ ...selectedReply, threadId: source.threadId, sessionId: source.sessionId })
+                }
+              }
+              if (focused >= 0) body.querySelectorAll('.agent-message-session')[focused]?.querySelector(replyFocused ? '.agent-session-reply' : '.agent-session-open')?.focus({ preventScroll: true })
+              replyContext()
+            }
+            continue
+          }
           remoteRecords.set(recordKey, item)
           const body = message('assistant', item.text)
           const article = body.closest('article')
@@ -373,7 +403,7 @@
           if (released) return
           if (!receipt?.accepted) throw Error('refused')
           if (input.value.trim() === text) input.value = ''
-          if (selectedReply === submittedReply) { selectedReply = null;replyContext() }
+          if (selectedReply === submittedReply || (submittedReply && selectedReply?.reference === submittedReply.reference)) { selectedReply = null;replyContext() }
           if (revision === submittedRevision) setState('Submitted. Waiting for the resident session…', 'Waiting for response…')
         } catch {
           if (!released) setState('Message delivery was not confirmed. Draft kept; check the service before sending again.', 'Delivery not confirmed')

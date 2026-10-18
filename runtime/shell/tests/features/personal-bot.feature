@@ -222,3 +222,10 @@ Feature: Independent resident personal bot
     When an incoming Pi update is displayed
     Then a session reply cannot be dispatched as an ordinary owner message
     And ordinary text remains available without a reply reference
+
+  Scenario: A canonical thread projection replaces the reported thread in place
+    Given an existing update has a selected reported Pi session thread
+    When the same message and source revision receive a canonical thread projection
+    Then the existing message remains one article with its original reply reference
+    And its session action and selected thread use the canonical thread
+    And a durable reply in that thread remains visible without a Shell restart

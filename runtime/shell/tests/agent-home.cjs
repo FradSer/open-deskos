@@ -233,6 +233,32 @@ async function assertRemoteConversationHistory() {
 }
 
 
+async function assertThreadProjectionUpdate() {
+  const source={key:'a1'.repeat(32),revision:'b1'.repeat(32),threadId:'c1'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-alias-session',project:'/synthetic/alias',control:'report_only',availability:'live'}
+  const item={id:'d1'.repeat(32),at:7000,text:'Synthetic completed task with a remapped thread',presentation:'assistant_update',sources:[source]}
+  const oldReply={id:'34567890-1234-4123-8123-123456789abc',threadId:source.threadId,sessionId:source.sessionId,text:'Earlier owner reply',replyTo:{messageId:item.id,sourceKey:source.key,sourceRevision:source.revision},status:'delivered',at:7001}
+  const frame={state:'idle',remote:{state:'live',messages:[item],replies:[oldReply],total:1}}
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
+  await evaluate(`window.__projectionArticle=document.querySelector('[data-remote-id="${item.id}"]');document.querySelector('[data-source-key="${source.key}"]').click();document.querySelector('textarea').value='Keep alias draft'`)
+  const canonical={...source,threadId:'e1'.repeat(32)}
+  const projected={...frame,remote:{...frame.remote,messages:[{...item,sources:[canonical]}]}}
+  publishStatus(projected);await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${item.id}"]').dataset.threadId`),canonical.threadId,'same immutable message receives the new canonical thread projection')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${item.id}"]')===window.__projectionArticle`),true,'projection updates retain the article identity')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"]').length`),1)
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep alias draft')
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${oldReply.id}"]').hidden`),false,'an earlier owner reply follows its exact source projection for display')
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  const reference={messageId:item.id,sourceKey:source.key,sourceRevision:source.revision}
+  assert.deepEqual(sentReplyTo.at(-1),reference,'thread projection never changes the immutable wire reference')
+  const reply={id:'23456789-1234-4123-8123-123456789abc',threadId:canonical.threadId,sessionId:source.sessionId,text:'Keep alias draft',replyTo:reference,status:'delivered',at:8000}
+  publishStatus({...projected,remote:{...projected.remote,replies:[reply,oldReply]}});await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${reply.id}"]').hidden`),false,'the canonical durable reply stays in the selected thread')
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click()`)
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${reply.id}"]').hidden`),false,'the original session action also uses the new projection')
+  await evaluate(`document.querySelector('.agent-thread-all').click()`)
+}
+
 async function assertDuplicateRemoteIds() {
   const id='9'.repeat(64)
   const source={key:'8'.repeat(64),revision:'7'.repeat(64),threadId:'6'.repeat(64),machine:'Synthetic Mac',sessionId:'synthetic-legacy-session',project:'/synthetic/legacy',control:'report_only',availability:'live'}
@@ -342,11 +368,14 @@ app.whenReady().then(async () => {
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])
     console.log('PASS legacy single-argument host never silently drops a reply reference');finish(0);return
   }
+  if (process.argv.includes('--session-reply-projection-only')) {
+    await assertThreadProjectionUpdate();console.log('PASS canonical thread projection updates in place');finish(0);return
+  }
   if (process.argv.includes('--session-reply-duplicate-only')) {
     await assertDuplicateRemoteIds();console.log('PASS legacy duplicate message identities and ambiguous references');finish(0);return
   }
   if (process.argv.includes('--session-reply-only')) {
-    await assertSessionReplies();await assertDuplicateRemoteIds();console.log('PASS explicit session replies, durable thread, retained draft and compact themes');finish(0);return
+    await assertSessionReplies();await assertDuplicateRemoteIds();await assertThreadProjectionUpdate();console.log('PASS explicit session replies, durable thread, retained draft and compact themes');finish(0);return
   }
   if (process.argv.includes('--agent-reference-only')) {
     const failures=[]
@@ -700,6 +729,7 @@ app.whenReady().then(async () => {
   }
   await assertSessionReplies()
   await assertDuplicateRemoteIds()
+  await assertThreadProjectionUpdate()
   console.log('PASS resident Agent identity, typed input, streaming, retained draft, first-page briefing and independent Agent')
   console.log('PASS keyboard and pointer paging remain usable; fixture capture saved')
   finish(0)
