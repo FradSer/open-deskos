@@ -15,10 +15,11 @@ ipcMain.handle('odk-personal-bot-status', () => initial)
 let win
 let micToggles = 0
 let sentText = []
+let sentReplyTo = []
 let textAccepted = true
 let completeBeforeReceipt = false
-ipcMain.handle('odk-personal-bot-text', async (_event, text) => {
-  sentText.push(text)
+ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
+  sentText.push(text);sentReplyTo.push(replyTo)
   if (completeBeforeReceipt) {
     publishStatus({ state: 'thinking', transcript: text, message: 'Working' })
     publishStatus({ state: 'idle', transcript: text, message: 'Already completed' })
@@ -31,6 +32,7 @@ const timer = setTimeout(() => finish(1), 60000)
 const evaluate = script => win.webContents.executeJavaScript(script)
 function finish(code) {
   clearTimeout(timer)
+  if (win && !win.webContents.isDestroyed() && win.webContents.debugger.isAttached()) win.webContents.debugger.detach()
   win?.destroy()
   try { fs.rmSync(profile, { recursive: true, force: true }) } catch {}
   app.exit(code)
@@ -231,9 +233,134 @@ async function assertRemoteConversationHistory() {
 }
 
 
+async function assertThreadCoverageRestore() {
+  const source={key:'a2'.repeat(32),revision:'b2'.repeat(32),threadId:'c2'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-coverage-session',project:'/synthetic/coverage',control:'report_only',availability:'live'}
+  const item={id:'d2'.repeat(32),at:9000,text:'Synthetic completed task for coverage checks',presentation:'assistant_update',sources:[source]}
+  for(const remote of [{state:'stale',omitted:0},{state:'partial',omitted:1},{state:'live',omitted:0}]) {
+    const complete=remote.state==='live'
+    publishStatus({state:'idle',remote:{...remote,messages:[item],replies:[],total:1}});await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete)
+    await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),true)
+    await evaluate(`document.querySelector('.agent-thread-all').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'All messages restores the current coverage notice without a new frame')
+    await evaluate(`document.querySelector('[data-source-key="${source.key}"]').click();document.querySelector('.agent-reply-cancel').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'Cancel reply restores the current coverage notice without a new frame')
+  }
+}
+
+async function assertThreadProjectionUpdate() {
+  const source={key:'a1'.repeat(32),revision:'b1'.repeat(32),threadId:'c1'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-alias-session',project:'/synthetic/alias',control:'report_only',availability:'live'}
+  const item={id:'d1'.repeat(32),at:7000,text:'Synthetic completed task with a remapped thread',presentation:'assistant_update',sources:[source]}
+  const oldReply={id:'34567890-1234-4123-8123-123456789abc',threadId:source.threadId,sessionId:source.sessionId,text:'Earlier owner reply',replyTo:{messageId:item.id,sourceKey:source.key,sourceRevision:source.revision},status:'delivered',at:7001}
+  const frame={state:'idle',remote:{state:'live',messages:[item],replies:[oldReply],total:1}}
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
+  await evaluate(`window.__projectionArticle=document.querySelector('[data-remote-id="${item.id}"]');document.querySelector('[data-source-key="${source.key}"]').click();document.querySelector('textarea').value='Keep alias draft'`)
+  const canonical={...source,threadId:'e1'.repeat(32)}
+  const projected={...frame,remote:{...frame.remote,messages:[{...item,sources:[canonical]}]}}
+  publishStatus(projected);await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${item.id}"]').dataset.threadId`),canonical.threadId,'same immutable message receives the new canonical thread projection')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${item.id}"]')===window.__projectionArticle`),true,'projection updates retain the article identity')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"]').length`),1)
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep alias draft')
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${oldReply.id}"]').hidden`),false,'an earlier owner reply follows its exact source projection for display')
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  const reference={messageId:item.id,sourceKey:source.key,sourceRevision:source.revision}
+  assert.deepEqual(sentReplyTo.at(-1),reference,'thread projection never changes the immutable wire reference')
+  const reply={id:'23456789-1234-4123-8123-123456789abc',threadId:canonical.threadId,sessionId:source.sessionId,text:'Keep alias draft',replyTo:reference,status:'delivered',at:8000}
+  publishStatus({...projected,remote:{...projected.remote,replies:[reply,oldReply]}});await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${reply.id}"]').hidden`),false,'the canonical durable reply stays in the selected thread')
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click()`)
+  assert.equal(await evaluate(`document.querySelector('[data-reply-id="${reply.id}"]').hidden`),false,'the original session action also uses the new projection')
+  await evaluate(`document.querySelector('.agent-thread-all').click()`)
+}
+
+async function assertDuplicateRemoteIds() {
+  const id='9'.repeat(64)
+  const source={key:'8'.repeat(64),revision:'7'.repeat(64),threadId:'6'.repeat(64),machine:'Synthetic Mac',sessionId:'synthetic-legacy-session',project:'/synthetic/legacy',control:'report_only',availability:'live'}
+  const other={...source,key:'5'.repeat(64),revision:'4'.repeat(64),threadId:'3'.repeat(64),sessionId:'synthetic-other-session'}
+  const first={id,at:4000,text:'Synthetic legacy snapshot one',sources:[source]}
+  const second={id,at:5000,text:'Synthetic legacy snapshot two',sources:[other]}
+  const publish=async messages=>{publishStatus({state:'idle',remote:{state:'live',messages,replies:[],total:messages.length}});await evaluate('new Promise(r=>setTimeout(r,30))')}
+  await publish([second,first])
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${id}"]').length`),2,'legacy duplicate IDs preserve distinct immutable source snapshots')
+  await evaluate(`document.querySelector('.agent-earlier-updates').open=true;document.querySelector('[data-source-key="${other.key}"]').click()`)
+  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/synthetic-other/)
+  await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
+  const ambiguous={...first,at:6000,text:'Synthetic conflicting snapshot with the same reference'}
+  await publish([ambiguous,second,first]);await publish([ambiguous,second,first])
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${id}"]').length`),3,'replayed snapshots do not duplicate or hide legacy records')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-source-key="${source.key}"]')].map(b=>b.disabled)`),[true,true],'the same reference with conflicting bodies is not actionable')
+  assert.equal(await evaluate(`document.querySelector('[data-source-key="${other.key}"]').disabled`),false,'a distinct exact reference remains actionable')
+  assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Reply reference is ambiguous/)
+  await evaluate(`document.querySelector('[data-source-key="${source.key}"]').dispatchEvent(new MouseEvent('click'))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'synthetic clicks cannot bypass an ambiguous reference')
+}
+
+async function assertSessionReplies({ geometry = true } = {}) {
+  const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',control:'report_only',availability:'live'}
+  const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'1'.repeat(64),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8'}
+  const item={id:'a'.repeat(64),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
+  const frame={state:'idle',remote:{state:'live',messages:[item],replies:[],total:1}}
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),2,'multiple sessions require explicit reply choices')
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'incoming updates do not silently select a target')
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+  await evaluate(`document.querySelector('[data-source-key="${second.key}"]').focus()`)
+  for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/22222222/)
+  await evaluate(`document.querySelector('textarea').value='Keep this draft';document.querySelector('.agent-reply-cancel').focus()`)
+  for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep this draft')
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
+  await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+  textAccepted=false
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  const expected={messageId:item.id,sourceKey:first.key,sourceRevision:first.revision}
+  assert.deepEqual(sentReplyTo.at(-1),expected)
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep this draft')
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false,'refusal retains the exact reference')
+  publishStatus({state:'unavailable'});await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),true)
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false)
+  textAccepted=true;publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
+  await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  assert.deepEqual(sentReplyTo.at(-1),expected)
+  assert.equal(await evaluate(`document.querySelector('textarea').value`),'')
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
+  const owner={id:'12345678-1234-4123-8123-123456789abc',threadId:first.threadId,sessionId:first.sessionId,text:'Keep this draft',replyTo:expected,status:'delivered',at:2000}
+  const completed={...item,id:'2'.repeat(64),at:3000,threadId:first.threadId,text:'合成示例：同一训练会话的后续检查已完成。',sources:[first]}
+  const updated={...frame,remote:{...frame.remote,messages:[completed,item],replies:[owner],total:2}}
+  publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,30))');publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${owner.id}"]').length`),1,'durable owner replies do not duplicate on reconnect')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.agent-conversation > [data-thread-id="${first.threadId}"]')].map(n=>n.querySelector('.agent-message-body').firstChild.textContent)`),['Keep this draft',completed.text])
+  for(const theme of geometry ? ['instrument','pixel','border-beam'] : []) {
+    await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
+    for(const [width,height] of [[1920,1280],[480,854],[320,480]]) {
+      await resize(width,height)
+      await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+      const geometry=await evaluate(`(()=>{const c=document.querySelector('.agent-composer').getBoundingClientRect(),r=document.querySelector('.agent-reply-context').getBoundingClientRect(),l=document.querySelector('.agent-conversation'),b=document.querySelector('.agent-reply-cancel').getBoundingClientRect();return {composer:c.bottom,reference:r.bottom,composerTop:c.top,touch:b.height,overflow:l.scrollWidth-l.clientWidth,bodyOverflow:document.documentElement.scrollWidth-innerWidth,region:l.clientHeight,panel:document.querySelector('.agent-panel').getBoundingClientRect().height,head:document.querySelector('.agent-head').getBoundingClientRect().height,nav:document.querySelector('.agent-thread-nav').getBoundingClientRect().height,refHeight:r.height,gap:getComputedStyle(document.querySelector('.agent-panel')).gap,flex:getComputedStyle(l).flex}})()`)
+      console.log('SESSION_REPLY_GEOMETRY',JSON.stringify({theme,width,...geometry}))
+      assert.ok(geometry.composer<=height&&geometry.reference<=geometry.composerTop&&geometry.touch>=44&&geometry.overflow<=1&&geometry.bodyOverflow<=1&&geometry.region>=40,JSON.stringify({theme,width,...geometry}))
+      await evaluate('document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))')
+      fs.writeFileSync(path.join(os.tmpdir(),`odk-session-reply-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+    }
+  }
+  await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('textarea').value='Ordinary after reply';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+  assert.equal(sentReplyTo.at(-1),undefined,'ordinary sends never inherit the old reference')
+  await resize(1920,1280)
+}
+
 app.whenReady().then(async () => {
+  let selectedPreload = path.join(__dirname, '../src/preload.js')
+  if (process.argv.includes('--session-reply-legacy-host')) {
+    const original = fs.readFileSync(selectedPreload,'utf8')
+    assert.ok(original.includes('  supportsReplyTo: true,'))
+    selectedPreload = path.join(profile,'legacy-single-argument-preload.cjs')
+    fs.writeFileSync(selectedPreload,original.replace('  supportsReplyTo: true,\n','').replace("sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo)","sendText: text => ipcRenderer.invoke('odk-personal-bot-text', text)"),{mode:0o600,flag:'wx'})
+  }
   win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
-    webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true,
+    webPreferences: { preload: selectedPreload, sandbox: true, contextIsolation: true,
       nodeIntegration: false, offscreen: true, backgroundThrottling: false } })
   await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
@@ -247,6 +374,31 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--session-reply-legacy-host')) {
+    const source={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'synthetic-session',project:'/synthetic',control:'report_only',availability:'live'}
+    publishStatus({state:'idle',remote:{state:'live',messages:[{id:'a'.repeat(64),text:'Synthetic completion',presentation:'assistant_update',sources:[source]}],replies:[]}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'an old single-argument bridge cannot reply')
+    await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
+    assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])
+    console.log('PASS legacy single-argument host never silently drops a reply reference');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-coverage-only')) {
+    await assertThreadCoverageRestore();console.log('PASS thread exit restores current coverage');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-state-only')) {
+    await assertSessionReplies({geometry:false});await assertDuplicateRemoteIds();await assertThreadProjectionUpdate();await assertThreadCoverageRestore();console.log('PASS reply state, identities, projections and coverage');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-projection-only')) {
+    await assertThreadProjectionUpdate();console.log('PASS canonical thread projection updates in place');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-duplicate-only')) {
+    await assertDuplicateRemoteIds();console.log('PASS legacy duplicate message identities and ambiguous references');finish(0);return
+  }
+  if (process.argv.includes('--session-reply-only')) {
+    await assertSessionReplies();await assertDuplicateRemoteIds();await assertThreadProjectionUpdate();console.log('PASS explicit session replies, durable thread, retained draft and compact themes');finish(0);return
+  }
   if (process.argv.includes('--agent-reference-only')) {
     const failures=[]
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
@@ -597,6 +749,10 @@ app.whenReady().then(async () => {
     await send(compact)
     fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-failure-grid-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
   }
+  await assertSessionReplies()
+  await assertDuplicateRemoteIds()
+  await assertThreadProjectionUpdate()
+  await assertThreadCoverageRestore()
   console.log('PASS resident Agent identity, typed input, streaming, retained draft, first-page briefing and independent Agent')
   console.log('PASS keyboard and pointer paging remain usable; fixture capture saved')
   finish(0)

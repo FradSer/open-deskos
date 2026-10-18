@@ -226,3 +226,20 @@ test(`${independent ? 'independent' : 'default'} frame status preserves broadcas
 })
 
 }
+
+
+test('session replies retain exact references across the system channel and refuse extra authority',async()=>{
+ const f=fixture();const sent=[]
+ f.bot.sendText=async(...args)=>{sent.push(args);return true}
+ await f.host.start()
+ try {
+  const send=f.handlers.get('odk-personal-bot-text')
+  const reference={messageId:'a'.repeat(64),sourceKey:'b'.repeat(64),sourceRevision:'c'.repeat(64)}
+  assert.deepEqual(await send(null,'继续',reference),{accepted:true})
+  assert.deepEqual(sent,[['继续',reference]])
+  assert.deepEqual(await send(null,'Untrusted',{...reference,target:'mac'}),{accepted:false})
+  assert.equal(sent.length,1)
+  assert.deepEqual(await send(null,'Ordinary'),{accepted:true})
+  assert.deepEqual(sent.at(-1),['Ordinary'])
+ } finally {await f.host.stop()}
+})

@@ -195,3 +195,43 @@ Feature: Independent resident personal bot
     And repeated identical replies retain their DOM and scroll position
     And Instrument, Pixel, and Border Beam retain meaningful emphasis without synthesizing Pixel weights or styles
     And long English, CJK, code, and tables remain readable and bounded at native and compact sizes
+
+  Scenario: Reply to a specific Pi session from its incoming update
+    Given an incoming update contains retained references for two Pi sessions
+    When the owner selects Reply for one session
+    Then the composer identifies that session and the original update
+    And the owner can cancel the reference without losing the draft
+    When the owner submits the reply
+    Then only the message ID and exact source key and revision accompany the text
+    And the renderer supplies no target, project, or session authority
+    And a failed or disconnected submission retains the draft and reference
+    And accepted replies and later completed updates remain in the same durable session thread
+    And another session requires an explicit selection
+    And ordinary messages do not inherit a prior reply reference
+
+  Scenario: Session replies remain readable and keyboard accessible
+    Given a session identifier is long and the conversation contains many updates
+    When the owner uses a compact window or changes the theme
+    Then each incoming update shows a session identifier with its complete value available
+    And Reply and Cancel reply have keyboard access and touch targets of at least 44 pixels
+    And the selected thread uses the existing conversation scroll region above the fixed composer
+    And returning to all messages retains the original updates
+
+  Scenario: A previous host cannot silently drop a session reference
+    Given the host bridge accepts only ordinary text or the service does not advertise reply input
+    When an incoming Pi update is displayed
+    Then a session reply cannot be dispatched as an ordinary owner message
+    And ordinary text remains available without a reply reference
+
+  Scenario: A canonical thread projection replaces the reported thread in place
+    Given an existing update has a selected reported Pi session thread
+    When the same message and source revision receive a canonical thread projection
+    Then the existing message remains one article with its original reply reference
+    And its session action and selected thread use the canonical thread
+    And a durable reply in that thread remains visible without a Shell restart
+
+  Scenario: Leaving a session thread restores existing coverage notices
+    Given the current remote snapshot has a stale or omitted update notice
+    When the owner opens a session thread and returns to All messages or cancels a reply
+    Then the existing notice is visible without another status frame
+    And a complete snapshot remains free of coverage notices

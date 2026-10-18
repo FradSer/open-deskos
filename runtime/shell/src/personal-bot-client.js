@@ -1,4 +1,5 @@
 const net = require('node:net')
+const { parseReplyTo } = require('./personal-bot-reply-reference')
 const { randomUUID } = require('node:crypto')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { parseHomeBriefing } = require('./home-briefing-frame')
@@ -149,8 +150,10 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         publish({
           state: record.state,
           textInput: record.textInput === true,
+          replyInput: record.replyInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
+          ...(parseReplyTo(record.replyTo) && typeof record.threadId==='string' && /^[a-f0-9]{64}$/.test(record.threadId) ? {replyTo:parseReplyTo(record.replyTo),threadId:record.threadId} : {}),
           level,
           agents: parseAgentTasks(record.agents),
           jev: parseJevStatus(record.jev),
@@ -214,15 +217,18 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       })
     },
     toggle: () => write('toggle'),
-    sendText(text) {
+    sendText(text, replyTo) {
+      const reference = replyTo === undefined ? undefined : parseReplyTo(replyTo)
+      if (reference === null || (reference && status.replyInput !== true)) return Promise.resolve(false)
+      const context = reference ? { replyTo: reference } : {}
       if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 3000
         || status.textInput !== true || textRequests.size || !['idle', 'error'].includes(status.state)) return Promise.resolve(false)
       const requestId = randomUUID()
-      if (Buffer.byteLength(JSON.stringify({ v: 1, type: 'text', text, requestId })) > 4095) return Promise.resolve(false)
+      if (Buffer.byteLength(JSON.stringify({ v: 1, type: 'text', text, requestId, ...context })) > 4095) return Promise.resolve(false)
       return new Promise(resolve => {
         const timer = setTimeout(() => finishText(requestId, false), 5000)
         textRequests.set(requestId, { resolve, timer })
-        try { if (!write('text', { text, requestId })) finishText(requestId, false) }
+        try { if (!write('text', { text, requestId, ...context })) finishText(requestId, false) }
         catch { finishText(requestId, false) }
       })
     },

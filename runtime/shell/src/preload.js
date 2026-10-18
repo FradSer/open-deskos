@@ -48,7 +48,8 @@ contextBridge.exposeInMainWorld('odkPersonalBot', {
     return () => ipcRenderer.removeListener('odk-personal-bot-mic', handler)
   },
   toggle: () => ipcRenderer.invoke('odk-personal-bot-toggle'),
-  sendText: text => ipcRenderer.invoke('odk-personal-bot-text', text),
+  supportsReplyTo: true,
+  sendText: (text, replyTo) => replyTo === undefined ? ipcRenderer.invoke('odk-personal-bot-text', text) : ipcRenderer.invoke('odk-personal-bot-text', text, replyTo),
   getStatus: () => ipcRenderer.invoke('odk-personal-bot-status'),
   proposalCommand: (command) => ipcRenderer.invoke('odk-personal-bot-proposal', command),
   subscribe(listener) {
