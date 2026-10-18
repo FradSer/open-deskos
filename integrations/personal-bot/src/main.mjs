@@ -1,3 +1,4 @@
+import {createOptionalJevHealthCheck} from './judgment-client.mjs'
 import { createPersonalBotComposition, loadPersonalBotPluginConfig } from './plugin-composition.mjs'
 import { loadPersonalBotReplacements } from './development-plugins.mjs'
 import { parseArgs } from 'node:util'
@@ -78,7 +79,7 @@ async function initialize(env, report, onRideUpdate, platform = process.platform
   }
   const directories = await prepareHostDirectories(env, platform)
   signal?.throwIfAborted()
-  report('Check Jev credential (TYPESAFE_API_KEY or ODK_JEV_KEY_FILE), writable checkout, Pi authentication/model and capability paths; restart service')
+  report('Check model providers, writable checkout, Pi authentication/model and capability paths; restart service')
   const agent = await createPersonalBot({
     workspace: env.ODK_WORKSPACE,
     stateDir: directories.state,
@@ -144,7 +145,8 @@ async function main() {
     onService(value) { service = value },
     createService() {
       service = new PersonalBotService({
-        checkJev: signal => checkJevAuthentication({ env, signal }),
+        getJudgmentStatus: () => runtime?.agent.judgmentStatus,
+        checkJev: createOptionalJevHealthCheck({check: signal => checkJevAuthentication({env, signal}), getAgent: () => runtime?.agent}),
         failureMessage: '请求未完成。若涉及打车，请先查询订单状态，不要重复下单。',
         record: async onLevel => {
           if (!runtime) throw Error('Configuration incomplete')
@@ -174,7 +176,7 @@ async function main() {
       runtime = value
       service.attachRemoteUpdates(runtime?.remote)
       service.publishAgents(runtime ? runtime.agent.agentTasks?.activity() ?? [] : undefined)
-      if (runtime) service.setState('idle')
+      if (runtime) { if (service.jev) runtime.agent.setJevHealth?.(service.jev); service.setState('idle') }
       else if (!context.stopping) service.setState('error', 'Personal Bot runtime unavailable')
     },
     createHome(_runtime, _service) {
@@ -200,8 +202,8 @@ async function main() {
       watch = new ProactiveWatch({ config, intents: runtime.agent.intents, loadState: state.load, saveState: state.save,
         generate: runtime.agent.generateProposals,
         onGeneration: record => console.info(JSON.stringify({ event: 'proactive_generation', model: runtime.agent.generationModel, ...record })),
-        judge: createJevJudge({ env }),
-        onJudgment: record => console.info(JSON.stringify({ event: 'proactive_jev', ...record })),
+        judge: createJevJudge({ env, request: runtime.agent.judge }),
+        onJudgment: record => console.info(JSON.stringify({ event: 'proactive_judgment', ...record })),
         read: async (id, signal) => (await odkDataRequest('read', { id, signal, env, platform })).reading,
         save: env.ODK_PROACTIVE_CONFIG ? ownerConfigWriter(env.ODK_PROACTIVE_CONFIG, config) : async () => { throw Error('No owner rule file selected') },
         phrase: runtime.agent.phraseProposal,
@@ -230,7 +232,7 @@ async function main() {
       }))
     },
     onError(id) {
-      if (id === 'odk.personal-bot.watch') service.notify('主动建议未启用：请检查私有 owner 配置和 Jev 凭据并重启服务。')
+      if (id === 'odk.personal-bot.watch') service.notify('主动建议未启用：请检查私有 owner 配置、数据来源和模型连接并重启服务。')
       // Configuration reports remain actionable; SDK errors stay private.
     },
   })

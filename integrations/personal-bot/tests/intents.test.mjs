@@ -157,3 +157,11 @@ test('Given a timed condition, a later minute in its bounded window can change a
   await runtime.prepare(watch); await runtime.prepare(watch); assert.equal(calls, 1)
   clock += 5 * 60000; await runtime.prepare(watch); assert.equal(calls, 2); assert.equal(runtime.rules().length, 1)
 })
+
+test('ordinary model condition identity survives the same bounded Intent occurrence flow', async t => {
+  const store=fixture(t);store.save(wish)
+  const {runtime,watch}=host(store,async()=>({status:'true',model:'synthetic/model-v1'}),async()=>({status:'needs_location',message:'Synthetic location remains unknown'}))
+  await runtime.prepare(watch)
+  assert.equal(watch.intentClaims[0].status,'ready');assert.equal(watch.intentClaims[0].model,'synthetic/model-v1')
+  assert.equal(runtime.rules().length,1)
+})

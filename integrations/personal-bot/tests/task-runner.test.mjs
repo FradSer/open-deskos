@@ -1216,6 +1216,33 @@ test('actual launch and restored fast turns notify once without observing workin
 })
 
 
+test('explicit Hosted replies use actual status revisions and daemon CAS after list previews',async t=>{
+ for(const drift of [false,true])await t.test(drift?'status changes before dispatch':'same original session',async t=>{
+  const f=await fixture(t);await f.service.close();const prompts=[]
+  const service=await createTaskService(f.config,{createSession:async()=>({prompt:async text=>{prompts.push(text);return {text:'Hosted result',stopReason:'stop'}},dispose(){},abort:async()=>{}})})
+  t.after(()=>service.close())
+  const started=await service.handle(start(f.root));assert.equal(started.ok,true,started.error)
+  const original=await waitState(service,started.task.taskId,'settled')
+  let statusRevision,previewChecked=false,sentRevision
+  const reader=await createRemotePiReader({targets:[{id:'cm5',roots:[f.root]}],link:{stop(){}},backfill:async()=>null,request:async(_target,payload)=>{
+   if(payload.command==='prompt'){
+    sentRevision=payload.expectedRevision
+    if(drift){assert.equal((await service.handle(request('prompt',{project:f.root,taskId:original.taskId,prompt:'Different owner operation',mutationId:randomUUID()}))).ok,true);await waitState(service,original.taskId,'settled')}
+   }
+   const result=await service.handle(request(payload.command,{...payload,...(payload.command==='prompt'?{mutationId:randomUUID()}:{})}))
+   if(payload.command==='list'){assert.equal(result.tasks[0].revision,undefined);assert.equal(result.tasks[0].response,undefined);previewChecked=true}
+   if(payload.command==='status')statusRevision=result.task.revision
+   return result
+  }})
+  t.after(()=>reader.close())
+  const source=(await reader.read('hosted:0')).records[0],immutable=structuredClone(source)
+  const result=await reader.followup(source,{sourceRevision:source.revision,prompt:'Continue original Hosted session'},undefined,{explicitReply:true})
+  assert.equal(previewChecked,true);assert.equal(sentRevision,statusRevision);assert.match(sentRevision,/^[a-f0-9]{64}$/);assert.deepEqual(source,immutable)
+  if(drift){assert.equal(result.ok,false);assert.match(result.error,/Task revision/);assert.equal(prompts.includes('Continue original Hosted session'),false)}
+  else {assert.equal(result.ok,true,result.error);await waitState(service,original.taskId,'settled');assert.equal(prompts.filter(text=>text==='Continue original Hosted session').length,1)}
+ })
+})
+
 test('a read-only socket observer receives only a durably completed turn without claiming Console ownership', {timeout:5000}, async t=>{
  const {serveTasks,streamTaskCompletions}=await import('../src/task-protocol.mjs')
  let finish;const f=await fixture(t,async({signal})=>new Promise(resolve=>{finish=resolve;signal.addEventListener('abort',()=>resolve({text:'cancelled',stopReason:'aborted'}),{once:true})}))

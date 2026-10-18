@@ -1,3 +1,4 @@
+import { isJudgmentModel } from './judgment-client.mjs'
 import { randomUUID, createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { lstatSync, realpathSync, writeFileSync, fsyncSync, closeSync, renameSync, unlinkSync, openSync } from 'node:fs'
@@ -207,7 +208,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
           update('checking')
           const decision = await judge({ entry, memory: selected, observations, local: { date: clock.date, time: `${String(Math.floor(localClock.minute / 60)).padStart(2, '0')}:${String(localClock.minute % 60).padStart(2, '0')}`, at: entry.at, timeZone: entry.timeZone }, signal: watch.controller.signal })
           if (!valid()) { discardCondition(); continue }
-          if (!decision || !['true', 'false', 'unknown'].includes(decision.status) || !/^jev-[\w.-]{1,60}$/.test(decision.model)) throw Error('Invalid Intent judgment')
+          if (!decision || !['true', 'false', 'unknown'].includes(decision.status) || !isJudgmentModel(decision.model)) throw Error('Invalid Intent judgment')
           claim.model = decision.model
           if (decision.status !== 'true') { update(`condition_${decision.status}`); continue }
           // Persist before the first external lookup. A crash or error cannot replay it.
@@ -217,7 +218,7 @@ export function createIntentRuntime({ store, memory, memoryVersion = undefined, 
           const preview = entry.ride ? (routeReady && previewRide ? await previewRide(route, watch.controller.signal, valid) : { status: 'needs_location', message: '请明确城市和门店；尚未搜索或报价。' }) : undefined
           if (!valid()) { update('superseded'); continue }
           const measuredAt = new Date(now()).toISOString()
-          const values = { wish: entry.wish, condition: entry.condition, conditionStatus: 'Jev judged the supplied context sufficient now; not current pickup-location proof', ...(preview ? { rideStatus: `${preview.status}; ${preview.sandbox === true ? '沙箱测试，不代表真实车辆或真实行程' : 'Read-only preview, not an order'}`, route: `${route?.from ?? 'Unknown pickup'} → ${route?.to ?? 'Unknown destination'}`, quote: preview.items?.map(i => `${i.productName}: ${i.priceText}`).join('; ') || 'No confirmed quote; inspect place candidates first' } : {}) }
+          const values = { wish: entry.wish, condition: entry.condition, conditionStatus: 'The supplied context was judged sufficient now; not current pickup-location proof', ...(preview ? { rideStatus: `${preview.status}; ${preview.sandbox === true ? '沙箱测试，不代表真实车辆或真实行程' : 'Read-only preview, not an order'}`, route: `${route?.from ?? 'Unknown pickup'} → ${route?.to ?? 'Unknown destination'}`, quote: preview.items?.map(i => `${i.productName}: ${i.priceText}`).join('; ') || 'No confirmed quote; inspect place candidates first' } : {}) }
           const evidence = Object.entries(values).map(([f, value]) => ({ readingId: `intent.${entry.id}`, ruleId: rule(entry).id, field: f, value: String(value).slice(0, 256), measuredAt, state: 'live' }))
           ready.set(rule(entry).id, { entry, preview, evidence, valid, claim })
           update('ready')

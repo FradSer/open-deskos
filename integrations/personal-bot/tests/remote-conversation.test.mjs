@@ -84,6 +84,9 @@ test('a remote follow-up uses the exact persisted control identity and refuses r
  await reader.followup(source,{sourceRevision:source.revision,prompt:'Owner follow-up'})
  assert.deepEqual(sent.at(-1),{target:'cm5',command:'prompt',project:task.project,taskId:task.taskId,prompt:'Owner follow-up',expectedRevision:task.revision})
  const count=sent.filter(call=>call.command==='prompt').length
+ task.deliveries=[{state:'unknown'}]
+ await assert.rejects(reader.followup(source,{sourceRevision:source.revision,prompt:'Independent unbound request'}),/unknown/);assert.equal(sent.filter(call=>call.command==='prompt').length,count)
+ delete task.deliveries
  await assert.rejects(reader.followup({...source,control:'report_only'},{sourceRevision:source.revision,prompt:'Do not send'}),/report-only/)
  task.revision='d'.repeat(64)
  await assert.rejects(reader.followup(source,{sourceRevision:source.revision,prompt:'Do not send'}),/revision changed/)
@@ -518,7 +521,7 @@ test('a report reply resolves one configured original session and never invents 
  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
  const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',revision:'c'.repeat(64),state:'settled',lifecycle:'live',deliveries:[]}
  let tasks=[task],incomplete=false,statusChanged=false;const sent=[]
- const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'d'.repeat(64)}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
+ const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:statusChanged?'hosted':'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'invalid'}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
  const report={...row('source'),sessionId:task.taskId,project:task.project}
  const reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic'],reportMachines:['synthetic-mac']}],link:{stop:async()=>{},conclusions:async()=>({ok:true,records:[report],nextCursor:null})},backfill:async()=>null,request})
  const source=(await reader.read()).records[0]
@@ -529,14 +532,47 @@ test('a report reply resolves one configured original session and never invents 
  tasks=[task,task];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/ambiguous/i);assert.equal(count(),1)
  tasks=[task];incomplete=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/incomplete/i);assert.equal(count(),1)
  incomplete=false;tasks=[{...task,project:'/different'}];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}));assert.equal(count(),1)
- tasks=[task];statusChanged=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision changed/);assert.equal(count(),1)
- statusChanged=false;task.deliveries=[{state:'unknown',submitted:true}];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(count(),1)
+ tasks=[task];statusChanged=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision/);assert.equal(count(),1)
+ statusChanged=true;task.deliveries=[{state:'unknown',submitted:true}];task.revision='d'.repeat(64);await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(count(),1)
  task.deliveries=[]
  for(const patch of [{lifecycle:'unknown'},{state:'unknown'},{state:'starting'},{lifecycle:'ended',state:'ended'}]) {
    const previous={state:task.state,lifecycle:task.lifecycle};Object.assign(task,patch)
    await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/not live/);Object.assign(task,previous);assert.equal(count(),1)
  }
  await assert.rejects(reader.followup(source,params));assert.equal(count(),1)
+ await reader.close()
+})
+
+test('a historical native reply uses fresh session status rather than the list summary hash',async()=>{
+ const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',state:'settled',lifecycle:'live'}
+ let fresh={...task,response:'A new result arrived',updatedAt:'2026-10-19T00:00:00Z'},endpointKind='current_session',statusEndpoint=undefined,prompts=0
+ const target={id:'mac',roots:['/synthetic'],reportMachines:['synthetic-mac']}
+ const reader=await createRemotePiReader({targets:[target],link:{stop:async()=>{}},backfill:async()=>null,request:async(_target,params)=>{
+   if(params.command==='list')return {tasks:[task],endpointKind}
+   if(params.command==='status')return {task:fresh,endpointKind:statusEndpoint}
+   prompts++;assert.equal(params.taskId,task.taskId);assert.equal(params.project,task.project);assert.equal(params.prompt,'Continue the original session');return {accepted:true}
+ }})
+ const source={...row('historical'),sessionId:task.taskId,project:task.project},original=structuredClone(source)
+ const params={sourceRevision:source.revision,prompt:'Continue the original session'}
+ await reader.followup(source,params,undefined,{explicitReply:true});assert.equal(prompts,1);assert.deepEqual(source,original)
+ for(const patch of [{taskId:'00000000-0000-0000-0000-000000000002'},{project:'/other'},{lifecycle:'unknown'},{state:'starting'}]) {
+   fresh={...task,...patch};await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}));assert.equal(prompts,1)
+ }
+ fresh={...task,deliveries:[{state:'unknown',mutationId:'00000000-0000-0000-0000-000000000009'}]}
+ await reader.followup(source,params,undefined,{explicitReply:true});assert.equal(prompts,2)
+ for(const kind of ['hosted','unknown',undefined]) {
+   fresh={...task,response:'Different status shape'};endpointKind=kind
+   await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/revision/);assert.equal(prompts,2)
+   fresh={...task,deliveries:[{state:'unknown'}]};task.deliveries=fresh.deliveries
+   await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/unknown/);assert.equal(prompts,2)
+   delete task.deliveries
+ }
+ endpointKind=undefined;target.endpointKind='current_session';fresh={...task,response:'Full native status',deliveries:[{state:'unknown'}]}
+ await reader.followup(source,params,undefined,{explicitReply:true});assert.equal(prompts,3)
+ statusEndpoint='hosted';await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/conflict/);assert.equal(prompts,3)
+ statusEndpoint=undefined;endpointKind='hosted';await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/conflict/);assert.equal(prompts,3)
+ await assert.rejects(reader.followup(source,{...params,sourceRevision:'f'.repeat(64)},undefined,{explicitReply:true}),/source revision/);assert.equal(prompts,3)
  await reader.close()
 })
 

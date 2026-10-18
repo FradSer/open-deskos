@@ -332,3 +332,31 @@ Feature: Owner controlled proactive Personal Bot proposals
     When the daemon restarts after that turn finishes
     Then its preserved finished outcome can establish completion
     But cold history and restoration preparation cannot establish completion
+
+  Scenario: Ordinary model judgments preserve the existing proactive evidence gates
+    Given Jev is unavailable and an ordinary typed judgment service is selected
+    When it judges candidate relevance and factual grounding
+    Then only valid supported candidates can become proposals
+    And checkpoints retain the actual provider and model identifier without a Jev alias
+    And malformed or failed judgments cannot grant action permission
+
+  Scenario: First startup keeps bound source facts visible when synthesis fails
+    Given current declared Home sources have exact supported template variables
+    And no earlier briefing exists
+    When the generation service fails
+    Then validated source-bound facts remain visible with an error state
+    And no invented values or successful model summary are reported
+
+  Scenario: First startup shows bound facts before synthesis finishes
+    Given no earlier briefing exists and current Home facts pass the original binding validator
+    When the generation service is still pending
+    Then the loading briefing already shows those exact source facts
+    And generatedAt remains zero until a model summary succeeds
+    And source changes are checked again before the generated template is accepted
+    And oversized or unsupported facts do not bypass the existing required source budget
+
+  Scenario: A recovered model template replaces the source-only presentation state
+    Given a cached model template becomes applicable after source-only facts were shown
+    When that template is resolved against current sources
+    Then it becomes the model briefing rather than a source-only fallback
+    And a later generation failure retains its complete items as stale

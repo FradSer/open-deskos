@@ -136,7 +136,7 @@ test('a rule without fresh evidence cannot hold an earlier judgment failure', as
   let fail = true
   const f = fixture({ judge: async args => { if (fail) throw Error('Jev unavailable'); return fixtureJudge(args) } })
   await f.watch.tick()
-  assert.match(f.frames.at(-1).error, /Jev/)
+  assert.match(f.frames.at(-1).error, /判断服务/)
   fail = false
   f.reading({ id: 'odk.tile.hydra', state: 'unavailable', value: null })
   await f.watch.tick()

@@ -1,6 +1,6 @@
-import { readProactiveFile } from './proactive-private.mjs'
+import { resolveProviderCredential, resolveProviderEndpoint, ProviderConfigurationError } from './provider-endpoints.mjs'
 
-export const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9.-]{1,60}$/.test(value)
+export const isJevModel = value => typeof value === 'string' && /^jev-[a-zA-Z0-9_.-]{1,60}$/.test(value)
 
 // Only fixed codes cross the resident status boundary; never retain upstream bodies or credentials.
 class JevRequestError extends Error {
@@ -9,12 +9,12 @@ class JevRequestError extends Error {
 
 /** Shared bounded, server-side TypeSafe transport for intent and proactive judgments. */
 export function createJevClient({ env = process.env, fetchImpl = fetch } = {}) {
-  let key
-  try { key = env.TYPESAFE_API_KEY?.trim() || (env.ODK_JEV_KEY_FILE ? readProactiveFile(env.ODK_JEV_KEY_FILE, 4096).trim() : '') }
-  catch (error) { throw new JevRequestError(error?.code === 'ENOENT' ? 'missing_credential' : 'credential_unavailable', 'Jev credential missing or invalid') }
-  if (!key) throw new JevRequestError('missing_credential', 'Jev credential missing or invalid')
-  if (/[\r\n]/.test(key)) throw new JevRequestError('configuration', 'Jev credential missing or invalid')
-  const model = env.ODK_JEV_MODEL || 'jev-latest'
+  const provider = env.ODK_JEV_PROVIDER || 'typesafe'
+  if (!['typesafe', 'opencode'].includes(provider)) throw new JevRequestError('configuration', 'Invalid Jev provider configuration')
+  let key, endpoint
+  try { endpoint = resolveProviderEndpoint(provider, 'systemone'); key = resolveProviderCredential(provider, { env }) }
+  catch (error) { throw new JevRequestError(error instanceof ProviderConfigurationError ? error.code : 'configuration', 'Jev credential missing or invalid') }
+  const model = env.ODK_JEV_MODEL || (provider === 'opencode' ? 'jev-1.13' : 'jev-latest')
   const timeout = Number(env.ODK_JEV_TIMEOUT_MS ?? 10000)
   if (!isJevModel(model) || !Number.isInteger(timeout) || timeout < 1000 || timeout > 30000) throw new JevRequestError('configuration', 'Invalid Jev configuration')
   return async ({ state, questions, signal = undefined }) => {
@@ -25,7 +25,7 @@ export function createJevClient({ env = process.env, fetchImpl = fetch } = {}) {
       signal?.throwIfAborted()
       const body = JSON.stringify({ model, state, questions })
       if (Buffer.byteLength(body) > 96000) throw new JevRequestError('configuration')
-      const response = await fetchImpl('https://api.typesafe.ai/v1/systemone', {
+      const response = await fetchImpl(endpoint, {
         method: 'POST', redirect: 'error', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body,
         signal: signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal,
       })
@@ -64,6 +64,8 @@ export function createJevClient({ env = process.env, fetchImpl = fetch } = {}) {
 
 /** One public startup request verifies access and typed response shape, not any owner intent. */
 export async function checkJevAuthentication({ env = process.env, fetchImpl = fetch, signal = undefined } = {}) {
+  signal?.throwIfAborted()
+  if (env.ODK_JEV_PROVIDER === 'disabled') return { status: 'disabled' }
   try {
     const request = createJevClient({ env, fetchImpl })
     const result = await request({ signal,

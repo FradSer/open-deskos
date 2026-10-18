@@ -195,7 +195,7 @@ Diagnosis does not extend task service availability or alter ordinary task respo
 
 ## Profiles and memory
 
-Both resident profiles use mandatory Jev routing and Pi Durable 1.2.0 Code Mode.
+Both resident profiles use mandatory typed intent routing and Pi Durable 1.2.0 Code Mode.
 Neither profile has TTS.
 The coding coordinator has `read`, `grep`, `find`, and `ls` plus reviewed system capabilities.
 It has no generic `write`, `edit`, `bash`, or `powershell`, including after resume.
@@ -287,8 +287,8 @@ Never restore transaction state from before a possibly accepted order.
 
 ## Intent routing
 
-Every resident owner turn reaches Jev before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
-Touch proposal confirmation also routes its actual phrase through Jev.
+Every resident owner turn receives a typed intent judgment before turn state, memory reads, suggestion queries, conversation inference, or capabilities.
+Touch proposal confirmation also classifies its actual phrase before execution.
 No regex shortcut bypasses routing.
 The TypeSafe Choice API selects a closed intent; code owns dispatch.
 Router state contains unchanged user text, bounded previous-turn context, available tools, and displayed proposal phrases.
@@ -325,7 +325,7 @@ The package-management workflow permits MCP calls only for an explicitly request
 The [agent package contract](AGENT_CATALOG.md) owns installation, revision, credential, and connector lifecycle rules.
 The [child task contract](AGENT_TASKS.md) owns general task execution and saved identities.
 After parent admission, the host selects the fixed internal `agent_execute` workflow for that child.
-A child creates no second Jev client and performs no second intent classification.
+A child creates no Jev client and performs no second intent classification.
 Only the composition root can select child execution.
 Task text and role guidance cannot select it or expand its tools.
 Tool discovery and evidence collection occur during execution; admission does not certify feasibility or completion.
@@ -353,22 +353,31 @@ Unknown tools and invalid arguments are call errors, not proof of service unavai
 Historical readings do not establish current conditions.
 Raw metrics cannot establish assessments without applicable thresholds or source assessments.
 
-Both profiles require private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`, even with proposals disabled.
-`ODK_JEV_MODEL` defaults to `jev-latest` and accepts only Jev models.
+Jev is optional for both profiles, including Overview generation and owner follow-ups.
+`ODK_JEV_PROVIDER=disabled` prevents Jev client construction and network requests.
+When Jev is unavailable or not configured, the configured ordinary model supplies typed judgments in a separate zero-tool session.
+The host validates answer types, intent identifiers, probabilities, and thresholds before it activates capabilities.
+Ordinary model confidence is an estimate; it is not calibrated Jev confidence.
+Ordinary choice output contains only the selected option and confidence.
+The host derives a compatibility distribution; it is not a model-generated or calibrated probability distribution.
+A failed optional Jev transport is not retried during the same runtime.
+Jev credentials use private `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE` for the TypeSafe provider.
+`ODK_JEV_MODEL` defaults to the selected provider's Jev model and accepts only Jev models.
 `ODK_JEV_TIMEOUT_MS` defaults to 10000; allowed range is 1000–30000.
 `ODK_JEV_INTENT_THRESHOLD` defaults to 0.8; it must exceed 0.5 and not exceed 1.
 Coordinator probability and confidence must both meet the threshold.
 Proposals use the separate `ODK_JEV_THRESHOLD` setting.
 Thresholds are operating policy, not calibrated accuracy guarantees.
-The resident service checks Jev once at startup with one fixed public Noul request.
-Its status frame retains `jev.status`: `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
-A valid typed response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
+The resident service checks optional Jev once at startup with one fixed public Noul request.
+Its independent `jev.status` reports `disabled`, `checking`, `verified`, `missing_credential`, `auth_rejected`, or `unavailable`.
+The `judgment` frame reports the active provider and readiness separately.
+A valid typed Jev response verifies startup access, regardless of its probability; it does not verify owner intent or future availability.
 HTTP 401 or 403 reports rejected access, not a claim that the key is necessarily wrong.
 Unavailable reasons distinguish timeout, network, rate limiting, upstream failure, invalid response, request rejection, configuration, and credential access.
 Frames contain no credential, key path, or upstream body.
 Client reconnects retain the result without another request; service shutdown aborts the check and rejects late results.
-Missing credentials stop initialization.
-Failed, malformed, or oversized inference never falls back to regexes or Pi routing.
+Missing Jev credentials do not stop initialization.
+Failed ordinary model judgments never fall back to regexes or capability execution.
 Ambiguity asks for clarification.
 Cancel/close aborts inference and suppresses late results.
 Intent selection never replaces confirmation, identity, installation, or unknown-outcome checks.
@@ -626,7 +635,7 @@ It adds no capture, provider connector, Open DeskOS Data write verb, TTS, wake w
 With no file configured, owner suggestions have no polling or proactive model request.
 The separate [home briefing](#home-briefing) remains enabled.
 Invalid configuration disables suggestions while ordinary voice remains available.
-Missing mandatory Jev credentials still blocks Bot startup.
+Optional Jev failure does not disable the configured ordinary judgment service.
 The file is read once; changes require separately authorized restart.
 Concurrent owner edits cause suppression writes to refuse overwrite.
 
@@ -642,7 +651,9 @@ Timeout/cancellation ends waiting even if the provider ignores abort; late-creat
 Agent and watch validate topic IDs, stable semantic keys, bounded text, and host-issued citation IDs.
 Invalid or invented evidence leaves generation unavailable.
 
-Each candidate receives independent Jev usefulness, factual-support, and unsupported-assertion judgments in one request.
+Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
+Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
+Ordinary model probabilities are estimates, not calibrated Jev probabilities.
 Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
@@ -672,7 +683,7 @@ Nonurgent proposals queue during quiet hours; owner-marked urgent rules may bypa
 Silent proposals wait for interaction/query.
 Recording or working Spoken Turns defer presentation.
 Stable keys and normalized exact advice/evidence reuse pending records.
-Jev considers overlapping/recent advice; perfect semantic deduplication is not guaranteed.
+The judgment service considers overlapping and recent advice; perfect semantic deduplication is not guaranteed.
 New source revisions invalidate earlier inference results.
 Receipts expose model, trigger, counts, topic/candidate labels, and probabilities, without raw values, generated text, semantic keys, or secrets.
 
@@ -683,7 +694,7 @@ Its example is a draft, never installed by tests.
 Migration expires incompatible pending proposals while retaining processed history and owner suppression.
 Conditions select at most eight fields with `lt`, `lte`, `gt`, `gte`, or `eq` and typed values.
 Missing fields fail closed; plugin strings/code are never evaluated.
-Jev decides relevance; exact owner comparisons still gate actions.
+The judgment service decides relevance; exact owner comparisons still gate actions.
 Owner-approved advice may only be reordered through an exact sentence-index permutation.
 That isolated phrasing session receives no plugin readings and has no tools or durable history.
 Invalid phrasing uses approved owner text.
@@ -704,7 +715,7 @@ Heartbeat refreshes owner-selected sources at startup and every `pollMs`.
 Authenticated `proactive_event` push carries at most 32 source IDs, never observations or candidate advice.
 Coalesce pushes for one second without dropping remaining dependent rules.
 Reread authoritative sources and invalidate in-flight results after newer updates.
-Credentials, memory, action parameters, and plugin instruction fields never enter Jev state.
+Credentials, memory, action parameters, and plugin instruction fields never enter proactive judgment state.
 Missing/malformed/timed-out judgments report unavailability.
 Suggestions queries join existing refresh, then read the private store; they create no third trigger.
 Reading advice never accepts its action or substitutes old session tasks.
@@ -913,6 +924,10 @@ Briefing states are `loading`, `live`, `empty`, `unavailable`, `error`, and `sta
 `live` identifies a completed generation; each source retains its own measurement state.
 
 Failed generation retains previous items with a stale label.
+Without previous items, the host can display current source facts from the supplied variable examples.
+It rereads those sources and applies the original reference, required-source, and display-budget validators.
+These facts retain an `error` state and do not establish successful model generation.
+Facts that cannot satisfy those validators remain unavailable.
 A disconnected Agent also marks retained content stale.
 The Shell renders all generated text as literal text.
 It never replaces missing output with fixed session-count sentences.
@@ -1037,15 +1052,26 @@ A changed batch contains at most seven sources and 128 KiB of input.
 Each source read has a 30-second deadline.
 Partial inventory and unavailable sources remain visible; they do not prove that no task exists.
 
-An owner follow-up still enters Jev first.
+An owner follow-up still receives a typed intent judgment before capability execution.
 `remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
-Report-only sources refuse control.
+Report-only sources refuse control without an explicit owner reply.
+An explicit reply requires a unique configured machine binding and an exact current session match.
 The host checks current task state before sending.
-Hosted endpoints also reject a changed task revision before admission.
+An explicit Hosted reply uses the `list` response only to resolve its session identity.
+It sends the current `status` revision to the daemon, which rejects changes before admission.
 Native current-session endpoints retain their existing non-atomic status check and unknown-delivery semantics.
+The operator can declare `endpointKind: "current_session"` for a verified native target.
+An explicit protocol value must agree with that declaration.
+An explicit native reply checks current session identity and state.
+It does not compare the `list` and `status` object hashes.
+A new explicit native owner reply remains a separate mutation when the remote session records an earlier unknown delivery.
+The Bot preserves its durable reply locks for `dispatching` or `unknown` replies.
+Hosted endpoints and other follow-ups still refuse earlier unknown deliveries.
 Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
-Follow-up receipts prove admission only and cannot train learned experience.
+Only a receipt with confirmed admission proves that a task accepted an instruction.
+An unknown receipt proves neither admission nor completion.
+Follow-up receipts cannot train learned experience.
 
 The CM5 installer maintains `~/.local/bin/odk-pi-task-control` from the reviewed helper template.
 The helper follows `RUNTIME_ROOT/current` and defaults to `~/.config/odk/pi-tasks.json`.
@@ -1063,7 +1089,7 @@ The resident matches the complete tuple against one retained message source.
 A historical message remains usable after a later completion in that session.
 An invented revision, missing source, or ambiguous duplicate tuple is refused.
 
-Jev routes the actual owner text with the bound session reference.
+The intent classifier routes the actual owner text with the bound session reference.
 The reference supplies context, never action authorization.
 During that turn, mutation tools cannot escape to another session or start a replacement task.
 Only the bound `remote_pi_followup` can send an admitted continuation.
@@ -1102,3 +1128,32 @@ Every reply checkpoint write uses the same reply validator as restart reads.
 Invalid checkpoint reads fail without changing the file.
 Invalid owner text, answers, or receipts cannot replace the existing checkpoint.
 Valid Chinese text, line breaks, and tabs remain supported.
+
+## Provider endpoints
+
+The resident uses one fixed provider resolver for ordinary models and System One requests.
+Model selection keeps the existing `ODK_PERSONAL_BOT_MODEL=provider/model-id` format.
+`opencode` selects OpenCode Console, also named Zen; `opencode-go` selects the separate Go service.
+The runtime hook preserves SDK transports, model limits, compatibility settings, and session headers.
+It replaces obsolete catalog endpoints with the selected service's current inference paths.
+It does not change non-OpenCode providers.
+
+Console reads `OPENCODE_API_KEY` or the private file `ODK_OPENCODE_KEY_FILE`.
+Go reads `OPENCODE_GO_API_KEY` or the private file `ODK_OPENCODE_GO_KEY_FILE`.
+An explicit provider key takes precedence over that provider's private file.
+Without these values, ordinary models can use an existing SDK API-key credential for the exact selected provider.
+The shared SDK ambient `OPENCODE_API_KEY` alias cannot authenticate Go.
+The resolver never falls back between Console, Go, and TypeSafe.
+Invalid explicit configuration fails without trying another credential.
+
+`ODK_JEV_PROVIDER` selects `typesafe`, `opencode`, or `disabled`.
+TypeSafe remains the default and retains `TYPESAFE_API_KEY` and `ODK_JEV_KEY_FILE`.
+Console System One uses its explicit Console credential and defaults to `jev-1.13`.
+`ODK_JEV_MODEL` can explicitly select another Jev model, including `jev-1.13-free`.
+Go cannot supply System One judgments.
+Disabled Jev performs no startup authentication request and reports `disabled`, never `verified`.
+Provider selection does not change typed answer validation, thresholds, or tool authorization.
+
+Endpoint references: [OpenCode inference API](https://opencode.ai/v2/docs/console/api/inference),
+[OpenCode Jev models](https://opencode.ai/v2/docs/console/models/#jev), and
+[OpenCode Go](https://opencode.ai/v2/docs/console/go).

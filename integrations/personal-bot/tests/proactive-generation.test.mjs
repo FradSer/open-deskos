@@ -242,3 +242,8 @@ test('Intent occurrence identity survives generated paraphrases and changed sema
     await f.watch.close()
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
+
+test('generated ordinary model judgments preserve relevance and grounding without a Jev alias', async () => {
+  const f=fixture({judge:async({candidates})=>({model:'synthetic/model-v1',answers:Object.fromEntries(candidates.map(c=>[c.id,{probability:0.99,groundingProbability:0.99,threshold:0.8}]))})})
+  await f.watch.tick();assert.ok(f.watch.list().length>0);assert.ok(f.watch.list().every(p=>p.judgment.model==='synthetic/model-v1'));await f.watch.close()
+})

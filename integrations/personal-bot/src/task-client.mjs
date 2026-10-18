@@ -39,10 +39,11 @@ export async function loadTargets(path = process.env.ODK_TASK_TARGETS_FILE) {
   if (!keysOnly(config, ['targets']) || !Array.isArray(config.targets)) throw Error('Invalid task targets configuration')
   const ids = new Set()
   for (const target of config.targets) {
-    if (!keysOnly(target, ['id', 'name', 'host', 'executable', 'roots', 'reportMachines']) || !['cm5', 'mac'].includes(target.id)
+    if (!keysOnly(target, ['id', 'name', 'host', 'executable', 'roots', 'reportMachines', 'endpointKind']) || !['cm5', 'mac'].includes(target.id)
       || typeof target.name !== 'string' || !target.name.trim() || !Array.isArray(target.roots) || !target.roots.length
       || !target.roots.every(developmentPath) || new Set(target.roots).size !== target.roots.length) throw Error('Invalid task target configuration')
     if(target.reportMachines!==undefined && (!Array.isArray(target.reportMachines) || target.reportMachines.length>16 || !target.reportMachines.every(machine=>typeof machine==='string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,255}$/.test(machine)) || new Set(target.reportMachines).size!==target.reportMachines.length))throw Error('Invalid report machine binding')
+    if(target.endpointKind!==undefined && target.endpointKind!=='current_session')throw Error('Invalid task endpoint kind')
     taskCommand(target.executable, target.host)
     if (ids.has(target.id)) throw Error('Duplicate task target ID')
     ids.add(target.id)

@@ -1,6 +1,6 @@
 # Personal Bot
 
-Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory Jev intent routing and optional proactive proposals.
+Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory typed intent routing and optional proactive proposals.
 Electron is the control/status client.
 There is no TTS or wake word.
 Linux uses ALSA and a private Unix socket; Windows uses ffmpeg DirectShow and the authenticated `\\.\pipe\odk-personal-bot` channel.
@@ -25,7 +25,8 @@ Configuration files are private (0600 on POSIX; protected user ACLs on Windows):
 
 - `~/.config/odk/runtime.env`: shared `ODK_WORKSPACE` and optional `ODK_STT_PORT` (default 17840).
 - `~/.config/odk/personal-bot.env`: bot-specific paths/provider settings. Authenticate Pi as this user through `/login` or its supported environment, under `PI_CODING_AGENT_DIR` (default `~/.pi/agent`). Optional `ODK_PERSONAL_BOT_MODEL=provider/model-id` selects the model.
-- Both profiles require `TYPESAFE_API_KEY` or protected `ODK_JEV_KEY_FILE`. Opt into the personal profile through `ODK_PERSONAL_BOT_CONFIG`; otherwise coding coordination is the default.
+- Both profiles use the configured ordinary model when Jev is disabled, unavailable, or not configured. Set `ODK_JEV_PROVIDER=disabled` to avoid Jev requests.
+- Jev credentials are optional. Opt into the personal profile through `ODK_PERSONAL_BOT_CONFIG`; otherwise coding coordination is the default.
 
 STT defaults to the [device-local bridge](../local-stt-bridge/README.md) at `http://127.0.0.1:<ODK_STT_PORT>/inference`, which needs no key.
 An invalid port stops startup.
@@ -200,3 +201,35 @@ Default tests are offline: real SDK/resource-loading, socket/state/stream/captur
 They do not prove live provider, physical microphone, deployed service or host acceptance.
 Open acceptance limits live in the contract.
 A real voice/coding acceptance needs separately authorized capture, transcription and verified work on each configured host.
+
+### OpenCode provider selection
+
+Ordinary models retain the existing provider/model selection.
+Configure Console and Go independently; neither service borrows the other's credentials.
+Use environment credentials or protected private key files.
+These examples contain no credentials:
+
+```sh
+# Console model and Console Jev use the same explicit Console credential.
+ODK_PERSONAL_BOT_MODEL=opencode/kimi-k2.6
+ODK_OPENCODE_KEY_FILE=/absolute/private/console-key
+ODK_JEV_PROVIDER=opencode
+ODK_JEV_MODEL=jev-1.13-free
+
+# Alternative ordinary model selection uses a separate Go credential.
+ODK_PERSONAL_BOT_MODEL=opencode-go/kimi-k3
+ODK_OPENCODE_GO_KEY_FILE=/absolute/private/go-key
+```
+
+Jev can use TypeSafe independently of the ordinary model provider.
+`ODK_JEV_PROVIDER=disabled` disables its startup request; ordinary judgment behavior follows the host's configured judgment service.
+See [Provider endpoints](docs/CONTRACT.md#provider-endpoints) for credential precedence and fixed transport boundaries.
+
+A reviewed native session target can declare `endpointKind: "current_session"`.
+This host-owned declaration supports native helpers without an endpoint discriminator.
+A conflicting protocol discriminator stops the reply.
+Explicit replies retain the original message and session identity.
+Native list summaries and full status records do not share a revision contract.
+Hosted replies retain revision checks and admission CAS.
+Historical native unknown receipts remain unchanged and do not block independent owner operations.
+Unresolved bound replies still block further replies to the same session.

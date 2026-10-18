@@ -132,7 +132,7 @@ export default async () => ['reviewed_read', 'reviewed_change'].map(name => ({
   assert.equal(await agent.prompt('你好'), '调用结果已核对。')
   assert.equal(capability.calls.length, 4, 'another intent cannot reuse an extension entry')
   inferenceFailure = true
-  assert.match(await agent.prompt('通过已审核的能力处理当前请求'), /Jev.*不可用/)
+  assert.match(await agent.prompt('通过已审核的能力处理当前请求'), /意图判断暂时不可用/)
   assert.equal(capability.calls.length, 4)
   inferenceFailure = false; intent = 'extension'; call = { name: 'reviewed_read', arguments: { value: 99 } }
   const pending = agent.prompt('读取一个可能需要取消的结果')

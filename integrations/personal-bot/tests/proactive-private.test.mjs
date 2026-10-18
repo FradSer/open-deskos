@@ -172,3 +172,13 @@ test('native owner suppression writer publishes a private atomic replacement', a
   const current = loadProactiveConfig(file); await ownerConfigWriter(file, current)({ ...current, suppressed: ['owner-rule'] })
   assert.deepEqual(loadProactiveConfig(file).suppressed, ['owner-rule'])
 })
+
+test('ordinary model judgment identities survive private checkpoint reload without Jev aliases', t => {
+  const dir=realpathSync(mkdtempSync(join(tmpdir(),'odk-model-judgment-')));protectProactivePath(dir);t.after(()=>rmSync(dir,{recursive:true,force:true}))
+  const store=proposalStateStore(join(dir,'state.json'))
+  const id='12345678-1234-4123-8123-123456789abc',model='synthetic/model-v1'
+  const proposal={id,ruleId:'synthetic',subject:'synthetic',ruleVersion:'{}',status:'pending',advice:'Synthetic advice',confirmation:'',result:'',createdAt:'2026-10-18T00:00:00Z',action:null,offered:false,presented:false,evidence:[],judgment:{model,probability:0.99,threshold:0.8,trigger:'heartbeat',judgedAt:'2026-10-18T00:00:00Z'}}
+  const claim={key:id+':1:2026-10-18',intentId:id,revision:1,date:'2026-10-18',status:'condition_unknown',updatedAt:'2026-10-18T00:00:00Z',model}
+  store.save({version:1,proposals:[proposal],intentClaims:[claim]});assert.equal(store.load().proposals[0].judgment.model,model);assert.equal(store.load().intentClaims[0].model,model)
+  assert.throws(()=>store.save({version:1,proposals:[{...proposal,judgment:{...proposal.judgment,model:'https://user:secret@host/path'}}]}))
+})

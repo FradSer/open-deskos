@@ -5,6 +5,7 @@ const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { parseHomeBriefing } = require('./home-briefing-frame')
 const { parseRemoteConversation } = require('./remote-conversation-frame')
 const { parseJevStatus } = require('./jev-status-frame')
+const { parseJudgmentStatus } = require('./judgment-status-frame')
 const { parseAgentTasks } = require('./agent-task-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
@@ -157,6 +158,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           level,
           agents: parseAgentTasks(record.agents),
           jev: parseJevStatus(record.jev),
+          judgment: parseJudgmentStatus(record.judgment),
           ...(record.remote ? {remote:parseRemoteConversation(record.remote)} : status.remote ? {remote:status.remote} : {}),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
@@ -174,7 +176,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       socket = null
       cancelDiagnoses('disconnected')
       for (const id of textRequests.keys()) finishText(id, false)
-      publish({ state: 'unavailable', message: 'Personal Bot service unavailable', jev: { status: 'unavailable' },
+      publish({ state: 'unavailable', message: 'Personal Bot service unavailable', jev: { status: 'unavailable' }, judgment: {status:'unavailable',provider:'model'},
         agents: { state: 'unavailable', tasks: [] },
         ...(status.remote ? { remote: {...status.remote, state:'stale'} } : {}),
         ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })

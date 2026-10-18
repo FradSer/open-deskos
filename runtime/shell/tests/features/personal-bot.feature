@@ -235,3 +235,11 @@ Feature: Independent resident personal bot
     When the owner opens a session thread and returns to All messages or cancels a reply
     Then the existing notice is visible without another status frame
     And a complete snapshot remains free of coverage notices
+
+  Scenario: Personal Agent readiness does not require optional Jev authentication
+    Given the configured ordinary judgment service is ready
+    And Jev authentication is unavailable
+    When the resident status reaches the Shell
+    Then Personal Agent is ready without claiming Jev authentication passed
+    And malformed judgment status cannot become ready
+    And an older Host without judgment status keeps its existing status contract

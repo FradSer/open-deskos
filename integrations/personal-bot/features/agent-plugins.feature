@@ -255,6 +255,14 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the resident resolves the saved reference before Jev routes the owner text
     And only the uniquely configured matching project and session can receive a follow-up
     And stale, ambiguous, unavailable, or unknown delivery references cannot send or replay a prompt
+    And native list summaries and full status records can differ without changing the original session
+    And native identity requires an explicit protocol discriminator or a reviewed host configuration
+    And conflicting endpoint declarations refuse delivery
+    And Hosted list previews establish identity without supplying an admission revision
+    And Hosted replies use the fresh status revision for daemon admission CAS
+    And a revision change after that status read refuses the prompt
+    And native historical unknown receipts do not block an independent explicit owner operation
+    And an unresolved bound owner reply still blocks another reply to that session
     And no replacement task or freely supplied target can receive the reply
     And the owner turn and receipt retain the original message and stable session thread
     And later completion revisions retain that same thread after restart
@@ -282,3 +290,27 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the same read and write validator rejects it without changing the checkpoint
     And an unknown reply with expired origin history blocks only its retained session
     And another explicitly identified session can receive an owner reply
+
+  Scenario: Provider selection keeps OpenCode Console and Go separate
+    Given the operator selects a model provider and its explicit credential
+    When the resident configures model transport or a Jev judgment
+    Then Console uses its fixed inference endpoint for the selected API family
+    And Go uses its separate credential and inference endpoint
+    And Go cannot supply a System One judgment or borrow Console credentials
+    And provider-scoped SDK credentials remain supported without ambient credential fallback
+    And disabled Jev performs no authentication request
+    And existing typed judgment validation and authorization rules remain unchanged
+
+  Scenario: Optional judgments expose the current provider and validated answers
+    Given Jev returned a valid judgment before a delayed startup health failure
+    When that failure selects the ordinary judgment service
+    Then readiness immediately names the ordinary model without another Jev request
+    And Jev responses expose only validated answer fields and their real model identity
+
+  Scenario: Ordinary typed routing does not require a generated probability table
+    Given the ordinary model selects among many fixed route criteria
+    When it returns one exact choice and a bounded confidence
+    Then the host derives the compatibility distribution without changing confidence
+    And low confidence cannot pass the existing decision gates
+    And the host does not label derived values as calibrated provider probabilities
+    And Jev retains full typed primitive validation

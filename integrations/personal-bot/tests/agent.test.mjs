@@ -111,7 +111,7 @@ test('real SDK resource loader loads the widget skill without undefined agentDir
   assert.match(instructions, /accepted, queued, or running admission from completed execution/)
 })
 
-async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}) {
+async function generationFixture(t, env, generatorPrompt = () => new Promise(() => {}), inspect = (_options) => {}, defaultRouting = false) {
   const dir = await mkdtemp(join(tmpdir(), 'voice-generation-env-'))
   await mkdir(join(dir, 'private'), { mode: 0o700 })
   t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }))
@@ -123,7 +123,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
       listener = callback
       return () => { listener = undefined }
     },
-    prompt: generator ? async text => generatorPrompt(listener, text) : async () => {},
+    prompt: generator ? async text => generatorPrompt(listener, text) : async () => {listener?.({type: 'message_end', message: {role: 'assistant', content: [{type: 'text', text: 'fixture reply'}], stopReason: 'stop'}})},
     abort: async () => {}, dispose: () => {},
   })
   const bot = await createPersonalBot({
@@ -132,7 +132,7 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
     env,
   }, {
     createRuntime: async () => ({ getAvailable: async () => [{ provider: 'fixture', id: 'model' }], getModel: () => undefined }),
-    createIntentRouter: () => async () => ({ intent: 'conversation' }),
+    ...(defaultRouting ? {} : {createIntentRouter: () => async () => ({ intent: 'conversation' })}),
     createSession: async options => {
       const generator = ++sessionNumber > 1
       if (generator) inspect(options)
@@ -142,6 +142,28 @@ async function generationFixture(t, env, generatorPrompt = () => new Promise(() 
   t.after(() => bot.close())
   return bot
 }
+
+test('an explicitly selected resident provider is configured before model availability is checked', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'resident-provider-'))
+  t.after(() => rm(dir, {recursive: true, force: true}))
+  const model = {provider: 'opencode', id: 'fixture', api: 'openai-completions', baseUrl: 'https://old.invalid'}
+  const events = []
+  const runtime = {
+    getModels: () => [model],
+    registerProvider(provider, options) {events.push('registry'); assert.equal(provider, 'opencode'); assert.equal(options.models[0].baseUrl, 'https://opencode.ai/inference/openai/v1')},
+    async setRuntimeApiKey(provider, key) {events.push('credential'); assert.equal(provider, 'opencode'); assert.equal(key, 'synthetic-console')},
+    async getAvailable() {assert.deepEqual(events, ['registry', 'credential']); return [model]},
+    getModel: () => model,
+  }
+  const bot = await createPersonalBot({stateDir: join(dir, 'state'), model: 'opencode/fixture',
+    personal: {profile: 'personal', memoryFile: join(dir, 'memory.json'), skillPaths: []},
+    env: {ODK_JEV_PROVIDER: 'disabled', OPENCODE_API_KEY: 'synthetic-console'},
+  }, {createRuntime: async () => runtime, createIntentRouter: () => async () => ({intent: 'conversation'}),
+    createSession: async () => ({session: {model, bindExtensions: async () => {}, setActiveToolsByName() {}, abort: async () => {}, dispose() {}}}),
+  })
+  t.after(() => bot.close())
+  assert.equal(bot.judgmentStatus.model, 'opencode/fixture')
+})
 
 test('selected Agent preserves Home binding, cached updates, and runtime restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'home-agent-selection-'))
@@ -604,4 +626,31 @@ test('a failed Jev reply route never enters the model or becomes a delivered rep
  assert.equal(service.sendText(reply.text,replyTo),true);await service.pending
  assert.equal(modelTurns,0);assert.equal(service.status.state,'error');assert.deepEqual(states,['failed'])
  await service.close()
+})
+
+
+test('Given no Jev, the ordinary runtime still boots and serves typed judgments and Overview generation', async t => {
+  let requests = 0
+  const bot = await generationFixture(t, {ODK_JEV_PROVIDER: 'disabled'}, async (listener, text) => {
+    requests++
+    assert.ok(text.startsWith('Personal Bot request:\n'))
+    const input = JSON.parse(text.slice('Personal Bot request:\n'.length))
+    let result = {items: []}
+    if (input.questions?.startup) result = {answers: {startup: {type: 'noul', noul: 0.99}}}
+    if (input.questions?.intent) {
+      result = {answers: {intent: {type: 'choice', choice: 'conversation', confidence: 0.99}}}
+    }
+    listener({type: 'message_end', message: {role: 'assistant', content: [{type: 'text', text: JSON.stringify(result)}], stopReason: 'stop'}})
+  }, options => {
+    assert.deepEqual(options.tools, [])
+    assert.deepEqual(options.customTools, [])
+    assert.equal(options.ephemeral, true)
+  }, true)
+  assert.deepEqual(bot.judgmentStatus, {status: 'ready', provider: 'model', model: 'fixture/model'})
+  const result = await bot.judge({state: {sample: 'The desk is ready'}, questions: {startup: {type: 'noul', instructions: 'Is the desk ready?'}}})
+  assert.equal(result.model, 'fixture/model')
+  assert.equal(result.answers.startup.noul, 0.99)
+  assert.deepEqual(await bot.generateBriefing({readings: []}), {items: []})
+  assert.equal(await bot.prompt('你好'), 'fixture reply')
+  assert.equal(requests, 3)
 })

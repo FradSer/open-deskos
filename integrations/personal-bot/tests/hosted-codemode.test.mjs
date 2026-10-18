@@ -7,6 +7,30 @@ import { createHostedSession, readHostedHistory } from '../src/task-agent.mjs'
 import { assistant, offlineSession, visibleTools } from './helpers/pi-fixture.mjs'
 import { isolateAgentDirectory } from './helpers/agent-directory.mjs'
 
+test('a Hosted session configures its selected provider before model lookup', async t => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'hosted-provider-')))
+  t.after(() => rm(dir, {recursive: true, force: true}))
+  await isolateAgentDirectory(t, dir)
+  const previous = process.env.OPENCODE_API_KEY
+  process.env.OPENCODE_API_KEY = 'synthetic-console'
+  t.after(() => {if (previous === undefined) delete process.env.OPENCODE_API_KEY; else process.env.OPENCODE_API_KEY = previous})
+  const model = {provider: 'opencode', id: 'fixture', api: 'openai-completions', baseUrl: 'https://old.invalid'}
+  const events = []
+  const runtime = {
+    getModels: () => [model],
+    registerProvider(provider, options) {events.push('registry'); assert.equal(provider, 'opencode'); assert.equal(options.models[0].baseUrl, 'https://opencode.ai/inference/openai/v1')},
+    async setRuntimeApiKey(provider, key) {events.push('credential'); assert.equal(provider, 'opencode'); assert.equal(key, 'synthetic-console')},
+    getModel() {assert.deepEqual(events, ['registry', 'credential']); return model},
+  }
+  let selected
+  const hosted = await createHostedSession({task: {project: dir}, sessionDir: join(dir, 'logs'), model: 'opencode/fixture'}, {
+    createRuntime: async () => runtime,
+    createSession: async options => {selected = options.model; return {session: {bindExtensions: async () => {}, subscribe: () => () => {}, dispose() {}}}},
+  })
+  hosted.dispose()
+  assert.equal(selected, model)
+})
+
 test('a nested coding check stays in persisted history even when the script omits its output', async t => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'hosted-codemode-')))
   t.after(() => rm(dir, { recursive: true, force: true }))

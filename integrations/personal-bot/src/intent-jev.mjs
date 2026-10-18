@@ -1,7 +1,6 @@
 import { createJevClient } from './jev-client.mjs'
 
-export function createIntentJudge({ env = process.env, fetchImpl = fetch } = {}) {
-  const request = createJevClient({ env, fetchImpl })
+export function createIntentJudge({ env = process.env, fetchImpl = fetch, request = createJevClient({ env, fetchImpl }) } = {}) {
   const threshold = Number(env.ODK_JEV_THRESHOLD ?? 0.8)
   if (!Number.isFinite(threshold) || threshold <= 0.5 || threshold > 1) throw Error('Invalid Jev configuration')
   const probability = answer => {

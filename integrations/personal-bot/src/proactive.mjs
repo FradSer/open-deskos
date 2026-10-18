@@ -1,3 +1,4 @@
+import { isJudgmentModel } from './judgment-client.mjs'
 import { isIntentRuleId } from './intents.mjs'
 import { randomUUID } from 'node:crypto'
 import { rename, unlink } from 'node:fs/promises'
@@ -101,7 +102,7 @@ function localTime(now, zone) {
   return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
 }
 
-/** Jev judges relevance; code owns observations, delivery and explicit actions. */
+/** The judgment service evaluates relevance; code owns observations, delivery and explicit actions. */
 export class ProactiveWatch {
   constructor({ config, intents = undefined, read, publish, save, phrase, execute, generate = undefined, judge = undefined, onGeneration = (_record) => {}, onJudgment = (_record) => {}, codingStatus = undefined, codingList = undefined, loadState = () => ({ version: 1, proposals: [] }), saveState = (_state) => {}, now = Date.now }) {
     this.config = validateOwnerConfig(config)
@@ -111,7 +112,7 @@ export class ProactiveWatch {
     this.save = save
     this.phrase = phrase
     this.execute = execute
-    this.judge = judge ?? (async () => { throw Error('Jev unavailable') })
+    this.judge = judge ?? (async () => { throw Error('Judgment unavailable') })
     this.generate = generate ?? (async () => { throw Error('Suggestion generation unavailable') })
     this.onGeneration = onGeneration
     this.onJudgment = onJudgment
@@ -377,7 +378,7 @@ export class ProactiveWatch {
   }
   judgmentFailed(candidates) {
     for (const c of candidates) this.failedJudgments.add(c.ruleId)
-    this.judgmentError = 'Jev 判断暂不可用；不会回退为阈值提醒或执行动作。'
+    this.judgmentError = '判断服务暂不可用；不会回退为阈值提醒或执行动作。'
     this.emit()
   }
   /**
@@ -464,7 +465,7 @@ export class ProactiveWatch {
     if (this.closed || this.responding || revision !== this.revision) return
     for (const candidate of candidates) {
         const answer = result?.answers?.[candidate.id]
-        if (typeof result?.model !== 'string' || !/^jev-[\w.-]{1,60}$/.test(result.model) || !Number.isFinite(answer?.probability) || answer.probability < 0 || answer.probability > 1 || !Number.isFinite(answer?.threshold) || answer.threshold <= 0.5 || answer.threshold > 1) {
+        if (typeof result?.model !== 'string' || !isJudgmentModel(result.model) || !Number.isFinite(answer?.probability) || answer.probability < 0 || answer.probability > 1 || !Number.isFinite(answer?.threshold) || answer.threshold <= 0.5 || answer.threshold > 1) {
           this.judgmentFailed(candidates); return
         }
     }

@@ -1,4 +1,4 @@
-const STATUSES = new Set(['checking', 'verified', 'missing_credential', 'auth_rejected', 'unavailable'])
+const STATUSES = new Set(['checking', 'disabled', 'verified', 'missing_credential', 'auth_rejected', 'unavailable'])
 const REASONS = new Set(['timeout', 'network', 'rate_limited', 'upstream', 'invalid_response', 'configuration', 'credential_unavailable', 'request_rejected'])
 
 function parseJevStatus(value) {
