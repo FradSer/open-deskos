@@ -60,12 +60,15 @@ test('target configuration rejects duplicate IDs, unexpected keys and invalid ro
     { targets: [{ ...target, roots: ['relative'] }] }, { targets: [{ ...target, host: '' }] },
     { targets: [{ ...target, command: 'bad' }] }, { targets: [target], extra: true },
     { targets: [{ ...target, roots: ['/opt/odk/current'] }] },
+    ...['host', ['valid','valid'], ['bad host'], ['-oProxyCommand=x']].map(reportMachines=>({targets:[{...target,reportMachines}]})),
   ]) {
     await writeFile(path, JSON.stringify(config))
     await assert.rejects(loadTargets(path), /Invalid|Duplicate/)
   }
   await writeFile(path, JSON.stringify({ targets: [target] }))
   assert.deepEqual(await loadTargets(path), [target])
+  const bound={...target,reportMachines:['synthetic-mac.local']}
+  await writeFile(path,JSON.stringify({targets:[bound]}));assert.deepEqual(await loadTargets(path),[bound])
   assert.deepEqual(await loadTargets(undefined), [])
 })
 

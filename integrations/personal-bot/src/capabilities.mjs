@@ -143,7 +143,7 @@ export function createRemoteUpdatesTool(read) {
 /** Resolve an owner follow-up through the host-owned conversation reference, never model-supplied endpoint fields. */
 export function createRemoteFollowupTool(followup) {
   return defineTool({name:'remote_pi_followup',label:'Continue referenced Pi task',exposure:'codemode',executionMode:'sequential',
-    description:'Continue the exact configured task from a remote_pi_updates source reference. Supply its sourceKey and sourceRevision unchanged. Report-only sources refuse. Unknown delivery never permits replay. A stale revision requires a fresh read and owner clarification, never a replacement task.',
+    description:'Continue the exact configured task from a remote_pi_updates source reference. Supply its sourceKey and sourceRevision unchanged. Report-only sources require an explicit host-bound owner reply and a unique configured machine/project/session match. Unknown delivery never permits replay. A stale revision requires a fresh read and owner clarification, never a replacement task.',
     annotations:mutationHints,outputSchema:OBJECT_OUTPUT,
     parameters:Type.Object({sourceKey:Type.String({minLength:1,maxLength:256}),sourceRevision:Type.String({pattern:'^[a-f0-9]{64}$'}),prompt:Type.String({minLength:1,maxLength:16384}),streamingBehavior:Type.Optional(Type.Union([Type.Literal('steer'),Type.Literal('followUp')]))},{additionalProperties:false}),
     execute:async(_id,params,signal)=>result(await followup(params,signal)),

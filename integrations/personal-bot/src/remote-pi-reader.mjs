@@ -1,3 +1,4 @@
+import { sessionThread } from './session-replies.mjs'
 import { join } from 'node:path'
 import { RemoteConversation } from './remote-conversation.mjs'
 import { createHash } from 'node:crypto'
@@ -30,20 +31,50 @@ export async function createRemotePiReader({env=process.env,link,targets,request
       }catch{unavailable++}
     }
   }
-  return {subscribe(onCompletion,onUnavailable=(_count)=>{}){
+  async function reportRecord(source,signal) {
+        const fetched=await fill(source,{signal:signal})
+        signal.throwIfAborted()
+        const event=fetched ? loadShellModule('pi-conclusions.js').latestAssistantConclusion(fetched.events) : undefined
+        const record={...source,...(event?{conclusion:event.text.slice(0,2048),conclusionOutcome:event.stopReason==='stop'?'reported_finished':'unknown',eventId:event.eventId??null,conclusionIsLatestAssistant:event===fetched.events.findLast(item=>item?.kind==='assistant'),latestEventIsAssistant:fetched.events.at(-1)?.kind==='assistant',truncated:event.truncated===true || event.text.length>2048,historyTruncated:fetched.truncated===true,backend:'configured_log_tail'}:{backend:'reported_tail'}),availability:event || source.conclusion?'live':'unavailable'}
+        record.revision=hash({...record,revision:undefined,updatedAt:undefined,threadId:undefined});return record
+  }
+  return {thread(source){return sessionThread(source,configured.filter(target=>target.reportMachines?.includes(source.machine)).length===1?configured.find(target=>target.reportMachines?.includes(source.machine)).id:undefined)},subscribe(onCompletion,onUnavailable=(_count)=>{}){
     if(subscriptions.length || lifetime.signal.aborted)return ()=>{}
     for(const target of configured)subscriptions.push(watchTaskCompletions(target,{signal:lifetime.signal,onCompletion,onState:state=>{subscriptionStates.set(target.id,state);onUnavailable([...subscriptionStates.values()].filter(value=>value==='unavailable').length)}}))
     return ()=>{for(const subscription of subscriptions)void subscription.close().catch(()=>{})}
-  },async close(){lifetime.abort();await Promise.all(subscriptions.map(subscription=>subscription.close()));await client.stop?.()},async followup(source,params,signal) {
-    if(source?.control!=='configured' || source.revision!==params.sourceRevision || source.key!==hash([source.target,source.project,source.taskId]))throw Error('Remote source is stale or report-only')
-    const target=configured.find(target=>target.id===source.target)
+  },async close(){lifetime.abort();await Promise.all(subscriptions.map(subscription=>subscription.close()));await client.stop?.()},async followup(source,params,signal,{explicitReply=false,beforeSend=()=>{}}={}) {
+    if(!source || source.revision!==params.sourceRevision)throw Error('Remote source revision changed')
+    const active=AbortSignal.any([lifetime.signal,...(signal?[signal]:[]),AbortSignal.timeout(30000)])
+    let bound=source
+    if(explicitReply) {
+      if(source.control==='configured' && source.key!==hash([source.target,source.project,source.taskId]))throw Error('Invalid configured source identity')
+      const matches=[]
+      const candidates=configured.filter(target=>source.control==='configured'?target.id===source.target:target.reportMachines?.includes(source.machine))
+      if(!candidates.length)throw Error('Reporting machine has no configured control binding')
+      if(candidates.some(target=>target.roots.length>32))throw Error('Incomplete reply inventory; too many configured roots')
+      for(const target of candidates)for(const project of target.roots) {
+        const page=await request(target,{command:'list',project},active)
+        if(!Array.isArray(page.tasks) || page.incomplete || page.truncated || page.tasks.length>100)throw Error('Incomplete reply inventory; clarify before sending')
+        for(const task of page.tasks)if(task?.taskId===source.sessionId && task.project===source.project)matches.push({target,task,endpointKind:page.endpointKind==='hosted'?'hosted':'current_session_or_unknown'})
+      }
+      if(matches.length!==1)throw Error('Reply session is absent or ambiguous; no prompt sent')
+      const match=matches[0]
+      bound={...source,target:match.target.id,taskId:match.task.taskId,taskRevision:match.task.revision??hash(match.task),endpointKind:match.endpointKind}
+    } else if(source.control!=='configured' || source.key!==hash([source.target,source.project,source.taskId]))throw Error('Remote source is stale or report-only')
+    const target=configured.find(target=>target.id===bound.target)
     if(!target)throw Error('Remote control target is unavailable')
-    const active=signal?AbortSignal.any([lifetime.signal,signal]):lifetime.signal
-    const fresh=(await request(target,{command:'status',project:source.project,taskId:source.taskId},active)).task
-    if(!fresh || fresh.taskId!==source.taskId || fresh.project!==source.project || (fresh.revision??hash(fresh))!==source.taskRevision)throw Error('Remote task revision changed; read and clarify before sending')
-    return request(target,{command:'prompt',project:source.project,taskId:source.taskId,prompt:params.prompt,
+    const fresh=(await request(target,{command:'status',project:source.project,taskId:bound.taskId},active)).task
+    if(!fresh || fresh.taskId!==bound.taskId || fresh.project!==source.project || (fresh.revision??hash(fresh))!==bound.taskRevision)throw Error('Remote task revision changed; read and clarify before sending')
+    if(explicitReply) {
+      const live=fresh.lifecycle==='live' && ['settled','running','finished','failed','cancelled'].includes(fresh.state)
+      const restorable=bound.endpointKind==='hosted' && ['finished','failed','cancelled','interrupted'].includes(fresh.state) && ['ended','interrupted'].includes(fresh.lifecycle) && ['idle_expired','evicted','host_restart'].includes(fresh.endedReason) && typeof fresh.sessionFile==='string'
+      if(!live && !restorable)throw Error('Original session is not live or safely recoverable; no prompt sent')
+    }
+    if(fresh.deliveries?.some(delivery=>delivery.state==='unknown' || delivery.status==='unknown' || delivery.admission==='unknown'))throw Error('Earlier delivery is unknown; reconcile without replay')
+    beforeSend()
+    return request(target,{command:'prompt',project:source.project,taskId:bound.taskId,prompt:params.prompt,
       ...(params.streamingBehavior?{streamingBehavior:params.streamingBehavior}:{}),
-      ...(source.endpointKind==='hosted'?{expectedRevision:source.taskRevision}:{})},active)
+      ...(bound.endpointKind==='hosted'?{expectedRevision:bound.taskRevision}:{})},active)
   },async read(cursor=null) {
     active=AbortSignal.any([lifetime.signal,AbortSignal.timeout(30000)])
     active.throwIfAborted()
@@ -53,11 +84,7 @@ export async function createRemotePiReader({env=process.env,link,targets,request
       if(!page.ok && page.reason==='cursor_expired')return page
       const records=[]
       for(const source of page.records??[]) {
-        const fetched=await fill(source,{signal:active})
-        active.throwIfAborted()
-        const event=fetched ? loadShellModule('pi-conclusions.js').latestAssistantConclusion(fetched.events) : undefined
-        const record={...source,...(event?{conclusion:event.text.slice(0,2048),conclusionOutcome:event.stopReason==='stop'?'reported_finished':'unknown',eventId:event.eventId??null,conclusionIsLatestAssistant:event===fetched.events.findLast(item=>item?.kind==='assistant'),latestEventIsAssistant:fetched.events.at(-1)?.kind==='assistant',truncated:event.truncated===true || event.text.length>2048,historyTruncated:fetched.truncated===true,backend:'configured_log_tail'}:{backend:'reported_tail'}),availability:event || source.conclusion?'live':'unavailable'}
-        record.revision=hash({...record,revision:undefined,updatedAt:undefined});records.push(record)
+        records.push(await reportRecord(source,active))
       }
       return {ok:true,records,total:page.total??0,omitted:page.omitted??0,nextCursor:page.nextCursor?`report:${page.nextCursor}`:'hosted:0',unavailableSources:page.ok?0:1}
     }
@@ -87,9 +114,9 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
   let reader
   try {
     reader=await createReader({env})
-    const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),publish})
+    const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),publish,thread:source=>reader.thread?.(source)??sessionThread(source)})
     agent.attachRemoteContext(()=>remote.context(),(offset,limit,sourceKey)=>sourceKey?remote.reference(sourceKey):remote.snapshot(offset,limit),
-      (params,signal)=>reader.followup(remote.reference(params.sourceKey).source,params,signal))
+      (params,signal,reply)=>reply?remote.dispatchReply(reply,beforeSend=>reader.followup(reply.source,params,signal,{explicitReply:true,beforeSend})):reader.followup(remote.reference(params.sourceKey).source,params,signal))
     remote.subscribe=onCompletion=>reader.subscribe?.(onCompletion,count=>remote.subscriptionState(count))
     const close=agent.close
     agent.close=async()=>{const pending=remote.close();try{await close()}finally{await reader.close();await pending}}
