@@ -214,7 +214,7 @@ app.whenReady().then(async () => {
     const probe = async (width, height, text, state = 'live') => {
       const frame = { ...preview.briefing, state, generatedAt: preview.briefing.generatedAt + ++probeRevision, items: [{ ...preview.briefing.items[0], text, segments: [{ text, icon: 'sessions' }] }] }
       await js("odkTheme.set('" + theme + "').then(() => Object.assign(document.querySelector('#home-summary').style, { width: '" + width + "px', height: '" + height + "px', maxWidth: 'none' }))")
-      win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: frame })
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, briefing: frame })
       return js('(async () => {' +
         'const host = document.querySelector("#home-summary"), paragraph = host.querySelector("#dash-narrative");' +
         'const deadline = performance.now() + 3000;' +
@@ -247,16 +247,28 @@ app.whenReady().then(async () => {
       assert.ok(staleCjk.fits && staleCjk.font >= 14, theme + ' stale CJK briefing and its availability remain fully visible: ' + JSON.stringify(staleCjk))
       // The deliberately undersized copy fixture uses the narrow-window fallback.
       win.setContentSize(960, 640)
-      await js("window.dispatchEvent(new Event('resize'))")
+      await js(`(async () => {
+        const deadline = performance.now() + 3000;
+        while (innerWidth !== 960 || innerHeight !== 640) {
+          if (performance.now() > deadline) throw Error('Narrow preview viewport not delivered');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        window.dispatchEvent(new Event('resize'));
+        while (getComputedStyle(document.querySelector('#home-summary')).overflowY !== 'auto') {
+          if (performance.now() > deadline) throw Error('Narrow preview scrolling geometry not applied');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+      })()`)
       const floor = await probe(260, 180, longCopy)
       const scrolledRefit = await probe(260, 180, longCopy)
+      console.log('OVERVIEW_FLOOR_CONTEXT ' + JSON.stringify({ theme, floor, viewport: await js('[innerWidth, innerHeight, document.documentElement.dataset.fitCanvas, getComputedStyle(document.querySelector("#home-summary")).overflowY]') }))
       assert.equal(floor.font, 16, theme + ' long copy keeps its readable floor')
       assert.equal(floor.reachable, true, theme + ' long copy remains reachable by scrolling')
       assert.equal(scrolledRefit.font, 16, theme + ' scrolling cannot inflate the fitting budget')
       console.log('OVERVIEW_COPY_FIT_PASS ' + JSON.stringify({ theme, typography, short, long, floor, scrolledRefit }))
     } finally {
       await js('(() => { const host = document.querySelector("#home-summary"); const original = ' + JSON.stringify(originalStyle) + '; if (original === null) host.removeAttribute("style"); else host.setAttribute("style", original); host.scrollTop = 0; if ((host.getAttribute("style") || "") !== (original || "")) throw Error("Typography fixture sizing retained"); })()')
-      win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: preview.briefing })
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, briefing: preview.briefing })
     }
   }
   await js(`(() => {

@@ -68,7 +68,7 @@ app.on('browser-window-created', (_event, win) => {
         const events = await window.odkPlatform.getPiSessionEvents({sessionId:'fixture',hostedPi:true});
         if (!sessions.ok || !events.ok) throw Error('Actual preload Pi consumers unavailable');
         return {sessionId:sessions.sessions[0].sessionId,goal:sessions.sessions[0].latestGoal,
-          running:sessions.summary.running,events:events.events,truncated:events.truncated};
+          running:sessions.summary.running,completionNotifications:sessions.completionNotifications,events:events.events,truncated:events.truncated};
       })()`)
       report = { productionMain: true, actualPreload: true, pid: process.pid, version: selected.manifest.version,
         executedVersion: signed ? source.fixtureRevision : selected.manifest.version,

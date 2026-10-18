@@ -106,7 +106,7 @@ app.whenReady().then(async () => {
       const longIdentity = await js(`(()=>{const pill=document.querySelector('.agent-identity summary'),panel=document.querySelector('.agent-panel'),r=pill.getBoundingClientRect(),p=panel.getBoundingClientRect();return {height:r.height,contained:r.left>=p.left&&r.right<=p.right,oneLine:[...pill.querySelectorAll('.agent-name,.agent-state')].every(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),accessible:pill.getAttribute('aria-label').includes(${JSON.stringify(longName)})&&pill.getAttribute('aria-label').includes('Suggestions unavailable')}})()`)
       check(where + ': long identity stays compact and accessible', longIdentity.height <= 46 && longIdentity.contained && longIdentity.oneLine && longIdentity.accessible)
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value='Personal Agent';form.requestSubmit()})()`)
-      win.webContents.send('odk-personal-bot-status', { state: 'idle' })
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
       await js(`polishUntil(()=>document.querySelector('.agent-state').textContent==='Ready')`)
       report.push({ theme, width, height, identity, longIdentity, focus, idle, scrolling })
     }

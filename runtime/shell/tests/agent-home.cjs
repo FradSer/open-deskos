@@ -10,7 +10,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-agent-home-'))
 app.setPath('userData', profile)
 installGeometryFixtures(ipcMain)
 ipcMain.removeHandler('odk-personal-bot-status')
-let initial = { state: 'idle', briefing: { state: 'empty', items: [], generatedAt: Date.now(), omittedSources: 0 } }
+let initial = { state: 'idle', jev: {status:'verified'}, briefing: { state: 'empty', items: [], generatedAt: Date.now(), omittedSources: 0 } }
 ipcMain.handle('odk-personal-bot-status', () => initial)
 let win
 let micToggles = 0
@@ -20,8 +20,8 @@ let completeBeforeReceipt = false
 ipcMain.handle('odk-personal-bot-text', async (_event, text) => {
   sentText.push(text)
   if (completeBeforeReceipt) {
-    win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: text, message: 'Working' })
-    win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: text, message: 'Already completed' })
+    publishStatus({ state: 'thinking', transcript: text, message: 'Working' })
+    publishStatus({ state: 'idle', transcript: text, message: 'Already completed' })
     await new Promise(resolve => setTimeout(resolve, 20))
   }
   return { accepted: textAccepted }
@@ -48,14 +48,103 @@ async function resize(width, height) {
   }
   assert.fail(`Agent viewport did not settle at ${width}x${height}`)
 }
+function publishStatus(frame) { win.webContents.send('odk-personal-bot-status', {jev:{status:'verified'},...frame}) }
 async function send(briefing) {
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', message: '', briefing })
+  publishStatus({ state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
+async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}) {
+  const retained = {state:'idle',message:'',jev:{status:'verified'}}
+  if (ownerConversation) {
+    Object.assign(retained,{transcript:'What is on my desk?',message:'Your existing answer stays here.'})
+    publishStatus({...retained,state:'thinking'})
+    publishStatus(retained)
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Your existing answer stays here/)
+  }
+  await evaluate(`window.overviewChatNodes=[...document.querySelector('.agent-conversation').children];window.overviewChatText=document.querySelector('.agent-conversation').textContent;window.overviewPresence=document.querySelector('.dash-presence')`)
+  for (const theme of ['instrument','pixel','border-beam']) {
+    await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
+    for (const [width,height] of [[1920,1280],[480,854],[320,480]]) {
+      await resize(width,height)
+      let position
+      for (const state of ['empty','loading','live','stale','error','unavailable']) {
+        const items=['live','stale','loading'].includes(state)?[{text:'Synthetic desk reading.',sources:[{id:'desk',label:'Desk',state:'live'}]}]:[]
+        publishStatus({...retained,briefing:{state,items,generatedAt:1000,omittedSources:0}})
+        await evaluate('new Promise(r=>setTimeout(r,30))')
+        assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.textContent===window.overviewChatText&&c.children.length===window.overviewChatNodes.length&&window.overviewChatNodes.every((n,i)=>c.children[i]===n)})()`),true,'automatic Overview refresh never appends conversation text')
+        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
+        assert.equal(result.same,true,'the indicator node survives refresh')
+        assert.ok(result.display!=='none'&&result.width>=12&&result.height>=12&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
+        if(!position)position={left:result.left,top:result.top,width:result.width,height:result.height}
+        assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
+        if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
+        else {assert.equal(result.animation,'none');assert.equal(result.background,result.red)}
+        if((width===480 || width===1920)&&['empty','loading','error'].includes(state))fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-'+theme+'-'+state+'-'+width+'.png'),(await win.webContents.capturePage()).toPNG())
+      }
+    }
+  }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`),true)
+  publishStatus({...retained,briefing:{state:'loading',items:[],generatedAt:1000,omittedSources:0}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.dash-presence'),'::after').animationName`),'none')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').textContent`),'Personal Agent has no new desk briefing.')
+  assert.equal(await evaluate(`document.querySelector('#dash-narrative').getAttribute('aria-busy')`),'true')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
+  assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`),false)
+  await evaluate('delete window.overviewChatNodes;delete window.overviewChatText;delete window.overviewPresence')
+  await resize(1920,1280);await evaluate("window.odkTheme.set('instrument')")
+}
+
+async function assertJevStartupStatus() {
+  const states = [
+    ['checking', 'Checking Jev authentication…', 'Checking Jev…'],
+    ['verified', 'Jev authentication verified.', 'Ready'],
+    ['missing_credential', 'Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
+    ['auth_rejected', 'Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
+    ['unavailable', 'Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
+    [undefined, 'Jev authentication has not been checked.', 'Jev not checked'],
+  ]
+  for (const [status, text, caption] of states) {
+    const frame = {state:'idle', jev:status ? {status} : undefined}
+    for (let repeat=0;repeat<2;repeat++) {
+      publishStatus(frame)
+      await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.deepEqual(await evaluate(`({count:document.querySelectorAll('.agent-jev-status').length,outside:!document.querySelector('.agent-jev-status')?.closest('.agent-conversation'),text:document.querySelector('.agent-jev-status')?.textContent,caption:document.querySelector('.agent-state').textContent})`),{count:1,outside:true,text,caption})
+      if (repeat===0) await evaluate(`window.jevTextNode=document.querySelector('.agent-jev-status').firstChild;window.jevCaptionNode=document.querySelector('.agent-state').firstChild`)
+      else assert.equal(await evaluate(`document.querySelector('.agent-jev-status').firstChild===window.jevTextNode&&document.querySelector('.agent-state').firstChild===window.jevCaptionNode`),true,'replayed status does not replace live-region text or announce a new notification')
+    }
+  }
+  await evaluate('delete window.jevTextNode;delete window.jevCaptionNode')
+  for (const theme of ['instrument','pixel','border-beam']) {
+    publishStatus({state:'idle',jev:{status:'unavailable'}})
+    await evaluate('new Promise(r=>setTimeout(r,20))')
+    await resize(480,854)
+    await evaluate(`window.odkTheme.set('${theme}')`)
+    assert.equal(await evaluate('document.documentElement.dataset.theme'),theme)
+    await evaluate('document.fonts.ready')
+    const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status'),c=document.querySelector('.agent-composer'),r=s.getBoundingClientRect();return {font:parseFloat(getComputedStyle(s).fontSize),width:r.width,composer:c.getBoundingClientRect().bottom,overflow:document.documentElement.scrollWidth>innerWidth}})()`)
+    assert.ok(layout.font>=14 && layout.width>0 && layout.composer<=854 && !layout.overflow,JSON.stringify(layout))
+    const image=await win.webContents.capturePage();fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-'+theme+'-480.png'),image.toPNG())
+  }
+  await resize(320,480)
+  publishStatus({state:'idle',jev:{status:'checking'}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  const compactStatus=await evaluate(`(()=>{const r=document.querySelector('.agent-jev-status').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {top:r.top,bottom:r.bottom,conversationTop:c.top,conversationHeight:c.height,composerBottom:f.bottom,viewport:innerHeight}})()`)
+  assert.ok(compactStatus.top>=0&&compactStatus.bottom<=compactStatus.conversationTop&&compactStatus.conversationHeight>=40&&compactStatus.composerBottom<=compactStatus.viewport,JSON.stringify(compactStatus))
+  fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-checking-320.png'),(await win.webContents.capturePage()).toPNG())
+  await resize(1920,1280)
+  await evaluate("window.odkTheme.set('instrument')")
+  publishStatus({state:'idle',jev:{status:'verified'}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-verified-1920.png'),(await win.webContents.capturePage()).toPNG())
+}
+
 async function assertNotificationMessagesAreIndependent() {
   const notification = message => ({ state: 'idle', transcript: 'Question 中文', message: 'Final response', notifications: [{ id: message, message }] })
-  win.webContents.send('odk-personal-bot-status', notification('滴滴订单结果尚未确认'))
-  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  publishStatus(notification('滴滴订单结果尚未确认'))
+  publishStatus(notification('滴滴订单状态已更新'))
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
   const messageLayout = await evaluate(`(() => {
     const conversation = document.querySelector('.agent-conversation')
@@ -70,7 +159,7 @@ async function assertNotificationMessagesAreIndependent() {
   assert.ok(messageLayout.visibleGap >= 20, 'the latest two messages have visible space between them')
   assert.deepEqual(messageLayout.texts.slice(-3), ['Final response', '滴滴订单结果尚未确认', '滴滴订单状态已更新'])
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'each notification creates one assistant message')
-  win.webContents.send('odk-personal-bot-status', notification('滴滴订单状态已更新'))
+  publishStatus(notification('滴滴订单状态已更新'))
   await evaluate(`new Promise(r => setTimeout(r, 20))`)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'replayed notification events do not duplicate messages')
 }
@@ -78,9 +167,9 @@ async function assertNotificationMessagesAreIndependent() {
 async function assertRemoteConversationHistory() {
   const remote={state:'partial',messages:[{id:'synthetic-remote-update',text:'A remote Pi reports a conclusion. <img src=x onerror=alert(1)>',sources:[{machine:'synthetic-Mac',sessionId:'synthetic-session',project:'/synthetic/project',revision:'a'.repeat(64),control:'report_only',availability:'unavailable'}]}],omitted:8,heldCount:0,hasMore:true}
   const frame={state:'idle',transcript:'Question 中文',message:'Final response',remote}
-  win.webContents.send('odk-personal-bot-status',frame)
+  publishStatus(frame)
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  win.webContents.send('odk-personal-bot-status',frame)
+  publishStatus(frame)
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
   const observed=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message-assistant')],remote=all.filter(node=>node.textContent.includes('A remote Pi reports'));return {count:remote.length,text:remote[0]?.textContent,images:remote[0]?.querySelectorAll('img').length,details:remote[0]?.querySelector('details')?.textContent,coverage:document.querySelector('.agent-remote-coverage')?.textContent}})()`)
   assert.equal(await evaluate(`!!document.querySelector('.agent-earlier-updates') && !document.querySelector('.agent-earlier-updates').open`),true,'legacy reports are retained in a closed Earlier task updates group')
@@ -93,14 +182,15 @@ async function assertRemoteConversationHistory() {
     [{hasMore:false,omitted:0,expiredMessages:1}, 'Some earlier task updates have expired.'],
     [{hasMore:false,omitted:0,total:2}, 'Earlier task updates are available. Ask to see them.'],
   ]) {
-    win.webContents.send('odk-personal-bot-status', {...frame,remote:{...remote,...change}})
+    publishStatus({...frame,remote:{...remote,...change}})
     await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
     assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').textContent`),expected)
   }
+  assert.equal(await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status'),c=document.querySelector('.agent-conversation');c.scrollTop=c.scrollHeight;const r=s.getBoundingClientRect(),h=document.querySelector('.agent-head').getBoundingClientRect();return !s.closest('.agent-conversation')&&r.top>=h.top&&r.bottom<=h.bottom&&r.top>=0})()`),true,'Jev authentication stays visible above a long scrolled conversation')
   const updates = ['训练第一轮完成了，我可以帮你对照报告继续看。', 'v8 已完成实现，回归结果还需要确认。']
   const messages = updates.map((text, index) => ({ ...remote.messages[0], id: `synthetic-short-${index}`, text, presentation: 'assistant_update' }))
   const updated = { ...frame, remote: { ...remote, messages: [...messages].reverse().concat(remote.messages), heldCount: 1 } }
-  win.webContents.send('odk-personal-bot-status', updated)
+  publishStatus(updated)
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), updates)
   assert.equal(await evaluate(`document.querySelector('.agent-update-sources').open`), false)
@@ -113,7 +203,7 @@ async function assertRemoteConversationHistory() {
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
   await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
   await evaluate(`window.retainedSource=document.querySelector('.agent-update .agent-update-sources > summary'); retainedSource.focus({preventScroll:true}); document.querySelector('.agent-conversation').scrollTop=0`)
-  win.webContents.send('odk-personal-bot-status', updated)
+  publishStatus(updated)
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
   assert.equal(await evaluate(`document.activeElement===retainedSource && document.querySelectorAll('.agent-update').length===2`),true,'reconnect keeps focus and message identity')
   for(const theme of ['instrument','pixel','border-beam']) {
@@ -130,10 +220,10 @@ async function assertRemoteConversationHistory() {
   await evaluate(`document.querySelector('.agent-earlier-updates > summary').click()`);
   await resize(320,480);await evaluate(`document.querySelector('.agent-conversation').scrollTop=0`);
   const scrollBefore=await evaluate(`document.querySelector('.agent-conversation').scrollTop`);
-  win.webContents.send('odk-personal-bot-status',updated);await evaluate('new Promise(resolve=>setTimeout(resolve,30))');
+  publishStatus(updated);await evaluate('new Promise(resolve=>setTimeout(resolve,30))');
   assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'repeated frames retain the reading position');
   const newer={...updated,remote:{...updated.remote,messages:[{...messages[0],id:'synthetic-short-new',text:'新一轮检查已开始，结果还没有回来。'},...updated.remote.messages]}}
-  win.webContents.send('odk-personal-bot-status',newer);await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  publishStatus(newer);await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
   assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'a new update does not pull the reader away')
   assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),false)
   await evaluate(`document.querySelector('.agent-latest').click()`);assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),true);
@@ -173,7 +263,7 @@ app.whenReady().then(async () => {
     assert.deepEqual(failures,[],'Reference Agent layout')
     await resize(1280,800)
     await evaluate(`(async()=>{await odkTheme.set('instrument');window.dispatchEvent(new Event('resize'));await new Promise(r=>setTimeout(r,80))})()`)
-    for(let i=0;i<16;i++)win.webContents.send('odk-personal-bot-status',{state:'idle',notifications:[{id:'reference-'+i,message:'A real notification fixture '+i+'. '+ 'Content remains readable. '.repeat(6)}]})
+    for(let i=0;i<16;i++)publishStatus({state:'idle',notifications:[{id:'reference-'+i,message:'A real notification fixture '+i+'. '+ 'Content remains readable. '.repeat(6)}]})
     await evaluate('new Promise(r=>setTimeout(r,60))')
     const scroll=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer');window.referenceComposerY=composer.getBoundingClientRect().y;list.scrollTop=0;list.dispatchEvent(new Event('scroll'));return {overflow:list.scrollHeight>list.clientHeight,latest:!document.querySelector('.agent-latest').hidden,fixed:Math.abs(composer.getBoundingClientRect().y-referenceComposerY)<1}})()`)
     assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
@@ -204,7 +294,7 @@ app.whenReady().then(async () => {
     await resize(1280,800)
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Personal Agent';document.querySelector('.agent-identity-form').requestSubmit();window.dispatchEvent(new Event('resize'))`)
     const errorDetail='Suggestions unavailable: private proposal state could not be saved. No proposal action will run.'
-    win.webContents.send('odk-personal-bot-status',{state:'idle',proposalError:errorDetail})
+    publishStatus({state:'idle',proposalError:errorDetail})
     await evaluate('new Promise(r=>setTimeout(r,40))')
     const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity summary');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)
     assert.ok(statusLayout.height<=64,JSON.stringify(statusLayout))
@@ -214,10 +304,20 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  if (process.argv.includes('--overview-refresh-only')) {
+    await assertOverviewRefreshIndicator({ownerConversation:true})
+    console.log('PASS Overview red dot, refresh spinner and conversation isolation')
+    finish(0);return
+  }
+  if (process.argv.includes('--jev-startup-only')) {
+    await assertJevStartupStatus()
+    console.log('PASS Jev startup checking, results, repeat frames and compact themes')
+    finish(0);return
+  }
   if (process.argv.includes('--personal-agent-messages-only')) {
-    win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
+    publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
     await evaluate(`new Promise(r => setTimeout(r, 30))`)
-    win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
+    publishStatus({ state: 'idle', transcript: 'Question 中文', message: 'Final response' })
     await evaluate(`new Promise(r => setTimeout(r, 30))`)
     await assertNotificationMessagesAreIndependent()
     await assertRemoteConversationHistory()
@@ -225,6 +325,7 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  await assertOverviewRefreshIndicator()
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
     { text: ' today. Taipei is ' }, { text: '26°C and overcast', icon: 'weather' }, { text: '.' }]
@@ -392,7 +493,7 @@ app.whenReady().then(async () => {
         assert.equal(await evaluate(`document.querySelector('#dash-narrative').dataset.state`), state)
         assert.ok(await evaluate(`document.querySelector('#dash-narrative').textContent.length > 0`))
       }
-      win.webContents.send('odk-personal-bot-status', { state: 'error', message: '' })
+      publishStatus({ state: 'error', message: '' })
       await evaluate(`new Promise(r => setTimeout(r, 30))`)
       assert.ok(await evaluate(`parseFloat(getComputedStyle(document.querySelector('.agent-state')).fontSize) >= 14`), 'Agent recovery feedback clears the text floor')
       assert.equal(await evaluate(`document.querySelector('.agent-state').getAttribute('role')`), 'status')
@@ -430,20 +531,21 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.widget[data-interaction="display-only"]')).backgroundColor`), 'rgba(0, 0, 0, 0)')
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form [name="icon"]').value = 'leaf'; document.querySelector('.agent-identity-form').requestSubmit()`)
-  win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
+  publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
   await evaluate(`window.agentStreamBubble = document.querySelector('.agent-message-bubble'); window.agentStreamBody = document.querySelector('.agent-message-assistant .agent-message-body')`)
-  win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
-  win.webContents.send('odk-personal-bot-status', { state: 'unavailable', message: '' })
-  win.webContents.send('odk-personal-bot-status', { state: 'thinking', transcript: 'Question 中文', message: 'Reconnected response' })
+  publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial response' })
+  publishStatus({ state: 'unavailable', message: '' })
+  publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Reconnected response' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`), 1, 'reconnect keeps the streaming turn')
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
+  publishStatus({ state: 'idle', transcript: 'Question 中文', message: 'Final response' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`), 1)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 1)
   assert.equal(await evaluate(`document.querySelector('.agent-message-assistant .agent-message-body').textContent.includes('Final response')`), true)
   assert.equal(await evaluate(`document.querySelector('.agent-message-bubble') === window.agentStreamBubble && document.querySelector('.agent-message-assistant .agent-message-body') === window.agentStreamBody && getComputedStyle(window.agentStreamBubble).backgroundColor !== 'rgba(0, 0, 0, 0)'`), true, 'streaming and reconnect retain the same message background and body')
+  await assertJevStartupStatus()
   await assertNotificationMessagesAreIndependent()
   await assertRemoteConversationHistory()
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
@@ -462,11 +564,11 @@ app.whenReady().then(async () => {
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Keep draft'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), 'Keep draft')
   assert.match(await evaluate(`document.querySelector('.agent-state').textContent`), /not confirmed/)
-  win.webContents.send('odk-personal-bot-status', { state: 'recording', message: '' })
+  publishStatus({ state: 'recording', message: '' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
   await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
   assert.equal(micToggles, 1, 'home Stop toggles the active recording')
-  win.webContents.send('odk-personal-bot-status', { state: 'idle', transcript: 'Question 中文', message: 'Final response' })
+  publishStatus({ state: 'idle', transcript: 'Question 中文', message: 'Final response' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
   await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
   assert.equal(micToggles, 2, 'next home mic starts another voice turn')

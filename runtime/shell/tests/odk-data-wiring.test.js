@@ -467,7 +467,8 @@ test('Main dispatches frame readiness and source notifications through the defau
     ['odk-remote-link-state', { state: 'disconnected', sequence: 0 }],
   ])
   shell.notifyHydra()
-  assert.deepEqual(shell.servicePushes.map(ids => Array.from(ids)), [['odk.tile.hydra']])
+  shell.odkLinkCapability().options.onCompletion()
+  assert.deepEqual(shell.servicePushes.map(ids => Array.from(ids)), [['odk.tile.hydra'], ['odk.app.pi-sessions.completed']])
   shell.app.emit('before-quit')
   await new Promise(resolve => setImmediate(resolve))
   const frames = shell.frameMessages.length

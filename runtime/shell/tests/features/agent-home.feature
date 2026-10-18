@@ -411,3 +411,23 @@ Scenario: Personal Agent reports remote progress as short conversation messages
   And partial or unavailable coverage uses a short readable status
   And the existing conversation is the only scroll region above the fixed composer
   And keyboard focus and the current reading position survive repeated frames
+
+Scenario: Personal Agent displays its real Jev startup check
+  Given the resident service starts its bounded Jev authentication probe
+  When checking changes to verified, missing credentials, rejected authentication, or unavailable
+  Then the fixed Agent header displays the current result in one stable readable status
+  And only verified authentication permits the idle Ready caption
+  And reconnects and repeated frames do not add notifications
+  And a missing or malformed Jev status never claims authentication passed
+  And the single scroll region and fixed composer remain usable
+
+Scenario: Overview refresh uses the weekday indicator without adding chat text
+  Given Overview shows a red presence dot beside its weekday
+  When the existing briefing state becomes loading
+  Then that same indicator shows a spinner in the same position
+  And a terminal briefing state restores the red dot, including update failure
+  And loading preserves the previous briefing text without adding refresh narration
+  And an initial load uses the empty placeholder with an accessible busy state
+  And automatic refresh preserves all conversation text and message nodes
+  And explicit owner questions and completed task messages remain available
+  And reduced motion keeps a static busy indicator and accessible busy state

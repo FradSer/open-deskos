@@ -11,7 +11,7 @@ It provides `odk:source/link/v1` and requires the `source.odk-link` capability.
 ## Raw transport capability
 
 Main grants `createTransport(options)` alongside the existing `create(options)` client constructor.
-`createTransport` returns `{ socketPath, request }` without creating a source client or sending a request.
+`createTransport` returns `{ socketPath, request, subscribeCompletions }` without creating a source client or sending a request.
 `request(record, { signal })` sends one record and returns the transport response.
 The default transport retains endpoint resolution, lazy credential loading, handshake selection, framing, response bounds, timeout, and connection closure.
 Abort signals suppress late values and cancelled failures.
@@ -40,6 +40,36 @@ An invalid event identity preserves the existing unconfigured result.
 Cancellation of one request must leave independent requests available.
 Cancellation between transport completion and public method completion must suppress the result.
 Source shutdown prevents new requests and suppresses late results.
+
+## Completion notifications
+
+`create(options)` accepts an optional `onCompletion` callback.
+`subscribeCompletions(callback, { signal })` opens a read-only runtime subscription and returns `{ stop, snapshot }`.
+The runtime accepts `{ v: 1, type: 'subscribe-completions' }` through the existing authenticated local channel.
+It sends only `{ v: 1, type: 'completion' }`, without report content or control authority.
+Each connection receives one catch-up hint, which also acknowledges the subscription.
+The first hint must arrive within two seconds.
+A connected runtime without that acknowledgement becomes `unsupported`; the client closes it without automatic reconnection.
+Connection failures remain `unavailable` during transport recovery.
+`completionStatus()` exposes the fixed state without report content.
+When the callback is enabled, snapshot results also include `completionNotifications.state` for source inspection.
+Sources without the callback retain their existing snapshot results.
+Transport recovery reconnects the subscription; it does not scan Pi progress.
+
+Reported completion requires a settled or exited session and its latest event with `kind: 'assistant'`, `stopReason: 'stop'`, and `eventId`.
+Either arrival order can complete these conditions.
+Legacy events without an identifier remain readable but cannot produce automatic completion hints.
+The server suppresses recent repeated event identifiers per reported session.
+Personal Agent owns durable deduplication after it reads current source records.
+Hints do not establish successful task execution.
+
+Main routes these hints as `odk.app.pi-sessions.completed` service notifications.
+The Bot client retains one pending completion hint until its authenticated connection is ready.
+After a participating Bot connection closes, its next handshake sends one read-only catch-up hint.
+This hint never repeats an owner command or task mutation.
+Other source updates keep their existing delivery behavior.
+Shutdown cancels reconnection, suppresses late callbacks, and joins the subscribed socket.
+Independent sources must retain this optional callback and shutdown behavior.
 
 ## Consumers and ownership
 

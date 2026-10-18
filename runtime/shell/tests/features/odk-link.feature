@@ -240,3 +240,13 @@ Feature: Hosted Pi control over a separate Open DeskOS Link v2 connection
     Then the runtime receives an explicit correlated failure reason
     And the connection is not silently destroyed
     And the Shell client preserves that specific failure reason
+
+  Scenario: Personal Agent receives completed reports without progress polling
+    Given an authenticated Reporting Machine owns its reported session
+    And the Shell has a read-only completion subscription
+    When an assistant stop event and settled session state arrive in either order
+    Then the runtime publishes one content-free completion hint for that result
+    And running, tool-use, and replayed events do not publish another hint
+    And equal session identifiers on different machines remain independent
+    And reconnect performs one catch-up notification without inventory polling
+    And shutdown releases the subscribed socket and transport recovery timer

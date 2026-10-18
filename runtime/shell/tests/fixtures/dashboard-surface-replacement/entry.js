@@ -48,7 +48,7 @@
   }
 }
   const messages = new Map([
-    ['loading', 'Personal Agent is updating your briefing.'], ['live', 'Personal Agent'],
+    ['loading', 'Personal Agent has no new desk briefing.'], ['live', 'Personal Agent'],
     ['empty', 'Personal Agent has no new desk briefing.'], ['unavailable', 'Personal Agent is unavailable.'],
     ['error', 'Personal Agent could not update your briefing. It will retry.'],
     ['stale', 'Previous briefing. Personal Agent could not confirm current desk state.'],
@@ -132,9 +132,10 @@
         if (!current()) return
         const label = messages.get(frame.state) || messages.get('unavailable')
         presence.dataset.state = frame.state; paragraph.dataset.state = frame.state
+        paragraph.setAttribute('aria-busy', String(frame.state === 'loading'))
         paragraph.replaceChildren()
-        if (frame.items.length && frame.state !== 'live') paragraph.append(make('span', 'dash-availability',
-          label + (frame.state === 'loading' ? ' Previous briefing shown.' : '') + ' '))
+        if (frame.items.length && frame.state !== 'live' && frame.state !== 'loading') paragraph.append(make('span', 'dash-availability',
+          label + ' '))
         frame.items.forEach((item, index) => {
           if (index) paragraph.append(doc.createTextNode(' '))
           const clause = make('span', 'dash-clause'); clause.dataset.briefing = 'agent-' + index

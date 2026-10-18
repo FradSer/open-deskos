@@ -809,3 +809,69 @@ test('conclusion reads keep every reporting identity and correlate bounded pages
     await client.stop();first.close();second.close()
   })
 })
+
+test('authenticated completed reports push bounded hints in either event order without polling', {timeout:5000}, async () => {
+  await withService(async (service,socketPath)=>{
+    const hints=[]
+    const client=createOdkLinkClient({socketPath,onCompletion:hint=>hints.push(hint),reconnectDelayMs:5})
+    const wait=async count=>{const end=Date.now()+1000;while(hints.length<count&&Date.now()<end)await new Promise(r=>setTimeout(r,5));assert.equal(hints.length,count)}
+    const first=await openReporter(service.port,{machine:'first'}),second=await openReporter(service.port,{machine:'second'})
+    try {
+      await wait(1) // One catch-up per accepted runtime subscription, never a scan timer.
+      await first.identify([{v:1,type:'sessions',sessions:[runningSession('same')]}])
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Working',stopReason:'toolUse',eventId:'intermediate'}]})
+      await new Promise(r=>setTimeout(r,30));assert.equal(hints.length,1)
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Done',stopReason:'stop',eventId:'final-1'}]})
+      await new Promise(r=>setTimeout(r,30));assert.equal(hints.length,1,'stop before settled does not announce incomplete inventory')
+      first.send({v:1,type:'sessions',sessions:[runningSession('same',{status:'settled'})]})
+      await wait(2)
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Done',stopReason:'stop',eventId:'final-1'}]})
+      first.send({v:1,type:'sessions',sessions:[runningSession('same',{status:'settled',updatedAt:1800000000000})]})
+      await new Promise(r=>setTimeout(r,30));assert.equal(hints.length,2,'replayed terminal result is not a new completion')
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Done',stopReason:'stop'}]})
+      await new Promise(r=>setTimeout(r,30));assert.equal(hints.length,2,'legacy without an event identity does not invent a completed turn')
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Done',stopReason:'stop',eventId:'final-2'}]})
+      await wait(3)
+      first.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Changed body',stopReason:'stop',eventId:'final-2'}]})
+      first.send({v:1,type:'events',sessionId:'not-owned',events:[{kind:'assistant',text:'Other',stopReason:'stop',eventId:'not-owned'}]})
+      await new Promise(r=>setTimeout(r,30));assert.equal(hints.length,3)
+      await second.identify([{v:1,type:'sessions',sessions:[runningSession('same',{status:'settled'})]}])
+      second.send({v:1,type:'events',sessionId:'same',events:[{kind:'assistant',text:'Done',stopReason:'stop',eventId:'final-1'}]})
+      await wait(4)
+      for(const hint of hints)assert.deepEqual(hint,{v:1,type:'completion'})
+    } finally {await client.stop();first.close();second.close()}
+  })
+})
+
+test('completion subscription catches up once after reconnect and stop prevents another connection', {timeout:5000}, async () => {
+  const {dir,socketPath}=tempSocket('subscription-reconnect')
+  let service=createOdkLinkService({token:'tok',socketPath,port:0,host:'127.0.0.1'})
+  const hints=[]
+  await service.start()
+  const client=createOdkLinkClient({socketPath,onCompletion:hint=>hints.push(hint),reconnectDelayMs:5})
+  const wait=async count=>{const end=Date.now()+1000;while(hints.length<count&&Date.now()<end)await new Promise(r=>setTimeout(r,5));assert.equal(hints.length,count)}
+  try {
+    await wait(1);await service.stop()
+    service=createOdkLinkService({token:'tok',socketPath,port:0,host:'127.0.0.1'});await service.start()
+    await wait(2);await client.stop()
+    await new Promise(r=>setTimeout(r,30));assert.equal(service.connections(),0);assert.equal(hints.length,2)
+  } finally {await client.stop();await service.stop();fs.rmSync(dir,{recursive:true,force:true})}
+})
+
+test('runtime completion subscription rejects extra fields before installing a listener', {timeout:3000}, async()=>{
+  await withService(async (service,socketPath)=>{
+    const socket=net.createConnection(socketPath),frames=[]
+    socket.on('error',()=>{});let buffer=''
+    socket.on('data',chunk=>{buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines)frames.push(JSON.parse(line))})
+    await new Promise(r=>socket.once('connect',r))
+    const reporter=await openReporter(service.port)
+    try {
+      socket.write(jsonl({v:1,type:'subscribe-completions',extra:'not accepted'}))
+      await reporter.identify([{v:1,type:'sessions',sessions:[runningSession('strict',{status:'settled'})]}])
+      reporter.send({v:1,type:'events',sessionId:'strict',events:[{kind:'assistant',text:'Done',stopReason:'stop',eventId:'strict-final'}]})
+      await new Promise(r=>setTimeout(r,30));assert.deepEqual(frames,[])
+      socket.write(jsonl({v:1,type:'subscribe-completions'}))
+      await new Promise(r=>setTimeout(r,30));assert.deepEqual(frames,[{v:1,type:'completion'}])
+    } finally {socket.destroy();reporter.close()}
+  })
+})

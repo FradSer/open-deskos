@@ -332,7 +332,7 @@ async function main() {
       } },
       'system.remote-link': { create: createRemoteBridgeClient, smokeMode, options: { socketPath: remoteSocketPath } },
       'system.app-manager': { create: createAppManagerEndpoint },
-      'source.odk-link': { create: createOdkLinkClient, createTransport: createOdkLinkTransport },
+      'source.odk-link': { create: createOdkLinkClient, createTransport: createOdkLinkTransport, options: smokeMode ? {} : { onCompletion: () => servicePush(['odk.app.pi-sessions.completed']) } },
       'source.pi-sessions': { create: createPiSessionsSource, configured: createConfiguredPiSessionReader },
       'source.pi-events': { create: createPiSessionEventsSource, readLocal: readSessionEvents },
       'source.camera': { create: createCameraSource, provider: createCameraCaptureProvider },
