@@ -33,6 +33,7 @@
       let turn = null
       const seenNotifications = new Set()
       const remoteMessages = new Map()
+      let earlierUpdates
       let remoteCoverage
       const children = new Map()
       let lastStatus = 'unknown'
@@ -98,29 +99,64 @@
         for (const item of [...(frame.messages ?? [])].reverse()) {
           if (remoteMessages.has(item.id)) continue
           const body = message('assistant', item.text)
-          remoteMessages.set(item.id, body.closest('article'))
-          while(remoteMessages.size>64) { const first=remoteMessages.keys().next().value;remoteMessages.get(first)?.remove();remoteMessages.delete(first) }
+          const article = body.closest('article')
+          article.dataset.remoteId = item.id
+          remoteMessages.set(item.id, article)
+          if (item.presentation === 'assistant_update') article.classList.add('agent-update')
+          else {
+            if (!earlierUpdates) {
+              earlierUpdates = document.createElement('details')
+              earlierUpdates.className = 'agent-earlier-updates'
+              const label = document.createElement('summary')
+              label.textContent = 'Earlier task updates'
+              earlierUpdates.append(label)
+              conversation.insertBefore(earlierUpdates, article)
+            }
+            earlierUpdates.append(article)
+          }
+          while (remoteMessages.size > 64) {
+            const first = remoteMessages.keys().next().value
+            remoteMessages.get(first)?.remove(); remoteMessages.delete(first)
+          }
           const details = document.createElement('details')
+          details.className = 'agent-update-sources'
           const title = document.createElement('summary')
-          title.textContent = 'Pi sources · reported, not independently verified'
+          title.textContent = 'Sources'
           details.append(title)
+          const scope = document.createElement('p')
+          scope.textContent = 'Reported by connected agents. Execution is not independently verified.'
+          details.append(scope)
           for (const source of item.sources ?? []) {
             const line = document.createElement('p')
             line.textContent = `${source.machine} · ${source.sessionId} · ${source.project} · ${source.control === 'configured' ? 'Configured control target' : 'Report only'} · ${source.availability} · bounded history`
-            details.append(line)
+            const reference = document.createElement('p')
+            reference.textContent = `Source: ${source.key || 'Unavailable'}\nRevision: ${source.revision || 'Unavailable'}`
+            details.append(line, reference)
           }
-          if (item.omittedSources) { const note=document.createElement('p');note.textContent=`${item.omittedSources} source references omitted from this frame. Ask for remote Pi updates to inspect them.`;details.append(note) }
+          if (item.omittedSources) {
+            const note = document.createElement('p')
+            note.textContent = `${item.omittedSources} source references omitted. Ask for remote Pi updates to inspect them.`
+            details.append(note)
+          }
           body.append(details)
         }
         if (!remoteCoverage) {
-          remoteCoverage = document.createElement('p')
-          remoteCoverage.className = 'agent-status-detail'
-          remoteCoverage.setAttribute('role', 'status')
+          remoteCoverage = document.createElement('section')
+          remoteCoverage.className = 'agent-remote-coverage'
+          remoteCoverage.innerHTML = '<p role="status"></p><details><summary>Details</summary><p></p></details>'
           conversation.append(remoteCoverage)
         }
-        const historyOmitted=Math.max(0,(frame.total || 0)-(frame.messages?.length || 0))
-        remoteCoverage.textContent = !historyOmitted && !frame.expiredMessages && frame.state === 'live' && !frame.hasMore && !frame.omitted && !frame.heldCount ? ''
-          : `Remote Pi updates: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired. Ask for remote Pi updates to inspect history.`
+        const historyOmitted = Math.max(0, (frame.total || 0) - (frame.messages?.length || 0))
+        const complete = !historyOmitted && !frame.expiredMessages && frame.state === 'live' && !frame.hasMore && !frame.omitted && !frame.heldCount
+        remoteCoverage.hidden = complete
+        remoteCoverage.querySelector('[role="status"]').textContent = frame.state === 'unavailable'
+          ? 'I cannot reach the other agents right now.' : frame.state === 'stale'
+            ? 'These task updates may be out of date.' : frame.heldCount
+              ? 'Some task updates still need review.' : frame.hasMore
+                ? 'More task updates are available. Ask to see them.' : historyOmitted > 0
+                  ? 'Earlier task updates are available. Ask to see them.' : frame.expiredMessages
+                    ? 'Some earlier task updates have expired.' : 'Some task updates are not available yet.'
+        remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired.`
       }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return

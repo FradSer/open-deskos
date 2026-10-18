@@ -82,19 +82,61 @@ async function assertRemoteConversationHistory() {
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
   win.webContents.send('odk-personal-bot-status',frame)
   await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  const observed=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message-assistant')],remote=all.filter(node=>node.textContent.includes('A remote Pi reports'));return {count:remote.length,text:remote[0]?.textContent,images:remote[0]?.querySelectorAll('img').length,details:remote[0]?.querySelector('details')?.textContent,coverage:document.querySelector('.agent-conversation > .agent-status-detail')?.textContent}})()`)
+  const observed=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message-assistant')],remote=all.filter(node=>node.textContent.includes('A remote Pi reports'));return {count:remote.length,text:remote[0]?.textContent,images:remote[0]?.querySelectorAll('img').length,details:remote[0]?.querySelector('details')?.textContent,coverage:document.querySelector('.agent-remote-coverage')?.textContent}})()`)
+  assert.equal(await evaluate(`!!document.querySelector('.agent-earlier-updates') && !document.querySelector('.agent-earlier-updates').open`),true,'legacy reports are retained in a closed Earlier task updates group')
   assert.equal(observed.count,1,'replayed retained frames do not duplicate the same conversation synthesis')
   assert.equal(observed.images,0,'remote text is never HTML')
   assert.match(observed.details,/synthetic-Mac.*synthetic-session.*Report only/)
-  assert.match(observed.coverage,/partial.*8 sources/)
+  assert.match(observed.coverage,/More task updates.*partial.*8 sources/s)
+  for (const [change, expected] of [
+    [{hasMore:false,omitted:1}, 'Some task updates are not available yet.'],
+    [{hasMore:false,omitted:0,expiredMessages:1}, 'Some earlier task updates have expired.'],
+    [{hasMore:false,omitted:0,total:2}, 'Earlier task updates are available. Ask to see them.'],
+  ]) {
+    win.webContents.send('odk-personal-bot-status', {...frame,remote:{...remote,...change}})
+    await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').textContent`),expected)
+  }
+  const updates = ['训练第一轮完成了，我可以帮你对照报告继续看。', 'v8 已完成实现，回归结果还需要确认。']
+  const messages = updates.map((text, index) => ({ ...remote.messages[0], id: `synthetic-short-${index}`, text, presentation: 'assistant_update' }))
+  const updated = { ...frame, remote: { ...remote, messages: [...messages].reverse().concat(remote.messages), heldCount: 1 } }
+  win.webContents.send('odk-personal-bot-status', updated)
+  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), updates)
+  assert.equal(await evaluate(`document.querySelector('.agent-update-sources').open`), false)
+  await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+  assert.equal(await evaluate('document.hasFocus()'),true,'the hidden keyboard fixture owns emulated focus')
+  await evaluate(`document.querySelector('.agent-update .agent-update-sources > summary').focus()`)
+  for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+  await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-update .agent-update-sources').open`),true,'Sources opens with the keyboard')
+  for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+  await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
+  await evaluate(`window.retainedSource=document.querySelector('.agent-update .agent-update-sources > summary'); retainedSource.focus({preventScroll:true}); document.querySelector('.agent-conversation').scrollTop=0`)
+  win.webContents.send('odk-personal-bot-status', updated)
+  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  assert.equal(await evaluate(`document.activeElement===retainedSource && document.querySelectorAll('.agent-update').length===2`),true,'reconnect keeps focus and message identity')
   for(const theme of ['instrument','pixel','border-beam']) {
     await evaluate(`window.odkTheme.set(${JSON.stringify(theme)})`)
-    for(const [width,height] of [[960,640],[320,480]]) {
+    for(const [width,height] of [[1920,1280],[960,640],[320,480]]) {
       await resize(width,height)
-      const geometry=await evaluate(`(()=>{const region=document.querySelector('.agent-conversation'),summary=region.querySelector('details > summary');return {width:region.clientWidth,overflow:region.scrollWidth-region.clientWidth,touch:summary.getBoundingClientRect().height,font:parseFloat(getComputedStyle(summary).fontSize),composer:document.querySelector('.agent-composer').getBoundingClientRect().bottom}})()`)
+      const geometry=await evaluate(`(()=>{const region=document.querySelector('.agent-conversation'),summary=region.querySelector('.agent-update .agent-update-sources > summary');return {width:region.clientWidth,overflow:region.scrollWidth-region.clientWidth,touch:summary.getBoundingClientRect().height,font:parseFloat(getComputedStyle(summary).fontSize),composer:document.querySelector('.agent-composer').getBoundingClientRect().bottom}})()`)
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-earlier-updates')).overflowY`),'visible','history does not create a second scroll container')
       assert.ok(geometry.overflow<=1,JSON.stringify(geometry));assert.ok(geometry.touch>=44,JSON.stringify(geometry));assert.ok(geometry.font>=14,JSON.stringify(geometry));assert.ok(geometry.composer<=height,JSON.stringify(geometry))
+
     }
   }
+  await evaluate(`document.querySelector('.agent-earlier-updates > summary').click()`);assert.match(await evaluate(`document.querySelector('.agent-earlier-updates').textContent`),/A remote Pi reports/);
+  await evaluate(`document.querySelector('.agent-earlier-updates > summary').click()`);
+  await resize(320,480);await evaluate(`document.querySelector('.agent-conversation').scrollTop=0`);
+  const scrollBefore=await evaluate(`document.querySelector('.agent-conversation').scrollTop`);
+  win.webContents.send('odk-personal-bot-status',updated);await evaluate('new Promise(resolve=>setTimeout(resolve,30))');
+  assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'repeated frames retain the reading position');
+  const newer={...updated,remote:{...updated.remote,messages:[{...messages[0],id:'synthetic-short-new',text:'新一轮检查已开始，结果还没有回来。'},...updated.remote.messages]}}
+  win.webContents.send('odk-personal-bot-status',newer);await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
+  assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'a new update does not pull the reader away')
+  assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),false)
+  await evaluate(`document.querySelector('.agent-latest').click()`);assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),true);
   await resize(1920,1280)
 }
 

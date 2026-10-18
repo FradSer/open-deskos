@@ -34,13 +34,13 @@ test('separate home frames preserve voice replies and stale content across recon
   await once(peer, 'data')
   const reply = '\u0000'.repeat(16384)
   const agents = { state: 'live', tasks: [{ taskId: '64a7f377-3169-447c-9b85-547a2454c28f', identity: { id: 'reporter', name: 'Reporter', avatar: 'book', revision: 'a'.repeat(64) }, state: 'running', updatedAt: '2026-10-16T00:00:00.000Z' }] }
-  const remote={state:'partial',messages:[{id:'a'.repeat(64),text:'Pi reports a result.',sources:[],verification:'reported_unverified',synthesisVerification:'passed'}],total:1,omitted:8,hasMore:true,heldCount:0}
+  const remote={state:'partial',messages:[{id:'a'.repeat(64),text:'Pi reports a result.',presentation:'assistant_update',sources:[],verification:'reported_unverified',synthesisVerification:'passed'}],total:1,omitted:8,hasMore:true,heldCount:0}
   const briefing = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Mail content', sources: [{ id: 'mail', label: 'Mail', state: 'live' }] }] }
   let update = next(frame => frame.briefing?.state === 'live')
   peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents }) + '\n' + JSON.stringify({v:1,type:'remote_conversation',remote}) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
   assert.equal((await update).message, reply)
   assert.deepEqual(client.snapshot().agents, agents)
-  assert.equal(client.snapshot().remote.state,'partial');assert.equal(client.snapshot().remote.messages[0].text,remote.messages[0].text)
+  assert.equal(client.snapshot().remote.messages[0].presentation,'assistant_update');assert.equal(client.snapshot().remote.state,'partial');assert.equal(client.snapshot().remote.messages[0].text,remote.messages[0].text)
   update = next(frame => frame.state === 'recording')
   peer.write('{"v":1,"type":"status","state":"recording","message":""}\n')
   assert.equal((await update).briefing.items[0].text, 'Mail content')

@@ -168,7 +168,10 @@ app.whenReady().then(async () => {
     assert.match(state.holdings, /62\.15/)
     assert.equal(state.narrative, preview.briefing.items[0].text)
     assert.equal(state.placeholder, false)
-    assert.equal(state.paragraphs, 2)
+    assert.equal(state.paragraphs, 3)
+    assert.equal(await js(`document.querySelectorAll('.agent-update').length`), 2)
+    assert.equal(await js(`document.querySelector('.agent-earlier-updates').open`), false)
+    assert.deepEqual(await js(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), preview.updates)
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
     assert.equal(state.messageMetadata, 0, 'conversation messages have no avatars or timestamps')
     assert.equal(state.identityCapsule, true, 'the name and status capsule exposes the existing identity editor')
@@ -267,6 +270,26 @@ app.whenReady().then(async () => {
     if (document.querySelector('.ring-mmss').textContent !== '--:--') throw Error('Pomodoro fixture did not restore the product state');
     delete window.previewRestore; delete window.previewSheet;
   })()`)
+  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    const previous = win
+    const width = 480, height = 854
+    win = new BrowserWindow({ show: false, frame: false, width, height, useContentSize: true,
+      webPreferences: { preload: path.join(__dirname, '../src/preload.js'), sandbox: true,
+        contextIsolation: true, backgroundThrottling: false, offscreen: true } })
+    previous.destroy()
+    win.setContentSize(width, height)
+    await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
+    await js('window.odkShellReady')
+    await js(`(async()=>{ await odkTheme.set('${theme}'); await document.fonts.ready; const until=performance.now()+5000; while(document.querySelectorAll('.agent-update').length!==2){if(performance.now()>until)throw Error('Synthetic updates unavailable');await new Promise(r=>setTimeout(r,20))} await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); document.querySelector('.agent-conversation').scrollTop=0; })()`)
+    const compact = await js(`(()=>{const c=document.querySelector('.agent-conversation'),p=document.querySelector('.agent-composer');return {viewport:[innerWidth,innerHeight],overflow:c.scrollWidth-c.clientWidth,composerBottom:p.getBoundingClientRect().bottom,oldClosed:!document.querySelector('.agent-earlier-updates').open,texts:[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)}})()`)
+    assert.deepEqual(compact.viewport,[width,height]);assert.ok(compact.overflow<=1);assert.ok(compact.composerBottom<=height);assert.equal(compact.oldClosed,true);assert.deepEqual(compact.texts,preview.updates)
+    await js(`document.querySelector('.agent-conversation').scrollTop=0; new Promise(r=>setTimeout(r,100))`)
+    await capturePaintedFrame()
+    assert.equal(await js(`document.querySelector('.agent-conversation').scrollTop`),0)
+    const file=path.join(os.tmpdir(),`odk-agent-updates-normal-${theme}-${width}.png`)
+    fs.writeFileSync(file,(await win.webContents.capturePage()).toPNG())
+    captures.push({theme,width,height,file,syntheticUpdates:true})
+  }
   console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, liveProviders: false, fixtureControlsRestored: true, captures }))
   finish(0)
 }).catch(error => finish(1, error))
