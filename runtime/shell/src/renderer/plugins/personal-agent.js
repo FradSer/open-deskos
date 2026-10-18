@@ -16,7 +16,7 @@
           <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-status-dot" aria-hidden="true"></span><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
             <label>Name<input name="name" maxlength="40" required /></label>
             <label>Icon<select name="icon"><option value="message">Message</option><option value="leaf">Leaf</option><option value="terminal">Terminal</option></select></label>
-            <button type="submit">Save</button></form></details></header>
+            <button type="submit">Save</button></form></details><p class="agent-jev-status" role="status">Checking Jev authentication…</p></header>
         <div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         <form class="agent-composer"><span class="agent-input-avatar" aria-hidden="true"></span><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea>
@@ -39,8 +39,8 @@
       let lastStatus = 'unknown'
       let pending = false
       function setState(message, caption = message) {
-        state.textContent = caption
-        $('.agent-status-detail').textContent = message
+        if (state.textContent !== caption) state.textContent = caption
+        if ($('.agent-status-detail').textContent !== message) $('.agent-status-detail').textContent = message
         $('.agent-identity summary').setAttribute('aria-label', `${identity.name}, ${caption}. View status and edit identity`)
       }
       function applyIdentity() {
@@ -158,10 +158,25 @@
                     ? 'Some earlier task updates have expired.' : 'Some task updates are not available yet.'
         remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired.`
       }
+      function renderJev(value) {
+        const states = {
+          checking: ['Checking Jev authentication…', 'Checking Jev…'],
+          verified: ['Jev authentication verified.', 'Ready'],
+          missing_credential: ['Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
+          auth_rejected: ['Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
+          unavailable: ['Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
+        }
+        const [text, caption] = value && Object.hasOwn(states, value.status)
+          ? states[value.status] : ['Jev authentication has not been checked.', 'Jev not checked']
+        const node = $('.agent-jev-status')
+        if (node.textContent !== text) node.textContent = text
+        return caption
+      }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
+        const jevCaption = renderJev(status.jev)
         renderAgents(status.agents)
         renderRemote(status.remote)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
@@ -182,7 +197,7 @@
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
         const labels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-        const caption = labels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? jevCaption : labels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption, status.proposalError ? 'Suggestions unavailable' : caption)
         $('.agent-send').disabled = busy || status.state === 'unavailable' || pending
         $('.agent-mic').disabled = busy && status.state !== 'recording'

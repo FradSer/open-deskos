@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
 const { parseHomeBriefing } = require('./home-briefing-frame')
 const { parseRemoteConversation } = require('./remote-conversation-frame')
+const { parseJevStatus } = require('./jev-status-frame')
 const { parseAgentTasks } = require('./agent-task-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
@@ -32,6 +33,8 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
   let tokenPromise = null
   let socket = null
   let connected = false
+  let completionPending = false
+  let completionEnabled = false
   let diagnosisReady = false
   let diagnosisSupported = false
   let running = false
@@ -80,6 +83,15 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
     return true
   }
 
+  function servicePush(readingIds) {
+    if (!Array.isArray(readingIds) || readingIds.length === 0 || readingIds.length > 32
+      || !readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id))) return false
+    const completion = readingIds.length === 1 && readingIds[0] === 'odk.app.pi-sessions.completed'
+    const sent = diagnosisReady && write('proactive_event', { readingIds })
+    if (completion) { completionEnabled = true; completionPending = !sent }
+    return sent
+  }
+
   function connect() {
     if (!running) return
     const active = net.createConnection(socketPath)
@@ -96,6 +108,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (value) writeHandshake(active, value)
         diagnosisReady = true
         write('status', { runtimeDiagnosis: 1 })
+        if (completionPending) servicePush(['odk.app.pi-sessions.completed'])
       }, () => active.destroy())
     })
     active.on('data', (chunk) => {
@@ -140,6 +153,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           transcript,
           level,
           agents: parseAgentTasks(record.agents),
+          jev: parseJevStatus(record.jev),
           ...(record.remote ? {remote:parseRemoteConversation(record.remote)} : status.remote ? {remote:status.remote} : {}),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
@@ -151,12 +165,13 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
     active.once('close', () => {
       if (socket !== active) return
       connected = false
+      if (completionEnabled) completionPending = true
       diagnosisReady = false
       diagnosisSupported = false
       socket = null
       cancelDiagnoses('disconnected')
       for (const id of textRequests.keys()) finishText(id, false)
-      publish({ state: 'unavailable', message: 'Personal Bot service unavailable',
+      publish({ state: 'unavailable', message: 'Personal Bot service unavailable', jev: { status: 'unavailable' },
         agents: { state: 'unavailable', tasks: [] },
         ...(status.remote ? { remote: {...status.remote, state:'stale'} } : {}),
         ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })
@@ -211,7 +226,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         catch { finishText(requestId, false) }
       })
     },
-    servicePush: (readingIds) => Array.isArray(readingIds) && readingIds.length > 0 && readingIds.length <= 32 && readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) && write('proactive_event', { readingIds }),
+    servicePush,
     proposalCommand: ({ type, ...payload }) => ['proposal_respond', 'proposal_list', 'proposal_presented'].includes(type) && write(type, payload),
     snapshot: () => ({ ...status }),
     subscribe(listener) {

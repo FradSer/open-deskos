@@ -37,24 +37,28 @@ test('separate home frames preserve voice replies and stale content across recon
   const remote={state:'partial',messages:[{id:'a'.repeat(64),text:'Pi reports a result.',presentation:'assistant_update',sources:[],verification:'reported_unverified',synthesisVerification:'passed'}],total:1,omitted:8,hasMore:true,heldCount:0}
   const briefing = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Mail content', sources: [{ id: 'mail', label: 'Mail', state: 'live' }] }] }
   let update = next(frame => frame.briefing?.state === 'live')
-  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents }) + '\n' + JSON.stringify({v:1,type:'remote_conversation',remote}) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents, jev: { status: 'checking', key: 'must-not-project' } }) + '\n' + JSON.stringify({v:1,type:'remote_conversation',remote}) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
   assert.equal((await update).message, reply)
   assert.deepEqual(client.snapshot().agents, agents)
+  assert.deepEqual(client.snapshot().jev, {status:'checking'})
   assert.equal(client.snapshot().remote.messages[0].presentation,'assistant_update');assert.equal(client.snapshot().remote.state,'partial');assert.equal(client.snapshot().remote.messages[0].text,remote.messages[0].text)
   update = next(frame => frame.state === 'recording')
-  peer.write('{"v":1,"type":"status","state":"recording","message":""}\n')
+  peer.write('{"v":1,"type":"status","state":"recording","message":"","jev":{"status":"verified","body":"must-not-project"}}\n')
   assert.equal((await update).briefing.items[0].text, 'Mail content')
   assert.equal(client.snapshot().remote.messages.length,1)
+  assert.deepEqual(client.snapshot().jev,{status:'verified'})
   update = next(frame => frame.state === 'unavailable')
   connection = once(server, 'connection')
   peer.destroy()
   assert.equal((await update).briefing.state, 'stale')
+  assert.deepEqual(client.snapshot().jev,{status:'unavailable'})
   assert.equal(client.snapshot().agents.state, 'unavailable')
   ;[peer] = await connection
   await once(peer, 'data')
   update = next(frame => frame.state === 'idle')
   peer.write('{"v":1,"type":"status","state":"idle","message":""}\n')
   assert.equal((await update).briefing.state, 'stale')
+  assert.equal(client.snapshot().jev,undefined,'old service does not retain earlier verified authentication')
 })
 
 test('microphone toggles a resident service and receives truthful status', async (t) => {
@@ -164,4 +168,27 @@ test('proposals cross the existing private voice link and decisions return on it
   assert.equal(frame.proposalPopup, true); assert.deepEqual(frame.proposals, [proposal])
   const command = once(peer, 'data'); assert.equal(client.proposalCommand({ type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation }), true)
   assert.deepEqual(JSON.parse((await command)[0]), { v: 1, type: 'proposal_respond', id: proposal.id, decision: 'accept', confirmation: proposal.confirmation })
+})
+
+test('completion hints coalesce until the authenticated Bot connection is ready', {timeout:3000}, async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'odk-completion-queue-')),endpoint=path.join(dir,'a.sock')
+  const server=net.createServer(),peers=new Set(),records=[]
+  server.on('connection',peer=>{peers.add(peer);let buffer='';peer.on('error',()=>{});peer.on('data',chunk=>{buffer+=chunk;const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines)records.push(JSON.parse(line))})})
+  server.listen(endpoint);await once(server,'listening')
+  const client=createPersonalBotClient({socketPath:endpoint,reconnectDelayMs:1})
+  t.after(async()=>{client.stop();for(const peer of peers)peer.destroy();await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true})})
+  const completed=['odk.app.pi-sessions.completed']
+  assert.equal(client.servicePush(completed),false);assert.equal(client.servicePush(completed),false)
+  client.start()
+  const end=Date.now()+1000;while(records.length<2&&Date.now()<end)await new Promise(r=>setTimeout(r,5))
+  assert.deepEqual(records.map(record=>record.type),['status','proactive_event'])
+  assert.deepEqual(records[1].readingIds,completed)
+  assert.equal(records.filter(record=>record.type==='proactive_event').length,1)
+  // The old peer can close after receiving bytes but before handling the hint.
+  const reconnected=once(server,'connection')
+  for(const peer of peers)peer.destroy()
+  await reconnected
+  const retryEnd=Date.now()+1000;while(records.length<4&&Date.now()<retryEnd)await new Promise(r=>setTimeout(r,5))
+  assert.deepEqual(records.map(record=>record.type),['status','proactive_event','status','proactive_event'])
+  assert.deepEqual(records[3].readingIds,completed,'reconnection catches up without replaying any owner command')
 })

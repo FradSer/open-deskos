@@ -411,3 +411,12 @@ Scenario: Personal Agent reports remote progress as short conversation messages
   And partial or unavailable coverage uses a short readable status
   And the existing conversation is the only scroll region above the fixed composer
   And keyboard focus and the current reading position survive repeated frames
+
+Scenario: Personal Agent displays its real Jev startup check
+  Given the resident service starts its bounded Jev authentication probe
+  When checking changes to verified, missing credentials, rejected authentication, or unavailable
+  Then the fixed Agent header displays the current result in one stable readable status
+  And only verified authentication permits the idle Ready caption
+  And reconnects and repeated frames do not add notifications
+  And a missing or malformed Jev status never claims authentication passed
+  And the single scroll region and fixed composer remain usable

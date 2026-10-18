@@ -77,7 +77,7 @@ function request(socketPath, record, timeoutMs = 2000, channel = {}) {
   })
 }
 
-function createOdkLinkTransport({ socketPath, env = process.env, send = request, token = '', platform = process.platform, host = null } = {}) {
+function createOdkLinkTransport({ socketPath, env = process.env, send = request, token = '', platform = process.platform, host = null, reconnectDelayMs = 1000, completionTimeoutMs = 2000 } = {}) {
   const resolvedHost = host || resolveShellHost({ env, platform })
   const resolved = socketPath ?? resolveOdkLinkSocketPath(env, resolvedHost)
   const needsToken = Boolean(resolved) && requiresToken({ endpoint: resolved, platform })
@@ -92,7 +92,85 @@ function createOdkLinkTransport({ socketPath, env = process.env, send = request,
     return tokenPromise
   }
 
-  return { socketPath: resolved, async request(record, { signal } = {}) {
+  function subscribeCompletions(listener, { signal } = {}) {
+    let closed = false
+    let socket = null
+    let timer = null
+    let handshakeTimer = null
+    let state = signal?.aborted ? 'stopped' : 'connecting'
+    let connecting = Promise.resolve()
+    const pending = new Set()
+    const connect = async () => {
+      if (closed || signal?.aborted) return
+      if (!resolved) { state = 'unavailable'; return }
+      try {
+        const credential = await channelToken()
+        if (closed || signal?.aborted) return
+        const active = net.createConnection(resolved)
+        socket = active
+        state = 'connecting'
+        let connected = false
+        handshakeTimer = setTimeout(() => {
+          state = connected ? 'unsupported' : 'unavailable'
+          active.destroy()
+        }, completionTimeoutMs)
+        let remainder = ''
+        const decoder = new StringDecoder('utf8')
+        const ended = new Promise(resolve => active.once('close', resolve))
+        pending.add(ended)
+        active.once('connect', () => {
+          connected = true
+          if (closed || signal?.aborted) return active.destroy()
+          if (credential && requiresToken({ endpoint: resolved, platform })) writeHandshake(active, credential)
+          active.write(JSON.stringify({ v: ODK_LINK_PROTOCOL, type: 'subscribe-completions' }) + '\n')
+        })
+        active.on('data', chunk => {
+          const text = remainder + decoder.write(chunk)
+          const lines = text.split('\n')
+          remainder = lines.pop() ?? ''
+          if (Buffer.byteLength(remainder) > 256) return active.destroy()
+          for (const line of lines) {
+            if (Buffer.byteLength(line) > 256) return active.destroy()
+            let record
+            try { record = JSON.parse(line) } catch { continue }
+            if (record?.v !== ODK_LINK_PROTOCOL || record.type !== 'completion' || Object.keys(record).length !== 2 || closed || signal?.aborted) continue
+            clearTimeout(handshakeTimer)
+            state = 'live'
+            try { Promise.resolve(listener({ v: ODK_LINK_PROTOCOL, type: 'completion' })).catch(() => {}) } catch {}
+          }
+        })
+        active.on('error', () => active.destroy())
+        active.once('close', () => {
+          clearTimeout(handshakeTimer)
+          pending.delete(ended)
+          if (socket === active) socket = null
+          if (!closed && !signal?.aborted && state !== 'unsupported') {
+            state = 'unavailable'
+            timer = setTimeout(start, reconnectDelayMs)
+          }
+        })
+      } catch {
+        if (!closed && !signal?.aborted) { state = 'unavailable'; timer = setTimeout(start, reconnectDelayMs) }
+      }
+    }
+    const start = () => { connecting = connect() }
+    const stop = async () => {
+      closed = true
+      state = 'stopped'
+      clearTimeout(timer)
+      clearTimeout(handshakeTimer)
+      signal?.removeEventListener('abort', abort)
+      socket?.destroy()
+      await connecting
+      await Promise.allSettled([...pending])
+    }
+    const abort = () => { void stop() }
+    signal?.addEventListener('abort', abort, { once: true })
+    start()
+    return { stop, snapshot: () => ({ state }) }
+  }
+
+  return { socketPath: resolved, subscribeCompletions, async request(record, { signal } = {}) {
     if (signal?.aborted) return null
     try {
       const credential = await channelToken()
@@ -106,7 +184,7 @@ function createOdkLinkTransport({ socketPath, env = process.env, send = request,
   } }
 }
 
-function createOdkLinkClient({ signal, ...options } = {}) {
+function createOdkLinkClient({ signal, onCompletion, ...options } = {}) {
   const transport = createOdkLinkTransport(options)
   const resolved = transport.socketPath
   const unavailable = (reason) => ({ ok: false, reason, scannedAt: null, summary: null, sessions: [], workspaces: [] })
@@ -114,19 +192,22 @@ function createOdkLinkClient({ signal, ...options } = {}) {
     const active = requestSignal ? AbortSignal.any([ownerSignal, requestSignal]) : ownerSignal
     return transport.request(record, { signal: active })
   } })
+  const completionSubscription = typeof onCompletion === 'function' ? transport.subscribeCompletions(onCompletion, { signal }) : null
+  const withCompletion = record => completionSubscription ? { ...record, completionNotifications: completionSubscription.snapshot() } : record
   let stopped = false
   const response = (record, options) => stopped || signal?.aborted || options.signal?.aborted ? null : record
 
   return {
     socketPath: resolved,
-    async stop() { stopped = true; await ask.stop() },
+    completionStatus: () => completionSubscription?.snapshot() ?? { state: 'disabled' },
+    async stop() { stopped = true; await Promise.all([ask.stop(), completionSubscription?.stop()]) },
     async snapshot(options = {}) {
-      if (!resolved) return unavailable('odk-link-unconfigured')
+      if (!resolved) return withCompletion(unavailable('odk-link-unconfigured'))
       const record = response(await ask({ v: ODK_LINK_PROTOCOL, type: 'snapshot' }, options.signal), options)
       if (!record || record.ok !== true || !Array.isArray(record.sessions)) {
-        return unavailable(typeof record?.reason === 'string' && record.reason ? record.reason : 'odk-link-unavailable')
+        return withCompletion(unavailable(typeof record?.reason === 'string' && record.reason ? record.reason : 'odk-link-unavailable'))
       }
-      return record
+      return withCompletion(record)
     },
     async conclusions({ cursor = null, limit = 16, signal } = {}) {
       const record = response(await ask({ v: ODK_LINK_PROTOCOL, type: 'conclusions', cursor, limit }, signal), { signal })

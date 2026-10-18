@@ -63,7 +63,7 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
     ...updates.map((text, index) => ({ id: `synthetic-update-${index}`, text, presentation: 'assistant_update', sources: [{ ...source, ...(index === 1 ? { key: 'c'.repeat(64), sessionId: 'synthetic-v8', project: '/synthetic/v8' } : {}) }], verification: 'reported_unverified', synthesisVerification: 'passed' })).reverse(),
     { id: 'synthetic-earlier-report', text: 'Synthetic earlier report: source revision and execution audit remain available here.', sources: [source], verification: 'reported_unverified', synthesisVerification: 'passed' },
   ] }
-  replace('odk-personal-bot-status', { state: 'idle', transcript: prompt, message: reply, briefing, remote })
+  replace('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })
   ipcMain.handle('odk-personal-bot-text', () => ({ accepted: true }))
   ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: true }))
   return { synthetic: true, briefing, prompt, reply, updates, remote, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }

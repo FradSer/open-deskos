@@ -288,3 +288,5 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-update-sources p { color: var(--odk-secondary-strong); font-size: 14px; }
 .agent-update-sources > summary::after, .agent-earlier-updates > summary::after, .agent-remote-coverage summary::after { content: '+'; margin-inline-start: auto; padding-inline-start: 12px; }
 .agent-update-sources[open] > summary::after, .agent-earlier-updates[open] > summary::after, .agent-remote-coverage details[open] > summary::after { content: '−'; }
+
+.agent-jev-status { flex: none; min-width: 0; width: 100%; margin: 0; text-align: center; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }

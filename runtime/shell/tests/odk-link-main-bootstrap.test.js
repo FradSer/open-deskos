@@ -42,6 +42,11 @@ test('actual Main bootstrap preserves Open DeskOS Link signed revisions and prel
         const record = JSON.parse(pending.trim())
         requests.push(record)
         assert.equal(record.v, 1)
+        if (record.type === 'subscribe-completions') {
+          assert.deepEqual(record,{v:1,type:'subscribe-completions'})
+          socket.write(JSON.stringify({v:1,type:'completion'})+'\n')
+          return
+        }
         assert.ok(Object.hasOwn(replies, record.type))
         socket.end(JSON.stringify(replies[record.type]) + '\n')
       })
@@ -108,8 +113,9 @@ test('actual Main bootstrap preserves Open DeskOS Link signed revisions and prel
       assert.equal(pids.size, 4)
       assert.deepEqual([...(await native.store.snapshot(first)).files], [...firstSnapshot.files])
       assert.deepEqual([...(await native.store.snapshot(second)).files], [...secondSnapshot.files])
-      assert.deepEqual(consumer, { sessionId: 'fixture', goal: 'Preserve protocol', running: 1,
+      assert.deepEqual(consumer, { sessionId: 'fixture', goal: 'Preserve protocol', running: 1, completionNotifications:{state:'live'},
         events: [{ kind: 'assistant', text: 'Reported event' }], truncated: true })
+      assert.equal(requests.filter(record=>record.type==='subscribe-completions').length,4,'each actual Main process owns one completion subscription')
       assert.ok(['machines', 'hosted-sessions', 'snapshot', 'events'].every(type => requests.some(record => record.type === type)))
       assert.ok(requests.some(record => record.type === 'events' && record.sessionId === 'fixture' && record.hostedPi === true))
     } finally {

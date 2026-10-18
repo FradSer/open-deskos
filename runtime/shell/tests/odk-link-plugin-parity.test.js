@@ -24,7 +24,7 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-async function fixture(t, mode, send, socketPath = '/fixture/link.sock') {
+async function fixture(t, mode, send, socketPath = '/fixture/link.sock', extraOptions = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-link-parity-'))
   const env = { ...process.env, ODK_CONFIG_DIR: path.join(root, 'config'),
     XDG_STATE_HOME: path.join(root, 'state'), LOCALAPPDATA: path.join(root, 'state') }
@@ -34,7 +34,7 @@ async function fixture(t, mode, send, socketPath = '/fixture/link.sock') {
     fs.rmSync(root, { recursive: true, force: true })
   })
   const replacements = await select(root, mode, env, t.signal)
-  const options = { socketPath, platform: 'linux', env, send, host: { stateDir: path.join(root, 'state'), endpoint: () => socketPath } }
+  const options = { ...extraOptions, socketPath, platform: 'linux', env, send, host: { stateDir: path.join(root, 'state'), endpoint: () => socketPath } }
   let defaults = 0
   let localReads = 0
   const handlers = new Map()
@@ -225,3 +225,18 @@ test('independent Open DeskOS Link entry imports no Shell implementation', async
   assert.equal((await instance.ports[DATA_PORTS.odkLink].snapshot()).reason, 'odk-link-unconfigured')
   for (const cleanup of cleanups) await cleanup()
 })
+
+for (const mode of ['default', 'linked', 'signed']) {
+  test(`${mode} Link owns its read-only completion subscription`, {timeout:15000,skip:posixOnlyReason('unix-socket')}, async t=>{
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'odk-subscription-parity-'))
+    const endpoint=path.join(root,'s.sock'),peers=new Set(),received=[]
+    const server=net.createServer(peer=>{peers.add(peer);peer.on('error',()=>{});peer.on('data',chunk=>{received.push(...chunk.toString().trim().split('\n').map(JSON.parse));peer.write('{"v":1,"type":"completion"}\n')});peer.once('close',()=>peers.delete(peer))})
+    server.listen(endpoint);await new Promise(r=>server.once('listening',r))
+    t.after(async()=>{for(const peer of peers)peer.destroy();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true})})
+    const hints=[]
+    const f=await fixture(t,mode,()=>{throw Error('completion must not issue inventory polling')},endpoint,{onCompletion:hint=>hints.push(hint),reconnectDelayMs:5})
+    const end=Date.now()+1000;while(hints.length<1&&Date.now()<end)await new Promise(r=>setTimeout(r,5))
+    assert.deepEqual(received,[{v:1,type:'subscribe-completions'}]);assert.deepEqual(hints,[{v:1,type:'completion'}]);assert.deepEqual(f.source.completionStatus(),{state:'live'})
+    await f.host.stop();await new Promise(r=>setTimeout(r,20));assert.equal(peers.size,0)
+  })
+}

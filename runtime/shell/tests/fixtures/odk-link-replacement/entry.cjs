@@ -24,20 +24,24 @@ exports.create = context => {
     try { resolve(transport.request(record, { signal })) } catch (error) { reject(error) }
     return operation
   }
-  const empty = reason => ({ ok: false, reason, scannedAt: null, summary: null, sessions: [], workspaces: [] })
+  const completionSubscription = typeof capability.options?.onCompletion === 'function'
+    ? transport.subscribeCompletions(capability.options.onCompletion, { signal: controller.signal }) : null
+  const withCompletion = record => completionSubscription ? { ...record, completionNotifications: completionSubscription.snapshot() } : record
+  const empty = reason => withCompletion({ ok: false, reason, scannedAt: null, summary: null, sessions: [], workspaces: [] })
   const response = (record, signal) => controller.signal.aborted || signal?.aborted ? null : record
   const source = {
     socketPath: transport.socketPath,
     fixtureRevision: '2.0.0',
+    completionStatus: () => completionSubscription?.snapshot() ?? { state: 'disabled' },
     async stop() {
       abort()
       context.signal.removeEventListener('abort', abort)
-      await Promise.allSettled([...pending])
+      await Promise.allSettled([...pending, completionSubscription?.stop()])
     },
     async snapshot({ signal } = {}) {
       if (!source.socketPath) return empty('odk-link-unconfigured')
       const record = response(await ask({ v: 1, type: 'snapshot' }, signal), signal)
-      return record?.ok === true && Array.isArray(record.sessions) ? record
+      return record?.ok === true && Array.isArray(record.sessions) ? withCompletion(record)
         : empty(typeof record?.reason === 'string' && record.reason ? record.reason : 'odk-link-unavailable')
     },
     async hostedSessions({ signal } = {}) {

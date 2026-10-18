@@ -327,6 +327,7 @@ function createOdkLinkService({
   const controlAttributions = new Map()
   const pendingControlAttachments = new Map()
   const openSockets = new Set()
+  const completionSubscribers = new Set()
   const server = net.createServer()
   let runtimeChannel = null
   let lastChannelRejection = null
@@ -387,6 +388,16 @@ function createOdkLinkService({
     }
   }
 
+  function publishCompletion(entry) {
+    const event = entry.events.at(-1)
+    if (entry.session.status === 'running' || event?.kind !== 'assistant' || event.stopReason !== 'stop' || !event.eventId) return
+    entry.completedIds ??= new Set()
+    if (entry.completedIds.has(event.eventId)) return
+    entry.completedIds.add(event.eventId)
+    if (entry.completedIds.size > MAX_EVENTS_PER_SESSION) entry.completedIds.delete(entry.completedIds.values().next().value)
+    for (const socket of completionSubscribers) safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'completion' })
+  }
+
   function applySessions(state, socket, sessions) {
     if (!Array.isArray(sessions)) return
     const seen = new Set()
@@ -404,6 +415,7 @@ function createOdkLinkService({
       entry.reports.set(socket, report)
       entry.session = latestReport(entry.reports)
       state.sessions.set(id, entry)
+      publishCompletion(entry)
     }
     // A Pi process reports its own set, not every process on the machine.
     // Replacement and disconnect are scoped to this authenticated connection.
@@ -421,6 +433,7 @@ function createOdkLinkService({
     const bounded = events.map(boundedEvent).filter(Boolean)
     if (bounded.length === 0) return
     entry.events = retainEvents([...entry.events, ...bounded])
+    publishCompletion(entry)
   }
 
   function explicitVersionMismatch(socket, received) {
@@ -914,7 +927,13 @@ function createOdkLinkService({
     socket.on('data', (chunk) => {
       for (const record of readRecords(chunk)) {
         if (!record || typeof record !== 'object' || record.v !== ODK_LINK_PROTOCOL) continue
-        if (record.type === 'snapshot') writeRuntime(snapshot(), record.requestId)
+        if (record.type === 'subscribe-completions') {
+          if (Object.keys(record).length !== 2) continue
+          if (!completionSubscribers.has(socket)) {
+            completionSubscribers.add(socket)
+            safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'completion' })
+          }
+        } else if (record.type === 'snapshot') writeRuntime(snapshot(), record.requestId)
         else if (record.type === 'conclusions') {
           try { writeRuntime(conclusionPage(machines, { cursor: record.cursor ?? null, limit: record.limit ?? 16 }), record.requestId) }
           catch { writeRuntime({ok:false,reason:'invalid_conclusion_page'},record.requestId) }
@@ -935,6 +954,7 @@ function createOdkLinkService({
       }
     })
     socket.on('error', () => socket.destroy())
+    socket.once('close', () => completionSubscribers.delete(socket))
   }
 
   async function openRuntimeSocket() {
@@ -986,6 +1006,7 @@ function createOdkLinkService({
       // its own sockets rather than relying on an API that may not exist.
       for (const socket of [...openSockets]) socket.destroy()
       openSockets.clear()
+      completionSubscribers.clear()
       await Promise.all([
         new Promise((resolve) => server.close(resolve)),
         // The runtime channel withdraws its own endpoint: a stopped service must

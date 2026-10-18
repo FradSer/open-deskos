@@ -214,7 +214,7 @@ app.whenReady().then(async () => {
     const probe = async (width, height, text, state = 'live') => {
       const frame = { ...preview.briefing, state, generatedAt: preview.briefing.generatedAt + ++probeRevision, items: [{ ...preview.briefing.items[0], text, segments: [{ text, icon: 'sessions' }] }] }
       await js("odkTheme.set('" + theme + "').then(() => Object.assign(document.querySelector('#home-summary').style, { width: '" + width + "px', height: '" + height + "px', maxWidth: 'none' }))")
-      win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: frame })
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, briefing: frame })
       return js('(async () => {' +
         'const host = document.querySelector("#home-summary"), paragraph = host.querySelector("#dash-narrative");' +
         'const deadline = performance.now() + 3000;' +
@@ -256,7 +256,7 @@ app.whenReady().then(async () => {
       console.log('OVERVIEW_COPY_FIT_PASS ' + JSON.stringify({ theme, typography, short, long, floor, scrolledRefit }))
     } finally {
       await js('(() => { const host = document.querySelector("#home-summary"); const original = ' + JSON.stringify(originalStyle) + '; if (original === null) host.removeAttribute("style"); else host.setAttribute("style", original); host.scrollTop = 0; if ((host.getAttribute("style") || "") !== (original || "")) throw Error("Typography fixture sizing retained"); })()')
-      win.webContents.send('odk-personal-bot-status', { state: 'idle', briefing: preview.briefing })
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, briefing: preview.briefing })
     }
   }
   await js(`(() => {
