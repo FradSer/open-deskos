@@ -49,11 +49,38 @@ function terminalIdentity(record) {
   return digest([record.key,turn,outcome])
 }
 function completionIdentity(record) {
-  if(record.availability==='unavailable' || !record.conclusion?.trim() || record.currentTurnId
+  if(record.availability!=='live' || !record.conclusion?.trim() || record.currentTurnId
     || !['settled','exited','finished','failed','cancelled','ended','interrupted'].includes(record.state)
     || record.state==='interrupted' && record.control!=='configured'
     || record.conclusionIsLatestAssistant===false || record.latestEventIsAssistant===false)return null
   return terminalIdentity(record)
+}
+
+// Legacy configured snapshots did not retain a turn identity. Establish a watermark,
+// never a delivered message, before a changed reader projection can look like new work.
+function migrateConfiguredIdentity(data,record) {
+  if(record.control!=='configured' || record.availability!=='live')return data
+  const seen=data.seen.filter(source=>source.key===record.key),attempted=data.attempted.filter(source=>source.key===record.key)
+  const references=data.messages.flatMap(message=>message.sources.filter(source=>source.key===record.key && source.control==='configured'))
+  if(!seen.length && !attempted.length && !references.length)return data
+  const completion=completionIdentity(record)
+  if(completion && [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId))return data
+  if(completion) {
+    const {revision,lastTurnId,turnOutcome,...legacy}=record
+    legacy.conclusionOutcome=turnOutcome==='finished'?'reported_finished':'unknown'
+    const revisions=new Set([digest(legacy),...references.filter(source=>source.taskRevision===record.taskRevision).map(source=>source.revision)])
+    const exact=source=>source.key===record.key && !source.completion && revisions.has(source.revision)
+    if([...seen,...attempted].some(exact))return {...data,seen:data.seen.map(source=>exact(source)?{...source,completion}:source),attempted:data.attempted.map(source=>exact(source)?{...source,completion}:source)}
+  }
+  if([...seen,...attempted].some(source=>source.completion) || references.some(source=>terminalIdentity(source)))return data
+  const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)
+  const observed=record.state==='running' && uuid(record.currentTurnId)?record.currentTurnId:null
+  if(!observed && (!completion || [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId)))return data
+  const patch=observed?{observedTurnId:observed}:{completion}
+  const update=source=>source.key===record.key?{...source,...patch}:source
+  if([...seen,...attempted].length && [...seen,...attempted].every(source=>Object.entries(patch).every(([key,value])=>source[key]===value)))return data
+  if(!seen.length && !attempted.length && data.seen.length>=8192)throw Error('Remote source inventory capacity')
+  return {...data,seen:seen.length || attempted.length?data.seen.map(update):[...data.seen,{key:record.key,revision:references[0].revision,updatedAt:record.updatedAt,...patch}],attempted:data.attempted.map(update)}
 }
 
 function validReference(source) {
@@ -70,8 +97,8 @@ function readState(file) {
   if(!Array.isArray(value.attempted) || value.attempted.length>8192)throw Error('Invalid remote attempt checkpoint')
   value.sweep??=[];value.present??=[]
   if(![value.sweep,value.present].every(items=>Array.isArray(items) && items.length<=8192 && items.every(key=>text(key,256))))throw Error('Invalid remote source checkpoint')
-  if(value.seen.some(source=>!source || !text(source.key,256) || !/^[a-f0-9]{64}$/.test(source.revision) || !Number.isFinite(source.updatedAt) || source.completion!==undefined && !/^[a-f0-9]{64}$/.test(source.completion) || source.presentation!==undefined && source.presentation!=='assistant_update')
-    || value.attempted.some(source=>!source || !text(source.key,256) || !/^[a-f0-9]{64}$/.test(source.revision) || source.completion!==undefined && !/^[a-f0-9]{64}$/.test(source.completion))
+  if(value.seen.some(source=>!source || !text(source.key,256) || !/^[a-f0-9]{64}$/.test(source.revision) || !Number.isFinite(source.updatedAt) || source.completion!==undefined && !/^[a-f0-9]{64}$/.test(source.completion) || source.observedTurnId!==undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(source.observedTurnId) || source.presentation!==undefined && source.presentation!=='assistant_update')
+    || value.attempted.some(source=>!source || !text(source.key,256) || !/^[a-f0-9]{64}$/.test(source.revision) || source.completion!==undefined && !/^[a-f0-9]{64}$/.test(source.completion) || source.observedTurnId!==undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(source.observedTurnId))
     || value.messages.some(message=>!message || !/^[a-f0-9]{64}$/.test(message.id) || !text(message.text,4000) || !Array.isArray(message.sources) || message.sources.length>7 || !message.sources.every(validReference)
       || message.presentation!==undefined && (message.presentation!=='assistant_update' || !text(message.text,600) || !message.text.trim())
       || message.verification!=='reported_unverified' || message.synthesisVerification!=='passed'))throw Error('Invalid remote conversation records')
@@ -138,6 +165,7 @@ export class RemoteConversation {
   }
   async collect(epoch) {
     this.scanComplete=false
+    let migrated=this.data
     let cursor=this.data.cursor,omitted=0,unavailable=0;const records=[],sweep=new Set(cursor===null?[]:this.data.sweep);let complete=false,uncertain=cursor===null?false:this.data.sweepUncertain===true
     for(let page=0;page<4;page++) {
       const response=await this.read(cursor)
@@ -147,14 +175,16 @@ export class RemoteConversation {
       for(const record of response.records) {
         sweep.add(record.key);if(sweep.size>8192)throw Error('Remote inventory capacity')
         if(!validReference(record) || !text(record.conclusion,2048) || !Number.isFinite(record.updatedAt))throw Error('Invalid remote report')
-        const previous=this.data.seen.find(v=>v.key===record.key),completion=completionIdentity(record)
-        if(completion && previous?.completion!==completion && !this.data.messages.some(message=>message.sources.some(source=>source.key===record.key && terminalIdentity(source)===completion)) && !this.data.attempted.some(a=>a.key===record.key && a.completion===completion) && (previous?.revision!==record.revision && !this.data.attempted.some(a=>a.key===record.key && a.revision===record.revision) && !(previous && record.updatedAt<previous.updatedAt)))records.push(record)
+        migrated=migrateConfiguredIdentity(migrated,record)
+        const previous=migrated.seen.find(v=>v.key===record.key),completion=completionIdentity(record)
+        if(completion && previous?.completion!==completion && !this.data.messages.some(message=>message.sources.some(source=>source.key===record.key && terminalIdentity(source)===completion)) && !migrated.attempted.some(a=>a.key===record.key && a.completion===completion) && (previous?.revision!==record.revision && !this.data.attempted.some(a=>a.key===record.key && a.revision===record.revision) && !(previous && record.updatedAt<previous.updatedAt)))records.push(record)
       }
       cursor=response.nextCursor??null;omitted=response.omitted??0;unavailable+=response.unavailableSources??0
       uncertain ||= (response.unavailableSources??0)>0 || cursor===null && omitted>0
       if(cursor===null){complete=true;break}
       if(records.length>=4)break
     }
+    if(migrated!==this.data)this.save(migrated)
     this.scanComplete=complete
     this.checkedAt=Date.now();this.omitted=omitted;this.unavailable=unavailable
     if(records.length>7 || Buffer.byteLength(JSON.stringify(records))>131072)throw Error('Remote batch limit')

@@ -393,3 +393,63 @@ test('restarted Hosted Pi preserves an unreported completed turn but never promo
  current={...current,revision:'b'.repeat(64),updatedAt:2};const recovered=new RemoteConversation(options);await recovered.poll();assert.equal(calls,1)
  current={...current,revision:'c'.repeat(64),lastTurnId:'12345678-1234-1234-1234-123456789abe',turnOutcome:'interrupted'};await recovered.poll();assert.equal(calls,1)
 })
+
+
+test('legacy configured completions migrate silently before reader schema changes can replay them',async t=>{
+ const {createHash}=await import('node:crypto'),{createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex')
+ for(const mode of ['retained-reference','seen-projection','held-projection','held-with-modern-seen','held-failed','held-cancelled','ambiguous-seen','ambiguous-held','observed-active','different-active','invalid-active','unknown-first','unavailable-first','new-source'])await t.test(mode,async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-completion-migration-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',updatedAt:'2026-10-17T00:00:00.000Z',state:'settled',currentTurnId:null,lastTurnId:'00000000-0000-0000-0000-000000000002',turnOutcome:'finished',revision:'a'.repeat(64),response:'Result total: 6'}
+  if(mode==='held-failed'||mode==='held-cancelled'){task.turnOutcome=mode.slice(5);task.state=task.turnOutcome}
+  let unavailable=false
+  const reader=await createRemotePiReader({targets:[{id:'cm5',roots:['/synthetic']}],link:{stop:async()=>{}},backfill:async()=>null,request:async(_target,p)=>{if(p.command==='status'&&unavailable)throw Error('synthetic unavailable');return p.command==='list'?{tasks:[task],endpointKind:'hosted'}:{task}}});t.after(()=>reader.close())
+  let current=(await reader.read('hosted:0')).records[0]
+  const {revision,lastTurnId,turnOutcome,...oldBase}=current
+  if(task.turnOutcome!=='finished')oldBase.conclusionOutcome='unknown'
+  const old={...oldBase,revision:hash(oldBase)},legacyRevision=mode.startsWith('ambiguous')?'d'.repeat(64):old.revision
+  const {conclusion,...reference}=old
+  const legacy={id:'c'.repeat(64),at:1,text:'Earlier result unchanged.',sources:[{...reference,revision:'e'.repeat(64)}],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
+  const held=mode.includes('held'),fresh=mode==='new-source'
+  const prior={version:1,seen:held||fresh?[]:[{key:old.key,revision:legacyRevision,updatedAt:old.updatedAt}],attempted:held?[{key:old.key,revision:legacyRevision,updatedAt:old.updatedAt}]:[],messages:mode==='retained-reference'?[legacy]:[],cursor:null}
+  if(mode==='held-with-modern-seen')prior.seen=[{key:old.key,revision:'8'.repeat(64),updatedAt:old.updatedAt,completion:'9'.repeat(64)}]
+  const file=join(directory,'remote.json');await writeFile(file,JSON.stringify(prior),{mode:0o600});protectProactivePath(file)
+  let calls=0
+  const options={file,read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async({records})=>{calls++;return {updates:updates('任务给出了结果。',records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}}
+  let remote=new RemoteConversation(options)
+  if(['observed-active','different-active','invalid-active','unknown-first','unavailable-first'].includes(mode)) {
+   const terminalTask={...task,...(mode==='observed-active'?{lastTurnId:'00000000-0000-0000-0000-000000000004',revision:'7'.repeat(64)}:{})}
+   Object.assign(task,{revision:'9'.repeat(64),state:mode==='unknown-first'?'unknown':'running',currentTurnId:mode==='different-active'?'00000000-0000-0000-0000-000000000009':mode==='invalid-active'?'not-a-turn-id':terminalTask.lastTurnId,});unavailable=mode==='unavailable-first'
+   current=(await reader.read('hosted:0')).records[0]
+   await remote.poll();assert.equal(calls,0)
+   remote=new RemoteConversation(options);Object.assign(task,terminalTask);unavailable=false;current=(await reader.read('hosted:0')).records[0]
+  }
+  await remote.poll()
+  const notified=fresh||mode==='observed-active'
+  assert.equal(calls,notified?1:0,'migration is not a fresh completion or a retry of held work')
+  const next=JSON.parse(await readFile(file,'utf8'))
+  if(!notified){assert.deepEqual(next.messages,prior.messages);assert.deepEqual(next.seen.map(({completion,observedTurnId,...r})=>r),prior.seen.map(({completion,...r})=>r));assert.deepEqual(next.attempted.map(({completion,observedTurnId,...r})=>r),prior.attempted);assert.equal(remote.snapshot().heldCount,held?1:0)}
+  if(mode==='held-with-modern-seen'){assert.equal(next.seen[0].completion,prior.seen[0].completion);assert.match(next.attempted[0].completion,/^[a-f0-9]{64}$/)}
+  for(const field of ['seen','attempted'])if(next[field].length){const malformed=structuredClone(next);malformed[field][0].observedTurnId='not-a-uuid';await writeFile(file,JSON.stringify(malformed),{mode:0o600});assert.throws(()=>new RemoteConversation(options));await writeFile(file,JSON.stringify(next),{mode:0o600})}
+  const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,notified?1:0,'baseline survives restart')
+  task.updatedAt='2026-10-17T00:00:01.000Z';current=(await reader.read('hosted:0')).records[0];await restored.poll();assert.equal(calls,notified?1:0,'changed metadata cannot repeat the baseline')
+  Object.assign(task,{revision:'f'.repeat(64),lastTurnId:'00000000-0000-0000-0000-000000000003',updatedAt:'2026-10-17T00:00:02.000Z'});current=(await reader.read('hosted:0')).records[0]
+  await restored.poll();assert.equal(calls,notified?2:1,'a later actual completed turn remains reportable')
+ })
+})
+
+
+test('legacy identity migration requires explicit live availability and tolerates old references without timestamps',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-migration-reference-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const current={...row('configured'),control:'configured',target:'cm5',taskId:'00000000-0000-0000-0000-000000000001',taskRevision:'b'.repeat(64),lastTurnId:'00000000-0000-0000-0000-000000000002',turnOutcome:'finished'}
+ const {conclusion,lastTurnId,turnOutcome,updatedAt,...reference}=current
+ const legacy={id:'c'.repeat(64),at:1,text:'Earlier result.',sources:[reference],verification:'reported_unverified',synthesisVerification:'passed',omitted:0}
+ const file=join(directory,'remote.json');await writeFile(file,JSON.stringify({version:1,seen:[],attempted:[],messages:[legacy],cursor:null}),{mode:0o600});protectProactivePath(file)
+ let record={...current,availability:'unknown',state:'running',currentTurnId:current.lastTurnId},calls=0
+ const options={file,read:async()=>({ok:true,records:[record],total:1,nextCursor:null,omitted:0}),synthesize:async()=>{calls++;throw Error('migration cannot synthesize')},publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();assert.equal(calls,0);assert.deepEqual(JSON.parse(await readFile(file,'utf8')).seen,[])
+ record={...current,availability:'unknown'};await remote.poll();assert.equal(calls,0);assert.deepEqual(JSON.parse(await readFile(file,'utf8')).seen,[])
+ record=current;await remote.poll();assert.equal(calls,0)
+ const saved=JSON.parse(await readFile(file,'utf8'));assert.deepEqual(saved.messages,[legacy]);assert.equal(saved.seen[0].updatedAt,current.updatedAt);assert.match(saved.seen[0].completion,/^[a-f0-9]{64}$/)
+ const restored=new RemoteConversation(options);await restored.poll();assert.equal(calls,0);assert.deepEqual(restored.snapshot().messages,remote.snapshot().messages)
+})

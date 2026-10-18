@@ -105,3 +105,14 @@ Scenario: Native acceptance uses the configured endpoint directory
     When its explicit outcome is finished, failed, or cancelled
     Then an unreported completion can enter the conversation once
     But an interrupted in-flight outcome cannot become a completion message
+
+  Scenario: Configured completion identities migrate without replaying old conclusions
+    Given legacy configured history or held revisions without completion identities
+    When the reader first supplies a real terminal turn identity after an upgrade
+    Then an exact legacy projection or retained task revision maps silently to that identity
+    And ambiguous legacy history establishes only a conservative current baseline
+    And old messages, seen revisions, and held revisions remain unchanged
+    And restart does not summarize that baseline but a later distinct completed turn can notify
+    And a new source without legacy history can notify its first completion
+    And a live observed running turn remains reportable when that same UUID completes after restart
+    But unknown, unavailable, and invalid active identities cannot establish that evidence
