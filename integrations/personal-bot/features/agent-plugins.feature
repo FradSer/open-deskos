@@ -282,3 +282,13 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the same read and write validator rejects it without changing the checkpoint
     And an unknown reply with expired origin history blocks only its retained session
     And another explicitly identified session can receive an owner reply
+
+  Scenario: Provider selection keeps OpenCode Console and Go separate
+    Given the operator selects a model provider and its explicit credential
+    When the resident configures model transport or a Jev judgment
+    Then Console uses its fixed inference endpoint for the selected API family
+    And Go uses its separate credential and inference endpoint
+    And Go cannot supply a System One judgment or borrow Console credentials
+    And provider-scoped SDK credentials remain supported without ambient credential fallback
+    And disabled Jev performs no authentication request
+    And existing typed judgment validation and authorization rules remain unchanged

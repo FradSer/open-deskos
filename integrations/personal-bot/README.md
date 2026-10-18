@@ -200,3 +200,26 @@ Default tests are offline: real SDK/resource-loading, socket/state/stream/captur
 They do not prove live provider, physical microphone, deployed service or host acceptance.
 Open acceptance limits live in the contract.
 A real voice/coding acceptance needs separately authorized capture, transcription and verified work on each configured host.
+
+### OpenCode provider selection
+
+Ordinary models retain the existing provider/model selection.
+Configure Console and Go independently; neither service borrows the other's credentials.
+Use environment credentials or protected private key files.
+These examples contain no credentials:
+
+```sh
+# Console model and Console Jev use the same explicit Console credential.
+ODK_PERSONAL_BOT_MODEL=opencode/kimi-k2.6
+ODK_OPENCODE_KEY_FILE=/absolute/private/console-key
+ODK_JEV_PROVIDER=opencode
+ODK_JEV_MODEL=jev-1.13-free
+
+# Alternative ordinary model selection uses a separate Go credential.
+ODK_PERSONAL_BOT_MODEL=opencode-go/kimi-k3
+ODK_OPENCODE_GO_KEY_FILE=/absolute/private/go-key
+```
+
+Jev can use TypeSafe independently of the ordinary model provider.
+`ODK_JEV_PROVIDER=disabled` disables its startup request; ordinary judgment behavior follows the host's configured judgment service.
+See [Provider endpoints](docs/CONTRACT.md#provider-endpoints) for credential precedence and fixed transport boundaries.
