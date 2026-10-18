@@ -37,10 +37,11 @@ test('separate home frames preserve voice replies and stale content across recon
   const remote={state:'partial',messages:[{id:'a'.repeat(64),text:'Pi reports a result.',presentation:'assistant_update',sources:[],verification:'reported_unverified',synthesisVerification:'passed'}],total:1,omitted:8,hasMore:true,heldCount:0}
   const briefing = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ text: 'Mail content', sources: [{ id: 'mail', label: 'Mail', state: 'live' }] }] }
   let update = next(frame => frame.briefing?.state === 'live')
-  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents, jev: { status: 'checking', key: 'must-not-project' } }) + '\n' + JSON.stringify({v:1,type:'remote_conversation',remote}) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
+  peer.write(JSON.stringify({ v: 1, type: 'status', state: 'idle', message: reply, agents, jev: { status: 'checking', key: 'must-not-project' }, judgment:{status:'ready',provider:'model',model:'synthetic/model-v1',body:'must-not-project'} }) + '\n' + JSON.stringify({v:1,type:'remote_conversation',remote}) + '\n' + JSON.stringify({ v: 1, type: 'briefing', briefing }) + '\n')
   assert.equal((await update).message, reply)
   assert.deepEqual(client.snapshot().agents, agents)
   assert.deepEqual(client.snapshot().jev, {status:'checking'})
+  assert.deepEqual(client.snapshot().judgment,{status:'ready',provider:'model',model:'synthetic/model-v1'})
   assert.equal(client.snapshot().remote.messages[0].presentation,'assistant_update');assert.equal(client.snapshot().remote.state,'partial');assert.equal(client.snapshot().remote.messages[0].text,remote.messages[0].text)
   update = next(frame => frame.state === 'recording')
   peer.write('{"v":1,"type":"status","state":"recording","message":"","jev":{"status":"verified","body":"must-not-project"}}\n')
@@ -59,6 +60,7 @@ test('separate home frames preserve voice replies and stale content across recon
   peer.write('{"v":1,"type":"status","state":"idle","message":""}\n')
   assert.equal((await update).briefing.state, 'stale')
   assert.equal(client.snapshot().jev,undefined,'old service does not retain earlier verified authentication')
+  assert.equal(client.snapshot().judgment,undefined,'old service cannot retain an earlier ready judgment')
 })
 
 test('microphone toggles a resident service and receives truthful status', async (t) => {
@@ -191,4 +193,13 @@ test('completion hints coalesce until the authenticated Bot connection is ready'
   const retryEnd=Date.now()+1000;while(records.length<4&&Date.now()<retryEnd)await new Promise(r=>setTimeout(r,5))
   assert.deepEqual(records.map(record=>record.type),['status','proactive_event','status','proactive_event'])
   assert.deepEqual(records[3].readingIds,completed,'reconnection catches up without replaying any owner command')
+})
+
+test('judgment status projects fixed safe readiness independently from optional Jev', () => {
+  const {parseJudgmentStatus}=require('../src/judgment-status-frame')
+  const {parseJevStatus}=require('../src/jev-status-frame')
+  assert.deepEqual(parseJevStatus({status:'disabled',body:'secret'}),{status:'disabled'})
+  assert.deepEqual(parseJudgmentStatus({status:'ready',provider:'model',model:'synthetic/model-v1',body:'secret'}),{status:'ready',provider:'model',model:'synthetic/model-v1'})
+  for(const value of [{status:'ready',provider:'other'},{status:'ready',provider:'model',model:'https://user:secret@host'},{status:'ready',provider:'jev',model:'synthetic/model-v1'},{status:'ready',provider:'model',model:'jev-test'},null])assert.deepEqual(parseJudgmentStatus(value),{status:'unavailable',provider:'model'})
+  assert.equal(parseJudgmentStatus(undefined),undefined)
 })

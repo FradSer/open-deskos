@@ -322,25 +322,29 @@
         showThread(selectedThread)
         remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired; ${frame.omittedReplies || 0} earlier replies not shown; ${frame.expiredReplies || 0} earlier replies expired.`
       }
-      function renderJev(value) {
+      function renderJev(value, judgment) {
         const states = {
           checking: ['Checking Jev authentication…', 'Checking Jev…'],
           verified: ['Jev authentication verified.', 'Ready'],
+          disabled: ['Jev is disabled.', 'Jev disabled'],
           missing_credential: ['Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
           auth_rejected: ['Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
           unavailable: ['Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
         }
-        const [text, caption] = value && Object.hasOwn(states, value.status)
+        const [authText, caption] = value && Object.hasOwn(states, value.status)
           ? states[value.status] : ['Jev authentication has not been checked.', 'Jev not checked']
+        const ordinaryReady = judgment?.status === 'ready' && judgment.provider === 'model'
+        const optional = {checking:'Checking optional Jev; model ready.',disabled:'Jev disabled; model ready.',missing_credential:'Jev not configured; model ready.',auth_rejected:'Jev rejected; model ready.',unavailable:'Jev unavailable; model ready.'}
+        const text = ordinaryReady && value?.status !== 'verified' ? optional[value?.status] || 'Jev not checked; model ready.' : authText
         const node = $('.agent-jev-status')
         if (node.textContent !== text) node.textContent = text
-        return caption
+        return judgment === undefined ? caption : judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Judgment unavailable'
       }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
-        const jevCaption = renderJev(status.jev)
+        const jevCaption = renderJev(status.jev, status.judgment)
         renderAgents(status.agents)
         renderRemote(status.remote)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)

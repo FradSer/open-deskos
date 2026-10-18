@@ -99,10 +99,39 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
   await resize(1920,1280);await evaluate("window.odkTheme.set('instrument')")
 }
 
+async function assertOptionalJudgmentStatus() {
+  const count=await evaluate(`document.querySelector('.agent-conversation').children.length`)
+  for(const jev of ['unavailable','disabled','auth_rejected','missing_credential','checking']) {
+    publishStatus({state:'idle',jev:{status:jev},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'}})
+    await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Ready','ordinary judgment availability does not require Jev authentication')
+    assert.doesNotMatch(await evaluate(`document.querySelector('.agent-jev-status').textContent`),/verified/i)
+    assert.match(await evaluate(`document.querySelector('.agent-jev-status').textContent`),/model ready/)
+  }
+  publishStatus({state:'idle',jev:{status:'verified'},judgment:{status:'unavailable',provider:'model'}})
+  await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Judgment unavailable')
+  assert.equal(await evaluate(`document.querySelector('.agent-conversation').children.length`),count,'judgment status never inserts chat text')
+  for(const theme of ['instrument','pixel','border-beam']) {
+    await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
+    for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+      await resize(width,height)
+      publishStatus({state:'idle',jev:{status:'disabled'},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'},briefing:{state:'error',generatedAt:1,omittedSources:0,items:[{text:'2 Synthetic sessions',segments:[{text:'2 Synthetic sessions',icon:'sessions'}],sources:[{id:'synthetic.sessions',label:'Synthetic sessions',state:'live'}]}]}})
+      await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.match(await evaluate(`document.querySelector('#dash-narrative').textContent`),/2 Synthetic sessions/)
+      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
+      assert.ok(layout.visible&&layout.conversation>=40&&layout.composer<=height&&layout.overflow<=1,JSON.stringify({theme,width,...layout}))
+      if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await win.webContents.capturePage()).toPNG())}
+    }
+  }
+  await resize(1920,1280)
+}
+
 async function assertJevStartupStatus() {
   const states = [
     ['checking', 'Checking Jev authentication…', 'Checking Jev…'],
     ['verified', 'Jev authentication verified.', 'Ready'],
+    ['disabled', 'Jev is disabled.', 'Jev disabled'],
     ['missing_credential', 'Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
     ['auth_rejected', 'Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
     ['unavailable', 'Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
@@ -460,6 +489,9 @@ app.whenReady().then(async () => {
     await assertOverviewRefreshIndicator({ownerConversation:true})
     console.log('PASS Overview red dot, refresh spinner and conversation isolation')
     finish(0);return
+  }
+  if (process.argv.includes('--optional-judgment-only')) {
+    await assertOptionalJudgmentStatus();console.log('PASS optional Jev and actual ordinary judgment readiness');finish(0);return
   }
   if (process.argv.includes('--jev-startup-only')) {
     await assertJevStartupStatus()
