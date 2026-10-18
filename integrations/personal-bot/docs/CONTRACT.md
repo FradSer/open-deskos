@@ -1055,12 +1055,23 @@ Partial inventory and unavailable sources remain visible; they do not prove that
 An owner follow-up still receives a typed intent judgment before capability execution.
 `remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
-Report-only sources refuse control.
+Report-only sources refuse control without an explicit owner reply.
+An explicit reply requires a unique configured machine binding and an exact current session match.
 The host checks current task state before sending.
-Hosted endpoints also reject a changed task revision before admission.
+An explicit Hosted reply uses the `list` response only to resolve its session identity.
+It sends the current `status` revision to the daemon, which rejects changes before admission.
 Native current-session endpoints retain their existing non-atomic status check and unknown-delivery semantics.
+The operator can declare `endpointKind: "current_session"` for a verified native target.
+An explicit protocol value must agree with that declaration.
+An explicit native reply checks current session identity and state.
+It does not compare the `list` and `status` object hashes.
+A new explicit native owner reply remains a separate mutation when the remote session records an earlier unknown delivery.
+The Bot preserves its durable reply locks for `dispatching` or `unknown` replies.
+Hosted endpoints and other follow-ups still refuse earlier unknown deliveries.
 Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
-Follow-up receipts prove admission only and cannot train learned experience.
+Only a receipt with confirmed admission proves that a task accepted an instruction.
+An unknown receipt proves neither admission nor completion.
+Follow-up receipts cannot train learned experience.
 
 The CM5 installer maintains `~/.local/bin/odk-pi-task-control` from the reviewed helper template.
 The helper follows `RUNTIME_ROOT/current` and defaults to `~/.config/odk/pi-tasks.json`.
