@@ -375,3 +375,20 @@ test('first startup publishes exact bound facts while generation is pending with
   await pending
   assert.equal(home.frame.state,'live');assert.match(home.frame.items[0].text,/3 Synthetic sessions/);assert.equal(home.frame.generatedAt,1234)
 })
+
+
+test('a re-resolved model template clears source-only provenance before a later generation failure', async t => {
+  const source=expanded=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:expanded?{total:2,running:1}:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:expanded?['total','running']:['total']}})
+  let sources=[source(false)],calls=0
+  const home=new HomeBriefing({requireBindings:true,now:()=>1234,list:async()=>sources,read:async id=>sources.find(s=>s.id===id),generate:async()=>{
+    if(++calls>1)throw Error('synthetic generation failure')
+    const text='{{synthetic.sessions|@label|text}}: {{synthetic.sessions|total|integer}} sessions'
+    return {items:[{text,segments:[{text,icon:'sessions'}],readingIds:['synthetic.sessions']}]}
+  },publish:()=>{}})
+  t.after(()=>home.close())
+  await home.refresh();assert.equal(home.frame.state,'live');const modelItems=structuredClone(home.frame.items)
+  sources=[];await home.refresh();assert.equal(home.frame.state,'empty')
+  sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'error')
+  sources=[source(false)];await home.refresh();assert.equal(home.frame.state,'live');assert.deepEqual(home.frame.items,modelItems)
+  sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'stale');assert.deepEqual(home.frame.items,modelItems)
+})

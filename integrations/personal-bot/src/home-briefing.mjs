@@ -218,6 +218,7 @@ export class HomeBriefing {
         if (this.requireBindings && this.template && this.templateLayout === layout && this.now() - this.templateCreatedAt < MAX_AGE_MS) {
           try {
             const items = validateHomeBriefing(resolveHomeTemplate(this.template, readings), readings, { requireSegments: true })
+            this.sourceOnly = false
             if (fingerprint !== this.fingerprint || this.frame.state !== 'live' || this.frame.omittedSources !== omittedSources) this.emit(items.length ? 'live' : 'empty', { items, generatedAt: this.now(), omittedSources })
             this.fingerprint = fingerprint
             return
