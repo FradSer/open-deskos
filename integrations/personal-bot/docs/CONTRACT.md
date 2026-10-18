@@ -981,9 +981,15 @@ An exact seen revision is not summarized again, including legacy messages withou
 Only a new explicit completed-turn identity can produce another update.
 Optional completion watermarks bind the exact source key to its real assistant event ID or Hosted Pi `lastTurnId`.
 Retained references can recover those identities; message text never supplies an identity.
-Known legacy configured sources establish a silent baseline when their first current terminal UUID becomes available.
-This also covers exact retained task revisions and exact legacy reader projections in seen or held records.
+Known legacy sources establish a silent baseline when their first current terminal identity becomes available.
+Configured sources also support exact retained task revisions and exact legacy reader projections in seen or held records.
 The baseline adds a completion watermark without changing old revisions, messages, or held status.
+Reported sources require the real persisted assistant entry ID and an explicit terminal outcome.
+For reported sources, only an exact seen or held revision reference can restore its previously known identity.
+A different older reference cannot identify a newer legacy watermark without an event ID.
+A reporter identity upgrade does not itself prove a new completion.
+A known latest source watermark takes precedence over older unidentified held records; those records do not absorb new completions.
+Collector backfill and reporter replay use the same persisted assistant entry ID without a generated replacement.
 An ambiguous result from before migration remains available through manual reads; automatic delivery is not promised.
 A live running UUID observed after migration remains reportable when that same turn completes, including after restart.
 Unknown or unavailable records cannot establish this evidence.

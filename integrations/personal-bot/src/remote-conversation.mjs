@@ -56,28 +56,40 @@ function completionIdentity(record) {
   return terminalIdentity(record)
 }
 
-// Legacy configured snapshots did not retain a turn identity. Establish a watermark,
+// Legacy snapshots did not always retain a turn/event identity. Establish a watermark,
 // never a delivered message, before a changed reader projection can look like new work.
-function migrateConfiguredIdentity(data,record) {
-  if(record.control!=='configured' || record.availability!=='live')return data
-  const seen=data.seen.filter(source=>source.key===record.key),attempted=data.attempted.filter(source=>source.key===record.key)
-  const references=data.messages.flatMap(message=>message.sources.filter(source=>source.key===record.key && source.control==='configured'))
+function migrateLegacyIdentity(data,record) {
+  if(record.availability!=='live')return data
+  let seen=data.seen.filter(source=>source.key===record.key),attempted=data.attempted.filter(source=>source.key===record.key)
+  const references=data.messages.flatMap(message=>message.sources.filter(source=>source.key===record.key && source.control===record.control))
+  // A different older reference cannot identify the latest legacy watermark.
+  const restore=source=>{
+    if(source.key!==record.key || source.completion)return source
+    const reference=references.find(reference=>reference.revision===source.revision && terminalIdentity(reference))
+    return reference?{...source,completion:terminalIdentity(reference)}:source
+  }
+  const restoredSeen=data.seen.map(restore),restoredAttempts=data.attempted.map(restore)
+  if(restoredSeen.some((source,index)=>source!==data.seen[index]) || restoredAttempts.some((source,index)=>source!==data.attempted[index])) {
+    data={...data,seen:restoredSeen,attempted:restoredAttempts}
+    seen=data.seen.filter(source=>source.key===record.key);attempted=data.attempted.filter(source=>source.key===record.key)
+  }
   if(!seen.length && !attempted.length && !references.length)return data
   const completion=completionIdentity(record)
-  if(completion && [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId))return data
-  if(completion) {
+  if(record.control==='configured' && completion && [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId))return data
+  if(record.control==='configured' && completion) {
     const {revision,lastTurnId,turnOutcome,...legacy}=record
     legacy.conclusionOutcome=turnOutcome==='finished'?'reported_finished':'unknown'
     const revisions=new Set([digest(legacy),...references.filter(source=>source.taskRevision===record.taskRevision).map(source=>source.revision)])
     const exact=source=>source.key===record.key && !source.completion && revisions.has(source.revision)
     if([...seen,...attempted].some(exact))return {...data,seen:data.seen.map(source=>exact(source)?{...source,completion}:source),attempted:data.attempted.map(source=>exact(source)?{...source,completion}:source)}
   }
-  if([...seen,...attempted].some(source=>source.completion) || references.some(source=>terminalIdentity(source)))return data
+  const watermarks=record.control==='configured'?[...seen,...attempted]:seen.length?seen:attempted
+  if(watermarks.some(source=>source.completion))return data
   const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)
-  const observed=record.state==='running' && uuid(record.currentTurnId)?record.currentTurnId:null
-  if(!observed && (!completion || [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId)))return data
+  const observed=record.control==='configured' && record.state==='running' && uuid(record.currentTurnId)?record.currentTurnId:null
+  if(!observed && (!completion || record.control==='configured' && [...seen,...attempted].some(source=>source.observedTurnId===record.lastTurnId)))return data
   const patch=observed?{observedTurnId:observed}:{completion}
-  const update=source=>source.key===record.key?{...source,...patch}:source
+  const update=source=>source.key===record.key && !source.completion?{...source,...patch}:source
   if([...seen,...attempted].length && [...seen,...attempted].every(source=>Object.entries(patch).every(([key,value])=>source[key]===value)))return data
   if(!seen.length && !attempted.length && data.seen.length>=8192)throw Error('Remote source inventory capacity')
   return {...data,seen:seen.length || attempted.length?data.seen.map(update):[...data.seen,{key:record.key,revision:references[0].revision,updatedAt:record.updatedAt,...patch}],attempted:data.attempted.map(update)}
@@ -175,7 +187,7 @@ export class RemoteConversation {
       for(const record of response.records) {
         sweep.add(record.key);if(sweep.size>8192)throw Error('Remote inventory capacity')
         if(!validReference(record) || !text(record.conclusion,2048) || !Number.isFinite(record.updatedAt))throw Error('Invalid remote report')
-        migrated=migrateConfiguredIdentity(migrated,record)
+        migrated=migrateLegacyIdentity(migrated,record)
         const previous=migrated.seen.find(v=>v.key===record.key),completion=completionIdentity(record)
         if(completion && previous?.completion!==completion && !this.data.messages.some(message=>message.sources.some(source=>source.key===record.key && terminalIdentity(source)===completion)) && !migrated.attempted.some(a=>a.key===record.key && a.completion===completion) && (previous?.revision!==record.revision && !this.data.attempted.some(a=>a.key===record.key && a.revision===record.revision) && !(previous && record.updatedAt<previous.updatedAt)))records.push(record)
       }
