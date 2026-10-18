@@ -71,6 +71,8 @@ Scenario: Native acceptance uses the configured endpoint directory
     And every source still has one exact citation
     And each update has at most 600 UTF-16 code units within a 2000-unit batch
     And a separate model checks faithfulness, source attribution, and readability
+    And generic reported-or-unverified notices stay in Sources rather than message bodies
+    And material task-specific evidence gaps remain explicit
     And unsupported actions, verification claims, or swapped source assignments remain held
     And one transaction appends the ordered messages with stable IDs and the assistant_update presentation
     And restart and history pagination preserve their order and exact references without another model call

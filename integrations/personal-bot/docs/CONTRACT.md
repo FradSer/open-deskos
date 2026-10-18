@@ -945,7 +945,9 @@ Swapped task attribution remains held even when all citations are valid.
 The host default is short, natural Simplified Chinese.
 Remote source language cannot override that default.
 Updates lead with useful progress, a result, or a blocker.
-They explain material uncertainty without repeated blanket disclaimers.
+Generic reporting and verification notices appear in Sources, not in message bodies.
+The reviewer rejects even one blanket verification closing sentence.
+Updates still explain material task-specific gaps in ordinary language.
 They retain useful metrics and file names, but exclude audit identifiers and raw backend details.
 They include next steps only when the evidence supports them.
 They cannot claim independent verification or promise an action that was not arranged.
