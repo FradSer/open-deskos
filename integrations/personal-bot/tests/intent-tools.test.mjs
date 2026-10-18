@@ -52,3 +52,11 @@ test('Given Jev probabilities, sufficient evidence and satisfaction are independ
     assert.equal((await judge.condition({ entry: candidate })).status, expected)
   }
 })
+
+test('ordinary typed Intent judgments still require sufficient context and explicit owner authority', async () => {
+  const requests=[]
+  const judge=createIntentJudge({env:{},request:async input=>{requests.push(input);return {model:'synthetic/model-v1',answers:Object.fromEntries(Object.keys(input.questions).map(key=>[key,{type:'noul',noul:key==='supported'?0.2:0.99}]))}}})
+  assert.deepEqual(await judge.condition({entry:candidate,memory:{},observations:[]}),{model:'synthetic/model-v1',status:'unknown'})
+  assert.equal(await judge.authorize({ownerText:'Synthetic explicit owner request',candidate}),true)
+  assert.equal(requests.length,2);assert.match(requests[0].questions.supported.instructions,/Missing facts/)
+})

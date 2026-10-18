@@ -38,7 +38,7 @@ test('an inference failure is visible and cannot use a rule-only fallback', asyn
   const f = fixture(() => { throw Error('secret provider response') })
   await f.watch.tick()
   assert.equal(f.watch.list().length, 0); assert.equal(f.frames.at(-1).popup, false)
-  assert.match(f.frames.at(-1).error, /Jev/); assert.doesNotMatch(f.frames.at(-1).error, /secret/)
+  assert.match(f.frames.at(-1).error, /判断服务/); assert.doesNotMatch(f.frames.at(-1).error, /secret/)
 })
 
 test('service pushes coalesce, reread state and supersede an in-flight heartbeat', async () => {
@@ -116,9 +116,9 @@ test('a superseded coding completion remains eligible for the next Jev judgment'
 test('an empty unrelated push cannot clear a failed rule judgment', async () => {
   const f = fixture(() => { throw Error('provider failed') })
   f.watch.config.rules.push({ id: 'coding', delivery: 'immediate', urgent: false, advice: '完成', coding: { target: 'mac', project: '/project' } })
-  await f.watch.tick(); assert.match(f.frames.at(-1).error, /Jev/)
+  await f.watch.tick(); assert.match(f.frames.at(-1).error, /判断服务/)
   await f.watch.tick({ kind: 'service_push', readingIds: ['pi-tasks.mac'] })
-  assert.match(f.frames.at(-1).error, /Jev/)
+  assert.match(f.frames.at(-1).error, /判断服务/)
 })
 
 test('HTTP adapter batches typed Nouls, bounds outputs and never follows redirects with the key', async () => {
@@ -179,4 +179,12 @@ test('startup Jev request honors its real deadline and caller cancellation witho
   assert.equal(requests,2); assert.equal(aborted,2)
   await assert.rejects(checkJevAuthentication({env,fetchImpl,signal:controller.signal}),{name:'AbortError'})
   assert.equal(requests,2)
+})
+
+test('an injected ordinary typed judgment preserves real model identity and all grounding gates', async () => {
+  let calls=0
+  const judge=createJevJudge({env:{},request:async ({questions})=>{calls++;return {model:'synthetic/model-v1',answers:Object.fromEntries(Object.keys(questions).map(key=>[key,{type:'noul',noul:key.endsWith('_unsupported')?0.01:0.99}]))}}})
+  const result=await judge({candidates:[{id:'c0',generated:true,evidence:[],advice:'Synthetic advice',reason:'Synthetic reason'}],signal:new AbortController().signal})
+  assert.equal(calls,1);assert.equal(result.model,'synthetic/model-v1');assert.equal(result.answers.c0.groundingProbability,0.99)
+  const f=fixture(()=>result);await f.watch.tick();assert.equal(f.watch.list().length,1);assert.equal(f.watch.list()[0].judgment.model,'synthetic/model-v1');await f.watch.close()
 })

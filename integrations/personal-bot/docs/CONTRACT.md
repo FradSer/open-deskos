@@ -626,7 +626,7 @@ It adds no capture, provider connector, Open DeskOS Data write verb, TTS, wake w
 With no file configured, owner suggestions have no polling or proactive model request.
 The separate [home briefing](#home-briefing) remains enabled.
 Invalid configuration disables suggestions while ordinary voice remains available.
-Missing mandatory Jev credentials still blocks Bot startup.
+Optional Jev failure does not disable the configured ordinary judgment service.
 The file is read once; changes require separately authorized restart.
 Concurrent owner edits cause suppression writes to refuse overwrite.
 
@@ -642,7 +642,9 @@ Timeout/cancellation ends waiting even if the provider ignores abort; late-creat
 Agent and watch validate topic IDs, stable semantic keys, bounded text, and host-issued citation IDs.
 Invalid or invented evidence leaves generation unavailable.
 
-Each candidate receives independent Jev usefulness, factual-support, and unsupported-assertion judgments in one request.
+Each candidate receives independent usefulness, factual-support, and unsupported-assertion judgments through the shared typed judgment service.
+Judgment receipts retain the actual `jev-*` or `provider/model` identity across checkpoint reloads.
+Ordinary model probabilities are estimates, not calibrated Jev probabilities.
 Effective support is `min(factualSupport, 1 - unsupportedAssertion)`.
 Usefulness and effective support must both meet `ODK_JEV_THRESHOLD`, default 0.8.
 Labels/symbols cannot add attributes; uncited rankings, causes, and aggregates are forbidden.
@@ -672,7 +674,7 @@ Nonurgent proposals queue during quiet hours; owner-marked urgent rules may bypa
 Silent proposals wait for interaction/query.
 Recording or working Spoken Turns defer presentation.
 Stable keys and normalized exact advice/evidence reuse pending records.
-Jev considers overlapping/recent advice; perfect semantic deduplication is not guaranteed.
+The judgment service considers overlapping and recent advice; perfect semantic deduplication is not guaranteed.
 New source revisions invalidate earlier inference results.
 Receipts expose model, trigger, counts, topic/candidate labels, and probabilities, without raw values, generated text, semantic keys, or secrets.
 
@@ -683,7 +685,7 @@ Its example is a draft, never installed by tests.
 Migration expires incompatible pending proposals while retaining processed history and owner suppression.
 Conditions select at most eight fields with `lt`, `lte`, `gt`, `gte`, or `eq` and typed values.
 Missing fields fail closed; plugin strings/code are never evaluated.
-Jev decides relevance; exact owner comparisons still gate actions.
+The judgment service decides relevance; exact owner comparisons still gate actions.
 Owner-approved advice may only be reordered through an exact sentence-index permutation.
 That isolated phrasing session receives no plugin readings and has no tools or durable history.
 Invalid phrasing uses approved owner text.
@@ -704,7 +706,7 @@ Heartbeat refreshes owner-selected sources at startup and every `pollMs`.
 Authenticated `proactive_event` push carries at most 32 source IDs, never observations or candidate advice.
 Coalesce pushes for one second without dropping remaining dependent rules.
 Reread authoritative sources and invalidate in-flight results after newer updates.
-Credentials, memory, action parameters, and plugin instruction fields never enter Jev state.
+Credentials, memory, action parameters, and plugin instruction fields never enter proactive judgment state.
 Missing/malformed/timed-out judgments report unavailability.
 Suggestions queries join existing refresh, then read the private store; they create no third trigger.
 Reading advice never accepts its action or substitutes old session tasks.
@@ -913,6 +915,10 @@ Briefing states are `loading`, `live`, `empty`, `unavailable`, `error`, and `sta
 `live` identifies a completed generation; each source retains its own measurement state.
 
 Failed generation retains previous items with a stale label.
+Without previous items, the host can display current source facts from the supplied variable examples.
+It rereads those sources and applies the original reference, required-source, and display-budget validators.
+These facts retain an `error` state and do not establish successful model generation.
+Facts that cannot satisfy those validators remain unavailable.
 A disconnected Agent also marks retained content stale.
 The Shell renders all generated text as literal text.
 It never replaces missing output with fixed session-count sentences.

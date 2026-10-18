@@ -1,3 +1,4 @@
+import { isJudgmentModel } from './judgment-client.mjs'
 import { randomUUID } from 'node:crypto'
 
 const KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/
@@ -108,7 +109,7 @@ export async function pollGenerated(watch, trigger, context, rules = watch.rules
     if (!current()) return
     for (const c of candidates) {
       const a = result?.answers?.[c.id]
-      if (!/^jev-[\w.-]{1,60}$/.test(result?.model ?? '') || ![a?.probability, a?.groundingProbability, a?.threshold].every(n => Number.isFinite(n) && n >= 0 && n <= 1) || a.threshold <= 0.5) throw Error('Invalid generated judgment')
+      if (!isJudgmentModel(result?.model) || ![a?.probability, a?.groundingProbability, a?.threshold].every(n => Number.isFinite(n) && n >= 0 && n <= 1) || a.threshold <= 0.5) throw Error('Invalid generated judgment')
     }
   } catch {
     const applicable = topics.filter(t => topicCurrent(t.id))

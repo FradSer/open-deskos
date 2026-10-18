@@ -143,8 +143,9 @@ export class HomeBriefing {
     const current = () => !this.closed && !controller.signal.aborted
     this.pending = (async () => {
       let stage = 'readings'
+      let snapshot
       try {
-        const snapshot = async () => {
+        snapshot = async () => {
           stage = 'readings'
           const catalog = await this.list(controller.signal)
           if (!Array.isArray(catalog)) throw Error('Invalid source catalog')
@@ -255,6 +256,22 @@ export class HomeBriefing {
           const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : undefined
           const failure = { stage, kind: failureKind(stage, error, code, status), name, ...(code ? { code } : {}), ...(status ? { status } : {}) }
           try { this.onFailure(failure) } catch { /* Diagnostics cannot affect briefing recovery. */ }
+          if (!this.frame.items.length && this.requireBindings && ['generate', 'validate'].includes(stage)) {
+            try {
+              const recheckRevision = this.revision
+              const fresh = await snapshot()
+              if (!current() || recheckRevision !== this.revision) return
+              const variables = homeTemplateVariables(fresh.readings)
+              const segments = variables.flatMap((variable, index) => [
+                ...(index ? [{ text: ', ' }] : []), { text: variable.example, icon: variable.icon },
+              ])
+              const raw = { items: [{ text: segments.map(segment => segment.text).join(''), segments, readingIds: variables.map(variable => variable.id) }] }
+              const items = validateHomeBriefing(resolveHomeTemplate(raw, fresh.readings), fresh.readings, { requireSegments: true })
+              // These are current bound source values, not a successful model summary.
+              this.emit('error', { items, generatedAt: this.now(), omittedSources: fresh.omittedSources })
+              return
+            } catch { /* Missing or oversized facts cannot become a fabricated fallback. */ }
+          }
           this.emit(this.frame.items.length ? 'stale' : 'error')
         }
       }

@@ -1,8 +1,7 @@
 import { createJevClient } from './jev-client.mjs'
 
 /** A bounded read-only judgment. Neither provider errors nor credentials enter status. */
-export function createJevJudge({ env = process.env, fetchImpl = fetch } = {}) {
-  const request = createJevClient({ env, fetchImpl })
+export function createJevJudge({ env = process.env, fetchImpl = fetch, request = createJevClient({ env, fetchImpl }) } = {}) {
   const threshold = Number(env.ODK_JEV_THRESHOLD ?? 0.8)
   if (!Number.isFinite(threshold) || threshold <= 0.5 || threshold > 1) throw Error('Invalid Jev configuration')
   return async ({ candidates, trigger, context, recent, signal }) => {

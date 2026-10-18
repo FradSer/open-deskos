@@ -322,3 +322,37 @@ test('two percentage portfolio sources keep separate visible coverage', () => {
   const segments = [{ text: 'Futu A +1.00% today', icon: 'portfolio' }, { text: ' and ' }, { text: 'Futu B -2.00% today.', icon: 'portfolio' }]
   assert.equal(validateHomeBriefing({ items: [{ text: segments.map(s => s.text).join(''), segments, readingIds: ['a', 'b'] }] }, [source('a', 'Futu A', 1), source('b', 'Futu B', -2)]).length, 1)
 })
+
+test('first startup synthesis failure keeps exact declared source facts visible without model success', async () => {
+  const source={id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}}
+  const home=new HomeBriefing({requireBindings:true,list:async()=>[source],read:async()=>source,generate:async()=>{throw Error('synthetic classification failure')},publish:()=>{}})
+  await home.refresh()
+  assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
+  assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source.id]);assert.equal(home.template,null);home.close()
+})
+
+test('source-only fallback refuses facts that cannot fit the unchanged required budget', async () => {
+  const sources=Array.from({length:3},(_,i)=>({id:'synthetic.s'+i,label:'Synthetic '+String(i)+' '+ 'x'.repeat(110),kind:'app',state:'live',value:{count:2},home:{mode:'required',priority:100,icon:'tasks',fields:['count']}}))
+  const home=new HomeBriefing({requireBindings:true,list:async()=>sources,read:async id=>sources.find(s=>s.id===id),generate:async()=>{throw Error('synthetic failure')},publish:()=>{}})
+  await home.refresh();assert.equal(home.frame.state,'error');assert.deepEqual(home.frame.items,[]);home.close()
+})
+
+test('source-only fallback rereads current facts after failed synthesis', async () => {
+  let total=2
+  const source=()=>({id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}})
+  const home=new HomeBriefing({requireBindings:true,list:async()=>[source()],read:async()=>source(),generate:async()=>{total=3;throw Error('synthetic failure')},publish:()=>{}})
+  await home.refresh();assert.match(home.frame.items[0].text,/3 Synthetic sessions/);assert.doesNotMatch(home.frame.items[0].text,/2 Synthetic/);home.close()
+})
+
+test('a source-only confirmation invalidated during pending reads is scheduled again after the first timer coalesces', {timeout:6000}, async t => {
+  const source={id:'synthetic.sessions',label:'Synthetic sessions',kind:'app',state:'live',value:{total:2},home:{mode:'required',priority:100,icon:'sessions',fields:['total']}}
+  let reads=0,calls=0,release
+  const home=new HomeBriefing({requireBindings:true,list:async()=>[source],read:async()=>{if(++reads===2)return new Promise(resolve=>{release=()=>resolve(source)});return source},generate:async()=>{if(++calls===1)throw Error('synthetic failure');return {items:[{text:'{{synthetic.sessions|total|integer}} {{synthetic.sessions|@label|text}}',segments:[{text:'{{synthetic.sessions|total|integer}} {{synthetic.sessions|@label|text}}',icon:'sessions'}],readingIds:[source.id]}]}},publish:()=>{}})
+  t.after(()=>home.close());home.start()
+  while(!release)await new Promise(resolve=>setImmediate(resolve))
+  home.invalidate();await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(calls,1)
+  release()
+  const deadline=Date.now()+2500
+  while(home.frame.state!=='live'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10))
+  assert.equal(calls,2);assert.equal(home.frame.state,'live')
+})
