@@ -452,3 +452,20 @@ Scenario: AI-selected session replies retain the original owner turn
   And delivery status remains independent from the assistant answer
   And a fresh mount with a combined owner and durable reply snapshot creates no duplicate messages
   And legacy origin history stays before its replayed owner reply without inventing timestamps
+
+Scenario: Both displays show the same central conversation history
+  Given the central Agent publishes bounded owner turns with stable identities
+  When a display connects, reconnects, or reopens the conversation
+  Then each owner turn and answer appears once in chronological order
+  And an exact owner identity shares existing durable session reply nodes
+  And a historical snapshot cannot replace newer live text or the current draft
+  And an interrupted turn remains explicitly unconfirmed without claiming completion
+  And malformed or older history frames cannot replace the retained history
+
+Scenario: Conversation type adapts to the available Agent pane
+  Given the same conversation appears in reference and compact panes
+  When its pane width changes independently from the host platform
+  Then primary conversation text remains at least 20 pixels and grows within its readable range
+  And composer input remains at least 20 pixels without clipping its short placeholder
+  And long CJK text wraps inside the single conversation scroller
+  And the fixed composer and 44-pixel controls remain visible in each supported theme

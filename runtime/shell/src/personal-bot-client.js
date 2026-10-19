@@ -1,4 +1,5 @@
 const net = require('node:net')
+const { parseConversation } = require('./conversation-frame')
 const { parseReplyTo } = require('./personal-bot-reply-reference')
 const { randomUUID } = require('node:crypto')
 const { sanitizeRuntimePlugins } = require('./plugin-runtime-report')
@@ -10,7 +11,7 @@ const { parseAgentTasks } = require('./agent-task-frame')
 const { readOrCreateToken, requiresToken, writeHandshake } = require('./local-channel')
 const { resolveShellHost } = require('./platform')
 
-const STATES = new Set(['idle', 'recording', 'transcribing', 'thinking', 'error'])
+const STATES = new Set(['idle', 'recording', 'transcribing', 'thinking', 'error', 'unavailable'])
 const MAX_STATUS_BYTES = 131072
 const MAX_MESSAGE_CHARACTERS = 16384
 const MAX_TRANSCRIPT_CHARACTERS = 4096
@@ -41,6 +42,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
   let diagnosisSupported = false
   let running = false
   let timer = null
+  let historyRevision = -1
   let status = { state: 'unavailable', message: 'Personal Bot service unavailable' }
   const listeners = new Set()
   const diagnoses = new Map()
@@ -72,6 +74,13 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
     if (!needsToken) return ''
     if (!tokenPromise) tokenPromise = readOrCreateToken({ stateDir: resolvedHost.stateDir })
     return tokenPromise
+  }
+
+  function receiveHistory(value) {
+    const history = parseConversation(value)
+    if (!history || history.revision <= historyRevision) return null
+    historyRevision = history.revision
+    return history
   }
 
   function publish(next) {
@@ -113,6 +122,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
         if (completionPending) servicePush(['odk.app.pi-sessions.completed'])
       }, () => active.destroy())
     })
+    historyRevision = -1
     active.on('data', (chunk) => {
       remainder += chunk
       const lines = remainder.split('\n')
@@ -134,6 +144,11 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           } catch { finishDiagnosis(record.requestId, unavailable('invalid-report')) }
           continue
         }
+        if (record?.v === 1 && record.type === 'conversation') {
+          const conversation = receiveHistory(record.conversation)
+          if (conversation) publish({ ...status, conversation })
+          continue
+        }
         if (record?.v === 1 && record.type === 'remote_conversation') {
           publish({...status,remote:parseRemoteConversation(record.remote)})
           continue
@@ -143,6 +158,8 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           continue
         }
         if (record?.v !== 1 || record.type !== 'status' || !STATES.has(record.state)) continue
+        if (record.state === 'unavailable' && status.state !== 'unavailable') historyRevision = -1
+        const conversation = record.state === 'unavailable' ? null : receiveHistory(record.conversation)
         diagnosisSupported = record.runtimeDiagnosis === 1
         const level = record.state === 'recording' && Number.isFinite(record.level)
           && record.level >= 0 && record.level <= 1 ? record.level : 0
@@ -160,6 +177,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           agents: parseAgentTasks(record.agents),
           jev: parseJevStatus(record.jev),
           judgment: parseJudgmentStatus(record.judgment),
+          ...((conversation || status.conversation) ? { conversation: conversation || status.conversation } : {}),
           ...(record.remote ? {remote:parseRemoteConversation(record.remote)} : status.remote ? {remote:status.remote} : {}),
           ...(record.briefing ? { briefing: parseHomeBriefing(record.briefing) } : status.briefing ? { briefing: status.briefing } : {}),
           ...(Array.isArray(record.proposals) && record.proposals.length <= 64 ? { proposals: record.proposals, proposalPopup: record.proposalPopup === true, proposalInteraction: record.proposalInteraction === true, proposalHiddenCount: Number.isSafeInteger(record.proposalHiddenCount) ? record.proposalHiddenCount : 0 } : {}),
@@ -177,7 +195,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
       socket = null
       cancelDiagnoses('disconnected')
       for (const id of textRequests.keys()) finishText(id, false)
-      publish({ state: 'unavailable', message: 'Personal Bot service unavailable', jev: { status: 'unavailable' }, judgment: {status:'unavailable',provider:'model'},
+      publish({ ...(status.conversation ? { conversation: status.conversation } : {}), state: 'unavailable', message: 'Personal Bot service unavailable', jev: { status: 'unavailable' }, judgment: {status:'unavailable',provider:'model'},
         agents: { state: 'unavailable', tasks: [] },
         ...(status.remote ? { remote: {...status.remote, state:'stale'} } : {}),
         ...(status.briefing ? { briefing: { ...status.briefing, state: status.briefing.items.length ? 'stale' : 'unavailable' } } : {}) })
