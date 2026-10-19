@@ -132,6 +132,8 @@ An `ack` with `ok:true` proves the token and service handshake were accepted.
 Windows runs `integrations/personal-bot/src/display-client.mjs` through the interactive `OdkPersonalBot` task.
 CM5 runs the Personal Agent, model calls, transcription, memory, and task coordination.
 Windows captures microphone audio and relays owner input to CM5.
+The local display channel is `\\.\pipe\odk-personal-bot`.
+The host channel token authenticates the channel.
 A disconnected central service reports unavailable; Windows does not start a local agent.
 Overview uses the central agent projection. Other Widget data sources retain their existing configuration.
 
