@@ -188,3 +188,13 @@ test('an installed App may request return without intercepting pager dot navigat
   f.setBlocked(true); f.controller.requestReturn(); await f.tick(); assert.equal(f.calls(), 1)
   f.controller.destroy()
 })
+
+for(const [start,contraction,expected] of [[79,48,true],[80,48,true],[48,48,true],[48,47,false],[47,47,false]]) {
+  test(`pinch from ${start}px with ${contraction}px contraction follows only the documented thresholds`,async()=>{
+    const f=fixture(),points=span=>twoTouches(f,[[1,200-span/2,160],[2,200+span/2,160]])
+    f.send('touchstart',{touches:points(start)},f.root)
+    const move=f.send('touchmove',{touches:points(start-contraction)},f.root)
+    assert.equal(move.defaultPrevented,expected)
+    f.send('touchend',{touches:[]},f.root);await f.tick();assert.equal(f.calls(),expected?1:0);f.controller.destroy()
+  })
+}

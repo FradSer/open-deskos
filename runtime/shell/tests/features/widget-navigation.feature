@@ -71,6 +71,7 @@ Feature: Widget continuations in the right desk pane
     Given a Widget has opened its App and no overlay owns input
     When two fingers move inward by at least 48 pixels and one quarter of their initial separation
     And the user releases the gesture without cancellation
+    And a 79-pixel initial separation can contract by 48 pixels
     Then the existing App close path restores the source page and Widget focus once
     And parallel two-finger scrolling, spreading, short movement, and three fingers do not return
     And cancellation, resize, lost focus, or modal ownership prevents return

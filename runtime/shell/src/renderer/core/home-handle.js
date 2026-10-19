@@ -32,7 +32,6 @@
       if (pinchBlocked) return
       onStart()
       const start = geometry(touches)
-      if (start.distance < 80) { pinchBlocked = true; return }
       pinch = { start, ids: touches.map(touch => touch.identifier), accepted: false }
     }, touchOptions)
     root.addEventListener('touchmove', event => {
