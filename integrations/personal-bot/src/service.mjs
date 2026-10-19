@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 const replyPersistenceFailure = 'Reply status could not be saved. Check its delivery receipt before sending again.'
 
 function replyAcknowledgement(outcome, id) {
+  if(outcome?.id===id && ['queued','failed'].includes(outcome.status) && outcome.receipt===undefined)return '这条指令未发送到原会话。'
   if(outcome?.id===id && outcome.status==='delivered' && outcome.receipt?.accepted===true) {
     if(outcome.receipt.delivery==='queued')return '指令已进入原会话队列，尚不代表任务完成。'
     if(outcome.receipt.delivery==='ran')return '原会话已受理指令并开始本轮处理，尚不代表任务完成。'

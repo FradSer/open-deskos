@@ -160,4 +160,7 @@ Scenario: Native acceptance uses the configured endpoint directory
     Then its draft text is not shown during the session continuation
     And the host saves and displays the same short receipt-based acknowledgement
     And unknown delivery does not become confirmed arrival or completed work
+    And a reply that never crossed its send boundary is reported as not sent
+    And a failed reply with an uncertain receipt keeps its unknown delivery
+    And a continuation without a bound receipt cannot display a model delivery claim in either profile
     And ordinary answers and unbound clarification retain their existing behavior

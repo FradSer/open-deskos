@@ -99,7 +99,9 @@ for (const profile of ['coding', 'personal']) {
     t.after(() => agent.close())
     for (const [intent, text] of [['task_query', '现在任务怎样了'], ['session_continue', '继续那个 Pi 会话'], ['widget_create', '创建天气 widget'], ['app_create', '创建 App'], ['odk_data', '今天花怎么样'], ['odk_data', '现在花怎么样']]) {
       selected = intent
-      assert.equal(await agent.prompt(text), 'offline routed response')
+      const snapshots=[]
+      assert.equal(await agent.prompt(text,snapshot=>snapshots.push(snapshot)), intent==='session_continue'?'暂不能确认原会话的指令投递结果。':'offline routed response')
+      if(intent==='session_continue')assert.deepEqual(snapshots,[], 'a continuation without a delivery receipt must not stream a model acknowledgement')
       assert.equal(states.at(-1).text, text)
       assert(states.at(-1).availableTools.includes('coding_task_start'))
       assert(states.at(-1).capabilities.some(tool => tool.name === 'odk_data' && tool.description.includes('runtime data')))

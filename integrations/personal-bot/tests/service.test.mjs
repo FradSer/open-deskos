@@ -621,6 +621,9 @@ test('typed and voice acknowledgements use only their current host receipt',asyn
  const cases=[
   ['unknown',{status:'unknown',receipt:{accepted:false,delivery:'unknown'}},'暂不能确认原会话是否收到指令。'],
   ['dispatching',{status:'dispatching'},'暂不能确认原会话是否收到指令。'],
+  ['not dispatched',{status:'queued'},'这条指令未发送到原会话。'],
+  ['refused before sending',{status:'failed'},'这条指令未发送到原会话。'],
+  ['failed with an uncertain receipt',{status:'failed',receipt:{delivery:'unknown'}},'暂不能确认原会话是否收到指令。'],
   ['missing receipt',{status:'delivered'},'暂不能确认原会话是否收到指令。'],
   ['queued',{status:'delivered',receipt:{accepted:true,delivery:'queued'}},'指令已进入原会话队列，尚不代表任务完成。'],
   ['ran',{status:'delivered',receipt:{accepted:true,delivery:'ran'}},'原会话已受理指令并开始本轮处理，尚不代表任务完成。'],
