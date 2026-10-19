@@ -615,3 +615,17 @@ test('an AI-bound owner turn keeps one host identity and persists its answer in 
  assert.deepEqual(updates,[{id:ownerId,status:'answered',answer:'The task instruction has a delivery receipt.'}])
  assert.throws(()=>lateBind({id:ownerId,replyTo:reference,threadId}),/owner/i);await service.close()
 })
+
+
+test('typed and voice turns contain reply persistence failures without rejecting their pending turn',async t=>{
+ for(const input of ['typed','voice'])for(const promptFails of [false,true])await t.test(`${input} ${promptFails?'prompt failure':'final persistence failure'}`,async()=>{
+  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),writes=[],busy=[]
+  const {service,calls}=fixture({prompt:async(text,_snapshot,_reply,owner)=>{owner.bind({id:owner.id,text,replyTo:reference,threadId,source:{}});if(promptFails)throw Error('private prompt error');return 'Original answer'}})
+  service.attachWatch({setBusy:value=>busy.push(value),interact:()=>{}})
+  service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},completeReply:(_id,patch)=>{writes.push(patch);throw Error('private checkpoint path')}})
+  if(input==='typed'){assert.equal(service.sendText('Continue the original task.'),true);await assert.doesNotReject(service.pending)}
+  else{await service.toggle();await assert.doesNotReject(service.toggle());assert.ok(calls.includes('cleanup'))}
+  assert.equal(service.status.state,'error');assert.match(service.status.message,/Reply status could not be saved/);assert.ok(!JSON.stringify(service.status).includes('private'))
+  assert.deepEqual(writes.map(p=>p.status),promptFails?['failed']:['answered','failed']);if(input==='typed')assert.equal(busy.at(-1),false);await service.close()
+ })
+})
