@@ -36,7 +36,7 @@ $personalBotCandidates = @(
 )
 $personalBotRoot = $null
 foreach ($candidate in $personalBotCandidates) {
-  if (Test-Path -LiteralPath (Join-Path $candidate 'src\main.mjs')) { $personalBotRoot = $candidate; break }
+  if (Test-Path -LiteralPath (Join-Path $candidate 'src\display-client.mjs')) { $personalBotRoot = $candidate; break }
 }
 if (-not $personalBotRoot) { $personalBotRoot = $personalBotCandidates[0] }
 
@@ -45,7 +45,7 @@ $personalBotEnv = Join-Path $configDir 'personal-bot.env'
 if (-not (Test-Path $personalBotEnv)) { $personalBotEnv = Join-Path $configDir 'voice-agent.env' }
 $runtimeEnv = Join-Path $configDir 'runtime.env'
 $launcher = Join-Path $PSScriptRoot 'windows-personal-bot.ps1'
-$entryPoint = Join-Path $personalBotRoot 'src\main.mjs'
+$entryPoint = Join-Path $personalBotRoot 'src\display-client.mjs'
 $token = Join-Path $configDir 'local-channel.token'
 
 function Test-Command([string]$name) {
@@ -54,12 +54,23 @@ function Test-Command([string]$name) {
 
 $problems = @()
 
-if (-not (Test-Path -LiteralPath $entryPoint)) { $problems += "personal bot entry point missing: $entryPoint" }
+if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) { $problems += "personal bot entry point missing: $entryPoint" }
 if (-not (Test-Path -LiteralPath $launcher)) { $problems += "Personal Bot launcher missing: $launcher" }
+if (-not (Test-Command 'ssh.exe')) { $problems += 'ssh.exe is required for the central Personal Agent' }
 if (-not (Test-Command 'node.exe')) { $problems += 'node.exe is not on PATH' }
-if (-not (Test-Path -LiteralPath $runtimeEnv)) { $problems += "shared device configuration missing: $runtimeEnv (ODK_WORKSPACE)" }
-if (-not (Test-Path -LiteralPath $personalBotEnv)) { $problems += "Personal Bot configuration missing: $personalBotEnv (transcription provider, model, ALIYUNCS_TOKEN)" }
 if (-not (Test-Command 'ffmpeg.exe')) { $problems += 'ffmpeg is not on PATH; Windows capture needs it for DirectShow input' }
+# Read only the fixed central alias; do not import provider configuration.
+$mainSsh = ''
+foreach ($file in @($runtimeEnv, (Join-Path $configDir 'voice-agent.env'), (Join-Path $configDir 'personal-bot.env'))) {
+  if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+  foreach ($line in Get-Content -LiteralPath $file -Encoding UTF8) {
+    if ($line -match '^\s*ODK_PERSONAL_AGENT_MAIN_SSH\s*=(.*)$') {
+      $mainSsh = $Matches[1]
+      if ($mainSsh.Length -ge 2 -and $mainSsh.StartsWith('"') -and $mainSsh.EndsWith('"')) { $mainSsh = $mainSsh.Substring(1, $mainSsh.Length - 2) }
+    }
+  }
+}
+if ($mainSsh -cne 'odk-cm5-agent') { $problems += 'configure ODK_PERSONAL_AGENT_MAIN_SSH=odk-cm5-agent; no local agent fallback is available' }
 $listening = Test-Path -LiteralPath '\\.\pipe\odk-personal-bot'
 "personal-bot: node=$((Test-Command 'node.exe')) ffmpeg=$((Test-Command 'ffmpeg.exe')) pipe=$listening token=$([bool](Test-Path -LiteralPath $token))"
 foreach ($problem in $problems) { "needs: $problem" }
@@ -103,9 +114,8 @@ if ($legacyTask) {
   Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine -match '[\\/]integrations[\\/]voice-agent[\\/]src[\\/]main\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 }
 
-# Run under the installer identity before the limited interactive task.
-& node.exe (Join-Path $personalBotRoot 'src\migrate-personal-bot.mjs')
-if ($LASTEXITCODE -ne 0) { throw 'Personal Bot state migration failed; task remains stopped' }
+# Existing Windows agent history stays on disk. The display does not migrate it
+# into the central agent or resume old local task state.
 
 if ($Start) {
   Start-ScheduledTask -TaskName $TaskName

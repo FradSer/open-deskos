@@ -51,7 +51,7 @@ pnpm run build:native
 | Surface | Windows contract |
 | --- | --- |
 | Remote Control / Remote Bridge | Not ported. The Unix link and service are absent. Report unavailable/disconnected. |
-| Voice Agent / Personal Bot | Ported. Use ffmpeg DirectShow and the token-authenticated `\\.\pipe\odk-personal-bot` channel. A stopped service reports unavailable. |
+| Voice Agent / Personal Bot | Windows display and DirectShow microphone client. CM5 owns the Personal Agent; a disconnected main service reports unavailable. |
 | Open DeskOS Link | Ported. TCP reporting listener defaults to 8765. The runtime channel is `\\.\pipe\odk-link`. |
 | Open DeskOS Data | Ported on both sides. Shell and bot use `\\.\pipe\odk-data` with the host channel token. |
 | External package control | Ported on both sides. Use `\\.\pipe\odk-user-app-control` with the host channel token. Install/update/rollback/remove remain available. |
@@ -129,27 +129,42 @@ An `ack` with `ok:true` proves the token and service handshake were accepted.
 
 ## Personal Bot
 
-The same `integrations/personal-bot` runs on Windows. Capture uses DirectShow instead of ALSA. Configure `%LOCALAPPDATA%\odk\runtime.env` for the shared `ODK_WORKSPACE`. Put bot/provider settings in `%LOCALAPPDATA%\odk\personal-bot.env`:
+Windows runs `integrations/personal-bot/src/display-client.mjs` through the interactive `OdkPersonalBot` task.
+CM5 runs the Personal Agent, model calls, transcription, memory, and task coordination.
+Windows captures microphone audio and relays owner input to CM5.
+A disconnected central service reports unavailable; Windows does not start a local agent.
+Overview uses the central agent projection. Other Widget data sources retain their existing configuration.
+
+Set the fixed operator alias and microphone in `%LOCALAPPDATA%\odk\personal-bot.env`:
 
 ```ini
-# %LOCALAPPDATA%\odk\personal-bot.env
-ODK_PERSONAL_BOT_STT_PROVIDER=aliyun
-ODK_PERSONAL_BOT_STT_MODEL=qwen3-asr-flash
-ODK_PERSONAL_BOT_STT_URL=https://maas.qianwenaiapi.com/api/v1/services/aigc/multimodal-generation/generation
-ALIYUNCS_TOKEN=<host-local-credential>
+ODK_PERSONAL_AGENT_MAIN_SSH=odk-cm5-agent
 ODK_PERSONAL_BOT_AUDIO_DEVICE=麦克风 (Realtek High Definition Audio)
 ```
 
-The microphone value must be the exact name that ffmpeg lists. Do not add the `audio=` prefix; ffmpeg adds it. The quoted device name above is an example of a real device label. The Unix `default` value does not identify a DirectShow input. A missing device or invalid name reports microphone unavailable without inventing a recording. ffmpeg stderr does not enter the public status.
+Use the exact DirectShow device name from ffmpeg. Do not add the `audio=` prefix.
+The display launcher accepts these settings and Windows process paths, not model or transcription credentials.
+It does not load a Windows Pi model registry or migrate local agent history.
+Existing local history stays on disk and is not merged into the central agent.
+Private capture files use `%LOCALAPPDATA%\odk\display-captures`.
 
-The `aliyun` provider uses a multimodal JSON request. With no URL override it uses DashScope. A gateway needs its full endpoint URL. Provider selection is explicit; the bot does not infer it from the URL.
+Pair `odk-cm5-agent` with a separate protected SSH identity and a verified CM5 host key.
+Use the CM5 direct IP, `StrictHostKeyChecking yes`, `IdentitiesOnly yes`, and `ForwardAgent no`.
+The remote command is fixed to `odk-personal-agent-link`.
+The CM5 key permits only the forced `hub-stdio.mjs` command through `restrict`.
+Keep existing Mac aliases, keys, and authorized key entries.
+Never copy provider credentials to the display client or relay.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -Report
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\provision-personal-bot.ps1 -InstallFfmpeg -Start
 ```
 
-`-Report` makes no changes. `-InstallFfmpeg` explicitly permits the dependency install. The bot runs in a logged-on interactive task with a restart loop. Session 0 has no audio endpoint. Logs are in `%LOCALAPPDATA%\odk\personal-bot.log`.
+`-Report` makes no changes. `-InstallFfmpeg` permits the dependency installation.
+Registration requires the display entry, `ssh.exe`, and the exact central alias setting.
+The task runs in the logged-on interactive session; Session 0 has no microphone endpoint.
+Logs use `%LOCALAPPDATA%\odk\personal-bot.log`.
+A missing entry or invalid alias stops startup without a local fallback.
 
 Use the published protocol for acceptance:
 
@@ -158,21 +173,20 @@ node scripts\personal-bot-acceptance.mjs
 node scripts\personal-bot-acceptance.mjs --status
 ```
 
-The first command performs live capture/provider work. `--status` only reads state. The bot needs its own host-local Pi model authentication. STT credentials do not authenticate the model. Configure an OpenAI-compatible provider in `~\.pi\agent\models.json`; the Shell does not log in on the bot's behalf.
-
-Both `odk-data` and `user-app-control` resolve through the host platform and present its token. Production needs no `ODK_*_SOCKET` override. Those overrides are for tests. The personal profile supports DiDi on Windows. Use a private credential file for DiDi.
+The first command performs live microphone and central provider work. `--status` only reads state.
+Host fixture checks do not establish pairing, device audio, or central model acceptance.
 
 ## State and private configuration
 
-Persistent state is under `%LOCALAPPDATA%\odk`. Pi sessions and authentication use `~\.pi\agent` or `PI_AGENT_DIR`. Use `.env.local` for Shell settings and the two host environment files for the bot. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
+Display state is under `%LOCALAPPDATA%\odk`. The central Personal Agent owns its memory and model authentication on CM5. Separate local Pi tools can retain their own `~\.pi\agent` configuration. Use `.env.local` for Shell settings and `personal-bot.env` for the display alias and microphone. See [CONFIGURATION](CONFIGURATION.md) for the complete inventory and location privacy rules.
 
-- Keep `ALIYUNCS_TOKEN` in `personal-bot.env`, never `.env.local` or a command line.
+- Keep Personal Agent model and transcription credentials on CM5, outside Shell settings and command lines.
 - `WEREAD_API_KEY` is the operator-provisioned WeRead credential. Historical handheld acceptance used the same authorized credential as CM5 and produced a live cache.
 - `ODK_HYDRA_MQTT_URL` declares the local MQTT endpoint. Provision authentication separately if the broker requires it.
 - Fixed weather coordinates disable third-party location lookup. An unconfigured mobile desk uses device location.
 - CLIProxyAPI uses this host's forwarding-only SSH identity/tunnel and management key file.
 - Open DeskOS Link and SSH collection use this host's own credentials. Do not copy a reference-host control token to a report-only desk.
-- Do not move gateway RSA keys, trade passwords or unrelated personal-profile keys to this host. The local bot still needs its own Pi authentication.
+- Do not move gateway RSA keys, trade passwords, or central agent authentication to the Windows display host.
 
 ## Interactive GUI checks
 
