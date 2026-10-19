@@ -175,12 +175,18 @@ The [child contract](../../../integrations/personal-bot/docs/AGENT_TASKS.md) own
 
 | Variable | Layer | Default | Consumer | Kind | Note |
 | --- | --- | --- | --- | --- | --- |
-| `ODK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/jev-client.mjs | config | Private credential path; never expose file contents |
-| `ODK_JEV_MODEL` | device | jev-latest | integrations/personal-bot/src/jev-client.mjs | config | Mandatory typed intent and proactive judgments |
+| `ODK_JEV_PROVIDER` | device | typesafe | integrations/personal-bot/src/jev-client.mjs | config | Select typesafe or opencode; disabled uses ordinary model judgment |
+| `ODK_JEV_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private TypeSafe credential path; never expose file contents |
+| `ODK_OPENCODE_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private OpenCode Zen credential path; separate from Go |
+| `ODK_OPENCODE_GO_KEY_FILE` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private OpenCode Go credential path; unavailable for Jev |
+| `OPENCODE_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | OpenCode Zen environment credential; never expose its value |
+| `OPENCODE_GO_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Separate OpenCode Go environment credential; never expose its value |
+| `ODK_PERSONAL_AGENT_MAIN_SSH` | device | none | integrations/personal-bot/src/display-client.mjs | config | Windows display requires the fixed odk-cm5-agent SSH alias |
+| `ODK_JEV_MODEL` | device | provider default | integrations/personal-bot/src/jev-client.mjs | config | TypeSafe defaults to jev-latest; OpenCode Zen defaults to jev-1.13 |
 | `ODK_JEV_INTENT_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/intent-routing.mjs | config | Minimum selected probability and confidence; initially uncalibrated, must exceed 0.5 |
 | `ODK_JEV_THRESHOLD` | device | 0.8 | integrations/personal-bot/src/proactive-jev.mjs | config | Minimum usefulness and factual support |
 | `ODK_JEV_TIMEOUT_MS` | device | 10000 | integrations/personal-bot/src/jev-client.mjs | config | Judgment deadline, integer 1000 through 30000 milliseconds |
-| `TYPESAFE_API_KEY` | device | none | integrations/personal-bot/src/jev-client.mjs | config | Private environment credential fallback |
+| `TYPESAFE_API_KEY` | device | none | integrations/personal-bot/src/provider-endpoints.mjs | config | Private TypeSafe environment credential; never expose its value |
 | `ODK_PROACTIVE_GENERATION_TIMEOUT_MS` | device | 90000 | integrations/personal-bot/src/agent.mjs | config | Total generation deadline, integer 1000 through 180000 |
 
 ## Saved plugin preferences
