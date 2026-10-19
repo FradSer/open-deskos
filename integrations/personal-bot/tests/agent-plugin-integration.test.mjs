@@ -374,6 +374,7 @@ test('remote providers create short Chinese task updates and review their own so
   assert.deepEqual(input.records,records);assert.match(all,/Simplified Chinese/);assert.match(all,/sourceKeys/)
   assert.match(all,/Generic source-verification notices already appear in Sources/)
   assert.match(all,/Do not append blanket reported or unverified disclaimers/)
+  assert.match(all,/Address the owner's task directly/);assert.match(all,/do not narrate receiving, reading, or summarizing a report/);assert.match(all,/An arranged next step requires source evidence of that arrangement/)
   if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
   assert.match(all,/Review only the faithfulness/);assert.match(all,/readability/);assert.match(all,/own sourceKeys/)
   reviews++;assert.deepEqual(input.updates,updates);assert.equal(input.summary,undefined)
@@ -384,17 +385,18 @@ test('remote providers create short Chinese task updates and review their own so
 })
 
 test('a real zero-tool remote reviewer can hold swapped assignments and unreadable assistant updates',async t=>{
- for(const kind of ['swapped_sources','audit_dump','unarranged_promise','generic_disclaimer'])await t.test(kind,async t=>{
+ for(const kind of ['swapped_sources','audit_dump','unarranged_promise','generic_disclaimer','report_narration','read_result_wrapper'])await t.test(kind,async t=>{
   const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
   const records=[{key:'ui',revision:'a'.repeat(64),machine:'synthetic',sessionId:'ui',project:'/synthetic/ui',control:'report_only',updatedAt:1,state:'settled',conclusion:'窗口布局已修好。'},{key:'build',revision:'b'.repeat(64),machine:'synthetic',sessionId:'build',project:'/synthetic/build',control:'report_only',updatedAt:1,state:'failed',conclusion:'构建因缺少凭据而失败。'}].map((record,index)=>({...record,availability:'live',eventId:'completed-'+index,conclusionOutcome:record.state==='failed'?'failed':'reported_finished'}))
   const citations=records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))
-  const updates=kind==='generic_disclaimer'?[{text:'窗口布局已经修好了。以上是 Pi 的汇报结果，我这边没有独立验证。',sourceKeys:['ui']},{text:'构建还在等凭据。这部分同样只是汇报，未独立核实。',sourceKeys:['build']}]:kind==='swapped_sources'?[{text:'窗口布局已经修好了。',sourceKeys:['build']},{text:'构建还在等凭据。',sourceKeys:['ui']}]:[{text:kind==='audit_dump'?'sessionId=ui; revision=aaaaaaaa; backend=reported_tail; control=report_only。':'我会继续处理，并自动重试构建直到成功。',sourceKeys:['ui','build']}]
+  const updates=kind==='report_narration'?[{text:'Pi 报告窗口布局已修好，构建因缺少凭据失败。',sourceKeys:['ui','build']}]:kind==='read_result_wrapper'?[{text:'这轮汇报只给了读取结果：窗口布局已修好，构建因缺少凭据失败。',sourceKeys:['ui','build']}]:kind==='generic_disclaimer'?[{text:'窗口布局已经修好了。以上是 Pi 的汇报结果，我这边没有独立验证。',sourceKeys:['ui']},{text:'构建还在等凭据。这部分同样只是汇报，未独立核实。',sourceKeys:['build']}]:kind==='swapped_sources'?[{text:'窗口布局已经修好了。',sourceKeys:['build']},{text:'构建还在等凭据。',sourceKeys:['ui']}]:[{text:kind==='audit_dump'?'sessionId=ui; revision=aaaaaaaa; backend=reported_tail; control=report_only。':'我会继续处理，并自动重试构建直到成功。',sourceKeys:['ui','build']}]
   let summaries=0,reviews=0
   const runtime=offline(context=>{
    assert.deepEqual(visibleTools(context),[])
    const all=JSON.stringify(context.messages),user=context.messages.findLast(m=>m.role==='user'),input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
    if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
    assert.match(all,/Review only the faithfulness/);assert.match(all,/Reject swapped task attribution/);assert.match(all,/audit-style dump/);assert.match(all,/unarranged promises/);assert.match(all,/needs_review for even one generic verification disclaimer/);assert.match(all,/task-specific gaps/)
+   assert.match(all,/Address the owner's task directly/);assert.match(all,/Use needs_review for report-centered narration/);assert.match(all,/Judge the exact supplied update wording; do not silently rewrite/);assert.match(all,/An arranged next step requires source evidence of that arrangement/)
    assert.deepEqual(input.updates,updates);assert.deepEqual(input.records,records);reviews++
    return assistant(JSON.stringify({status:'needs_review',reason:'文本的任务归属或助理表达不符合要求。',citations}))
   })
@@ -442,4 +444,24 @@ test('actual Durable owner acknowledgement keeps unknown delivery separate from 
  })
  const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>({intent:'session_continue'})});bot.attachRemoteContext(()=> 'Synthetic displayed task.',undefined,async()=>{sends++;return {accepted:false,delivery:'unknown'}})
  try{const snapshots=[];assert.equal(await bot.prompt('Continue the original task.',value=>snapshots.push(value)),'暂不能确认原会话的指令投递结果。');assert.deepEqual(snapshots,[]);assert.equal(sends,1);assert.ok(ownerContexts.length>=2);}finally{await bot.close()}
+})
+
+
+test('remote updates address the owner with concrete facts without claiming unarranged follow-up',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+ const conclusion='task.json 的 supportedHosts 是 Windows、CM5；modes 是 AI选择会话、回复指定消息。当前还在验证实际消息链路，没有修改文件，也未宣告验收通过。'
+ const records=[{key:'configuration',revision:'a'.repeat(64),conclusion}]
+ const updates=[{text:'配置里列出了 Windows 和 CM5，也定义了 AI 选择会话和回复指定消息两种方式；实际消息链路还在验证。',sourceKeys:['configuration']}]
+ const citations=[{key:'configuration',revision:'a'.repeat(64),quote:conclusion}];let calls=0
+ const runtime=offline(context=>{
+  assert.deepEqual(visibleTools(context),[])
+  const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length))
+  assert.match(all,/Address the owner's task directly/);assert.match(all,/do not narrate receiving, reading, or summarizing a report/);assert.match(all,/An arranged next step requires source evidence of that arrangement/)
+  assert.deepEqual(input.records,records);calls++
+  if(all.includes('Summarize supplied connected Pi reports'))return assistant(JSON.stringify({updates,citations}))
+  assert.match(all,/Judge the exact supplied update wording; do not silently rewrite/);assert.deepEqual(input.updates,updates)
+  return assistant(JSON.stringify({status:'passed',reason:'直接说明配置事实和当前验证范围，没有来源叙述或未安排的承诺。',citations}))
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ try{assert.deepEqual(await bot.summarizeRemote({records,omitted:0,incomplete:false}),{updates,citations});assert.equal(calls,2)}finally{await bot.close()}
 })
