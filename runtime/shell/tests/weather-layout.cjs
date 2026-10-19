@@ -104,25 +104,27 @@ function inspect() {
   const reading = rect('.w-weather-reading')
   const head = rect('.w-weather-head')
   const main = rect('.w-weather-main')
-  const range = rect('.w-weather-range')
-  if (reading.right > glyph.x - 2) issues.push('reading crowds the sky')
+  const support = rect('.w-weather-support')
+  if (reading.bottom > support.y + 1) issues.push('reading overlaps its supporting group')
   if (head.bottom > main.y + 1) issues.push('header crowds the main reading')
-  if (main.bottom > range.y + 1) issues.push('condition crowds the range')
+  if (main.bottom > support.y + 1) issues.push('reading crowds the supporting group')
   if (glyph.right > bounds.right || glyph.bottom > bounds.bottom) issues.push('sky overflow')
   const hero = rect('.w-weather-hero')
   if (reading.right > hero.right + 1 || glyph.right > hero.right + 1) issues.push('hero escapes content inset')
+  if (reading.bottom > hero.bottom + 1) issues.push('reading escapes its row')
   if (tile.scrollWidth > tile.clientWidth + 1 || tile.scrollHeight > tile.clientHeight + 1) issues.push('tile overflow')
   if (tile.querySelector('button, input, a, [tabindex]')) issues.push('interactive widget')
-  const pairs = [...tile.querySelectorAll('.w-weather-range-pair')]
-  if (Math.abs(pairs[0].getBoundingClientRect().width - pairs[1].getBoundingClientRect().width) > 1) issues.push('unequal range columns')
-  for (const pair of pairs) {
-    if (pair.firstElementChild.getBoundingClientRect().bottom > pair.lastElementChild.getBoundingClientRect().top + 1) issues.push('range label not above its value')
-  }
+  const rangeHalves = [...tile.querySelectorAll('.w-weather-range-label, .w-weather-range-value')]
+  if (rangeHalves.length !== 4) issues.push('the daily range keeps one label and one value per half')
+  if (rangeHalves[0].textContent !== 'H:' || rangeHalves[2].textContent !== 'L:') issues.push('the range reads high then low')
+  if (rangeHalves[0].getBoundingClientRect().right > rangeHalves[1].getBoundingClientRect().left + 1) issues.push('range label not before its value')
+  if (rangeHalves[1].getBoundingClientRect().right > rangeHalves[2].getBoundingClientRect().left + 1) issues.push('range halves collide')
+  if (rangeHalves[1].getBoundingClientRect().right > tile.getBoundingClientRect().right + 1) issues.push('range escapes the tile')
   const pixel = document.documentElement.dataset.theme === 'pixel'
   if (pixel && (glyph.width % 24 !== 0 || glyph.height % 24 !== 0)) issues.push('fractional pixel grid')
   if (pixel && getComputedStyle(tile.querySelector('svg')).stroke !== 'none') issues.push('stroked pixel icon')
   return {
-    issues, glyph, reading, head, main, range,
+    issues, glyph, reading, head, main, support, range: rect('.w-weather-range'),
     state: tile.dataset.state, place: tile.querySelector('.w-weather-place').textContent,
     badge: tile.querySelector('.w-weather-badge').textContent,
     badgeVisible: tile.querySelector('.w-weather-badge').getClientRects().length > 0,
@@ -162,10 +164,13 @@ async function main() {
       assert.ok(!switched.issues.includes('stroked pixel icon'))
       for (const [name, fixture] of cases) {
         snapshot = fixture
-        await win.webContents.executeJavaScript(`(() => {
+        await win.webContents.executeJavaScript(`(async () => {
           const tile = document.querySelector('[data-widget="odk.tile.weather"]')
           const plugin = window.odkPlugins.get('odk.tile.weather')
-          window.odkPlugins.deactivate(plugin, tile)
+          // A release is asynchronous, and the registry refuses a mount on an element
+          // whose release has not settled yet. Awaiting it keeps the fixture remount
+          // deterministic instead of leaving the tile on its first frame.
+          await window.odkPlugins.deactivate(plugin, tile)
           window.odkPlugins.activate(plugin, tile, { onTick: () => () => {} })
           tile.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
         })()`)

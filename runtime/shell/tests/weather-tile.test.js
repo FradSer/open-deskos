@@ -87,7 +87,7 @@ const live = {
   daily: { high: 31, low: 24 },
 }
 
-test('the header leads with the place, while the reading leads the sky and daily range', async () => {
+test('the header leads with the place, while the reading holds its own row above the supporting group', async () => {
   const tile = createTile({ snapshot: live })
   await tile.settle()
   assert.equal(tile.refs.place.textContent, 'Shenzhen')
@@ -95,11 +95,16 @@ test('the header leads with the place, while the reading leads the sky and daily
   const header = pluginSource.slice(pluginSource.indexOf('w-weather-head'), pluginSource.indexOf('w-weather-hero'))
   assert.match(header, /w-weather-place/)
   assert.doesNotMatch(header, /class="w-name"/, 'no redundant Weather heading above a known place')
-  const hero = pluginSource.slice(pluginSource.indexOf('w-weather-hero'), pluginSource.indexOf('w-weather-body'))
-  assert.ok(hero.indexOf('w-weather-reading') < hero.indexOf('w-weather-glyph'), 'the numeral precedes its supporting icon')
-  assert.match(pluginSource, /w-weather-range-label[^>]*>Low</)
-  assert.match(pluginSource, /w-weather-range-label[^>]*>High</)
-  assert.doesNotMatch(pluginSource, /w-weather-sep/, 'separate range columns need no slash')
+  // The hero row carries the numeral alone; the sky, the condition and the range
+  // read together below it as one supporting group.
+  const hero = pluginSource.slice(pluginSource.indexOf('w-weather-hero'), pluginSource.indexOf('w-weather-support'))
+  assert.match(hero, /w-weather-reading/)
+  assert.doesNotMatch(hero, /w-weather-glyph/, 'the sky belongs to the supporting group')
+  assert.match(pluginSource, /w-weather-glyph[^>]*>[\s\S]{0,400}w-weather-condition[\s\S]{0,400}w-weather-range/, 'the sky, condition and range share one group')
+  assert.match(pluginSource, /w-weather-range-label[^>]*>H:</)
+  assert.match(pluginSource, /w-weather-range-label[^>]*>L:</)
+  assert.match(pluginSource, /w-weather-range-value" id="w-weather-high"/, 'the high leads the range pair')
+  assert.doesNotMatch(pluginSource, /w-weather-sep/, 'the range pair needs no separator')
 })
 
 test('normal weather and stale recovery never show Live or refresh times', async () => {
@@ -263,13 +268,17 @@ test('every weight the stylesheet asks for is one the shipped faces can render',
 })
 
 test('the daily range gives both halves the same treatment', () => {
-  assert.match(pluginSource, /w-weather-range-label[^>]*>High</)
-  assert.match(pluginSource, /w-weather-range-value[^>]*>--</)
-  assert.match(pluginSource, /w-weather-range-label[^>]*>Low</)
+  // One high-first pair, so the two halves are the same markup and the same rule.
+  assert.match(pluginSource, /w-weather-range-label[^>]*>H:</)
+  assert.match(pluginSource, /w-weather-range-value" id="w-weather-high">--</)
+  assert.match(pluginSource, /w-weather-range-label[^>]*>L:</)
+  assert.match(pluginSource, /w-weather-range-value" id="w-weather-low">--</)
+  assert.doesNotMatch(pluginSource, /w-weather-range-label[^>]*>High</, 'the fallback label is the short form the tile draws')
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'plugins', 'weather.css'), 'utf8')
   assert.match(css, /\.w-weather-range-label\s*\{[^}]*color:\s*var\(--odk-secondary-strong\)/)
   assert.match(css, /\.w-weather-range-value\s*\{[^}]*color:\s*var\(--odk-primary\)/)
   assert.doesNotMatch(css, /\.w-weather-high\s*\{/, 'the high must not carry a treatment the low lacks')
+  assert.doesNotMatch(css, /\.w-weather-range-pair/, 'the pair needs no per-halves wrapper')
 })
 
 test('the numeral and the unit are separate nodes in one inline flow', () => {
@@ -279,15 +288,16 @@ test('the numeral and the unit are separate nodes in one inline flow', () => {
 })
 
 test('the unit shares the reading baseline by construction', () => {
-  // Inline inside the numeral: no flex baseline behaviour to get wrong, and the unit
-  // cannot drift when the face or the state changes.
+  // The unit stays inline inside the numeral's own flow, and the value row aligns
+  // its items on the baseline so no flex centring can drift it.
   const value = /<span class="w-weather-value">([\s\S]*?)<\/span>\s*<\/div>/.exec(pluginSource)
   assert.ok(value, 'the reading markup is present')
   assert.match(value[1], /w-weather-unit/, 'the unit lives inside the reading')
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'plugins', 'weather.css'), 'utf8')
   const reading = /\.w-weather-reading\s*\{([^}]*)\}/.exec(css)[1]
-  assert.match(reading, /display:\s*block/)
   assert.match(reading, /white-space:\s*nowrap/)
+  const readingValue = /\.w-weather-value\s*\{([^}]*)\}/.exec(css)[1]
+  assert.match(readingValue, /align-items:\s*baseline/)
   const unit = /\.w-weather-unit\s*\{([^}]*)\}/.exec(css)[1]
   assert.doesNotMatch(unit, /margin-block-start/, 'no top margin can float the unit again')
   assert.match(unit, /letter-spacing:\s*normal/, 'the unit does not inherit the display tracking')
@@ -297,8 +307,8 @@ test('the sky supports the reading instead of competing with it', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'plugins', 'weather.css'), 'utf8')
   const token = (name) => Number(/([\d.]+)cqi/.exec(new RegExp(`--${name}:\\s*([^;]+);`).exec(css)[1])[1])
   assert.ok(token('w-weather-glyph') <= token('w-weather-reading') * 0.75)
-  const head = pluginSource.slice(pluginSource.indexOf('w-weather-head'), pluginSource.indexOf('w-weather-hero'))
-  assert.doesNotMatch(head, /w-weather-glyph/)
+  const hero = pluginSource.slice(pluginSource.indexOf('w-weather-hero'), pluginSource.indexOf('w-weather-support'))
+  assert.doesNotMatch(hero, /w-weather-glyph/, 'the sky is supporting content, not part of the hero row')
 })
 
 test('the sky artwork is drawn for the size it renders at', () => {

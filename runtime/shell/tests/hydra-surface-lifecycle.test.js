@@ -187,6 +187,9 @@ test('Hydra restores readings and full labels after state and shape transitions'
   assert.equal(f.read('.hydra-body').classes.has('hydra-unconfigured'), false)
   assert.equal(f.read('.hydra-body').classes.has('hydra-stale'), false)
   assert.equal(f.read('#hydra-plant-2').querySelector('.hydra-plant-soil').textContent, '44%')
+  // The running pump is stated in words, not only by the rail's colour.
+  assert.equal(f.read('#hydra-plant-2').querySelector('.hydra-plant-state').textContent, 'Watering')
+  assert.equal(f.read('#hydra-plant-1').querySelector('.hydra-plant-state').textContent, '')
   if (independent) assert.deepEqual(views, baselines.get('transitions'))
   else baselines.set('transitions', views)
 })
