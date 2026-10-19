@@ -329,7 +329,9 @@ Feature: Personal Agent owns a bounded plugin runtime
     Given a displayed Pi completion and its configured control binding
     When the owner names that task without a reply reference
     Then initial AI classification can read bounded untrusted task context
+    And missing or stale source choices create no reply and can be corrected within that turn
     And the host binds the selected source to the original owner text
+    And a valid source reserves its single attempt before saving or publishing
     And one owner turn cannot create another reply operation
     And later distinct requests require a new completed turn after unknown delivery
 

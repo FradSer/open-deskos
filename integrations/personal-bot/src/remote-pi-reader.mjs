@@ -131,9 +131,9 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
         if(!reply) {
           if(!owner || typeof owner!=='object' || typeof owner.text!=='string' || !owner.text.trim())throw Error('A current owner instruction is required')
           if(ownerAttempts.has(owner))throw Error('Owner follow-up already attempted in this turn; do not replay')
-          ownerAttempts.add(owner)
           const reference=remote.reference(params.sourceKey)
           if(!reference.source || reference.source.revision!==params.sourceRevision)throw Error('Remote source revision changed')
+          ownerAttempts.add(owner)
           reply=remote.beginReply({messageId:reference.messageId,sourceKey:reference.source.key,sourceRevision:reference.source.revision},owner.text,{...(owner.id?{id:owner.id}:{}),onBound:bound=>owner.bind?.(bound)})
           params={...params,prompt:owner.text}
         }

@@ -813,6 +813,10 @@ test('an AI-selected owner follow-up binds the displayed source and supports lat
  const params=()=>({sourceKey:source.key,sourceRevision:source.revision,prompt:'Model-rewritten instruction'})
  await assert.rejects(followup(params(),undefined,undefined,undefined),/owner/i);assert.equal(sent.length,0)
  const owner={id:'00000000-0000-0000-0000-000000000071',text:'Read task.json and report the actual supported hosts.',turn:1}
+ for(const invalid of [{...params(),sourceRevision:'f'.repeat(64)},{...params(),sourceKey:'missing-source'}]){
+  await assert.rejects(followup(invalid,undefined,undefined,owner),/revision changed/i)
+  assert.equal((remote.data.replies??[]).length,0);assert.equal(sent.length,0)
+ }
  const attempts=await Promise.allSettled([followup(params(),undefined,undefined,owner),followup({...params(),prompt:'Another model prompt'},undefined,undefined,owner)])
  assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.equal(sent.length,1)
  assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies[0].id,owner.id);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
