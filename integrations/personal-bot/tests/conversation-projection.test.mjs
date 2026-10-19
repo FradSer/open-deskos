@@ -30,7 +30,7 @@ test('pending turns become unconfirmed once on restart without replay',async t=>
 test('retention and complete public frames stay within byte and count budgets',async t=>{
  const file=await fixture(t),p=await createConversationProjection({file})
  for(let i=0;i<180;i++)p.observe({...status(randomUUID(),'idle','中'.repeat(16000)),transcript:'中'.repeat(4000)})
- p.observe({...status(randomUUID(),'idle','\0'.repeat(16384)),transcript:'\0'.repeat(4096)})
+ p.observe({...status(randomUUID(),'idle','\\"'.repeat(8192)),transcript:'\\'.repeat(4096)})
  const frame=p.snapshot();assert.ok(frame.conversation.turns.length<=8);assert.ok(Buffer.byteLength(JSON.stringify(frame))<=60*1024)
  assert.equal(await p.close(),true);const stored=JSON.parse(await readFile(file,'utf8'));assert.ok(stored.turns.length<=128);assert.ok(Buffer.byteLength(JSON.stringify(stored))<=1024*1024)
 })
@@ -69,4 +69,16 @@ test('an actual service shutdown does not turn a pending owner request into a bl
  const detach=service.subscribe(frame=>p.observe(frame));service.sendText('尚未确认的请求')
  const closing=service.close();release();await closing;detach();await p.close()
  const q=await createConversationProjection({file});assert.equal(q.snapshot().conversation.turns[0].state,'unconfirmed');assert.equal(q.snapshot().conversation.turns[0].transcript,'尚未确认的请求');await q.close()
+})
+
+test('invalid control text cannot poison other public conversation turns',async t=>{
+ const file=await fixture(t),p=await createConversationProjection({file})
+ p.observe(status(randomUUID(),'idle','正常中文\n下一行\t制表\r回车'))
+ p.observe(status(randomUUID(),'idle','隐藏\u0001控制字'))
+ p.observe({...status(randomUUID(),'idle','正常'),transcript:'坏\u0000正文'})
+ p.observe(status(randomUUID().toUpperCase(),'idle','非规范ID'))
+ p.observe({...status(randomUUID(),'idle','正常'),replyTo:{messageId:'a'.repeat(64),sourceKey:'bad\tkey',sourceRevision:'b'.repeat(64)}})
+ assert.equal(p.snapshot().conversation.turns.length,1);assert.match(p.snapshot().conversation.turns[0].message,/正常中文/)
+ assert.equal(await p.close(),true)
+ const q=await createConversationProjection({file});assert.equal(q.snapshot().conversation.turns.length,1);await q.close()
 })
