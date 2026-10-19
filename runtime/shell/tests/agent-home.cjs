@@ -105,12 +105,11 @@ async function assertOptionalJudgmentStatus() {
     publishStatus({state:'idle',jev:{status:jev},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'}})
     await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Ready','ordinary judgment availability does not require Jev authentication')
-    assert.doesNotMatch(await evaluate(`document.querySelector('.agent-jev-status').textContent`),/verified/i)
-    assert.match(await evaluate(`document.querySelector('.agent-jev-status').textContent`),/model ready/)
+    assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null,'optional provider metadata stays out of the conversation')
   }
   publishStatus({state:'idle',jev:{status:'verified'},judgment:{status:'unavailable',provider:'model'}})
   await evaluate('new Promise(r=>setTimeout(r,20))')
-  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Judgment unavailable')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Connection unavailable')
   assert.equal(await evaluate(`document.querySelector('.agent-conversation').children.length`),count,'judgment status never inserts chat text')
   for(const theme of ['instrument','pixel','border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
@@ -119,7 +118,7 @@ async function assertOptionalJudgmentStatus() {
       publishStatus({state:'idle',jev:{status:'disabled'},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'},briefing:{state:'error',generatedAt:1,omittedSources:0,items:[{text:'2 Synthetic sessions',segments:[{text:'2 Synthetic sessions',icon:'sessions'}],sources:[{id:'synthetic.sessions',label:'Synthetic sessions',state:'live'}]}]}})
       await evaluate('new Promise(r=>setTimeout(r,20))')
       assert.match(await evaluate(`document.querySelector('#dash-narrative').textContent`),/2 Synthetic sessions/)
-      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
+      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
       assert.ok(layout.visible&&layout.conversation>=40&&layout.composer<=height&&layout.overflow<=1,JSON.stringify({theme,width,...layout}))
       if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await win.webContents.capturePage()).toPNG())}
     }
@@ -128,48 +127,31 @@ async function assertOptionalJudgmentStatus() {
 }
 
 async function assertJevStartupStatus() {
-  const states = [
-    ['checking', 'Checking Jev authentication…', 'Checking Jev…'],
-    ['verified', 'Jev authentication verified.', 'Ready'],
-    ['disabled', 'Jev is disabled.', 'Jev disabled'],
-    ['missing_credential', 'Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
-    ['auth_rejected', 'Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
-    ['unavailable', 'Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
-    [undefined, 'Jev authentication has not been checked.', 'Jev not checked'],
-  ]
-  for (const [status, text, caption] of states) {
-    const frame = {state:'idle', jev:status ? {status} : undefined}
+  const states = [['checking','Connecting…'],['verified','Ready'],['disabled','Connection unavailable'],['missing_credential','Connection unavailable'],['auth_rejected','Connection unavailable'],['unavailable','Connection unavailable'],[undefined,'Connection unavailable']]
+  const count=await evaluate(`document.querySelector('.agent-conversation').children.length`)
+  for (const [status,caption] of states) {
     for (let repeat=0;repeat<2;repeat++) {
-      publishStatus(frame)
+      publishStatus({state:'idle',jev:status?{status}:undefined})
       await evaluate('new Promise(r=>setTimeout(r,20))')
-      assert.deepEqual(await evaluate(`({count:document.querySelectorAll('.agent-jev-status').length,outside:!document.querySelector('.agent-jev-status')?.closest('.agent-conversation'),text:document.querySelector('.agent-jev-status')?.textContent,caption:document.querySelector('.agent-state').textContent})`),{count:1,outside:true,text,caption})
-      if (repeat===0) await evaluate(`window.jevTextNode=document.querySelector('.agent-jev-status').firstChild;window.jevCaptionNode=document.querySelector('.agent-state').firstChild`)
-      else assert.equal(await evaluate(`document.querySelector('.agent-jev-status').firstChild===window.jevTextNode&&document.querySelector('.agent-state').firstChild===window.jevCaptionNode`),true,'replayed status does not replace live-region text or announce a new notification')
+      assert.deepEqual(await evaluate(`({count:document.querySelectorAll('.agent-jev-status').length,caption:document.querySelector('.agent-state').textContent})`),{count:0,caption})
+      if(repeat===0)await evaluate(`window.readinessCaptionNode=document.querySelector('.agent-state').firstChild`)
+      else assert.equal(await evaluate(`document.querySelector('.agent-state').firstChild===window.readinessCaptionNode`),true,'replayed status preserves the same live-region text node')
     }
   }
-  await evaluate('delete window.jevTextNode;delete window.jevCaptionNode')
-  for (const theme of ['instrument','pixel','border-beam']) {
-    publishStatus({state:'idle',jev:{status:'unavailable'}})
+  assert.equal(await evaluate(`document.querySelector('.agent-conversation').children.length`),count,'provider readiness never adds chat text')
+  await evaluate('delete window.readinessCaptionNode')
+  for(const theme of ['instrument','pixel','border-beam']){
+    await resize(480,854);await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    publishStatus({state:'idle',jev:{status:'unavailable'},judgment:{status:'ready',provider:'model',model:'synthetic/model'}})
     await evaluate('new Promise(r=>setTimeout(r,20))')
-    await resize(480,854)
-    await evaluate(`window.odkTheme.set('${theme}')`)
-    assert.equal(await evaluate('document.documentElement.dataset.theme'),theme)
-    await evaluate('document.fonts.ready')
-    const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status'),c=document.querySelector('.agent-composer'),r=s.getBoundingClientRect();return {font:parseFloat(getComputedStyle(s).fontSize),width:r.width,composer:c.getBoundingClientRect().bottom,overflow:document.documentElement.scrollWidth>innerWidth}})()`)
-    assert.ok(layout.font>=14 && layout.width>0 && layout.composer<=854 && !layout.overflow,JSON.stringify(layout))
-    const image=await win.webContents.capturePage();fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-'+theme+'-480.png'),image.toPNG())
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Ready')
+    assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null)
   }
   await resize(320,480)
-  publishStatus({state:'idle',jev:{status:'checking'}})
-  await evaluate('new Promise(r=>setTimeout(r,30))')
-  const compactStatus=await evaluate(`(()=>{const r=document.querySelector('.agent-jev-status').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {top:r.top,bottom:r.bottom,conversationTop:c.top,conversationHeight:c.height,composerBottom:f.bottom,viewport:innerHeight}})()`)
-  assert.ok(compactStatus.top>=0&&compactStatus.bottom<=compactStatus.conversationTop&&compactStatus.conversationHeight>=40&&compactStatus.composerBottom<=compactStatus.viewport,JSON.stringify(compactStatus))
-  fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-checking-320.png'),(await win.webContents.capturePage()).toPNG())
-  await resize(1920,1280)
-  await evaluate("window.odkTheme.set('instrument')")
-  publishStatus({state:'idle',jev:{status:'verified'}})
-  await evaluate('new Promise(r=>setTimeout(r,30))')
-  fs.writeFileSync(path.join(os.tmpdir(),'odk-jev-startup-verified-1920.png'),(await win.webContents.capturePage()).toPNG())
+  publishStatus({state:'idle',jev:{status:'checking'}});await evaluate('new Promise(r=>setTimeout(r,30))')
+  const geometry=await evaluate(`(()=>{const h=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {header:h.bottom,conversation:c.top,height:c.height,composer:f.bottom}})()`)
+  assert.ok(geometry.header<=geometry.conversation&&geometry.height>=40&&geometry.composer<=480,JSON.stringify(geometry))
+  await resize(1920,1280);await evaluate("odkTheme.set('instrument')")
 }
 
 async function assertNotificationMessagesAreIndependent() {
@@ -195,6 +177,54 @@ async function assertNotificationMessagesAreIndependent() {
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-assistant').length`), 3, 'replayed notification events do not duplicate messages')
 }
 
+async function assertSimpleConversation() {
+  const source={key:'1a'.repeat(32),revision:'2b'.repeat(32),threadId:'3c'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-session-01a14dfd-6a34-75c3-a1f8-415d50d50e35',project:'/synthetic/training',control:'report_only',availability:'live'}
+  const item={id:'4d'.repeat(32),at:1000,text:'合成示例：中文识别训练有新进展，验证集 CER 降到 37.35%，检查点已保存到 Drive。控制器仍依赖 Mac 在线，请保留原终端；独立测试还没做。',presentation:'assistant_update',sources:[source]}
+  const frame={state:'idle',judgment:{status:'ready',provider:'model',model:'synthetic/test'},jev:{status:'disabled'},agents:{state:'live',tasks:[{taskId:'99999999-9999-4999-8999-999999999999',identity:{id:'synthetic-checker',name:'Synthetic design agent',avatar:'code',revision:'9'.repeat(64)},state:'running',updatedAt:new Date().toISOString()}]},remote:{state:'partial',messages:[item],replies:[],heldCount:1,expiredMessages:2}}
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
+  const observed=await evaluate(`(()=>{const article=document.querySelector('[data-remote-id="${item.id}"]'),copy=article.cloneNode(true);copy.querySelectorAll('details').forEach(n=>n.remove());const auth=document.querySelector('.agent-jev-status')?.getBoundingClientRect();return {primary:copy.textContent,details:article.querySelector('.agent-update-sources').textContent,closed:!article.querySelector('.agent-update-sources').open,authVisible:Boolean(auth&&auth.width>0&&auth.height>0)}})()`)
+  assert.doesNotMatch(observed.primary,/Session|synthetic-session|Synthetic Mac|Report only|Source:|Revision:/,'technical provenance is not repeated beside every message')
+  assert.match(observed.primary,/中文识别训练有新进展/);assert.match(observed.primary,/Reply/)
+  assert.match(observed.details,/synthetic-session/);assert.match(observed.details,/Source:/);assert.equal(observed.closed,true)
+  assert.equal(observed.authVisible,false,'provider diagnostics do not appear in the conversation header')
+  assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-child-avatar svg');return Boolean(n&&n.getBoundingClientRect().width>0)})()`),true,'running subagent identities retain a visible avatar')
+  assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').hidden`),true,'informational coverage does not become another conversation message')
+  await evaluate(`document.querySelector('.agent-message-reply').click()`)
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false,'single-source reply retains its exact reference')
+  await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
+  const second={...source,key:'5e'.repeat(32),revision:'6f'.repeat(32),threadId:'7a'.repeat(32),sessionId:'synthetic-second-session',project:'/synthetic/v8'}
+  const multi={...item,id:'8b'.repeat(32),at:2000,text:'合成示例：v8 模型完成，前留白缩到 10 mm、前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。',sources:[source,second]}
+  const next={...frame,remote:{...frame.remote,messages:[multi,item]}}
+  publishStatus(next);await evaluate('new Promise(r=>setTimeout(r,30))')
+  await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-message-reply').click()`)
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'multi-source Reply never selects the first source implicitly')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-update-sources').open`),true)
+  await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-session-reply[data-source-key="${second.key}"]').click()`)
+  assert.match(await evaluate(`document.querySelector('.agent-reply-session').textContent`),/synthetic-second-session/)
+  await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
+  const reply={id:'11111111-1111-4111-8111-111111111111',threadId:source.threadId,sessionId:source.sessionId,text:'请继续检查这个结果。',replyTo:{messageId:item.id,sourceKey:source.key,sourceRevision:source.revision},status:'answered',at:3000,answer:'合成示例：已完成检查。'}
+  const replies={...next,remote:{...next.remote,replies:[reply]}}
+  publishStatus(replies);await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-reply-status'),d=n.closest('details');return Boolean(d&&!d.open)})()`),true,'successful receipt detail does not repeat a status beside the owner message')
+  for(const status of ['unknown','failed']){
+    publishStatus({...replies,remote:{...replies.remote,replies:[{...reply,status}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-reply-status'),r=n.getBoundingClientRect();return r.width>0&&r.height>0})()`),true,'uncertain and failed delivery remain visible')
+  }
+  publishStatus(replies);await evaluate('new Promise(r=>setTimeout(r,20))')
+  await evaluate(`document.querySelectorAll('.agent-update-sources').forEach(d=>d.open=false)` )
+  for(const theme of ['instrument','pixel','border-beam']){
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    for(const [width,height]of [[1920,1280],[480,854],[320,480]]){
+      await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
+      const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-message-reply')].every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
+      assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
+      fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+    }
+  }
+  publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').hidden`),false,'actual connection failure remains visible')
+}
+
 async function assertRemoteConversationHistory() {
   const remote={state:'partial',messages:[{id:'synthetic-remote-update',text:'A remote Pi reports a conclusion. <img src=x onerror=alert(1)>',sources:[{machine:'synthetic-Mac',sessionId:'synthetic-session',project:'/synthetic/project',revision:'a'.repeat(64),control:'report_only',availability:'unavailable'}]}],omitted:8,heldCount:0,hasMore:true}
   const frame={state:'idle',transcript:'Question 中文',message:'Final response',remote}
@@ -217,7 +247,7 @@ async function assertRemoteConversationHistory() {
     await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
     assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').textContent`),expected)
   }
-  assert.equal(await evaluate(`(()=>{const s=document.querySelector('.agent-jev-status'),c=document.querySelector('.agent-conversation');c.scrollTop=c.scrollHeight;const r=s.getBoundingClientRect(),h=document.querySelector('.agent-head').getBoundingClientRect();return !s.closest('.agent-conversation')&&r.top>=h.top&&r.bottom<=h.bottom&&r.top>=0})()`),true,'Jev authentication stays visible above a long scrolled conversation')
+  assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null,'a long conversation does not grow a provider status line')
   const updates = ['训练第一轮完成了，我可以帮你对照报告继续看。', 'v8 已完成实现，回归结果还需要确认。']
   const messages = updates.map((text, index) => ({ ...remote.messages[0], id: `synthetic-short-${index}`, text, presentation: 'assistant_update' }))
   const updated = { ...frame, remote: { ...remote, messages: [...messages].reverse().concat(remote.messages), heldCount: 1 } }
@@ -335,7 +365,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),2,'multiple sessions require explicit reply choices')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'incoming updates do not silently select a target')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-  await evaluate(`document.querySelector('[data-source-key="${second.key}"]').focus()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-message-reply').click();document.querySelector('[data-source-key="${second.key}"]').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
   assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/22222222/)
   await evaluate(`document.querySelector('textarea').value='Keep this draft';document.querySelector('.agent-reply-cancel').focus()`)
@@ -403,11 +433,16 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--simple-conversation-only')) {
+    await assertSimpleConversation();console.log('PASS calm conversation, explicit source reply, retained receipts and compact themes');finish(0);return
+  }
   if (process.argv.includes('--session-reply-legacy-host')) {
     const source={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'synthetic-session',project:'/synthetic',control:'report_only',availability:'live'}
     publishStatus({state:'idle',remote:{state:'live',messages:[{id:'a'.repeat(64),text:'Synthetic completion',presentation:'assistant_update',sources:[source]}],replies:[]}})
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'an old single-argument bridge cannot reply')
+    assert.equal(await evaluate(`document.querySelector('.agent-message-reply').disabled`),true,'the simplified primary Reply also refuses an old bridge')
+    await evaluate(`document.querySelector('.agent-message-reply').dispatchEvent(new MouseEvent('click'))`)
     await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])

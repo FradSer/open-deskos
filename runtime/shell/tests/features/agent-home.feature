@@ -399,10 +399,10 @@ Scenario: Remote Pi synthesis stays in the same Agent conversation
   When the Agent page opens or receives an updated service frame
   Then the existing conversation shows each retained synthesis once
   And source disclosures identify the machine and exact session without granting controls
-  And partial, stale, and unavailable remote coverage remains visible
+  And partial coverage stays in details while stale and unavailable warnings remain visible
   And incoming reports do not submit owner messages
 
-Scenario: Personal Agent reports remote progress as short conversation messages
+Scenario: Personal Agent reports completed tasks as short conversation messages
   Given the resident retains legacy task reports and new assistant updates
   When the conversation receives or reconnects to those messages
   Then each new update appears once in its original order as an assistant bubble
@@ -412,13 +412,12 @@ Scenario: Personal Agent reports remote progress as short conversation messages
   And the existing conversation is the only scroll region above the fixed composer
   And keyboard focus and the current reading position survive repeated frames
 
-Scenario: Personal Agent displays its real Jev startup check
-  Given the resident service starts its bounded Jev authentication probe
-  When checking changes to verified, missing credentials, rejected authentication, or unavailable
-  Then the fixed Agent header displays the current result in one stable readable status
-  And only verified authentication permits the idle Ready caption
-  And reconnects and repeated frames do not add notifications
-  And a missing or malformed Jev status never claims authentication passed
+Scenario: Personal Agent keeps provider diagnostics out of the conversation
+  Given the resident model is ready with optional Jev disabled or unavailable
+  When the Agent receives status changes or reconnects
+  Then the header shows one concise readiness caption without provider labels
+  And optional provider failures do not create warnings or conversation messages
+  And an actual readiness failure remains visible without claiming authentication passed
   And the single scroll region and fixed composer remain usable
 
 Scenario: Overview refresh uses the weekday indicator without adding chat text
@@ -431,3 +430,15 @@ Scenario: Overview refresh uses the weekday indicator without adding chat text
   And automatic refresh preserves all conversation text and message nodes
   And explicit owner questions and completed task messages remain available
   And reduced motion keeps a static busy indicator and accessible busy state
+
+Scenario: A calm conversation keeps provenance behind explicit disclosures
+  Given the Agent receives completed updates and durable owner replies
+  When the conversation opens with a ready model
+  Then natural message text and one explicit Reply action are the primary content
+  And session identifiers, source references, verification and successful receipts stay in closed details
+  And an update with several sessions requires an explicit source choice before replying
+  And uncertain or failed delivery remains visible with a useful next step
+  And unavailable connections remain visible without repeated provider metadata
+  And running subagent identities and avatars remain visible
+  And disclosures, reply references and the fixed composer remain keyboard and touch accessible
+  And repeated frames preserve the same messages, focus and reading position
