@@ -33,6 +33,7 @@
       let released = false
       let revision = 0
       let turn = null
+      const ownerTurns = new Map()
       const seenNotifications = new Set()
       const remoteMessages = new Map()
       const durableReplies = new Map()
@@ -208,17 +209,20 @@
         for (const reply of [...(replies || [])].reverse()) {
           let row = durableReplies.get(reply.id)
           if (!row) {
-            const body = message('user', reply.text)
+            const owner = ownerTurns.get(reply.id)
+            const body = owner?.user || message('user', reply.text)
+            if (owner) owner.bound = true
             const article = body.closest('article');article.dataset.replyId = reply.id
             const details = document.createElement('details');details.className = 'agent-reply-details'
             const label = document.createElement('summary');label.textContent = 'Details';details.append(label);article.append(details)
             const status = document.createElement('span');status.className = 'agent-reply-status';details.append(status)
-            row = { article, status, details, answer: null };durableReplies.set(reply.id, row)
+            row = { article, status, details, answer: owner?.response || null };durableReplies.set(reply.id, row)
             timelineEntry(article, reply.at, [reply.threadId])
           }
           const origins = [...remoteRecords.values()].filter(item => item.id === reply.replyTo.messageId).flatMap(item => item.sources.filter(source => source.key === reply.replyTo.sourceKey && source.revision === reply.replyTo.sourceRevision))
           const threadId = origins.length === 1 && origins[0].threadId ? origins[0].threadId : reply.threadId
           timelineEntry(row.article, reply.at, [threadId])
+          if (row.answer) timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
           if (row.threadId !== threadId) {
             row.article.querySelector('.agent-message-session')?.remove()
             if (reply.sessionId) row.details.append(sessionLabel({ sessionId: reply.sessionId, threadId }, {}))
@@ -357,10 +361,16 @@
         renderAgents(status.agents)
         renderRemote(status.remote)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
-        const newTurn = !status.replyTo && status.transcript && (!turn || status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking'))
-        if (newTurn) turn = { prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
+        const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
+        if (newTurn) {
+          turn = ownerTurns.get(status.ownerTurnId) || { ownerTurnId: status.ownerTurnId, prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
+          if (status.ownerTurnId) {
+            ownerTurns.set(status.ownerTurnId, turn)
+            while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
+          }
+        }
         const reply = status.message
-        if (!status.replyTo && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
+        if (!status.replyTo && !turn?.bound && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
           root.odkPersonalBotReply.render(turn.response, reply)
         }

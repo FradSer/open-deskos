@@ -443,3 +443,10 @@ Scenario: A calm conversation keeps provenance behind explicit disclosures
   And disclosures, reply references and the fixed composer remain keyboard and touch accessible
   And repeated frames preserve the same messages, focus and reading position
   And the compact composer uses a short placeholder with an identity-specific accessible label
+
+Scenario: AI-selected session replies retain the original owner turn
+  Given an ordinary owner turn has a host-generated execution identity
+  When the host binds that execution to a durable session reply with the same identity
+  Then the conversation reuses its original owner and assistant message nodes
+  And the answer belongs to the selected session thread without matching historical text
+  And delivery status remains independent from the assistant answer

@@ -435,6 +435,33 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--unbound-reply-bridge-only')) {
+    const source={key:'a1'.repeat(32),revision:'b2'.repeat(32),threadId:'c3'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-unbound-session',project:'/synthetic',control:'configured',availability:'live'}
+    const origin={id:'d4'.repeat(32),at:1000,text:'Synthetic completed task',presentation:'assistant_update',sources:[source]}
+    const text='Synthetic AI-selected owner request',answer='Synthetic assistant answer'
+    const remote={state:'live',messages:[origin],replies:[]}
+    const initial={state:'thinking',ownerTurnId:'11111111-1111-4111-8111-111111111111',transcript:text,message:'',remote}
+    publishStatus(initial);await evaluate('new Promise(r=>setTimeout(r,20))')
+    await evaluate(`window.unboundOwner=[...document.querySelectorAll('.agent-message-user')].at(-1);window.unboundAnswer=[...document.querySelectorAll('.agent-message-assistant')].at(-1)`)
+    const queued={id:'11111111-1111-4111-8111-111111111111',threadId:source.threadId,sessionId:source.sessionId,text,replyTo:{messageId:origin.id,sourceKey:source.key,sourceRevision:source.revision},status:'queued',at:2000}
+    publishStatus({...initial,remote:{...remote,replies:[queued]}});await evaluate('new Promise(r=>setTimeout(r,20))')
+    publishStatus({...initial,state:'idle',replyTo:queued.replyTo,threadId:source.threadId,message:answer,remote:{...remote,replies:[{...queued,status:'unknown',answer}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
+    const rows=await evaluate(`(()=>{const messages=[...document.querySelectorAll('.agent-message')];return {owners:messages.filter(n=>n.classList.contains('agent-message-user')&&n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(text)}).length,answerThread:messages.find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})?.dataset.threadId}})()`)
+    console.log('UNBOUND_BRIDGE_OBSERVED',JSON.stringify(rows))
+    assert.equal(rows.owners,1,'AI-selected durable reply must not duplicate the original owner bubble')
+    assert.equal(rows.answerThread,source.threadId,'AI-selected answer belongs to the durable session thread')
+    assert.equal(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"]')===unboundOwner && [...document.querySelectorAll('.agent-message-assistant')].find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})===unboundAnswer`),true,'binding reuses both original nodes')
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${queued.id}"] .agent-reply-status').textContent`),/Delivery not confirmed/,'an answer does not upgrade unknown transport delivery')
+    const secondId='22222222-2222-4222-8222-222222222222',second={...queued,id:secondId,at:3000,status:'answered',answer:'Synthetic second answer'}
+    publishStatus({...initial,ownerTurnId:secondId,remote:{...remote,replies:[{...queued,status:'unknown',answer}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
+    const final={...initial,state:'idle',ownerTurnId:secondId,replyTo:second.replyTo,threadId:source.threadId,message:second.answer,remote:{...remote,replies:[second,{...queued,status:'unknown',answer}]}}
+    publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),2,'same text in distinct owner executions is never deduplicated')
+    publishStatus({state:'thinking',transcript:text,remote:final.remote});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),3,'legacy input without execution identity never adopts historical text')
+    console.log('PASS exact owner execution adoption, repeated frames and independent same-text turns')
+    finish(0);return
+  }
   if (process.argv.includes('--simple-conversation-only')) {
     await assertSimpleConversation();console.log('PASS calm conversation, explicit source reply, retained receipts and compact themes');finish(0);return
   }
