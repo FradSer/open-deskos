@@ -63,7 +63,7 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Open DeskOS Workspace**: The shared writable checkout for development and automation. Voice is one entry point; it is separate from the immutable release and conversation/session storage.
 
-**Personal Bot**: The resident system component that transcribes, coordinates and responds on each supported Shell Host. Jev typed routing precedes workflows/readings/capabilities; low confidence asks and inference failure does not bypass routing. Hosted Pi implements source changes.
+**Personal Bot**: The CM5 resident component that transcribes, coordinates, and responds. Windows displays its state and relays input. Configured typed routing precedes capabilities. Jev is optional. Low confidence asks; inference failure stops dispatch. Hosted Pi implements source changes.
 
 **Spoken Turn**: A voice recording submitted by MIC or silence detected after speech. Waiting without speech is not a turn; it is neither a fixed-duration clip nor a wake-word session.
 

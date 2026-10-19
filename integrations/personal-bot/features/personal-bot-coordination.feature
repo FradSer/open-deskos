@@ -164,3 +164,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     And a failed reply with an uncertain receipt keeps its unknown delivery
     And a continuation without a bound receipt cannot display a model delivery claim in either profile
     And ordinary answers and clarification selected before continuation retain their existing behavior
+
+  Scenario: The central service persists only public owner conversation turns
+    Given public status frames carry an owner turn identity
+    When a display observes repeated streaming and terminal frames
+    Then one bounded conversation turn retains the public transcript and answer
+    And no Memory, tool context, or private service fields enter the projection
+    And interrupted pending turns restore as unconfirmed without replay
+    And storage errors cannot throw into the service

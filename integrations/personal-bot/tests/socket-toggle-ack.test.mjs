@@ -7,6 +7,27 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { listen } from '../src/socket.mjs'
+import { randomUUID } from 'node:crypto'
+
+test('a transport batch admits separate bounded owner commands in order', {timeout:3000}, async t=>{
+  const directory=await mkdtemp(join(tmpdir(),'voice-batch-')),calls=[]
+  const service={status:{v:1,type:'status',state:'idle',message:''},subscribe:()=>()=>{},sendText:text=>{calls.push(text);return true}}
+  const server=await listen(endpoint(directory,'agent'),service,{token:fixtureToken}),client=connect(endpoint(directory,'agent'))
+  t.after(async()=>{client.destroy();await server.close();await rm(directory,{recursive:true,force:true})})
+  await once(client,'connect')
+  const replies=[]
+  const completed=new Promise(resolve=>{
+    let pending=''
+    const timer=setTimeout(resolve,1000)
+    client.on('data',bytes=>{pending+=bytes.toString();let end;while((end=pending.indexOf('\n'))>=0){replies.push(JSON.parse(pending.slice(0,end)));pending=pending.slice(end+1)}if(replies.length===2){clearTimeout(timer);resolve()}})
+    client.once('close',()=>{clearTimeout(timer);resolve()})
+  })
+  const commands=['a'.repeat(2800),'b'.repeat(2800)].map(text=>JSON.stringify({v:1,type:'text',requestId:randomUUID(),text})+'\n').join('')
+  client.write((process.platform==='win32'?JSON.stringify({v:1,token:fixtureToken})+'\n':'')+commands)
+  await completed
+  assert.deepEqual(calls,['a'.repeat(2800),'b'.repeat(2800)])
+  assert.equal(replies.length,2)
+})
 
 test('toggle acknowledgement waits for the accepted retry instead of echoing stale error', { timeout: 3000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'voice-ack-'))

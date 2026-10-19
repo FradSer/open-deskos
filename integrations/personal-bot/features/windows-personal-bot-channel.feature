@@ -94,3 +94,12 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     Then its public tool results match the Unix host behavior
     And invalid frames remain rejected
     And proactive confirmation completes without microphone capture
+
+  Scenario: Windows starts only the central display role
+    Given an isolated Windows profile without provider credentials or a configured microphone
+    When the actual display entry connects to a private simulated CM5 channel
+    Then authenticated text input reaches that channel and its reply returns
+    And startup does not load inference or transcription modules or start recording
+    And the resident entry refuses Windows before migration or channel creation
+    And resident startup checks report an explicit Windows role skip
+    And extracted configuration checks still run on each host

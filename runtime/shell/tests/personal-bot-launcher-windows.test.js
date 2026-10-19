@@ -32,8 +32,12 @@ test('the Windows voice scripts stay ASCII so a code-page host can parse them', 
   }
 })
 
-test('the voice launcher supervises the same entry point the CM5 unit runs', () => {
-  assert.match(launcher, /src\\main\.mjs/)
+test('the Windows launcher runs only the central Personal Agent display client', () => {
+  assert.match(launcher, /src\\display-client\.mjs/)
+  assert.doesNotMatch(launcher, /src\\main\.mjs/)
+  assert.match(launcher, /ODK_PERSONAL_AGENT_MAIN_SSH -cne 'odk-cm5-agent'/)
+  assert.match(launcher, /Clear-DisplayEnvironment/)
+  assert.match(launcher, /Import-DeviceEnv \$file -AllowedNames \$displayNames/)
   // The voice package is beside the flattened runtime root in a release and at the
   // repository root in a checkout, two levels up from runtime/shell, so both
   // locations are probed rather than one layout being assumed and reported as a
@@ -41,7 +45,7 @@ test('the voice launcher supervises the same entry point the CM5 unit runs', () 
   assert.match(launcher, /integrations\\personal-bot/)
   assert.match(launcher, /Join-Path \$RuntimeRoot 'integrations\\personal-bot'/)
   assert.match(launcher, /Join-Path \(Join-Path \(Join-Path \$RuntimeRoot '\.\.'\) '\.\.'\) 'integrations\\personal-bot'/)
-  assert.match(launcher, /Test-Path -LiteralPath \(Join-Path \$candidate 'src\\main\.mjs'\)/)
+  assert.match(launcher, /Test-Path -LiteralPath \(Join-Path \$candidate 'src\\display-client\.mjs'\)/)
   // The same two device-local environment files the Unix unit reads, in the same
   // KEY=VALUE format the Shell's .env.local uses.
   assert.match(launcher, /Join-Path \$configDir 'runtime\.env'/)
@@ -63,9 +67,15 @@ test('the voice provisioner states what is missing and installs nothing by defau
   assert.match(provisioner, /\[switch\]\$InstallFfmpeg/)
   assert.match(provisioner, /Join-Path \$RuntimeRoot 'integrations\\personal-bot'/)
   assert.match(provisioner, /Join-Path \(Join-Path \(Join-Path \$RuntimeRoot '\.\.'\) '\.\.'\) 'integrations\\personal-bot'/)
-  assert.match(provisioner, /ffmpeg is missing and was not installed/, 'the host is told rather than left guessing')
+  assert.match(provisioner, /ffmpeg is missing; microphone capture is unavailable; display and keyboard input remain available/)
+  const missingFfmpeg = provisioner.slice(provisioner.indexOf("} elseif (-not (Test-Command 'ffmpeg.exe'))"), provisioner.indexOf('$action ='))
+  assert.doesNotMatch(missingFfmpeg, /exit 1|throw/, 'missing capture dependencies cannot block keyboard display')
   assert.match(provisioner, /Register-ScheduledTask -TaskName \$TaskName/)
   assert.match(provisioner, /personal-bot\.env/)
+  assert.match(provisioner, /src\\display-client\.mjs/)
+  assert.doesNotMatch(provisioner, /src\\main\.mjs|migrate-personal-bot\.mjs|ALIYUNCS_TOKEN/)
+  assert.match(provisioner, /ODK_PERSONAL_AGENT_MAIN_SSH=odk-cm5-agent/)
+  assert.match(provisioner, /Test-Command 'ssh\.exe'/)
   assert.match(provisioner, /local-channel\.token/, 'the channel token is the named pipe\'s gate and is stated')
   // -Report must reach its exit before anything is installed or registered.
   assert.ok(

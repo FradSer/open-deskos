@@ -1,13 +1,13 @@
-import { endpoint as privateEndpoint } from './helpers/private-channel.mjs'
+import { endpoint as privateEndpoint, fixtureToken } from './helpers/private-channel.mjs'
 import { pathToFileURL } from 'node:url'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile, lstat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { connect } from 'node:net'
+import { connect, createServer } from 'node:net'
 
 // main() publishes this placeholder before any configuration stage reports, then publishes one
 // status per configuration stage. A read during startup therefore returns an intermediate report
@@ -15,6 +15,7 @@ import { connect } from 'node:net'
 // stop changing rather than racing `initialize`.
 const STARTUP_PLACEHOLDER = 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service'
 const STABLE_SAMPLES = 3
+const residentRole = { skip: process.platform === 'win32' ? 'Windows runs the CM5 display client; resident startup belongs to CM5' : false }
 
 function readStatus(client, timeout = 2000) {
   return new Promise(resolve => {
@@ -95,6 +96,9 @@ registerHooks({ resolve(specifier, context, next) { if (context.parentURL === ${
 
 test('main prompt wiring forwards the live snapshot callback, bound reply and host owner identity', async () => {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
+  const mainBody=source.slice(source.indexOf('async function main()'))
+  const roleGuard=mainBody.indexOf("if (platform === 'win32') throw Error('Windows must use the CM5 display client')"),migrationStart=mainBody.indexOf('await migratePersonalBotState(env)')
+  assert.ok(roleGuard>=0&&migrationStart>=0&&roleGuard<migrationStart,'Windows refuses the resident before migration or channel creation')
   const wiring = source.match(/prompt:\s*([^\n]+),\n/)[1]
   let received
   const runtime = { agent: { prompt: (...args) => { received = args; return Promise.resolve('done') } } }
@@ -108,23 +112,23 @@ test('main prompt wiring forwards the live snapshot callback, bound reply and ho
   assert.deepEqual(received, ['request', snapshot, undefined, undefined])
 })
 
-test('unconfigured resident stays reachable and reports configuration error', async t => {
+test('unconfigured resident stays reachable and reports configuration error', residentRole, async t => {
   assert.equal((await startupStatus(t)).state, 'error')
 })
 
-test('voice uses the system workspace and advances to transcription configuration', async t => {
+test('voice uses the system workspace and advances to transcription configuration', residentRole, async t => {
   const status = await startupStatus(t, { ODK_WORKSPACE: '/configured/desk-checkout' })
   assert.match(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
 })
 
-test('obsolete bot-specific workspace is not a fallback', async t => {
+test('obsolete bot-specific workspace is not a fallback', residentRole, async t => {
   const status = await startupStatus(t, { ODK_PERSONAL_BOT_WORKSPACE: '/obsolete/checkout' })
   assert.match(status.message, /Set ODK_WORKSPACE /)
 })
 
 // The bridge declares its port once. Deriving the endpoint from that value is what lets a desk drop
 // the second declaration entirely, and an unusable value must never be rounded down to the cloud.
-test('the bridge port alone configures the device-local endpoint without a credential', async t => {
+test('the bridge port alone configures the device-local endpoint without a credential', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_STT_PORT: '17840',
@@ -133,7 +137,7 @@ test('the bridge port alone configures the device-local endpoint without a crede
   assert.doesNotMatch(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
 })
 
-test('an unusable bridge port stops startup instead of reaching a remote endpoint', async t => {
+test('an unusable bridge port stops startup instead of reaching a remote endpoint', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_STT_PORT: 'not-a-port',
@@ -150,7 +154,7 @@ async function keyFile(t) {
   return path
 }
 
-test('plain HTTP loopback STT URL is accepted for device-local speech', async t => {
+test('plain HTTP loopback STT URL is accepted for device-local speech', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
@@ -161,7 +165,7 @@ test('plain HTTP loopback STT URL is accepted for device-local speech', async t 
 
 // The bridge ignores a bearer, so requiring a credential file for it is configuration the device
 // cannot justify. A desk that transcribes through the bridge must start without one.
-test('the device-local loopback bridge needs no STT credential at all', async t => {
+test('the device-local loopback bridge needs no STT credential at all', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_URL: 'http://127.0.0.1:17840/inference',
@@ -170,7 +174,7 @@ test('the device-local loopback bridge needs no STT credential at all', async t 
   assert.doesNotMatch(status.message, /ODK_PERSONAL_BOT_STT_KEY_FILE/)
 })
 
-test('region language tags are rejected with supported language guidance', async t => {
+test('region language tags are rejected with supported language guidance', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
@@ -180,7 +184,7 @@ test('region language tags are rejected with supported language guidance', async
   assert.doesNotMatch(status.message, /zh-CN/)
 })
 
-test('oversize transcription prompts fail startup with safe guidance', async t => {
+test('oversize transcription prompts fail startup with safe guidance', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
@@ -285,11 +289,96 @@ test('a Windows host declares its DirectShow microphone or says what is missing'
   }
 })
 
-test('plain HTTP STT URL outside loopback is rejected', async t => {
+test('plain HTTP STT URL outside loopback is rejected', residentRole, async t => {
   const status = await startupStatus(t, {
     ODK_WORKSPACE: '/configured/desk-checkout',
     ODK_PERSONAL_BOT_STT_KEY_FILE: await keyFile(t),
     ODK_PERSONAL_BOT_STT_URL: 'http://192.168.1.10:17840/inference',
   })
   assert.match(status.message, /ODK_PERSONAL_BOT_STT_URL/)
+})
+
+
+test('Windows display entry keeps text available without a microphone or inference configuration', {
+  skip: process.platform !== 'win32' ? 'Requires the native Windows display entry and private named pipes' : false,
+  timeout: 20000,
+}, async t => {
+  const directory=await mkdtemp(join(tmpdir(),'odk-display-entry-'))
+  const local=privateEndpoint(directory,'display'),upstream=privateEndpoint(directory,'central')
+  const token=fixtureToken,commands=[],frames=[],peers=new Set()
+  let child,client,fixtureError,stderr=''
+  const server=createServer(peer=>{
+    peers.add(peer);peer.on('error',()=>{})
+    let pending=''
+    peer.on('data',chunk=>{
+      pending+=chunk
+      try {
+        let end
+        while((end=pending.indexOf('\n'))>=0) {
+          const command=JSON.parse(pending.slice(0,end));pending=pending.slice(end+1)
+          assert.equal(command.v,1);assert.ok(['status','text'].includes(command.type));commands.push(command)
+          if(command.type==='text') {
+            assert.equal(command.text,'Synthetic central text request')
+            peer.write(JSON.stringify({v:1,type:'text_receipt',requestId:command.requestId,accepted:true})+'\n')
+          }
+          peer.write(JSON.stringify({v:1,type:'status',state:'idle',textInput:true,replyInput:true,
+            transcript:command.type==='text'?command.text:'',message:command.type==='text'?'Synthetic central answer':''})+'\n')
+        }
+      } catch(error){fixtureError=error;peer.destroy()}
+    })
+  })
+  t.after(async()=>{
+    client?.destroy();for(const peer of peers)peer.destroy()
+    if(child&&child.exitCode===null&&child.signalCode===null){const ended=once(child,'close');child.kill('SIGKILL');await ended}
+    if(server.listening)await new Promise(resolve=>server.close(resolve))
+    await rm(directory,{recursive:true,force:true})
+  })
+  server.listen(upstream);await once(server,'listening')
+  const displayUrl=new URL('../src/display-client.mjs',import.meta.url).href
+  const relayUrl=new URL('../src/display-relay.mjs',import.meta.url).href
+  assert.match(await readFile(new URL(displayUrl),'utf8'),/from '\.\/display-relay\.mjs'/)
+  const wrapper=join(directory,'private-relay.mjs'),preload=join(directory,'private-display-hook.mjs')
+  await writeFile(wrapper,`import {createDisplayRelay as actual} from ${JSON.stringify(relayUrl)};
+import {connect} from 'node:net';
+export const createDisplayRelay=options=>actual({...options,endpoint:${JSON.stringify(local)},stateDir:${JSON.stringify(directory)},token:${JSON.stringify(token)},connect:()=>connect(${JSON.stringify(upstream)}),reconnectMs:60000});
+`)
+  await writeFile(preload,`import {registerHooks} from 'node:module';
+registerHooks({resolve(specifier,context,next){
+ if(context.parentURL===${JSON.stringify(displayUrl)}&&specifier==='./display-relay.mjs')return {url:${JSON.stringify(pathToFileURL(wrapper).href)},shortCircuit:true};
+ if(specifier.startsWith('@earendil-works/')||['agent.mjs','transcribe.mjs','jev-client.mjs','judgment-client.mjs'].some(name=>specifier.endsWith('/'+name)))throw Error('Display must not load inference');
+ return next(specifier,context);
+}});
+`)
+  const env={PATH:directory,HOME:directory,USERPROFILE:directory,LOCALAPPDATA:join(directory,'local'),APPDATA:join(directory,'appdata'),
+    SystemRoot:process.env.SystemRoot,WINDIR:process.env.WINDIR,ODK_PERSONAL_AGENT_MAIN_SSH:'odk-cm5-agent'}
+  child=spawn(process.execPath,['--import',pathToFileURL(preload).href,'src/display-client.mjs'],
+    {cwd:new URL('..',import.meta.url),env,stdio:['ignore','ignore','pipe']})
+  child.stderr.on('data',chunk=>{stderr=(stderr+chunk).slice(0,2000)})
+  const deadline=Date.now()+10000
+  while(!client&&Date.now()<deadline&&child.exitCode===null) {
+    client=await new Promise(resolve=>{const peer=connect(local);peer.once('error',()=>{peer.destroy();resolve(undefined)});peer.once('connect',()=>resolve(peer))})
+    if(!client)await new Promise(resolve=>setTimeout(resolve,25))
+  }
+  assert.ok(client,'private display entry should start without microphone or provider configuration: '+stderr)
+  let pending=''
+  client.on('data',chunk=>{try{pending+=chunk;let end;while((end=pending.indexOf('\n'))>=0){frames.push(JSON.parse(pending.slice(0,end)));pending=pending.slice(end+1)}}catch(error){fixtureError=error}})
+  client.write(JSON.stringify({v:1,token})+'\n'+JSON.stringify({v:1,type:'status'})+'\n')
+  async function waitFor(predicate) {
+    const end=Date.now()+5000
+    while(!frames.some(predicate)){if(fixtureError)throw fixtureError;assert.equal(child.exitCode,null,stderr);assert.ok(Date.now()<end,'display frame deadline');await new Promise(resolve=>setTimeout(resolve,10))}
+    return frames.find(predicate)
+  }
+  await waitFor(frame=>frame.type==='status'&&frame.state==='idle'&&frame.textInput===true)
+  const requestId='11111111-1111-4111-8111-111111111111'
+  client.write(JSON.stringify({v:1,type:'text',requestId,text:'Synthetic central text request'})+'\n')
+  assert.equal((await waitFor(frame=>frame.type==='text_receipt'&&frame.requestId===requestId)).accepted,true)
+  assert.equal((await waitFor(frame=>frame.message==='Synthetic central answer')).transcript,'Synthetic central text request')
+  assert.equal(commands.filter(command=>command.type==='text').length,1)
+  assert.equal(stderr,'','the display did not load forbidden provider or recording paths')
+  await assert.rejects(lstat(join(env.LOCALAPPDATA,'odk','display-captures')),{code:'ENOENT'},'no recording was started')
+  const resident=spawn(process.execPath,['src/main.mjs'],{cwd:new URL('..',import.meta.url),env,stdio:['ignore','ignore','pipe']})
+  let refusal='';resident.stderr.on('data',chunk=>{refusal=(refusal+chunk).slice(0,2000)})
+  t.after(async()=>{if(resident.exitCode===null&&resident.signalCode===null){const ended=once(resident,'close');resident.kill('SIGKILL');await ended}})
+  const [code]=await once(resident,'close')
+  assert.equal(code,1);assert.match(refusal,/Personal Bot startup failed; check runtime directory and configuration/)
 })

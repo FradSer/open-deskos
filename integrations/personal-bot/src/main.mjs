@@ -1,9 +1,12 @@
+import { cleanStaleCaptures } from './capture-cleanup.mjs'
+import { createConversationProjection } from './conversation-projection.mjs'
+import { createRemoteVoice } from './remote-voice.mjs'
 import {createOptionalJevHealthCheck} from './judgment-client.mjs'
 import { createPersonalBotComposition, loadPersonalBotPluginConfig } from './plugin-composition.mjs'
 import { loadPersonalBotReplacements } from './development-plugins.mjs'
 import { parseArgs } from 'node:util'
 import { migratePersonalBotState, personalBotEnvironment } from './personal-bot-migration.mjs'
-import { readdir, rm, access } from 'node:fs/promises'
+import { realpath, access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createPersonalBot } from './agent.mjs'
 import { record } from './recorder.mjs'
@@ -128,13 +131,15 @@ async function main() {
       validated: values.plugins === 'validate', plugins: inspection.catalog() }))
     return
   }
+  if (platform === 'win32') throw Error('Windows must use the CM5 display client')
   await migratePersonalBotState(env)
   // The voice link is a runtime channel, so the host's own naming decides where it
   // is bound: a socket in the runtime directory, or the personal-bot named pipe
   // that a channel token authenticates.
   const endpoint = personalBotEndpoint(env, platform)
   if (!endpoint) throw Error('Runtime directory required')
-  const directory = (await prepareHostDirectories(env, platform)).captures
+  const directories = await prepareHostDirectories(env, platform)
+  const directory = await realpath(directories.captures)
   let runtime
   let watch
   let home
@@ -158,17 +163,26 @@ async function main() {
       service.setState('error', 'Configure Open DeskOS workspace, STT credential and Pi authentication; restart service')
       const originalToggle = service.toggle.bind(service)
       service.toggle = async () => { if (runtime) await originalToggle() }
+      if (typeof service.reserveRemoteRecording === 'function') {
+        const originalReserve = service.reserveRemoteRecording.bind(service)
+        service.reserveRemoteRecording = (recording, requestStop) => Boolean(runtime) && originalReserve(recording, requestStop)
+      }
       return service
     },
     async openChannel(service) {
-      const server = await listen(endpoint, service, { platform, tokenFile: channelTokenFile(env, platform), runtimeSnapshot: () => composition.catalog() })
+      await cleanStaleCaptures(directory)
+      const conversation = await createConversationProjection({ file: join(directories.state, 'conversation-public.json') })
+      const remoteVoice = typeof service.reserveRemoteRecording === 'function' && typeof service.cancelRemoteRecording === 'function'
+        ? createRemoteVoice({ service, directory }) : undefined
+      const unsubscribe = service.subscribe(status => { if (!service.closed) conversation.observe(status) })
+      let server
+      try { server = await listen(endpoint, service, { conversation, remoteVoice, platform, tokenFile: channelTokenFile(env, platform), runtimeSnapshot: () => composition.catalog() }) } catch (error) { unsubscribe(); await remoteVoice?.close(); throw error }
       return {
-        close: () => server.close(),
-        async prepare() {
-          for (const name of await readdir(directory)) {
-            if (name.startsWith('capture-')) await rm(join(directory, name), { recursive: true, force: true })
-          }
+        async close() {
+          unsubscribe()
+          try { await server.close() } finally { await conversation.close() }
         },
+
       }
     },
     initialize: (service, context) => initialize(env, message => service.setState('error', message), notifyRide, platform, () => watch, context.signal, tasks => service.publishAgents(tasks), frame => service.publishRemote(frame)),

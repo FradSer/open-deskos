@@ -66,3 +66,12 @@ Feature: Independent CM5 personal bot service deployment
     And the Personal Bot reports its needs-configuration or unavailable state truthfully
     And voice configuration is read only from a device-local environment file
     And coding uses an explicitly provisioned writable checkout outside immutable releases
+
+  Scenario: Windows runs a display client for the central Personal Agent
+    Given the operator has paired the dedicated odk-cm5-agent SSH alias
+    When OdkPersonalBot starts in the interactive Windows session
+    Then it starts display-client.mjs without a local Personal Agent or model fallback
+    And only the fixed alias and microphone settings enter the display configuration
+    And provider credentials and local agent migration are not required
+    And a missing entry, SSH executable, or invalid alias prevents registration
+    And missing microphone capture dependencies do not block keyboard display

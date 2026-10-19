@@ -1,4 +1,28 @@
 Feature: Resident push-to-talk coding agent
+  Scenario: A display records only after the central service reserves its turn
+    Given local and display microphones share one central owner turn
+    When a display requests recording through its authenticated connection
+    Then the service synchronously reserves one connection-bound recording lease
+    And the display starts capture only after its matching start receipt
+    And another display or local typed turn cannot acquire that turn
+    And any owner's stop action requests the recording source to finish without awaiting uploaded audio
+
+  Scenario: Central transcription requires a complete bounded recording
+    Given an accepted display recording lease
+    When its ordered audio chunks and final frame arrive
+    Then only a complete PCM16 WAV at 16000 Hz with one channel reaches transcription
+    And audio stays within sixty seconds and each base64 chunk within 2048 characters
+    And transcription and inference run only on the central service
+    And invalid audio, expired leases and pre-handoff disconnects cancel without transcription or inference
+    And temporary recordings are private and removed after use
+
+  Scenario: Display reconnects never replay a spoken turn
+    Given a lost start receipt or a disconnected recording source
+    When a late receipt or an old lease arrives
+    Then no new recording or upload starts from that receipt
+    And an old connection cannot cancel another connection's recording
+    And an admitted central turn continues after handoff without automatic resubmission
+
   Scenario: Toggle records then submits speech once
     Given an idle resident agent and an available recorder
     When toggle starts recording and toggle stops recording
@@ -166,3 +190,10 @@ Feature: Resident push-to-talk coding agent
     And only the fixed executable is sent as the remote command with JSON on stdin
     And invalid hosts or executable paths are rejected before spawning
     And an uncertain send failure explicitly forbids automatic retry to avoid duplicate delivery
+
+  Scenario: A restart removes only private recorder directories before voice admission
+    Given a previous process left local or remote temporary audio in the private capture directory
+    When the resident opens its channel
+    Then it removes only recorder-owned private directories before admitting a new recording
+    And it preserves unrelated entries and refuses symbolic links
+    And missing Agent configuration cannot grant a remote recording lease
