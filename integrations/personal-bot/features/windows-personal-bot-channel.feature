@@ -110,3 +110,10 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     When the actual display client and relay modules are imported
     Then both use the installed Shell platform and channel modules
     And no resident agent, microphone capture or network connection starts
+
+  Scenario: The forced bridge starts through the active release symlink
+    Given the CM5 forced command names the current release symlink
+    When the actual bridge entry starts with SSH input still open
+    Then it connects only to the resident owner's fixed socket
+    And a read-only status request and response pass through the bridge
+    And importing the bridge does not start a connection
