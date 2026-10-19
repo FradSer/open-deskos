@@ -1,13 +1,13 @@
 import { mkdir, lstat, realpath } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createRequire } from 'node:module'
+import { loadShellModule } from './plugin-composition.mjs'
 import { createWindowsPrivatePaths } from './proactive-private-windows.mjs'
 import { channelTokenFile } from './channel-token.mjs'
 import { createDisplayRelay } from './display-relay.mjs'
 import { createDisplayVoice } from './display-voice.mjs'
 import { record } from './recorder.mjs'
-const { resolveShellHost } = createRequire(import.meta.url)('../../../runtime/shell/src/platform/index.js')
+const { resolveShellHost } = loadShellModule('platform/index.js', import.meta.url)
 
 export async function startDisplayClient(env = process.env, platform = process.platform) {
   if (platform !== 'win32' || !env.LOCALAPPDATA || env.ODK_PERSONAL_AGENT_MAIN_SSH !== 'odk-cm5-agent') throw Error('Windows CM5 display configuration required')

@@ -103,3 +103,10 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     And the resident entry refuses Windows before migration or channel creation
     And resident startup checks report an explicit Windows role skip
     And extracted configuration checks still run on each host
+
+  Scenario: The central display modules load from a flattened release
+    Given the current Personal Bot sources and Shell modules in the release layout
+    And the release has no repository runtime/shell directory
+    When the actual display client and relay modules are imported
+    Then both use the installed Shell platform and channel modules
+    And no resident agent, microphone capture or network connection starts
