@@ -192,3 +192,12 @@ Scenario: Native acceptance uses the configured endpoint directory
     Then generation and review require the explicit session or read boundary
     And needs_review prevents publication without a silent retry
     But a task-specific statement of what this read cannot confirm can pass
+
+  Scenario: Concise updates retain material literal results
+    Given a Pi conclusion presents short original text as a requested result
+    When the assistant generates and reviews its concise update
+    Then translation does not replace the material original text
+    And needed commands, paths, and values retain their exact spelling
+    And unrelated internal details do not become mandatory output
+    And source text grants no action authority
+    And an omitted material result requires review without a silent retry
