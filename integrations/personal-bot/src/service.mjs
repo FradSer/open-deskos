@@ -188,9 +188,7 @@ export class PersonalBotService {
       })
       if (this.closed) { await this.discard(); return }
       this.setState('recording')
-      void this.recording.done.then(() => { if (captureId === this.captureId) return this.finish() }, () => {
-        if (!this.closed && captureId === this.captureId && this.status.state === 'recording') this.pending = this.failCapture()
-      })
+      this.observeRecording(this.recording,captureId)
     } catch {
       if (!this.closed) this.setState('error', 'Microphone unavailable')
     } finally {
@@ -199,6 +197,45 @@ export class PersonalBotService {
       if (['idle', 'error'].includes(this.status.state) && this.pendingNotifications.length) this.setState(this.status.state, this.status.message)
       this.watch?.setBusy(!['idle', 'error'].includes(this.status.state))
     }
+  }
+
+  observeRecording(recording,captureId) {
+    void recording.done.then(() => {
+      if(this.closed || captureId!==this.captureId || this.recording!==recording)return
+      if(this.remoteRecording?.recording===recording)this.remoteRecording=undefined
+      return this.finish()
+    },() => {
+      if(!this.closed && captureId===this.captureId && this.status.state==='recording')this.pending=this.failCapture()
+    })
+  }
+
+  /** Reserve synchronously before a remote display receives capture permission. */
+  reserveRemoteRecording(recording,requestStop) {
+    if(this.closed || this.starting || this.watch?.responding || !['idle','error'].includes(this.status.state))return false
+    this.replyFrame={}
+    this.recording=recording
+    this.remoteRecording={recording,requestStop}
+    this.watch?.setBusy(true)
+    this.setState('recording','','')
+    this.observeRecording(recording,++this.captureId)
+    return true
+  }
+
+  cancelRemoteRecording(recording) {
+    if(this.recording!==recording || this.remoteRecording?.recording!==recording)return Promise.resolve(false)
+    this.captureId++
+    this.remoteRecording=undefined
+    this.starting=true
+    const cancellation=(async()=>{
+      const cleaned=await this.discard()
+      if(!cleaned)this.recording=recording
+      this.starting=!cleaned
+      if(!this.closed)this.setState('error',cleaned?'Recording cancelled':'Recording cleanup failed')
+      this.watch?.setBusy(!cleaned)
+      return cleaned
+    })()
+    this.pending=cancellation.then(()=>{})
+    return cancellation
   }
 
   async failCapture() {
@@ -210,6 +247,10 @@ export class PersonalBotService {
 
   finish() {
     if (this.closed || this.status.state !== 'recording') return this.pending
+    if(this.remoteRecording) {
+      try{this.remoteRecording.requestStop()}catch{this.pending=this.cancelRemoteRecording(this.recording).then(()=>{})}
+      return this.pending
+    }
     this.setState('transcribing')
     this.pending = this.submit()
     return this.pending
@@ -323,6 +364,7 @@ export class PersonalBotService {
   async discard() {
     const recording = this.recording
     this.recording = undefined
+    if(this.remoteRecording?.recording===recording)this.remoteRecording=undefined
     try {
       await recording?.cleanup()
       return true

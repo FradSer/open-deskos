@@ -1,4 +1,28 @@
 Feature: Resident push-to-talk coding agent
+  Scenario: A display records only after the central service reserves its turn
+    Given local and display microphones share one central owner turn
+    When a display requests recording through its authenticated connection
+    Then the service synchronously reserves one connection-bound recording lease
+    And the display starts capture only after its matching start receipt
+    And another display or local typed turn cannot acquire that turn
+    And any owner's stop action requests the recording source to finish without awaiting uploaded audio
+
+  Scenario: Central transcription requires a complete bounded recording
+    Given an accepted display recording lease
+    When its ordered audio chunks and final frame arrive
+    Then only a complete PCM16 WAV at 16000 Hz with one channel reaches transcription
+    And audio stays within sixty seconds and each base64 chunk within 2048 characters
+    And transcription and inference run only on the central service
+    And invalid audio, expired leases and pre-handoff disconnects cancel without transcription or inference
+    And temporary recordings are private and removed after use
+
+  Scenario: Display reconnects never replay a spoken turn
+    Given a lost start receipt or a disconnected recording source
+    When a late receipt or an old lease arrives
+    Then no new recording or upload starts from that receipt
+    And an old connection cannot cancel another connection's recording
+    And an admitted central turn continues after handoff without automatic resubmission
+
   Scenario: Toggle records then submits speech once
     Given an idle resident agent and an available recorder
     When toggle starts recording and toggle stops recording

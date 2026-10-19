@@ -15,6 +15,30 @@ function fixture(overrides = {}) {
   return { service, calls }
 }
 
+test('a remote recording reserves the shared turn and stop requests do not wait for upload',async()=>{
+ let ready,stops=0,cleanups=0,transcriptions=0,prompts=0,localRecords=0
+ const recording={done:new Promise(resolve=>{ready=resolve}),stop:async()=> 'remote.wav',cleanup:async()=>{cleanups++}}
+ const {service}=fixture({record:async()=>{localRecords++;throw Error('No local capture')},transcribe:async()=>{transcriptions++;return 'Remote speech'},prompt:async()=>{prompts++;return 'Central answer'}})
+ assert.equal(service.reserveRemoteRecording(recording,()=>{stops++}),true)
+ assert.equal(service.status.state,'recording');assert.equal(service.sendText('Concurrent input'),false)
+ assert.equal(service.reserveRemoteRecording(recording,()=>{}),false)
+ await service.toggle();assert.equal(stops,1);assert.equal(transcriptions,0);assert.equal(service.status.state,'recording');assert.equal(localRecords,0)
+ ready();await new Promise(resolve=>setImmediate(resolve));await service.pending
+ assert.equal(transcriptions,1);assert.equal(prompts,1);assert.equal(cleanups,1);assert.equal(service.status.state,'idle');assert.equal(service.status.message,'Central answer');await service.close()
+})
+
+test('remote capture cancellation rejects stale identities and prevents late transcription',async()=>{
+ let ready,cleanups=0,transcriptions=0
+ const recording={done:new Promise(resolve=>{ready=resolve}),stop:async()=> 'cancelled.wav',cleanup:async()=>{cleanups++}}
+ const {service}=fixture({transcribe:async()=>{transcriptions++;return 'must not run'}})
+ service.reserveRemoteRecording(recording,()=>{})
+ assert.equal(await service.cancelRemoteRecording({}),false);assert.equal(service.status.state,'recording')
+ assert.equal(await service.cancelRemoteRecording(recording),true);assert.equal(cleanups,1)
+ ready();await new Promise(resolve=>setImmediate(resolve));assert.equal(transcriptions,0)
+ await service.toggle();assert.equal(service.status.state,'recording');assert.equal(await service.cancelRemoteRecording(recording),false)
+ await service.close()
+})
+
 test('child activity stays separate from conversation state and clears during service shutdown', async () => {
   const { service } = fixture()
   service.setState('thinking', 'Current reply', 'Current request')
