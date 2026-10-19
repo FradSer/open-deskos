@@ -1,4 +1,4 @@
-const allowed = new Set(['path', 'home', 'userprofile', 'homedrive', 'homepath', 'systemroot', 'windir', 'temp', 'tmp', 'ssh_auth_sock'])
+const allowed = new Set(['path', 'home', 'userprofile', 'homedrive', 'homepath', 'systemroot', 'windir', 'programdata', 'temp', 'tmp', 'ssh_auth_sock'])
 
 /** Keep provider and application settings out of SSH's configurable SendEnv.
  * @param {NodeJS.ProcessEnv} [source]
