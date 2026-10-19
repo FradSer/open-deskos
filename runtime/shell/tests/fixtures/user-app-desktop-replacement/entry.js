@@ -6,7 +6,7 @@
       provides: [{ interface: 'odk:system/user-app-desktop/v1' }], requires: [], permissions: [] },
     create() {
       return { ports: { 'odk:system/user-app-desktop/v1': { mount(options) {
-        const { track, layout, status, onPagesChanged, onCatalogChanged } = options
+        const { track, layout, status, onPagesChanged, onCatalogChanged, onReturnHome } = options
         let records = []
         let sequence = 0, released = false, received = false
         const destination = app => {
@@ -41,7 +41,10 @@
           }
           try {
             record.surface = root.odkUserAppFrame.mount(element, { ...app,
-              url: 'odk-user-app://app/' + encodeURIComponent(app.id) + '/' + encodeURIComponent(app.revision), onError: fail })
+              url: 'odk-user-app://app/' + encodeURIComponent(app.id) + '/' + encodeURIComponent(app.revision), onError: fail,
+              ...(!widget && typeof onReturnHome === 'function' ? { onReturnHome: () => {
+                if (current() && element.dataset.state === 'ready') onReturnHome(element)
+              } } : {}) })
             if (widget) { record.surface.frame.inert = true; record.surface.frame.setAttribute('tabindex', '-1') }
             record.surface.ready.then(() => {
               if (current()) { element.dataset.state = 'ready'; note.hidden = true }

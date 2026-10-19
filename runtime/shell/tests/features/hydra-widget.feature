@@ -101,8 +101,10 @@ Feature: Hydra plant and environment widget on the Home grid
     And the main node reports temperature, humidity, pressure and lux
     When the Hydra widget refreshes
     Then both plant rows show their soil percentage and watering state
-    And the environment section renders stacked instrument rows with the label above a large tabular reading
-    And the header sits at the top edge of the tile while the readings breathe evenly below it
+    And the watering plant states its condition in words beside its moisture rail
+    And the environment section renders four equal readout rows with the label above a large tabular reading
+    And the plant band sits below the readout rows, separated from them by the shared stroke
+    And every moisture rail draws its fill on a visible track
     And the live badge renders as a quiet outlined live-state pill
     And the widget states a live data status
 
@@ -206,6 +208,7 @@ Feature: Hydra plant and environment widget on the Home grid
     Then the meter scales from its left edge to match the displayed reading
     And its layout width stays equal to the track width
     And reduced motion disables the meter transition
+    And the watering texture follows the semantic primary color of the active theme
 
   Scenario: Signed source activation preserves actual Main and preload consumers
     Given actual Main runs a signed Hydra source with an isolated loopback MQTT broker
@@ -235,3 +238,9 @@ Feature: Hydra plant and environment widget on the Home grid
     Then each child watchdog allows the fixture to finish and release resources
     And the parent budget covers all four children and setup
     And other hosts retain their existing budgets
+
+  Scenario: Wide Pixel panels use the larger environment reading
+    Given a tall Hydra panel has at least 280 pixels of content width
+    When the Pixel theme renders its environment readings
+    Then the readings use the larger 40-pixel size
+    And a narrower panel retains its 32-pixel limit without clipping

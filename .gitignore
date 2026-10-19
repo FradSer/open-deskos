@@ -597,3 +597,9 @@ research/esp32-p4-c6-deskos/apple/OpenDeskOS/Resources/plugins/wispr/bun
 !integrations/remote-bridge/bin/odk-remote-bridge.js
 
 /runtime/shell/src/renderer/themes/liquid-glass-sdk.js
+
+# Android host tool state (runtime/android/). Build trees are covered by the
+# blanket build/ rule above.
+runtime/android/.gradle/
+runtime/android/.kotlin/
+runtime/android/local.properties

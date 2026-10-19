@@ -75,17 +75,33 @@ Feature: Weather instrument on the Home grid
     And a later ordinary refresh cannot suppress an explicitly forced refresh
 
 
-  Scenario: A place-led instrument separates the reading from its supporting sky
+  Scenario: A place-led instrument separates the reading from its supporting group
     Given the Home grid shows weather for Shenzhen
     When the tile renders in Instrument, Pixel, or Border Beam
     Then the header names Shenzhen instead of repeating Weather
     And a successful reading has no Live label or refresh time
-    And the current temperature leads on the left with a smaller sky glyph on the right
-    And the condition is directly below the reading
-    And Low and High are separate equal columns with labels above their values
-    And the unit stays attached to the temperature
+    And the current temperature holds its own row under the header, with its unit attached
+    And the condition and the sky it names share one supporting row below the reading
+    And the daily range is one high-first pair with H: and L: beside their values
+    And the supporting row takes the tile's width so the reading is not left in a corner
     And the tile remains display-only
     And its weather condition is discoverable through the shared Widget state role
+
+  Scenario: A compact cell keeps the same composition at smaller type
+    Given the Home grid gives the Weather tile a cell whose inner width is 220 pixels or less
+    When the tile renders in any state
+    Then the place steps down to the caption floor while the condition keeps the data floor
+    And the sky steps down to one whole unit of the pixel set
+    And the range values step down with the cell
+    And the condition, the sky and the range stay on the tile's own supporting row
+    And the reading stays above them without overlapping
+
+  Scenario: A long place and an outage cannot overlap the reading
+    Given a source publishes a twenty-column place while no reading is available
+    When the tile renders in a cell whose inner width is 220 pixels or less
+    Then the place takes at most two lines and keeps its complete value in the element
+    And the reading keeps a floor of its own row instead of collapsing into the condition
+    And the condition and the range stay inside the tile
 
   Scenario: The redesigned instrument survives extreme readings and long places
     Given a source publishes a negative or three-digit temperature and a bounded English or CJK place
@@ -205,7 +221,8 @@ Feature: Weather instrument on the Home grid
   Scenario: The daily range treats both values alike
     Given the tile renders the daily high and low
     When the range row is inspected
-    Then both labels take the supporting role and both values take the primary role
+    Then the pair reads high then low as one line
+    And both labels take the supporting role and both values take the primary role
     And no half of the pair carries an emphasis the other half lacks
 
   Scenario: The unit sits on the reading's baseline
@@ -297,3 +314,9 @@ Feature: Weather instrument on the Home grid
     And source-only revision fixtures retain their 45 second watchdog
     And each readiness check retains its four second deadline
     And other hosts retain their existing aggregate deadlines
+
+  Scenario: The primary temperature keeps its readable floor
+    Given the weather reading has a constrained vertical lane
+    When the active theme calculates the primary temperature size
+    Then the primary reading remains at least 14 pixels
+    And supporting captions retain their separate readable floor

@@ -211,11 +211,19 @@
    without the denser content escaping the cell it is drawn in. The ramp is
    cell-driven like every other type in this tile, so it is the cell that decides
    the size and never the width of the window. */
-[data-theme='pixel'] .hydra-env-value,
-[data-theme='pixel'] .hydra-plant-soil {
+[data-theme='pixel'] .hydra-env-value {
   /* Zpix digits; sized to keep the narrow cell inside its frame.
      Bitmap faces keep zero tracking so glyphs stay on the pixel grid. */
-  font-size: clamp(14px, 20cqi, 28px);
+  font-size: clamp(14px, 20cqi, 32px);
+  line-height: 1;
+  letter-spacing: normal;
+}
+
+/* Zpix sets a digit wider than Montserrat's, so the plant reading takes the
+   narrower ramp the instrument theme gives it: the row still has to carry the
+   plant, its condition and its reading. */
+[data-theme='pixel'] .hydra-plant-soil {
+  font-size: clamp(14px, 12cqi, 26px);
   line-height: 1;
   letter-spacing: normal;
 }
@@ -224,10 +232,13 @@
   font-size: clamp(12px, 11cqi, 24px);
 }
 
-@container (min-width: 300px) {
-  [data-theme='pixel'] .hydra-env-value,
+@container (min-width: 280px) {
+  [data-theme='pixel'] .hydra-env-value {
+    font-size: clamp(14px, 20cqi, 40px);
+  }
+
   [data-theme='pixel'] .hydra-plant-soil {
-    font-size: clamp(14px, 20cqi, 36px);
+    font-size: clamp(14px, 12cqi, 32px);
   }
 }
 
@@ -240,20 +251,12 @@
   font-size: clamp(12px, 8cqi, 18px);
 }
 
-[data-theme='pixel'] .hydra-env {
-  gap: 1cqi;
-}
-
-[data-theme='pixel'] .hydra-env-label {
-  font-size: clamp(12px, 4cqi, 16px);
-}
-
 [data-theme='pixel'] .hydra-env-label {
   font-size: clamp(12px, 5.5cqi, 18px);
 }
 
 [data-theme='pixel'] .hydra-meter {
-  height: 2.5cqi;
+  height: clamp(3px, 4cqi, 12px);
 }
 
 [data-theme='pixel'] .hydra-meter-fill {
@@ -279,7 +282,7 @@
    follows resize and theme changes immediately, without a timer or inline sizes. */
 [data-theme='pixel'] .w-weather-content {
   --w-weather-reading: 38cqi;
-  --w-weather-glyph: round(nearest, clamp(48px, 24cqi, 72px), 24px);
+  --w-weather-glyph: round(nearest, clamp(24px, 20cqi, 48px), 24px);
 }
 
 [data-theme='pixel'] .w-weather-value,
@@ -296,8 +299,10 @@
   height: max(24px, round(down, min(var(--w-weather-glyph), 100cqb), 24px));
 }
 
-@container (max-width: 200px) {
+@container (max-width: 220px) {
   [data-theme='pixel'] .w-weather-content {
     --w-weather-reading: 32cqi;
+    /* One grid unit of the pixel set: a stepped-down sky still lands on whole units. */
+    --w-weather-glyph: 24px;
   }
 }

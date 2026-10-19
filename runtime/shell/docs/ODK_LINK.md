@@ -116,6 +116,66 @@ A **Hosted Pi** is a Pi coding session the desk hosts. A **Console**, a Pi sessi
 - **Refusals are explicit.** A protocol version the desk does not accept is refused with the mismatch named; a Pi host that is down or a stale host socket produces a failure that names the reason instead of waiting.
 - **Unconfigured stays unchanged.** With no Control Credential configured, a machine behaves exactly as a reporting-only machine does today, in every scenario.
 
+## Personal Agent link
+
+An Android Shell Host reads the desk's Personal Agent over the same listener and the same port. The phone opens one outbound connection, so the desk opens no new inbound port and the phone opens no listener.
+
+The desk owns generation. The resident Personal Bot produces every briefing, reply and notification. A phone holds no generator and no fixture, so every frame it shows came from the desk.
+
+### Reading
+
+The phone holds the report token. Its first record is:
+
+```json
+{"v":1,"type":"personal-agent-hello","machine":"<phone>","sessionId":"<random per connection>","token":"<report token>"}
+```
+
+The desk answers `{"v":1,"type":"personal-agent-ready"}` and then one frame. Each later change arrives as:
+
+```json
+{"v":1,"type":"personal-agent","development":false,"frame":{"state":"idle","transcript":"…","message":"…"}}
+```
+
+The frame keeps the public fields used by the shared renderer. These include `conversation`, `ownerTurnId`, `replyTo`, `threadId`, `judgment`, `textInput` and `replyInput`. The conversation remains a read-only projection of CM5 history. It grants no dispatch authority. Android sets `voiceInput` to `false`. One frame must fit within 128 KiB.
+
+A refused token answers `{"v":1,"type":"error","reason":"token refused"}` and the desk closes the connection.
+
+The `development` flag is true only while the desk's development frame source is selected. The phone shows that flag, so a reviewed state is never presented as personal activity.
+
+### Submitting an owner turn
+
+The phone needs the Control Credential to submit. Personal Agent control uses role version 2. Reporting frames remain version 1. Console protocols do not change.
+
+The phone serializes the first control frame once:
+
+```json
+{"v":2,"type":"personal-agent-control","machine":"<phone>","sessionId":"<same value>","requestId":"<id>","text":"<owner turn>","replyTo":{"messageId":"<id>","sourceKey":"<key>","sourceRevision":"<revision>"}}
+```
+
+`replyTo` is optional. Its three fields must match the displayed source exactly. The desk applies the resident's existing reply identity and unresolved-delivery gates.
+
+Both sides hash the exact UTF-8 bytes before the LF delimiter. Neither side serializes the parsed object to calculate this hash. A CR before LF remains part of the signed bytes. The desk stores the validated first command and returns:
+
+```json
+{"v":2,"type":"challenge","requestId":"<id>","nonce":"<hex>","firstFrameSHA256":"<sha256>","algorithm":"hmac-sha256","domain":"odk-personal-agent-control-v2"}
+```
+
+The phone checks the request identifier and digest against its original bytes. It signs `odk-personal-agent-control-v2\n2\n${nonce}\n${firstFrameSHA256}` with HMAC-SHA256. Its second frame contains only:
+
+```json
+{"v":2,"type":"personal-agent-submit","requestId":"<id>","proof":"<hmac>"}
+```
+
+The desk dispatches only the stored first command. It refuses extra fields, changed identifiers, invalid references and expired proofs. A nonce expires after ten seconds. A submission consumes its nonce even when validation fails. An old Personal Agent control role cannot fall back to mutation.
+
+The receipt remains `{"v":1,"type":"personal-agent-receipt","requestId":"<id>","accepted":true}`. This receipt confirms resident input acceptance, not remote Pi admission or task completion. A lost receipt must not trigger an automatic replay.
+
+The credential is not transmitted. Content and the report token remain plaintext. Use a trusted network or a separately configured secure transport. The development frame source refuses bound replies that it cannot establish.
+
+The desk lists phone connections separately from reporting machines. Reading phones cannot change reported Pi session metadata.
+
+[tests/fixtures/personal-agent-v1.json](../tests/fixtures/personal-agent-v1.json) owns the read frames and Personal Agent role version 2 examples.
+
 ## Existing-session discovery
 
 The reporting package also reads the machine's bounded `directory-sessions` metadata registry every five seconds. This makes pre-existing Working, Settled, and Exited sessions available even when those individual processes did not load the package. It does not read session histories or authentication files. Current in-process events remain separate; discovered sessions without reported events say so rather than fabricating a stream. At least one configured reporter must be running and connected.

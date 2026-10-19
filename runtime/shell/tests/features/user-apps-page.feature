@@ -148,3 +148,10 @@ Feature: Installed packages belong on the desktop
     And offscreen rendering supplies frames without showing the window
     And Linux uses isolated software rendering
     And catalog, frame state, recovery, shutdown, and deadline assertions remain required
+
+  Scenario: Independent desktop composition keeps App return callbacks current
+    Given trusted independent desktop composition mounts an installed App and Widget
+    When the App becomes ready and its frame requests Home
+    Then the current App can request the fixed return action
+    And a replaced or disposed App cannot request the action
+    And the display-only Widget receives no return callback

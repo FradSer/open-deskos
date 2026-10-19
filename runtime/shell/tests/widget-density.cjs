@@ -149,7 +149,13 @@ async function measureSize(win, width, height) {
       'odk.tile.weather': WEATHER_PROFILE,
       'odk.tile.pomodoro': { target: 0.42, tolerance: 0.14, minOccupied: 0.15, maxEmptyBand: 0.36 },
       'odk.tile.almanac': { target: 0.58, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.28 },
-      'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.07, maxEmptyBand: 0.35 },
+      // Hydra: a tall instrument panel of four equal readout rows and a plant band,
+      // each reading in its own row instead of four figures spread across the slot.
+      // Measured on 2026-10-19 with the live and unavailable fixtures: 77.7% fill /
+      // 14.9% occupied / 8.9% empty at 1920x1280, and 77.1 / 15.6 / 9.1 at the three
+      // compact sizes. The occupied floor guards the panel itself: a shape that
+      // drops the readout rows or the plant band falls below it.
+      'odk.tile.hydra': { target: 0.75, tolerance: 0.18, minOccupied: 0.12, maxEmptyBand: 0.35 },
       // The wide 2x2 tile measures 23.9% at 1920x1280; keep the existing
       // 44% centre while including that verified edge without hiding sparsity.
       // Below the 217px cell the tile declared it reads at, it drops its summary

@@ -41,7 +41,7 @@ function readersByFile() {
       reader.lastIndex = 0
       let match
       while ((match = reader.exec(source))) {
-        if (['ODK_CDC_DRAIN_TIMEOUT', 'ODK_LINK_CONTROL_PROTOCOL'].includes(match[1])) continue // Error code or wire version, not an environment setting.
+        if (['ODK_CDC_DRAIN_TIMEOUT', 'ODK_LINK_CONTROL_PROTOCOL', 'ODK_LINK_PROTOCOL'].includes(match[1])) continue // Error code or wire version, not an environment setting.
         if (match[1].endsWith('_')) continue // Migration namespace prefixes are not settings.
         if (!found.has(match[1])) found.set(match[1], new Set())
         found.get(match[1]).add(path.relative(REPO_ROOT, file))

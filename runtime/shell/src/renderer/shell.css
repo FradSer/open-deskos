@@ -2974,6 +2974,8 @@ body.kiosk {
   align-items: center;
   gap: 3cqi;
   flex-wrap: wrap;
+  padding-block-end: 2cqi;
+  border-bottom: 1px solid var(--odk-stroke);
 }
 
 .hydra-head svg {
@@ -3016,22 +3018,36 @@ body.kiosk {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-evenly;
-  gap: 1cqi;
+  /* In the tall slot the readings own their share of the panel instead of being
+     spread across it: four equal readout rows state one instrument, and the air
+     around a reading is that row's own height rather than a gap between four
+     unrelated figures. */
+  justify-content: flex-start;
+  gap: 0;
 }
 
 .hydra-env-cell {
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.5cqi;
   min-width: 0;
 }
 
+.hydra-env-cell + .hydra-env-cell {
+  border-top: 1px solid var(--odk-stroke);
+}
+
 .hydra-env-label {
-  flex: 0 0 34%;
+  /* The label is a caption above its reading, so it takes its own height: a share
+     of the row would space the pair apart in a column and let the two themes
+     disagree about where the reading sits. */
+  flex: none;
   color: var(--odk-secondary-strong);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 5.5cqi, 20px);
+  font-size: clamp(12px, 6.5cqi, 20px);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -3047,8 +3063,10 @@ body.kiosk {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   /* A reading is held to the data floor: a cell narrower than the floor yields a
-     larger reading, never a smaller one. */
-  font-size: clamp(14px, 8cqi, 28px);
+     larger reading, never a smaller one. In the tall slot the reading carries the
+     panel, so it grows with the cell until it reaches the hero scale the Home grid
+     uses for its own instruments. */
+  font-size: clamp(14px, 11cqi, 44px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -3063,13 +3081,17 @@ body.kiosk {
 .hydra-plants {
   display: flex;
   flex-direction: column;
-  gap: 1.5cqi;
+  gap: 2.5cqi;
+  /* The plants are what the tile is for, so the band that carries them is stated
+     as its own band: one rule, then the pairs, with the environment stack above. */
+  padding-block-start: 2.5cqi;
+  border-top: 1px solid var(--odk-stroke);
 }
 
 .hydra-plant {
   display: flex;
   flex-direction: column;
-  gap: 1.5cqi;
+  gap: 2cqi;
   min-width: 0;
 }
 
@@ -3085,9 +3107,29 @@ body.kiosk {
   min-width: 0;
   overflow: hidden;
   color: var(--odk-secondary-strong);
-  font-size: clamp(12px, 6.5cqi, 16px);
+  font-size: clamp(12px, 6.5cqi, 18px);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.hydra-plant-state {
+  flex: none;
+  color: var(--odk-secondary-strong);
+  font-size: clamp(12px, 5.5cqi, 16px);
+  white-space: nowrap;
+}
+
+/* A row too narrow to hold the plant, its condition and its reading keeps the
+   condition for assistive technology and lets the rail carry it at a glance. The
+   threshold is measured, not chosen: a full plant name, the longest condition word
+   and a three-digit reading need 138px in either face, so 142px is the first shelf
+   that holds all three. The hidden condition keeps its box, so it is never cut,
+   only unread by eye. */
+@container (max-width: 141px) {
+  .hydra-plant-state {
+    position: absolute;
+    clip-path: inset(50%);
+  }
 }
 
 .hydra-plant-soil {
@@ -3095,7 +3137,7 @@ body.kiosk {
   margin-left: auto;
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(14px, 7cqi, 24px);
+  font-size: clamp(14px, 9cqi, 30px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -3103,9 +3145,12 @@ body.kiosk {
 }
 
 .hydra-meter {
-  height: 3.5cqi;
+  height: clamp(4px, 5.5cqi, 18px);
   border-radius: var(--odk-radius-pill);
-  background: color-mix(in srgb, var(--odk-bg) 65%, transparent);
+  /* The rail is drawn, not implied: a fill without a track states a fraction of
+     nothing. It carries the shared meter's own track tone, so a 48% plant reads as
+     half of something at a glance. */
+  background: var(--odk-button);
   overflow: hidden;
 }
 
@@ -3114,7 +3159,9 @@ body.kiosk {
   height: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  border-radius: inherit;
+  /* A square trailing edge keeps the moisture position precise, as the shared
+     meter does for a live progress position. */
+  border-radius: var(--odk-radius-pill) 0 0 var(--odk-radius-pill);
   background: var(--odk-accent-green);
   transition: transform 0.4s var(--odk-ease-out);
 }
@@ -3129,9 +3176,13 @@ body.kiosk {
   background: var(--odk-accent-red);
 }
 
-/* A running watering overrides the dry threshold: blue is the in-progress state. */
+/* A running watering overrides the dry threshold: blue is the in-progress state,
+   and the fill carries a texture as well as a colour so a shelf too narrow for
+   the word still states that the pump is running. The pitch follows the fill
+   because the fill is the element that scales. */
 .hydra-watering .hydra-meter-fill {
   background: var(--odk-accent-blue);
+  background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--odk-primary) 35%, transparent) 0 2px, transparent 2px 8px);
 }
 
 .hydra-offline .hydra-plant-soil,
@@ -3172,12 +3223,22 @@ body.kiosk {
   gap: 1.5cqi;
 }
 
+.hydra-body[data-shape='compact'] .hydra-env-cell {
+  flex: none;
+  justify-content: flex-start;
+  border-top: 0;
+}
+
 .hydra-body[data-shape='compact'] .hydra-env-value {
-  font-size: clamp(14px, 6cqi, 20px);
+  font-size: clamp(14px, 7cqi, 24px);
 }
 
 .hydra-body[data-shape='compact'] .hydra-meter {
-  height: 2cqi;
+  height: clamp(4px, 3cqi, 10px);
+}
+
+.hydra-body[data-shape='compact'] .hydra-plants {
+  padding-block-start: 0;
 }
 
 @container (max-width: 130px) {
@@ -3201,7 +3262,9 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='plants'] .hydra-plants {
-  gap: 2cqi;
+  gap: 2.5cqi;
+  padding-block-start: 0;
+  border-top: 0;
 }
 
 .hydra-body[data-shape='small'] .hydra-head,

@@ -132,11 +132,14 @@ test('Hydra clears live plant visuals after offline and missing snapshots', asyn
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.transform, 'scaleX(0)')
   assert.equal(node('#hydra-plant-1 .hydra-plant-soil').textContent, '--')
+  assert.equal(node('#hydra-plant-1 .hydra-plant-state').textContent, 'Offline')
   assert.equal(node('#hydra-plant-1 .hydra-meter-fill').style.width, undefined)
   snapshot.nodes = []
   for (let i = 0; i < 5; i += 1) tick()
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(node('#hydra-plant-1 .hydra-plant-soil').classes.has('hydra-soil-watering'), false)
+  // A plant with no reading carries no condition either: the row states neither a
+  // reading nor a state it was never told.
+  assert.equal(node('#hydra-plant-1 .hydra-plant-state').textContent, '')
 })
 
 test('Built-in views explains empty search and catalog states', async () => {

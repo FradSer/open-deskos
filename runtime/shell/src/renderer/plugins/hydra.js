@@ -48,6 +48,18 @@
     return `${Math.round(entry.soilPercent)}%`
   }
 
+  // A plant states its own condition in words. The rail's colour says the same
+  // thing to a glance, and a glance is what this tile is for, but a state that can
+  // only be seen as a colour cannot be read back: an offline plant, a stale one
+  // and a running pump each say which of the three they are.
+  function plantState(entry) {
+    if (!entry) return ''
+    if (entry.online === false) return 'Offline'
+    if (entry.stale === true) return 'Stale'
+    if (entry.pump === true) return 'Watering'
+    return ''
+  }
+
   function envCell(refs, key, value, unit) {
     refs[key].value.textContent = value
     refs[key].unit.textContent = unit
@@ -68,8 +80,8 @@
     const plant = refs.plants[index]
     if (!entry) {
       plant.root.className = 'hydra-plant hydra-idle'
+      plant.state.textContent = ''
       plant.soil.textContent = '--'
-      plant.soil.classList.remove('hydra-soil-watering')
       plant.meterFill.style.transform = 'scaleX(0)'
       plant.meterFill.classList.remove('hydra-meter-dry')
       return
@@ -78,8 +90,8 @@
     const stale = entry.stale === true
     const watering = entry.pump === true && !offline && !stale
     plant.root.className = `hydra-plant${offline ? ' hydra-offline' : ''}${stale ? ' hydra-stale' : ''}${watering ? ' hydra-watering' : ''}`
+    plant.state.textContent = plantState(entry)
     plant.soil.textContent = formatSoil(entry)
-    plant.soil.classList.toggle('hydra-soil-watering', watering)
     const percent = offline || entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
     plant.meterFill.style.transform = `scaleX(${percent / 100})`
     plant.meterFill.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
@@ -118,16 +130,18 @@
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
               <div class="hydra-plant-row">
                 <span class="hydra-plant-name">Plant 1</span>
+                <span class="hydra-plant-state"></span>
                 <span class="hydra-plant-soil">--</span>
               </div>
-              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
+              <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
             <div class="hydra-plant hydra-idle" id="hydra-plant-2">
               <div class="hydra-plant-row">
                 <span class="hydra-plant-name">Plant 2</span>
+                <span class="hydra-plant-state"></span>
                 <span class="hydra-plant-soil">--</span>
               </div>
-              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
+              <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
           </div>
           <p class="hydra-hint" hidden></p>
@@ -150,6 +164,7 @@
         plants: plantRoots.map((rootEl) => ({
           root: rootEl,
           name: rootEl.querySelector('.hydra-plant-name'),
+          state: rootEl.querySelector('.hydra-plant-state'),
           soil: rootEl.querySelector('.hydra-plant-soil'),
           meterFill: rootEl.querySelector('.hydra-meter-fill'),
         })),

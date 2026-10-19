@@ -6,6 +6,8 @@ const os = require('node:os')
 const path = require('node:path')
 const { createOdkLinkService } = require('../src/odk-link-service')
 const { createHostedPiSocketAdapter } = require('../src/odk-link-host-adapter')
+const { createPersonalBotClient, resolvePersonalBotSocketPath } = require('../src/personal-bot-client')
+const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { resolveShellHost } = require('../src/platform')
 const { isNamedPipe, readOrCreateToken } = require('../src/local-channel')
 
@@ -54,6 +56,34 @@ function socketPath(env, host) {
   return path.join(os.tmpdir(), `odk-link-${process.getuid?.() ?? 0}`, 'service.sock')
 }
 
+/**
+ * The phone reads the Personal Agent the desk generates. The desk owns every
+ * briefing and reply, so its own resident client answers this link. An explicit
+ * development selection replaces that source with a labelled frame source, and
+ * the frames then carry the development marker instead of leaving the phone to
+ * invent the state.
+ */
+function personalAgentSource(env, host) {
+  const fixture = (env.ODK_LINK_PERSONAL_AGENT_DRIVER ?? '').trim()
+  if (fixture.length === 0) {
+    return {
+      personalAgent: createPersonalBotClient({ socketPath: resolvePersonalBotSocketPath(env, host), host }),
+      personalAgentDevelopment: false,
+    }
+  }
+  if (!path.isAbsolute(fixture)) throw new Error('ODK_LINK_PERSONAL_AGENT_DRIVER must be an absolute fixture path')
+  const selected = (env.ODK_LINK_PERSONAL_AGENT_SELECTED ?? '').trim()
+  const intervalMs = Number.parseInt(env.ODK_LINK_PERSONAL_AGENT_INTERVAL_MS ?? '0', 10)
+  return {
+    personalAgent: createPersonalAgentDriver({
+      fixtureFile: fixture,
+      selectedFile: selected.length > 0 ? selected : null,
+      intervalMs: Number.isFinite(intervalMs) ? intervalMs : 0,
+    }),
+    personalAgentDevelopment: true,
+  }
+}
+
 async function main() {
   const env = process.env
   const host = resolveShellHost({ env })
@@ -70,6 +100,7 @@ async function main() {
     hostAdapter: createHostedPiSocketAdapter({ env }),
     port: Number.parseInt(env.ODK_LINK_PORT ?? '8765', 10),
     env,
+    ...personalAgentSource(env, host),
   })
   const bound = await service.start()
   process.stdout.write(`Open DeskOS Link service listening on ${bound.host}:${bound.port}\n`)

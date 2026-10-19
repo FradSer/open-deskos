@@ -1,0 +1,21 @@
+[versions]
+# Pinned deliberately: a build must not follow an ambient toolchain. See ADR-0017.
+agp = "9.4.1"
+coreKtx = "1.13.1"
+webkit = "1.17.1"
+junit = "4.13.2"
+# The JVM unit tests answer to the same org.json API the platform provides.
+orgJson = "20260814"
+
+# AGP 9 supplies Kotlin itself: `kotlin-gradle-plugin` 2.2.10 and `kotlin-stdlib`
+# 2.2.10 come from the Android Gradle plugin, so this catalog pins no Kotlin
+# version and no Kotlin plugin is applied.
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+junit = { module = "junit:junit", version.ref = "junit" }
+org-json = { module = "org.json:json", version.ref = "orgJson" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
