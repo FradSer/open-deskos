@@ -335,6 +335,15 @@ Feature: Personal Agent owns a bounded plugin runtime
     And one owner turn cannot create another reply operation
     And later distinct requests require a new completed turn after unknown delivery
 
+  Scenario: Fresh Pi work differs from reading retained task results
+    Given an owner names an existing Pi task without a reply reference
+    When the owner asks that Pi to inspect a file again
+    Then classification selects the existing-session workflow even for read-only work
+    And a request for retained status or results selects the task-query workflow
+    And confidence measures workflow meaning rather than session control authority
+    And confidence below 0.8 still requires clarification
+    And the selected handler must validate the exact session and permission before delivery
+
   Scenario: A selected task retains one owner message in its thread
     Given an owner instruction without a reply reference
     When AI selects a retained task and the host binds its source
