@@ -3,7 +3,11 @@
 Resident Pi SDK service with MIC/STT input, streamed Markdown feedback, mandatory typed intent routing and optional proactive proposals.
 Electron is the control/status client.
 There is no TTS or wake word.
-Linux uses ALSA and a private Unix socket; Windows uses ffmpeg DirectShow and the authenticated `\\.\pipe\odk-personal-bot` channel.
+CM5 owns inference, transcription, memory, and task state.
+Linux uses ALSA and a private Unix socket.
+Windows runs the display client with an authenticated local pipe and a restricted SSH link to CM5.
+Windows uses ffmpeg DirectShow for capture; CM5 transcribes its audio.
+Read the [unified architecture](docs/UNIFIED_ARCHITECTURE.md) for authority and reconnect rules.
 
 Read [CONTRACT.md](docs/CONTRACT.md) for authorization, intent routing, Hosted Pi, proposals, and open acceptance limits.
 Use the [Linux deployment runbook](../../runtime/shell/docs/PERSONAL_BOT_DEPLOYMENT.md) or [Windows runbook](../../runtime/shell/docs/WINDOWS_HOST.md) for host operations.
@@ -11,7 +15,10 @@ Use the [Linux deployment runbook](../../runtime/shell/docs/PERSONAL_BOT_DEPLOYM
 ## Install and configure
 
 Node 22.19+ and pnpm are required.
-Linux needs `arecord`, working ALSA and a user runtime directory; Windows needs ffmpeg DirectShow and an interactive logged-on session.
+Linux voice input needs `arecord` and working ALSA.
+Windows display needs an interactive logged-on session and the configured CM5 SSH alias.
+Windows voice input also needs ffmpeg DirectShow and a selected microphone.
+Missing microphone configuration leaves text input available.
 Install as the service user:
 
 ```sh

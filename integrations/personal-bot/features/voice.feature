@@ -190,3 +190,10 @@ Feature: Resident push-to-talk coding agent
     And only the fixed executable is sent as the remote command with JSON on stdin
     And invalid hosts or executable paths are rejected before spawning
     And an uncertain send failure explicitly forbids automatic retry to avoid duplicate delivery
+
+  Scenario: A restart removes only private recorder directories before voice admission
+    Given a previous process left local or remote temporary audio in the private capture directory
+    When the resident opens its channel
+    Then it removes only recorder-owned private directories before admitting a new recording
+    And it preserves unrelated entries and refuses symbolic links
+    And missing Agent configuration cannot grant a remote recording lease

@@ -10,7 +10,7 @@ The [implementation ledger](PERSONAL_AGENT_IMPLEMENTATION.md) owns verification 
 | --- | --- | --- |
 | 1. Host tools and state | Host-installed executables, credentials, writable state, and service identity | Host tools stay separate from immutable releases |
 | 2. Shared Shell | One Electron Shell for CM5/Linux, Windows x64, and macOS | Platform adapters own host differences; renderer code does not acquire host authority |
-| 3. Personal Bot | External resident service with Jev-first owner routing and Pi Durable 1.2 Code Mode | Code owns workflow selection, tool admission, receipts, and recovery |
+| 3. Personal Bot | CM5 resident service with configured intent routing and Pi Durable 1.2 Code Mode | Code owns workflow selection, tool admission, receipts, and recovery |
 | 4. Reviewed runtime capabilities | Host-owned descriptors and fixed DeskOS plugin implementations | Configuration selects reviewed identities; it cannot select arbitrary executable factories |
 | 5. Skills | Separate runtime guidance and repository coding guidance | Guidance grants no tools, credentials, lifecycle authority, or installation permission |
 
@@ -22,7 +22,26 @@ A local check cannot authorize deployment, service installation, activation, or 
 
 The Shell presents conversation state and child activity through its existing channels.
 Personal Bot remains an external service; its models and tools do not run in renderer code.
-Windows uses the shared Shell but retains separate host acceptance.
+CM5 owns inference, transcription, memory, task admission, and the public conversation checkpoint.
+Windows runs `display-client.mjs` and retains separate host acceptance.
+It exposes the existing authenticated local pipe to its Shell.
+A restricted SSH connection carries requests to the CM5 owner socket.
+The operator configures the fixed `odk-cm5-agent` alias with a reachable IP and a verified host key.
+The dedicated SSH key permits only `hub-stdio.mjs` through a forced command.
+It grants no interactive shell or forwarding.
+The Windows entry loads no Agent runtime or transcription provider.
+The resident entry refuses operational startup on Windows.
+
+Both hosts can capture microphone audio.
+CM5 grants one recording lease before Windows starts local capture.
+Windows sends bounded, sequenced WAV data; CM5 validates it before transcription.
+The same service arbitrates local recording, remote recording, and typed input.
+A missing Windows microphone does not prevent text input or display.
+A disconnected display retains its draft and reports the connection failure.
+Reconnect subscribes to state without replaying text, proposals, or audio.
+Both displays receive the same bounded public conversation, task, and briefing projection.
+The checkpoint excludes model context, tool records, and private memory.
+Interrupted public turns remain unconfirmed after restart.
 
 ## Reviewed capabilities
 
@@ -45,7 +64,8 @@ Shutdown closes each active runtime.
 
 ## Resident execution and fixed plugins
 
-Jev classifies each owner request before downstream resident execution.
+The configured judgment provider classifies each owner request before downstream resident execution.
+Jev is optional; the configured ordinary model supplies routing when Jev is disabled.
 Failure stops dispatch; ambiguity requests clarification.
 The selected workflow activates a bounded tool set through `codemode`.
 Generic shell and source mutation tools remain outside the resident coordinator.

@@ -1,3 +1,4 @@
+import { readFrames, writeFrame } from './channel-frames.mjs'
 import { validReplyTo } from './session-replies.mjs'
 import fs from 'node:fs/promises'
 import net from 'node:net'
@@ -29,17 +30,17 @@ export {
 // connection it is not reading. Both are transport limits, not protocol ones.
 const MAX_INPUT_BYTES = 4096
 const MAX_FRAME_BYTES = 131_072
-const MAX_QUEUED_BYTES = 2 * MAX_FRAME_BYTES
+const MAX_QUEUED_BYTES = 4 * MAX_FRAME_BYTES
 const sentStatuses = new WeakMap()
 const sentFrames = new WeakMap()
-const sentBriefings = new WeakMap()
-const sentRemoteFrames = new WeakMap()
+const sentChannels = new WeakMap()
 
 export function statusFrames(status) {
-  const { briefing, remote, ...voice } = status
+  const { briefing, remote, conversation, ...voice } = status
   const frames = [`${JSON.stringify(voice)}\n`]
   if (briefing) frames.push(`${JSON.stringify({ v: 1, type: 'briefing', briefing })}\n`)
   if (remote) frames.push(`${JSON.stringify({v:1,type:'remote_conversation',remote})}\n`)
+  if (conversation) frames.push(`${JSON.stringify({v:1,type:'conversation',conversation})}\n`)
   if (frames.some(frame => Buffer.byteLength(frame) > MAX_FRAME_BYTES)) throw Error('Status frame too large')
   return frames
 }
@@ -137,23 +138,21 @@ export async function listen(path, service, options = {}) {
   const clients = new Set()
   const connections = new Set()
   const diagnosisClients = new WeakSet()
-  const sendStatus = (client, status) => send(client, diagnosisClients.has(client) ? { ...status, runtimeDiagnosis: 1 } : status)
+  const sendStatus = (client, status) => send(client, { ...status,
+    ...(options.conversation ? { conversation: options.conversation.snapshot().conversation } : {}),
+    ...(diagnosisClients.has(client) ? { runtimeDiagnosis: 1 } : {}),
+  })
 
   /** An admitted client joins the broadcast list and starts reading commands. */
   function open(client, remainder) {
     clients.add(client)
-    client.setEncoding('utf8')
-    let pending = ''
-    client.on('close', () => clients.delete(client))
-    client.on('data', data => {
-      pending += data
-      if (Buffer.byteLength(pending) > MAX_INPUT_BYTES) return client.destroy()
-      let newline
-      while ((newline = pending.indexOf('\n')) >= 0) {
-        const line = pending.slice(0, newline)
-        pending = pending.slice(newline + 1)
-        let command
-        try { command = JSON.parse(line) } catch { return client.destroy() }
+    client.on('close', () => { clients.delete(client); void options.remoteVoice?.close(client).catch(() => {}) })
+    readFrames(client, async command => {
+      if (client.destroyed) return
+      if (command.type.startsWith('voice_')) {
+        if (!options.remoteVoice || !await options.remoteVoice.handle(client, command, frame => writeFrame(client, frame))) client.destroy()
+        return
+      }
         if (command?.v !== 1 || !['runtime_diagnose', 'text', 'toggle', 'status', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'].includes(command.type)) return client.destroy()
         if (command.type === 'status' && command.runtimeDiagnosis === 1) diagnosisClients.add(client)
         if (command.type === 'runtime_diagnose') {
@@ -176,7 +175,7 @@ export async function listen(path, service, options = {}) {
           const frame = `${JSON.stringify({ v: 1, type: 'runtime_diagnosis', requestId: command.requestId, runtime })}\n`
           if (client.writableLength + Buffer.byteLength(frame) > MAX_QUEUED_BYTES) client.destroy()
           else client.write(frame)
-          continue
+          return
         }
         if (command.type === 'text') {
           if (Object.keys(command).some(key => !['v', 'type', 'text', 'requestId', 'replyTo'].includes(key))
@@ -185,12 +184,12 @@ export async function listen(path, service, options = {}) {
             || typeof command.text !== 'string' || !command.text.trim() || Buffer.byteLength(command.text, 'utf8') > 3000) return client.destroy()
           const accepted = service.sendText(command.text,command.replyTo)
           client.write(`${JSON.stringify({ v: 1, type: 'text_receipt', requestId: command.requestId, accepted })}\n`)
-          continue
+          return
         }
         if (command.type === 'proactive_event') {
           if (Object.keys(command).some(key => !['v', 'type', 'readingIds'].includes(key)) || !Array.isArray(command.readingIds) || !command.readingIds.length || command.readingIds.length > 32 || !command.readingIds.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id))) return client.destroy()
           try { service.servicePush(command.readingIds); sendStatus(client, service.status) } catch { sendStatus(client, { ...service.status, proposalError: 'Service update refused; check selected readings and Jev configuration.' }) }
-          continue
+          return
         }
         if (command.type.startsWith('proposal_')) {
           if (command.type === 'proposal_presented' && (!Array.isArray(command.ids) || command.ids.length > 64 || !command.ids.every(id => typeof id === 'string' && id.length === 36))) return client.destroy()
@@ -204,7 +203,6 @@ export async function listen(path, service, options = {}) {
             () => { service.setState('error', 'Personal Bot request failed'); sendStatus(client, service.status) },
           )
         } else sendStatus(client, service.status)
-      }
     })
     if (remainder.length > 0) client.unshift(remainder)
     process.nextTick(() => { if (!client.destroyed) client.resume() })
@@ -236,7 +234,7 @@ export async function listen(path, service, options = {}) {
     }
     function onData(chunk) {
       buffer = Buffer.concat([buffer, chunk])
-      if (buffer.length > MAX_INPUT_BYTES + MAX_HANDSHAKE_BYTES) return refuse()
+      if (buffer.length > MAX_FRAME_BYTES + MAX_HANDSHAKE_BYTES) return refuse()
       const newline = buffer.indexOf(0x0a)
       if (newline === -1) {
         if (buffer.length > (ownership ? MAX_INPUT_BYTES : MAX_HANDSHAKE_BYTES)) refuse()
@@ -280,8 +278,10 @@ export async function listen(path, service, options = {}) {
   if (ownership) await fsModule.chmod(path, 0o600)
   return { path, tokenRequired: !ownership, close: async () => {
     unsubscribe()
-    for (const client of connections) client.destroy()
-    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined)))
+    try { await options.remoteVoice?.close() } finally {
+      for (const client of connections) client.destroy()
+      await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined)))
+    }
   } }
 }
 
@@ -295,9 +295,9 @@ function send(client, status) {
     && Object.entries(status).every(([key, value]) => Object.hasOwn(previous, key) && (key === 'level' || previous[key] === value))) return
   let frames
   try { frames = statusFrames(status) } catch { client.destroy(); return }
-  const home = status.briefing ? frames[1] : undefined
-  const remote = status.remote ? frames.at(-1) : undefined
-  frames=frames.filter((frame,index)=>index===0 || frame===home && sentBriefings.get(client)!==home || frame===remote && sentRemoteFrames.get(client)!==remote)
+  const channels = sentChannels.get(client) ?? new Map()
+  const extras = frames.slice(1).map(frame => [JSON.parse(frame).type, frame])
+  frames = frames.filter((frame, index) => index === 0 || channels.get(JSON.parse(frame).type) !== frame)
   const frame = frames.join('')
   // Open DeskOS Data pushes can echo the current snapshot while the reader is busy.
   // Only byte-identical snapshots are redundant; popup/error/content changes send.
@@ -307,7 +307,7 @@ function send(client, status) {
     client.write(frame)
     sentStatuses.set(client, status)
     sentFrames.set(client, frame)
-    if (home) sentBriefings.set(client, home)
-    if (remote) sentRemoteFrames.set(client, remote)
+    for (const [type, value] of extras) channels.set(type, value)
+    sentChannels.set(client, channels)
   }
 }
