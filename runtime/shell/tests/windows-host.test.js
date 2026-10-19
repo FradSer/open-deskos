@@ -63,6 +63,9 @@ test('the Windows runbook states which surfaces are ported and which are not', (
   // capability.
   assert.match(runbook, /odk-personal-bot/)
   assert.match(runbook, /DirectShow/)
+  assert.match(runbook, /display-client\.mjs/)
+  assert.match(runbook, /CM5 runs the Personal Agent/)
+  assert.match(runbook, /Windows does not start a local agent/)
 
   // The surfaces this host does provide are stated with their transport and the
   // thing that authenticates it, so 'not ported' and 'ported to a named pipe'
