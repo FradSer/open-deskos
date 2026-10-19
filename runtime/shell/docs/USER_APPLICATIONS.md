@@ -123,6 +123,15 @@ A minimal package that inherits everything:
 
 Icon path data is not served: the Pixel icon set is MIT-licensed data a package may embed, and a package switches between its own stroke and pixel variants on `data-theme`. Appearance adds no network, Shell DOM or preload authority. It cannot read files outside the running release.
 
+## Return to Home
+
+An active installed App supports a two-finger inward pinch through its Shell bootstrap.
+Two-finger scrolling and spreading do not return to Home.
+Widgets do not receive this return capability.
+The Shell checks the current App frame and modal owner before returning.
+The Home handle remains available without touch input.
+Trackpad wheel gestures and external embedded frames do not use this capability.
+
 ## Runtime safety and limits
 
 The Shell keeps its strict script policy. A dedicated `odk-user-app` protocol serves only installed revision URLs with restrictive content policy. Frames use `sandbox="allow-scripts"` without same-origin authority. They cannot navigate the parent, create privileged windows, access Shell DOM/preload or fetch network data.

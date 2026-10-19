@@ -143,3 +143,25 @@ test('a package publishes its declared data to the Shell and nothing else reache
   assert.equal(published.length, 1, 'only a token-carrying object from this frame is published')
   mounted.dispose()
 })
+
+
+test('only an opted-in ready App can request its fixed Home return', async () => {
+  for (const enabled of [false, true]) {
+    const h = create(); let returns = 0
+    const mounted = h.mount(h.container, { url: 'odk-user-app://app/a/r', ...(enabled ? { onReturnHome: () => returns++ } : {}) })
+    const [receive] = h.listeners
+    const data = { type: 'odk-user-app-return-home', token: 'token' }
+    receive({ source: h.frame.contentWindow, data })
+    assert.equal(returns, 0, 'not before readiness')
+    receive({ source: h.frame.contentWindow, data: { type: 'odk-user-app-ready', token: 'token' } })
+    await mounted.ready
+    receive({ source: {}, data })
+    receive({ source: h.frame.contentWindow, data: { ...data, token: 'old' } })
+    receive({ source: h.frame.contentWindow, data: { ...data, command: 'other' } })
+    assert.equal(returns, 0)
+    receive({ source: h.frame.contentWindow, data })
+    assert.equal(returns, enabled ? 1 : 0)
+    mounted.dispose()
+    assert.equal(h.listeners.size, 0)
+  }
+})

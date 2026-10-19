@@ -5,7 +5,7 @@ const vm = require('node:vm')
 const path = require('node:path')
 function fixture(close = async () => {}) {
   const root = new EventTarget(), handle = new EventTarget(), capture = new Set(), styles = new Map(), errors = []
-  let open = true, blocked = false, calls = 0
+  let open = true, externalOpen = false, blocked = false, pinchEnabled = true, calls = 0
   handle.setPointerCapture = id => capture.add(id)
   handle.hasPointerCapture = id => capture.has(id)
   handle.releasePointerCapture = id => capture.delete(id)
@@ -13,18 +13,19 @@ function fixture(close = async () => {}) {
   const card = { clientHeight: 600, style: {
     set transform(v) { styles.set('transform', v) }, set opacity(v) { styles.set('opacity', v) }, removeProperty(k) { styles.delete(k) },
   } }
+  card.contains = node => node === card
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/core/home-handle.js'), 'utf8'), { window: root, AbortController, Promise })
-  const controller = root.odkHomeHandle.bind({ handle, card, isOpen: () => open, blocked: () => blocked,
+  const controller = root.odkHomeHandle.bind({ handle, card, isOpen: () => open, canPinch: () => pinchEnabled, canReturn: () => open || externalOpen, blocked: () => blocked,
     returnHome: async () => { calls++; await close() }, reportError: error => errors.push(error) })
   function send(type, values = {}, target = handle) {
     const event = new Event(type, { cancelable: true })
     Object.assign(event, { pointerId: 1, clientX: 100, clientY: 100, isPrimary: true, button: 0, ...values })
     target.dispatchEvent(event); return event
   }
-  return { root, handle, controller, styles, errors, capture, send, calls: () => calls,
+  return { root, handle, card, controller, styles, errors, capture, send, calls: () => calls,
     move(dx, dy) { send('pointerdown'); send('pointermove', { clientX: 100 + dx, clientY: 100 + dy }) },
     release() { send('pointerup') }, tick: () => new Promise(resolve => setImmediate(resolve)),
-    setOpen(v) { open = v }, setBlocked(v) { blocked = v } }
+    setOpen(v) { open = v }, setExternalOpen(v) { externalOpen = v }, setBlocked(v) { blocked = v }, setPinchEnabled(v) { pinchEnabled = v } }
 }
 
 test('upward handle drag returns once and releases capture and presentation state', async () => {
@@ -119,5 +120,81 @@ for (const boundary of ['pointercancel', 'lostpointercapture', 'blur']) {
     assert.equal(f.pager.currentIndex(), 0)
     assert.equal(f.track.style.transform, 'translateX(0px)')
     assert.equal(f.handle.capture.size, 0)
+  })
+}
+
+function twoTouches(f, points) {
+  return points.map(([identifier, clientX, clientY]) => ({ identifier, clientX, clientY, target: f.card }))
+}
+function pinch(f, points = [[1, 140, 160], [2, 260, 160]]) {
+  f.send('touchstart', { touches: twoTouches(f, [[1, 100, 160]]) }, f.root)
+  f.send('touchstart', { touches: twoTouches(f, [[1, 100, 160], [2, 300, 160]]) }, f.root)
+  return f.send('touchmove', { touches: twoTouches(f, points) }, f.root)
+}
+test('a completed inward pinch uses the same return path once without changing card presentation', async () => {
+  const f = fixture(); const move = pinch(f)
+  assert.equal(move.defaultPrevented, true)
+  assert.equal(f.calls(), 0, 'A pending gesture must not return before release')
+  f.send('touchend', { touches: [] }, f.root); f.send('touchend', { touches: [] }, f.root)
+  await f.tick(); assert.equal(f.calls(), 1); assert.equal(f.styles.size, 0); f.controller.destroy()
+})
+for (const [name, points] of [
+  ['parallel scrolling', [[1, 100, 80], [2, 300, 80]]],
+  ['spreading', [[1, 60, 160], [2, 340, 160]]],
+  ['short contraction', [[1, 115, 160], [2, 285, 160]]],
+  ['mostly translating', [[1, 240, 160], [2, 360, 160]]],
+]) test(`${name} cannot be a return pinch or consume scrolling`, async () => {
+  const f = fixture(); const event = pinch(f, points)
+  assert.equal(event.defaultPrevented, false); f.send('touchend', { touches: [] }, f.root)
+  await f.tick(); assert.equal(f.calls(), 0); f.controller.destroy()
+})
+for (const boundary of ['touchcancel', 'blur', 'resize', 'odk-personal-bot-visibility', 'modal', 'closed', 'third touch', 'foreign touch', 'changed identity']) {
+  test(`pinch ${boundary} cancels without rearming before all fingers lift`, async () => {
+    const f = fixture(); pinch(f)
+    if (boundary === 'modal') f.setBlocked(true)
+    else if (boundary === 'closed') f.setOpen(false)
+    else if (boundary === 'third touch') f.send('touchstart', { touches: twoTouches(f, [[1, 140, 160], [2, 260, 160], [3, 200, 200]]) }, f.root)
+    else if (boundary === 'foreign touch') f.send('touchmove', { touches: [{ identifier: 1, clientX: 140, clientY: 160, target: f.root }, ...twoTouches(f, [[2, 260, 160]])] }, f.root)
+    else if (boundary === 'changed identity') f.send('touchmove', { touches: twoTouches(f, [[3, 140, 160], [2, 260, 160]]) }, f.root)
+    else f.send(boundary, { touches: [] }, f.root)
+    f.send('touchmove', { touches: twoTouches(f, [[1, 160, 160], [2, 240, 160]]) }, f.root)
+    f.send('touchend', { touches: [] }, f.root)
+    await f.tick(); assert.equal(f.calls(), 0); f.controller.destroy()
+  })
+}
+test('pinch close failure permits a new gesture after all touches end and destroy removes touch listeners', async () => {
+  let reject = true; const f = fixture(async () => { if (reject) throw Error('retained cleanup') })
+  pinch(f); f.send('touchend', { touches: [] }, f.root); await f.tick(); assert.equal(f.errors.length, 1)
+  reject = false; pinch(f); f.send('touchend', { touches: [] }, f.root); await f.tick(); assert.equal(f.calls(), 2)
+  f.controller.destroy(); pinch(f); f.send('touchend', { touches: [] }, f.root); await f.tick(); assert.equal(f.calls(), 2)
+})
+test('wheel and Ctrl-wheel never return an App', async () => {
+  const f = fixture()
+  for (const ctrlKey of [false, true]) assert.equal(f.send('wheel', { ctrlKey, deltaY: -100 }, f.root).defaultPrevented, false)
+  await f.tick(); assert.equal(f.calls(), 0); f.controller.destroy()
+})
+
+test('non-App views retain handle return but cannot acquire pinch ownership', async () => {
+  const f = fixture(); f.setPinchEnabled(false); pinch(f); f.send('touchend', { touches: [] }, f.root)
+  await f.tick(); assert.equal(f.calls(), 0)
+  f.send('keydown', { key: 'ArrowUp', repeat: false }); await f.tick(); assert.equal(f.calls(), 1); f.controller.destroy()
+})
+
+test('an installed App may request return without intercepting pager dot navigation', async () => {
+  const f = fixture(); f.setOpen(false); f.setExternalOpen(true)
+  const event = f.send('click', { detail: 0 })
+  assert.equal(event.defaultPrevented, false)
+  f.controller.requestReturn(); await f.tick(); assert.equal(f.calls(), 1)
+  f.setBlocked(true); f.controller.requestReturn(); await f.tick(); assert.equal(f.calls(), 1)
+  f.controller.destroy()
+})
+
+for(const [start,contraction,expected] of [[79,48,true],[80,48,true],[48,48,true],[48,47,false],[47,47,false]]) {
+  test(`pinch from ${start}px with ${contraction}px contraction follows only the documented thresholds`,async()=>{
+    const f=fixture(),points=span=>twoTouches(f,[[1,200-span/2,160],[2,200+span/2,160]])
+    f.send('touchstart',{touches:points(start)},f.root)
+    const move=f.send('touchmove',{touches:points(start-contraction)},f.root)
+    assert.equal(move.defaultPrevented,expected)
+    f.send('touchend',{touches:[]},f.root);await f.tick();assert.equal(f.calls(),expected?1:0);f.controller.destroy()
   })
 }

@@ -1,7 +1,7 @@
 ;(function (root) {
   'use strict'
 
-  function mount({ track, layout, status, onPagesChanged, onCatalogChanged }) {
+  function mount({ track, layout, status, onPagesChanged, onCatalogChanged, onReturnHome }) {
     const entries = new Map()
     let generation = 0
     let disposed = false
@@ -57,6 +57,9 @@
       try {
         entry.mounted = root.odkUserAppFrame.mount(host, {
           ...app, url: `odk-user-app://app/${encodeURIComponent(app.id)}/${encodeURIComponent(app.revision)}`, onError: fail,
+          ...(!widget && typeof onReturnHome === 'function' ? { onReturnHome: () => {
+            if (!disposed && entries.get(app.id) === entry && host.dataset.state === 'ready') onReturnHome(host)
+          } } : {}),
         })
         if (widget) {
           entry.mounted.frame.setAttribute('tabindex', '-1')

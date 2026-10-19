@@ -481,6 +481,71 @@ app.whenReady().then(async () => {
     console.log('PASS exact owner execution adoption, repeated frames and independent same-text turns')
     finish(0);return
   }
+  if (process.argv.includes('--scroll-overlay-only')) {
+    const evidence=process.env.ODK_AGENT_SCROLL_EVIDENCE
+    await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+    for(const theme of ['instrument','pixel','border-beam'])for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+      await resize(width,height);await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+      const examples=[['训练进展怎么样？','合成示例：中文识别训练有新进展：验证集 CER 降到 37.35%，最佳和最后检查点已保存到 Drive。控制器仍依赖 Mac 在线，请暂时保留原终端；独立测试还没做。'],['v8 模型有什么变更？','合成示例：v8 模型完成：前留白缩到 10 mm，前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。']]
+      for(let i=0;i<8;i++)publishStatus({state:'idle',ownerTurnId:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,transcript:examples[i%2][0],message:examples[i%2][1]})
+      await evaluate('new Promise(r=>setTimeout(r,30))')
+      const before=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),b=document.querySelector('.agent-latest'),f=document.querySelector('.agent-composer');b.hidden=true;return {height:c.clientHeight,composer:f.getBoundingClientRect().top,width:c.clientWidth,top:c.firstElementChild.getBoundingClientRect().top}})()`)
+      await evaluate(`document.querySelector('.agent-conversation').scrollTop=0;new Promise(r=>setTimeout(r,30))`)
+      const active=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),b=document.querySelector('.agent-latest'),f=document.querySelector('.agent-composer'),r=b.getBoundingClientRect(),s=getComputedStyle(c),cr=c.getBoundingClientRect();return {height:c.clientHeight,composer:f.getBoundingClientRect().top,width:c.clientWidth,visible:!b.hidden,position:getComputedStyle(b).position,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===b||b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),inside:r.top>=cr.top&&r.bottom<=cr.bottom,touch:r.height,scrolling:c.dataset.scrolling,color:s.scrollbarColor,overflow:c.scrollHeight>c.clientHeight}})()`)
+      assert.equal(active.position,'absolute','Jump to latest is an overlay, not a flex row')
+      assert.ok(active.visible&&active.hit&&active.inside&&active.touch>=44&&active.overflow,JSON.stringify({theme,width,...active}))
+      assert.equal(active.height,before.height);assert.equal(active.composer,before.composer);assert.equal(active.width,before.width)
+      assert.equal(active.scrolling,'true');assert.ok(!active.color.startsWith('rgba(0, 0, 0, 0)'),active.color)
+      await evaluate('new Promise(r=>setTimeout(r,200))')
+      const gutter=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),r=c.getBoundingClientRect();return{x:Math.floor(r.right-6),y:Math.ceil(r.top),width:6,height:Math.floor(r.height)-1}})()`)
+      const activeThumb=(await win.webContents.capturePage(gutter)).toBitmap()
+      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-scrolling.png`),(await win.webContents.capturePage()).toPNG(),{mode:0o600})
+      await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+1200;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}await new Promise(r=>setTimeout(r,60))})()`)
+      const fading=await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`)
+      assert.notEqual(fading,'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','the scrollbar fades instead of disappearing immediately')
+      await evaluate(`new Promise(r=>setTimeout(r,160))`)
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar fades to transparent')
+      const idleThumb=(await win.webContents.capturePage(gutter)).toBitmap()
+      let changed=0;for(let p=0;p<activeThumb.length;p+=4)if(activeThumb[p]!==idleThumb[p]||activeThumb[p+1]!==idleThumb[p+1]||activeThumb[p+2]!==idleThumb[p+2])changed++
+      assert.ok(changed>=8,'the actual painted native thumb changes between scrolling and idle: '+JSON.stringify({theme,width,changed}))
+      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-idle.png`),(await win.webContents.capturePage()).toPNG(),{mode:0o600})
+      const point=await evaluate(`(()=>{const r=document.querySelector('.agent-conversation').getBoundingClientRect();return{x:r.left+20,y:r.top+r.height/2}})()`)
+      await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',...point})
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','hover does not keep the scrollbar visible')
+      if(theme==='instrument'&&width===1920) {
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',...point,deltaX:0,deltaY:120})
+        await evaluate(`(async()=>{const end=performance.now()+2000;while(document.querySelector('.agent-conversation').scrollTop===0){if(performance.now()>end)throw Error('Native wheel did not scroll');await new Promise(r=>setTimeout(r,20))}})()`)
+        await evaluate(`document.querySelector('.agent-conversation').scrollTop=0;new Promise(r=>setTimeout(r,200))`)
+        const thumb=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),r=c.getBoundingClientRect();return{x:Math.floor(r.right-3),y:Math.ceil(r.top+16)}})()`)
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',...thumb})
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...thumb})
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:thumb.x,y:thumb.y+80})
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:thumb.x,y:thumb.y+80})
+        await evaluate('new Promise(r=>setTimeout(r,40))')
+        assert.ok(await evaluate(`document.querySelector('.agent-conversation').scrollTop>0`),'the visible native thumb remains draggable: '+JSON.stringify(thumb))
+        await evaluate(`document.querySelector('.agent-conversation').scrollTop=0;new Promise(r=>setTimeout(r,30))`)
+        await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2})
+        const finger={x:point.x+30,y:point.y+60,id:1}
+        await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[finger]})
+        for(let step=1;step<=6;step++)await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...finger,y:finger.y-step*20}]})
+        await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+        await evaluate(`(async()=>{const end=performance.now()+2000;while(document.querySelector('.agent-conversation').scrollTop===0){if(performance.now()>end)throw Error('Native touch did not scroll');await new Promise(r=>setTimeout(r,20))}})()`)
+        await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:false})
+      }
+      await evaluate(`document.querySelector('.agent-latest').focus()`)
+      for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
+      assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight-c.clientHeight-c.scrollTop<2&&document.querySelector('.agent-latest').hidden})()`),true)
+      assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-conversation')`),true,'keyboard activation restores focus to the log')
+    }
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).transitionDuration`),'0s')
+    await evaluate(`document.querySelector('.agent-conversation').scrollTop=0;new Promise(r=>setTimeout(r,800))`)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)')
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'}]})
+    assert.equal(await evaluate(`matchMedia('(forced-colors: active)').matches`),true)
+    console.log('Scrollbar forced-colors:',await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`))
+    console.log('PASS overlay latest control, scroll-only scrollbar, keyboard and reduced motion across three themes and sizes');finish(0);return
+  }
   if (process.argv.includes('--simple-conversation-only')) {
     await assertSimpleConversation();console.log('PASS calm conversation, explicit source reply, retained receipts and compact themes');finish(0);return
   }

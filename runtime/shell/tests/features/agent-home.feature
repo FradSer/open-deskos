@@ -374,6 +374,9 @@ Feature: Personal Agent home briefing
     And the composer stays below the single conversation scroll region
     And scrolling earlier messages preserves the composer position
     And Jump to latest restores the newest message
+    And Jump to latest overlays the conversation without moving messages or the composer
+    And the native scrollbar is transparent until scrolling and fades after scrolling stops
+    And reduced motion hides the idle scrollbar without a fade
     And narrow windows and long names retain usable input and recovery text
     And the open identity editor and Save button remain inside the Agent pane
     And the interface does not add the reference image sample questions
