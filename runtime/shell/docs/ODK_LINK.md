@@ -116,6 +116,58 @@ A **Hosted Pi** is a Pi coding session the desk hosts. A **Console**, a Pi sessi
 - **Refusals are explicit.** A protocol version the desk does not accept is refused with the mismatch named; a Pi host that is down or a stale host socket produces a failure that names the reason instead of waiting.
 - **Unconfigured stays unchanged.** With no Control Credential configured, a machine behaves exactly as a reporting-only machine does today, in every scenario.
 
+## Personal Agent link
+
+An Android Shell Host reads the desk's Personal Agent over the same listener and the same port. The phone opens one outbound connection, so the desk opens no new inbound port and the phone opens no listener.
+
+The desk owns generation. The resident Personal Bot produces every briefing, reply and notification. A phone holds no generator and no fixture, so every frame it shows came from the desk.
+
+### Reading
+
+The phone holds the report token. Its first record is:
+
+```json
+{"v":1,"type":"personal-agent-hello","machine":"<phone>","sessionId":"<random per connection>","token":"<report token>"}
+```
+
+The desk answers `{"v":1,"type":"personal-agent-ready"}` and then one frame. Each later change arrives as:
+
+```json
+{"v":1,"type":"personal-agent","development":false,"frame":{"state":"idle","transcript":"…","message":"…"}}
+```
+
+The frame carries the fields the Shell renderer reads: `state`, `transcript`, `message`, `notifications`, `agents`, `remote`, `briefing` and `proposalError`. The desk bounds one frame at 128 KiB and drops every other field of the resident status.
+
+A refused token answers `{"v":1,"type":"error","reason":"token refused"}` and the desk closes the connection.
+
+The `development` flag is true only while the desk's development frame source is selected. The phone shows that flag, so a reviewed state is never presented as personal activity.
+
+### Submitting an owner turn
+
+The phone needs the Control Credential to submit. After the ready record it sends `{"v":1,"type":"personal-agent-control","machine":"<phone>","sessionId":"<same value>"}`. The desk answers one challenge:
+
+```json
+{"v":1,"type":"challenge","nonce":"<hex>","algorithm":"hmac-sha256","domain":"odk-personal-agent-control-v1"}
+```
+
+The phone answers with the HMAC-SHA256 proof over the exact UTF-8 transcript `odk-personal-agent-control-v1\n1\n${nonce}\n${machine}\n${sessionId}`:
+
+```json
+{"v":1,"type":"personal-agent-submit","requestId":"<id>","proof":"<hmac>","text":"<owner turn>"}
+```
+
+The desk answers `{"v":1,"type":"personal-agent-receipt","requestId":"<id>","accepted":true}`. The desk forwards the accepted turn to the resident and pushes the resulting frames over the same link.
+
+One nonce accepts one turn. A repeated proof is refused, so a captured submit is not replayable. The credential never appears on the wire. The domain separates this proof from a Hosted Pi proof in both directions.
+
+A report token cannot submit. Without the Control Credential the desk answers `control unavailable`. A submit with no open challenge answers `control challenge required`. A submit whose proof does not match answers `control proof refused`. The phone states the outcome it received. It never claims a delivery it was not given.
+
+The desk reports the phones reading it as its own connected clients. A phone is a reader and never a reporter. It never appears in the machine session snapshot, and it cannot change what the desk reports about Pi sessions.
+
+The transport is not encrypted and the listener is LAN-only. Do not expose the listener beyond the local network.
+
+[tests/fixtures/personal-agent-v1.json](../tests/fixtures/personal-agent-v1.json) owns the record shapes, the challenge transcript and one frame per design state. The desk and the phone both read that one file.
+
 ## Existing-session discovery
 
 The reporting package also reads the machine's bounded `directory-sessions` metadata registry every five seconds. This makes pre-existing Working, Settled, and Exited sessions available even when those individual processes did not load the package. It does not read session histories or authentication files. Current in-process events remain separate; discovered sessions without reported events say so rather than fabricating a stream. At least one configured reporter must be running and connected.

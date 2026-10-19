@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Instrument theme canvas. The window matches it so no light frame
+         shows while the renderer composes. -->
+    <color name="shell_canvas">#000000</color>
+</resources>
