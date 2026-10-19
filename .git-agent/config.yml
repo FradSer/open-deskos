@@ -1,23 +1,15 @@
 scopes:
     - name: shell
-      description: Desktop environment, renderer, app lifecycle, and plugins in runtime/shell/; does not cover integration-level services
+      description: Desktop environment, renderer, app lifecycle, and plugins in runtime/shell/ and the Android host in runtime/android/; does not cover integration-level services
     - name: hw
       description: ESP32 firmware drivers, peripheral control, and hardware navigation logic in peripherals/; does not cover Linux-side host processes
     - name: link
       description: Connectivity bridges, transport protocols, and agent-service communications in integrations/; does not cover desktop shell UI
-    - name: vision
-      description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI
+    - name: vis
+      description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI or peripheral firmware drivers
     - name: rsrch
       description: Hardware research, firmware simulation, and Apple companion agents in research/; does not cover production drivers
     - name: exp
       description: Experimental prototypes and proof-of-concept projects in experiments/; does not cover core product runtime or peripherals
     - name: tool
       description: Build automation, codegen scripts, and repository infrastructure in tools/; does not cover core application logic
-    - name: vis
-      description: Computer vision pipelines and face recognition logic in experiments/vision/; does not cover peripheral firmware drivers
-    - name: integrations
-      description: connectivity bridges, personal bot agents, and service integrations in integrations/; does not cover desktop shell UI
-    - name: research
-      description: hardware research, firmware simulation, and Apple companion agents in research/; does not cover production drivers
-    - name: runtime
-      description: desktop environment, shell renderer, app lifecycle, and plugins in runtime/; does not cover integration-level services
