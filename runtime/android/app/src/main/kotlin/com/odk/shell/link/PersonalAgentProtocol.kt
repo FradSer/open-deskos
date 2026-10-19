@@ -79,8 +79,11 @@ object PersonalAgentProtocol {
     fun acceptedOf(record: JSONObject): Boolean? =
         if (record.optString("type") == RECEIPT) record.optBoolean("accepted", false) else null
 
-    fun refusalReason(record: JSONObject): String? =
-        if (record.optString("type") == ERROR) record.optString("reason").ifEmpty { "the desk refused the request" } else null
+    fun refusalReason(record: JSONObject): String? {
+        if (record.optString("type") != ERROR) return null
+        val reason = record.opt("reason") as? String ?: return "the desk refused the request"
+        return reason.replace(Regex("[\\x00-\\x1f\\x7f]"), " ").trim().take(200).ifEmpty { "the desk refused the request" }
+    }
 
     /**
      * A record from another protocol version is refused by name. Reading it as if

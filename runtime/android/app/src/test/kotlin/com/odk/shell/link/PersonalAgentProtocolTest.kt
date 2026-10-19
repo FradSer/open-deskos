@@ -99,4 +99,13 @@ class PersonalAgentProtocolTest {
         assertNotNull(PersonalAgentProtocol.versionRefusal(JSONObject().put("v", 1).put("type", "challenge")))
     }
 
+    @Test
+    fun refusalReasonsAreBoundedAndSafeForTheDroppedState() {
+        val record = JSONObject().put("type", "error").put("reason", "token refused\n\u0000" + "x".repeat(500))
+        val reason = PersonalAgentProtocol.refusalReason(record)!!
+        assertTrue(reason.startsWith("token refused"))
+        assertTrue(reason.length <= 200)
+        assertFalse(Regex("[\\x00-\\x1f\\x7f]").containsMatchIn(reason))
+    }
+
 }

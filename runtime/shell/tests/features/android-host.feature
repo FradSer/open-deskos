@@ -132,3 +132,10 @@ Feature: Android Shell Host renders the shared Personal Agent
     When Android reads the link
     Then it refuses the record before unbounded buffering
     And device verification selects only this application and its own ADB forward
+
+  Scenario: A refused read handshake keeps its bounded reason
+    Given the desk refuses the phone before an owner turn exists
+    When the desk reports a token refusal and closes the connection
+    Then the phone reports that refusal as its dropped-link reason
+    And control characters and oversized reason text cannot enter the reason
+    And signed owner command text is never truncated

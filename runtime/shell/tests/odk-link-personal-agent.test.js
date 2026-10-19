@@ -306,18 +306,19 @@ test('a new personal control role binds raw first-frame bytes and forwards the s
 })
 
 test('personal role refuses modified first bytes, second bodies, wrong ids and expired proofs', async t => {
-  for (const variant of ['first-bytes', 'second-text', 'second-reference', 'request-id', 'expired', 'legacy-role', 'bad-reference']) await t.test(variant, async () => {
+  for (const variant of ['first-bytes', 'second-text', 'second-reference', 'request-id', 'expired', 'legacy-role', 'bad-reference', 'oversized-text']) await t.test(variant, async () => {
     const source = fakeSource(); let clock = 1000
     await withService(async (_, port) => {
       const phone = await openPhone(port)
       const first = { ...fixture.control.hello }
       if (variant === 'legacy-role') first.v = 1
       if (variant === 'bad-reference') first.replyTo = { messageId: 'not-an-id' }
+      if (variant === 'oversized-text') first.text = 'x'.repeat(16 * 1024 + 1)
       const intended = JSON.stringify(first)
       const sent = variant === 'first-bytes' ? JSON.stringify({ ...first, text: 'changed by an intermediary' }) : intended
       phone.socket.write(sent + '\n'); await phone.waitFor(3)
       const challenge = phone.replies[2]
-      if (variant === 'legacy-role' || variant === 'bad-reference') {
+      if (variant === 'legacy-role' || variant === 'bad-reference' || variant === 'oversized-text') {
         assert.equal(challenge.type, 'error'); assert.equal(source.sent.length, 0); phone.socket.destroy(); return
       }
       assert.equal(challenge.type, 'challenge')

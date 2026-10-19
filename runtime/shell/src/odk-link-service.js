@@ -7,7 +7,7 @@ const { timingSafeEqual, createHmac, createHash, randomBytes } = require('node:c
 const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
 const { isNamedPipe, listenChannel } = require('./local-channel')
-const { projectPersonalAgentFrame, boundedTurnText } = require('./personal-agent-frame')
+const { projectPersonalAgentFrame } = require('./personal-agent-frame')
 const { parseReplyTo } = require('./personal-bot-reply-reference')
 
 // The service bounds reported data itself: a reporting machine is never trusted

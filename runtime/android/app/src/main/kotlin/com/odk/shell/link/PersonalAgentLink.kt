@@ -169,10 +169,15 @@ class PersonalAgentLink(
                 }
             }
             PersonalAgentProtocol.ERROR -> {
-                val request = pendingSubmit ?: return
                 val named = record.optString("requestId")
+                val reason = PersonalAgentProtocol.refusalReason(record) ?: "The desk refused the turn"
+                val request = pendingSubmit
+                if (request == null) {
+                    if (named.isNotEmpty()) return // A late result belongs only to its old request.
+                    throw IllegalStateException(reason)
+                }
                 if (named.isNotEmpty() && named != request.requestId) return
-                request.reason = PersonalAgentProtocol.refusalReason(record) ?: "The desk refused the turn"
+                request.reason = reason
                 request.challenge.countDown()
                 request.receipt.countDown()
             }

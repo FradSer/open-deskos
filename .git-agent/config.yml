@@ -5,8 +5,10 @@ scopes:
       description: ESP32 firmware drivers, peripheral control, and hardware navigation logic in peripherals/; does not cover Linux-side host processes
     - name: link
       description: Connectivity bridges, transport protocols, and agent-service communications in integrations/; does not cover desktop shell UI
+    - name: vision
+      description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI
     - name: vis
-      description: Face agent, computer vision pipelines, and normalization logic in experiments/vision/; does not cover general UI or peripheral firmware drivers
+      description: Computer vision pipelines and face recognition logic in experiments/vision/; does not cover peripheral firmware drivers
     - name: rsrch
       description: Hardware research, firmware simulation, and Apple companion agents in research/; does not cover production drivers
     - name: exp

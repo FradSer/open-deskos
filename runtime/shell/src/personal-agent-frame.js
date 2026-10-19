@@ -11,7 +11,6 @@ const { parseReplyTo } = require('./personal-bot-reply-reference')
  */
 
 const MAX_PERSONAL_AGENT_FRAME_BYTES = 128 * 1024
-const MAX_PERSONAL_AGENT_TEXT_BYTES = 16 * 1024
 const PERSONAL_AGENT_STATES = new Set([
   'idle',
   'recording',
@@ -25,18 +24,6 @@ const PERSONAL_AGENT_STATES = new Set([
 
 function personalAgentUnavailable(message) {
   return { state: 'unavailable', message }
-}
-
-/** Bound a submitted owner turn the same way the resident channel does. */
-function boundedTurnText(value) {
-  if (typeof value !== 'string') return ''
-  const trimmed = value.trim()
-  if (trimmed.length === 0) return ''
-  const bytes = Buffer.from(trimmed, 'utf8')
-  if (bytes.length <= MAX_PERSONAL_AGENT_TEXT_BYTES) return trimmed
-  let end = MAX_PERSONAL_AGENT_TEXT_BYTES
-  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1
-  return bytes.subarray(0, end).toString('utf8')
 }
 
 function projectPersonalAgentFrame(status) {
@@ -73,8 +60,6 @@ function projectPersonalAgentFrame(status) {
 
 module.exports = {
   projectPersonalAgentFrame,
-  boundedTurnText,
   MAX_PERSONAL_AGENT_FRAME_BYTES,
-  MAX_PERSONAL_AGENT_TEXT_BYTES,
   PERSONAL_AGENT_STATES,
 }
