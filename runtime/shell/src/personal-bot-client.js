@@ -154,6 +154,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           replyInput: record.replyInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',
           transcript,
+          ...(typeof record.ownerTurnId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(record.ownerTurnId) ? { ownerTurnId: record.ownerTurnId } : {}),
           ...(parseReplyTo(record.replyTo) && typeof record.threadId==='string' && /^[a-f0-9]{64}$/.test(record.threadId) ? {replyTo:parseReplyTo(record.replyTo),threadId:record.threadId} : {}),
           level,
           agents: parseAgentTasks(record.agents),

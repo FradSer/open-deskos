@@ -16,7 +16,7 @@
           <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-status-dot" aria-hidden="true"></span><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
             <label>Name<input name="name" maxlength="40" required /></label>
             <label>Icon<select name="icon"><option value="message">Message</option><option value="leaf">Leaf</option><option value="terminal">Terminal</option></select></label>
-            <button type="submit">Save</button></form></details><p class="agent-jev-status" role="status">Checking Jev authentication…</p></header>
+            <button type="submit">Save</button></form></details></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
         <div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
@@ -33,6 +33,7 @@
       let released = false
       let revision = 0
       let turn = null
+      const ownerTurns = new Map()
       const seenNotifications = new Set()
       const remoteMessages = new Map()
       const durableReplies = new Map()
@@ -57,7 +58,7 @@
         for (const node of el.querySelectorAll('.agent-avatar, .agent-input-avatar')) node.innerHTML = glyph(identity.icon)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
-        input.placeholder = `Ask ${identity.name}…`
+        input.placeholder = 'Message…'
         input.setAttribute('aria-label', `Message ${identity.name}`)
         $('.agent-identity-form [name="name"]').value = identity.name
         $('.agent-identity-form [name="icon"]').value = identity.icon
@@ -74,7 +75,7 @@
         } else article.innerHTML = '<div class="agent-message-body"></div>'
         const body = article.querySelector('.agent-message-body')
         body.textContent = text
-        conversation.append(article)
+        conversation.insertBefore(article, remoteCoverage?.parentElement === conversation ? remoteCoverage : null)
         root.odkIcons?.apply?.(article)
         return body
       }
@@ -144,6 +145,10 @@
           note.textContent = ambiguous ? 'Reply reference is ambiguous.' : unsupported ? 'Session replies need an updated host.' : ''
           note.hidden = !note.textContent
         }
+        for (const button of conversation.querySelectorAll('.agent-message-reply')) {
+          const article = button.closest('.agent-message')
+          button.disabled = ![...article.querySelectorAll('.agent-session-reply')].some(choice => !choice.disabled)
+        }
       }
       function selectReply(item, source) {
         if (pending || root.odkPersonalBot?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
@@ -180,6 +185,19 @@
         }
         return row
       }
+      function messageReply(item, recordKey, details) {
+        const button = document.createElement('button')
+        button.type = 'button';button.className = 'agent-message-reply'
+        button.textContent = 'Reply'
+        button.setAttribute('aria-label', item.sources.length === 1 ? 'Reply to this update' : 'Choose a session to reply')
+        button.addEventListener('click', () => {
+          const current = remoteRecords.get(recordKey)
+          if (!current || button.disabled) return
+          if (current.sources.length === 1) selectReply(current, current.sources[0])
+          else { details.open = true;details.querySelector('.agent-session-reply:not(:disabled)')?.focus({ preventScroll: true }) }
+        })
+        return button
+      }
       function timelineEntry(article, at, ids) {
         const threads = [...new Set(ids.filter(Boolean))]
         article.dataset.threadIds = JSON.stringify(threads)
@@ -191,21 +209,27 @@
         for (const reply of [...(replies || [])].reverse()) {
           let row = durableReplies.get(reply.id)
           if (!row) {
-            const body = message('user', reply.text)
+            const owner = ownerTurns.get(reply.id)
+            const body = owner?.user || message('user', reply.text)
+            if (owner) owner.bound = true
             const article = body.closest('article');article.dataset.replyId = reply.id
-            const status = document.createElement('span');status.className = 'agent-reply-status';article.append(status)
-            row = { article, status, answer: null };durableReplies.set(reply.id, row)
+            const details = document.createElement('details');details.className = 'agent-reply-details'
+            const label = document.createElement('summary');label.textContent = 'Details';details.append(label);article.append(details)
+            const status = document.createElement('span');status.className = 'agent-reply-status';details.append(status)
+            row = { article, status, details, answer: owner?.response || null };durableReplies.set(reply.id, row)
             timelineEntry(article, reply.at, [reply.threadId])
           }
           const origins = [...remoteRecords.values()].filter(item => item.id === reply.replyTo.messageId).flatMap(item => item.sources.filter(source => source.key === reply.replyTo.sourceKey && source.revision === reply.replyTo.sourceRevision))
           const threadId = origins.length === 1 && origins[0].threadId ? origins[0].threadId : reply.threadId
           timelineEntry(row.article, reply.at, [threadId])
+          if (row.answer) timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
           if (row.threadId !== threadId) {
             row.article.querySelector('.agent-message-session')?.remove()
-            if (reply.sessionId) row.article.append(sessionLabel({ sessionId: reply.sessionId, threadId }, {}))
+            if (reply.sessionId) row.details.append(sessionLabel({ sessionId: reply.sessionId, threadId }, {}))
             row.threadId = threadId
           }
-          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed', answered: 'Personal Agent replied', failed: 'Reply was not sent' })[reply.status] || 'Status unavailable'
+          row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
+          ;(['queued', 'dispatching', 'unknown', 'failed'].includes(reply.status) ? row.article : row.details).append(row.status)
           if (reply.answer) {
             if (!row.answer) { row.answer = message('assistant', '');timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId]) }
             timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
@@ -239,7 +263,7 @@
               const focused = [...body.querySelectorAll('.agent-message-session')].findIndex(row => row.contains(document.activeElement))
               const replyFocused = document.activeElement?.classList.contains('agent-session-reply')
               for (const row of body.querySelectorAll('.agent-message-session')) row.remove()
-              for (const source of item.sources) body.append(sessionLabel(source, item, recordKey))
+              for (const source of item.sources) body.querySelector('.agent-update-sources').append(sessionLabel(source, item, recordKey))
               timelineEntry(article, item.at, item.sources.map(source => source.threadId))
               for (const [index, source] of item.sources.entries()) {
                 const oldThread = previous.sources[index].threadId
@@ -295,13 +319,15 @@
             note.textContent = `${item.omittedSources} source references omitted. Ask for remote Pi updates to inspect them.`
             details.append(note)
           }
-          body.append(details)
-          for (const source of item.sources || []) body.append(sessionLabel(source, item, recordKey))
+          const actions = document.createElement('div');actions.className = 'agent-message-actions'
+          if (item.sources?.length) actions.append(messageReply(item, recordKey, details))
+          actions.append(details);body.append(actions)
+          for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
         }
         if (!remoteCoverage) {
           remoteCoverage = document.createElement('section')
           remoteCoverage.className = 'agent-remote-coverage'
-          remoteCoverage.innerHTML = '<p role="status"></p><details><summary>Details</summary><p></p></details>'
+          remoteCoverage.innerHTML = '<p role="status"></p><details><summary>Conversation details</summary><p></p></details>'
           conversation.append(remoteCoverage)
         }
         const historyOmitted = Math.max(0, (frame.total || 0) - (frame.messages?.length || 0))
@@ -316,42 +342,43 @@
                     ? 'Some earlier task updates have expired.' : frame.omittedReplies
                       ? 'Some earlier replies are not shown here.' : frame.expiredReplies
                         ? 'Some earlier replies have expired.' : 'Some task updates are not available yet.'
+        remoteCoverage.querySelector('[role="status"]').hidden = !['unavailable', 'stale'].includes(frame.state)
         updateReplyChoices()
         renderReplies(frame.replies)
         orderTimeline()
         showThread(selectedThread)
         remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired; ${frame.omittedReplies || 0} earlier replies not shown; ${frame.expiredReplies || 0} earlier replies expired.`
       }
-      function renderJev(value, judgment) {
-        const states = {
-          checking: ['Checking Jev authentication…', 'Checking Jev…'],
-          verified: ['Jev authentication verified.', 'Ready'],
-          disabled: ['Jev is disabled.', 'Jev disabled'],
-          missing_credential: ['Jev credentials are missing. Add them in the service configuration, then restart the Personal Agent service.', 'Jev not configured'],
-          auth_rejected: ['Jev authentication was rejected. Check the service credentials, then restart the Personal Agent service.', 'Jev authentication rejected'],
-          unavailable: ['Jev authentication could not be checked. Check network and service settings, then restart the Personal Agent service.', 'Jev unavailable'],
-        }
-        const [authText, caption] = value && Object.hasOwn(states, value.status)
-          ? states[value.status] : ['Jev authentication has not been checked.', 'Jev not checked']
-        const ordinaryReady = judgment?.status === 'ready' && judgment.provider === 'model'
-        const optional = {checking:'Checking optional Jev; model ready.',disabled:'Jev disabled; model ready.',missing_credential:'Jev not configured; model ready.',auth_rejected:'Jev rejected; model ready.',unavailable:'Jev unavailable; model ready.'}
-        const text = ordinaryReady && value?.status !== 'verified' ? optional[value?.status] || 'Jev not checked; model ready.' : authText
-        const node = $('.agent-jev-status')
-        if (node.textContent !== text) node.textContent = text
-        return judgment === undefined ? caption : judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Judgment unavailable'
+      function readinessCaption(value, judgment) {
+        if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Connection unavailable'
+        return value?.status === 'verified' ? 'Ready' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
       }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
         const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
-        const jevCaption = renderJev(status.jev, status.judgment)
+        const readyCaption = readinessCaption(status.jev, status.judgment)
         renderAgents(status.agents)
-        renderRemote(status.remote)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
-        const newTurn = !status.replyTo && status.transcript && (!turn || status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking'))
-        if (newTurn) turn = { prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
+        renderRemote(status.remote)
+        const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
+        if (newTurn) {
+          const durable = durableReplies.get(status.ownerTurnId)
+          turn = ownerTurns.get(status.ownerTurnId) || { ownerTurnId: status.ownerTurnId, prompt: status.transcript,
+            user: durable?.article.querySelector('.agent-message-body') || message('user', status.transcript),
+            response: durable?.answer || message('assistant', ''), bound: Boolean(durable) }
+          if (durable) {
+            durable.answer = turn.response
+            timelineEntry(turn.response.closest('article'), timeline.get(durable.article) + 0.5, [durable.threadId])
+            orderTimeline();showThread(selectedThread)
+          }
+          if (status.ownerTurnId) {
+            ownerTurns.set(status.ownerTurnId, turn)
+            while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
+          }
+        }
         const reply = status.message
-        if (!status.replyTo && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
+        if (!status.replyTo && !turn?.bound && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
           root.odkPersonalBotReply.render(turn.response, reply)
         }
@@ -365,7 +392,7 @@
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
         const labels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-        const caption = status.state === 'idle' ? jevCaption : labels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? readyCaption : labels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption, status.proposalError ? 'Suggestions unavailable' : caption)
         $('.agent-send').disabled = busy || status.state === 'unavailable' || pending
         $('.agent-mic').disabled = busy && status.state !== 'recording'
