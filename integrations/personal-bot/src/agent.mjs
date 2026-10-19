@@ -263,8 +263,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
       afterTurn: plugins ? async (_text, answer, signal) => {
         lastTaskResult = await plugins.finishTurn(answer, signal)
         const notes = []
-        if (lastTaskResult.verification.status === 'needs_review') notes.push('完成后校验：需要复核。当前证据不足，尚不能确认任务已完成。')
-        if (lastTaskResult.verification.status === 'passed' && lastTaskResult.verification.checks.some(check => check.scope === 'admission')) notes.push('任务已受理；后续执行结果尚未完成校验。')
+        if (lastTaskResult.verification.status === 'needs_review') notes.push('还没有足够证据确认任务已完成。')
+        if (lastTaskResult.verification.status === 'passed' && lastTaskResult.verification.checks.some(check => check.scope === 'admission')) notes.push('指令已受理，任务是否完成还需确认。')
         if (lastTaskResult.learning.status === 'needs_review') notes.push('经验学习未完成；现有经验已保留。')
         return [answer, ...notes].filter(Boolean).join('\n\n')
       } : undefined,

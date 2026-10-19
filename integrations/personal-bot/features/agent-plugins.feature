@@ -350,3 +350,11 @@ Feature: Personal Agent owns a bounded plugin runtime
     Then the first thinking frame and durable reply share one host-generated identity
     And the Personal Agent answer belongs to that same reply
     And a failed binding sends no instruction and retains a failed record
+
+  Scenario: Session follow-up acknowledgements use concise owner language
+    Given a follow-up has an actual delivery receipt and internal verification result
+    When the Personal Agent acknowledges the instruction
+    Then it uses one or two short sentences in the owner language
+    And unknown delivery does not claim receipt, execution, or completion
+    And identifiers and protocol fields remain internal unless the owner requests them
+    And an unverified result remains visible without implementation terminology
