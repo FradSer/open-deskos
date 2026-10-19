@@ -222,7 +222,7 @@ export class RemoteConversation {
   completeReply(id,patch) {
     const current=(this.data.replies??[]).find(reply=>reply.id===id)
     if(!current)throw Error('Reply is unavailable')
-    const status=current.status==='unknown' || current.status==='delivered' && ['answered','failed'].includes(patch.status)?current.status:patch.status
+    const status=current.status==='dispatching' && patch.status==='failed'?'unknown':current.status==='unknown' || current.status==='delivered' && ['answered','failed'].includes(patch.status)?current.status:patch.status
     this.save({...this.data,replies:this.data.replies.map(reply=>reply.id===id?{...reply,...patch,status}:reply)});this.publish(this.snapshot())
   }
   async dispatchReply(reply,send) {
@@ -281,7 +281,6 @@ export class RemoteConversation {
   }
   async collect(epoch) {
     this.scanComplete=false
-    let migrated=this.data
     let cursor=this.data.cursor,omitted=0,unavailable=0;const records=[],sweep=new Set(cursor===null?[]:this.data.sweep);let complete=false,uncertain=cursor===null?false:this.data.sweepUncertain===true
     for(let page=0;page<4;page++) {
       const response=await this.read(cursor)
@@ -291,16 +290,16 @@ export class RemoteConversation {
       for(const record of response.records) {
         sweep.add(record.key);if(sweep.size>8192)throw Error('Remote inventory capacity')
         if(!validReference(record) || !text(record.conclusion,2048) || !Number.isFinite(record.updatedAt))throw Error('Invalid remote report')
-        migrated=migrateLegacyIdentity(migrated,record)
-        const previous=migrated.seen.find(v=>v.key===record.key),completion=completionIdentity(record)
-        if(completion && previous?.completion!==completion && !this.data.messages.some(message=>message.sources.some(source=>source.key===record.key && terminalIdentity(source)===completion)) && !migrated.attempted.some(a=>a.key===record.key && a.completion===completion) && (previous?.revision!==record.revision && !this.data.attempted.some(a=>a.key===record.key && a.revision===record.revision) && !(previous && record.updatedAt<previous.updatedAt)))records.push(record)
+        const migrated=migrateLegacyIdentity(this.data,record)
+        if(migrated!==this.data)this.save(migrated)
+        const previous=this.data.seen.find(v=>v.key===record.key),completion=completionIdentity(record)
+        if(completion && previous?.completion!==completion && !this.data.messages.some(message=>message.sources.some(source=>source.key===record.key && terminalIdentity(source)===completion)) && !this.data.attempted.some(a=>a.key===record.key && a.completion===completion) && (previous?.revision!==record.revision && !this.data.attempted.some(a=>a.key===record.key && a.revision===record.revision) && !(previous && record.updatedAt<previous.updatedAt)))records.push(record)
       }
       cursor=response.nextCursor??null;omitted=response.omitted??0;unavailable+=response.unavailableSources??0
       uncertain ||= (response.unavailableSources??0)>0 || cursor===null && omitted>0
       if(cursor===null){complete=true;break}
       if(records.length>=4)break
     }
-    if(migrated!==this.data)this.save(migrated)
     this.scanComplete=complete
     this.checkedAt=Date.now();this.omitted=omitted;this.unavailable=unavailable
     if(records.length>7 || Buffer.byteLength(JSON.stringify(records))>131072)throw Error('Remote batch limit')

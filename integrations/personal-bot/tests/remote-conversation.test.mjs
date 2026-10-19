@@ -839,3 +839,33 @@ test('host owner identity is bound before reply publication and a failed binding
  const nextId='00000000-0000-0000-0000-000000000062';const reply=remote.beginReply(reference,'Another explicit owner instruction',{id:nextId,onBound:value=>{assert.equal(value.id,nextId);bound=true}})
  assert.equal(reply.id,nextId);assert.throws(()=>remote.beginReply(reference,'Duplicate host identity',{id:nextId}),/identity|pending/)
 })
+
+
+test('remote reads preserve replies created or completed while inventory is pending',async t=>{
+ for(const page of ['same','empty','later_page'])for(const finish of [false,true])await t.test(`${page} ${finish?'unknown':'queued'}`,async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-read-race-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  let block=false,release,entered;const ready=new Promise(resolve=>{entered=resolve}),wait=new Promise(resolve=>{release=resolve}),source=row('source')
+  const options={file:join(directory,'remote.json'),read:async cursor=>{if(!block)return {ok:true,records:[source],total:1,nextCursor:null,omitted:0};if(page==='later_page'&&cursor===null)return {ok:true,records:[],total:1,nextCursor:'pending',omitted:0};entered();await wait;return {ok:true,records:page==='same'?[source]:[],total:page==='same'?1:0,nextCursor:null,omitted:0}},synthesize:async input=>({updates:updates('完成一轮汇报。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+  const remote=new RemoteConversation(options);await remote.poll();block=true;const pending=remote.poll();await ready
+  const origin=remote.data.messages[0],reply=remote.beginReply({messageId:origin.id,sourceKey:source.key,sourceRevision:source.revision},'A distinct owner request')
+  if(finish)remote.completeReply(reply.id,{status:'unknown',answer:'Original uncertain-delivery answer',receipt:{accepted:false,delivery:'unknown',mutationId:'00000000-0000-0000-0000-000000000071'}})
+  const expected=JSON.parse(await readFile(options.file,'utf8'));release();await pending
+  const actual=JSON.parse(await readFile(options.file,'utf8'));assert.deepEqual(actual.replies,expected.replies);assert.deepEqual(actual.messages,expected.messages);assert.equal(actual.expiredReplies,expected.expiredReplies)
+  const recovered=new RemoteConversation(options);assert.equal(recovered.data.replies[0].id,reply.id);assert.deepEqual(recovered.data.replies,finish?expected.replies:expected.replies.map(r=>({...r,status:'failed'})))
+  await remote.close();await recovered.close()
+ })
+})
+
+
+test('a sent reply remains unknown when receipt writes fail before service recovery',async t=>{
+ const {PersonalBotService}=await import('../src/service.mjs')
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-receipt-write-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const source=row('source'),options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[source],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('完成一轮汇报。',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll();const origin=remote.data.messages[0],reference={messageId:origin.id,sourceKey:source.key,sourceRevision:source.revision};let sends=0,failures=0
+ const save=remote.save.bind(remote);remote.save=next=>{if(next.replies?.some(reply=>reply.status==='unknown')&&failures<2){failures++;throw Error('private receipt persistence failure')}return save(next)}
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async(text,_snapshot,_reply,owner)=>{const reply=remote.beginReply(reference,text,{id:owner.id,onBound:owner.bind});await remote.dispatchReply(reply,async beforeSend=>{beforeSend();sends++;return {accepted:false,delivery:'unknown'}});return 'No delivery claim'}})
+ service.attachRemoteUpdates(remote);assert.equal(service.sendText('A unique owner instruction.'),true);await assert.doesNotReject(service.pending)
+ assert.equal(sends,1);assert.equal(failures,2);assert.equal(service.status.state,'error');assert.equal(remote.data.replies[0].status,'unknown');assert.equal(remote.data.replies[0].receipt,undefined)
+ assert.throws(()=>remote.beginReply(reference,'Another instruction without a new completion'),/unknown|pending/);const recovered=new RemoteConversation(options);assert.equal(recovered.data.replies[0].status,'unknown')
+ await service.close();await remote.close();await recovered.close()
+})

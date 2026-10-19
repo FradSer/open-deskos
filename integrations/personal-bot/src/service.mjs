@@ -1,6 +1,8 @@
 import { AudioLimitError } from './errors.mjs'
 import { randomUUID } from 'node:crypto'
 
+const replyPersistenceFailure = 'Reply status could not be saved. Check its delivery receipt before sending again.'
+
 function boundedText(text, limit, label) {
   const notice = `\n\n[${label} truncated]`
   return text.length <= limit ? text : text.slice(0, limit - notice.length) + notice
@@ -221,10 +223,10 @@ export class PersonalBotService {
         if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       }
     } catch (error) {
-      if(reply)this.remote?.completeReply(reply.id,{status:'failed'})
       failure = error instanceof AudioLimitError
         ? `Recording exceeds the ${error.limit.toLocaleString('en-US')}-byte upload limit; record a shorter request`
         : this.dependencies.failureMessage || 'Personal Bot request failed; try again'
+      if(reply)try{this.remote?.completeReply(reply.id,{status:'failed'})}catch{failure=replyPersistenceFailure}
     } finally {
       if (!await this.discard()) failure = this.dependencies.failureMessage || 'Personal Bot request failed; try again'
       if (!this.closed) {
@@ -262,8 +264,9 @@ export class PersonalBotService {
       if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
     } catch {
-      if(reply)this.remote?.completeReply(reply.id,{status:'failed'})
-      if (!this.closed) this.setState('error', reply?'Reply did not complete. Check its delivery receipt before sending again.':this.dependencies.failureMessage || 'Personal Bot request failed; try again')
+      let failure=reply?'Reply did not complete. Check its delivery receipt before sending again.':this.dependencies.failureMessage || 'Personal Bot request failed; try again'
+      if(reply)try{this.remote?.completeReply(reply.id,{status:'failed'})}catch{failure=replyPersistenceFailure}
+      if (!this.closed) this.setState('error', failure)
     } finally {
       this.watch?.setBusy(false)
     }

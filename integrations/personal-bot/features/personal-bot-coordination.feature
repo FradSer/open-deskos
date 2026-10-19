@@ -135,3 +135,21 @@ Scenario: Native acceptance uses the configured endpoint directory
     Then both providers retain the source tense and conditional scope
     And a settled or reported_finished turn does not prove that the criterion was fulfilled
     And an update that upgrades a condition into completed work requires review
+
+  Scenario: Inventory reads retain replies written while a page is pending
+    Given a remote inventory page is waiting for its source
+    When an owner reply is saved or completed before the page returns
+    Then migration uses the latest checkpoint without losing the reply or its receipt
+    And an unknown delivery and its answer remain unchanged after restart
+
+  Scenario: Reply persistence failures cannot crash an owner turn
+    Given a typed or voice owner turn has a bound reply
+    When both final reply persistence and failure persistence throw
+    Then the turn resolves to a safe error without an unhandled rejection
+    And recording cleanup and existing turn finalization still run
+
+  Scenario: Receipt persistence failure preserves uncertain delivery
+    Given a reply crossed its send boundary and receipt persistence failed
+    When the owner service saves its failure state after storage recovers
+    Then the reply remains unknown rather than failed
+    And no delivery acceptance is invented or earlier instruction replayed
