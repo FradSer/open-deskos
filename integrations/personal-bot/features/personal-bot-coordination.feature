@@ -153,3 +153,14 @@ Scenario: Native acceptance uses the configured endpoint directory
     When the owner service saves its failure state after storage recovers
     Then the reply remains unknown rather than failed
     And no delivery acceptance is invented or earlier instruction replayed
+
+  Scenario: The host acknowledges only the current reply receipt
+    Given routing selects session continuation for a typed or voice owner turn
+    When the selected workflow returns with or without a bound reply receipt
+    Then its model draft text is not shown during that continuation
+    And the host saves and displays the same short receipt-based acknowledgement
+    And unknown delivery does not become confirmed arrival or completed work
+    And a reply that never crossed its send boundary is reported as not sent
+    And a failed reply with an uncertain receipt keeps its unknown delivery
+    And a continuation without a bound receipt cannot display a model delivery claim in either profile
+    And ordinary answers and clarification selected before continuation retain their existing behavior

@@ -225,6 +225,10 @@ export class RemoteConversation {
     const status=current.status==='dispatching' && patch.status==='failed'?'unknown':current.status==='unknown' || current.status==='delivered' && ['answered','failed'].includes(patch.status)?current.status:patch.status
     this.save({...this.data,replies:this.data.replies.map(reply=>reply.id===id?{...reply,...patch,status}:reply)});this.publish(this.snapshot())
   }
+  replyOutcome(id) {
+    const reply=this.data.replies.find(reply=>reply.id===id)
+    return reply?structuredClone({id:reply.id,status:reply.status,receipt:reply.receipt}):undefined
+  }
   async dispatchReply(reply,send) {
     const current=(this.data.replies??[]).find(item=>item.id===reply.id)
     if(!current || current.status!=='queued' || this.replyDispatches.has(reply.id))throw Error('Reply mutation already attempted; do not replay')

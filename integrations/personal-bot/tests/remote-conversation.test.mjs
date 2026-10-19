@@ -820,6 +820,8 @@ test('an AI-selected owner follow-up binds the displayed source and supports lat
  const attempts=await Promise.allSettled([followup(params(),undefined,undefined,owner),followup({...params(),prompt:'Another model prompt'},undefined,undefined,owner)])
  assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.equal(sent.length,1)
  assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies[0].id,owner.id);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
+ const outcome=remote.replyOutcome(owner.id);assert.deepEqual(outcome,{id:owner.id,status:'unknown',receipt:{accepted:false,delivery:'unknown'}})
+ outcome.receipt.accepted=true;assert.equal(remote.data.replies[0].receipt.accepted,false);assert.equal(remote.replyOutcome('another-owner'),undefined)
  const unknown=structuredClone(remote.data.replies[0])
  await new Promise(resolve=>setTimeout(resolve,3));source={...source,revision:'b'.repeat(64),eventId:'next-completed-turn'};await remote.poll()
  await assert.rejects(followup(params(),undefined,undefined,owner),/attempted/i);assert.equal(sent.length,1)
