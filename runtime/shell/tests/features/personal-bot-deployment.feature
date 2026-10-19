@@ -74,3 +74,4 @@ Feature: Independent CM5 personal bot service deployment
     And only the fixed alias and microphone settings enter the display configuration
     And provider credentials and local agent migration are not required
     And a missing entry, SSH executable, or invalid alias prevents registration
+    And missing microphone capture dependencies do not block keyboard display

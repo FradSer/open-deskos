@@ -90,8 +90,7 @@ if (-not (Test-Command 'ffmpeg.exe') -and $InstallFfmpeg) {
   }
   'ffmpeg installed; a new session is needed before this shell sees it on PATH'
 } elseif (-not (Test-Command 'ffmpeg.exe')) {
-  'ffmpeg is missing and was not installed; pass -InstallFfmpeg or install it yourself'
-  exit 1
+  'ffmpeg is missing; microphone capture is unavailable; display and keyboard input remain available'
 }
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`""
