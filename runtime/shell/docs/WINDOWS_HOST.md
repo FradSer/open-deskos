@@ -165,6 +165,7 @@ Registration requires the display entry, `ssh.exe`, and the exact central alias 
 The task runs in the logged-on interactive session; Session 0 has no microphone endpoint.
 Logs use `%LOCALAPPDATA%\odk\personal-bot.log`.
 A missing entry or invalid alias stops startup without a local fallback.
+Missing ffmpeg or microphone configuration disables capture, not keyboard display.
 
 Use the published protocol for acceptance:
 
