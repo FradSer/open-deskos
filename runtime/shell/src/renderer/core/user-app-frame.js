@@ -24,7 +24,7 @@
     }
   }
 
-  function mount(container, { id, name, revision, url, timeoutMs = 8000, onError } = {}) {
+  function mount(container, { id, name, revision, url, timeoutMs = 8000, onError, onReturnHome } = {}) {
     if (!container || typeof container.appendChild !== 'function') throw new TypeError('container is required')
     if (!url) throw new TypeError('user app URL is required')
     const token = nonce()
@@ -43,11 +43,12 @@
       // The host and the package both see the appearance this frame renders under; the
       // message keeps a loading frame's copy in step with the URL it was served with.
       frame.dataset.theme = theme
-      try { frame.contentWindow?.postMessage({ type: 'odk-user-app-theme', token, theme, radius: hostRadius(container) }, '*') } catch {}
+      try { frame.contentWindow?.postMessage({ type: 'odk-user-app-theme', token, theme, radius: hostRadius(container), ...(typeof onReturnHome === 'function' ? { returnHome: true } : {}) }, '*') } catch {}
     }
     let resolveReady
     let rejectReady
     let settled = false
+    let disposed = false
     const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
     let timer
     const observer = observerFor(publishTheme)
@@ -59,6 +60,7 @@
       if (timer) { clearTimeout(timer); timer = null }
     }
     const teardown = () => {
+      disposed = true
       stopReadyWatch()
       root.removeEventListener('message', onMessage)
       root.removeEventListener('resize', resizeListener)
@@ -83,6 +85,10 @@
     const onMessage = (event) => {
       const data = event.data
       if (event.source !== frame.contentWindow || !data || data.token !== token) return
+      if (data.type === 'odk-user-app-return-home') {
+        if (settled && !disposed && typeof onReturnHome === 'function' && Object.keys(data).length === 2) onReturnHome()
+        return
+      }
       if (data.type === 'odk-user-app-data') { publishData(data.data); return }
       if (data.type === 'odk-user-app-error') { fail(data.error || 'user app failed during startup'); return }
       if (data.type !== 'odk-user-app-ready') return

@@ -67,6 +67,16 @@ Feature: Widget continuations in the right desk pane
     And keyboard users can activate the same focused handle
     And failed close retains the App and a usable retry path
 
+  Scenario: A two-finger pinch returns from Shell-owned Widget App content
+    Given a Widget has opened its App and no overlay owns input
+    When two fingers move inward by at least 48 pixels and one quarter of their initial separation
+    And the user releases the gesture without cancellation
+    Then the existing App close path restores the source page and Widget focus once
+    And parallel two-finger scrolling, spreading, short movement, and three fingers do not return
+    And cancellation, resize, lost focus, or modal ownership prevents return
+    And ordinary wheel input and Ctrl-wheel retain their existing behavior
+    And external frames without the Shell bootstrap retain the Home handle return path
+
   Scenario: Home pages share one iOS-style handle
     Given Home, Desk, or Reading is visible
     Then one neutral horizontal handle is visible below the cards
@@ -128,3 +138,9 @@ Feature: Widget continuations in the right desk pane
     When the renderer paints a temporary frame marker and removes it
     Then the capture uses the new paint event image
     And no frame marker remains in the captured document
+
+  Scenario: An installed App returns through its owned frame
+    Given an active installed App has the Shell bootstrap and a ready owned frame
+    When two fingers pinch inward inside that App
+    Then the Shell returns to Home through its existing return control
+    And Widgets, foreign windows, old tokens, inactive Apps, and modal owners cannot request that return
