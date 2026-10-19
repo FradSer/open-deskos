@@ -200,8 +200,10 @@ export class RemoteConversation {
     }))throw Error('Previous reply delivery is unknown or pending; reconcile without replay')
     return {replyTo:structuredClone(replyTo),source:structuredClone(source),threadId}
   }
-  beginReply(replyTo,text) {
+  beginReply(replyTo,text,{id=randomUUID(),onBound=undefined}={}) {
     if(typeof text!=='string' || !text.trim() || Buffer.byteLength(text)>3000)throw Error('Invalid reply text')
+    if(typeof id!=='string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id) || (this.data.replies??[]).some(reply=>reply.id===id))throw Error('Invalid or repeated owner reply identity')
+    if(onBound!==undefined && typeof onBound!=='function')throw Error('Invalid owner reply binding')
     const bound=this.resolveReply(replyTo,text)
     const replies=[...(this.data.replies??[])];let expiredReplies=this.data.expiredReplies??0
     if(replies.length>=128) {
@@ -209,9 +211,12 @@ export class RemoteConversation {
       if(index===-1)throw Error('Session reply capacity reached; unresolved delivery evidence is preserved')
       replies.splice(index,1);expiredReplies++
     }
-    const reply={id:randomUUID(),threadId:bound.threadId,text,sessionId:bound.source.sessionId,replyTo:bound.replyTo,status:'queued',at:Date.now()}
-    this.save({...this.data,replies:[...replies,reply],expiredReplies});this.publish(this.snapshot())
-    return {...bound,id:reply.id,text}
+    const reply={id,threadId:bound.threadId,text,sessionId:bound.source.sessionId,replyTo:bound.replyTo,status:'queued',at:Date.now()}
+    this.save({...this.data,replies:[...replies,reply],expiredReplies})
+    const result={...bound,id:reply.id,text}
+    try { onBound?.(result) }catch(error){this.completeReply(reply.id,{status:'failed'});throw error}
+    this.publish(this.snapshot())
+    return result
   }
   completeReply(id,patch) {
     const current=(this.data.replies??[]).find(reply=>reply.id===id)

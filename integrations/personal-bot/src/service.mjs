@@ -7,7 +7,7 @@ function boundedText(text, limit, label) {
 }
 
 /** @typedef {{stop: () => Promise<string>, cleanup: () => Promise<void>, done: Promise<void>}} Recording */
-/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<string | void>, failureMessage?: string, getJudgmentStatus?: () => {status: string, provider: string, model?: string} | undefined, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
+/** @typedef {{record: (onLevel: (level: number) => void) => Promise<Recording>, transcribe: (path: string, signal: AbortSignal) => Promise<string>, prompt: (text: string, onResponseSnapshot: (snapshot: string) => void, reply?: import('./session-replies.mjs').BoundSessionReply, owner?: import('./session-replies.mjs').OwnerTurn) => Promise<string | void>, failureMessage?: string, getJudgmentStatus?: () => {status: string, provider: string, model?: string} | undefined, checkJev?: (signal: AbortSignal) => Promise<{status: string, reason?: string}>}} Dependencies */
 
 export class PersonalBotService {
   /** @param {Dependencies} dependencies */
@@ -94,7 +94,7 @@ export class PersonalBotService {
   publishRemote(remote) {
     if (this.closed) return
     this.remoteFrame = structuredClone(remote)
-    this.status = { ...this.status, remote: this.remoteFrame }
+    this.status = { ...this.status, ...this.replyFrame, remote: this.remoteFrame }
     for (const listener of this.listeners) listener(this.status)
   }
 
@@ -207,6 +207,7 @@ export class PersonalBotService {
   async submit() {
     let failure = ''
     let response = ''
+    let reply
     const recording = this.recording
     try {
       if (!recording) return
@@ -214,10 +215,13 @@ export class PersonalBotService {
       if (this.closed) return
       const text = await this.dependencies.transcribe(path, this.controller.signal)
       if (!this.closed) {
+        const ownerTurnId=randomUUID();this.replyFrame={ownerTurnId}
         this.setState('thinking', '', text)
-        response = await this.promptResponse(text)
+        response = await this.promptResponse(text,undefined,this.ownerContext(ownerTurnId,bound=>{reply=bound}))
+        if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       }
     } catch (error) {
+      if(reply)this.remote?.completeReply(reply.id,{status:'failed'})
       failure = error instanceof AudioLimitError
         ? `Recording exceeds the ${error.limit.toLocaleString('en-US')}-byte upload limit; record a shorter request`
         : this.dependencies.failureMessage || 'Personal Bot request failed; try again'
@@ -236,16 +240,25 @@ export class PersonalBotService {
       || this.closed || this.starting || this.watch?.responding || !['idle', 'error'].includes(this.status.state)) return false
     let reply
     try { if(replyTo!==undefined) { if(!this.remote) return false;reply=this.remote.beginReply(replyTo,text.trim()) } }catch{return false}
-    this.replyFrame=reply?{replyTo:reply.replyTo,threadId:reply.threadId}:{}
+    const ownerTurnId=reply?.id??randomUUID()
+    this.replyFrame={ownerTurnId,...(reply?{replyTo:reply.replyTo,threadId:reply.threadId}:{})}
     this.watch?.setBusy(true)
     this.setState('thinking', '', text.trim())
-    this.pending = this.submitText(text.trim(),reply)
+    this.pending = this.submitText(text.trim(),reply,ownerTurnId)
     return true
   }
 
-  async submitText(text, reply = undefined) {
+  ownerContext(id,onBound) {
+    return Object.freeze({id,bind:reply=>{
+      if(this.closed || this.status.state!=='thinking' || this.replyFrame.ownerTurnId!==id || reply.id!==id)throw Error('Owner reply binding is no longer active')
+      onBound(reply)
+      this.replyFrame={ownerTurnId:id,replyTo:reply.replyTo,threadId:reply.threadId}
+    }})
+  }
+
+  async submitText(text, reply = undefined, ownerTurnId = randomUUID()) {
     try {
-      const response = await this.promptResponse(text,reply)
+      const response = await this.promptResponse(text,reply,this.ownerContext(ownerTurnId,bound=>{reply=bound}))
       if(reply)this.remote?.completeReply(reply.id,{status:'answered',answer:boundedText(response,4000,'Response')})
       if (!this.closed) { this.setState('idle', response); this.watch?.interact() }
     } catch {
@@ -256,7 +269,7 @@ export class PersonalBotService {
     }
   }
 
-  async promptResponse(text, reply = undefined) {
+  async promptResponse(text, reply = undefined, owner = undefined) {
     let active = true
     let latest = ''
     let timer
@@ -271,7 +284,7 @@ export class PersonalBotService {
           timer = undefined
           if (active && !this.closed && latest !== this.status.message) this.setState('thinking', latest)
         }, 100)
-      },reply) || ''
+      },reply,owner) || ''
     } finally {
       stop()
       this.cancelStreaming = () => {}

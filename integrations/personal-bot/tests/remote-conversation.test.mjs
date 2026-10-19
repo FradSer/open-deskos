@@ -812,14 +812,26 @@ test('an AI-selected owner follow-up binds the displayed source and supports lat
  const remote=await attachRemoteConversation({agent,stateDir:directory,env:{},createReader:async()=>reader});t.after(()=>agent.close());await remote.poll()
  const params=()=>({sourceKey:source.key,sourceRevision:source.revision,prompt:'Model-rewritten instruction'})
  await assert.rejects(followup(params(),undefined,undefined,undefined),/owner/i);assert.equal(sent.length,0)
- const owner={text:'Read task.json and report the actual supported hosts.',turn:1}
+ const owner={id:'00000000-0000-0000-0000-000000000071',text:'Read task.json and report the actual supported hosts.',turn:1}
  const attempts=await Promise.allSettled([followup(params(),undefined,undefined,owner),followup({...params(),prompt:'Another model prompt'},undefined,undefined,owner)])
  assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.equal(sent.length,1)
- assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
+ assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies[0].id,owner.id);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
  const unknown=structuredClone(remote.data.replies[0])
  await new Promise(resolve=>setTimeout(resolve,3));source={...source,revision:'b'.repeat(64),eventId:'next-completed-turn'};await remote.poll()
  await assert.rejects(followup(params(),undefined,undefined,owner),/attempted/i);assert.equal(sent.length,1)
  await followup(params(),undefined,undefined,{text:'Now report the actual required rounds.',turn:2})
  assert.equal(sent.length,2);assert.deepEqual(remote.data.replies[0],unknown);assert.equal(remote.data.replies[1].threadId,unknown.threadId)
  await assert.rejects(followup(params(),undefined,undefined,{text:'Another request before a new completion.',turn:3}),/unknown/i);assert.equal(sent.length,2)
+})
+
+
+test('host owner identity is bound before reply publication and a failed binding cannot leave a queued lock',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-owner-publication-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let bound=false;const frames=[];const source=row('owner-id')
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[source],nextCursor:null,total:1}),synthesize:async input=>({updates:updates('The task finished.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:frame=>{if(frame.replies?.some(r=>r.status==='queued'))assert.equal(bound,true);frames.push(frame)}})
+ await remote.poll();const message=remote.data.messages[0],reference={messageId:message.id,sourceKey:source.key,sourceRevision:source.revision},id='00000000-0000-0000-0000-000000000061'
+ assert.throws(()=>remote.beginReply(reference,'New owner instruction',{id,onBound:()=>{throw Error('Host binding failed')}}),/binding failed/)
+ assert.equal(remote.data.replies[0].id,id);assert.equal(remote.data.replies[0].status,'failed');assert.equal(frames.at(-1).replies[0].status,'failed')
+ const nextId='00000000-0000-0000-0000-000000000062';const reply=remote.beginReply(reference,'Another explicit owner instruction',{id:nextId,onBound:value=>{assert.equal(value.id,nextId);bound=true}})
+ assert.equal(reply.id,nextId);assert.throws(()=>remote.beginReply(reference,'Duplicate host identity',{id:nextId}),/identity|pending/)
 })

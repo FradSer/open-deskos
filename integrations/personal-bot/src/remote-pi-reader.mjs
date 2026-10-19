@@ -134,7 +134,7 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
           ownerAttempts.add(owner)
           const reference=remote.reference(params.sourceKey)
           if(!reference.source || reference.source.revision!==params.sourceRevision)throw Error('Remote source revision changed')
-          reply=remote.beginReply({messageId:reference.messageId,sourceKey:reference.source.key,sourceRevision:reference.source.revision},owner.text)
+          reply=remote.beginReply({messageId:reference.messageId,sourceKey:reference.source.key,sourceRevision:reference.source.revision},owner.text,{...(owner.id?{id:owner.id}:{}),onBound:bound=>owner.bind?.(bound)})
           params={...params,prompt:owner.text}
         }
         return remote.dispatchReply(reply,beforeSend=>reader.followup(reply.source,params,signal,{explicitReply:true,beforeSend}))

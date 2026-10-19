@@ -332,3 +332,10 @@ Feature: Personal Agent owns a bounded plugin runtime
     And the host binds the selected source to the original owner text
     And one owner turn cannot create another reply operation
     And later distinct requests require a new completed turn after unknown delivery
+
+  Scenario: A selected task retains one owner message in its thread
+    Given an owner instruction without a reply reference
+    When AI selects a retained task and the host binds its source
+    Then the first thinking frame and durable reply share one host-generated identity
+    And the Personal Agent answer belongs to that same reply
+    And a failed binding sends no instruction and retains a failed record

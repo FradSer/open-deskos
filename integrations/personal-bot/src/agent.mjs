@@ -253,8 +253,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
         return prepared
       },
       completeTurn: intentTurn.complete,
-      beginTurn: async text => {
-        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn()}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
+      beginTurn: async (text, owner) => {
+        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
@@ -372,13 +372,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
 }
 
 /** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
- * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+ * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
   return {
-    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] @param {import('./session-replies.mjs').BoundSessionReply} [reply] */
-    prompt: async (text, onResponseSnapshot, reply = undefined) => {
+    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] @param {import('./session-replies.mjs').BoundSessionReply} [reply] @param {import('./session-replies.mjs').OwnerTurn} [owner] */
+    prompt: async (text, onResponseSnapshot, reply = undefined, owner = undefined) => {
       if (prompting || session.isStreaming) throw Error('Agent request already in progress')
       prompting = true
       controller = new AbortController()
@@ -393,7 +393,7 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         if (answer !== undefined) { hooks.completeTurn?.(text, answer); onResponseSnapshot?.(answer); return answer }
         await session.recover?.(controller.signal)
         controller.signal.throwIfAborted()
-        await hooks.beginTurn(text)
+        await hooks.beginTurn(text,owner)
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()

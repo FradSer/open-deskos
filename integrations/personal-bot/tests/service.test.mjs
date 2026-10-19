@@ -599,3 +599,19 @@ test('startup Jev failure is durable safe status and a disposed check cannot pub
   await service.resume(); release(); await service.jevCheck
   assert.equal(service.status.jev.status,'unavailable'); await service.close()
 })
+
+
+test('an AI-bound owner turn keeps one host identity and persists its answer in the same reply',async()=>{
+ const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[];let ownerId,lateBind
+ const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async(text,_snapshot,reply,owner)=>{
+  assert.equal(reply,undefined);assert.match(owner.id,/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/);ownerId=owner.id;assert.equal(service.status.ownerTurnId,ownerId)
+  lateBind=owner.bind;owner.bind({id:ownerId,text,replyTo:reference,threadId,source:{}})
+  service.publishRemote({state:'live',messages:[],replies:[{id:ownerId,status:'unknown'}]})
+  assert.equal(service.status.ownerTurnId,ownerId);assert.deepEqual(service.status.replyTo,reference);return 'The task instruction has a delivery receipt.'
+ }})
+ service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},completeReply:(id,patch)=>updates.push({id,...patch})})
+ assert.equal(service.sendText('Continue the displayed task.'),true);await service.pending
+ assert.equal(service.status.ownerTurnId,ownerId);assert.equal(service.status.threadId,threadId);assert.equal(service.status.state,'idle')
+ assert.deepEqual(updates,[{id:ownerId,status:'answered',answer:'The task instruction has a delivery receipt.'}])
+ assert.throws(()=>lateBind({id:ownerId,replyTo:reference,threadId}),/owner/i);await service.close()
+})

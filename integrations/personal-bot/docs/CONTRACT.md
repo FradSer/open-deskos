@@ -1061,6 +1061,11 @@ This context supplies no control authority.
 The model selects a retained source key and revision.
 The host binds that source to the original owner text.
 One owner turn can create only one such reply operation.
+Status frames carry a host-generated `ownerTurnId` from the first thinking frame.
+An AI-bound reply uses that UUID as its durable reply ID.
+The renderer uses this exact identity to retain one owner message and its answer.
+The binding callback runs synchronously after persistence and before reply publication.
+A failed binding retains a failed record and sends no instruction.
 Report-only sources refuse control without that host-bound owner operation.
 An explicit reply requires a unique configured machine binding and an exact current session match.
 The host checks current task state before sending.
