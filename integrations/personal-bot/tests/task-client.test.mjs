@@ -5,10 +5,19 @@ import { mkdir, mkdtemp, symlink, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { carriedProject, loadTargets, taskCommand, taskCompletionCommand, taskRequest } from '../src/task-client.mjs'
+import { sshEnvironment } from '../src/ssh-environment.mjs'
 
 const local = value => process.platform === 'win32' ? value.replaceAll('/', '\\') : value
 const target = { id: 'mac', name: 'Mac', executable: '/bin/helper', roots: [local('/work')] }
 const TASK_ID = '12345678-1234-1234-1234-123456789abc'
+
+test('Windows SSH retains ProgramData without forwarding provider settings', () => {
+  for (const key of ['ProgramData', 'PROGRAMDATA', 'programdata']) {
+    assert.deepEqual(sshEnvironment({ [key]: 'C:\\ProgramData', SystemRoot: 'C:\\Windows', ODK_PROVIDER_KEY: 'private', OPENAI_API_KEY: 'private' }), {
+      [key]: 'C:\\ProgramData', SystemRoot: 'C:\\Windows', LC_ALL: 'C',
+    })
+  }
+})
 
 async function fixture(t, source) {
   const dir = await mkdtemp(join(tmpdir(), 'task-client-'))

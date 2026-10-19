@@ -93,7 +93,7 @@ registerHooks({ resolve(specifier, context, next) { if (context.parentURL === ${
   return status
 }
 
-test('main prompt wiring forwards the live snapshot callback and bound reply', async () => {
+test('main prompt wiring forwards the live snapshot callback, bound reply and host owner identity', async () => {
   const source = await readFile(new URL('../src/main.mjs', import.meta.url), 'utf8')
   const wiring = source.match(/prompt:\s*([^\n]+),\n/)[1]
   let received
@@ -101,10 +101,11 @@ test('main prompt wiring forwards the live snapshot callback and bound reply', a
   const prompt = Function('runtime', `return (${wiring})`)(runtime)
   const snapshot = () => {}
   const reply = {threadId: 'fixture-thread', sessionId: 'fixture-session'}
-  assert.equal(await prompt('request', snapshot, reply), 'done')
-  assert.deepEqual(received, ['request', snapshot, reply])
+  const owner = {id:'00000000-0000-0000-0000-000000000081',bind:()=>{}}
+  assert.equal(await prompt('request', snapshot, reply, owner), 'done')
+  assert.deepEqual(received, ['request', snapshot, reply, owner])
   assert.equal(await prompt('request', snapshot), 'done')
-  assert.deepEqual(received, ['request', snapshot, undefined])
+  assert.deepEqual(received, ['request', snapshot, undefined, undefined])
 })
 
 test('unconfigured resident stays reachable and reports configuration error', async t => {

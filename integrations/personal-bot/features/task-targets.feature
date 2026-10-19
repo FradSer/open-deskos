@@ -6,6 +6,12 @@ Feature: Managed independent coding tasks
     And the target returns the correlated request without receiving the client-only value
     And local control helpers retain their existing environment contract
 
+  Scenario: Windows OpenSSH retains its system data directory
+    Given Windows provides ProgramData and private provider settings
+    When the coordinator constructs the SSH process environment
+    Then ProgramData retains its original name and value
+    And provider settings do not enter the SSH process environment
+
   Scenario: An incomplete native inventory does not prove a missing session
     Given a root inventory with one endpoint that did not answer
     When the helper returns incomplete true and unavailable one

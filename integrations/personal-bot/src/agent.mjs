@@ -136,7 +136,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     }) : undefined
     let lastTaskResult = null
     let remoteContext=()=>''
-    let remoteFollowup=async (_params,_signal,_reply=undefined)=>{throw Error('Remote conversation unavailable')}
+    let remoteFollowup=async (_params,_signal,_reply=undefined,_owner=undefined)=>{throw Error('Remote conversation unavailable')}
     let remoteHistory=(_offset, _limit, _sourceKey = undefined)=>({state:'unavailable',messages:[]})
     if (config.personal?.agentPlugins?.enabled.includes('catalog')) {
       packages = createAgentCatalogRuntime({ catalog: await openAgentCatalog(config.childAgent?.catalogDirectory ?? join(config.stateDir, 'personal-agent', 'packages')),
@@ -151,6 +151,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const skillPaths = personal ? [...new Set([...(reviewed?.skillPaths ?? []), ...(config.personal.skillPaths ?? [])])] : []
     let currentTurn = ''
     let activeReply
+    let ownerTurn
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -160,7 +161,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths)
     signal?.throwIfAborted()
     // Both catalogs expose the shared desk reader; register it only once.
-    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply)))
+    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply,ownerTurn)))
     if (personal) customTools.push(...createPersonalTools({ memory, skillPaths }).filter(tool => tool.name !== 'odk_data'))
     customTools.push(...(reviewed?.tools ?? []))
     if (plugins) customTools.push(...plugins.tools())
@@ -193,7 +194,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const actionTools = [...customTools]
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
     if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
-    const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent),
+    const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
       capabilities: () => customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
       extensionTools: () => customTools.filter(tool => isExtensionTool(tool) || tool.name.startsWith('agent_mcp_')).map(tool => ({ name: tool.name,
         description: `${tool.description?.slice(0, 2048) || tool.name}${tool.name.startsWith('agent_mcp_') ? `\n${packages?.routingDescription() ?? ''}` : ''}` })), getWatch: config.getWatch })
@@ -252,8 +253,8 @@ export async function createPersonalBot(config, { createSession = createDurableA
         return prepared
       },
       completeTurn: intentTurn.complete,
-      beginTurn: async text => {
-        currentTurn = text.trim(); memory?.beginTurn(text); reviewed?.beginTurn(text)
+      beginTurn: async (text, owner) => {
+        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
@@ -375,13 +376,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
 }
 
 /** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
- * @param {{beginTurn: (text: string) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+ * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
   return {
-    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] @param {import('./session-replies.mjs').BoundSessionReply} [reply] */
-    prompt: async (text, onResponseSnapshot, reply = undefined) => {
+    /** @param {string} text @param {(snapshot: string) => void} [onResponseSnapshot] @param {import('./session-replies.mjs').BoundSessionReply} [reply] @param {import('./session-replies.mjs').OwnerTurn} [owner] */
+    prompt: async (text, onResponseSnapshot, reply = undefined, owner = undefined) => {
       if (prompting || session.isStreaming) throw Error('Agent request already in progress')
       prompting = true
       controller = new AbortController()
@@ -396,7 +397,7 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         if (answer !== undefined) { hooks.completeTurn?.(text, answer); onResponseSnapshot?.(answer); return answer }
         await session.recover?.(controller.signal)
         controller.signal.throwIfAborted()
-        await hooks.beginTurn(text)
+        await hooks.beginTurn(text,owner)
         unsubscribe = session.subscribe(event => { if (active) response.accept(event) })
         const context = hooks.context ? await hooks.context() : ''
         controller.signal.throwIfAborted()

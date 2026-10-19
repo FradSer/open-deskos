@@ -1059,7 +1059,18 @@ Partial inventory and unavailable sources remain visible; they do not prove that
 An owner follow-up still receives a typed intent judgment before capability execution.
 `remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
-Report-only sources refuse control without an explicit owner reply.
+An owner can name a displayed task without a reply reference.
+Initial classification receives at most 8,192 characters of untrusted displayed task context.
+This context supplies no control authority.
+The model selects a retained source key and revision.
+The host binds that source to the original owner text.
+One owner turn can create only one such reply operation.
+Status frames carry a host-generated `ownerTurnId` from the first thinking frame.
+An AI-bound reply uses that UUID as its durable reply ID.
+The renderer uses this exact identity to retain one owner message and its answer.
+The binding callback runs synchronously after persistence and before reply publication.
+A failed binding retains a failed record and sends no instruction.
+Report-only sources refuse control without that host-bound owner operation.
 An explicit reply requires a unique configured machine binding and an exact current session match.
 The host checks current task state before sending.
 An explicit Hosted reply uses the `list` response only to resolve its session identity.
@@ -1070,7 +1081,7 @@ An explicit protocol value must agree with that declaration.
 An explicit native reply checks current session identity and state.
 It does not compare the `list` and `status` object hashes.
 A new explicit native owner reply remains a separate mutation when the remote session records an earlier unknown delivery.
-The Bot preserves its durable reply locks for `dispatching` or `unknown` replies.
+The Bot preserves pending delivery locks and all unknown receipts.
 Hosted endpoints and other follow-ups still refuse earlier unknown deliveries.
 Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
 Only a receipt with confirmed admission proves that a task accepted an instruction.
@@ -1126,6 +1137,17 @@ The resident saves this recovery once without changing message references, recei
 It does not replay an owner turn or task instruction.
 Unknown delivery remains locked across reporting-machine mapping changes.
 An unavailable origin reference cannot prove that an unresolved delivery is safe to repeat.
+A later completed message can permit a distinct explicit owner request in the same thread.
+Both messages must retain different real completion identities for the same configured session.
+The later local message timestamp must follow the unknown reply timestamp.
+The original source reference must remain available and retain its earlier completion identity.
+A changed revision, timestamp, text, or reporting-machine mapping alone cannot release the lock.
+The owner must use different text and reply to the later message.
+Queued and dispatching requests remain locked.
+Admission rechecks the completion boundary before dispatch and immediately before the prompt leaves the resident.
+Concurrent dispatch of the same reply remains blocked.
+This continuation does not change the earlier unknown receipt or certify its admission.
+A subsequent unknown reply requires another later completion before a further owner request.
 Every reply requires a nonempty, bounded session identity.
 This unreleased format does not support replies without a session identity.
 Every reply checkpoint write uses the same reply validator as restart reads.

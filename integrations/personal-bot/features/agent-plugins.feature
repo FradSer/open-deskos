@@ -262,7 +262,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     And Hosted replies use the fresh status revision for daemon admission CAS
     And a revision change after that status read refuses the prompt
     And native historical unknown receipts do not block an independent explicit owner operation
-    And an unresolved bound owner reply still blocks another reply to that session
+    And an unresolved bound owner reply still blocks its original message and any unfinished continuation
     And no replacement task or freely supplied target can receive the reply
     And the owner turn and receipt retain the original message and stable session thread
     And later completion revisions retain that same thread after restart
@@ -314,3 +314,30 @@ Feature: Personal Agent owns a bounded plugin runtime
     And low confidence cannot pass the existing decision gates
     And the host does not label derived values as calibrated provider probabilities
     And Jev retains full typed primitive validation
+
+  Scenario: A new owner request follows a later completed session message
+    Given an earlier owner reply retains an unknown admission receipt
+    And a later durable assistant update has a different real completion identity for the same session
+    When the owner replies with different text to that exact later message
+    Then the resident can admit one new reply without changing the unknown receipt
+    And the earlier message, repeated text, missing origin, and unfinished sources remain blocked
+    And dispatch rechecks the completion boundary before any prompt leaves the resident
+    And concurrent delivery or another reply without a later completion remains blocked
+    And the next completed message can continue the same thread after restart
+
+  Scenario: AI selects an existing task for a new owner message
+    Given a displayed Pi completion and its configured control binding
+    When the owner names that task without a reply reference
+    Then initial AI classification can read bounded untrusted task context
+    And missing or stale source choices create no reply and can be corrected within that turn
+    And the host binds the selected source to the original owner text
+    And a valid source reserves its single attempt before saving or publishing
+    And one owner turn cannot create another reply operation
+    And later distinct requests require a new completed turn after unknown delivery
+
+  Scenario: A selected task retains one owner message in its thread
+    Given an owner instruction without a reply reference
+    When AI selects a retained task and the host binds its source
+    Then the first thinking frame and durable reply share one host-generated identity
+    And the Personal Agent answer belongs to that same reply
+    And a failed binding sends no instruction and retains a failed record

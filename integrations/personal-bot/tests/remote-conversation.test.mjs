@@ -615,6 +615,7 @@ test('reply capacity expires only terminal history outside visible message chain
  const replies=Array.from({length:128},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),sessionId:'00000000-0000-0000-0000-000000000009',text:'历史请求',replyTo:{...replyTo,messageId:'f'.repeat(64)},at:i,status:i===0?'unknown':'answered'}))
  remote.save({...remote.data,replies});remote.beginReply(replyTo,'新回复')
  assert.equal(remote.data.replies.length,128);assert.equal(remote.data.expiredReplies,1);assert.equal(remote.data.replies[0].status,'unknown')
+ remote.completeReply(remote.data.replies.at(-1).id,{status:'answered'})
  const protectedReplies=remote.data.replies.map(reply=>reply.status==='unknown'?reply:{...reply,replyTo});remote.save({...remote.data,replies:protectedReplies})
  assert.throws(()=>remote.beginReply(replyTo,'不能丢可见链'),/capacity/);assert.equal(remote.data.replies.length,128)
 })
@@ -724,4 +725,117 @@ test('reply session identity is required on writes and reads without changing in
  const same={...other,sessionId:'source'},sameMessage={...otherMessage,sources:[same]}
  remote.save({...remote.data,messages:[sameMessage]})
  assert.throws(()=>remote.resolveReply({messageId:sameMessage.id,sourceKey:same.key,sourceRevision:same.revision}),/unknown/)
+})
+
+
+async function unknownReplyContinuation(t,{configured=false}={}) {
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-continuation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let current={...row('continuation'),updatedAt:Date.now()}
+ if(configured)Object.assign(current,{control:'configured',target:'mac',taskId:'00000000-0000-0000-0000-000000000001',sessionId:'00000000-0000-0000-0000-000000000001',taskRevision:'a'.repeat(64),turnOutcome:'finished',lastTurnId:'00000000-0000-0000-0000-000000000002'})
+ const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('A task result is available.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll()
+ const reference=message=>({messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision})
+ const original=reference(remote.data.messages[0]),reply=remote.beginReply(original,'First explicit owner instruction')
+ const send=async beforeSend=>{beforeSend();return {accepted:false,delivery:'unknown',mutationId:'00000000-0000-0000-0000-000000000009'}}
+ await remote.dispatchReply(reply,send)
+ const unknown=structuredClone(remote.data.replies[0])
+ const next=async revision=>{await new Promise(resolve=>setTimeout(resolve,3));current={...current,revision,eventId:revision,updatedAt:Date.now(),...(configured?{lastTurnId:`${revision[0].repeat(8)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(12)}`}:{})};await remote.poll();return reference(remote.data.messages.at(-1))}
+ return {remote,options,original,unknown,send,next,reference}
+}
+
+test('a new completion permits distinct owner replies across multiple turns without changing unknown receipts',async t=>{
+ const f=await unknownReplyContinuation(t),next=await f.next('c'.repeat(64))
+ assert.throws(()=>f.remote.beginReply(f.original,'Another instruction'),/unknown/)
+ const reply=f.remote.beginReply(next,'Second explicit owner instruction')
+ assert.throws(()=>f.remote.beginReply(next,'A competing owner instruction'),/pending|unknown/)
+ await f.remote.dispatchReply(reply,f.send)
+ assert.deepEqual(f.remote.data.replies[0],f.unknown,'The original unknown receipt is not reconciled or changed')
+ const last=await f.next('d'.repeat(64)),recovered=new RemoteConversation(f.options)
+ const third=recovered.beginReply(last,'Third explicit owner instruction')
+ await recovered.dispatchReply(third,f.send)
+ assert.equal(recovered.data.replies.length,3)
+ assert.ok(recovered.data.replies.every(reply=>reply.status==='unknown' && reply.receipt.accepted===false))
+ assert.throws(()=>recovered.beginReply(last,'A fourth instruction without another completion'),/unknown/)
+})
+
+test('new completion continuation refuses ambiguous history, repeated text and pending delivery',async t=>{
+ const cases={
+  'same completion identity':f=>{f.remote.data.messages.at(-1).sources[0].eventId=f.remote.data.messages[0].sources[0].eventId},
+  'same event identity with a changed outcome':f=>{Object.assign(f.remote.data.messages.at(-1).sources[0],{eventId:f.remote.data.messages[0].sources[0].eventId,conclusionOutcome:'failed'})},
+  'no completion identity':f=>{delete f.remote.data.messages.at(-1).sources[0].eventId},
+  'old local message time':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
+  'missing origin':f=>{f.remote.data.messages.shift()},
+  'unfinished source':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
+  'unavailable source':f=>{f.remote.data.messages.at(-1).sources[0].availability='unavailable'},
+  'later non-assistant activity':f=>{f.remote.data.messages.at(-1).sources[0].conclusionIsLatestAssistant=false},
+  'dispatching owner request':f=>{f.remote.data.replies[0].status='dispatching'},
+  'queued owner request':f=>{f.remote.data.replies[0].status='queued'},
+  'same owner text':()=>{},
+ }
+ for(const [name,change] of Object.entries(cases))await t.test(name,async t=>{
+  const f=await unknownReplyContinuation(t),next=await f.next('c'.repeat(64));change(f);f.remote.save(f.remote.data)
+  const text=name==='same owner text'?'  First explicit owner instruction  ':'A distinct next instruction'
+  assert.throws(()=>f.remote.beginReply(next,text),/unknown|pending/)
+  assert.equal(f.remote.data.replies.length,1)
+ })
+})
+
+test('a new reply dispatch rechecks its completion boundary and refuses concurrent dispatch',async t=>{
+ const f=await unknownReplyContinuation(t),next=await f.next('c'.repeat(64)),reply=f.remote.beginReply(next,'A distinct second instruction')
+ let release,entered;const ready=new Promise(resolve=>{entered=resolve}),wait=new Promise(resolve=>{release=resolve});let sends=0
+ const pending=f.remote.dispatchReply(reply,async beforeSend=>{sends++;entered();await wait;beforeSend();return {accepted:false,delivery:'unknown'}})
+ await ready
+ await assert.rejects(f.remote.dispatchReply(reply,async()=>{sends++;return {accepted:true}}),/attempted|progress/)
+ f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1)})
+ release();await assert.rejects(pending,/unknown/)
+ assert.equal(sends,1)
+ assert.equal(f.remote.data.replies[1].status,'failed')
+ assert.deepEqual(f.remote.data.replies[0],f.unknown)
+})
+
+
+test('a changed Hosted turn outcome cannot substitute for a new real turn identity',async t=>{
+ const f=await unknownReplyContinuation(t,{configured:true}),next=await f.next('c'.repeat(64))
+ const source=f.remote.data.messages.at(-1).sources[0]
+ source.lastTurnId=f.remote.data.messages[0].sources[0].lastTurnId;source.turnOutcome='failed';f.remote.save(f.remote.data)
+ assert.throws(()=>f.remote.beginReply(next,'A different next owner instruction'),/unknown/)
+ assert.deepEqual(f.remote.data.replies[0],f.unknown)
+})
+
+
+test('an AI-selected owner follow-up binds the displayed source and supports later distinct turns without replay',async t=>{
+ const {attachRemoteConversation}=await import('../src/remote-pi-reader.mjs')
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-selected-owner-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let source=row('named-task'),followup;const sent=[]
+ const agent={remoteEnabled:true,close:async()=>{},summarizeRemote:async input=>({updates:updates('The named task finished.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),attachRemoteContext:(_context,_read,send)=>{followup=send}}
+ const reader={read:async()=>({ok:true,records:[source],nextCursor:null,total:1}),close:async()=>{},followup:async(record,params,_signal,options)=>{assert.equal(options.explicitReply,true);options.beforeSend();sent.push({record,params});return {accepted:false,delivery:'unknown'}}}
+ const remote=await attachRemoteConversation({agent,stateDir:directory,env:{},createReader:async()=>reader});t.after(()=>agent.close());await remote.poll()
+ const params=()=>({sourceKey:source.key,sourceRevision:source.revision,prompt:'Model-rewritten instruction'})
+ await assert.rejects(followup(params(),undefined,undefined,undefined),/owner/i);assert.equal(sent.length,0)
+ const owner={id:'00000000-0000-0000-0000-000000000071',text:'Read task.json and report the actual supported hosts.',turn:1}
+ for(const invalid of [{...params(),sourceRevision:'f'.repeat(64)},{...params(),sourceKey:'missing-source'}]){
+  await assert.rejects(followup(invalid,undefined,undefined,owner),/revision changed/i)
+  assert.equal((remote.data.replies??[]).length,0);assert.equal(sent.length,0)
+ }
+ const attempts=await Promise.allSettled([followup(params(),undefined,undefined,owner),followup({...params(),prompt:'Another model prompt'},undefined,undefined,owner)])
+ assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.equal(sent.length,1)
+ assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies[0].id,owner.id);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
+ const unknown=structuredClone(remote.data.replies[0])
+ await new Promise(resolve=>setTimeout(resolve,3));source={...source,revision:'b'.repeat(64),eventId:'next-completed-turn'};await remote.poll()
+ await assert.rejects(followup(params(),undefined,undefined,owner),/attempted/i);assert.equal(sent.length,1)
+ await followup(params(),undefined,undefined,{text:'Now report the actual required rounds.',turn:2})
+ assert.equal(sent.length,2);assert.deepEqual(remote.data.replies[0],unknown);assert.equal(remote.data.replies[1].threadId,unknown.threadId)
+ await assert.rejects(followup(params(),undefined,undefined,{text:'Another request before a new completion.',turn:3}),/unknown/i);assert.equal(sent.length,2)
+})
+
+
+test('host owner identity is bound before reply publication and a failed binding cannot leave a queued lock',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-owner-publication-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let bound=false;const frames=[];const source=row('owner-id')
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[source],nextCursor:null,total:1}),synthesize:async input=>({updates:updates('The task finished.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:frame=>{if(frame.replies?.some(r=>r.status==='queued'))assert.equal(bound,true);frames.push(frame)}})
+ await remote.poll();const message=remote.data.messages[0],reference={messageId:message.id,sourceKey:source.key,sourceRevision:source.revision},id='00000000-0000-0000-0000-000000000061'
+ assert.throws(()=>remote.beginReply(reference,'New owner instruction',{id,onBound:()=>{throw Error('Host binding failed')}}),/binding failed/)
+ assert.equal(remote.data.replies[0].id,id);assert.equal(remote.data.replies[0].status,'failed');assert.equal(frames.at(-1).replies[0].status,'failed')
+ const nextId='00000000-0000-0000-0000-000000000062';const reply=remote.beginReply(reference,'Another explicit owner instruction',{id:nextId,onBound:value=>{assert.equal(value.id,nextId);bound=true}})
+ assert.equal(reply.id,nextId);assert.throws(()=>remote.beginReply(reference,'Duplicate host identity',{id:nextId}),/identity|pending/)
 })
