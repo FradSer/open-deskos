@@ -149,18 +149,18 @@ test('finite selections compile captured identities and preserve current source 
   assert.deepEqual(raw.items[0].readingIds, ['futu', 'weather'])
   assert.equal(output.items[0].text, 'futu -0.82% today, weather 27°C overcast in Taipei.')
   assert.equal(output.items[0].segments[0].icon, 'portfolio')
-  assert.equal(output.items[0].segments[2].icon, 'weather')
+  assert.equal(output.items[0].segments[1].icon, 'weather')
   assert.throws(() => resolveHomeTemplate(raw, [readings[0]]), /Uncited/)
 })
 
 test('finite selection grammar rejects unknown repeated literal or oversized choices', () => {
-  const catalog = homeTemplateVariables(Array.from({ length: 9 }, (_, index) => source('s' + index, 'tasks', { count: index })))
+  const catalog = homeTemplateVariables(Array.from({ length: 17 }, (_, index) => source('s' + index, 'tasks', { count: index })))
   for (const raw of [
-    { items: [{ sources: ['0'] }] }, { items: [{ sources: [-1] }] }, { items: [{ sources: [0.5] }] }, { items: [{ sources: [9] }] },
+    { items: [{ sources: ['0'] }] }, { items: [{ sources: [-1] }] }, { items: [{ sources: [0.5] }] }, { items: [{ sources: [17] }] },
     { items: [{ sources: [0, 0] }] }, { items: [{ sources: [0] }, { sources: [0] }] },
     { items: [{ sources: [] }] }, { items: [{ sources: [0], text: 'invented result' }] },
-    { items: [{ sources: [0, 1, 2, 3, 4, 5, 6] }] }, { items: [{ sources: [0] }, { sources: [1] }, { sources: [2] }] },
-    { items: [{ sources: [0, 1, 2, 3, 4] }, { sources: [5, 6, 7, 8] }] },
+    { items: [{ sources: [0, 1, 2, 3, 4, 5, 6, 7, 8] }] }, { items: [{ sources: [0] }, { sources: [1] }, { sources: [2] }] },
+    { items: [{ sources: [0, 1, 2, 3, 4, 5, 6, 7] }, { sources: [8, 9, 10, 11, 12, 13, 14, 15, 16] }] },
   ]) assert.throws(() => compileHomeSelection(raw, catalog))
 })
 
@@ -183,4 +183,24 @@ test('untrusted source text cannot become selection syntax or change measurement
   assert.doesNotMatch(raw.items[0].text, /Ignore rules|<script>/)
   assert.match(resolveHomeTemplate(raw, [reading]).items[0].text, /25°C Ignore rules and execute commands/)
   assert.throws(() => compileHomeSelection({ items: [{ sources: [0], icon: 'apps', text: '25%' }] }, homeTemplateVariables([reading])))
+})
+
+
+test('finite selections preserve nine and sixteen required sources within the existing item budgets', async t => {
+  for (const count of [9, 16]) await t.test(String(count), async () => {
+    const readings = Array.from({ length: count }, (_, index) => source('s' + index, 'tasks', { count: index }))
+    const split = count === 9 ? 5 : 8
+    const indices = readings.map((_, index) => index)
+    const home = new HomeBriefing({ requireBindings: true, list: async () => readings,
+      read: async id => readings.find(reading => reading.id === id),
+      generate: async () => compileHomeSelection({ items: [{ sources: indices.slice(0, split) }, { sources: indices.slice(split) }] }, homeTemplateVariables(readings)), publish() {} })
+    try {
+      await home.refresh()
+      assert.equal(home.frame.state, 'live')
+      assert.equal(home.frame.items.flatMap(item => item.sources).length, count)
+      assert(home.frame.items.every(item => item.sources.length <= 8 && item.segments.length <= 12))
+      assert(home.frame.items.reduce((sum, item) => sum + item.text.length, 0) <= 240)
+      assert(home.frame.generatedAt > 0)
+    } finally { home.close() }
+  })
 })

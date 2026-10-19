@@ -887,7 +887,11 @@ This contract does not implement a mail provider.
 
 Resolved display JSON contains at most two connected sentences and 240 total characters.
 Each item has `text`, `segments`, and one to eight `readingIds`.
-The Agent returns a display template with field references, rather than copied values.
+The model returns `{items:[{sources:[0,1]}]}` with integer selectors from the captured source catalog.
+Each source appears at most once.
+Each item selects at most eight sources; two items can cover sixteen required sources.
+The host compiles those selections into the existing display template with field references.
+The model cannot supply text, values, references, icons, or formatting.
 Each segment contains template `text` and an optional approved `icon` name.
 References use `{{sourceId|field.path|format}}`.
 Formats are `text`, `number`, `integer`, `celsius`, and `signedPercent`.

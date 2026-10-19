@@ -367,5 +367,6 @@ Feature: Owner controlled proactive Personal Bot proposals
     Then the host compiles the captured catalog into the existing bound template
     And only current declared source values supply text, icons, and measurement units
     And duplicate, unknown, or stale selections cannot bind another source
+    And up to sixteen required sources fit within two items without raising the existing per-item bounds
     And required coverage, output budgets, and late source changes retain their existing guards
     And generatedAt becomes nonzero only after an actual model selection succeeds

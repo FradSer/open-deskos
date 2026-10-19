@@ -128,7 +128,7 @@ test('production proactive advice and briefing use isolated zero-tool Durable co
     assert(!context.messages.some(message => message.role === 'user' && message.content.includes('resident private fixture')))
     if (JSON.stringify(context.messages).includes('Organize the owner-approved')) return assistant('[0,1]')
     if (JSON.stringify(context.messages).includes('Generate useful, concise proactive')) return assistant('{"suggestions":[]}')
-    return assistant('{"items":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","segments":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","icon":"mail"}],"readingIds":["mail"]}]}')
+    return assistant('{"items":[{"sources":[0]}]}')
   })
   const bot = await createPersonalBot(config, { createRuntime: async () => modelRuntime, createIntentRouter: () => async () => ({ intent: 'conversation' }) })
   t.after(() => bot.close())
