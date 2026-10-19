@@ -178,6 +178,8 @@ async function assertNotificationMessagesAreIndependent() {
 }
 
 async function assertSimpleConversation() {
+  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').placeholder`),'Message…','compact composer uses a single short placeholder')
+  assert.match(await evaluate(`document.querySelector('.agent-composer textarea').getAttribute('aria-label')`),/Personal Agent/,'accessible input label retains the agent identity')
   const source={key:'1a'.repeat(32),revision:'2b'.repeat(32),threadId:'3c'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-session-01a14dfd-6a34-75c3-a1f8-415d50d50e35',project:'/synthetic/training',control:'report_only',availability:'live'}
   const item={id:'4d'.repeat(32),at:1000,text:'合成示例：中文识别训练有新进展，验证集 CER 降到 37.35%，检查点已保存到 Drive。控制器仍依赖 Mac 在线，请保留原终端；独立测试还没做。',presentation:'assistant_update',sources:[source]}
   const frame={state:'idle',judgment:{status:'ready',provider:'model',model:'synthetic/test'},jev:{status:'disabled'},agents:{state:'live',tasks:[{taskId:'99999999-9999-4999-8999-999999999999',identity:{id:'synthetic-checker',name:'Synthetic design agent',avatar:'code',revision:'9'.repeat(64)},state:'running',updatedAt:new Date().toISOString()}]},remote:{state:'partial',messages:[item],replies:[],heldCount:1,expiredMessages:2}}

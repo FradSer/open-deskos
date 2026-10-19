@@ -442,3 +442,4 @@ Scenario: A calm conversation keeps provenance behind explicit disclosures
   And running subagent identities and avatars remain visible
   And disclosures, reply references and the fixed composer remain keyboard and touch accessible
   And repeated frames preserve the same messages, focus and reading position
+  And the compact composer uses a short placeholder with an identity-specific accessible label

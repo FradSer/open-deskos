@@ -57,7 +57,7 @@
         for (const node of el.querySelectorAll('.agent-avatar, .agent-input-avatar')) node.innerHTML = glyph(identity.icon)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
-        input.placeholder = `Ask ${identity.name}…`
+        input.placeholder = 'Message…'
         input.setAttribute('aria-label', `Message ${identity.name}`)
         $('.agent-identity-form [name="name"]').value = identity.name
         $('.agent-identity-form [name="icon"]').value = identity.icon
