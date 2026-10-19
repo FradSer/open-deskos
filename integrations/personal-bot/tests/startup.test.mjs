@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm, writeFile, readFile, lstat } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile, lstat, cp, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { connect, createServer } from 'node:net'
@@ -381,4 +381,45 @@ registerHooks({resolve(specifier,context,next){
   t.after(async()=>{if(resident.exitCode===null&&resident.signalCode===null){const ended=once(resident,'close');resident.kill('SIGKILL');await ended}})
   const [code]=await once(resident,'close')
   assert.equal(code,1);assert.match(refusal,/Personal Bot startup failed; check runtime directory and configuration/)
+})
+
+
+test('display client and relay load the installed Shell modules in a flattened release', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'odk-display-layout-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const bot = join(directory, 'integrations', 'personal-bot')
+  await mkdir(bot, { recursive: true })
+  await cp(new URL('../src', import.meta.url), join(bot, 'src'), { recursive: true })
+  await cp(new URL('../package.json', import.meta.url), join(bot, 'package.json'))
+  await mkdir(join(directory, 'src'), { recursive: true })
+  let shell = new URL('../../../runtime/shell/', import.meta.url)
+  try { await lstat(new URL('src/local-channel.js', shell)) } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+    shell = new URL('../../../', import.meta.url)
+  }
+  await cp(new URL('package.json', shell), join(directory, 'package.json'))
+  await cp(new URL('src/platform', shell), join(directory, 'src', 'platform'), { recursive: true })
+  await cp(new URL('src/local-channel.js', shell), join(directory, 'src', 'local-channel.js'))
+  await assert.rejects(lstat(join(directory, 'runtime')), { code: 'ENOENT' })
+  // Resolve the existing VAD dependency only. All product modules load from the release copy.
+  const preload = join(directory, 'dependency-hook.mjs')
+  await writeFile(preload, `import {registerHooks} from 'node:module';
+registerHooks({resolve(specifier,context,next){
+ if(specifier==='@echogarden/fvad-wasm')return {url:${JSON.stringify(import.meta.resolve('@echogarden/fvad-wasm'))},shortCircuit:true};
+ return next(specifier,context);
+}});`)
+  for (const [name, exported] of [['display-client', 'startDisplayClient'], ['display-relay', 'createDisplayRelay']]) {
+    await t.test(name, async () => {
+      const entry = pathToFileURL(join(bot, 'src', name + '.mjs')).href
+      const child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, '--input-type=module', '--eval',
+        `import assert from 'node:assert/strict'; const module=await import(${JSON.stringify(entry)}); assert.equal(typeof module[${JSON.stringify(exported)}], 'function');`],
+      { cwd: directory, env: { PATH: directory, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR }, stdio: ['ignore', 'ignore', 'pipe'] })
+      t.after(async () => { if (child.exitCode === null && child.signalCode === null) { const ended=once(child,'close');child.kill('SIGKILL');await ended } })
+      let stderr = ''
+      child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(0, 4000) })
+      const [code] = await once(child, 'close')
+      assert.equal(code, 0, stderr)
+      assert.equal(stderr, '')
+    })
+  }
 })

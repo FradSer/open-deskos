@@ -1,7 +1,7 @@
-import { createRequire } from 'node:module'
+import { loadShellModule } from './plugin-composition.mjs'
 import { readFrames, writeFrame } from './channel-frames.mjs'
 import { connectMain, mainAlias } from './hub-transport.mjs'
-const { listenChannel } = createRequire(import.meta.url)('../../../runtime/shell/src/local-channel.js')
+const { listenChannel } = loadShellModule('local-channel.js', import.meta.url)
 const FORWARD = new Set(['status', 'text', 'runtime_diagnose', 'proactive_event', 'proposal_presented', 'proposal_list', 'proposal_respond'])
 const STATES = new Set(['idle', 'recording', 'transcribing', 'thinking', 'error'])
 
