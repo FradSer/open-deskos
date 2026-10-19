@@ -18,8 +18,9 @@
             <label>Icon<select name="icon"><option value="message">Message</option><option value="leaf">Leaf</option><option value="terminal">Terminal</option></select></label>
             <button type="submit">Save</button></form></details></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
-        <div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
+        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
+        </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
         <form class="agent-composer"><span class="agent-input-avatar" aria-hidden="true"></span><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea>
           <button class="agent-mic" type="button" aria-label="Record voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg></button><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
@@ -31,6 +32,7 @@
       let identity = { name: 'Personal Agent', icon: 'message' }
       try { const saved = JSON.parse(localStorage.getItem('odk.agent.identity')); if (typeof saved?.name === 'string' && saved.name.trim() && Object.hasOwn(GLYPHS, saved.icon)) identity = { name: saved.name.slice(0, 40), icon: saved.icon } } catch {}
       let released = false
+      let scrollIdle
       let revision = 0
       let turn = null
       const ownerTurns = new Map()
@@ -64,7 +66,12 @@
         $('.agent-identity-form [name="icon"]').value = identity.icon
       }
       applyIdentity()
-      function latest() { conversation.scrollTop = conversation.scrollHeight; $('.agent-latest').hidden = true }
+      function latest() {
+        conversation.scrollTop = conversation.scrollHeight
+        const button=$('.agent-latest')
+        if(document.activeElement===button)conversation.focus({ preventScroll: true })
+        button.hidden = true
+      }
       function message(role, text) {
         $('.agent-empty')?.remove()
         const article = document.createElement('article')
@@ -403,7 +410,7 @@
         else $('.agent-latest').hidden = false
       }
       const unsub = root.odkPersonalBot?.subscribe(render)
-      ctx.trackCleanup?.(() => { released = true; unsub?.() })
+      ctx.trackCleanup?.(() => { released = true; clearTimeout(scrollIdle); delete conversation.dataset.scrolling; unsub?.() })
       const initialRevision = revision
       root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })
       $('.agent-identity-form').addEventListener('submit', event => {
@@ -452,7 +459,13 @@
       $('.agent-thread-all').addEventListener('click', () => { showThread(null);conversation.focus({ preventScroll: true }) })
       $('.agent-mic').addEventListener('click', () => root.odkPersonalBotStatus?.mic())
       $('.agent-latest').addEventListener('click', latest)
-      conversation.addEventListener('scroll', () => { $('.agent-latest').hidden = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40 })
+      conversation.addEventListener('scroll', () => {
+        if(released)return
+        $('.agent-latest').hidden = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
+        conversation.dataset.scrolling = 'true'
+        clearTimeout(scrollIdle)
+        scrollIdle = setTimeout(() => { delete conversation.dataset.scrolling }, 700)
+      }, { passive: true })
     },
   })
 })(window)

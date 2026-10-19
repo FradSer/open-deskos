@@ -82,7 +82,10 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-status-detail { margin: 0; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .agent-identity-form label { display: grid; gap: 8px; font-size: 14px; }
 .agent-identity-form input, .agent-identity-form select, .agent-identity-form button { font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); min-height: 44px; width: 100%; }
-.agent-conversation { display: grid; grid-auto-rows: min-content; align-content: start; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-block: 8px; }
+.agent-history { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.agent-conversation { display: grid; grid-auto-rows: min-content; align-content: start; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 180ms ease; padding-block: 8px; }
+.agent-conversation[data-scrolling="true"] { scrollbar-color: var(--odk-secondary-strong) transparent; }
+@media (prefers-reduced-motion: reduce) { .agent-conversation { transition: none; } }
 .agent-empty { color: var(--odk-secondary-strong); font-size: 16px; line-height: 1.6; }
 .agent-message { margin: 0; overflow-wrap: anywhere; font-size: clamp(16px, 1.3vw, 20px); line-height: 1.6; }
 .agent-child { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 0; color: var(--odk-secondary-strong); }
@@ -107,7 +110,7 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-composer textarea::placeholder { color: var(--odk-secondary-strong); }
 .agent-composer button, .agent-latest { min-width: 44px; min-height: 44px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); color: var(--odk-primary); font: inherit; font-size: 14px; cursor: pointer; }
 .agent-send { padding-inline: 12px; }
-.agent-latest { align-self: center; padding-inline: 16px; }
+.agent-latest { position: absolute; z-index: 1; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding-inline: 16px; pointer-events: auto; }
 .agent-panel button:disabled { opacity: 0.5; cursor: default; }
 .agent-panel :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
 /* The capsule owns text focus; action buttons keep their individual rings. */
