@@ -654,3 +654,23 @@ test('Given no Jev, the ordinary runtime still boots and serves typed judgments 
   assert.equal(await bot.prompt('你好'), 'fixture reply')
   assert.equal(requests, 3)
 })
+
+
+test('actual owner turns share one internal follow-up identity and supply displayed task context before model execution',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'odk-owner-context-'));t.after(()=>rm(dir,{recursive:true,force:true}))
+ let tools,listener;const owners=[],routes=[];const context='Displayed roundtrip task: Windows and CM5.'
+ const bot=await createPersonalBot({stateDir:join(dir,'state'),personal:{profile:'personal',memoryFile:join(dir,'memory.json'),skillPaths:[],agentPlugins:{enabled:['completion','remote_conversation'],autoLearn:false}},env:{}},{
+  createIntentRouter:()=>async input=>{routes.push(input);return {intent:'session_continue'}},
+  createRuntime:async()=>({getAvailable:async()=>[{provider:'fixture',id:'model'}]}),
+  createSession:async options=>{if(options.ephemeral)throw Error('Verifier is outside the owner wiring fixture');tools=options.customTools;return {session:{isStreaming:false,bindExtensions:async()=>{},setActiveToolsByName:async()=>{},subscribe:callback=>{listener=callback;return()=>{listener=undefined}},prompt:async()=>{
+   const tool=tools.find(tool=>tool.name==='remote_pi_followup');for(const prompt of ['first model prompt','different model prompt'])await tool.execute('call',{sourceKey:'displayed-source',sourceRevision:'a'.repeat(64),prompt},undefined)
+   listener({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'Task instruction processed.'}],stopReason:'stop'}})
+  },abort:async()=>{},dispose:async()=>{}}}},
+ });t.after(()=>bot.close())
+ bot.attachRemoteContext(()=>context,undefined,async (_params,_signal,reply,owner)=>{assert.equal(reply,undefined);owners.push(owner);return {accepted:false,delivery:'unknown'}})
+ await bot.prompt('Continue the displayed roundtrip task.');await bot.prompt('Now inspect its required rounds.')
+ assert.equal(routes.length,2);assert(routes.every(route=>route.remoteTaskContext===context));assert.equal(owners.length,4)
+ assert.equal(owners[0],owners[1]);assert.equal(owners[2],owners[3]);assert.notEqual(owners[0],owners[2]);assert(Object.isFrozen(owners[0]))
+ assert.equal(owners[0].text,'Continue the displayed roundtrip task.');assert.equal(owners[2].text,'Now inspect its required rounds.')
+ const count=owners.length;await assert.rejects(tools.find(tool=>tool.name==='remote_pi_followup').execute('outside',{sourceKey:'displayed-source',sourceRevision:'a'.repeat(64),prompt:'outside'},undefined),/unavailable/);assert.equal(owners.length,count)
+})

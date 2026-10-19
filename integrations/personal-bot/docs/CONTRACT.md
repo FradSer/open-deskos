@@ -1055,7 +1055,13 @@ Partial inventory and unavailable sources remain visible; they do not prove that
 An owner follow-up still receives a typed intent judgment before capability execution.
 `remote_pi_followup` resolves its source key and revision through the retained host-owned reference.
 It carries the configured target, exact project, and task ID without accepting replacement endpoint fields.
-Report-only sources refuse control without an explicit owner reply.
+An owner can name a displayed task without a reply reference.
+Initial classification receives at most 8,192 characters of untrusted displayed task context.
+This context supplies no control authority.
+The model selects a retained source key and revision.
+The host binds that source to the original owner text.
+One owner turn can create only one such reply operation.
+Report-only sources refuse control without that host-bound owner operation.
 An explicit reply requires a unique configured machine binding and an exact current session match.
 The host checks current task state before sending.
 An explicit Hosted reply uses the `list` response only to resolve its session identity.

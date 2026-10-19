@@ -801,3 +801,25 @@ test('a changed Hosted turn outcome cannot substitute for a new real turn identi
  assert.throws(()=>f.remote.beginReply(next,'A different next owner instruction'),/unknown/)
  assert.deepEqual(f.remote.data.replies[0],f.unknown)
 })
+
+
+test('an AI-selected owner follow-up binds the displayed source and supports later distinct turns without replay',async t=>{
+ const {attachRemoteConversation}=await import('../src/remote-pi-reader.mjs')
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-selected-owner-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ let source=row('named-task'),followup;const sent=[]
+ const agent={remoteEnabled:true,close:async()=>{},summarizeRemote:async input=>({updates:updates('The named task finished.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),attachRemoteContext:(_context,_read,send)=>{followup=send}}
+ const reader={read:async()=>({ok:true,records:[source],nextCursor:null,total:1}),close:async()=>{},followup:async(record,params,_signal,options)=>{assert.equal(options.explicitReply,true);options.beforeSend();sent.push({record,params});return {accepted:false,delivery:'unknown'}}}
+ const remote=await attachRemoteConversation({agent,stateDir:directory,env:{},createReader:async()=>reader});t.after(()=>agent.close());await remote.poll()
+ const params=()=>({sourceKey:source.key,sourceRevision:source.revision,prompt:'Model-rewritten instruction'})
+ await assert.rejects(followup(params(),undefined,undefined,undefined),/owner/i);assert.equal(sent.length,0)
+ const owner={text:'Read task.json and report the actual supported hosts.',turn:1}
+ const attempts=await Promise.allSettled([followup(params(),undefined,undefined,owner),followup({...params(),prompt:'Another model prompt'},undefined,undefined,owner)])
+ assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.equal(sent.length,1)
+ assert.equal(sent[0].params.prompt,owner.text);assert.equal(remote.data.replies.length,1);assert.equal(remote.data.replies[0].text,owner.text);assert.equal(remote.data.replies[0].status,'unknown')
+ const unknown=structuredClone(remote.data.replies[0])
+ await new Promise(resolve=>setTimeout(resolve,3));source={...source,revision:'b'.repeat(64),eventId:'next-completed-turn'};await remote.poll()
+ await assert.rejects(followup(params(),undefined,undefined,owner),/attempted/i);assert.equal(sent.length,1)
+ await followup(params(),undefined,undefined,{text:'Now report the actual required rounds.',turn:2})
+ assert.equal(sent.length,2);assert.deepEqual(remote.data.replies[0],unknown);assert.equal(remote.data.replies[1].threadId,unknown.threadId)
+ await assert.rejects(followup(params(),undefined,undefined,{text:'Another request before a new completion.',turn:3}),/unknown/i);assert.equal(sent.length,2)
+})

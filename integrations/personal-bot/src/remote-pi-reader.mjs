@@ -125,8 +125,20 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
   try {
     reader=await createReader({env})
     const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),publish,thread:source=>reader.thread?.(source)??sessionThread(source)})
+    const ownerAttempts=new WeakSet()
     agent.attachRemoteContext(()=>remote.context(),(offset,limit,sourceKey)=>sourceKey?remote.reference(sourceKey):remote.snapshot(offset,limit),
-      (params,signal,reply)=>reply?remote.dispatchReply(reply,beforeSend=>reader.followup(reply.source,params,signal,{explicitReply:true,beforeSend})):reader.followup(remote.reference(params.sourceKey).source,params,signal))
+      async (params,signal,reply,owner)=>{
+        if(!reply) {
+          if(!owner || typeof owner!=='object' || typeof owner.text!=='string' || !owner.text.trim())throw Error('A current owner instruction is required')
+          if(ownerAttempts.has(owner))throw Error('Owner follow-up already attempted in this turn; do not replay')
+          ownerAttempts.add(owner)
+          const reference=remote.reference(params.sourceKey)
+          if(!reference.source || reference.source.revision!==params.sourceRevision)throw Error('Remote source revision changed')
+          reply=remote.beginReply({messageId:reference.messageId,sourceKey:reference.source.key,sourceRevision:reference.source.revision},owner.text)
+          params={...params,prompt:owner.text}
+        }
+        return remote.dispatchReply(reply,beforeSend=>reader.followup(reply.source,params,signal,{explicitReply:true,beforeSend}))
+      })
     remote.subscribe=onCompletion=>reader.subscribe?.(onCompletion,count=>remote.subscriptionState(count))
     const close=agent.close
     agent.close=async()=>{const pending=remote.close();try{await close()}finally{await reader.close();await pending}}

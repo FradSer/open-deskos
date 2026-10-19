@@ -136,7 +136,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     }) : undefined
     let lastTaskResult = null
     let remoteContext=()=>''
-    let remoteFollowup=async (_params,_signal,_reply=undefined)=>{throw Error('Remote conversation unavailable')}
+    let remoteFollowup=async (_params,_signal,_reply=undefined,_owner=undefined)=>{throw Error('Remote conversation unavailable')}
     let remoteHistory=(_offset, _limit, _sourceKey = undefined)=>({state:'unavailable',messages:[]})
     if (config.personal?.agentPlugins?.enabled.includes('catalog')) {
       packages = createAgentCatalogRuntime({ catalog: await openAgentCatalog(config.childAgent?.catalogDirectory ?? join(config.stateDir, 'personal-agent', 'packages')),
@@ -151,6 +151,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const skillPaths = personal ? [...new Set([...(reviewed?.skillPaths ?? []), ...(config.personal.skillPaths ?? [])])] : []
     let currentTurn = ''
     let activeReply
+    let ownerTurn
     const intentJudgment = !config.childAgent && config.personal?.agentPlugins?.enabled.includes('intent') ? createIntentJudgment({ env: config.env ?? process.env, request: judgment.request }) : undefined
     const intents = intentJudgment ? createIntentRuntime({ store: createIntentStore(join(config.stateDir, 'personal-agent', 'intent.md')),
       memory: async () => JSON.parse(await memory.read()), memoryVersion: keys => memory.version(keys),
@@ -160,7 +161,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const customTools = await loadCapabilities(personal ? [] : config.capabilityPaths)
     signal?.throwIfAborted()
     // Both catalogs expose the shared desk reader; register it only once.
-    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply)))
+    if (!config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation')) customTools.push(createRemoteUpdatesTool((offset, limit, sourceKey) => remoteHistory(offset, limit, sourceKey)),createRemoteFollowupTool((params,signal)=>remoteFollowup(params,signal,activeReply,ownerTurn)))
     if (personal) customTools.push(...createPersonalTools({ memory, skillPaths }).filter(tool => tool.name !== 'odk_data'))
     customTools.push(...(reviewed?.tools ?? []))
     if (plugins) customTools.push(...plugins.tools())
@@ -193,7 +194,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
     const actionTools = [...customTools]
     if (config.getWatch) customTools.push(...createProposalTools(config.getWatch, () => currentTurn, { intentPreviews: Boolean(intents), currentTurnId: () => intentTurn.getTurn() }))
     if (intents) customTools.push(...createIntentTools({ runtime: intents, judge: intentJudgment, currentTurn: () => ({ text: currentTurn, intent: intentTurn.getIntent(), turn: intentTurn.getTurn() }), getWatch: config.getWatch ?? (() => undefined), memory: async () => JSON.parse(await memory.read()) }))
-    const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent),
+    const intentTurn = createIntentTurn({ route: routeIntent, profile, tools: customTools.map(tool => tool.name), childExecution: Boolean(config.childAgent), getRemoteContext: () => remoteContext(),
       capabilities: () => customTools.map(tool => ({ name: tool.name, description: tool.description?.slice(0, 2048) || tool.name })),
       extensionTools: () => customTools.filter(tool => isExtensionTool(tool) || tool.name.startsWith('agent_mcp_')).map(tool => ({ name: tool.name,
         description: `${tool.description?.slice(0, 2048) || tool.name}${tool.name.startsWith('agent_mcp_') ? `\n${packages?.routingDescription() ?? ''}` : ''}` })), getWatch: config.getWatch })
@@ -253,7 +254,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
       },
       completeTurn: intentTurn.complete,
       beginTurn: async text => {
-        currentTurn = text.trim(); memory?.beginTurn(text); reviewed?.beginTurn(text)
+        currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn()}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }

@@ -261,3 +261,16 @@ test('host-bound replies still pass intent classification and cannot escape thei
  assert.equal(mutations,0);assert.equal(await tools[0].execute('x',{sourceKey:reply.source.key,sourceRevision:reply.source.revision,prompt:reply.text}),'accepted')
  const unavailable=createIntentTurn({route:async()=>{throw Error('offline')},profile:'personal',tools:['remote_pi_followup']});assert.equal((await unavailable.prepare('继续',undefined,reply)).answer,'意图判断暂时不可用，本次请求未执行。请稍后重试。')
 })
+
+
+test('a named task uses bounded displayed context in the initial AI route without granting authority', async () => {
+ const f=routerFixture(response('session_continue'));let context='Displayed roundtrip task: Windows and CM5.'
+ const turn=createIntentTurn({route:f.route,profile:'personal',tools:['remote_pi_followup'],getRemoteContext:()=>context})
+ assert.equal((await turn.prepare('继续双端消息回环验收任务',new AbortController().signal)).answer,undefined)
+ assert.equal(f.requests[0].body.state.remoteTaskContext,context)
+ assert.match(f.requests[0].body.questions.intent.instructions,/remoteTaskContext.*untrusted/i)
+ context='x'.repeat(9000);await turn.prepare('接着核对文件',new AbortController().signal)
+ assert.equal(f.requests[1].body.state.remoteTaskContext.length,8192)
+ const uncertain=routerFixture(response('session_continue',{confidence:0.3}))
+ assert.equal((await uncertain.route({text:'继续',profile:'personal',remoteTaskContext:context})).intent,'clarify')
+})

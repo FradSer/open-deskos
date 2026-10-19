@@ -324,3 +324,11 @@ Feature: Personal Agent owns a bounded plugin runtime
     And dispatch rechecks the completion boundary before any prompt leaves the resident
     And concurrent delivery or another reply without a later completion remains blocked
     And the next completed message can continue the same thread after restart
+
+  Scenario: AI selects an existing task for a new owner message
+    Given a displayed Pi completion and its configured control binding
+    When the owner names that task without a reply reference
+    Then initial AI classification can read bounded untrusted task context
+    And the host binds the selected source to the original owner text
+    And one owner turn cannot create another reply operation
+    And later distinct requests require a new completed turn after unknown delivery
