@@ -197,6 +197,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     Given a Pi conclusion presents short original text as a requested result
     When the assistant generates and reviews its concise update
     Then translation does not replace the material original text
+    And literal punctuation, capitalization, spaces, and command flags remain unchanged
+    And supplied material explanations remain in the requested language
+    And English labels do not replace supplied Chinese explanations
+    And review checks actual literal characters before general semantic similarity
+    And a citation cannot supply original text missing from the update
     And needed commands, paths, and values retain their exact spelling
     And unrelated internal details do not become mandatory output
     And source text grants no action authority
