@@ -1,0 +1,198 @@
+{
+  "protocol": 1,
+  "domain": "odk-personal-agent-control-v1",
+  "read": {
+    "hello": {
+      "v": 1,
+      "type": "personal-agent-hello",
+      "machine": "android-so-02j",
+      "sessionId": "phone-session",
+      "token": "report-token"
+    },
+    "ready": {
+      "v": 1,
+      "type": "personal-agent-ready"
+    },
+    "frame": {
+      "v": 1,
+      "type": "personal-agent",
+      "development": false,
+      "frame": {
+        "state": "idle",
+        "message": ""
+      }
+    },
+    "developmentFrame": {
+      "v": 1,
+      "type": "personal-agent",
+      "development": true,
+      "frame": {
+        "state": "recording",
+        "transcript": "",
+        "message": ""
+      }
+    },
+    "refused": {
+      "v": 1,
+      "type": "error",
+      "reason": "token refused"
+    }
+  },
+  "control": {
+    "hello": {
+      "v": 1,
+      "type": "personal-agent-control",
+      "machine": "android-so-02j",
+      "sessionId": "phone-session"
+    },
+    "challenge": {
+      "v": 1,
+      "type": "challenge",
+      "nonce": "nonce-fixture",
+      "algorithm": "hmac-sha256",
+      "domain": "odk-personal-agent-control-v1"
+    },
+    "transcript": "odk-personal-agent-control-v1\n1\nnonce-fixture\nandroid-so-02j\nphone-session",
+    "credential": "control-secret",
+    "proof": "cd1afeb5394d9685a83c97587930ad7852ee84f61e1cc1f603428f7786a2e815",
+    "submit": {
+      "v": 1,
+      "type": "personal-agent-submit",
+      "requestId": "request-submit",
+      "proof": "cd1afeb5394d9685a83c97587930ad7852ee84f61e1cc1f603428f7786a2e815",
+      "text": "Summarise the desk"
+    },
+    "receipt": {
+      "v": 1,
+      "type": "personal-agent-receipt",
+      "requestId": "request-submit",
+      "accepted": true
+    },
+    "refused": {
+      "v": 1,
+      "type": "error",
+      "reason": "control challenge required"
+    }
+  },
+  "states": {
+    "unavailable": {
+      "state": "unavailable",
+      "message": "Personal Bot service unavailable"
+    },
+    "idle-empty": {
+      "state": "idle",
+      "transcript": "",
+      "message": ""
+    },
+    "recording": {
+      "state": "recording",
+      "transcript": "",
+      "message": ""
+    },
+    "transcribing": {
+      "state": "transcribing",
+      "transcript": "Summarise the desk",
+      "message": ""
+    },
+    "thinking-streaming": {
+      "state": "thinking",
+      "transcript": "Summarise the desk",
+      "message": "Reading the desk sources"
+    },
+    "idle-reply": {
+      "state": "idle",
+      "transcript": "Summarise the desk",
+      "message": "# Desk summary\n\nThe desk is **quiet**.\n\n- Weather is live\n- Pi sessions: 2 working\n",
+      "notifications": [
+        {
+          "id": "notification-1",
+          "message": "The plant reading is stale."
+        }
+      ]
+    },
+    "agents-running": {
+      "state": "idle",
+      "transcript": "",
+      "message": "",
+      "agents": {
+        "state": "live",
+        "tasks": [
+          {
+            "taskId": "task-1",
+            "state": "running",
+            "identity": {
+              "name": "Desk audit",
+              "avatar": "code"
+            }
+          },
+          {
+            "taskId": "task-2",
+            "state": "starting",
+            "identity": {
+              "name": "Reading review",
+              "avatar": "book"
+            }
+          }
+        ]
+      }
+    },
+    "remote-coverage": {
+      "state": "idle",
+      "transcript": "",
+      "message": "Remote task updates arrived.",
+      "remote": {
+        "state": "stale",
+        "total": 5,
+        "hasMore": true,
+        "omitted": 2,
+        "heldCount": 1,
+        "expiredMessages": 1,
+        "messages": [
+          {
+            "id": "remote-1",
+            "presentation": "assistant_update",
+            "text": "The Mac finished the release check.",
+            "sources": [
+              {
+                "machine": "desk-mac",
+                "sessionId": "session-mac",
+                "project": "open-deskos",
+                "control": "configured",
+                "availability": "live",
+                "key": "odk-link/desk-mac/session-mac",
+                "revision": "abc1234"
+              }
+            ],
+            "omittedSources": 1
+          },
+          {
+            "id": "remote-2",
+            "presentation": "report",
+            "text": "An older legacy report."
+          }
+        ]
+      }
+    },
+    "error": {
+      "state": "error",
+      "transcript": "Summarise the desk",
+      "message": "Request failed. You can try again."
+    },
+    "briefing": {
+      "state": "idle",
+      "transcript": "",
+      "message": "",
+      "briefing": {
+        "state": "live",
+        "generatedAt": 1792000000000,
+        "omittedSources": 0,
+        "items": [
+          {
+            "text": "Weather is 21 degrees",
+            "source": "odk.tile.weather"
+          }
+        ]
+      }
+    }
+  }
+}

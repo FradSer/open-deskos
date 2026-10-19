@@ -296,6 +296,23 @@ Touch and keyboard navigation remain independent of Agent availability.
 A future mail App uses the same declared data boundary.
 A home statement grants no execution authority.
 
+<a id="adr-0037"></a>
+### ADR-0037: Android runs the shared renderer
+
+Android is another Shell Host. The Android app loads `src/renderer/index.html` from the same renderer the other hosts use. The build copies renderer output during packaging; the repository holds no Android copy of the renderer. An Android renderer fork was rejected because it breaks the single design source. Breakpoints, tokens and terms stay identical to the other hosts.
+
+The first Android surfaces are the Personal Agent page and the Personal Bot status panel. Other surfaces wait for a product decision.
+
+The Android host supplies only the preload equivalents it can answer for: `odkPersonalBot` is backed by the link. The other bridges stay absent, so the renderer names its own honest unavailable condition instead of a shape this host invented. `toggle` answers `accepted: false` because Android captures no audio, and the renderer draws nothing from that value. `proposalCommand` answers `accepted: false` because the link carries no suggestion response, and the renderer draws its own sentence for it.
+
+Android holds no generator. The CM5 desk produces every briefing, reply and notification, and Android receives them over Open DeskOS Link as one more authenticated link client. The phone dials the desk, so the desk gains no inbound port and Android opens no listener. Report and control authority stay separate, per ADR-0013: a report token reads the conversation, and a control token may submit an owner turn. A read grant never becomes a control grant. An Android copy of generated content was rejected because it would put the owner's personal data on a second generator.
+
+Android reports `unavailable` when the link drops. The conversation keeps the content the desk already sent, and the capsule states that the Personal Bot is unavailable. A per-message stale mark was rejected: it would change every Shell Host for a state only a phone reaches. A development frame source on the desk reproduces the Personal Agent states the resident cannot produce on demand. Android carries no fixture, so every frame on the device came from the desk. [ODK_LINK](ODK_LINK.md) owns the added frame kind and the fixture corpus.
+
+The engine baseline is a modern Chromium WebView of the Electron Chromium generation. `minSdk` is 26. A redroid Android 14 image with WebView 125 is the reference test device. A system WebView older than the baseline does not prove presentation; upgrading it is a separate device change.
+
+The host lives in `runtime/android/`. That directory holds Android-only host code, build files and assets. Shared renderer behavior stays under `runtime/shell/`, so ADR-0035 still owns the shared source root. Gradle with the Android plugin and Kotlin builds the host. The staging excludes `renderer/themes/liquid-glass-sdk.js`, which the Shell generates at build time and never commits. [ANDROID_HOST](ANDROID_HOST.md) owns build, verification and device steps.
+
 ## Current Shell plugin composition
 
 The Electron main process, renderer surfaces, appearance plugins, and Remote Bridge use the local host from [plugin-host.js](../src/plugin-host.js).

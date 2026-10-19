@@ -6,7 +6,7 @@ Use [ARCHITECTURE](docs/ARCHITECTURE.md) for decisions and safety boundaries. Us
 
 **Active Open DeskOS**: The shared Shell in `runtime/shell/`, its host services and accepted peripherals. Preserved P4+C6 research does not define active releases.
 
-**Shell Host**: The machine and operating system running the Display Shell. CM5/Linux arm64 is reference; Windows x64 and macOS share the implementation.
+**Shell Host**: The machine and operating system running the Display Shell. CM5/Linux arm64 is reference; Windows x64 and macOS share the implementation. Android runs the same renderer in a system WebView. See ADR-0037.
 
 **Panel**: The Shell at display bounds. It cannot be moved/resized; it is not topmost and does not hide the taskbar. See ADR-0034.
 

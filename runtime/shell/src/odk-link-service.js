@@ -7,6 +7,7 @@ const { timingSafeEqual, createHmac, randomBytes } = require('node:crypto')
 const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
 const { isNamedPipe, listenChannel } = require('./local-channel')
+const { projectPersonalAgentFrame, boundedTurnText } = require('./personal-agent-frame')
 
 // The service bounds reported data itself: a reporting machine is never trusted
 // to have bounded its own events. Its bounds are the shared ones, so a reporter
@@ -37,6 +38,9 @@ const ODK_LINK_PROTOCOL = 1
 const ODK_LINK_CONTROL_PROTOCOL = 2
 const ACCEPTED_CONTROL_PROTOCOLS = [ODK_LINK_CONTROL_PROTOCOL]
 const CONTROL_DOMAIN = 'odk-control-v2'
+// The phone's proof is bound to its own domain, so a Hosted Pi proof is never
+// accepted as a Personal Agent proof, or the other way round.
+const PERSONAL_AGENT_CONTROL_DOMAIN = 'odk-personal-agent-control-v1'
 const CONTROL_NONCE_BYTES = 32
 const CONTROL_ID_MAX_BYTES = 256
 const CONTROL_PROMPT_MAX_BYTES = 64 * 1024
@@ -174,6 +178,16 @@ function controlTranscript({ machine, sessionId, nonce }) {
 
 function controlProof(credential, transcript) {
   return createHmac('sha256', credential).update(controlTranscript(transcript)).digest('hex')
+}
+
+function personalAgentControlTranscript({ machine, sessionId, nonce }) {
+  return `${PERSONAL_AGENT_CONTROL_DOMAIN}\n${ODK_LINK_PROTOCOL}\n${nonce}\n${machine}\n${sessionId}`
+}
+
+function personalAgentProofMatches(credential, identity, proof) {
+  if (typeof credential !== 'string' || credential.length === 0 || typeof proof !== 'string') return false
+  const expected = createHmac('sha256', credential).update(personalAgentControlTranscript(identity)).digest('hex')
+  return tokenMatches(expected, proof)
 }
 
 function proofMatches(credential, transcript, proof) {
@@ -314,7 +328,7 @@ function createOdkLinkService({
   token, controlCredential = '', socketPath, port = 8765, host, env = process.env,
   channelToken = '', platform = process.platform,
   now = () => Date.now(), authTimeoutMs = AUTH_TIMEOUT_MS, hostAdapter = null,
-  hostRequestTimeoutMs = HOST_REQUEST_TIMEOUT_MS,
+  hostRequestTimeoutMs = HOST_REQUEST_TIMEOUT_MS, personalAgent = null, personalAgentDevelopment = false,
 } = {}) {
   if (typeof token !== 'string' || token.length === 0) throw new Error('a Open DeskOS Link Service requires a token')
   if (typeof controlCredential !== 'string') throw new Error('the Control Credential must be a string')
@@ -331,6 +345,67 @@ function createOdkLinkService({
   let runtimeChannel = null
   let lastChannelRejection = null
   let started = false
+  let personalAgentFrame = null
+  const personalAgentIsDevelopment = personalAgentDevelopment === true
+  let personalAgentUnsubscribe = null
+  let personalAgentStarted = false
+  const personalAgentSockets = new Set()
+  const personalAgentClients = new Map()
+
+  function personalAgentRecord() {
+    return {
+      v: ODK_LINK_PROTOCOL,
+      type: 'personal-agent',
+      development: personalAgentIsDevelopment,
+      frame: personalAgentFrame ?? projectPersonalAgentFrame(null),
+    }
+  }
+
+  /**
+   * One frame per change reaches every attached phone. The desk assembles that
+   * frame from the resident Personal Bot client it already runs, so Android and
+   * the Electron renderer read the same fields.
+   */
+  function publishPersonalAgent() {
+    if (personalAgentSockets.size === 0) return
+    const record = personalAgentRecord()
+    for (const attached of [...personalAgentSockets]) safeWrite(attached, record)
+  }
+
+  function setPersonalAgentStatus(status) {
+    const next = projectPersonalAgentFrame(status)
+    // Repeating an unchanged frame would only make the phone re-render it.
+    if (personalAgentFrame && JSON.stringify(next) === JSON.stringify(personalAgentFrame)) return
+    personalAgentFrame = next
+    publishPersonalAgent()
+  }
+
+  /**
+   * The resident client pushes every change and also answers a snapshot, so the
+   * desk reads whichever its source offers and holds the newest frame for a
+   * phone that attaches later.
+   */
+  function readPersonalAgent() {
+    const value = typeof personalAgent?.snapshot === 'function' ? personalAgent.snapshot() : null
+    if (!value) return
+    if (typeof value.then === 'function') {
+      value.then((status) => { if (status) setPersonalAgentStatus(status) }).catch((error) => {
+        // A refused snapshot is a state the phone must see, not a silence.
+        setPersonalAgentStatus({ state: 'unavailable', message: error?.message || 'Personal Bot snapshot unavailable' })
+      })
+      return
+    }
+    setPersonalAgentStatus(value)
+  }
+
+  function subscribePersonalAgent() {
+    if (!personalAgent || typeof personalAgent.subscribe !== 'function' || personalAgentUnsubscribe) return
+    if (typeof personalAgent.start === 'function' && !personalAgentStarted) {
+      personalAgent.start()
+      personalAgentStarted = true
+    }
+    personalAgentUnsubscribe = personalAgent.subscribe((status) => { if (status) setPersonalAgentStatus(status) }) || null
+  }
 
   function track(socket) {
     openSockets.add(socket)
@@ -635,6 +710,112 @@ function createOdkLinkService({
     if (initialBytes?.length) handleRecords(readRecords(initialBytes))
   }
 
+  /**
+   * The phone reads the desk's Personal Agent over the same listener. It holds
+   * one outbound connection, so the desk gains no inbound port, and it submits
+   * an owner turn only with the Control Credential.
+   */
+  function attachPersonalAgent(socket, hello, initialBytes = null) {
+    const readRecords = recordReader()
+    let nonce = null
+    let controlIdentity = null
+    socket.setKeepAlive(true, 15000)
+    socket.setTimeout(0)
+    // A phone is a reader, not a reporter, so it never joins the machine session
+    // snapshot. The desk still reports it as its own connected client.
+    const client = { machine: hello.machine, sessionId: hello.sessionId, connectedAt: now() }
+    personalAgentClients.set(socket, client)
+    socket.on('close', () => {
+      personalAgentClients.delete(socket)
+      personalAgentSockets.delete(socket)
+    })
+    socket.on('error', () => socket.destroy())
+
+    function refuse(requestId, reason) {
+      safeWrite(socket, {
+        v: ODK_LINK_PROTOCOL,
+        type: 'error',
+        ...(boundedIdentity(requestId) ? { requestId } : {}),
+        reason,
+      })
+    }
+
+    /**
+     * A turn leaves the desk's resident as the reply leaves it: this host only
+     * carries the request, so the phone never generates anything itself.
+     */
+    function submitTurn(record) {
+      if (!controlIdentity || !nonce) return refuse(record.requestId, 'control challenge required')
+      if (!personalAgentProofMatches(controlCredential, { ...controlIdentity, nonce }, record.proof)) {
+        return refuse(record.requestId, 'control proof refused')
+      }
+      // The nonce is single-use, so a captured submit cannot be replayed.
+      nonce = null
+      const text = boundedTurnText(record.text)
+      if (!text) return refuse(record.requestId, 'turn text required')
+      if (!personalAgent || typeof personalAgent.sendText !== 'function') return refuse(record.requestId, 'personal agent unavailable')
+      Promise.resolve()
+        .then(() => personalAgent.sendText(text))
+        .then((receipt) => {
+          // The resident answers a boolean; a source may answer an object.
+          const accepted = typeof receipt === 'boolean' ? receipt : receipt?.accepted === true
+          safeWrite(socket, {
+            v: ODK_LINK_PROTOCOL,
+            type: 'personal-agent-receipt',
+            ...(boundedIdentity(record.requestId) ? { requestId: record.requestId } : {}),
+            accepted,
+          })
+          readPersonalAgent()
+        })
+        .catch(() => refuse(record.requestId, 'turn delivery not confirmed'))
+    }
+
+    const handleRecords = (records) => {
+      for (const record of records) {
+        if (!record || typeof record !== 'object') continue
+        if (record.v !== ODK_LINK_PROTOCOL) {
+          refuse(record.requestId, 'protocol version refused')
+          socket.end()
+          return
+        }
+        if (record.type === 'personal-agent-control') {
+          if (!boundedIdentity(record.machine) || !boundedIdentity(record.sessionId)) {
+            refuse(record.requestId, 'control identity required')
+            continue
+          }
+          if (!controlCredential) {
+            refuse(record.requestId, 'control unavailable')
+            continue
+          }
+          nonce = randomBytes(CONTROL_NONCE_BYTES).toString('hex')
+          controlIdentity = { machine: record.machine, sessionId: record.sessionId }
+          safeWrite(socket, {
+            v: ODK_LINK_PROTOCOL,
+            type: 'challenge',
+            nonce,
+            algorithm: 'hmac-sha256',
+            domain: PERSONAL_AGENT_CONTROL_DOMAIN,
+          })
+          continue
+        }
+        if (record.type === 'personal-agent-submit') {
+          submitTurn(record)
+          continue
+        }
+        refuse(record.requestId, 'unknown personal agent record')
+      }
+    }
+
+    socket.on('data', (chunk) => handleRecords(readRecords(chunk)))
+    safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'personal-agent-ready' })
+    // The attaching phone is registered after this frame, so it receives exactly
+    // one copy of the current state and every change that follows.
+    readPersonalAgent()
+    safeWrite(socket, personalAgentRecord())
+    personalAgentSockets.add(socket)
+    if (initialBytes?.length) handleRecords(readRecords(initialBytes))
+  }
+
   function attachPeer(socket) {
     let pending = Buffer.alloc(0)
     let decided = false
@@ -666,6 +847,20 @@ function createOdkLinkService({
           return
         }
         attachControl(socket, hello, rest)
+        return
+      }
+      if (hello.type === 'personal-agent-hello') {
+        if (!boundedIdentity(hello.machine) || !boundedIdentity(hello.sessionId)) {
+          safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'error', reason: 'personal agent hello required' })
+          socket.end()
+          return
+        }
+        if (!tokenMatches(token, hello.token)) {
+          safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'error', reason: 'token refused' })
+          socket.end()
+          return
+        }
+        attachPersonalAgent(socket, hello, rest)
         return
       }
       attachReporter(socket, [hello], rest)
@@ -978,6 +1173,10 @@ function createOdkLinkService({
         throw error
       }
       started = true
+      // A failed start must leave no subscription behind, so the resident
+      // connection is taken only once the listener and channel are up.
+      subscribePersonalAgent()
+      readPersonalAgent()
       return { host: listenHost, port: server.address().port }
     },
     async stop() {
@@ -993,6 +1192,17 @@ function createOdkLinkService({
         runtimeChannel ? runtimeChannel.close() : Promise.resolve(),
       ])
       runtimeChannel = null
+      if (personalAgentUnsubscribe) {
+        try { personalAgentUnsubscribe() } catch { /* a failed release must not block a stop */ }
+        personalAgentUnsubscribe = null
+      }
+      if (personalAgentStarted && typeof personalAgent?.stop === 'function') {
+        try { personalAgent.stop() } catch { /* the resident client owns its own cleanup */ }
+      }
+      personalAgentStarted = false
+      personalAgentSockets.clear()
+      personalAgentClients.clear()
+      personalAgentFrame = null
       machines.clear()
       controlAttributions.clear()
       pendingControlAttachments.clear()
@@ -1004,6 +1214,8 @@ function createOdkLinkService({
     machines: () => [...machines.keys()],
     connections: () => connections,
     sessionCount: () => snapshot().summary.total,
+    /** The phones reading this desk, as the desk sees them. */
+    personalAgentClients: () => [...personalAgentClients.values()],
   }
 }
 
@@ -1028,6 +1240,8 @@ module.exports = {
   HOSTED_PI_STATUSES,
   controlProof,
   controlTranscript,
+  personalAgentControlTranscript,
+  PERSONAL_AGENT_CONTROL_DOMAIN,
   normalizeHostedSession,
   tokenMatches,
 }

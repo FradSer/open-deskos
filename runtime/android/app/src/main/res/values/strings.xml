@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Open DeskOS</string>
+    <!-- Host chrome. The desk marked this frame as development state. -->
+    <string name="development_state">Development state from the desk</string>
+</resources>
