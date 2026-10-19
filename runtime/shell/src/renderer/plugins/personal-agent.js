@@ -353,16 +353,6 @@
         if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Connection unavailable'
         return value?.status === 'verified' ? 'Ready' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
       }
-      function registerOwnerTurn(status) {
-        const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
-        if (newTurn) {
-          turn = ownerTurns.get(status.ownerTurnId) || { ownerTurnId: status.ownerTurnId, prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
-          if (status.ownerTurnId) {
-            ownerTurns.set(status.ownerTurnId, turn)
-            while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
-          }
-        }
-      }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
         revision++
@@ -370,9 +360,23 @@
         const readyCaption = readinessCaption(status.jev, status.judgment)
         renderAgents(status.agents)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
-        if (status.ownerTurnId && status.remote?.replies?.some(reply => reply.id === status.ownerTurnId)) registerOwnerTurn(status)
         renderRemote(status.remote)
-        registerOwnerTurn(status)
+        const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
+        if (newTurn) {
+          const durable = durableReplies.get(status.ownerTurnId)
+          turn = ownerTurns.get(status.ownerTurnId) || { ownerTurnId: status.ownerTurnId, prompt: status.transcript,
+            user: durable?.article.querySelector('.agent-message-body') || message('user', status.transcript),
+            response: durable?.answer || message('assistant', ''), bound: Boolean(durable) }
+          if (durable) {
+            durable.answer = turn.response
+            timelineEntry(turn.response.closest('article'), timeline.get(durable.article) + 0.5, [durable.threadId])
+            orderTimeline();showThread(selectedThread)
+          }
+          if (status.ownerTurnId) {
+            ownerTurns.set(status.ownerTurnId, turn)
+            while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
+          }
+        }
         const reply = status.message
         if (!status.replyTo && !turn?.bound && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }

@@ -435,14 +435,17 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
-  if (process.argv.includes('--unbound-reply-remount-only')) {
+  if (process.argv.includes('--unbound-reply-remount-only') || process.argv.includes('--unbound-reply-remount-legacy-only')) {
     const ownerTurnId='33333333-3333-4333-8333-333333333333',threadId='e5'.repeat(32),text='Synthetic in-flight owner turn',answer='Synthetic restored answer'
     const source={key:'a1'.repeat(32),revision:'b2'.repeat(32),threadId,machine:'Synthetic Mac',sessionId:'synthetic-remount-session',project:'/synthetic',control:'configured',availability:'live'}
     const origin={id:'d4'.repeat(32),at:1000,text:'Synthetic completion',presentation:'assistant_update',sources:[source]}
+    const legacy=process.argv.includes('--unbound-reply-remount-legacy-only')
+    if (legacy) { delete origin.at;delete origin.presentation }
     const queued={id:ownerTurnId,threadId,sessionId:source.sessionId,text,replyTo:{messageId:origin.id,sourceKey:source.key,sourceRevision:source.revision},status:'queued',at:2000}
     const first={state:'thinking',ownerTurnId,transcript:text,message:'',remote:{state:'live',messages:[origin],replies:[queued]}}
     publishStatus(first);await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),1,'a fresh mount with a combined owner/reply snapshot creates one owner bubble')
+    if (legacy) assert.equal(await evaluate(`Boolean(document.querySelector('.agent-earlier-updates').compareDocumentPosition(document.querySelector('[data-reply-id="${ownerTurnId}"]'))&Node.DOCUMENT_POSITION_FOLLOWING)`),true,'legacy origin history precedes its replayed owner reply')
     const final={...first,state:'idle',replyTo:queued.replyTo,threadId,message:answer,remote:{...first.remote,replies:[{...queued,status:'unknown',answer}]}}
     publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,20))')
     const restored=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message')];return {owners:all.filter(n=>n.classList.contains('agent-message-user')).length,answers:all.filter(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)}).length,answerThread:all.find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})?.dataset.threadId}})()`)

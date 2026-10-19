@@ -451,3 +451,4 @@ Scenario: AI-selected session replies retain the original owner turn
   And the answer belongs to the selected session thread without matching historical text
   And delivery status remains independent from the assistant answer
   And a fresh mount with a combined owner and durable reply snapshot creates no duplicate messages
+  And legacy origin history stays before its replayed owner reply without inventing timestamps
