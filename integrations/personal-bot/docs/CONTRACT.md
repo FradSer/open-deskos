@@ -1066,7 +1066,7 @@ An explicit protocol value must agree with that declaration.
 An explicit native reply checks current session identity and state.
 It does not compare the `list` and `status` object hashes.
 A new explicit native owner reply remains a separate mutation when the remote session records an earlier unknown delivery.
-The Bot preserves its durable reply locks for `dispatching` or `unknown` replies.
+The Bot preserves pending delivery locks and all unknown receipts.
 Hosted endpoints and other follow-ups still refuse earlier unknown deliveries.
 Unknown delivery requires status reconciliation; it never permits automatic replay or a replacement task.
 Only a receipt with confirmed admission proves that a task accepted an instruction.
@@ -1122,6 +1122,17 @@ The resident saves this recovery once without changing message references, recei
 It does not replay an owner turn or task instruction.
 Unknown delivery remains locked across reporting-machine mapping changes.
 An unavailable origin reference cannot prove that an unresolved delivery is safe to repeat.
+A later completed message can permit a distinct explicit owner request in the same thread.
+Both messages must retain different real completion identities for the same configured session.
+The later local message timestamp must follow the unknown reply timestamp.
+The original source reference must remain available and retain its earlier completion identity.
+A changed revision, timestamp, text, or reporting-machine mapping alone cannot release the lock.
+The owner must use different text and reply to the later message.
+Queued and dispatching requests remain locked.
+Admission rechecks the completion boundary before dispatch and immediately before the prompt leaves the resident.
+Concurrent dispatch of the same reply remains blocked.
+This continuation does not change the earlier unknown receipt or certify its admission.
+A subsequent unknown reply requires another later completion before a further owner request.
 Every reply requires a nonempty, bounded session identity.
 This unreleased format does not support replies without a session identity.
 Every reply checkpoint write uses the same reply validator as restart reads.
