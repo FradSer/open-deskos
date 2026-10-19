@@ -274,3 +274,24 @@ test('a named task uses bounded displayed context in the initial AI route withou
  const uncertain=routerFixture(response('session_continue',{confidence:0.3}))
  assert.equal((await uncertain.route({text:'继续',profile:'personal',remoteTaskContext:context})).intent,'clarify')
 })
+
+test('fresh read-only Pi work has distinct criteria from retained task queries without weakening confidence gates', async () => {
+ const text='让双端消息回环验收任务重新读取 task.json，告诉我它支持哪些设备。'
+ const f=routerFixture(response('session_continue'))
+ assert.equal((await f.route({text,profile:'personal',remoteTaskContext:'Untrusted displayed task: 双端消息回环验收。'})).intent,'session_continue')
+ const question=f.requests[0].body.questions.intent
+ assert.match(question.criteria.session_continue.covers,/fresh.*read-only/i)
+ assert.match(question.criteria.session_continue.excludes,/retained.*task_query/i)
+ assert.match(question.criteria.task_query.excludes,/Pi.*fresh/i)
+ assert.match(question.criteria.clarify.excludes,/exact session.*handler/i)
+ assert.match(question.instructions,/confidence.*workflow meaning/i)
+ assert.match(question.instructions,/not.*permission.*endpoint health/i)
+ for(const confidence of [0.79,0.8]){
+  const probabilities=Object.fromEntries(Object.keys(INTENTS).map(key=>[key,key==='session_continue'?confidence:(1-confidence)/(Object.keys(INTENTS).length-1)]))
+  const decision=await routerFixture(response('session_continue',{confidence,probabilities})).route({text,profile:'personal'})
+  assert.equal(decision.intent,confidence<0.8?'clarify':'session_continue')
+  assert.equal(decision.confidence,confidence)
+  assert.equal(decision.threshold,0.8)
+ }
+ assert.equal((await routerFixture(response('clarify')).route({text:'继续那个，或者开一个别的任务',profile:'personal'})).intent,'clarify')
+})
