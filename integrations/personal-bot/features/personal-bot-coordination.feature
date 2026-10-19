@@ -72,6 +72,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     And each update has at most 600 UTF-16 code units within a 2000-unit batch
     And a separate model checks faithfulness, source attribution, and readability
     And generic reported-or-unverified notices stay in Sources rather than message bodies
+    And the assistant addresses the owner's task directly instead of narrating a Pi report
+    And concrete facts, blockers and their effects remain specific to that task
+    And an arranged next step is stated only when the source supports that arrangement
+    And the reviewer judges the submitted wording without silently rewriting it
+    And report-centered wording remains held even when its citations are valid
     And material task-specific evidence gaps remain explicit
     And unsupported actions, verification claims, or swapped source assignments remain held
     And one transaction appends the ordered messages with stable IDs and the assistant_update presentation
@@ -172,3 +177,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     And no Memory, tool context, or private service fields enter the projection
     And interrupted pending turns restore as unconfirmed without replay
     And storage errors cannot throw into the service
+
+  Scenario: Missing records do not establish global non-execution
+    Given a completed Pi turn verifies zero rounds within its available records
+    And external execution records are unavailable in that turn
+    When the summary claims that the system completed zero rounds globally
+    Then the reviewer receives the original text with the evidence-access limit
+    And its needs_review result prevents publication and persists a held revision
+    And later pushes do not silently retry that revision
