@@ -128,3 +128,10 @@ Scenario: Native acceptance uses the configured endpoint directory
     But a later distinct terminal event and a source without legacy history can notify
     And progress, unknown outcomes, and unavailable records cannot establish completion evidence
     And an older unidentified held record cannot absorb a new completion after the latest watermark has a real identity
+
+  Scenario: Completed Pi turns preserve conditional criteria and planned work
+    Given a completed Pi turn describes a condition, acceptance criterion, or plan
+    When the Personal Agent generates and reviews its assistant update
+    Then both providers retain the source tense and conditional scope
+    And a settled or reported_finished turn does not prove that the criterion was fulfilled
+    And an update that upgrades a condition into completed work requires review

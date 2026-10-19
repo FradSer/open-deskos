@@ -404,3 +404,29 @@ test('a real zero-tool remote reviewer can hold swapped assignments and unreadab
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,2);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
 })
+
+
+test('actual zero-tool remote providers preserve conditional acceptance scope',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+ const conclusion='比对原始消息、回复和摘要；如果三者一致，即视为验收通过。'
+ const records=[{key:'synthetic-criterion',revision:'a'.repeat(64),machine:'synthetic',sessionId:'criterion',project:'/synthetic/criterion',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-final',conclusionOutcome:'reported_finished',conclusion}]
+ const updates=[{text:'三份内容已比对一致，验收通过。',sourceKeys:['synthetic-criterion']}]
+ const citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}];let summaries=0,reviews=0
+ const runtime=offline(context=>{
+  assert.deepEqual(visibleTools(context),[])
+  const all=JSON.stringify(context.messages),user=context.messages.findLast(m=>m.role==='user'),input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
+  assert.deepEqual(input.records,records)
+  assert.match(all,/Preserve source tense and conditional scope/)
+  assert.match(all,/settled and reported_finished mean only that the Pi turn ended/)
+  assert.match(all,/conditions, acceptance criteria, and plans are not completed work/)
+  assert.match(all,/Do not upgrade a condition or plan into a completed result/)
+  if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
+  assert.match(all,/When reviewing, use needs_review when an update upgrades a condition or plan into a completed result/)
+  reviews++;assert.deepEqual(input.updates,updates)
+  return assistant(JSON.stringify({status:'needs_review',reason:'来源说明验收条件，摘要却声称已完成比对并通过。',citations}))
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ const {RemoteConversation}=await import('../src/remote-conversation.mjs')
+ const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
+ try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
+})
