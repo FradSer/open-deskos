@@ -123,5 +123,5 @@ try {
   if (out) await shell.screenshot(out)
   console.log('PERSONAL_AGENT_PARITY ' + JSON.stringify({ host: 'android', state: stateName, viewport: viewportName, webView: browser.product, reading }))
 } finally {
-  shell.close()
+  await shell.close()
 }

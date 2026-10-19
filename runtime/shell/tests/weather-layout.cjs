@@ -69,6 +69,8 @@ function inspect() {
   }
   const boxes = []
   const issues = []
+  const primaryFont = parseFloat(getComputedStyle(tile.querySelector('.w-weather-number')).fontSize)
+  if (primaryFont < 14) issues.push(`primary reading below 14px: ${primaryFont}`)
   const walker = document.createTreeWalker(tile, NodeFilter.SHOW_TEXT)
   while (walker.nextNode()) {
     const node = walker.currentNode
@@ -124,7 +126,7 @@ function inspect() {
   if (pixel && (glyph.width % 24 !== 0 || glyph.height % 24 !== 0)) issues.push('fractional pixel grid')
   if (pixel && getComputedStyle(tile.querySelector('svg')).stroke !== 'none') issues.push('stroked pixel icon')
   return {
-    issues, glyph, reading, head, main, support, range: rect('.w-weather-range'),
+    issues, primaryFont, glyph, reading, head, main, support, range: rect('.w-weather-range'),
     state: tile.dataset.state, place: tile.querySelector('.w-weather-place').textContent,
     badge: tile.querySelector('.w-weather-badge').textContent,
     badgeVisible: tile.querySelector('.w-weather-badge').getClientRects().length > 0,
@@ -229,6 +231,26 @@ async function main() {
     if (content.clipped) measured.issues.push('ancestor-clipping')
     if (measured.issues.length) failures.push({ label: `${theme}/200%-zoom`, issues: measured.issues })
     runs.push({ label: `${theme}/200%-zoom`, ...measured, density })
+  }
+  // A pressure fixture isolates the CSS reading floor from the supported desk
+  // composition. It does not claim this short lane occurs in a production slot.
+  for (const theme of ['pixel', 'instrument', 'border-beam']) {
+    await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
+    const floor = await win.webContents.executeJavaScript(`(() => {
+      const hero = document.querySelector('.w-weather-hero')
+      const previous = hero.style.height
+      try {
+        hero.style.height = '16px'
+        return { laneHeight: hero.getBoundingClientRect().height,
+          fontSize: parseFloat(getComputedStyle(hero.querySelector('.w-weather-number')).fontSize) }
+      } finally { hero.style.height = previous }
+    })()`)
+    const label = `${theme}/constrained-reading-lane`
+    const issues = []
+    if (Math.abs(floor.laneHeight - 16) > 0.01) issues.push('pressure reading lane did not settle at 16px')
+    if (!Number.isFinite(floor.fontSize) || floor.fontSize < 14) issues.push(`primary reading below 14px: ${floor.fontSize}`)
+    if (issues.length) failures.push({ label, issues })
+    runs.push({ label, pressureFixtureOnly: true, ...floor, issues })
   }
   if (captureDir) fs.writeFileSync(path.join(captureDir, 'report.json'), JSON.stringify({ runs, failures }, null, 2))
   console.log(JSON.stringify(failures, null, 2))

@@ -3,11 +3,12 @@ const net = require('node:net')
 const os = require('node:os')
 const fs = require('node:fs')
 const path = require('node:path')
-const { timingSafeEqual, createHmac, randomBytes } = require('node:crypto')
+const { timingSafeEqual, createHmac, createHash, randomBytes } = require('node:crypto')
 const { StringDecoder } = require('node:string_decoder')
 const { boundedEvent, retainEvents, MAX_EVENTS, MAX_SESSION_EVENT_BYTES } = require('./pi-session-events')
 const { isNamedPipe, listenChannel } = require('./local-channel')
 const { projectPersonalAgentFrame, boundedTurnText } = require('./personal-agent-frame')
+const { parseReplyTo } = require('./personal-bot-reply-reference')
 
 // The service bounds reported data itself: a reporting machine is never trusted
 // to have bounded its own events. Its bounds are the shared ones, so a reporter
@@ -40,7 +41,8 @@ const ACCEPTED_CONTROL_PROTOCOLS = [ODK_LINK_CONTROL_PROTOCOL]
 const CONTROL_DOMAIN = 'odk-control-v2'
 // The phone's proof is bound to its own domain, so a Hosted Pi proof is never
 // accepted as a Personal Agent proof, or the other way round.
-const PERSONAL_AGENT_CONTROL_DOMAIN = 'odk-personal-agent-control-v1'
+const PERSONAL_AGENT_CONTROL_DOMAIN = 'odk-personal-agent-control-v2'
+const PERSONAL_AGENT_CONTROL_PROTOCOL = 2
 const CONTROL_NONCE_BYTES = 32
 const CONTROL_ID_MAX_BYTES = 256
 const CONTROL_PROMPT_MAX_BYTES = 64 * 1024
@@ -103,6 +105,27 @@ function recordReader(onOversize = () => {}) {
       onOversize()
     }
     return records
+  }
+}
+
+/** Preserve the exact bounded UTF-8 command bytes, excluding only the LF delimiter. */
+function personalAgentRecordReader(onInvalid) {
+  let pending = Buffer.alloc(0)
+  const decoder = new TextDecoder('utf-8', { fatal: true })
+  return chunk => {
+    const rows = []
+    let offset = 0
+    while (offset < chunk.length) {
+      const newline = chunk.indexOf(10, offset)
+      const end = newline < 0 ? chunk.length : newline
+      if (pending.length + end - offset > 128 * 1024) { pending = Buffer.alloc(0); onInvalid(); return [] }
+      pending = Buffer.concat([pending, chunk.subarray(offset, end)])
+      if (newline < 0) break
+      const raw = pending; pending = Buffer.alloc(0); offset = newline + 1
+      try { rows.push({ record: JSON.parse(decoder.decode(raw)), raw }) }
+      catch { onInvalid(); return [] }
+    }
+    return rows
   }
 }
 
@@ -180,8 +203,8 @@ function controlProof(credential, transcript) {
   return createHmac('sha256', credential).update(controlTranscript(transcript)).digest('hex')
 }
 
-function personalAgentControlTranscript({ machine, sessionId, nonce }) {
-  return `${PERSONAL_AGENT_CONTROL_DOMAIN}\n${ODK_LINK_PROTOCOL}\n${nonce}\n${machine}\n${sessionId}`
+function personalAgentControlTranscript({ nonce, firstFrameSHA256 }) {
+  return `${PERSONAL_AGENT_CONTROL_DOMAIN}\n${PERSONAL_AGENT_CONTROL_PROTOCOL}\n${nonce}\n${firstFrameSHA256}`
 }
 
 function personalAgentProofMatches(credential, identity, proof) {
@@ -743,9 +766,12 @@ function createOdkLinkService({
    * an owner turn only with the Control Credential.
    */
   function attachPersonalAgent(socket, hello, initialBytes = null) {
-    const readRecords = recordReader()
+    const readRecords = personalAgentRecordReader(() => socket.destroy())
     let nonce = null
-    let controlIdentity = null
+    let command = null
+    let firstFrameSHA256 = null
+    let expiresAt = 0
+    let submitting = false
     socket.setKeepAlive(true, 15000)
     socket.setTimeout(0)
     // A phone is a reader, not a reporter, so it never joins the machine session
@@ -767,69 +793,46 @@ function createOdkLinkService({
       })
     }
 
-    /**
-     * A turn leaves the desk's resident as the reply leaves it: this host only
-     * carries the request, so the phone never generates anything itself.
-     */
+    const keysAre = (record, required, optional = []) => record && typeof record === 'object' && !Array.isArray(record)
+      && required.every(key => Object.hasOwn(record, key)) && Object.keys(record).every(key => required.includes(key) || optional.includes(key))
+    const consume = () => { const value = { nonce, command, firstFrameSHA256, expiresAt }; nonce = null; command = null; firstFrameSHA256 = null; return value }
     function submitTurn(record) {
-      if (!controlIdentity || !nonce) return refuse(record.requestId, 'control challenge required')
-      if (!personalAgentProofMatches(controlCredential, { ...controlIdentity, nonce }, record.proof)) {
-        return refuse(record.requestId, 'control proof refused')
-      }
-      // The nonce is single-use, so a captured submit cannot be replayed.
-      nonce = null
-      const text = boundedTurnText(record.text)
-      if (!text) return refuse(record.requestId, 'turn text required')
+      const pending = consume()
+      if (!pending.command || !pending.nonce) return refuse(record.requestId, 'control challenge required')
+      if (!keysAre(record, ['v', 'type', 'requestId', 'proof']) || record.requestId !== pending.command.requestId) return refuse(record.requestId, 'invalid personal submission')
+      if (now() > pending.expiresAt || !personalAgentProofMatches(controlCredential, pending, record.proof)) return refuse(record.requestId, 'control proof refused')
       if (!personalAgent || typeof personalAgent.sendText !== 'function') return refuse(record.requestId, 'personal agent unavailable')
+      submitting = true
       Promise.resolve()
-        .then(() => personalAgent.sendText(text))
-        .then((receipt) => {
-          // The resident answers a boolean; a source may answer an object.
+        .then(() => personalAgent.sendText(pending.command.text, pending.command.replyTo))
+        .then(receipt => {
           const accepted = typeof receipt === 'boolean' ? receipt : receipt?.accepted === true
-          safeWrite(socket, {
-            v: ODK_LINK_PROTOCOL,
-            type: 'personal-agent-receipt',
-            ...(boundedIdentity(record.requestId) ? { requestId: record.requestId } : {}),
-            accepted,
-          })
+          safeWrite(socket, { v: ODK_LINK_PROTOCOL, type: 'personal-agent-receipt', requestId: pending.command.requestId, accepted })
           readPersonalAgent()
         })
         .catch(() => refuse(record.requestId, 'turn delivery not confirmed'))
+        .finally(() => { submitting = false })
     }
-
-    const handleRecords = (records) => {
-      for (const record of records) {
+    const handleRecords = rows => {
+      for (const { record, raw } of rows) {
         if (!record || typeof record !== 'object') continue
-        if (record.v !== ODK_LINK_PROTOCOL) {
-          refuse(record.requestId, 'protocol version refused')
-          socket.end()
-          return
-        }
+        if (record.v !== PERSONAL_AGENT_CONTROL_PROTOCOL) { consume(); refuse(record.requestId, 'protocol version refused'); socket.end(); return }
         if (record.type === 'personal-agent-control') {
-          if (!boundedIdentity(record.machine) || !boundedIdentity(record.sessionId)) {
-            refuse(record.requestId, 'control identity required')
-            continue
-          }
-          if (!controlCredential) {
-            refuse(record.requestId, 'control unavailable')
-            continue
-          }
+          consume()
+          if (submitting) { refuse(record.requestId, 'personal agent turn in flight'); continue }
+          if (!keysAre(record, ['v', 'type', 'machine', 'sessionId', 'requestId', 'text'], ['replyTo'])
+            || record.machine !== hello.machine || record.sessionId !== hello.sessionId || !boundedIdentity(record.requestId)
+            || typeof record.text !== 'string' || !record.text.trim() || Buffer.byteLength(record.text) > 16 * 1024
+            || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(record.text)
+            || (record.replyTo !== undefined && !parseReplyTo(record.replyTo))) { refuse(record.requestId, 'invalid personal command'); continue }
+          if (!controlCredential) { refuse(record.requestId, 'control unavailable'); continue }
           nonce = randomBytes(CONTROL_NONCE_BYTES).toString('hex')
-          controlIdentity = { machine: record.machine, sessionId: record.sessionId }
-          safeWrite(socket, {
-            v: ODK_LINK_PROTOCOL,
-            type: 'challenge',
-            nonce,
-            algorithm: 'hmac-sha256',
-            domain: PERSONAL_AGENT_CONTROL_DOMAIN,
-          })
-          continue
-        }
-        if (record.type === 'personal-agent-submit') {
-          submitTurn(record)
-          continue
-        }
-        refuse(record.requestId, 'unknown personal agent record')
+          firstFrameSHA256 = createHash('sha256').update(raw).digest('hex')
+          expiresAt = now() + AUTH_TIMEOUT_MS
+          command = { requestId: record.requestId, text: record.text, ...(record.replyTo !== undefined ? { replyTo: parseReplyTo(record.replyTo) } : {}) }
+          safeWrite(socket, { v: PERSONAL_AGENT_CONTROL_PROTOCOL, type: 'challenge', requestId: command.requestId, nonce, firstFrameSHA256, algorithm: 'hmac-sha256', domain: PERSONAL_AGENT_CONTROL_DOMAIN })
+        } else if (record.type === 'personal-agent-submit') submitTurn(record)
+        else { consume(); refuse(record.requestId, 'unknown personal agent record') }
       }
     }
 

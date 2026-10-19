@@ -139,3 +139,17 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
   assert.equal(sent[0][0], 'odk-remote-input')
   assert.equal(sent[0][1].input, 'right')
 })
+
+
+test('a text-only host keeps its microphone unavailable without changing other hosts', () => {
+  const renderer = fs.readFileSync('src/renderer/plugins/personal-agent.js', 'utf8')
+  const start = renderer.indexOf('        const voiceAvailable =')
+  const end = renderer.indexOf('        lastStatus =', start)
+  assert.ok(start >= 0 && end > start)
+  for (const supportsVoiceInput of [false, true, undefined]) for (const state of ['idle', 'thinking', 'recording']) {
+    const mic = { dataset: {}, setAttribute(name, value) { this[name] = value } }
+    vm.runInNewContext(renderer.slice(start, end), { root: { odkPersonalBot: { supportsVoiceInput } }, $: () => mic, busy: state !== 'idle', status: { state } })
+    assert.equal(mic.disabled, supportsVoiceInput === false || state === 'thinking')
+    assert.equal(mic['aria-label'], supportsVoiceInput === false ? 'Microphone unavailable on this host' : state === 'recording' ? 'Stop recording' : 'Record voice request')
+  }
+})

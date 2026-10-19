@@ -92,8 +92,8 @@ async function openPhone(port, hello = fixture.read.hello) {
 
 // The phone signs the transcript the challenge produced, built from the fixture
 // contract rather than from the desk's own helper.
-function proofFor({ nonce, machine, sessionId }) {
-  const transcript = `${fixture.domain}\n${fixture.protocol}\n${nonce}\n${machine}\n${sessionId}`
+function proofFor({ nonce, firstFrameSHA256 = fixture.control.firstFrameSHA256 }) {
+  const transcript = `${fixture.domain}\n2\n${nonce}\n${firstFrameSHA256}`
   return createHmac('sha256', fixture.control.credential).update(transcript, 'utf8').digest('hex')
 }
 
@@ -187,14 +187,14 @@ test('a control proof submits one turn and its nonce cannot be reused', async ()
     assert.equal(challenge.algorithm, 'hmac-sha256')
 
     const proof = proofFor({ ...fixture.control.hello, nonce: challenge.nonce })
-    phone.send({ v: 1, type: 'personal-agent-submit', requestId: 'request-submit', proof, text: 'Summarise the desk' })
+    phone.send({ v: 2, type: 'personal-agent-submit', requestId: 'request-submit', proof })
     const [, , , receipt] = await phone.waitFor(4)
     assert.equal(receipt.type, 'personal-agent-receipt')
     assert.equal(receipt.accepted, true)
     assert.equal(receipt.requestId, 'request-submit')
     assert.deepEqual(source.sent, ['Summarise the desk'])
 
-    phone.send({ v: 1, type: 'personal-agent-submit', requestId: 'request-replay', proof, text: 'Summarise the desk' })
+    phone.send({ v: 2, type: 'personal-agent-submit', requestId: 'request-replay', proof })
     const [, , , , replay] = await phone.waitFor(5)
     assert.equal(replay.type, 'error')
     assert.equal(replay.reason, 'control challenge required')
@@ -227,7 +227,7 @@ test('a boolean receipt from the resident reaches the phone accepted', async () 
     phone.send(fixture.control.hello)
     const [, , challenge] = await phone.waitFor(3)
     const proof = proofFor({ ...fixture.control.hello, nonce: challenge.nonce })
-    phone.send({ v: 1, type: 'personal-agent-submit', requestId: 'request-boolean', proof, text: 'Summarise the desk' })
+    phone.send({ v: 2, type: 'personal-agent-submit', requestId: 'request-submit', proof })
     const [, , , receipt] = await phone.waitFor(4)
     assert.equal(receipt.accepted, true, 'a boolean true receipt must arrive as accepted')
     await phone.close()
@@ -242,7 +242,7 @@ test('a wrong proof is refused without reaching the resident', async () => {
     await phone.waitFor(3)
     // A phone holding only the report token can present a proof of the right
     // shape with the wrong secret.
-    phone.send({ v: 1, type: 'personal-agent-submit', requestId: 'request-wrong', proof: 'f'.repeat(64), text: 'Summarise the desk' })
+    phone.send({ v: 2, type: 'personal-agent-submit', requestId: 'request-submit', proof: 'f'.repeat(64) })
     const [, , , refusal] = await phone.waitFor(4)
     assert.equal(refusal.reason, 'control proof refused')
     assert.deepEqual(source.sent, [])
@@ -263,8 +263,91 @@ test('a desk without a control credential refuses the challenge', async () => {
 })
 
 test('the shared fixture pins the control transcript and its proof', async () => {
-  const identity = { machine: fixture.control.hello.machine, sessionId: fixture.control.hello.sessionId, nonce: fixture.control.challenge.nonce }
+  const identity = { machine: fixture.control.hello.machine, sessionId: fixture.control.hello.sessionId, nonce: fixture.control.challenge.nonce, firstFrameSHA256: fixture.control.firstFrameSHA256 }
   assert.equal(personalAgentControlTranscript(identity), fixture.control.transcript)
-  assert.match(fixture.control.transcript, /^odk-personal-agent-control-v1\n1\n/)
+  assert.match(fixture.control.transcript, /^odk-personal-agent-control-v2\n2\n/)
   assert.equal(proofFor(identity), fixture.control.proof, 'the fixture proof must match its own credential and transcript')
+})
+
+test('central conversation identity and availability survive the phone frame', () => {
+  const id = '12345678-1234-1234-1234-123456789abc'
+  const ref = { messageId: 'a'.repeat(64), sourceKey: 'source', sourceRevision: 'b'.repeat(64) }
+  const conversation = { revision: 4, turns: [{ id, at: 1, transcript: 'hello', message: 'answer', state: 'idle', replyTo: ref, threadId: 'c'.repeat(64) }], omittedCount: 0 }
+  const frame = projectPersonalAgentFrame({ state: 'idle', ownerTurnId: id, conversation, replyTo: ref, threadId: 'c'.repeat(64), textInput: true, replyInput: true, judgment: { status: 'ready', provider: 'model' } })
+  assert.deepEqual(frame.conversation, conversation)
+  assert.equal(frame.ownerTurnId, id)
+  assert.deepEqual(frame.replyTo, ref)
+  assert.equal(frame.threadId, 'c'.repeat(64))
+  assert.equal(frame.textInput, true)
+  assert.equal(frame.replyInput, true)
+  assert.equal(frame.voiceInput, false)
+})
+
+test('a new personal control role binds raw first-frame bytes and forwards the stored reply', async () => {
+  const source = fakeSource(); source.sendText = async (...args) => { source.sent.push(args); return true }
+  await withService(async (service, port) => {
+    const phone = await openPhone(port)
+    const ref = { messageId: 'a'.repeat(64), sourceKey: 'source', sourceRevision: 'b'.repeat(64) }
+    const first = { v: 2, type: 'personal-agent-control', machine: fixture.read.hello.machine, sessionId: fixture.read.hello.sessionId, requestId: 'exact-request', text: 'exact original text', replyTo: ref }
+    const raw = JSON.stringify(first, null, 0) + ' '
+    phone.socket.write(raw + '\n'); await phone.waitFor(3)
+    const challenge = phone.replies.find(row => row.type === 'challenge')
+    assert.ok(challenge, 'the new role must receive its own challenge')
+    const digest = require('node:crypto').createHash('sha256').update(Buffer.from(raw)).digest('hex')
+    assert.equal(challenge.firstFrameSHA256, digest)
+    assert.equal(challenge.requestId, first.requestId)
+    const transcript = `odk-personal-agent-control-v2\n2\n${challenge.nonce}\n${digest}`
+    const proof = createHmac('sha256', fixture.control.credential).update(transcript).digest('hex')
+    phone.send({ v: 2, type: 'personal-agent-submit', requestId: first.requestId, proof })
+    await phone.waitFor(4)
+    assert.deepEqual(source.sent, [[first.text, ref]])
+    await phone.close()
+  }, { personalAgent: source })
+})
+
+test('personal role refuses modified first bytes, second bodies, wrong ids and expired proofs', async t => {
+  for (const variant of ['first-bytes', 'second-text', 'second-reference', 'request-id', 'expired', 'legacy-role', 'bad-reference']) await t.test(variant, async () => {
+    const source = fakeSource(); let clock = 1000
+    await withService(async (_, port) => {
+      const phone = await openPhone(port)
+      const first = { ...fixture.control.hello }
+      if (variant === 'legacy-role') first.v = 1
+      if (variant === 'bad-reference') first.replyTo = { messageId: 'not-an-id' }
+      const intended = JSON.stringify(first)
+      const sent = variant === 'first-bytes' ? JSON.stringify({ ...first, text: 'changed by an intermediary' }) : intended
+      phone.socket.write(sent + '\n'); await phone.waitFor(3)
+      const challenge = phone.replies[2]
+      if (variant === 'legacy-role' || variant === 'bad-reference') {
+        assert.equal(challenge.type, 'error'); assert.equal(source.sent.length, 0); phone.socket.destroy(); return
+      }
+      assert.equal(challenge.type, 'challenge')
+      const digest = require('node:crypto').createHash('sha256').update(intended).digest('hex')
+      const proof = proofFor({ nonce: challenge.nonce, firstFrameSHA256: digest })
+      const submit = { v: 2, type: 'personal-agent-submit', requestId: first.requestId, proof }
+      if (variant === 'second-text') submit.text = 'changed'
+      if (variant === 'second-reference') submit.replyTo = { messageId: 'a'.repeat(64) }
+      if (variant === 'request-id') submit.requestId = 'changed-id'
+      if (variant === 'expired') clock += 10001
+      phone.send(submit); await phone.waitFor(4)
+      assert.equal(phone.replies[3].type, 'error')
+      assert.equal(source.sent.length, 0)
+      // A failed proof consumes its challenge as well.
+      phone.send({ v: 2, type: 'personal-agent-submit', requestId: first.requestId, proof })
+      await phone.waitFor(5); assert.equal(phone.replies[4].reason, 'control challenge required')
+      await phone.close()
+    }, { personalAgent: source, now: () => clock })
+  })
+})
+
+test('personal control bounds raw bytes and refuses malformed UTF8 before parsing', async t => {
+  for (const variant of ['oversized', 'invalid-utf8']) await t.test(variant, async () => {
+    const source = fakeSource()
+    await withService(async (_, port) => {
+      const phone = await openPhone(port)
+      const closed = new Promise(resolve => phone.socket.once('close', resolve))
+      phone.socket.write(variant === 'oversized' ? Buffer.alloc(128 * 1024 + 1, 32) : Buffer.from([0xc3, 10]))
+      await Promise.race([closed, new Promise((_, reject) => setTimeout(() => reject(Error('did not reject invalid input')), 2000))])
+      assert.equal(source.sent.length, 0)
+    }, { personalAgent: source })
+  })
 })

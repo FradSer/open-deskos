@@ -38,6 +38,8 @@ const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: fa
 // the tile's state line.
 const CELLS = [
   ['reference tall', 348, 724, 'tall'],
+  ['wide reading boundary', 338, 724, 'tall'],
+  ['narrow reading boundary', 334, 724, 'tall'],
   ['handheld tall', 186, 400, 'tall'],
   ['short panel tall', 168, 336, 'tall'],
   ['narrow tall floor', 120, 240, 'tall'],
@@ -81,6 +83,10 @@ app.whenReady().then(async () => {
     for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
       for (const theme of ${JSON.stringify(THEMES)}) {
         const host = await mount(theme, width, height, SNAPSHOTS.live)
+        if (name.endsWith('reading boundary')) {
+          host.style.padding = '28px'
+          await new Promise(resolve => setTimeout(resolve, 160))
+        }
         const box = host.getBoundingClientRect()
         const body = host.querySelector('.hydra-body')
         // Anything drawn outside the cell: the defect this gate exists for.
@@ -95,7 +101,22 @@ app.whenReady().then(async () => {
         cases.push({
           name, theme, cell: width + 'x' + height,
           shape: body ? body.dataset.shape : null,
+          contentWidth: body.getBoundingClientRect().width,
+          environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
           meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
+            texture: (() => {
+              if (!fill.closest('.hydra-watering')) return null
+              const before = getComputedStyle(fill).backgroundImage
+              const previous = host.style.getPropertyValue('--odk-primary')
+              const priority = host.style.getPropertyPriority('--odk-primary')
+              try {
+                host.style.setProperty('--odk-primary', 'rgb(17, 31, 47)')
+                return { before, changed: getComputedStyle(fill).backgroundImage !== before }
+              } finally {
+                if (previous) host.style.setProperty('--odk-primary', previous, priority)
+                else host.style.removeProperty('--odk-primary')
+              }
+            })(),
             layoutWidth: fill.offsetWidth,
             trackWidth: fill.parentElement.offsetWidth,
             fraction: fill.parentElement.getBoundingClientRect().width > 0
@@ -145,10 +166,13 @@ app.whenReady().then(async () => {
   for (const row of result.cases) {
     const where = JSON.stringify(row)
     assert.deepEqual(row.escaping, [], where)
+    if (row.theme === 'pixel' && row.name === 'wide reading boundary') { assert.equal(row.contentWidth, 280, where); assert.equal(row.environmentFont, 40, where) }
+    if (row.theme === 'pixel' && row.name === 'narrow reading boundary') { assert.equal(row.contentWidth, 276, where); assert.equal(row.environmentFont, 32, where) }
     for (const [index, meter] of row.meters.entries()) {
       assert.equal(meter.layoutWidth, meter.trackWidth, where)
       assert.equal(meter.transition, row.theme === 'pixel' ? 'none' : 'transform', where)
       assert.equal(parseFloat(meter.origin), 0, where)
+      if (meter.texture) assert.equal(meter.texture.changed, true, where + ' watering texture must follow the semantic primary color')
       if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - [0.62, 0.48][index]) < 0.001, where)
     }
     assert.equal(row.contained, true, where)

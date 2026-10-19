@@ -232,7 +232,7 @@
   font-size: clamp(12px, 11cqi, 24px);
 }
 
-@container (min-width: 300px) {
+@container (min-width: 280px) {
   [data-theme='pixel'] .hydra-env-value {
     font-size: clamp(14px, 20cqi, 40px);
   }

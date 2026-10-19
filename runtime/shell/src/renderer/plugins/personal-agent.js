@@ -452,8 +452,9 @@
         const caption = status.state === 'idle' ? readyCaption : labels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption, status.proposalError ? 'Suggestions unavailable' : caption)
         $('.agent-send').disabled = busy || status.state === 'unavailable' || pending
-        $('.agent-mic').disabled = busy && status.state !== 'recording'
-        $('.agent-mic').setAttribute('aria-label', status.state === 'recording' ? 'Stop recording' : 'Record voice request')
+        const voiceAvailable = root.odkPersonalBot?.supportsVoiceInput !== false
+        $('.agent-mic').disabled = !voiceAvailable || (busy && status.state !== 'recording')
+        $('.agent-mic').setAttribute('aria-label', !voiceAvailable ? 'Microphone unavailable on this host' : status.state === 'recording' ? 'Stop recording' : 'Record voice request')
         $('.agent-mic').dataset.recording = String(status.state === 'recording')
         lastStatus = status.state
         if (bottom) latest()

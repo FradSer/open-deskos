@@ -136,7 +136,7 @@ The desk answers `{"v":1,"type":"personal-agent-ready"}` and then one frame. Eac
 {"v":1,"type":"personal-agent","development":false,"frame":{"state":"idle","transcript":"…","message":"…"}}
 ```
 
-The frame carries the fields the Shell renderer reads: `state`, `transcript`, `message`, `notifications`, `agents`, `remote`, `briefing` and `proposalError`. The desk bounds one frame at 128 KiB and drops every other field of the resident status.
+The frame keeps the public fields used by the shared renderer. These include `conversation`, `ownerTurnId`, `replyTo`, `threadId`, `judgment`, `textInput` and `replyInput`. The conversation remains a read-only projection of CM5 history. It grants no dispatch authority. Android sets `voiceInput` to `false`. One frame must fit within 128 KiB.
 
 A refused token answers `{"v":1,"type":"error","reason":"token refused"}` and the desk closes the connection.
 
@@ -144,29 +144,37 @@ The `development` flag is true only while the desk's development frame source is
 
 ### Submitting an owner turn
 
-The phone needs the Control Credential to submit. After the ready record it sends `{"v":1,"type":"personal-agent-control","machine":"<phone>","sessionId":"<same value>"}`. The desk answers one challenge:
+The phone needs the Control Credential to submit. Personal Agent control uses role version 2. Reporting frames remain version 1. Console protocols do not change.
+
+The phone serializes the first control frame once:
 
 ```json
-{"v":1,"type":"challenge","nonce":"<hex>","algorithm":"hmac-sha256","domain":"odk-personal-agent-control-v1"}
+{"v":2,"type":"personal-agent-control","machine":"<phone>","sessionId":"<same value>","requestId":"<id>","text":"<owner turn>","replyTo":{"messageId":"<id>","sourceKey":"<key>","sourceRevision":"<revision>"}}
 ```
 
-The phone answers with the HMAC-SHA256 proof over the exact UTF-8 transcript `odk-personal-agent-control-v1\n1\n${nonce}\n${machine}\n${sessionId}`:
+`replyTo` is optional. Its three fields must match the displayed source exactly. The desk applies the resident's existing reply identity and unresolved-delivery gates.
+
+Both sides hash the exact UTF-8 bytes before the LF delimiter. Neither side serializes the parsed object to calculate this hash. A CR before LF remains part of the signed bytes. The desk stores the validated first command and returns:
 
 ```json
-{"v":1,"type":"personal-agent-submit","requestId":"<id>","proof":"<hmac>","text":"<owner turn>"}
+{"v":2,"type":"challenge","requestId":"<id>","nonce":"<hex>","firstFrameSHA256":"<sha256>","algorithm":"hmac-sha256","domain":"odk-personal-agent-control-v2"}
 ```
 
-The desk answers `{"v":1,"type":"personal-agent-receipt","requestId":"<id>","accepted":true}`. The desk forwards the accepted turn to the resident and pushes the resulting frames over the same link.
+The phone checks the request identifier and digest against its original bytes. It signs `odk-personal-agent-control-v2\n2\n${nonce}\n${firstFrameSHA256}` with HMAC-SHA256. Its second frame contains only:
 
-One nonce accepts one turn. A repeated proof is refused, so a captured submit is not replayable. The credential never appears on the wire. The domain separates this proof from a Hosted Pi proof in both directions.
+```json
+{"v":2,"type":"personal-agent-submit","requestId":"<id>","proof":"<hmac>"}
+```
 
-A report token cannot submit. Without the Control Credential the desk answers `control unavailable`. A submit with no open challenge answers `control challenge required`. A submit whose proof does not match answers `control proof refused`. The phone states the outcome it received. It never claims a delivery it was not given.
+The desk dispatches only the stored first command. It refuses extra fields, changed identifiers, invalid references and expired proofs. A nonce expires after ten seconds. A submission consumes its nonce even when validation fails. An old Personal Agent control role cannot fall back to mutation.
 
-The desk reports the phones reading it as its own connected clients. A phone is a reader and never a reporter. It never appears in the machine session snapshot, and it cannot change what the desk reports about Pi sessions.
+The receipt remains `{"v":1,"type":"personal-agent-receipt","requestId":"<id>","accepted":true}`. This receipt confirms resident input acceptance, not remote Pi admission or task completion. A lost receipt must not trigger an automatic replay.
 
-The transport is not encrypted and the listener is LAN-only. Do not expose the listener beyond the local network.
+The credential is not transmitted. Content and the report token remain plaintext. Use a trusted network or a separately configured secure transport. The development frame source refuses bound replies that it cannot establish.
 
-[tests/fixtures/personal-agent-v1.json](../tests/fixtures/personal-agent-v1.json) owns the record shapes, the challenge transcript and one frame per design state. The desk and the phone both read that one file.
+The desk lists phone connections separately from reporting machines. Reading phones cannot change reported Pi session metadata.
+
+[tests/fixtures/personal-agent-v1.json](../tests/fixtures/personal-agent-v1.json) owns the read frames and Personal Agent role version 2 examples.
 
 ## Existing-session discovery
 

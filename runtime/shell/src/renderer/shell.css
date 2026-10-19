@@ -3182,7 +3182,7 @@ body.kiosk {
    because the fill is the element that scales. */
 .hydra-watering .hydra-meter-fill {
   background: var(--odk-accent-blue);
-  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 8px);
+  background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--odk-primary) 35%, transparent) 0 2px, transparent 2px 8px);
 }
 
 .hydra-offline .hydra-plant-soil,

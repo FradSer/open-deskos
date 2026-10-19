@@ -107,3 +107,28 @@ Feature: Android Shell Host renders the shared Personal Agent
     When the acceptance record is written
     Then it names the tested Android device and WebView version
     And other Shell Host acceptance stays separate
+  Scenario: A phone keeps the central conversation and the exact reply reference
+    Given CM5 owns a conversation with a bound reply and an owner turn identifier
+    When the Android host receives the public frame and submits a reply
+    Then the public conversation and owner identity stay unchanged
+    And the exact reply reference reaches the CM5 resident
+    And Android states that microphone input is unavailable
+
+  Scenario: A personal control proof binds the original command bytes
+    Given a phone stores the exact first control frame bytes
+    When the desk challenges that frame under personal control role version two
+    Then the proof binds the original frame digest and one request identifier
+    And a changed frame, extra submission field, expired nonce or replay is refused
+    And Console control protocols keep their existing behavior
+
+  Scenario: Only the trusted main document can submit from the Android bridge
+    Given an App frame or an external document is not the Shell main document
+    When it tries to submit an owner request
+    Then the native bridge refuses it before any request reaches CM5
+    And a response for an old document cannot reach a new document
+
+  Scenario: Network records and device verification stay within their owners
+    Given a peer sends an oversized or malformed UTF-8 record
+    When Android reads the link
+    Then it refuses the record before unbounded buffering
+    And device verification selects only this application and its own ADB forward

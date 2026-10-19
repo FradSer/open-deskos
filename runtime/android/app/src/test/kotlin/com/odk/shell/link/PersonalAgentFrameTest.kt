@@ -55,4 +55,18 @@ class PersonalAgentFrameTest {
         assertEquals("a", notifications.getJSONObject(0).getString("id"))
         assertFalse(notifications.getJSONObject(0).has("secret"))
     }
+    @Test fun centralHistoryIdentityAndUnavailableVoiceStayPublic() {
+        val id = "12345678-1234-1234-1234-123456789abc"
+        val ref = JSONObject().put("messageId", "a".repeat(64)).put("sourceKey", "original").put("sourceRevision", "b".repeat(64))
+        val turn = JSONObject().put("id", id).put("at", 1).put("transcript", "hello").put("message", "answer").put("state", "idle").put("replyTo", ref).put("threadId", "c".repeat(64))
+        val conversation = JSONObject().put("revision", 4).put("turns", org.json.JSONArray().put(turn)).put("omittedCount", 0)
+        val status = JSONObject().put("state", "idle").put("ownerTurnId", id).put("conversation", conversation).put("replyTo", ref).put("threadId", "c".repeat(64)).put("textInput", true).put("replyInput", true)
+        val frame = PersonalAgentFrame.project(status)
+        assertJsonEquals("central history", conversation, frame.getJSONObject("conversation"))
+        assertEquals(id, frame.getString("ownerTurnId"))
+        assertJsonEquals("reply", ref, frame.getJSONObject("replyTo"))
+        assertFalse(frame.getBoolean("voiceInput"))
+        assertTrue(frame.getBoolean("replyInput"))
+    }
+
 }

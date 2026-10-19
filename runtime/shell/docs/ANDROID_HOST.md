@@ -1,6 +1,6 @@
 # Android host runbook
 
-Android runs the shared Shell renderer in a system WebView. It is another Shell Host, not a fork. The build stages the renderer from `runtime/shell/src`. The APK carries no copy of it. [ADR-0037](ARCHITECTURE.md#adr-0037) owns the decision, and [ODK_LINK](ODK_LINK.md#personal-agent-link) owns the link the phone reads.
+Android runs the shared Shell renderer in a system WebView. It is another Shell Host, not a fork. The build stages the renderer from `runtime/shell/src`. The APK contains build outputs from that shared source. [ADR-0037](ARCHITECTURE.md#adr-0037) owns the decision, and [ODK_LINK](ODK_LINK.md#personal-agent-link) owns the link the phone reads.
 
 The desk owns generation. The phone holds no generator and no fixture, so every word the Personal Agent shows came from the desk.
 
@@ -61,15 +61,19 @@ adb -s <serial> shell am start -n com.odk.shell/.ShellActivity
 
 One APK serves arm64-v8a and x86_64: the host ships no native library. `minSdk` is 26.
 
-A debug build enables WebView remote debugging. Verification reads the rendered document through the Chrome DevTools Protocol over `adb forward`. That is the Android equivalent of the Electron harness reading the DOM through `webContents.executeJavaScript`.
+A debug build enables WebView remote debugging. Verification reads the rendered document through the Chrome DevTools Protocol over `adb forward`. The harness selects the `com.odk.shell` process and exact local document. It removes only its own ADB forward.
 
 ## Host bridge
 
-The renderer reads `window.odkPersonalBot` against the promise-returning contract Electron's preload exposes. A WebView JavaScript interface answers inside the calling task. Every other host's bridge answers later. The host therefore injects a small shim into the served document. Electron injects its preload the same way. The staged renderer file is never modified.
+The renderer reads `window.odkPersonalBot` through an asynchronous message shim. Android uses `WebViewCompat.addWebMessageListener` for the exact local asset origin. Native code checks the current WebView, `isMainFrame`, the source origin and the current document URL. Body fields cannot grant these permissions. App frames and external documents cannot submit owner requests.
 
-The shim answers on a later task, as every other host's bridge does. A frame that arrives before the document finishes booting is delivered when the page finishes loading.
+The host refuses external main-page resources and navigation. Status delivery and asynchronous replies also check the document epoch and Shell URL. An old callback cannot deliver into a new document.
 
-`odkPersonalBot` is backed by the link, and only it is provided in this work. The other bridges stay absent. The renderer then states its own honest unavailable condition, instead of a shape this host invented. `toggle` and `proposalCommand` answer `accepted: false`. Android captures no audio, and the link carries no suggestion response. For `proposalCommand` the renderer draws its own sentence; for `toggle` it draws nothing.
+The shim forwards the exact optional `replyTo` tuple. CM5 owns validation, session routing, receipt state and public conversation history. Android holds no model or local agent fallback. It does not migrate or invent central history.
+
+Android is text-only. It declares `supportsVoiceInput: false`, and the shared renderer disables its microphone control. The host adds no recording permission or audio capture. Suggestion actions remain unavailable. These limitations do not disable typed input.
+
+The link bounds raw record bytes before decoding and refuses malformed UTF-8. The Personal Agent control role signs the original command bytes. See [the link contract](ODK_LINK.md#submitting-an-owner-turn).
 
 ## Development state
 
@@ -106,7 +110,7 @@ cd runtime/shell && pnpm parity:android -- --viewport=redroid --device=<serial>
 cd runtime/shell && pnpm parity:android -- --viewport=sony --device=<serial>
 ```
 
-The gate renders one state per host and compares geometry, copy and visibility. It pins the layout viewport, the theme, the scrollbar metric and a settled document, so a reading differs only where the design differs. It writes one screenshot per host and state, and a report, under `/tmp/odk-parity`. The report names the engine of each host, and the run fails when the Android engine predates Chrome 111.
+The gate renders one state per host and compares geometry, copy and visibility. It pins the layout viewport, theme, scrollbar metric and settled document. It writes one screenshot per host and state, and a report, under `/tmp/odk-parity`. The report names the engine of each host, and the run fails when the Android engine predates Chrome 111.
 
 The gate sets the device display to the compared size before it starts the app. A viewport change after the Shell booted would re-compose the page, which the Electron reference never does. The gate resets the display afterwards.
 

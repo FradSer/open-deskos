@@ -1,72 +1,52 @@
 package com.odk.shell.bridge
 
-import android.webkit.JavascriptInterface
 import com.odk.shell.link.PersonalAgentFrame
 import com.odk.shell.link.PersonalAgentLink
-import com.odk.shell.link.SubmitOutcome
 import org.json.JSONObject
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The preload equivalent for Android.
- *
- * The Shell renderer reads `window.odkPersonalBot` against the promise-returning
- * contract Electron's preload exposes. A WebView JavaScript interface can only
- * answer synchronously, so the host shim turns these methods into that contract.
- * The only content that crosses is a frame the desk produced: this host holds no
- * generator and no fixture.
- */
-class PersonalAgentBridge(
-    private val link: PersonalAgentLink?,
-    private val deliver: (String) -> Unit,
-) {
+/** The activity admits only messages from the trusted main document. */
+class PersonalAgentBridge(private val link: PersonalAgentLink?) {
     private val worker = Executors.newSingleThreadExecutor()
+    private val pending = AtomicBoolean(false)
+    @Volatile private var closed = false
 
-    /**
-     * Every method takes the request payload, because a JavaScript interface
-     * resolves a method by name and arity. A frame the desk produced is the only
-     * status this host can answer.
-     */
-    @JavascriptInterface
-    fun status(payload: String): String = link?.currentFrame()?.toString() ?: PersonalAgentFrame.unavailable(NO_LINK).toString()
-
-    @JavascriptInterface
-    fun sendText(payload: String): String? {
-        val request = parse(payload) ?: return null
-        val text = request.args.optString(0)
-        worker.execute {
-            val outcome = link?.submit(text) ?: SubmitOutcome(false, NO_LINK)
-            val receipt = JSONObject().put("accepted", outcome.accepted)
-            if (outcome.reason != null) receipt.put("reason", outcome.reason)
-            deliver("window.__odkBridge && window.__odkBridge.receipt(" + JSONObject.quote(request.id) + ", " + receipt.toString() + ")")
+    fun receive(payload: String, respond: (String) -> Unit) {
+        if (closed || payload.toByteArray(Charsets.UTF_8).size > 128 * 1024) return
+        val request = try { JSONObject(payload) } catch (_: Exception) { return }
+        if (request.length() != 3 || !listOf("id", "method", "args").all { request.has(it) }) return
+        val id = request.opt("id")
+        val method = request.opt("method")
+        val args = request.optJSONArray("args") ?: return
+        if (id !is String || !Regex("request-[0-9]+").matches(id) || id.length > 64 || method !is String) return
+        fun reply(value: JSONObject) = respond(JSONObject().put("id", id).put("result", value).toString())
+        fun refusal(reason: String) = reply(JSONObject().put("accepted", false).put("reason", reason))
+        when (method) {
+            "status" -> if (args.length() == 0) reply(link?.currentFrame() ?: PersonalAgentFrame.unavailable(NO_LINK))
+            "sendText" -> {
+                if (args.length() !in 1..2 || args.opt(0) !is String || (args.length() == 2 && args.opt(1) !is JSONObject)) return
+                val text = args.getString(0)
+                val ref = if (args.length() == 2) args.getJSONObject(1) else null
+                if (!pending.compareAndSet(false, true)) { refusal("An owner turn is already pending"); return }
+                worker.execute {
+                    try {
+                        val outcome = link?.submit(text, ref)
+                        reply(JSONObject().put("accepted", outcome?.accepted == true).put("reason", outcome?.reason ?: if (outcome == null) NO_LINK else JSONObject.NULL))
+                    } catch (_: Exception) { refusal("The desk did not confirm the turn") }
+                    finally { pending.set(false) }
+                }
+            }
+            "toggle" -> refusal("Microphone unavailable on Android")
+            "proposalCommand" -> refusal("Suggestion actions unavailable on Android")
         }
-        return null
     }
 
-    /**
-     * Android captures no audio in this work, so the answer states that outcome.
-     * The renderer discards that value and draws no sentence for it.
-     */
-    @JavascriptInterface
-    fun toggle(payload: String): String = JSONObject().put("accepted", false).toString()
-
-    /**
-     * The link carries no suggestion response. The answer states that outcome, and
-     * the renderer owns the sentence it shows for it.
-     */
-    @JavascriptInterface
-    fun proposalCommand(payload: String): String = JSONObject().put("accepted", false).toString()
-
-    private class Request(val id: String, val args: org.json.JSONArray)
-
-    private fun parse(payload: String): Request? {
-        val record = try { JSONObject(payload) } catch (_: Exception) { return null }
-        val id = record.optString("id")
-        if (id.isEmpty()) return null
-        return Request(id, record.optJSONArray("args") ?: org.json.JSONArray())
-    }
-
-    private companion object {
-        const val NO_LINK = "Personal Bot link unavailable"
+    fun close() { closed = true; worker.shutdownNow() }
+    companion object {
+        private const val NO_LINK = "Personal Bot link unavailable"
+        fun permitsDocument(isCurrentView: Boolean, isMainFrame: Boolean, origin: String, document: String?): Boolean =
+            isCurrentView && isMainFrame && origin == "https://appassets.androidplatform.net" &&
+                document == "https://appassets.androidplatform.net/assets/web/renderer/index.html"
     }
 }

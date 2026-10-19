@@ -1,8 +1,6 @@
 package com.odk.shell.link
 
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -32,7 +30,7 @@ class PersonalAgentLink(
     private val onFrame: (JSONObject, Boolean) -> Unit,
     private val onState: (LinkState) -> Unit,
 ) {
-    private class PendingSubmit(val requestId: String) {
+    private class PendingSubmit(val requestId: String, val firstFrameSHA256: String) {
         val challenge = CountDownLatch(1)
         val receipt = CountDownLatch(1)
         @Volatile var nonce: String? = null
@@ -69,21 +67,25 @@ class PersonalAgentLink(
     }
 
     /** One owner turn at a time, answered by the desk's own generator. */
-    fun submit(text: String): SubmitOutcome {
+    fun submit(text: String, replyTo: JSONObject? = null): SubmitOutcome {
+        if (text.trim().isEmpty() || text.toByteArray(Charsets.UTF_8).size > 16 * 1024 || Regex("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]").containsMatchIn(text)) return SubmitOutcome(false, "Invalid owner text")
+        if (replyTo != null && !PersonalAgentProtocol.validReplyTo(replyTo)) return SubmitOutcome(false, "Invalid reply reference")
         val credential = config.controlCredential ?: return SubmitOutcome(false, NO_CONTROL)
-        val request = PendingSubmit("request-" + System.currentTimeMillis())
+        val requestId = "request-" + java.util.UUID.randomUUID().toString()
+        val firstFrame = PersonalAgentProtocol.controlHello(machine, sessionId, requestId, text, replyTo)
+        val request = PendingSubmit(requestId, PersonalAgentProtocol.frameDigest(firstFrame.toByteArray(Charsets.UTF_8)))
         synchronized(submitLock) {
             if (pendingSubmit != null) return SubmitOutcome(false, "A turn is already in flight")
             pendingSubmit = request
         }
         try {
-            if (!writeLine(PersonalAgentProtocol.controlHello(machine, sessionId))) return SubmitOutcome(false, NO_LINK)
+            if (!writeLine(firstFrame)) return SubmitOutcome(false, NO_LINK)
             if (!request.challenge.await(CHALLENGE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 return SubmitOutcome(false, request.reason ?: "The desk did not open a challenge")
             }
             val nonce = request.nonce ?: return SubmitOutcome(false, request.reason ?: "The desk did not open a challenge")
-            val proof = PersonalAgentProtocol.proof(credential, PersonalAgentProtocol.transcript(machine, sessionId, nonce))
-            if (!writeLine(PersonalAgentProtocol.submit(request.requestId, proof, text))) return SubmitOutcome(false, NO_LINK)
+            val proof = PersonalAgentProtocol.proof(credential, PersonalAgentProtocol.transcript(nonce, request.firstFrameSHA256))
+            if (!writeLine(PersonalAgentProtocol.submit(request.requestId, proof))) return SubmitOutcome(false, NO_LINK)
             if (!request.receipt.await(RECEIPT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 return SubmitOutcome(false, "The desk did not confirm the turn")
             }
@@ -105,7 +107,8 @@ class PersonalAgentLink(
                 output = connection.outputStream
                 writeLine(PersonalAgentProtocol.hello(machine, sessionId, config.reportToken))
                 attempt = 0
-                BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                run {
+                    val reader = BoundedLineReader(connection.inputStream)
                     while (running.get()) {
                         val line = reader.readLine() ?: break
                         if (line.isNotBlank()) handle(line)
@@ -147,7 +150,13 @@ class PersonalAgentLink(
             }
             PersonalAgentProtocol.CHALLENGE -> {
                 pendingSubmit?.let { request ->
-                    request.nonce = record.optString("nonce").ifEmpty { null }
+                    if (record.optString("requestId") != request.requestId) return@let
+                    if (record.optString("firstFrameSHA256") != request.firstFrameSHA256 ||
+                        record.optString("domain") != PersonalAgentProtocol.CONTROL_DOMAIN ||
+                        record.optString("algorithm") != "hmac-sha256" ||
+                        !Regex("[a-f0-9]{64}").matches(record.optString("nonce"))) {
+                        request.reason = "The desk challenge did not match the original command"
+                    } else request.nonce = record.getString("nonce")
                     request.challenge.countDown()
                 }
             }

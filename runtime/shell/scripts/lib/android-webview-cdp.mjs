@@ -13,7 +13,23 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-const DEVTOOLS_SOCKET = /webview_devtools_remote_(\d+)/
+const SHELL_URL = 'https://appassets.androidplatform.net/assets/web/renderer/index.html'
+
+export function ownedDevtoolsSocket(unix, pid) {
+  if (!/^[0-9]+$/.test(pid)) throw new Error('the Android Shell PID is not unique')
+  const names = [...new Set([...unix.matchAll(/@?(webview_devtools_remote_[\w.]*)/g)].map(match => match[1]))]
+  const matches = names.filter(name => name === 'webview_devtools_remote_' + pid)
+  if (matches.length !== 1) throw new Error('the Android Shell devtools socket is not unique')
+  return matches[0]
+}
+
+export function ownedShellPage(pages, localPort) {
+  const matches = pages.filter(page => page.type === 'page' && page.url === SHELL_URL)
+  if (matches.length !== 1) throw new Error('the Android Shell page is not unique')
+  const address = new URL(matches[0].webSocketDebuggerUrl)
+  if (address.protocol !== 'ws:' || !['127.0.0.1', 'localhost'].includes(address.hostname) || address.port !== String(localPort) || address.username || address.password) throw new Error('foreign devtools endpoint')
+  return matches[0]
+}
 
 async function adb(device, args, options = {}) {
   const { stdout } = await run('adb', ['-s', device, ...args], { maxBuffer: 32 * 1024 * 1024, ...options })
@@ -26,11 +42,10 @@ async function adb(device, args, options = {}) {
  * rebuilt from the running process rather than reused.
  */
 export async function forwardDevtools(device, localPort = 9229) {
+  if (!Number.isInteger(localPort) || localPort < 1024 || localPort > 65535) throw new Error('invalid owned devtools port')
+  const pid = (await adb(device, ['shell', 'pidof', 'com.odk.shell'])).trim()
   const unix = await adb(device, ['shell', 'cat', '/proc/net/unix'])
-  const names = [...unix.matchAll(/@?(webview_devtools_remote_[\w.]*)/g)].map((match) => match[1])
-  if (names.length === 0) throw new Error('no WebView devtools socket on ' + device + ': is the app running, and is WebView debugging enabled?')
-  const socket = names.sort((a, b) => b.length - a.length)[0]
-  const pid = DEVTOOLS_SOCKET.exec(socket)?.[1]
+  const socket = ownedDevtoolsSocket(unix, pid)
   await adb(device, ['forward', '--no-rebind', `tcp:${localPort}`, `localabstract:${socket}`])
   return { localPort, socket, pid }
 }
@@ -39,10 +54,9 @@ async function listPages(localPort) {
   const deadline = Date.now() + 15000
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`http://127.0.0.1:${localPort}/json/list`)
+      const response = await fetch(`http://127.0.0.1:${localPort}/json/list`, { signal: AbortSignal.timeout(5000) })
       const pages = await response.json()
-      const page = pages.find((entry) => entry.type === 'page' && (entry.url || '').includes('/renderer/index.html'))
-      if (page?.webSocketDebuggerUrl) return page
+      if (pages.some(page => page.type === 'page' && page.url === SHELL_URL)) return ownedShellPage(pages, localPort)
     } catch {
       // The devtools HTTP endpoint appears a moment after the forward.
     }
@@ -54,26 +68,30 @@ async function listPages(localPort) {
 /** Connect once and evaluate expressions against the Shell document. */
 export async function connectShell(device, localPort = 9229) {
   const forward = await forwardDevtools(device, localPort)
-  const page = await listPages(localPort)
+  const removeForward = () => adb(device, ['forward', '--remove', `tcp:${localPort}`])
+  const page = await listPages(localPort).catch(async error => { await removeForward(); throw error })
   const socket = new WebSocket(page.webSocketDebuggerUrl)
   const pending = new Map()
   let nextId = 1
   await new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true })
-    socket.addEventListener('error', () => reject(new Error('the WebView devtools socket refused the connection')), { once: true })
-  })
+    const deadline = setTimeout(() => reject(new Error('the WebView devtools socket timed out')), 5000)
+    socket.addEventListener('open', () => { clearTimeout(deadline); resolve() }, { once: true })
+    socket.addEventListener('error', () => { clearTimeout(deadline); reject(new Error('the WebView devtools socket refused the connection')) }, { once: true })
+  }).catch(async error => { socket.close(); await removeForward(); throw error })
   socket.addEventListener('message', (event) => {
     let message
     try { message = JSON.parse(typeof event.data === 'string' ? event.data : event.data.toString()) } catch { return }
     const waiter = pending.get(message.id)
     if (!waiter) return
     pending.delete(message.id)
+    clearTimeout(waiter.deadline)
     if (message.error) waiter.reject(new Error(message.error.message || 'devtools error'))
     else waiter.resolve(message.result)
   })
   const send = (method, params = {}) => new Promise((resolve, reject) => {
     const id = nextId++
-    pending.set(id, { resolve, reject })
+    const deadline = setTimeout(() => { pending.delete(id); reject(new Error('devtools request timed out')) }, 10000)
+    pending.set(id, { resolve, reject, deadline })
     socket.send(JSON.stringify({ id, method, params }))
   })
   return {
@@ -92,6 +110,9 @@ export async function connectShell(device, localPort = 9229) {
     },
     close() {
       socket.close()
+      for (const row of pending.values()) { clearTimeout(row.deadline); row.reject(new Error('devtools connection closed')) }
+      pending.clear()
+      return removeForward()
     },
   }
 }

@@ -1,3 +1,5 @@
+const { parseConversation } = require('./conversation-frame')
+const { parseReplyTo } = require('./personal-bot-reply-reference')
 /**
  * The Personal Agent frame the Android Shell Host receives.
  *
@@ -41,9 +43,19 @@ function projectPersonalAgentFrame(status) {
   if (!status || typeof status !== 'object' || !PERSONAL_AGENT_STATES.has(status.state)) {
     return personalAgentUnavailable('Personal Agent state unavailable')
   }
-  const frame = { state: status.state }
+  const frame = { state: status.state, voiceInput: false }
   for (const key of ['transcript', 'message', 'proposalError']) {
     if (typeof status[key] === 'string') frame[key] = status[key]
+  }
+  for (const key of ['ownerTurnId', 'threadId']) {
+    if (typeof status[key] === 'string' && (key === 'threadId' ? /^[a-f0-9]{64}$/.test(status[key]) : /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(status[key]))) frame[key] = status[key]
+  }
+  if (status.replyTo !== undefined && parseReplyTo(status.replyTo)) frame.replyTo = parseReplyTo(status.replyTo)
+  if (status.conversation && parseConversation(status.conversation)) frame.conversation = parseConversation(status.conversation)
+  for (const key of ['textInput', 'replyInput']) if (typeof status[key] === 'boolean') frame[key] = status[key]
+  if (status.judgment && typeof status.judgment === 'object') {
+    frame.judgment = {}
+    for (const key of ['status', 'provider', 'model']) if (typeof status.judgment[key] === 'string' && status.judgment[key].length <= 256) frame.judgment[key] = status.judgment[key]
   }
   if (Array.isArray(status.notifications)) {
     frame.notifications = status.notifications

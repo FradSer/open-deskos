@@ -148,3 +148,57 @@ test('a fixture without states is refused instead of starting empty', () => {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('the development source refuses a bound reply it cannot prove', async () => {
+  const driver = createPersonalAgentDriver({ fixtureFile })
+  const before = await driver.snapshot()
+  const ref = { messageId: 'a'.repeat(64), sourceKey: 'source', sourceRevision: 'b'.repeat(64) }
+  assert.equal(await driver.sendText('continue', ref), false)
+  assert.deepEqual(await driver.snapshot(), before)
+  driver.stop()
+})
+
+test('the Android message shim preserves reply references and declares text-only input', async () => {
+  const vm = require('node:vm')
+  const sent = []
+  const native = { postMessage(raw) { sent.push(JSON.parse(raw)) } }
+  const window = { ODKAndroid: native }
+  const timers = new Map(); let nextTimer = 0
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../android/app/src/main/assets/host/odk-bridge.js'), 'utf8'), {
+    window, setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id }, clearTimeout(id) { timers.delete(id) },
+  })
+  const ref = { messageId: 'a'.repeat(64), sourceKey: 'original', sourceRevision: 'b'.repeat(64) }
+  const pending = window.odkPersonalBot.sendText('exact text', ref)
+  assert.deepEqual(sent[0].args, ['exact text', ref])
+  assert.equal(sent[0].method, 'sendText')
+  assert.equal(window.odkPersonalBot.supportsReplyTo, true)
+  assert.equal(window.odkPersonalBot.supportsVoiceInput, false)
+  native.onmessage({ data: JSON.stringify({ id: sent[0].id, result: { accepted: true } }) })
+  assert.equal((await pending).accepted, true)
+  assert.equal(timers.size, 0)
+})
+
+test('the Android native boundary uses only platform main-frame facts for requests and status', () => {
+  const activity = fs.readFileSync(path.join(__dirname, '../../android/app/src/main/kotlin/com/odk/shell/ShellActivity.kt'), 'utf8')
+  assert.ok(!activity.includes('addJavascriptInterface'))
+  assert.ok(activity.includes('WebViewCompat.addWebMessageListener'))
+  assert.ok(activity.includes('permitsDocument(view === shell, isMainFrame, origin.toString(), shell.url)'))
+  assert.ok(activity.includes('request.isForMainFrame && request.url.toString() != SHELL_URL'))
+  assert.ok(activity.includes('if (url != SHELL_URL) { view.stopLoading(); return }'))
+  const delivery = activity.slice(activity.indexOf('    private fun deliverToRenderer('), activity.indexOf('    /** A transient bar'))
+  assert.ok(delivery.includes('val epoch = documentEpoch'))
+  assert.ok(delivery.includes('epoch == documentEpoch && shell.url == SHELL_URL'))
+})
+
+
+test('Android verification selects the exact package process and its own forward', async () => {
+  const { ownedDevtoolsSocket, ownedShellPage } = await import('../scripts/lib/android-webview-cdp.mjs')
+  assert.equal(ownedDevtoolsSocket('@webview_devtools_remote_12 @webview_devtools_remote_99999', '12'), 'webview_devtools_remote_12')
+  assert.throws(() => ownedDevtoolsSocket('@webview_devtools_remote_99999', '12'))
+  assert.throws(() => ownedDevtoolsSocket('@webview_devtools_remote_12', '12 13'))
+  const page = { type: 'page', url: 'https://appassets.androidplatform.net/assets/web/renderer/index.html', webSocketDebuggerUrl: 'ws://localhost:9229/devtools/page/1' }
+  assert.equal(ownedShellPage([page, { ...page, url: 'https://foreign/renderer/index.html' }], 9229), page)
+  assert.throws(() => ownedShellPage([page, page], 9229))
+  assert.throws(() => ownedShellPage([{ ...page, webSocketDebuggerUrl: 'ws://foreign:9229/page' }], 9229))
+  assert.ok(!fs.readFileSync(path.join(__dirname, 'personal-agent-parity-gate.mjs'), 'utf8').includes("'--remove-all'"))
+})

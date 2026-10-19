@@ -99,8 +99,8 @@
   display: flex;
   align-items: baseline;
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  /* The caption floor holds even in a cell too short for the reading ramp. */
-  font-size: max(12px, min(var(--w-weather-reading), 72cqb));
+  /* The primary reading keeps its data floor in a constrained lane. */
+  font-size: max(14px, min(var(--w-weather-reading), 72cqb));
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;

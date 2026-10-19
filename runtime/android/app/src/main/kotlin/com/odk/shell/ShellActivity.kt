@@ -18,6 +18,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.odk.shell.bridge.PersonalAgentBridge
 import com.odk.shell.link.LinkConfig
 import com.odk.shell.link.LinkConfigReader
@@ -38,6 +40,8 @@ class ShellActivity : Activity() {
     private lateinit var shell: WebView
     private var link: PersonalAgentLink? = null
     private var developmentLabel: TextView? = null
+    private var bridge: PersonalAgentBridge? = null
+    private var documentEpoch = 0L
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +67,20 @@ class ShellActivity : Activity() {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         link = createLink()
-        shell.addJavascriptInterface(PersonalAgentBridge(link, ::deliverToRenderer), BRIDGE_NAME)
+        bridge = PersonalAgentBridge(link)
+        check(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) { "This WebView does not support the secure Shell bridge" }
+        WebViewCompat.addWebMessageListener(shell, BRIDGE_NAME, setOf(SHELL_ORIGIN)) { view, message, origin, isMainFrame, proxy ->
+            if (!PersonalAgentBridge.permitsDocument(view === shell, isMainFrame, origin.toString(), shell.url)) return@addWebMessageListener
+            val epoch = documentEpoch
+            val payload = message.data ?: return@addWebMessageListener
+            bridge?.receive(payload) { response ->
+                runOnUiThread {
+                    if (!isFinishing && epoch == documentEpoch && shell.url == SHELL_URL) {
+                        try { proxy.postMessage(response) } catch (_: Exception) { /* The old document may have closed. */ }
+                    }
+                }
+            }
+        }
 
         // Assets are served from an https origin so the renderer keeps 'self' in
         // its content security policy and localStorage keeps a stable origin.
@@ -71,10 +88,22 @@ class ShellActivity : Activity() {
             .addPathHandler(SHELL_ASSET_PATH, WebViewAssetLoader.AssetsPathHandler(this))
             .build()
         shell.webViewClient = object : WebViewClientCompat() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                request.isForMainFrame && request.url.toString() != SHELL_URL
+
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                documentEpoch += 1
+                if (url != SHELL_URL) { view.stopLoading(); return }
+                super.onPageStarted(view, url, favicon)
+            }
+
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest,
             ): WebResourceResponse? {
+                if (request.isForMainFrame && request.url.toString() != SHELL_URL) {
+                    return WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                }
                 if (request.url.toString() == SHELL_URL) return shellDocument()
                 return assetLoader.shouldInterceptRequest(request.url)
             }
@@ -85,7 +114,7 @@ class ShellActivity : Activity() {
              * would leave a live link showing an unavailable Agent.
              */
             override fun onPageFinished(view: WebView, url: String) {
-                link?.let { linkOnFrame(it.currentFrame(), it.isDevelopment()) }
+                if (url == SHELL_URL) link?.let { linkOnFrame(it.currentFrame(), it.isDevelopment()) }
             }
         }
 
@@ -162,7 +191,10 @@ class ShellActivity : Activity() {
     }
 
     private fun deliverToRenderer(script: String) {
-        runOnUiThread { if (!isFinishing) shell.evaluateJavascript(script, null) }
+        val epoch = documentEpoch
+        runOnUiThread {
+            if (!isFinishing && epoch == documentEpoch && shell.url == SHELL_URL) shell.evaluateJavascript(script, null)
+        }
     }
 
     /** A transient bar is allowed for a swipe and then withdrawn again. */
@@ -189,6 +221,9 @@ class ShellActivity : Activity() {
     }
 
     override fun onDestroy() {
+        documentEpoch += 1
+        bridge?.close()
+        bridge = null
         link?.stop()
         link = null
         super.onDestroy()
@@ -198,6 +233,7 @@ class ShellActivity : Activity() {
         const val TAG = "odk-shell"
         const val BRIDGE_NAME = "ODKAndroid"
         const val SHELL_ASSET_PATH = "/assets/"
+        const val SHELL_ORIGIN = "https://appassets.androidplatform.net"
         const val SHELL_URL = "https://appassets.androidplatform.net/assets/web/renderer/index.html"
         const val BRIDGE_SCRIPT = "/assets/host/odk-bridge.js"
         const val STAGED_DOCUMENT = "web/renderer/index.html"

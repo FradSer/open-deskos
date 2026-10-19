@@ -33,29 +33,31 @@
     },
   }
 
+  if (native) native.onmessage = function (event) {
+    var message
+    try { message = JSON.parse(event.data) } catch (_) { return }
+    if (!message || typeof message.id !== 'string') return
+    window.__odkBridge.receipt(message.id, message.result)
+  }
+
   function request(method, args) {
     return new Promise(function (resolve) {
       var id = 'request-' + (++nextId)
-      var immediate = native && typeof native[method] === 'function'
-        ? native[method](JSON.stringify({ id: id, args: args || [] }))
-        : null
-      if (immediate) {
-        /*
-         * A JavaScript interface answers inside the calling task, but every
-         * other host's bridge answers asynchronously. Resolving on a later task
-         * keeps that difference out of the renderer: a synchronous answer made
-         * the first frame arrive before the surface had laid out, and a
-         * conversation taller than the pane then stayed at its oldest message
-         * instead of following the newest one.
-         */
-        setTimeout(function () { resolve(JSON.parse(immediate)) }, 0)
-        return
+      var timer = setTimeout(function () {
+        delete pending[id]
+        resolve({ accepted: false, reason: 'The desk did not confirm the turn' })
+      }, 22000)
+      pending[id] = function (value) { clearTimeout(timer); resolve(value) }
+      if (!native || typeof native.postMessage !== 'function') {
+        pending[id]({ accepted: false, reason: 'Personal Bot link unavailable' }); delete pending[id]; return
       }
-      pending[id] = resolve
+      native.postMessage(JSON.stringify({ id: id, method: method, args: args || [] }))
     })
   }
 
   window.odkPersonalBot = {
+    supportsReplyTo: true,
+    supportsVoiceInput: false,
     subscribe: function (listener) {
       frameListeners.push(listener)
       request('status', []).then(function (frame) { if (frame) listener(frame) })
@@ -65,7 +67,7 @@
       }
     },
     getStatus: function () { return request('status', []) },
-    sendText: function (text) { return request('sendText', [text]) },
+    sendText: function (text, replyTo) { return request('sendText', replyTo === undefined ? [text] : [text, replyTo]) },
     toggle: function () { return request('toggle', []) },
     proposalCommand: function (command) { return request('proposalCommand', [command]) },
     onMic: function () { return function () { } },

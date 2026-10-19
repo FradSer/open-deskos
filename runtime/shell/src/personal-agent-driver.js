@@ -113,7 +113,9 @@ function createPersonalAgentDriver({ fixtureFile, selectedFile = null, intervalM
      * generated answer, and the desk marks every frame it publishes as
      * development state.
      */
-    async sendText(text) {
+    async sendText(text, replyTo) {
+      // This labelled fixture cannot establish a real session-bound reply.
+      if (replyTo !== undefined) return false
       const transcript = typeof text === 'string' ? text : ''
       publish({ ...states[names[index]], state: 'thinking', transcript, message: '' })
       if (replyTimer) clearTimeout(replyTimer)

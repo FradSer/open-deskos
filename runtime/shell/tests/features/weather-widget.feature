@@ -314,3 +314,9 @@ Feature: Weather instrument on the Home grid
     And source-only revision fixtures retain their 45 second watchdog
     And each readiness check retains its four second deadline
     And other hosts retain their existing aggregate deadlines
+
+  Scenario: The primary temperature keeps its readable floor
+    Given the weather reading has a constrained vertical lane
+    When the active theme calculates the primary temperature size
+    Then the primary reading remains at least 14 pixels
+    And supporting captions retain their separate readable floor

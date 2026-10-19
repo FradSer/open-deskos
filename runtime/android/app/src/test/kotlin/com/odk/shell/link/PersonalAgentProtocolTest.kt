@@ -26,7 +26,7 @@ class PersonalAgentProtocolTest {
     fun challengeTranscriptMatchesTheSharedFixture() {
         val challenge = control.getJSONObject("challenge")
         val nonce = challenge.getString("nonce")
-        assertEquals(control.getString("transcript"), PersonalAgentProtocol.transcript(machine, sessionId, nonce))
+        assertEquals(control.getString("transcript"), PersonalAgentProtocol.transcript(nonce, control.getString("firstFrameSHA256")))
         assertEquals(challenge.getString("domain"), PersonalAgentProtocol.CONTROL_DOMAIN)
         assertEquals(fixture.getString("domain"), PersonalAgentProtocol.CONTROL_DOMAIN)
         assertEquals(fixture.getInt("protocol"), PersonalAgentProtocol.PROTOCOL)
@@ -48,12 +48,12 @@ class PersonalAgentProtocolTest {
 
     @Test
     fun controlHelloMatchesTheSharedFixture() {
-        assertJsonEquals("control hello", controlHello, JSONObject(PersonalAgentProtocol.controlHello(machine, sessionId)))
+        assertJsonEquals("control hello", controlHello, JSONObject(PersonalAgentProtocol.controlHello(machine, sessionId, controlHello.getString("requestId"), controlHello.getString("text"))))
     }
 
     @Test
     fun submitMatchesTheSharedFixture() {
-        assertJsonEquals("submit", control.getJSONObject("submit"), JSONObject(PersonalAgentProtocol.submit("request-submit", control.getString("proof"), "Summarise the desk")))
+        assertJsonEquals("submit", control.getJSONObject("submit"), JSONObject(PersonalAgentProtocol.submit("request-submit", control.getString("proof"))))
     }
 
     @Test
@@ -71,7 +71,7 @@ class PersonalAgentProtocolTest {
         // A Hosted Pi proof carries the same shape and the other transcript.
         val hostedPi = "odk-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
         val hostedProof = PersonalAgentProtocol.proof(credential, hostedPi)
-        assertFalse(PersonalAgentProtocol.proofMatches(credential, PersonalAgentProtocol.transcript(machine, sessionId, "nonce-fixture"), hostedProof))
+        assertFalse(PersonalAgentProtocol.proofMatches(credential, PersonalAgentProtocol.transcript("nonce-fixture", control.getString("firstFrameSHA256")), hostedProof))
     }
 
     @Test
@@ -85,4 +85,18 @@ class PersonalAgentProtocolTest {
         assertEquals("the desk answered protocol version 2", PersonalAgentProtocol.versionRefusal(JSONObject("{\"v\":2,\"type\":\"personal-agent\"}")))
         assertNotNull(PersonalAgentProtocol.versionRefusal(JSONObject("{\"type\":\"personal-agent\"}")))
     }
+    @Test
+    fun rawBytesBindWhitespaceUnicodeAndTheExactReplyReference() {
+        val raw = control.getString("rawFirstFrame").toByteArray(Charsets.UTF_8)
+        assertEquals(control.getString("firstFrameSHA256"), PersonalAgentProtocol.frameDigest(raw))
+        assertFalse(PersonalAgentProtocol.frameDigest(raw) == PersonalAgentProtocol.frameDigest(raw + byteArrayOf(32)))
+        val ref = JSONObject().put("messageId", "a".repeat(64)).put("sourceKey", "original").put("sourceRevision", "b".repeat(64))
+        val first = JSONObject(PersonalAgentProtocol.controlHello(machine, sessionId, "once", "原文", ref))
+        assertJsonEquals("original reference", ref, first.getJSONObject("replyTo"))
+        assertTrue(PersonalAgentProtocol.validReplyTo(ref))
+        assertFalse(PersonalAgentProtocol.validReplyTo(JSONObject(ref.toString()).put("target", "other")))
+        assertNull(PersonalAgentProtocol.versionRefusal(JSONObject().put("v", 2).put("type", "challenge")))
+        assertNotNull(PersonalAgentProtocol.versionRefusal(JSONObject().put("v", 1).put("type", "challenge")))
+    }
+
 }

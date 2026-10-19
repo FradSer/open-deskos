@@ -65,7 +65,7 @@ console.log('PARITY device display ' + measured.trim().replace(/\s+/g, ' '))
 
 // Device state is pinned like the viewport: a saved Agent identity would change
 // the copy the two hosts are compared on, so the run starts from the default.
-await sh('forward', '--remove-all')
+// Each devtools connection removes only the forward it created.
 await launchShell(device)
 const devtoolsDeadline = Date.now() + 20000
 while (Date.now() < devtoolsDeadline && !(await sh('shell', 'cat', '/proc/net/unix')).includes('webview_devtools_remote_')) {
@@ -75,7 +75,7 @@ const reset = await connectShell(device)
 try {
   await reset.evaluate("localStorage.removeItem('odk.agent.identity'); 'cleared'")
 } finally {
-  reset.close()
+  await reset.close()
 }
 for (const state of STATES) {
   let report

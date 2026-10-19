@@ -85,7 +85,7 @@ try {
     if (reading.notifications !== 0) findings.push('the host showed ' + reading.notifications + ' notification(s) that no desk produced')
     if (!reading.empty) findings.push('the conversation does not state its empty condition')
   } finally {
-    shell.close()
+    await shell.close()
   }
 } finally {
   // Restore what the device had, whatever happened above.

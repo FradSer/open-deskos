@@ -1,6 +1,6 @@
 {
   "protocol": 1,
-  "domain": "odk-personal-agent-control-v1",
+  "domain": "odk-personal-agent-control-v2",
   "read": {
     "hello": {
       "v": 1,
@@ -40,27 +40,30 @@
   },
   "control": {
     "hello": {
-      "v": 1,
+      "v": 2,
       "type": "personal-agent-control",
       "machine": "android-so-02j",
-      "sessionId": "phone-session"
+      "sessionId": "phone-session",
+      "requestId": "request-submit",
+      "text": "Summarise the desk"
     },
     "challenge": {
-      "v": 1,
+      "v": 2,
       "type": "challenge",
-      "nonce": "nonce-fixture",
+      "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "algorithm": "hmac-sha256",
-      "domain": "odk-personal-agent-control-v1"
+      "domain": "odk-personal-agent-control-v2",
+      "requestId": "request-submit",
+      "firstFrameSHA256": "edeb37a328cae86eb57d117081573d225db21529bb9a234629f8b874b4e56373"
     },
-    "transcript": "odk-personal-agent-control-v1\n1\nnonce-fixture\nandroid-so-02j\nphone-session",
+    "transcript": "odk-personal-agent-control-v2\n2\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nedeb37a328cae86eb57d117081573d225db21529bb9a234629f8b874b4e56373",
     "credential": "control-secret",
-    "proof": "cd1afeb5394d9685a83c97587930ad7852ee84f61e1cc1f603428f7786a2e815",
+    "proof": "b73a47508062b883264edd9d2eb5d1c3ded243eabd1ec56a37894c8ed5d449a6",
     "submit": {
-      "v": 1,
+      "v": 2,
       "type": "personal-agent-submit",
       "requestId": "request-submit",
-      "proof": "cd1afeb5394d9685a83c97587930ad7852ee84f61e1cc1f603428f7786a2e815",
-      "text": "Summarise the desk"
+      "proof": "b73a47508062b883264edd9d2eb5d1c3ded243eabd1ec56a37894c8ed5d449a6"
     },
     "receipt": {
       "v": 1,
@@ -72,32 +75,40 @@
       "v": 1,
       "type": "error",
       "reason": "control challenge required"
-    }
+    },
+    "protocol": 2,
+    "rawFirstFrame": "{\"v\":2,\"type\":\"personal-agent-control\",\"machine\":\"android-so-02j\",\"sessionId\":\"phone-session\",\"requestId\":\"request-submit\",\"text\":\"Summarise the desk\"}",
+    "firstFrameSHA256": "edeb37a328cae86eb57d117081573d225db21529bb9a234629f8b874b4e56373"
   },
   "states": {
     "unavailable": {
       "state": "unavailable",
-      "message": "Personal Bot service unavailable"
+      "message": "Personal Bot service unavailable",
+      "voiceInput": false
     },
     "idle-empty": {
       "state": "idle",
       "transcript": "",
-      "message": ""
+      "message": "",
+      "voiceInput": false
     },
     "recording": {
       "state": "recording",
       "transcript": "",
-      "message": ""
+      "message": "",
+      "voiceInput": false
     },
     "transcribing": {
       "state": "transcribing",
       "transcript": "Summarise the desk",
-      "message": ""
+      "message": "",
+      "voiceInput": false
     },
     "thinking-streaming": {
       "state": "thinking",
       "transcript": "Summarise the desk",
-      "message": "Reading the desk sources"
+      "message": "Reading the desk sources",
+      "voiceInput": false
     },
     "idle-reply": {
       "state": "idle",
@@ -108,7 +119,8 @@
           "id": "notification-1",
           "message": "The plant reading is stale."
         }
-      ]
+      ],
+      "voiceInput": false
     },
     "agents-running": {
       "state": "idle",
@@ -134,7 +146,8 @@
             }
           }
         ]
-      }
+      },
+      "voiceInput": false
     },
     "remote-coverage": {
       "state": "idle",
@@ -171,12 +184,14 @@
             "text": "An older legacy report."
           }
         ]
-      }
+      },
+      "voiceInput": false
     },
     "error": {
       "state": "error",
       "transcript": "Summarise the desk",
-      "message": "Request failed. You can try again."
+      "message": "Request failed. You can try again.",
+      "voiceInput": false
     },
     "briefing": {
       "state": "idle",
@@ -192,7 +207,8 @@
             "source": "odk.tile.weather"
           }
         ]
-      }
+      },
+      "voiceInput": false
     }
   }
 }

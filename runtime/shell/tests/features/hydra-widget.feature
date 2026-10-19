@@ -208,6 +208,7 @@ Feature: Hydra plant and environment widget on the Home grid
     Then the meter scales from its left edge to match the displayed reading
     And its layout width stays equal to the track width
     And reduced motion disables the meter transition
+    And the watering texture follows the semantic primary color of the active theme
 
   Scenario: Signed source activation preserves actual Main and preload consumers
     Given actual Main runs a signed Hydra source with an isolated loopback MQTT broker
@@ -237,3 +238,9 @@ Feature: Hydra plant and environment widget on the Home grid
     Then each child watchdog allows the fixture to finish and release resources
     And the parent budget covers all four children and setup
     And other hosts retain their existing budgets
+
+  Scenario: Wide Pixel panels use the larger environment reading
+    Given a tall Hydra panel has at least 280 pixels of content width
+    When the Pixel theme renders its environment readings
+    Then the readings use the larger 40-pixel size
+    And a narrower panel retains its 32-pixel limit without clipping
