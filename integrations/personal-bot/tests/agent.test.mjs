@@ -222,10 +222,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
           if (runtime.mode === 'fail') throw Error('private generation detail')
           const held = runtime.mode === 'hold'
           if (held) { enter(); await gate }
-          const text = '{{pi|@label|text}} {{pi|count|integer}} sessions.'
-          emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{
-            text, segments: [{ text, icon: 'sessions' }], readingIds: ['pi'],
-          }] })) })
+          emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: [0] }] })) })
           if (held) finish()
         })
         return Object.assign(runtime, { agent })
@@ -296,7 +293,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
 test('home generation uses an isolated zero-tool SDK session and its own schema', async t => {
   let inspected = false
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
-    emit?.({ type: 'message_end', message: assistant('{"items":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","segments":[{"text":"{{mail|@label|text}} is {{mail|@state|text}}.","icon":"mail"}],"readingIds":["mail"]}]}') })
+    emit?.({ type: 'message_end', message: assistant('{"items":[{"sources":[0]}]}') })
   }, options => {
     inspected = true
     assert.deepEqual(options.tools, [])
@@ -310,16 +307,33 @@ test('home generation uses an isolated zero-tool SDK session and its own schema'
   assert.equal(result.items[0].readingIds[0], 'mail')
 })
 
+test('Home generation accepts finite source selections and returns the existing bound template',async t=>{
+ const bot=await generationFixture(t,{ODK_JEV_PROVIDER:'disabled'},async(emit,text)=>{
+  const request=JSON.parse(text.slice(text.indexOf('{')))
+  assert.equal(request.readings[0].id,'weather')
+  assert.deepEqual(request.variables,[{selector:0,id:'weather',icon:'weather',required:true}])
+  assert.equal(JSON.stringify(request.variables).includes('{{'),false)
+  assert.equal(request.previous,undefined)
+  emit?.({type:'message_end',message:assistant(JSON.stringify({items:[{sources:[0]}]}))})
+ })
+ const readings=[{id:'weather',label:'Local weather',state:'live',value:{temperatureC:25,condition:'overcast',place:'Taipei'},home:{mode:'required',priority:100,icon:'weather',fields:['temperatureC','condition','place']}}]
+ const result=await bot.generateBriefing({readings})
+ assert.deepEqual(result.items[0].readingIds,['weather'])
+ assert.match(result.items[0].text,/\{\{weather\|temperatureC\|celsius\}\}/)
+ assert.equal(result.items[0].segments[0].icon,'weather')
+})
+
 test('required home correction names the exact visible coverage contract', async t => {
   let attempts = 0
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async (emit, text) => {
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 2) {
-      assert.match(request.formatCorrection, /copy its visible label exactly/)
-      assert.match(request.formatCorrection, /Futu holdings/)
-      assert.match(request.formatCorrection, /portfolio/)
+      assert.match(request.formatCorrection, /integer selector/)
+      assert.equal(request.variables[0].required,true)
+      assert.equal(request.variables[0].icon,'portfolio')
+      assert.equal(request.readings[0].label,'Futu holdings')
     }
-    const content = attempts === 1 ? '{"items":[]}' : JSON.stringify({ items: [{ text: '{{futu|@label|text}} count {{futu|count|integer}}.', segments: [{ text: '{{futu|@label|text}} count {{futu|count|integer}}.', icon: 'portfolio' }], readingIds: ['futu'] }] })
+    const content = attempts === 1 ? '{"items":[]}' : JSON.stringify({items:[{sources:[0]}]})
     emit?.({ type: 'message_end', message: assistant(content) })
   })
   await bot.generateBriefing({ readings: [{ id: 'futu', label: 'Futu holdings', state: 'live', value: { count: 11 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['count'] } }] })

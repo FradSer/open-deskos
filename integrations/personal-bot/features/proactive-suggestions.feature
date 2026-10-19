@@ -360,3 +360,12 @@ Feature: Owner controlled proactive Personal Bot proposals
     When that template is resolved against current sources
     Then it becomes the model briefing rather than a source-only fallback
     And a later generation failure retains its complete items as stale
+
+  Scenario: Overview selection compiles source-bound facts without copying reference syntax
+    Given the host supplies a finite catalog of declared Home sources
+    When the model selects source indices and their grouping
+    Then the host compiles the captured catalog into the existing bound template
+    And only current declared source values supply text, icons, and measurement units
+    And duplicate, unknown, or stale selections cannot bind another source
+    And required coverage, output budgets, and late source changes retain their existing guards
+    And generatedAt becomes nonzero only after an actual model selection succeeds
