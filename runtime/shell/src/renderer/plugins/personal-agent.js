@@ -353,14 +353,7 @@
         if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Connection unavailable'
         return value?.status === 'verified' ? 'Ready' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
       }
-      function render(status) {
-        if (released || ctx.signal?.aborted || !status?.state) return
-        revision++
-        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
-        const readyCaption = readinessCaption(status.jev, status.judgment)
-        renderAgents(status.agents)
-        renderRemote(status.remote)
-        const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
+      function registerOwnerTurn(status) {
         const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
         if (newTurn) {
           turn = ownerTurns.get(status.ownerTurnId) || { ownerTurnId: status.ownerTurnId, prompt: status.transcript, user: message('user', status.transcript), response: message('assistant', '') }
@@ -369,6 +362,17 @@
             while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
           }
         }
+      }
+      function render(status) {
+        if (released || ctx.signal?.aborted || !status?.state) return
+        revision++
+        const bottom = conversation.scrollHeight - conversation.clientHeight - conversation.scrollTop < 40
+        const readyCaption = readinessCaption(status.jev, status.judgment)
+        renderAgents(status.agents)
+        const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
+        if (status.ownerTurnId && status.remote?.replies?.some(reply => reply.id === status.ownerTurnId)) registerOwnerTurn(status)
+        renderRemote(status.remote)
+        registerOwnerTurn(status)
         const reply = status.message
         if (!status.replyTo && !turn?.bound && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }

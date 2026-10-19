@@ -450,3 +450,4 @@ Scenario: AI-selected session replies retain the original owner turn
   Then the conversation reuses its original owner and assistant message nodes
   And the answer belongs to the selected session thread without matching historical text
   And delivery status remains independent from the assistant answer
+  And a fresh mount with a combined owner and durable reply snapshot creates no duplicate messages
