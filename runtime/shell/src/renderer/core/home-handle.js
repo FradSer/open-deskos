@@ -1,13 +1,75 @@
 ;(function (root) {
   'use strict'
 
-  function bind({ handle, card, isOpen, blocked, returnHome, reportError }) {
+  // Self-contained so the same detector can run in the opaque App bootstrap.
+  function bindPinch({ root, owns, enabled, onStart = () => {}, onReturn, signal }) {
+    const options = { signal }
+    let pinch = null
+    let touchCount = 0
+    let pinchBlocked = false
+    function cancel() { pinch = null; pinchBlocked = touchCount > 0 }
+    const touchOptions = { ...options, capture: true, passive: false }
+    function pair(event) {
+      const touches = Array.from(event.touches)
+      return touches.length === 2 && touches.every(touch => owns(touch.target)
+        && Number.isFinite(touch.clientX) && Number.isFinite(touch.clientY))
+        && touches[0].identifier !== touches[1].identifier ? touches : null
+    }
+    function geometry(touches) {
+      const [a, b] = touches
+      return { distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }
+    }
+    root.addEventListener('touchstart', event => {
+      if (touchCount === 0) pinchBlocked = false
+      touchCount = event.touches.length
+      const touches = pair(event)
+      if (!touches || !enabled()) {
+        pinch = null
+        if (touchCount >= 2) pinchBlocked = true
+        return
+      }
+      if (pinchBlocked) return
+      onStart()
+      const start = geometry(touches)
+      pinch = { start, ids: touches.map(touch => touch.identifier), accepted: false }
+    }, touchOptions)
+    root.addEventListener('touchmove', event => {
+      if (!pinch) return
+      const touches = pair(event)
+      if (!touches || !enabled()
+        || !touches.every(touch => pinch.ids.includes(touch.identifier))) return cancel()
+      const current = geometry(touches)
+      // Distance contraction distinguishes a pinch from parallel two-finger scrolling.
+      pinch.accepted = event.cancelable
+        && pinch.start.distance - current.distance >= Math.max(48, pinch.start.distance * 0.25)
+        && Math.hypot(current.x - pinch.start.x, current.y - pinch.start.y) <= Math.max(24, pinch.start.distance * 0.2)
+      if (pinch.accepted) event.preventDefault()
+    }, touchOptions)
+    root.addEventListener('touchend', event => {
+      const accept = pinch?.accepted && enabled() && event.touches.length < 2
+      touchCount = event.touches.length
+      pinch = null
+      pinchBlocked = touchCount > 0
+      if (accept) { event.preventDefault(); onReturn() }
+    }, touchOptions)
+    root.addEventListener('touchcancel', event => {
+      touchCount = event.touches.length
+      cancel()
+    }, touchOptions)
+    root.addEventListener('blur', cancel, options)
+    root.addEventListener('resize', cancel, options)
+    root.addEventListener('odk-personal-bot-visibility', cancel, options)
+    return { cancel }
+  }
+
+  function bind({ handle, card, isOpen, canPinch = isOpen, canReturn = isOpen, blocked, returnHome, reportError }) {
     const events = new AbortController()
     const options = { signal: events.signal }
     let drag = null
     let returning = false
 
-    function cancel() {
+    function cancelDrag() {
       const pointer = drag?.id
       drag = null
       card.style.removeProperty('transform')
@@ -16,8 +78,13 @@
       if (pointer !== undefined && handle.hasPointerCapture(pointer)) handle.releasePointerCapture(pointer)
     }
 
+    function cancel() {
+      cancelDrag()
+      pinchGesture.cancel()
+    }
+
     function requestReturn() {
-      if (returning || !isOpen() || blocked()) return
+      if (returning || !canReturn() || blocked()) return
       returning = true
       // The App platform owns resource release and its existing failure/retry UI.
       Promise.resolve().then(returnHome).catch(reportError).finally(() => {
@@ -61,11 +128,12 @@
       if (drag && event.pointerId === drag.id) cancel()
     }, options)
     root.addEventListener('pointerdown', event => {
-      if (drag && !event.isPrimary) cancel()
+      if (drag && !event.isPrimary) cancelDrag()
     }, options)
-    root.addEventListener('blur', cancel, options)
-    root.addEventListener('resize', cancel, options)
-    root.addEventListener('odk-personal-bot-visibility', cancel, options)
+    const pinchGesture = bindPinch({ root, owns: target => card.contains(target),
+      enabled: () => isOpen() && canPinch() && !blocked() && !returning,
+      onStart: cancelDrag, onReturn: requestReturn, signal: events.signal })
+    for (const type of ['blur', 'resize', 'odk-personal-bot-visibility']) root.addEventListener(type, cancel, options)
     handle.addEventListener('keydown', event => {
       if (!isOpen() || !['ArrowUp', 'Enter', ' '].includes(event.key)) return
       event.preventDefault()
@@ -83,5 +151,7 @@
     return { cancel, requestReturn, destroy() { cancel(); events.abort() } }
   }
 
-  root.odkHomeHandle = { bind }
-})(window)
+  const api = { bind, bindPinch }
+  if (typeof module !== 'undefined' && module.exports) module.exports = api
+  else root.odkHomeHandle = api
+})(typeof window !== 'undefined' ? window : globalThis)

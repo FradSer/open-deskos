@@ -13,7 +13,7 @@ class Element {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const widget = (revision = 'r1', pageId = 'reading') => ({ id: 'note', name: '<Note>', kind: 'widget', revision, placement: { pageId, col: '4 / 6', row: '3' } })
-function setup(list) {
+function setup(list, onReturnHome) {
   const track = new Element('main'); const status = new Element('p'); const mounted = []; const disposed = []
   const layout = { pages: ['home', 'reading'].map(id => ({ id, kind: 'grid', name: id, widgets: [] })) }
   for (const page of layout.pages) { const section = new Element('section'); section.dataset.pageId = page.id; const grid = new Element('div'); grid.className = 'widget-grid'; const builtin = new Element('div'); builtin.dataset.widget = 'builtin'; grid.append(builtin); section.append(grid); track.append(section) }
@@ -26,7 +26,7 @@ function setup(list) {
     root.odkUserAppDesktop.mount = () => { throw Error('Default desktop delegation refused') }
     selected = root.odkUserAppDesktopReplacements[0].create().ports['odk:system/user-app-desktop/v1']
   }
-  const controller = selected.mount({ track, layout, status, onPagesChanged() { pageChanges++ } })
+  const controller = selected.mount({ track, layout, status, onReturnHome, onPagesChanged() { pageChanges++ } })
   return { root, track, status, mounted, disposed, controller, change: () => changed(), pageChanges: () => pageChanges }
 }
 test('mounts placed widgets without touching built-ins and reconciles only changed frames', async () => {
@@ -124,4 +124,18 @@ test('refresh after disposal cannot modify the released catalog status', async (
   assert.equal(env.status.dataset.state, state)
   assert.equal(env.status.textContent, text)
   assert.equal(reads, 1)
+})
+
+
+test('only current installed App instances receive the fixed return callback', async () => {
+  let apps = [widget(), { id: 'counter', name: 'Counter', kind: 'app', revision: 'r1' }]
+  const returned = [], env = setup(async () => ({ ok: true, apps }), host => returned.push(host))
+  await tick()
+  assert.equal(env.mounted[0].onReturnHome, undefined)
+  const old = env.mounted[1].onReturnHome
+  old(); assert.equal(returned.length, 1)
+  apps = [widget(), { ...apps[1], revision: 'r2' }]; env.change(); await tick()
+  old(); assert.equal(returned.length, 1, 'retained old callback cannot return')
+  env.mounted.at(-1).onReturnHome(); assert.equal(returned.length, 2)
+  env.controller.dispose(); env.mounted.at(-1).onReturnHome(); assert.equal(returned.length, 2)
 })

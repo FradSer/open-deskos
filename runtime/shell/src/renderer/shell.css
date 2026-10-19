@@ -3240,3 +3240,9 @@ body.kiosk {
   color: var(--odk-accent-red);
   font-size: var(--odk-text-label);
 }
+
+/* Shell-owned Widget Apps reserve inward pinches while retaining native panning.
+   Installed App frames receive this policy through their own bootstrap. */
+#app-view[data-return-gesture="true"]:not([data-info-view]):not(:has(iframe)) {
+  touch-action: pan-x pan-y;
+}

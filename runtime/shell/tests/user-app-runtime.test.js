@@ -295,7 +295,7 @@ test('the served package document publishes data through the system bridge it al
     setTimeout, clearTimeout,
   }
   packageWindow.parent = { postMessage: (message) => posted.push(message) }
-  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], { window: packageWindow, globalThis: packageWindow, document: packageWindow.document, parent: packageWindow.parent, setTimeout, clearTimeout })
+  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], { window: packageWindow, globalThis: packageWindow, document: packageWindow.document, parent: packageWindow.parent, setTimeout, clearTimeout, AbortController })
   assert.equal(typeof packageWindow.odkPackageData?.publish, 'function', 'a package needs no new API surface to publish')
   packageWindow.odkPackageData.publish({ remaining_seconds: 90 })
   const dataMessages = () => posted.filter(message => message.type === 'odk-user-app-data')
@@ -355,4 +355,30 @@ test('verifier drain waits for child closure and permits subsequent verification
   await draining
   assert.equal((await owned.verify({ html: '<body>Next fixture</body>' })).ok, true)
   await owned.close()
+})
+
+
+test('the opaque bootstrap shares the detector and accepts Home capability only from its parent', () => {
+  const html = buildUserAppDocument('<body>App</body>', { token: 'owned' })
+  const root = new EventTarget(), parent = { postMessage: message => posted.push(message) }, posted = []
+  const documentElement = { dataset: {}, style: { setProperty() {} }, contains: target => target === documentElement }
+  const document = { documentElement, readyState: 'complete' }
+  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], { window: root, document, parent, AbortController })
+  function message(source, token) {
+    const event = new Event('message'); Object.assign(event, { source, data: { type: 'odk-user-app-theme', token, returnHome: true } }); root.dispatchEvent(event)
+  }
+  function pinch() {
+    for (const [type, span] of [['touchstart', 200], ['touchmove', 100], ['touchend', 0]]) {
+      const event = new Event(type, { cancelable: true })
+      Object.assign(event, { touches: span ? [0, 1].map(i => ({ identifier: i, target: documentElement, clientX: 300 + (i ? span / 2 : -span / 2), clientY: 200 })) : [] })
+      root.dispatchEvent(event)
+    }
+  }
+  const returns = () => posted.filter(message => message.type === 'odk-user-app-return-home')
+  pinch(); message({}, 'owned'); pinch(); message(parent, 'old'); pinch()
+  assert.equal(returns().length, 0)
+  message(parent, 'owned'); pinch()
+  assert.deepEqual(JSON.parse(JSON.stringify(returns())), [{ type: 'odk-user-app-return-home', token: 'owned' }])
+  root.dispatchEvent(new Event('pagehide')); pinch()
+  assert.equal(returns().length, 1, 'disposal removes the detector')
 })

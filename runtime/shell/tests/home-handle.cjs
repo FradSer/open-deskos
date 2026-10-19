@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
   await js(`window.until = async predicate => { const end=performance.now()+5000; while(!predicate()){if(performance.now()>end)throw Error('Handle condition timed out: '+predicate);await new Promise(r=>setTimeout(r,20))} }; void 0`)
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
-  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 })
+  await win.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 3 })
   const input = (method, params) => win.webContents.debugger.sendCommand(method, params)
   async function key(key, code = key) {
     const n = { Escape:27, ArrowUp:38, ArrowLeft:37, ArrowRight:39, Enter:13 }[key]
@@ -54,6 +54,19 @@ app.whenReady().then(async () => {
   }
   const open = () => js(`(async()=>{document.querySelectorAll('.dot')[0].click();document.querySelector('[data-widget="odk.tile.futu"] .widget-launch').click();await until(()=>odkAppPlatform.active()?.sourceWidget==='odk.tile.futu'&&!document.getElementById('app-view').hidden);await document.fonts.ready})()`)
   const isOpen = () => js(`!document.getElementById('app-view').hidden`)
+  async function pinchCard(kind = 'inward') {
+    const origin=await js(`(()=>{const r=document.querySelector('#app-view .app-body').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,span:Math.min(240,r.width*.65)}})()`)
+    const points=(span,dy=0)=>[{x:origin.x-span/2,y:origin.y+dy,id:1},{x:origin.x+span/2,y:origin.y+dy,id:2}]
+    await touch('touchStart',points(origin.span))
+    const span=kind==='spread'?origin.span*1.15:kind==='scroll'?origin.span:origin.span*.55
+    await touch('touchMove',points(span,kind==='scroll'?-70:0))
+    if(kind==='third') {
+      await touch('touchStart',[...points(span),{x:origin.x,y:origin.y+50,id:3}])
+      await touch('touchEnd',points(span))
+      await touch('touchMove',points(origin.span*.4))
+    }
+    await touch(kind==='cancel'?'touchCancel':'touchEnd',[])
+  }
   const regressions = []
   function check(condition, message) { if (!condition) regressions.push(message) }
   // Inject a standard pad at the browser boundary. The Shell's real poller and
@@ -116,6 +129,17 @@ app.whenReady().then(async () => {
     const body=await js(`(()=>{const r=document.querySelector('.app-body').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height*.7}})()`)
     await swipe(0,-96,false,body)
     assert.equal(await isOpen(),true,'Content scrolling cannot dismiss the App')
+    assert.equal(await js(`getComputedStyle(document.getElementById('app-view')).touchAction`),'pan-x pan-y')
+    for (const gesture of ['scroll','spread','cancel','third']) {
+      await pinchCard(gesture)
+      assert.equal(await isOpen(),true,gesture+' must not dismiss an App')
+    }
+    const zoomBefore=await js('visualViewport.scale')
+    await pinchCard()
+    await js(`until(()=>document.getElementById('app-view').hidden)`)
+    assert.equal(await js('visualViewport.scale'),zoomBefore,'Return must not leave the Shell zoomed')
+    assert.equal(await js(`document.activeElement===document.querySelector('[data-widget="odk.tile.futu"] .widget-launch')`),true,'Pinch restores source Widget focus')
+    await open()
     await swipe(0,-96)
     await js(`until(()=>document.getElementById('app-view').hidden)`)
     assert.equal(await js(`document.activeElement===document.querySelector('[data-widget="odk.tile.futu"] .widget-launch')`),true)
@@ -135,6 +159,7 @@ app.whenReady().then(async () => {
     await padB(false)
     win.webContents.send('odk-personal-bot-status',{state:'recording',activated:true,transcript:'',message:''})
     await js('until(()=>odkPersonalBotStatus.visible())')
+    await pinchCard(); check(await isOpen(),theme+': Personal Bot overlay retains pinch ownership')
     await padB(true)
     await js('until(()=>!odkPersonalBotStatus.visible())')
     check(await isOpen(),theme+': B dismisses the Personal Bot overlay before the App')

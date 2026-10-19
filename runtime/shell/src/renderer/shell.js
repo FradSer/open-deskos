@@ -529,10 +529,17 @@ async function main() {
   })
   deskObserver.observe(document.getElementById('pages-viewport'))
 
+  function activeInstalledApp() {
+    const page = document.getElementById('pages-track').children[pagerRef?.currentIndex()]
+    return appView.hidden && page?.dataset.surface === 'app' && page.dataset.userAppId ? page : null
+  }
   async function returnFromApp() {
     if (appView.dataset.infoView) closeInfoView()
     else if (appPlatform.active()) await appPlatform.closeApp()
-    else closeInfoView()
+    else if (activeInstalledApp()) {
+      pagerRef.setIndex([...document.getElementById('pages-track').children].indexOf(homePage), false)
+      document.querySelector('#dots .dot.active')?.focus()
+    } else closeInfoView()
   }
   document.getElementById('app-back').addEventListener('click', () => {
     if (appView.dataset.returnGesture !== 'true') returnFromApp().catch(error => console.error('App return failed:', error))
@@ -540,6 +547,8 @@ async function main() {
   homeHandle = window.odkHomeHandle.bind({
     handle: document.getElementById('dots'), card: appView,
     isOpen: () => !appView.hidden,
+    canReturn: () => !appView.hidden || Boolean(activeInstalledApp()),
+    canPinch: () => Boolean(appPlatform.active()) && appView.dataset.returnGesture === 'true' && !appView.dataset.infoView,
     blocked: () => Boolean(window.odkPersonalBotStatus?.visible()),
     returnHome: returnFromApp,
     reportError: error => console.error('App return failed:', error),
@@ -717,6 +726,7 @@ async function main() {
   document.body.append(notice)
   const desktopOptions = {
     track, layout: effectiveLayout, status: catalogStatus,
+    onReturnHome: host => { if (activeInstalledApp() === host) homeHandle.requestReturn() },
     onCatalogChanged: applyGeometry,
     onPagesChanged: syncDesktopPages,
   }
