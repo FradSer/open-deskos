@@ -1,12 +1,8 @@
 # Runs the Open DeskOS Personal Bot as a resident service on a Windows Shell Host.
 #
-# The Personal Bot is a system component of the desk, not a Shell plugin: it owns
-# microphone capture, transcription and the Pi run, and the Shell reaches it
-# through the personal-bot named pipe. This script is the Windows counterpart of
-# systemd's odk-personal-bot.service: it reads the same two device-local
-# environment files, then supervises the same entry point
-# (integrations/personal-bot/src/main.mjs) and restarts it the way the unit's
-# Restart=on-failure does.
+# Windows owns display, input, and microphone capture. The central CM5 Personal
+# Agent owns transcription, inference, memory, and task coordination. This launcher
+# never starts the local agent or falls back to a local model.
 #
 # Run it from the kiosk user's own interactive session (a scheduled task with
 # -LogonType Interactive), never from an SSH session: a microphone opened in
@@ -41,14 +37,14 @@ $personalBotCandidates = @(
 )
 if (-not $PersonalBotRoot) {
   foreach ($candidate in $personalBotCandidates) {
-    if (Test-Path -LiteralPath (Join-Path $candidate 'src\main.mjs')) { $PersonalBotRoot = $candidate; break }
+    if (Test-Path -LiteralPath (Join-Path $candidate 'src\display-client.mjs')) { $PersonalBotRoot = $candidate; break }
   }
   if (-not $PersonalBotRoot) { $PersonalBotRoot = $personalBotCandidates[0] }
 }
 
 $configDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'odk' } else { $env:TEMP }
 $log = Join-Path $configDir 'personal-bot.log'
-$entryPoint = Join-Path $PersonalBotRoot 'src\main.mjs'
+$entryPoint = Join-Path $PersonalBotRoot 'src\display-client.mjs'
 
 # A log write must never take the service down: a personal bot service that stopped
 # because its log file could not be appended is worse than one with no log.
@@ -67,7 +63,7 @@ function Write-PersonalBotLog([string]$message) {
 # set into this process only: nothing is written back, so a file that is a
 # directory, unreadable or missing changes what the service reports rather than
 # what an operator's configuration looks like afterwards.
-function Import-DeviceEnv([string]$file) {
+function Import-DeviceEnv([string]$file, [string[]]$AllowedNames) {
   if (-not (Test-Path -LiteralPath $file)) { return $false }
   # PowerShell 5.1 defaults to the host code page; device names may be UTF-8.
   foreach ($line in Get-Content -LiteralPath $file -Encoding UTF8) {
@@ -76,12 +72,32 @@ function Import-DeviceEnv([string]$file) {
     $index = $text.IndexOf('=')
     if ($index -lt 1) { continue }
     $name = $text.Substring(0, $index).Trim()
+    if ($AllowedNames -and $name -notin $AllowedNames) { continue }
     $value = $text.Substring($index + 1)
     if ($value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')) { $value = $value.Substring(1, $value.Length - 2) }
     [Environment]::SetEnvironmentVariable($name, $value, 'Process')
   }
   return $true
 }
+
+# The relay receives OS and microphone configuration, not inherited provider keys.
+$displayNames = @('ODK_PERSONAL_AGENT_MAIN_SSH', 'ODK_PERSONAL_BOT_AUDIO_DEVICE')
+function Clear-DisplayEnvironment {
+  $platformNames = @('PATH', 'PATHEXT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'ProgramData', 'ProgramFiles', 'ProgramFiles(x86)', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'TEMP', 'TMP', 'USERNAME', 'USERDOMAIN', 'COMPUTERNAME', 'HOMEDRIVE', 'HOMEPATH', 'OS', 'PROCESSOR_ARCHITECTURE', 'NUMBER_OF_PROCESSORS')
+  foreach ($item in Get-ChildItem Env:) {
+    if ($item.Name -notin $platformNames) { [Environment]::SetEnvironmentVariable($item.Name, $null, 'Process') }
+  }
+}
+function Read-DisplayConfiguration {
+  Clear-DisplayEnvironment
+  foreach ($file in @((Join-Path $configDir 'runtime.env'), (Join-Path $configDir 'voice-agent.env'), (Join-Path $configDir 'personal-bot.env'))) {
+    Import-DeviceEnv $file -AllowedNames $displayNames | Out-Null
+  }
+  if ($env:ODK_PERSONAL_AGENT_MAIN_SSH -cne 'odk-cm5-agent') { throw 'Configure ODK_PERSONAL_AGENT_MAIN_SSH=odk-cm5-agent before starting the display client' }
+}
+if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) { throw 'Personal Agent display entry point is missing' }
+if (-not (Get-Command ssh.exe -ErrorAction SilentlyContinue)) { throw 'ssh.exe is required for the central Personal Agent' }
+Read-DisplayConfiguration
 
 if ($Status) {
   $listening = Test-Path -LiteralPath '\\.\pipe\odk-personal-bot'
@@ -106,15 +122,8 @@ while ($true) {
     }
   }
   if (-not $ffmpeg) { Write-PersonalBotLog 'ffmpeg is not on PATH and no provisioned copy was found; captures will report the microphone as unavailable' }
-  # runtime.env carries the settings the Shell and the Personal Bot share (the
-  # writable checkout); personal-bot.env carries the personal bot service's own. Both are
-  # optional here: a missing one is reported by the service's own status, which is
-  # why a cold host still reaches the socket and says what is missing.
-  $loaded = @()
-  foreach ($file in @((Join-Path $configDir 'runtime.env'), (Join-Path $configDir 'voice-agent.env'), (Join-Path $configDir 'personal-bot.env'))) {
-    if (Import-DeviceEnv $file) { $loaded += (Split-Path -Leaf $file) }
-  }
-  Write-PersonalBotLog "starting personal bot from $entryPoint (env: $($loaded -join ', '); ffmpeg=$($ffmpeg.Source))"
+  Read-DisplayConfiguration
+  Write-PersonalBotLog "starting Personal Agent display from $entryPoint (ffmpeg=$($ffmpeg.Source))"
   # A service that writes a note to standard error is reporting, not failing, and
   # PowerShell turns native stderr into an error record: with Stop it would take the
   # loop down over one informational line.
