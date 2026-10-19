@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { readFileSync, existsSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection } from '../src/home-template.mjs'
 import { HomeBriefing } from '../src/home-briefing.mjs'
@@ -203,4 +204,22 @@ test('finite selections preserve nine and sixteen required sources within the ex
       assert(home.frame.generatedAt > 0)
     } finally { home.close() }
   })
+})
+
+
+test('compiled facts preserve the actual Shell icon and first-label token grouping', () => {
+  const paths = ['../../../runtime/shell/src/renderer/plugins/dashboard-page.js', '../../../src/renderer/plugins/dashboard-page.js'].map(path => new URL(path, import.meta.url)).filter(path => existsSync(path))
+  assert.equal(paths.length, 1, 'one supported Shell source layout')
+  const renderer = readFileSync(paths[0], 'utf8')
+  const start = renderer.indexOf('const leading = segment.text.match(')
+  const end = renderer.indexOf('token.append(glyph)', start)
+  assert(start >= 0 && end > start)
+  const firstToken = new Function('segment', renderer.slice(start, end) + 'return prefix')
+  const readings = [source('futu', 'portfolio', { todayChangePercent: -0.82 }), source('weather', 'weather', { temperatureC: 25 })]
+  const output = resolveHomeTemplate(compileHomeSelection({ items: [{ sources: [0, 1] }] }, homeTemplateVariables(readings)), readings)
+  assert.deepEqual(output.items[0].segments.map(firstToken), ['futu', 'weather'])
+  assert.deepEqual(output.items[0].segments.map(segment => segment.icon), ['portfolio', 'weather'])
+  assert.equal(output.items[0].segments[0].text.endsWith(', '), true)
+  assert.equal(output.items[0].text, 'futu -0.82% today, weather 25°C.')
+  assert.equal(output.items[0].segments.length, 2)
 })

@@ -370,3 +370,9 @@ Feature: Owner controlled proactive Personal Bot proposals
     And up to sixteen required sources fit within two items without raising the existing per-item bounds
     And required coverage, output budgets, and late source changes retain their existing guards
     And generatedAt becomes nonzero only after an actual model selection succeeds
+
+  Scenario: Compiled Overview facts keep their icon attached to their own label
+    Given the model selects several source-bound facts in one item
+    When the unchanged Shell groups each fact icon with its first label token
+    Then every fact starts with its own label rather than a separator
+    And separators remain after the preceding fact without increasing segment or source limits

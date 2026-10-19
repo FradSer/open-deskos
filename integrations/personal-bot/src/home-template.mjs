@@ -17,7 +17,7 @@ export function compileHomeSelection(raw, variables) {
       selected.add(selector)
       const variable = variables[selector]
       readingIds.push(variable.id)
-      return { text: (index ? ', ' : '') + variable.example + (index === item.sources.length - 1 ? '.' : ''), icon: variable.icon ?? 'status' }
+      return { text: variable.example + (index === item.sources.length - 1 ? '.' : ', '), icon: variable.icon ?? 'status' }
     })
     return { text: segments.map(segment => segment.text).join(''), segments, readingIds }
   }) }
