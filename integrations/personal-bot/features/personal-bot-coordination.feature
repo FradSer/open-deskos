@@ -185,3 +185,10 @@ Scenario: Native acceptance uses the configured endpoint directory
     Then the reviewer receives the original text with the evidence-access limit
     And its needs_review result prevents publication and persists a held revision
     And later pushes do not silently retry that revision
+
+  Scenario: A missing-evidence update retains its access boundary
+    Given a Pi conclusion lacks execution evidence within that session
+    When an update drops that boundary and claims no execution evidence exists
+    Then generation and review require the explicit session or read boundary
+    And needs_review prevents publication without a silent retry
+    But a task-specific statement of what this read cannot confirm can pass

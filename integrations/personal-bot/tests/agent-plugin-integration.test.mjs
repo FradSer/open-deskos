@@ -487,3 +487,32 @@ test('actual zero-tool remote providers preserve the scope of unavailable eviden
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1);assert.equal(contexts.length,2)}finally{await remote.close();await bot.close()}
 })
+
+
+test('actual zero-tool remote providers keep missing evidence within its visible scope',async t=>{
+ const conclusion='本会话目前只做了 task.json 的只读报告，尚无任何实际执行与比对证据，因此不能视为已完成验证或验收通过。'
+ for(const [name,update,status]of[
+  ['lost session boundary','当前只有 task.json 的只读结果，尚无实际执行与比对证据，因此不能算完成验证或验收通过。','needs_review'],
+  ['currently is not an access boundary','目前没有实际执行与比对证据，验证尚未完成。','needs_review'],
+  ['conditional consequence of this read','仅凭这次配置读取，还不能确认验收通过。','passed']
+ ])await t.test(name,async t=>{
+  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+  const records=[{key:'synthetic-local-evidence',revision:'a'.repeat(64),machine:'synthetic',sessionId:'scope',project:'/synthetic/scope',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-local-final',conclusionOutcome:'reported_finished',conclusion}]
+  const updates=[{text:update,sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}];let summaries=0,reviews=0
+  const runtime=offline(context=>{
+   assert.deepEqual(visibleTools(context),[])
+   const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length))
+   assert.deepEqual(input.records,records)
+   assert.match(all,/A missing-evidence statement must explicitly retain the source's session or read access boundary/)
+   assert.match(all,/Current or currently alone does not identify that boundary/)
+   if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
+   assert.match(all,/use needs_review when an update drops an explicit evidence-access boundary/)
+   assert.match(all,/do not silently rewrite, paraphrase, or add implied qualifiers/);assert.deepEqual(input.updates,updates);reviews++
+   return assistant(JSON.stringify({status,reason:status==='passed'?'只说明本次读取不能确立验收，不推断外部记录不存在。':'摘要删掉了来源限定的本会话证据访问范围。',citations}))
+  })
+  const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+  const {RemoteConversation}=await import('../src/remote-conversation.mjs')
+  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-local-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
+  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
+ })
+})
