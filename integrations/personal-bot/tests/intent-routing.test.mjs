@@ -255,6 +255,10 @@ test('host-bound replies still pass intent classification and cannot escape thei
  const f=routerFixture(response('session_continue')),turn=createIntentTurn({route:f.route,profile:'personal',tools:['remote_pi_updates','remote_pi_followup','coding_task_prompt','coding_task_start']})
  const prepared=await turn.prepare('用 adb 输入安卓',undefined,reply)
  assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.state.replySource.sessionId,'original-session');assert.match(prepared.context,/Host-bound reply reference/)
+ assert.match(prepared.context,/Reply in the owner's language using one or two short sentences/)
+ assert.match(prepared.context,/unknown delivery.*cannot confirm whether the original task received/i)
+ assert.match(prepared.context,/Do not dump.*mutationId.*lifecycle.*report_only/i)
+ assert.doesNotMatch(prepared.context,/Return the actual receipt/)
  let mutations=0;const tools=guardIntentTools(guardReplyTools(['remote_pi_followup','coding_task_prompt','coding_task_start'].map(name=>({name,execute:async()=>{mutations++;return 'accepted'}})),()=>reply),turn.getIntent,turn.getTurn)
  await assert.rejects(tools[1].execute('x',{target:'other'}),/bound/);await assert.rejects(tools[2].execute('x',{}));await assert.rejects(tools[0].execute('x',{sourceKey:'other',sourceRevision:reply.source.revision,prompt:reply.text}),/changed/)
  await assert.rejects(tools[0].execute('x',{sourceKey:reply.source.key,sourceRevision:reply.source.revision,prompt:'Unrequested extra instruction'}),/exact owner reply/)
@@ -266,7 +270,10 @@ test('host-bound replies still pass intent classification and cannot escape thei
 test('a named task uses bounded displayed context in the initial AI route without granting authority', async () => {
  const f=routerFixture(response('session_continue'));let context='Displayed roundtrip task: Windows and CM5.'
  const turn=createIntentTurn({route:f.route,profile:'personal',tools:['remote_pi_followup'],getRemoteContext:()=>context})
- assert.equal((await turn.prepare('继续双端消息回环验收任务',new AbortController().signal)).answer,undefined)
+ const prepared=await turn.prepare('继续双端消息回环验收任务',new AbortController().signal)
+ assert.equal(prepared.answer,undefined)
+ assert.match(prepared.context,/Reply in the owner's language using one or two short sentences/)
+ assert.doesNotMatch(prepared.context,/Return the actual receipt/)
  assert.equal(f.requests[0].body.state.remoteTaskContext,context)
  assert.match(f.requests[0].body.questions.intent.instructions,/remoteTaskContext.*untrusted/i)
  context='x'.repeat(9000);await turn.prepare('接着核对文件',new AbortController().signal)
