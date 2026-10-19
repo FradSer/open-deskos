@@ -212,6 +212,52 @@
         else delete article.dataset.threadId
         if (Number.isFinite(at)) timeline.set(article, at)
       }
+      let historyCoverage
+      function renderHistory(frame) {
+        if (!frame || !Array.isArray(frame.turns)) return
+        for (const item of frame.turns) {
+          const durable = durableReplies.get(item.id)
+          let owner = ownerTurns.get(item.id)
+          if (!owner) {
+            owner = { ownerTurnId: item.id, prompt: item.transcript, user: durable?.article.querySelector('.agent-message-body') || message('user', item.transcript),
+              response: durable?.answer || message('assistant', ''), bound: Boolean(durable), live: false }
+            ownerTurns.set(item.id, owner)
+            if (durable) durable.answer = owner.response
+          }
+          owner.user.closest('article').dataset.ownerTurnId = item.id
+          owner.response.closest('article').dataset.ownerTurnId = item.id
+          const threadId = durable?.threadId || item.threadId
+          timelineEntry(owner.user.closest('article'), item.at, [threadId])
+          timelineEntry(owner.response.closest('article'), item.at + 0.5, [threadId])
+          // Central history supplies replay, never a replacement for already observed live output.
+          const terminal = ['idle', 'error', 'unconfirmed'].includes(item.state)
+          if (!durable && ((!owner.live && !owner.historyTerminal) || (terminal && !owner.completed))) {
+            owner.prompt = item.transcript;owner.user.textContent = item.transcript
+            root.odkPersonalBotReply.render(owner.response, item.message)
+            owner.response.setAttribute('aria-busy', String(['thinking', 'transcribing'].includes(item.state)))
+            owner.completed = terminal
+            owner.historyTerminal = terminal
+          }
+          let notice = owner.response.closest('article').querySelector('.agent-history-state')
+          if (item.state === 'unconfirmed') {
+            if (!notice) { notice = document.createElement('p');notice.className = 'agent-history-state agent-reply-status';notice.setAttribute('role', 'status');owner.response.closest('article').append(notice) }
+            notice.textContent = 'Response not confirmed. Check before retrying.'
+            owner.response.setAttribute('aria-busy', 'false')
+          } else notice?.remove()
+        }
+        while (ownerTurns.size > 128) {
+          const id = ownerTurns.keys().next().value, owner = ownerTurns.get(id)
+          ownerTurns.delete(id)
+          if (!durableReplies.has(id) && owner !== turn) for (const body of [owner.user, owner.response]) { const article = body.closest('article');timeline.delete(article);article.remove() }
+        }
+        if (!historyCoverage && frame.omittedCount) {
+          historyCoverage = document.createElement('details');historyCoverage.className = 'agent-remote-coverage'
+          const label = document.createElement('summary');label.textContent = 'Earlier messages'
+          const body = document.createElement('p');historyCoverage.append(label, body);conversation.append(historyCoverage)
+        }
+        if (historyCoverage) { historyCoverage.hidden = !frame.omittedCount;historyCoverage.querySelector('p').textContent = `${frame.omittedCount} earlier owner turns are not shown here.` }
+        orderTimeline();showThread(selectedThread)
+      }
       function renderReplies(replies) {
         for (const reply of [...(replies || [])].reverse()) {
           let row = durableReplies.get(reply.id)
@@ -367,7 +413,9 @@
         const readyCaption = readinessCaption(status.jev, status.judgment)
         renderAgents(status.agents)
         const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(status.state)
+        if (status.state === 'unavailable') for (const owner of ownerTurns.values()) owner.live = false
         renderRemote(status.remote)
+        renderHistory(status.conversation)
         const newTurn = !status.replyTo && status.transcript && (!turn || (status.ownerTurnId ? status.ownerTurnId !== turn.ownerTurnId : status.transcript !== turn.prompt || (turn.completed && status.state === 'thinking')))
         if (newTurn) {
           const durable = durableReplies.get(status.ownerTurnId)
@@ -384,8 +432,10 @@
             while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
           }
         }
+        if (turn && status.ownerTurnId === turn.ownerTurnId && ['idle', 'error'].includes(status.state)) turn.historyTerminal = false
+        if (turn && status.ownerTurnId === turn.ownerTurnId && status.state !== 'unavailable') { turn.live = true;if (!status.conversation?.turns?.some(item => item.id === turn.ownerTurnId && item.state === 'unconfirmed')) turn.response.closest('article').querySelector('.agent-history-state')?.remove() }
         const reply = status.message
-        if (!status.replyTo && !turn?.bound && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
+        if (!status.replyTo && !turn?.bound && !turn?.historyTerminal && reply && ['thinking', 'idle', 'error'].includes(status.state)) {
           if (!turn) turn = { prompt: '', response: message('assistant', '') }
           root.odkPersonalBotReply.render(turn.response, reply)
         }
@@ -394,7 +444,7 @@
           seenNotifications.add(notification.id)
           message('assistant', notification.message)
         }
-        if (turn) {
+        if (turn && !turn.historyTerminal) {
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }

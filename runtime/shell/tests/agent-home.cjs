@@ -435,6 +435,73 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--central-history-only')) {
+    const first='11111111-1111-4111-8111-111111111111',second='22222222-2222-4222-8222-222222222222',third='33333333-3333-4333-8333-333333333333'
+    const turns=[{id:first,at:1000,transcript:'Synthetic earlier question',message:'Synthetic example: \u8fd9\u91cc\u663e\u793a\u4e2d\u592e\u4fdd\u5b58\u7684\u5bf9\u8bdd\u5185\u5bb9\u3002\u957f\u4e2d\u6587\u4f1a\u81ea\u52a8\u6362\u884c\uff0c\u4e0d\u4f1a\u6324\u51fa\u8f93\u5165\u6846\u3002'.repeat(3),state:'idle'},{id:second,at:2000,transcript:'Synthetic interrupted question',message:'Synthetic partial answer',state:'unconfirmed'}]
+    const history={revision:1,turns,omittedCount:2}
+    publishStatus({state:'idle',conversation:history});await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),2,'central history restores ordinary owner turns')
+    assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Response not confirmed/)
+    await evaluate(`window.historyNodes=[...document.querySelectorAll('.agent-message')];document.querySelector('textarea').value='Unsent local draft';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))`)
+    publishStatus({state:'idle',conversation:history});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`window.historyNodes.every(n=>n.isConnected)&&document.querySelectorAll('.agent-message-user').length===2&&document.querySelector('textarea').value==='Unsent local draft'`),true,'replay preserves message nodes and draft')
+    const live={state:'thinking',ownerTurnId:third,transcript:'Synthetic current question',message:'New live answer',conversation:history}
+    publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,20))')
+    const stale={...history,revision:2,turns:[...turns,{id:third,at:3000,transcript:live.transcript,message:'Old historical draft',state:'thinking'}]}
+    publishStatus({...live,conversation:stale});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-conversation').textContent.includes('Old historical draft')`),false,'history never replaces newer live text')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),3)
+    const finishedHistory={...stale,revision:3,turns:[...turns,{...stale.turns[2],state:'idle',message:'Canonical saved final answer'}]}
+    publishStatus({...live,conversation:finishedHistory});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-conversation').textContent.includes('Canonical saved final answer')`),true,'a saved terminal turn is not overwritten by a repeated cached thinking status')
+    const threadId='a'.repeat(64),replyTo={messageId:'b'.repeat(64),sourceKey:'c'.repeat(64),sourceRevision:'d'.repeat(64)}
+    const reply={id:third,text:live.transcript,threadId,replyTo,status:'unknown',at:3000,answer:'Synthetic central receipt answer'}
+    const final={...live,state:'idle',replyTo,threadId,message:reply.answer,remote:{state:'live',messages:[],replies:[reply]},conversation:{...stale,revision:4,turns:[...turns,{...stale.turns[2],state:'idle',message:reply.answer,replyTo,threadId}]}}
+    publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),3,'durable replies share the central owner identity')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${third}"]').length`),1)
+    assert.match(await evaluate(`document.querySelector('[data-reply-id="${third}"]').textContent`),/Delivery not confirmed/)
+    assert.equal(await evaluate(`document.querySelector('textarea').value`),'Unsent local draft')
+    const interrupted='44444444-4444-4444-8444-444444444444'
+    publishStatus({state:'thinking',ownerTurnId:interrupted,transcript:'Synthetic interrupted live turn',message:'Synthetic unfinished draft',conversation:final.conversation});await evaluate('new Promise(r=>setTimeout(r,20))')
+    publishStatus({state:'unavailable',ownerTurnId:interrupted,conversation:final.conversation});await evaluate('new Promise(r=>setTimeout(r,20))')
+    const restarted={revision:5,turns:[...final.conversation.turns,{id:interrupted,at:4000,transcript:'Synthetic interrupted live turn',message:'Synthetic unfinished draft',state:'unconfirmed'}],omittedCount:2}
+    publishStatus({state:'idle',conversation:restarted});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('[data-owner-turn-id="${interrupted}"] .agent-history-state')?.textContent||[...document.querySelectorAll('[data-owner-turn-id="${interrupted}"]')].at(-1)?.querySelector('.agent-history-state')?.textContent`),'Response not confirmed. Check before retrying.','a restarted central turn overrides an old live lease with explicit uncertainty')
+    assert.equal(await evaluate(`[...document.querySelectorAll('[data-owner-turn-id="${interrupted}"]')].at(-1).querySelector('.agent-message-body').getAttribute('aria-busy')`),'false')
+    initial={state:'idle',jev:{status:'verified'},judgment:{status:'ready',provider:'model'},textInput:true,replyInput:true,briefing:{state:'empty',items:[],generatedAt:1000,omittedSources:0},remote:final.remote,conversation:restarted}
+    const reopened=new Promise(resolve=>win.webContents.once('did-finish-load',resolve));win.webContents.reload();await reopened
+    await resize(1920,1280);await evaluate('document.fonts.ready.then(()=>new Promise(r=>setTimeout(r,30)))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),4,'a reopened display restores the same four canonical turns')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${third}"]').length`),1,'reopened history and durable reply share one row')
+    assert.match(await evaluate(`document.querySelector('.agent-conversation').textContent`),/Response not confirmed/)
+    publishStatus({state:'idle',ownerTurnId:first,transcript:turns[0].transcript,message:'Synthetic full live answer after replay. '+turns[0].message,conversation:restarted});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-conversation').textContent.includes('Synthetic full live answer after replay')`),true,'actual same-identity terminal output may replace a cold history view')
+    if(process.argv.includes('--adaptive-copy')) {
+      const sizes=[]
+      for(const theme of ['instrument','pixel','border-beam']) {
+        await evaluate(`window.odkTheme.set('${theme}')`)
+        for(const [width,height] of [[320,480],[480,854],[1280,776],[1920,1280]]) {
+          await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
+          const geometry=await evaluate(`(()=>{const panel=document.querySelector('#personal-agent'),body=document.querySelector('.agent-message'),input=document.querySelector('textarea'),log=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer').getBoundingClientRect();return {pane:panel.clientWidth,body:parseFloat(getComputedStyle(body).fontSize),input:parseFloat(getComputedStyle(input).fontSize),composerBottom:composer.bottom,overflow:log.scrollWidth-log.clientWidth,pageOverflow:document.documentElement.scrollWidth-innerWidth,targets:[...document.querySelectorAll('.agent-composer button')].every(b=>b.getBoundingClientRect().height>=44&&b.getBoundingClientRect().width>=44)}})()`)
+          assert.ok(geometry.body>=20&&geometry.body<=24&&geometry.input>=20&&geometry.input<=22,JSON.stringify({theme,width,...geometry}))
+          assert.ok(geometry.composerBottom<=height&&geometry.overflow<=1&&geometry.pageOverflow<=1&&geometry.targets,JSON.stringify({theme,width,...geometry}))
+          if(width===1280)assert.ok(geometry.pane<width/2,'type uses the actual Agent pane, not full screen width')
+          sizes.push({theme,width,height,...geometry})
+          fs.writeFileSync(path.join(os.tmpdir(),`odk-central-history-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+        }
+      }
+      assert.ok(sizes.find(s=>s.theme==='instrument'&&s.width===1920).body>sizes.find(s=>s.theme==='instrument'&&s.width===320).body,'type grows with pane space')
+      console.log('CENTRAL_TYPE_MATRIX',JSON.stringify(sizes))
+    }
+    for(const width of [1920,320]) {
+      await resize(width,width===320?480:1280);await evaluate('document.fonts.ready')
+      assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth+1&&document.querySelector('.agent-composer').getBoundingClientRect().bottom<=innerHeight`),true)
+      fs.writeFileSync(path.join(os.tmpdir(),'odk-central-history-'+width+'.png'),(await win.webContents.capturePage()).toPNG())
+    }
+    console.log('PASS central history replay, live precedence, draft retention and exact durable identity')
+    finish(0);return
+  }
   if (process.argv.includes('--unbound-reply-remount-only') || process.argv.includes('--unbound-reply-remount-legacy-only')) {
     const ownerTurnId='33333333-3333-4333-8333-333333333333',threadId='e5'.repeat(32),text='Synthetic in-flight owner turn',answer='Synthetic restored answer'
     const source={key:'a1'.repeat(32),revision:'b2'.repeat(32),threadId,machine:'Synthetic Mac',sessionId:'synthetic-remount-session',project:'/synthetic',control:'configured',availability:'live'}
