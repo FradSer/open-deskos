@@ -153,3 +153,10 @@ Scenario: Native acceptance uses the configured endpoint directory
     When the owner service saves its failure state after storage recovers
     Then the reply remains unknown rather than failed
     And no delivery acceptance is invented or earlier instruction replayed
+
+  Scenario: Missing records do not establish global non-execution
+    Given a completed Pi report verifies zero rounds within its available records
+    When external execution records are unavailable to that report
+    Then the update preserves the report's evidence-access limit
+    And the reviewer rejects claims that no rounds occurred or no records exist globally
+    And source claims remain distinct from the coordinator's independent verification

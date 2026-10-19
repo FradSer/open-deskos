@@ -430,3 +430,32 @@ test('actual zero-tool remote providers preserve conditional acceptance scope',a
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
 })
+
+
+test('actual zero-tool remote providers preserve the scope of unavailable evidence',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+ const conclusion='本次报告有证据支持0轮；本会话未取得外部用户消息、回复和摘要，无法核验实际完成轮数。'
+ const records=[{key:'synthetic-missing-records',revision:'a'.repeat(64),machine:'synthetic',sessionId:'scope',project:'/synthetic/scope',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-scope-final',conclusionOutcome:'reported_finished',conclusion}]
+ const updates=[{text:'系统实际完成0轮，三份消息均未采集，整个任务未完成。',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}],contexts=[]
+ const runtime=offline(context=>{
+  assert.deepEqual(visibleTools(context),[]);const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length));contexts.push(all)
+  assert.deepEqual(input.records,records)
+  if(all.includes('Summarize supplied connected Pi reports'))return assistant(JSON.stringify({updates,citations}))
+  assert.deepEqual(input.updates,updates);return assistant(JSON.stringify({status:'needs_review',reason:'本次没有取得证据不能说明全局没有执行。',citations}))
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ try{await assert.rejects(bot.summarizeRemote({records,omitted:0,incomplete:false}),/requires review/);assert.equal(contexts.length,2);for(const context of contexts){assert.match(context,/Missing or unavailable external records/);assert.match(context,/do not prove that no rounds occurred/);assert.match(context,/Do not combine source claims with independent coordinator verification/)}assert.match(contexts[1],/needs_review when an update turns limited evidence access into global absence or non-execution/)}finally{await bot.close()}
+})
+
+test('actual Durable owner acknowledgement keeps unknown delivery separate from confirmed sending',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false};const ownerContexts=[];let sends=0
+ const runtime=offline(context=>{
+  const all=JSON.stringify(context.messages)
+  if(all.includes('Check the current Personal Agent task after')){const input=parsePluginInput(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length)),receipt=input.receipts[0];return assistant(JSON.stringify({status:'needs_review',summary:'Delivery remains unconfirmed.',checks:[{requirement:'Continue the original task',scope:'admission',status:'needs_review',evidence:[{id:receipt.id,quote:receipt.text.slice(0,80)}]}]}))}
+  ownerContexts.push(all)
+  if(context.messages.at(-1).role!=='toolResult')return assistant([{type:'toolCall',id:'uncertain-followup',name:'codemode',arguments:{code:'text(await tools.remote_pi_followup({sourceKey:"synthetic-source",sourceRevision:"'+ 'a'.repeat(64) +'",prompt:"Continue the original task."}));'}}],'toolUse')
+  return assistant('暂时无法确认原会话是否收到这条指令。')
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>({intent:'session_continue'})});bot.attachRemoteContext(()=> 'Synthetic displayed task.',undefined,async()=>{sends++;return {accepted:false,delivery:'unknown'}})
+ try{await bot.prompt('Continue the original task.');assert.equal(sends,1);assert.ok(ownerContexts.length>=2);for(const context of ownerContexts){assert.match(context,/If accepted is false and delivery is unknown/);assert.match(context,/do not say the instruction was sent, forwarded, submitted, received, or executed/);assert.match(context,/even before an uncertainty clause/)} }finally{await bot.close()}
+})
