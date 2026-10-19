@@ -233,3 +233,10 @@ Native list summaries and full status records do not share a revision contract.
 Hosted replies retain revision checks and admission CAS.
 Historical native unknown receipts remain unchanged and do not block independent owner operations.
 Unresolved bound replies still block further replies to the same session.
+
+Overview generation selects integer entries from a host-supplied source catalog.
+The model chooses source order and grouping, without copying values or reference syntax.
+The host compiles that captured selection into the existing source-bound template.
+Current readings supply labels, values, units, and declared icons.
+Required-source coverage, output limits, and source-change checks still apply.
+Source-only loading or error facts do not count as a successful model summary.
