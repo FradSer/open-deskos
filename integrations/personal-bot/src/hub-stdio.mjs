@@ -1,5 +1,6 @@
 // Forced SSH command: this entry exposes only the owner's fixed runtime socket.
 import net from 'node:net'
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 export function bridgeMain({ input = process.stdin, output = process.stdout, uid = process.getuid?.(), connect = net.connect } = {}) {
@@ -23,7 +24,9 @@ export function bridgeMain({ input = process.stdin, output = process.stdout, uid
   socket.pipe(output)
   return socket
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+let directEntry = false
+try { directEntry = Boolean(process.argv[1]) && (import.meta.url === pathToFileURL(process.argv[1]).href || import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) } catch {}
+if (directEntry) {
   if (process.argv.length !== 2) process.exitCode = 1
   else { try { bridgeMain() } catch { process.exitCode = 1 } }
 }
