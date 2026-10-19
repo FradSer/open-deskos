@@ -36,21 +36,19 @@
               <div class="w-weather-reading">
                 <span class="w-weather-value"><span class="w-weather-number">--</span><span class="w-weather-unit"></span></span>
               </div>
-              <span class="w-weather-glyph" id="w-weather-glyph-slot"></span>
             </div>
+          </div>
+          <div class="w-weather-support">
+            <span class="w-weather-glyph" id="w-weather-glyph-slot"></span>
             <div class="w-weather-body">
               <span class="w-weather-condition w-state">No reading yet</span>
               <span class="w-weather-detail"></span>
             </div>
-          </div>
-          <div class="w-weather-range">
-            <span class="w-weather-range-pair">
-              <span class="w-weather-range-label">Low</span>
-              <span class="w-weather-range-value" id="w-weather-low">--</span>
-            </span>
-            <span class="w-weather-range-pair">
-              <span class="w-weather-range-label">High</span>
+            <span class="w-weather-range">
+              <span class="w-weather-range-label">H:</span>
               <span class="w-weather-range-value" id="w-weather-high">--</span>
+              <span class="w-weather-range-label">L:</span>
+              <span class="w-weather-range-value" id="w-weather-low">--</span>
             </span>
           </div>
         </div>`

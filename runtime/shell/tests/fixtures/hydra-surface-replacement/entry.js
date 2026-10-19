@@ -26,16 +26,18 @@
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
               <div class="hydra-plant-row">
                 <span class="hydra-plant-name">Plant 1</span>
+                <span class="hydra-plant-state"></span>
                 <span class="hydra-plant-soil">--</span>
               </div>
-              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
+              <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
             <div class="hydra-plant hydra-idle" id="hydra-plant-2">
               <div class="hydra-plant-row">
                 <span class="hydra-plant-name">Plant 2</span>
+                <span class="hydra-plant-state"></span>
                 <span class="hydra-plant-soil">--</span>
               </div>
-              <div class="hydra-meter" aria-hidden="true"><div class="hydra-meter-fill"></div></div>
+              <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
           </div>
           <p class="hydra-hint" hidden></p>
@@ -47,6 +49,7 @@
       const plants = [1, 2].map(id => {
         const node = find(`#hydra-plant-${id}`)
         return { id, node, name: node.querySelector('.hydra-plant-name'),
+          state: node.querySelector('.hydra-plant-state'),
           soil: node.querySelector('.hydra-plant-soil'), meter: node.querySelector('.hydra-meter-fill') }
       })
       let closed = false
@@ -108,8 +111,8 @@
           const entry = entries.find(value => value.id === plant.id)
           if (!entry) {
             plant.node.className = 'hydra-plant hydra-idle'
+            plant.state.textContent = ''
             plant.soil.textContent = '--'
-            plant.soil.classList.remove('hydra-soil-watering')
             plant.meter.style.transform = 'scaleX(0)'
             plant.meter.classList.remove('hydra-meter-dry')
             continue
@@ -119,8 +122,8 @@
           const missing = entry.soilPercent === undefined || entry.soilPercent === null
           const percent = offline || missing ? 0 : Math.round(entry.soilPercent)
           plant.node.className = `hydra-plant${offline ? ' hydra-offline' : ''}${stale ? ' hydra-stale' : ''}${watering ? ' hydra-watering' : ''}`
+          plant.state.textContent = offline ? 'Offline' : stale ? 'Stale' : watering ? 'Watering' : ''
           plant.soil.textContent = offline || missing ? '--' : `${Math.round(entry.soilPercent)}%`
-          plant.soil.classList.toggle('hydra-soil-watering', watering)
           plant.meter.style.transform = `scaleX(${percent / 100})`
           plant.meter.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
         }

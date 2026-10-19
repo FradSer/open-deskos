@@ -258,7 +258,8 @@ app.whenReady().then(async () => {
       assert.equal(results[1].condition, 'Thunderstorm with hail')
       assert.equal(results[1].low, '-100°')
       assert.equal(results[1].high, '100°')
-      assert.deepEqual(results[1].labels, ['Low', 'High'])
+      // One high-first pair with its labels inline, so both halves read the same way.
+      assert.deepEqual(results[1].labels, ['H:', 'L:'])
       assert.equal(results[1].place, options.place)
       assert.equal(results[1].controls, 0)
       assert.match(results[1].font, theme === 'pixel' ? /Zpix/ : /Montserrat/)
