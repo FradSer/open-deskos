@@ -5,13 +5,13 @@ import { constants } from 'node:fs'
 import { createWindowsPrivatePaths } from './proactive-private-windows.mjs'
 
 const STORE_LIMIT=1024*1024, FRAME_LIMIT=60*1024
-const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)
+const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value)
 const hash=value=>typeof value==='string' && /^[a-f0-9]{64}$/.test(value)
 const terminal=state=>['idle','error','unconfirmed'].includes(state)
 const states=['thinking','transcribing','idle','error','unconfirmed']
-const text=(value,limit)=>typeof value==='string' && value.length<=limit
+const text=(value,limit)=>typeof value==='string' && value.length<=limit && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value)
 const exact=(value,keys)=>value && !Array.isArray(value) && Object.keys(value).every(key=>keys.includes(key))
-function validReply(value) { return exact(value,['messageId','sourceKey','sourceRevision']) && hash(value.messageId) && text(value.sourceKey,256) && value.sourceKey.trim() && hash(value.sourceRevision) }
+function validReply(value) { return exact(value,['messageId','sourceKey','sourceRevision']) && hash(value.messageId) && text(value.sourceKey,256) && value.sourceKey.trim() && !/[\x00-\x1f\x7f]/.test(value.sourceKey) && hash(value.sourceRevision) }
 function validTurn(value) {
  return exact(value,['id','at','transcript','message','state','replyTo','threadId']) && uuid(value.id)
   && Number.isFinite(value.at) && value.at>=0 && text(value.transcript,4096) && text(value.message,16384)
