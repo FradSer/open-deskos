@@ -116,4 +116,5 @@ Feature: The voice control channel is a named pipe gated by the shared channel t
     When the actual bridge entry starts with SSH input still open
     Then it connects only to the resident owner's fixed socket
     And a read-only status request and response pass through the bridge
+    And it also starts when Node preserves the main symlink
     And importing the bridge does not start a connection

@@ -16,7 +16,7 @@ test('forced bridge pins the owner socket and releases it when SSH output closes
 })
 
 
-test('forced bridge starts through the current release symlink with SSH input open', {
+for (const preserveMainSymlink of [false, true]) test('forced bridge starts through the current release symlink with SSH input open' + (preserveMainSymlink ? ' with preserved main symlinks' : ''), {
   skip: process.platform === 'win32' ? 'The forced resident bridge runs on CM5 with a Unix owner' : false,
   timeout: 10000,
 }, async t => {
@@ -30,14 +30,14 @@ test('forced bridge starts through the current release symlink with SSH input op
   const {endpoint}=await import('./helpers/private-channel.mjs')
   const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-hub-entry-'))),release=join(directory,'release'),current=join(directory,'current')
   await mkdir(release)
-  const entry=join(release,'hub-stdio.mjs'),address=endpoint(directory,'hub'),peers=new Set()
+  const entry=join(release,'hub-stdio.mjs'),linkedEntry=join(current,'hub-stdio.mjs'),address=endpoint(directory,'hub'),peers=new Set()
   await writeFile(entry,await readFile(new URL('../src/hub-stdio.mjs',import.meta.url)))
   await symlink(release,current,'dir')
   const network=join(directory,'private-network.mjs'),preload=join(directory,'private-hook.mjs')
   await writeFile(network,`import net from 'node:net';import assert from 'node:assert/strict';
 export default {connect(address){assert.equal(address,'/run/user/'+process.getuid()+'/odk-personal-bot/agent.sock');return net.connect(${JSON.stringify(address)})}};`)
   await writeFile(preload,`import {registerHooks} from 'node:module';
-registerHooks({resolve(specifier,context,next){if(context.parentURL===${JSON.stringify(pathToFileURL(entry).href)}&&specifier==='node:net')return {url:${JSON.stringify(pathToFileURL(network).href)},shortCircuit:true};return next(specifier,context)}});`)
+registerHooks({resolve(specifier,context,next){if(context.parentURL===${JSON.stringify(pathToFileURL(preserveMainSymlink ? linkedEntry : entry).href)}&&specifier==='node:net')return {url:${JSON.stringify(pathToFileURL(network).href)},shortCircuit:true};return next(specifier,context)}});`)
   let command,child,output='',stderr=''
   const request=new Promise(resolve=>{command=resolve})
   const server=createServer(peer=>{
@@ -53,7 +53,7 @@ registerHooks({resolve(specifier,context,next){if(context.parentURL===${JSON.str
     await rm(directory,{recursive:true,force:true})
   })
   server.listen(address);await once(server,'listening')
-  child=spawn(process.execPath,['--import',pathToFileURL(preload).href,join(current,'hub-stdio.mjs')],{stdio:['pipe','pipe','pipe']})
+  child=spawn(process.execPath,[...(preserveMainSymlink ? ['--preserve-symlinks-main'] : []),'--import',pathToFileURL(preload).href,linkedEntry],{stdio:['pipe','pipe','pipe']})
   const closed=once(child,'close').then(([code])=>{throw Error('Forced bridge exited before status while SSH input was open: '+code+' '+stderr)})
   const response=new Promise(resolve=>child.stdout.on('data',chunk=>{output+=chunk;if(output.includes('\n'))resolve(output)}))
   child.stderr.on('data',chunk=>{stderr=(stderr+chunk).slice(0,4000)})

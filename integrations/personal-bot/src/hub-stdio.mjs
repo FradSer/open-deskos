@@ -25,7 +25,7 @@ export function bridgeMain({ input = process.stdin, output = process.stdout, uid
   return socket
 }
 let directEntry = false
-try { directEntry = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href } catch {}
+try { directEntry = Boolean(process.argv[1]) && (import.meta.url === pathToFileURL(process.argv[1]).href || import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) } catch {}
 if (directEntry) {
   if (process.argv.length !== 2) process.exitCode = 1
   else { try { bridgeMain() } catch { process.exitCode = 1 } }
