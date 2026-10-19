@@ -465,3 +465,25 @@ test('remote updates address the owner with concrete facts without claiming unar
  const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
  try{assert.deepEqual(await bot.summarizeRemote({records,omitted:0,incomplete:false}),{updates,citations});assert.equal(calls,2)}finally{await bot.close()}
 })
+
+
+test('actual zero-tool remote providers preserve the scope of unavailable evidence',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+ const conclusion='本次报告有证据支持0轮；本会话未取得外部用户消息、回复和摘要，无法核验实际完成轮数。'
+ const records=[{key:'synthetic-missing-records',revision:'a'.repeat(64),machine:'synthetic',sessionId:'scope',project:'/synthetic/scope',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-scope-final',conclusionOutcome:'reported_finished',conclusion}]
+ const updates=[{text:'系统实际完成0轮，三份消息均未采集，整个任务未完成。',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}],contexts=[];let summaries=0,reviews=0
+ const runtime=offline(context=>{
+  assert.deepEqual(visibleTools(context),[])
+  const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length));contexts.push(all)
+  assert.deepEqual(input.records,records)
+  assert.match(all,/evidence-access limits/);assert.match(all,/a source's limited observations are not global facts/)
+  if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
+  assert.match(all,/Judge the exact supplied update wording; do not silently rewrite/)
+  assert.deepEqual(input.updates,updates);reviews++
+  return assistant(JSON.stringify({status:'needs_review',reason:'本次没有取得证据不能说明全局没有执行。',citations}))
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ const {RemoteConversation}=await import('../src/remote-conversation.mjs')
+ const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-scope.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
+ try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1);assert.equal(contexts.length,2)}finally{await remote.close();await bot.close()}
+})

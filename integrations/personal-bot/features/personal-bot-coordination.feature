@@ -177,3 +177,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     And no Memory, tool context, or private service fields enter the projection
     And interrupted pending turns restore as unconfirmed without replay
     And storage errors cannot throw into the service
+
+  Scenario: Missing records do not establish global non-execution
+    Given a completed Pi turn verifies zero rounds within its available records
+    And external execution records are unavailable in that turn
+    When the summary claims that the system completed zero rounds globally
+    Then the reviewer receives the original text with the evidence-access limit
+    And its needs_review result prevents publication and persists a held revision
+    And later pushes do not silently retry that revision
