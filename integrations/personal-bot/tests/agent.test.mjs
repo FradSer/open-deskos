@@ -383,7 +383,7 @@ function assistant(text, stopReason = 'stop') {
   ] }
 }
 
-function streamingSession(run) {
+function streamingSession(run, hooks) {
   let listener
   let subscribed = false
   let unsubscribed = 0
@@ -400,8 +400,19 @@ function streamingSession(run) {
     },
     abort: async () => {}, dispose: () => {},
   }
-  return { adapter: sessionAdapter(session), emitLate: event => listener(event), unsubscribed: () => unsubscribed }
+  return { adapter: sessionAdapter(session,hooks), emitLate: event => listener(event), unsubscribed: () => unsubscribed }
 }
+
+test('session continuation can suppress model drafts before binding without muting ordinary answers',async()=>{
+ for(const stream of [false,true]) {
+  const snapshots=[];let prepared=false
+  const {adapter}=streamingSession(async emit=>{
+   update(emit,'已发送并完成');emit({type:'message_end',message:assistant('Model final')})
+  },{beginTurn:()=>{},prepareTurn:async()=>{prepared=true;return{}},streamResponse:()=>{assert.equal(prepared,true);return stream},afterTurn:async()=> 'Host final'})
+  assert.equal(await adapter.prompt('request',value=>snapshots.push(value)),'Host final')
+  assert.deepEqual(snapshots,stream?['已发送并完成','Model final','Host final']:[])
+ }
+})
 
 function update(emit, text, type = 'text_delta') {
   const message = assistant(text)

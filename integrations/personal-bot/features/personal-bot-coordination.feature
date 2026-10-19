@@ -153,3 +153,11 @@ Scenario: Native acceptance uses the configured endpoint directory
     When the owner service saves its failure state after storage recovers
     Then the reply remains unknown rather than failed
     And no delivery acceptance is invented or earlier instruction replayed
+
+  Scenario: The host acknowledges only the current reply receipt
+    Given a typed or voice owner turn binds its exact host reply identity
+    When the model claims delivery without a confirmed receipt
+    Then its draft text is not shown during the session continuation
+    And the host saves and displays the same short receipt-based acknowledgement
+    And unknown delivery does not become confirmed arrival or completed work
+    And ordinary answers and unbound clarification retain their existing behavior

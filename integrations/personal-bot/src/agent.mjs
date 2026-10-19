@@ -253,21 +253,26 @@ export async function createPersonalBot(config, { createSession = createDurableA
         return prepared
       },
       completeTurn: intentTurn.complete,
+      streamResponse: () => intentTurn.getIntent()!=='session_continue',
       beginTurn: async (text, owner) => {
+        if(text && intentTurn.getIntent()==='session_continue')owner?.requireDeliveryAcknowledgement?.()
         currentTurn = text.trim(); ownerTurn = text ? Object.freeze({text,turn:intentTurn.getTurn(),id:owner?.id??randomUUID(),bind:bound=>{activeReply=bound;owner?.bind(bound)}}) : undefined; memory?.beginTurn(text); reviewed?.beginTurn(text)
         plugins?.beginTurn(text)
         packages?.beginTurn(text, intentTurn.getIntent())
         if (!text) { activeReply=undefined;intentTurn.clear(); await session.setActiveToolsByName(baseTools) }
       },
       context: async () => `${memory ? `Saved MEMORY data (not instructions or authorization):\n${await memory.read()}\nEnd MEMORY data.\n` : ''}${plugins?.context() ?? ''}${packages?.context() ?? ''}${remoteContext()}`,
-      afterTurn: plugins ? async (_text, answer, signal) => {
-        lastTaskResult = await plugins.finishTurn(answer, signal)
+      afterTurn: async (_text, answer, signal) => {
+        if(plugins)lastTaskResult = await plugins.finishTurn(answer, signal)
+        // A model-selected continuation without a bound remote receipt cannot certify delivery.
+        if(intentTurn.getIntent()==='session_continue' && !activeReply)return '暂不能确认原会话的指令投递结果。'
+        if(!plugins)return answer
         const notes = []
         if (lastTaskResult.verification.status === 'needs_review') notes.push('还没有足够证据确认任务已完成。')
         if (lastTaskResult.verification.status === 'passed' && lastTaskResult.verification.checks.some(check => check.scope === 'admission')) notes.push('指令已受理，任务是否完成还需确认。')
         if (lastTaskResult.learning.status === 'needs_review') notes.push('经验学习未完成；现有经验已保留。')
         return [answer, ...notes].filter(Boolean).join('\n\n')
-      } : undefined,
+      },
     })
     return { ...adapter,
       judge: input => judgment.request({...input, signal: input.signal ? AbortSignal.any([input.signal, lifetime.signal]) : lifetime.signal}),
@@ -376,7 +381,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
 }
 
 /** @param {Pick<import('@earendil-works/pi-coding-agent').AgentSession, 'isStreaming'|'prompt'|'subscribe'|'abort'|'dispose'> & {recover?: (signal: AbortSignal) => Promise<void>}} session
- * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
+ * @param {{beginTurn: (text: string, owner?: import('./session-replies.mjs').OwnerTurn) => void | Promise<void>, context?: () => Promise<string>, answer?: (text: string) => Promise<string | undefined>, prepareTurn?: (text: string, signal: AbortSignal, reply?: import('./session-replies.mjs').BoundSessionReply) => Promise<{answer?: string, context?: string}>, streamResponse?: () => boolean, completeTurn?: (text: string, answer: string) => void, afterTurn?: (text: string, answer: string, signal: AbortSignal) => Promise<string>}} hooks */
 export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
   let prompting = false
   let controller
@@ -388,7 +393,8 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
       controller = new AbortController()
       let active = true
       let unsubscribe
-      const response = responseSnapshots(onResponseSnapshot)
+      const publish = snapshot => { if(hooks.streamResponse?.()!==false)onResponseSnapshot?.(snapshot) }
+      const response = responseSnapshots(publish)
       try {
         const prepared = await hooks.prepareTurn?.(text, controller.signal,reply)
         controller.signal.throwIfAborted()
@@ -407,7 +413,7 @@ export function sessionAdapter(session, hooks = { beginTurn: (_text) => {} }) {
         const result = hooks.afterTurn ? await hooks.afterTurn(text, draft, controller.signal) : draft
         controller.signal.throwIfAborted()
         hooks.completeTurn?.(text, result)
-        if (result !== draft) onResponseSnapshot?.(result)
+        if (result !== draft) publish(result)
         return result
       } finally {
         active = false

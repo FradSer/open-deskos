@@ -602,18 +602,56 @@ test('startup Jev failure is durable safe status and a disposed check cannot pub
 
 
 test('an AI-bound owner turn keeps one host identity and persists its answer in the same reply',async()=>{
- const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[];let ownerId,lateBind
+ const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[];let ownerId,lateBind,lateAcknowledgement
  const service=new PersonalBotService({record:async()=>{throw Error('unused')},transcribe:async()=>'',prompt:async(text,_snapshot,reply,owner)=>{
   assert.equal(reply,undefined);assert.match(owner.id,/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/);ownerId=owner.id;assert.equal(service.status.ownerTurnId,ownerId)
-  lateBind=owner.bind;owner.bind({id:ownerId,text,replyTo:reference,threadId,source:{}})
+  lateBind=owner.bind;lateAcknowledgement=owner.requireDeliveryAcknowledgement;owner.requireDeliveryAcknowledgement();owner.bind({id:ownerId,text,replyTo:reference,threadId,source:{}})
   service.publishRemote({state:'live',messages:[],replies:[{id:ownerId,status:'unknown'}]})
   assert.equal(service.status.ownerTurnId,ownerId);assert.deepEqual(service.status.replyTo,reference);return 'The task instruction has a delivery receipt.'
  }})
  service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},completeReply:(id,patch)=>updates.push({id,...patch})})
  assert.equal(service.sendText('Continue the displayed task.'),true);await service.pending
  assert.equal(service.status.ownerTurnId,ownerId);assert.equal(service.status.threadId,threadId);assert.equal(service.status.state,'idle')
- assert.deepEqual(updates,[{id:ownerId,status:'answered',answer:'The task instruction has a delivery receipt.'}])
+ assert.deepEqual(updates,[{id:ownerId,status:'answered',answer:'暂不能确认原会话是否收到指令。'}])
+ const finished=service.status;assert.throws(()=>lateAcknowledgement(),/owner/i);assert.equal(service.status,finished)
  assert.throws(()=>lateBind({id:ownerId,replyTo:reference,threadId}),/owner/i);await service.close()
+})
+
+test('typed and voice acknowledgements use only their current host receipt',async t=>{
+ const cases=[
+  ['unknown',{status:'unknown',receipt:{accepted:false,delivery:'unknown'}},'暂不能确认原会话是否收到指令。'],
+  ['dispatching',{status:'dispatching'},'暂不能确认原会话是否收到指令。'],
+  ['missing receipt',{status:'delivered'},'暂不能确认原会话是否收到指令。'],
+  ['queued',{status:'delivered',receipt:{accepted:true,delivery:'queued'}},'指令已进入原会话队列，尚不代表任务完成。'],
+  ['ran',{status:'delivered',receipt:{accepted:true,delivery:'ran'}},'原会话已受理指令并开始本轮处理，尚不代表任务完成。'],
+ ]
+ for(const input of ['typed','voice'])for(const [name,outcome,answer]of cases)await t.test(`${input} ${name}`,async()=>{
+  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},threadId='c'.repeat(64),updates=[],frames=[];let currentId
+  const {service}=fixture({prompt:async(text,snapshot,_reply,owner)=>{
+   currentId=owner.id;owner.requireDeliveryAcknowledgement();owner.bind({id:owner.id,text,replyTo:reference,threadId,source:{}})
+   snapshot('已发送并已完成。');await new Promise(resolve=>setTimeout(resolve,120));return '已发送并已完成。'
+  }})
+  service.subscribe(frame=>frames.push(frame))
+  service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},replyOutcome:id=>{assert.equal(id,currentId);return{id,...outcome}},completeReply:(id,patch)=>updates.push({id,...patch})})
+  if(input==='typed'){assert.equal(service.sendText('继续原任务'),true);await service.pending}else{await service.toggle();await service.toggle()}
+  assert.equal(service.status.state,'idle');assert.equal(service.status.message,answer)
+  assert.deepEqual(updates,[{id:currentId,status:'answered',answer}]);assert.ok(frames.every(frame=>!frame.message.includes('已发送并已完成')))
+  await service.close()
+ })
+ await t.test('a different receipt identity cannot certify this owner turn',async()=>{
+  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)}
+  const {service}=fixture({prompt:async(text,_snapshot,_reply,owner)=>{owner.requireDeliveryAcknowledgement();owner.bind({id:owner.id,text,replyTo:reference,threadId:'c'.repeat(64),source:{}});return '已发送'}})
+  service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},replyOutcome:()=>({id:'other-turn',status:'delivered',receipt:{accepted:true,delivery:'ran'}}),completeReply:()=>{}})
+  service.sendText('继续');await service.pending;assert.equal(service.status.message,'暂不能确认原会话是否收到指令。');await service.close()
+ })
+ await t.test('a bound read-only answer keeps its text and streaming without a continuation workflow',async()=>{
+  const reference={messageId:'a'.repeat(64),sourceKey:'retained-source',sourceRevision:'b'.repeat(64)},frames=[],writes=[]
+  const {service}=fixture({prompt:async(text,snapshot,_reply,owner)=>{owner.bind({id:owner.id,text,replyTo:reference,threadId:'c'.repeat(64),source:{}});snapshot('原报告的结论');await new Promise(resolve=>setTimeout(resolve,120));return '原报告的结论是仍需试装。'}})
+  service.subscribe(frame=>frames.push(frame))
+  service.attachRemoteUpdates({snapshot:()=>({state:'live',messages:[]}),poll:async()=>{},replyOutcome:()=>{throw Error('A query must not read an admission receipt')},completeReply:(_id,patch)=>writes.push(patch)})
+  service.sendText('这个报告结论是什么？');await service.pending
+  assert.equal(service.status.message,'原报告的结论是仍需试装。');assert.ok(frames.some(frame=>frame.message==='原报告的结论'));assert.equal(writes[0].answer,service.status.message);await service.close()
+ })
 })
 
 

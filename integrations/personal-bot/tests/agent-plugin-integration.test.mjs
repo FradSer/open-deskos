@@ -430,3 +430,16 @@ test('actual zero-tool remote providers preserve conditional acceptance scope',a
  const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
  try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,0);assert.equal(remote.snapshot().heldCount,1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
 })
+
+test('actual Durable owner acknowledgement keeps unknown delivery separate from confirmed sending',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false};const ownerContexts=[];let sends=0
+ const runtime=offline(context=>{
+  const all=JSON.stringify(context.messages)
+  if(all.includes('Check the current Personal Agent task after')){const input=parsePluginInput(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length)),receipt=input.receipts[0];return assistant(JSON.stringify({status:'needs_review',summary:'Delivery remains unconfirmed.',checks:[{requirement:'Continue the original task',scope:'admission',status:'needs_review',evidence:[{id:receipt.id,quote:receipt.text.slice(0,80)}]}]}))}
+  ownerContexts.push(all)
+  if(context.messages.at(-1).role!=='toolResult')return assistant([{type:'toolCall',id:'uncertain-followup',name:'codemode',arguments:{code:'text(await tools.remote_pi_followup({sourceKey:"synthetic-source",sourceRevision:"'+ 'a'.repeat(64) +'",prompt:"Continue the original task."}));'}}],'toolUse')
+  return assistant('已发送并完成任务。')
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>({intent:'session_continue'})});bot.attachRemoteContext(()=> 'Synthetic displayed task.',undefined,async()=>{sends++;return {accepted:false,delivery:'unknown'}})
+ try{const snapshots=[];assert.equal(await bot.prompt('Continue the original task.',value=>snapshots.push(value)),'暂不能确认原会话的指令投递结果。');assert.deepEqual(snapshots,[]);assert.equal(sends,1);assert.ok(ownerContexts.length>=2);}finally{await bot.close()}
+})

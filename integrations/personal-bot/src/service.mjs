@@ -3,6 +3,14 @@ import { randomUUID } from 'node:crypto'
 
 const replyPersistenceFailure = 'Reply status could not be saved. Check its delivery receipt before sending again.'
 
+function replyAcknowledgement(outcome, id) {
+  if(outcome?.id===id && outcome.status==='delivered' && outcome.receipt?.accepted===true) {
+    if(outcome.receipt.delivery==='queued')return '指令已进入原会话队列，尚不代表任务完成。'
+    if(outcome.receipt.delivery==='ran')return '原会话已受理指令并开始本轮处理，尚不代表任务完成。'
+  }
+  return '暂不能确认原会话是否收到指令。'
+}
+
 function boundedText(text, limit, label) {
   const notice = `\n\n[${label} truncated]`
   return text.length <= limit ? text : text.slice(0, limit - notice.length) + notice
@@ -278,16 +286,33 @@ export class PersonalBotService {
     let timer
     const stop = () => { active = false; clearTimeout(timer); timer = undefined }
     this.cancelStreaming = stop
+    let bound=reply
+    let acknowledge=false
+    const clearDraft=()=>{
+      clearTimeout(timer);timer=undefined;latest=''
+      if(this.status.message)this.setState('thinking','')
+    }
+    const currentOwner=owner?Object.freeze({...owner,requireDeliveryAcknowledgement:()=>{
+      if(!active || this.closed || this.status.state!=='thinking' || this.replyFrame.ownerTurnId!==owner.id)throw Error('Owner reply binding is no longer active')
+      acknowledge=true;clearDraft()
+    },bind:value=>{
+      owner.bind(value)
+      bound=value
+      if(acknowledge)clearDraft()
+    }}):undefined
     try {
-      return await this.dependencies.prompt(text, snapshot => {
-        if (!active || this.closed) return
+      const response=await this.dependencies.prompt(text, snapshot => {
+        if (!active || this.closed || acknowledge) return
         latest = boundedText(snapshot, 16_384, 'Response')
         if (timer || latest === this.status.message) return
         timer = setTimeout(() => {
           timer = undefined
-          if (active && !this.closed && latest !== this.status.message) this.setState('thinking', latest)
+          if (active && !this.closed && !acknowledge && latest !== this.status.message) this.setState('thinking', latest)
         }, 100)
-      },reply,owner) || ''
+      },reply,currentOwner) || ''
+      if(!acknowledge || !bound)return response
+      if(this.closed || !owner || bound.id!==owner.id || this.replyFrame.ownerTurnId!==owner.id)throw Error('Owner reply binding is no longer active')
+      return replyAcknowledgement(this.remote?.replyOutcome?.(owner.id),owner.id)
     } finally {
       stop()
       this.cancelStreaming = () => {}
