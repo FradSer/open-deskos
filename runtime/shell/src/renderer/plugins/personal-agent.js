@@ -42,6 +42,7 @@
       const remoteRecords = new Map()
       const timeline = new Map()
       const remoteArchive = new Map()
+      const remoteObservedAt = new Map()
       const ownerArchive = new Map()
       const replyArchive = new Map()
       let allowedHistory = new Set()
@@ -80,13 +81,21 @@
         return origins.length===1 && origins[0].threadId ? origins[0].threadId : reply.threadId
       }
       function removeMessage(article) { if (article) { timeline.delete(article);article.remove() } }
+      function expireOwner(id) {
+        const owner = ownerTurns.get(id)
+        ownerArchive.delete(id)
+        if (owner === turn) return
+        ownerTurns.delete(id)
+        if (owner && !durableReplies.has(id)) for (const body of [owner.user, owner.response]) removeMessage(body.closest('article'))
+      }
+      function trimOwnerTurns() {
+        while (ownerTurns.size > 128) expireOwner([...ownerTurns].find(([,owner])=>owner !== turn)[0])
+      }
       function prepareHistory(status) {
         for (const item of status.conversation?.turns || []) ownerArchive.set(item.id, item)
         for (const item of [...(status.remote?.replies || [])].reverse()) replyArchive.set(item.id, item)
         while (ownerArchive.size > 128) {
-          const id = ownerArchive.keys().next().value, owner = ownerTurns.get(id)
-          ownerArchive.delete(id);ownerTurns.delete(id)
-          if (owner && !durableReplies.has(id) && owner !== turn) for (const body of [owner.user, owner.response]) removeMessage(body.closest('article'))
+          expireOwner(ownerArchive.keys().next().value)
         }
         while (replyArchive.size > 128) {
           const id = replyArchive.keys().next().value, row = durableReplies.get(id)
@@ -99,15 +108,19 @@
             if (row.answer) removeMessage(row.answer.closest('article'))
           }
         }
-        for (const item of [...(status.remote?.messages || [])].reverse()) remoteArchive.set(remoteKey(item), item)
+        for (const item of [...(status.remote?.messages || [])].reverse()) {
+          const key = remoteKey(item)
+          if (!remoteObservedAt.has(key)) remoteObservedAt.set(key, item.at ?? Date.now())
+          remoteArchive.set(key, item)
+        }
         while (remoteArchive.size > 64) {
           const key = remoteArchive.keys().next().value
           const article = remoteMessages.get(key)
           if (article) { timeline.delete(article);article.remove();remoteMessages.delete(key) }
-          remoteArchive.delete(key);remoteRecords.delete(key)
+          remoteArchive.delete(key);remoteObservedAt.delete(key);remoteRecords.delete(key)
         }
         const entries = new Map()
-        for (const [key, item] of remoteArchive) entries.set(`remote:${key}`, {key:`remote:${key}`,at:item.at || 0,threads:(item.sources || []).map(source=>source.threadId)})
+        for (const [key, item] of remoteArchive) entries.set(`remote:${key}`, {key:`remote:${key}`,at:remoteObservedAt.get(key),threads:(item.sources || []).map(source=>source.threadId)})
         for (const item of ownerArchive.values()) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[item.threadId]})
         for (const item of replyArchive.values()) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[replyThread(item)]})
         allowedHistory = new Set([...allowedHistory].filter(key=>entries.has(key)))
@@ -312,11 +325,7 @@
             owner.response.setAttribute('aria-busy', 'false')
           } else notice?.remove()
         }
-        while (ownerTurns.size > 128) {
-          const id = ownerTurns.keys().next().value, owner = ownerTurns.get(id)
-          ownerTurns.delete(id)
-          if (!durableReplies.has(id) && owner !== turn) for (const body of [owner.user, owner.response]) { const article = body.closest('article');timeline.delete(article);article.remove() }
-        }
+        trimOwnerTurns()
         if (!historyCoverage && frame?.omittedCount) {
           historyCoverage = document.createElement('details');historyCoverage.className = 'agent-remote-coverage'
           const label = document.createElement('summary');label.textContent = 'Earlier messages'
@@ -384,7 +393,7 @@
               const replyFocused = document.activeElement?.classList.contains('agent-session-reply')
               for (const row of body.querySelectorAll('.agent-message-session')) row.remove()
               for (const source of item.sources) body.querySelector('.agent-update-sources').append(sessionLabel(source, item, recordKey))
-              timelineEntry(article, item.at, item.sources.map(source => source.threadId))
+              timelineEntry(article, remoteObservedAt.get(recordKey), item.sources.map(source => source.threadId))
               for (const [index, source] of item.sources.entries()) {
                 const oldThread = previous.sources[index].threadId
                 if (selectedThread && selectedThread.id === oldThread) selectedThread = source.threadId ? { id: source.threadId, sessionId: source.sessionId } : null
@@ -402,7 +411,7 @@
           const body = message('assistant', item.text)
           const article = body.closest('article')
           article.dataset.remoteId = item.id
-          timelineEntry(article, item.at, (item.sources || []).map(source => source.threadId))
+          timelineEntry(article, remoteObservedAt.get(recordKey), (item.sources || []).map(source => source.threadId))
           remoteMessages.set(recordKey, article)
           if (item.presentation === 'assistant_update') article.classList.add('agent-update')
           else {
@@ -499,7 +508,7 @@
           }
           if (status.ownerTurnId) {
             ownerTurns.set(status.ownerTurnId, turn)
-            while (ownerTurns.size > 128) ownerTurns.delete(ownerTurns.keys().next().value)
+            trimOwnerTurns()
           }
         }
         if (turn && status.ownerTurnId === turn.ownerTurnId && ['idle', 'error'].includes(status.state)) turn.historyTerminal = false
@@ -535,7 +544,7 @@
         released = true;clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
         $('.agent-history-earlier').removeEventListener('click', loadEarlier)
-        lastSnapshot = undefined;remoteArchive.clear();ownerArchive.clear();replyArchive.clear();allowedHistory.clear();historyEntries = []
+        lastSnapshot = undefined;remoteArchive.clear();remoteObservedAt.clear();ownerArchive.clear();replyArchive.clear();allowedHistory.clear();historyEntries = []
       })
       const initialRevision = revision
       root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })

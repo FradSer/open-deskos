@@ -474,6 +474,14 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-reply-id]').length`),128,'reply data and DOM keep the existing 128-entry bound')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id]').length`),128,'owner data and DOM keep the existing 128-entry bound')
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"], [data-owner-turn-id="${turns[0].id}"]')`),false,'entries beyond the original bounds expire')
+    for(let i=0;i<2;i++) {
+      const live={state:'thinking',ownerTurnId:id(60001+i),transcript:`Live owner ${i}`,message:`Live response ${i}`,conversation:{revision:30+i,turns:[]},remote:{state:'live',messages:[],replies:[],total:0}}
+      publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.equal(await evaluate(`Array.from(document.querySelectorAll('.agent-message-user')).filter(row=>/^(Bounded owner|Live owner)/.test(row.querySelector('.agent-message-body').textContent)).length`),128,'a new live turn evicts the oldest mounted owner pair within the original bound')
+      publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.equal(await evaluate(`(()=>{const rows=[...document.querySelectorAll('.agent-message-user')].filter(row=>/^(Bounded owner|Live owner)/.test(row.querySelector('.agent-message-body').textContent));return rows.length===128&&new Set(rows.map(row=>row.querySelector('.agent-message-body').textContent)).size===128})()`),true,'later pushes cannot recreate an evicted owner pair or orphan its existing DOM')
+      assert.equal(await evaluate(`Array.from(document.querySelectorAll('.agent-message-body')).filter(body=>body.textContent===${JSON.stringify(live.transcript)}||body.textContent===${JSON.stringify(live.message)}).length`),2,'the current live user and assistant remain mounted exactly once')
+    }
     assert.equal(sentText.length,0)
     console.log('PASS deferred owner/reply history survives later snapshots within original 128-entry bounds')
     return finish(0)
@@ -534,6 +542,13 @@ app.whenReady().then(async () => {
       assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),p=document.querySelector('.agent-panel').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return c.scrollWidth<=c.clientWidth+1&&f.bottom<=p.bottom+1&&f.right<=p.right+1&&getComputedStyle(c).overflowY==='auto'})()`),true,'long CJK history keeps one scroller and a fixed composer')
       try { fs.writeFileSync(path.join(os.tmpdir(),`odk-lazy-history-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG()) } catch(error) { throw Error(`Lazy capture ${theme} ${width}: ${error.message}`) }
     }
+    const legacy={id:'e'.repeat(64),text:'Newly received legacy update without a timestamp',presentation:'assistant_update',sources:[source(80)],verification:'reported_unverified',synthesisVerification:'passed'}
+    const dated=Array.from({length:12},(_,i)=>({...legacy,id:String(200+i).padStart(64,'d'),at:Date.now()-1000+i,text:`Dated update ${i}`}))
+    const mixed={...frame,remote:{state:'live',messages:[legacy,...dated.reverse()],replies:[],total:13}}
+    publishStatus(mixed);await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${legacy.id}"]').length`),1,'a newly received legacy update without at is not buried as epoch zero')
+    publishStatus(mixed);await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${legacy.id}"]').length`),1,'repeated legacy snapshots retain one stable remote identity')
     await evaluate(`window.lazyObserver.disconnect()`)
     console.log('PASS lazy history bounded DOM, earlier batches, anchor, thread/reply and draft')
     return finish(0)
