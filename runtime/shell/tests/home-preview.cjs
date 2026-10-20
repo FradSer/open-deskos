@@ -169,22 +169,17 @@ app.whenReady().then(async () => {
     // These surfaces have no product data channel yet. Scope their simulated
     // display to this fixture, expose it explicitly, and restore it after capture.
     const controls = await js(`(() => {
-      const timer = document.querySelector('[data-widget="odk.tile.pomodoro"]');
       const net = document.querySelector('#sb-net');
-      const nodes = [timer.querySelector('.ring-mmss'), timer.querySelector('.pomodoro-state')];
-      window.previewRestore = { nodes, texts: nodes.map(node => node.textContent), netLabel: net.getAttribute('aria-label'), netTitle: net.getAttribute('title') };
-      nodes[0].textContent = ${JSON.stringify(preview.pomodoro.remaining)};
-      nodes[1].textContent = ${JSON.stringify(preview.pomodoro.state)};
-      timer.dataset.previewSimulated = 'true'; net.dataset.previewConnected = 'true';
+      window.previewRestore = { netLabel: net.getAttribute('aria-label'), netTitle: net.getAttribute('title') };
+      net.dataset.previewConnected = 'true';
       net.setAttribute('aria-label', 'Wi-Fi connected (simulated)'); net.setAttribute('title', 'Wi-Fi connected (simulated)');
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync('#sb-net[data-preview-connected]::after { content: none; } [data-preview-simulated] .ring-arc { stroke: var(--odk-primary); stroke-dashoffset: ${314 * preview.pomodoro.progress}; }');
+      sheet.replaceSync('#sb-net[data-preview-connected]::after { content: none; }');
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       window.previewSheet = sheet;
-      return { timer: nodes[0].textContent, simulated: timer.dataset.previewSimulated, wifi: getComputedStyle(net, '::after').content };
+      return { timer: document.querySelector('.ring-mmss').textContent, wifi: getComputedStyle(net, '::after').content };
     })()`)
-    assert.equal(controls.timer, '18:42')
-    assert.equal(controls.simulated, 'true')
+    assert.equal(controls.timer, '25:00')
     assert.equal(controls.wifi, 'none')
     await js(`(async () => {
       await odkTheme.set('${theme}');
@@ -451,14 +446,12 @@ app.whenReady().then(async () => {
     }
   }
   await js(`(() => {
-    const { nodes, texts, netLabel, netTitle } = previewRestore;
-    nodes.forEach((node, index) => { node.textContent = texts[index]; });
-    delete document.querySelector('[data-preview-simulated]').dataset.previewSimulated;
+    const { netLabel, netTitle } = previewRestore;
     const net = document.querySelector('#sb-net'); delete net.dataset.previewConnected;
     net.setAttribute('aria-label', netLabel); net.setAttribute('title', netTitle);
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== previewSheet);
     if (document.adoptedStyleSheets.includes(previewSheet) || document.querySelector('[data-preview-simulated], [data-preview-connected]')) throw Error('Preview controls retained');
-    if (document.querySelector('.ring-mmss').textContent !== '--:--') throw Error('Pomodoro fixture did not restore the product state');
+    if (document.querySelector('.ring-mmss').textContent !== '25:00') throw Error('Pomodoro fixture did not restore the product state');
     delete window.previewRestore; delete window.previewSheet;
   })()`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {

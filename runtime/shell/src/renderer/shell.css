@@ -1103,7 +1103,7 @@ body.kiosk {
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.01em;
-  color: var(--odk-accent-red);
+  color: var(--odk-secondary-strong);
   text-transform: uppercase;
 }
 

@@ -462,6 +462,7 @@ async function main() {
     REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
     get connection() { return odkServices.connection },
     get subscription() { return odkServices.subscription },
+    get focus() { return odkServices.get('odk.service.focus') },
     get camera() { return odkServices.camera },
     get remoteLink() { return odkServices.remoteLink },
     get briefing() { return odkServices.briefing },

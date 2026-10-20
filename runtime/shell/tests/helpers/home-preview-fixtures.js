@@ -79,7 +79,7 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
   replace('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })
   ipcMain.handle('odk-personal-bot-text', () => ({ accepted: true }))
   ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: true }))
-  return { synthetic: true, briefing, prompt, reply, updates, remote, highlight, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }
+  return { synthetic: true, briefing, prompt, reply, updates, remote, highlight }
 }
 
 module.exports = { installHomePreviewFixtures }

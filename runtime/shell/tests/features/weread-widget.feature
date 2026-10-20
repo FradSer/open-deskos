@@ -199,3 +199,10 @@ Feature: WeRead highlight widget
     And source-only revision fixtures retain their 45 second watchdog
     And each readiness check retains its four second deadline
     And other hosts retain their existing aggregate deadlines
+
+  Scenario: The App launcher leaves a long excerpt available to pointer scrolling
+    Given the excerpt exceeds its readable Widget region
+    When a pointer is over the excerpt
+    Then the excerpt receives pointer and wheel input above the App launcher
+    And its scrollbar signals the additional content
+    And the book details still open the WeRead App

@@ -20,8 +20,8 @@
     waiting: { badge: 'Waiting', tone: 'is-muted', condition: 'No reading yet', detail: '' },
     live: { badge: '', tone: 'is-muted', condition: null, detail: null },
     stale: { badge: 'Stale', tone: 'is-warn', condition: null, detail: null },
-    unavailable: { badge: 'Unavailable', tone: 'is-warn', condition: 'No weather reading', detail: 'Source unavailable' },
-    unconfigured: { badge: 'Unconfigured', tone: 'is-muted', condition: 'No weather location', detail: 'Location not set' },
+    unavailable: { badge: 'Unavailable', tone: 'is-warn', condition: 'No weather reading', detail: 'Open Weather to retry' },
+    unconfigured: { badge: 'Unconfigured', tone: 'is-muted', condition: 'No weather location', detail: 'Open Weather for details' },
   }
 
   root.odkPlugins.register({

@@ -69,6 +69,7 @@ app.whenReady().then(async () => {
     window.toolDependencyViolations = [];
     window.guardToolMount = mount => function(element, context) {
       const guarded = new Proxy(context, { get(_target, key) {
+        if (['focus', 'onTick', 'trackCleanup'].includes(key)) return context[key];
         if (window.toolDependencyViolations.length < 6) window.toolDependencyViolations.push(String(key));
         throw Error('Static tool dependency observed: ' + String(key));
       } });
@@ -104,7 +105,7 @@ app.whenReady().then(async () => {
       if (!actual) throw Error('Desk tool placement absent: ' + spec.id);
       const sample = document.createElement('div'); sample.id = 'tool-' + spec.file;
       sample.className = actual.className; document.body.append(sample);
-      const ui = {};
+      const ui = { focus:window.odkServices.get('odk.service.focus'), onTick:window.odkServices.onTick };
       if (!window.odkPlugins.activate(window.odkPlugins.get(spec.id), sample, ui)) throw Error('Desk tool mount refused');
       window.toolConsumers.push({ spec, actual, sample, ui });
     }

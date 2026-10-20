@@ -206,9 +206,9 @@
     refs.rows.innerHTML = ''
     // Captions stay short enough to render whole in the narrowest cell the Shell
     // computes, so a state is never announced as an ellipsis.
-    if (state === 'unconfigured') writeText(refs.detail, 'Not configured')
-    else if (state === 'needs-auth') writeText(refs.detail, 'Unlock trade')
-    else if (state === 'unavailable' || state === 'live') writeText(refs.detail, 'Unavailable')
+    if (state === 'unconfigured') writeText(refs.detail, 'Connect Futu')
+    else if (state === 'needs-auth') writeText(refs.detail, 'Check access')
+    else if (state === 'unavailable' || state === 'live') writeText(refs.detail, el.dataset.expanded === 'true' ? 'Select Refresh to try again' : 'Open to refresh')
     else writeText(refs.detail, 'Syncing')
   }
 

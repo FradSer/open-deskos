@@ -15,8 +15,8 @@
     waiting: ['Waiting', 'is-muted', 'No reading yet', ''],
     live: ['', 'is-muted', null, null],
     stale: ['Stale', 'is-warn', null, null],
-    unavailable: ['Unavailable', 'is-warn', 'No weather reading', 'Source unavailable'],
-    unconfigured: ['Unconfigured', 'is-muted', 'No weather location', 'Location not set'],
+    unavailable: ['Unavailable', 'is-warn', 'No weather reading', 'Open Weather to retry'],
+    unconfigured: ['Unconfigured', 'is-muted', 'No weather location', 'Open Weather for details'],
   }
   root.odkRendererDevelopment.define({
     id: 'odk.tile.weather', manifest: { schemaVersion: 1 }, kind: 'tile', app: 'Weather',

@@ -164,7 +164,7 @@ const DRIVER_SCRIPT = `
     !$('#pages-viewport').inert &&
     !$('#status-bar').inert
   out.widgetStatesAreHonest =
-    $('.w-pomodoro .w-state')?.textContent === 'App timer'
+    $('.w-pomodoro .w-state')?.textContent === 'Ready'
   out.widgetsUseFlexibleAnatomy = Boolean(
     $('.w-year .year-signal-line') &&
     $('.w-pomodoro .pomodoro-state') &&
@@ -204,7 +204,7 @@ const DRIVER_SCRIPT = `
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
   out.timeAndDateWidgetsRemoved = !document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')
   out.overviewDateRetained = Boolean(text('.dash-wd') && text('.dash-date'))
-  out.pomodoroWidgetIsNeutral = text('.ring-mmss') === '--:--' && text('.w-pomodoro .w-state') === 'App timer'
+  out.pomodoroWidgetIsNeutral = text('.ring-mmss') === '25:00' && text('.w-pomodoro .w-state') === 'Ready'
   window.dispatchEvent(new Event('offline'))
   out.netIndicatorOffline =
     $('#sb-net').dataset.online === 'false' &&
@@ -588,7 +588,7 @@ function check(results) {
     ['dot button itself is not transformed', results.dotButtonNotTransformed],
     ['widgets expose honest state labels', results.widgetsHaveState],
     ['time and date Widgets are removed while Overview keeps its date', results.timeAndDateWidgetsRemoved && results.overviewDateRetained],
-    ['Pomodoro Widget identifies the App timer without a session-state claim', results.pomodoroWidgetIsNeutral],
+    ['Pomodoro Widget shows the current idle App timer', results.pomodoroWidgetIsNeutral],
     ['network indicator draws struck wifi while offline', results.netIndicatorOffline],
     ['offline status is announced', results.offlineAnnounced],
     ['network indicator draws wifi and emphasis while online', results.netIndicatorOnline],

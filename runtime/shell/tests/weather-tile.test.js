@@ -155,11 +155,11 @@ test('only non-success states render a notice alongside plain copy', async () =>
     ['live', live, { badge: '', value: '25', condition: 'Clear sky', place: 'Shenzhen', detail: '' }],
     ['stale', { ...live, status: 'stale', error: 'provider timed out after 8000 ms' }, { badge: 'Stale', value: '25', condition: 'Clear sky' }],
     ['unavailable without a place', { status: 'unavailable', place: null, unit: '°C', current: null, daily: null, updatedAt: null, hint: null, error: 'x' },
-      { state: 'unavailable', badge: 'Unavailable', value: '--', unit: '°C', condition: 'No weather reading', detail: 'Source unavailable' }],
+      { state: 'unavailable', badge: 'Unavailable', value: '--', unit: '°C', condition: 'No weather reading', detail: 'Open Weather to retry' }],
     ['unavailable', { status: 'unavailable', place: 'Shenzhen', unit: '°C', current: null, daily: null, updatedAt: null, hint: null, error: 'provider responded 503' },
-      { badge: 'Unavailable', value: '--', unit: '°C', condition: 'No weather reading', place: 'Shenzhen', detail: 'Source unavailable' }],
+      { badge: 'Unavailable', value: '--', unit: '°C', condition: 'No weather reading', place: 'Shenzhen', detail: 'Open Weather to retry' }],
     ['unconfigured', { status: 'unconfigured', place: null, unit: '°C', current: null, daily: null, updatedAt: null, hint: 'Set ODK_WEATHER_LAT and ODK_WEATHER_LON', error: null },
-      { badge: 'Unconfigured', value: '--', unit: '°C', condition: 'No weather location', detail: 'Location not set' }],
+      { badge: 'Unconfigured', value: '--', unit: '°C', condition: 'No weather location', detail: 'Open Weather for details' }],
   ]
   for (const [label, snapshot, expected] of cases) {
     const status = expected.state || label
@@ -197,7 +197,7 @@ test('an unavailable reading still names the place whose reading failed', async 
   const tile = createTile({ snapshot: { status: 'unavailable', place: 'Shenzhen', unit: '°C', current: null, daily: null, updatedAt: null, hint: null, error: 'provider responded 503' } })
   await tile.settle()
   assert.equal(tile.refs.place.textContent, 'Shenzhen')
-  assert.equal(tile.refs.detail.textContent, 'Source unavailable')
+  assert.equal(tile.refs.detail.textContent, 'Open Weather to retry')
   assert.equal(tile.refs.high.textContent, '--')
   assert.equal(tile.refs.low.textContent, '--')
   assert.match(tile.el.attributes.title, /provider responded 503/)

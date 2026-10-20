@@ -33,7 +33,6 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.match(text, new RegExp(pi.summary.running + ' active sessions'))
   assert.match(text, /Taipei.*26°C/)
   assert.match(text, new RegExp(read('odk-hydra-status').nodes[0].soilPercent + '%'))
-  assert.equal(preview.pomodoro.remaining, '18:42')
   assert.equal(preview.briefing.generatedAt, now)
   assert.equal(read('odk-personal-bot-status').message, preview.reply)
   assert.equal(preview.synthetic, true)

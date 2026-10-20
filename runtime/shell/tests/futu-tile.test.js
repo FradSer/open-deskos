@@ -95,7 +95,7 @@ test('stale snapshot renders dimmed values with an explicit stale label', async 
 })
 
 test('non-live states render short honest labels without numbers', async () => {
-  for (const [state, label] of [['unconfigured', 'Not configured'], ['needs-auth', 'Unlock trade'], ['unavailable', 'Unavailable'], ['syncing', 'Syncing']]) {
+  for (const [state, label] of [['unconfigured', 'Connect Futu'], ['needs-auth', 'Check access'], ['unavailable', 'Open to refresh'], ['syncing', 'Syncing']]) {
     const { nodes } = await mountWith({ state })
     assert.equal(nodes.get('#futu-value').textContent, '--')
     assert.equal(nodes.get('#futu-detail').textContent, label)

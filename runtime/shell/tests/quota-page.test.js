@@ -167,7 +167,7 @@ test('the AI usage Widget states a healthy window and every unavailable reading 
 
   tile.update({ state: 'unauthorized' })
   assert.equal(tile.text('.quota-state'), 'Unauthorized')
-  assert.equal(tile.text('.quota-tile-context'), 'Invalid key')
+  assert.equal(tile.text('.quota-tile-context'), 'Renew access')
   assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
 
   tile.update({ state: 'unavailable' })
@@ -195,7 +195,8 @@ test('the AI usage Widget counts accounts with no usable window and invents no p
 
   tile.update({ state: 'available', snapshot: { accounts: [] } })
   assert.equal(tile.text('.quota-tile-value'), '--%')
-  assert.equal(tile.text('.quota-tile-context'), 'No quotas returned')
+  assert.equal(tile.text('.quota-state'), 'No data')
+  assert.equal(tile.text('.quota-tile-context'), 'Open to refresh')
   assert.deepEqual(tile.meter(), { hidden: true, now: null, spoken: null, label: null, width: '0%', low: false, rule: true })
 })
 

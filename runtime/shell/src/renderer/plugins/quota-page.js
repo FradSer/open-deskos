@@ -297,7 +297,7 @@
         }
         if (status.state === 'unavailable' || status.state === 'unauthorized') {
           const unauthorized = status.state === 'unauthorized'
-          showWords(unauthorized ? 'Unauthorized' : 'Unavailable', '--%', unauthorized ? 'Invalid key' : 'Check connection')
+          showWords(unauthorized ? 'Unauthorized' : 'Unavailable', '--%', unauthorized ? 'Renew access' : 'Open to refresh')
           return
         }
 
@@ -322,7 +322,7 @@
           showWords('Available', String(total), total === 1 ? '1 account' : `${total} accounts`)
           return
         }
-        showWords('Available', '--%', 'No quotas returned')
+        showWords('No data', '--%', 'Open to refresh')
       }
 
       ctx.onTick(() => render())

@@ -101,7 +101,7 @@ app.whenReady().then(async () => {
     assert.equal(await js("document.querySelector('#futu-rows').children.length"), 0)
     await peer.send({ type: 'auth-required', secrets: ['fixture-secret'], updatedAt: current.now() })
     await refresh()
-    assert.equal(await js("document.querySelector('#futu-detail').textContent"), 'Unlock trade')
+    assert.equal(await js("document.querySelector('#futu-detail').textContent"), 'Check access')
     await peer.send({ type: 'error', message: 'fixture-provider-error', updatedAt: current.now() })
     await refresh()
     assert.equal(await js("document.querySelector('#futu-value').textContent"), '--')

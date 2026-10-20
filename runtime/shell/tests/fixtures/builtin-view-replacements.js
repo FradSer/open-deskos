@@ -11,6 +11,21 @@
     session.remaining = Math.max(0, Math.ceil((session.endAt - Date.now()) / 1000))
     if (session.remaining === 0) { session.mode = 'completed'; session.endAt = null }
   }
+  function snapshot() {
+    settle()
+    return { ...session, duration, time: String(Math.floor(session.remaining / 60)).padStart(2, '0') + ':' + String(session.remaining % 60).padStart(2, '0'),
+      state: session.mode === 'running' ? 'Focusing' : session.mode === 'paused' ? 'Paused' : session.mode === 'completed' ? 'Completed' : 'Focus' }
+  }
+  const focusReading = {
+    snapshot,
+    subscribe(callback) {
+      const notify = () => callback(snapshot())
+      views.add(notify)
+      return () => views.delete(notify)
+    },
+  }
+  const publishFocus = () => root.odkServices?.registerService('odk.service.focus', focusReading)
+  if (!root.odkServices?.get?.('odk.service.focus')) publishFocus()
   function update() {
     settle()
     for (const render of views) render()
@@ -41,6 +56,7 @@
     const header = make('header', 'app-surface-header')
     header.append(make('h2', 'app-surface-heading', titles[id])); body.append(header); el.append(body)
     if (id === 'pomodoro') {
+      publishFocus()
       body.dataset.view = 'pomodoro'
       const appBody = make('div', 'pomodoro-app-body')
       const dial = make('p', 'runtime-value pomodoro-dial', '25:00'); dial.id = 'pomodoro-dial'

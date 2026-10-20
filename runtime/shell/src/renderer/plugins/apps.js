@@ -113,6 +113,10 @@
     },
   }
 
+  const focusReading = { snapshot: () => focus.snapshot(), subscribe: callback => focus.subscribe(callback) }
+  const publishFocus = () => root.odkServices?.registerService('odk.service.focus', focusReading)
+  if (!root.odkServices?.get?.('odk.service.focus')) publishFocus()
+
   root.odkPlugins.register(app('calendar', 'Calendar', (el, ctx) => {
     el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Calendar</h2></header><time class="runtime-date app-detail"></time><p class="runtime-state app-detail">Calendar events unavailable. Date uses the local clock.</p></div>'
     const date = el.querySelector('.runtime-date')
@@ -134,6 +138,7 @@
     })
   }))
   root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el, ctx) => {
+    publishFocus()
     el.innerHTML = '<div class="runtime-app" data-view="pomodoro"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><div class="pomodoro-app-body"><p class="runtime-value pomodoro-dial" id="pomodoro-dial">25:00</p><p class="runtime-state app-detail" id="pomodoro-state">Focus</p><div class="pomodoro-controls"><button class="button-pill button-primary pomodoro-toggle" id="pomodoro-toggle" type="button">Start</button><button class="button-pill button-secondary pomodoro-reset" id="pomodoro-reset" type="button" hidden>Reset</button></div><p class="app-detail">25-minute focus session</p></div></div>'
 
     const dial = el.querySelector('#pomodoro-dial')

@@ -133,4 +133,9 @@ test('a grid retains empty declared rows and follows updated page geometry', () 
   delete root.DESKTOP_LAYOUT.pages[0].gridRows
   root.odkComposer.placeGridTiles(track)
   assert.equal(grid.style.gridTemplateRows, 'repeat(var(--rows), var(--cell-h))')
+  const config = {}
+  vm.runInNewContext(fs.readFileSync(path.join(RENDERER_DIR, 'config/desktop_layout.js'), 'utf8'), { window: config })
+  const home = config.DESKTOP_LAYOUT.pages.find(page => page.id === 'home')
+  const crowded = buildShell({ columns: 3, rows: 3, cell: 196, minCell: 186, gridRows: home.gridRows })
+  assert.equal(crowded.track.children[0].children[0].style.gridTemplateRows, 'repeat(2, var(--cell-h))', 'Home reserves its Overview row even when another page uses nine Cells')
 })

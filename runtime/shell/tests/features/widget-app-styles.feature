@@ -150,3 +150,23 @@ Feature: Legible Widget and App interiors
     And additional Widgets use another three-by-three harness page
     And every Widget keeps its content and App entry inside its Cell
     And the original desktop placement remains unchanged
+
+  Scenario: A missing Widget reading gives a recovery path
+    Given Weather, WeRead, Holdings, or AI usage has no usable source reading
+    When its Widget shows an empty or failed state
+    Then the copy names the next action
+    And no empty quota reading claims that data is available
+    And WeRead does not display a provider error or environment key
+
+  Scenario: Calendar captions remain legible over the glass material
+    Given Calendar uses the Liquid Glass theme
+    When its weekday renders over the measured material
+    Then the weekday uses the supporting text role
+    And its rendered text contrast is at least 4.5 to 1
+
+  Scenario: Additional registered Widgets cannot consume the Overview row
+    Given Home reserves one Overview row and two Widget rows
+    And another page contains nine Widgets
+    When the shared canvas calculates its rows
+    Then Home keeps Overview and six cards within three logical rows
+    And its Widget grid does not inherit the other page's third row

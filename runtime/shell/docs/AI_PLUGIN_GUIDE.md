@@ -256,6 +256,7 @@ Supported-device acceptance remains unfinished.
 
 | Member | Contract |
 | --- | --- |
+| `ctx.focus.snapshot()` / `.subscribe(cb)` | Optional read-only Pomodoro state from the active App implementation; subscription returns cleanup |
 | `ctx.onTick(cb)` | Shared one-second tick; immediate initial call; returns cleanup; final cleanup stops its interval |
 | `ctx.connection.subscribe(cb)` | Network boolean; immediate initial call; returns cleanup |
 | `ctx.connection.labelFor(online)` | Shared network wording |
@@ -288,6 +289,9 @@ Default input cleanup is registered before restoration notifies consumers.
 Replacement implementations own their resources; registration does not acquire or release those resources.
 Existing mounted consumers use another implementation after remounting.
 Registration does not rebind their existing subscriptions.
+The Pomodoro Widget checks its optional focus reader on each Tick.
+It releases the previous reader before it subscribes to a replacement.
+Opening a Pomodoro App publishes that implementation's read-only focus state.
 
 Plugins read configuration from `ctx`. They must not read environment variables or URL parameters themselves.
 

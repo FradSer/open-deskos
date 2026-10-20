@@ -15,6 +15,7 @@
         id: 'home',
         name: 'Home',
         kind: 'grid',
+        gridRows: 2,
         surface: 'display',
         widgets: [
           { id: 'odk.tile.pi-sessions', opensApp: 'pi-sessions', col: '1', row: '1' },

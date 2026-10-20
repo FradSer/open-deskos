@@ -146,6 +146,26 @@ app.whenReady().then(async () => {
         await until(() => document.activeElement === document.querySelector('[data-widget="${widgetId}"] .widget-launch'));
       })()`)
     }
+    await js(`(async () => {
+      const launch = document.querySelector('[data-widget="odk.tile.pomodoro"] .widget-launch');
+      document.querySelectorAll('.dot')[0].click();
+      launch.click();
+      await until(() => !!document.getElementById('pomodoro-toggle'));
+      document.getElementById('pomodoro-toggle').click();
+      await odkAppPlatform.closeApp();
+      await until(() => document.querySelector('.pomodoro-state').textContent === 'Focusing');
+      launch.click();
+      await until(() => !!document.getElementById('pomodoro-toggle'));
+      document.getElementById('pomodoro-toggle').click();
+      await odkAppPlatform.closeApp();
+      await until(() => document.querySelector('.pomodoro-state').textContent === 'Paused');
+      launch.click();
+      await until(() => !!document.getElementById('pomodoro-reset'));
+      document.getElementById('pomodoro-reset').click();
+      await odkAppPlatform.closeApp();
+      await until(() => document.querySelector('.pomodoro-state').textContent === 'Ready' && document.querySelector('.ring-mmss').textContent === '25:00');
+    })()`)
+    console.log('PASS ' + theme + ': Pomodoro Widget follows actual App start, pause, and reset')
     await js(`document.querySelectorAll('.dot')[3].click(); document.getElementById('sb-pi-status').focus()`)
     for (const type of ['keyDown', 'char', 'keyUp']) {
       await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'char' ? { text: '\r' } : {}) })
