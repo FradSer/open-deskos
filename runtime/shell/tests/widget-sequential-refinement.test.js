@@ -4,10 +4,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-test('recurring e2e gate requires sequential verification', () => {
+test('recurring gates require sequential and shared-grid verification', () => {
   const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
   assert.match(source, /widget-sequential-refinement\.cjs/)
   assert.match(source, /sequential: sequential\.status/)
+  assert.match(source, /runFixture\('home-preview\.cjs', \['--widget-grid'\]/)
+  assert.match(source, /widgetGrid: widgetGrid\.status/)
+  const scripts = require('../package.json').scripts
+  assert.match(scripts.geometry, /electron tests\/home-preview\.cjs --widget-grid/)
 })
 
 test('Clock keeps minute readings stable and exposes semantic local time', () => {

@@ -138,3 +138,12 @@ Feature: Legible Widget and App interiors
     When its Widget mounts
     Then it requests the shared reading without waiting for a minute tick
     And a late completion cannot write after release
+
+  Scenario: The harness checks every registered Widget in a shared three-by-three grid
+    Given the Shell preview uses isolated synthetic readings
+    When the Widget grid harness renders each supported theme and panel size
+    Then each harness page has exactly three columns and three rows
+    And each registered Widget occupies one unique Cell within those nine positions
+    And additional Widgets use another three-by-three harness page
+    And every Widget keeps its content and App entry inside its Cell
+    And the original desktop placement remains unchanged

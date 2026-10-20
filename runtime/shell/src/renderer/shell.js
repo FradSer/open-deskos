@@ -32,8 +32,18 @@ function applyGeometry() {
     : desk?.clientWidth || window.innerWidth
   // computeDesk already reserves one Widget gap at each horizontal edge.
   const paneBudget = fullPaneBudget - 2 * (sideInset - 16)
-  const m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
+  let m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
     paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
+  if (grids.length) {
+    // Pages share one canvas; only Home reserves a row for Overview.
+    const canvasRows = Math.max(...grids.map(grid => {
+      const pageId = grid.closest('.page')?.dataset.pageId
+      const declaredRows = effectiveLayout.pages.find(page => page.id === pageId)?.gridRows || 0
+      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols)) + (pageId === 'home' ? 1 : 0)
+    }))
+    m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
+      paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell, canvasRows)
+  }
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)

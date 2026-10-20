@@ -7,9 +7,10 @@ const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
 const { resolvePages } = require('./helpers/pages')
-const { installTimeWidgetLayout } = require('./helpers/time-widget-layout')
-const allPages = process.argv.includes('--all-pages')
-const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length) || os.tmpdir()
+const { installTimeWidgetLayout, installWidgetGridLayout } = require('./helpers/time-widget-layout')
+const widgetGrid = process.argv.includes('--widget-grid')
+const allPages = process.argv.includes('--all-pages') || widgetGrid
+const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length) || (widgetGrid ? fs.mkdtempSync(path.join(os.tmpdir(), 'odk-widget-grid-')) : os.tmpdir())
 fs.mkdirSync(captureDir, { recursive: true })
 
 if (process.platform === 'darwin') app.dock.hide()
@@ -48,12 +49,78 @@ function capturePaintedFrame() {
   })
 }
 
+async function verifyWidgetGrid(win, page, theme, width, report) {
+  const js = source => win.webContents.executeJavaScript(source)
+  const result = await js(`(() => {
+    const page = document.querySelector('[data-page-id="${page}"]'), grid = page.querySelector('.widget-grid');
+    const style = getComputedStyle(grid), frame = grid.getBoundingClientRect();
+    const tracksX = style.gridTemplateColumns.split(' '), tracksY = style.gridTemplateRows.split(' ');
+    const columns = tracksX.length, rows = tracksY.length;
+    const findings = [], positions = new Set();
+    const viewport = document.getElementById('pages-viewport').getBoundingClientRect();
+    if (frame.left < viewport.left - 1 || frame.right > viewport.right + 1 || frame.top < viewport.top - 1 || frame.bottom > viewport.bottom + 1) findings.push({ kind: 'grid-outside-viewport', bottom: frame.bottom, viewportBottom: viewport.bottom });
+    if (columns !== 3 || rows !== 3) findings.push({ kind: 'grid-shape', columns, rows });
+    const cards = [...grid.children].filter(card => card.matches('[data-widget]')).map(card => {
+      const box = card.getBoundingClientRect(), css = getComputedStyle(card);
+      const col = Number(css.gridColumnStart), row = Number(css.gridRowStart), slot = col + ',' + row;
+      if (![col, row].every(line => line >= 1 && line <= 3) || positions.has(slot)) findings.push({ kind: 'grid-position', id: card.dataset.widget, col, row });
+      positions.add(slot);
+      const x = frame.left + (col - 1) * (parseFloat(tracksX[0]) + parseFloat(style.columnGap));
+      const y = frame.top + (row - 1) * (parseFloat(tracksY[0]) + parseFloat(style.rowGap));
+      if (Math.abs(box.left - x) > 1 || Math.abs(box.top - y) > 1) findings.push({ kind: 'card-outside-slot', id: card.dataset.widget });
+      if (Math.abs(box.width - parseFloat(tracksX[0])) > 1 || Math.abs(box.height - parseFloat(tracksY[0])) > 1) findings.push({ kind: 'card-not-one-cell', id: card.dataset.widget, width: box.width, height: box.height });
+      if (box.left < frame.left - 1 || box.right > frame.right + 1 || box.top < frame.top - 1 || box.bottom > frame.bottom + 1) findings.push({ kind: 'card-outside-grid', id: card.dataset.widget });
+      if (card.scrollWidth > card.clientWidth + 1 || card.scrollHeight > card.clientHeight + 1) findings.push({ kind: 'hidden-card-content', id: card.dataset.widget, horizontal: card.scrollWidth - card.clientWidth, vertical: card.scrollHeight - card.clientHeight });
+      for (const node of card.querySelectorAll('*')) {
+        const r = node.getBoundingClientRect(), s = getComputedStyle(node);
+        if (!r.width || !r.height || node.closest('svg') || node.children.length || !node.textContent.trim() || s.clipPath !== 'none') continue;
+        if (parseFloat(s.fontSize) < 12) findings.push({ kind: 'small-text', id: card.dataset.widget, className: node.className });
+        if (node.scrollWidth > node.clientWidth + 1 && s.textOverflow !== 'ellipsis' && !['auto','scroll'].includes(s.overflowX)) findings.push({ kind: 'text-overflow', id: card.dataset.widget, className: node.className });
+      }
+      const launch = card.querySelector('.widget-launch');
+      if (!launch || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
+      return { id: card.dataset.widget, col, row, width: box.width, height: box.height, app: card.dataset.openApp };
+    });
+    return { columns, rows, cards, findings };
+  })()`)
+  const run = { page, theme, width, ...result }
+  report.runs.push(run)
+  return run
+}
+
+async function verifyWidgetGridNavigation(win, run) {
+  const js = source => win.webContents.executeJavaScript(source)
+  const { page, theme, width } = run
+  for (const card of run.cards) {
+    const action = await js(`(async () => {
+      const card = document.querySelector('[data-page-id="${page}"] [data-widget="${card.id}"]');
+      card.querySelector('.widget-launch')?.click();
+      const deadline = performance.now() + 3000;
+      while (odkAppPlatform.active()?.appId !== card.dataset.openApp && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+      const active = odkAppPlatform.active();
+      const opened = active?.appId === card.dataset.openApp && !document.getElementById('app-view').hidden;
+      await odkAppPlatform.closeApp();
+      return { opened, closed: document.getElementById('app-view').hidden };
+    })()`)
+    if (!action.opened || !action.closed) run.findings.push({ kind: 'app-navigation', id: card.id, ...action })
+  }
+  console.log('WIDGET_GRID_RUN ' + JSON.stringify({ page, theme, width, cards: run.cards.length, findings: run.findings }))
+}
+
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
   const preview = installHomePreviewFixtures(ipcMain)
+  if (widgetGrid) {
+    const endpoint = require('../src/app-manager-endpoint').createAppManagerEndpoint()
+    for (const name of ['odk-app-manager-list', 'odk-app-manager-state']) ipcMain.removeHandler(name)
+    ipcMain.handle('odk-app-manager-list', () => endpoint.list())
+    ipcMain.handle('odk-app-manager-state', (_event, id) => endpoint.get(id))
+    ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
+  }
   const js = source => win.webContents.executeJavaScript(source)
   const captures = []
+  const gridReport = { ok: true, synthetic: true, grid: [3, 3], runs: [], captures }
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
     // Start each native surface at its target size. On Linux a resized offscreen
     // surface can emit a correctly sized crop of its previous compositor frame.
@@ -68,7 +135,8 @@ app.whenReady().then(async () => {
     assert.equal(win.webContents.isOffscreen(), true)
     assert.equal(win.webContents.isPainting(), true)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    if (allPages) await installTimeWidgetLayout(win, { pageId: 'time-preview', separatePage: true })
+    if (widgetGrid) await installWidgetGridLayout(win)
+    else if (allPages) await installTimeWidgetLayout(win, { pageId: 'time-preview', separatePage: true })
     await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
     await js('window.odkShellReady')
     await js(`(async () => {
@@ -167,7 +235,7 @@ app.whenReady().then(async () => {
     assert.equal(state.square, true)
     if (theme === 'liquid-glass') assert.ok(['sdk', 'fallback'].includes(await js('document.documentElement.dataset.liquidGlass')))
     assert.equal(state.columns, 3)
-    assert.equal(state.rows, 2)
+    assert.equal(state.rows, widgetGrid ? 3 : 2)
     assert.equal(state.pi, '3')
     assert.match(state.weather, /Taipei/)
     assert.match(state.weather, /26/)
@@ -212,7 +280,13 @@ app.whenReady().then(async () => {
       ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
     if (allPages) {
       const pages = await resolvePages(win)
-      for (const page of ['desk', 'preorder', 'reading', 'time-preview']) {
+      const previewPages = widgetGrid ? await js('window.__odkWidgetGridPages') : ['desk', 'preorder', 'reading', 'time-preview']
+      for (const page of previewPages) {
+        if (widgetGrid) await js(`(() => {
+          const grid = document.querySelector('[data-page-id="${page}"] .widget-grid');
+          grid.style.gridTemplateColumns = 'repeat(3, var(--cell-w))';
+          grid.style.gridTemplateRows = 'repeat(3, var(--cell-h))';
+        })()`)
         await js(`document.querySelectorAll('.dot')[${pages.dot(page)}].click()`)
         await js(`(async () => {
           const node = document.querySelector('[data-page-id="${page}"]'), viewport = document.querySelector('#pages-viewport');
@@ -224,6 +298,7 @@ app.whenReady().then(async () => {
           await document.fonts.ready;
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         })()`)
+        const gridReading = widgetGrid ? await verifyWidgetGrid(win, page, theme, width, gridReport) : null
         if (page === 'desk') {
           const spacing = await js(`(() => {
             const card = document.querySelector('[data-widget="odk.tile.hydra"]');
@@ -274,10 +349,24 @@ app.whenReady().then(async () => {
         await capturePaintedFrame()
         fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG())
         captures.push({ page, theme, width, height, file, synthetic: true })
+        if (widgetGrid) await verifyWidgetGridNavigation(win, gridReading)
+      }
+      if (widgetGrid) {
+        const expected = await js("odkPlugins.byKind('tile').map(plugin => plugin.id).sort()")
+        const covered = gridReport.runs.filter(run => run.theme === theme && run.width === width).flatMap(run => run.cards.map(card => card.id)).sort()
+        assert.deepEqual(covered, expected, 'Every registered Widget appears exactly once in the grid harness')
+        gridReport.widgets = expected
       }
       await js(`document.querySelectorAll('.dot')[${pages.dot('home')}].click()`)
       await new Promise(resolve => setTimeout(resolve, 300))
     }
+  }
+  if (widgetGrid) {
+    gridReport.ok = gridReport.runs.every(run => run.findings.length === 0)
+    fs.writeFileSync(path.join(captureDir, 'report.json'), JSON.stringify(gridReport, null, 2) + '\n')
+    console.log('WIDGET_GRID_RESULT ' + JSON.stringify({ ok: gridReport.ok, runs: gridReport.runs.length, findings: gridReport.runs.flatMap(run => run.findings).length, captures: captures.length, directory: captureDir }))
+    finish(gridReport.ok ? 0 : 1)
+    return
   }
   const longCopy = 'You have 3 active sessions across 3 workspaces, while 2 plants report 63% moisture. Taipei is 26°C and overcast; your focus session is in progress, and portfolio readings are available from the latest synchronized snapshot.'
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {

@@ -55,3 +55,29 @@ test('optional time preview uses its own page without overlapping the Desk instr
   assert.equal(page.widgets.length, 2)
   assert.deepEqual(Array.from(page.widgets, widget => widget.id), ['odk.tile.clock', 'odk.tile.almanac'])
 })
+
+test('Widget harness packs every registered card into shared three-by-three pages', async () => {
+  const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
+  let source
+  const win = { webContents: { debugger: { isAttached: () => true, async sendCommand(name, params) {
+    if (name === 'Page.addScriptToEvaluateOnNewDocument') source = params.source
+  } } } }
+  await installWidgetGridLayout(win)
+  const ids = Array.from({ length: 12 }, (_, index) => `odk.tile.fixture-${index}`)
+  const window = { odkPlugins: { byKind: kind => { assert.equal(kind, 'tile'); return ids.map(id => ({ id, opensApp: id.slice(9) })) } } }
+  require('node:vm').runInNewContext(source, { window })
+  const original = { id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: ids[0], col: '1', row: '1' }] }
+  const before = JSON.stringify(original)
+  window.DESKTOP_LAYOUT = { pages: [original] }
+  assert.equal(JSON.stringify(original), before)
+  const pages = window.DESKTOP_LAYOUT.pages.filter(page => window.__odkWidgetGridPages.includes(page.id))
+  assert.equal(pages.length, 2)
+  assert.deepEqual(pages.map(page => page.widgets.length), [9, 3])
+  assert.deepEqual(pages.flatMap(page => page.widgets.map(widget => widget.id)), ids)
+  for (const page of pages) {
+    assert.equal(page.gridRows, 3)
+    const positions = page.widgets.map(widget => `${widget.col},${widget.row}`)
+    assert.equal(new Set(positions).size, positions.length)
+    assert.ok(page.widgets.every(widget => /^[1-3]$/.test(widget.col) && /^[1-3]$/.test(widget.row)))
+  }
+})

@@ -973,6 +973,8 @@ async function main() {
   if (interiors.error) console.error(`FAIL  interior checks: ${interiors.error.message}`)
   const appGallery = runFixture('app-gallery.cjs', ['--verify', '--single'])
   if (appGallery.error) console.error(`FAIL  App gallery: ${appGallery.error.message}`)
+  const widgetGrid = runFixture('home-preview.cjs', ['--widget-grid'], { timeout: 200000 })
+  if (widgetGrid.error) console.error(`FAIL  Widget grid: ${widgetGrid.error.message}`)
   const sequential = runFixture('widget-sequential-refinement.cjs')
   if (sequential.error) console.error(`FAIL  sequential checks: ${sequential.error.message}`)
   const hydraComposition = runFixture('hydra-style.cjs')
@@ -999,6 +1001,7 @@ async function main() {
     interiors: interiors.status,
     appGallery: appGallery.status,
     sequential: sequential.status,
+    widgetGrid: widgetGrid.status,
     hydraComposition: hydraComposition.status,
     density: densityRuns.map(r => r.status),
     theme: themeUiRuns.map(r => r.status),
