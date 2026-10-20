@@ -47,6 +47,19 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
       { label: 'Weekly window', remainingPct: 64, resetAt: new Date(now + 172800000).toISOString() },
     ] }],
   }] } })
+  const cover = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400" role="img" aria-label="Synthetic reading cover">
+    <rect width="300" height="400" fill="#e8e3d5"/>
+    <rect x="0" y="0" width="16" height="400" fill="#52624f"/>
+    <text x="40" y="68" font-family="sans-serif" font-size="18" fill="#52624f">PREVIEW EDITION</text>
+    <text x="38" y="125" font-family="sans-serif" font-size="42" fill="#25372d">READING</text>
+    <text x="38" y="173" font-family="sans-serif" font-size="42" fill="#25372d">NOTES</text>
+    <path d="M40 230h220M40 244h180M40 258h200" stroke="#8e9a82" stroke-width="4"/>
+    <text x="40" y="360" font-family="sans-serif" font-size="16" fill="#52624f">SYNTHETIC SAMPLE</text>
+  </svg>`
+  const highlight = { title: '阅读笔记（合成示例）', author: '示例作者',
+    markText: '把每一次微小的改变累积起来，最终会带来意想不到的结果。',
+    createTime: now, cover: 'data:image/svg+xml;base64,' + Buffer.from(cover).toString('base64') }
+  replace('odk-weread-highlight', { status: 'live', highlight })
   const segments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },
     { text: ' today. Taipei is ' }, { text: '26°C and overcast', icon: 'weather' }, { text: '.' }]
@@ -66,7 +79,7 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
   replace('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })
   ipcMain.handle('odk-personal-bot-text', () => ({ accepted: true }))
   ipcMain.handle('odk-personal-bot-toggle', () => ({ accepted: true }))
-  return { synthetic: true, briefing, prompt, reply, updates, remote, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }
+  return { synthetic: true, briefing, prompt, reply, updates, remote, highlight, pomodoro: { remaining: '18:42', progress: 0.252, state: 'Focusing · simulated' } }
 }
 
 module.exports = { installHomePreviewFixtures }

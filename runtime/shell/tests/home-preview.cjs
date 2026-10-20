@@ -224,6 +224,32 @@ app.whenReady().then(async () => {
           await document.fonts.ready;
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         })()`)
+        if (page === 'reading') {
+          const attribution = await js(`(async () => {
+            const tile = document.querySelector('[data-widget="odk.tile.weread"]');
+            const author = tile.querySelector('.weread-author'), cover = tile.querySelector('.weread-cover');
+            const wrap = tile.querySelector('.weread-cover-wrap'), foot = tile.querySelector('.weread-foot');
+            const deadline = performance.now() + 5000;
+            while (wrap.hidden || author.hidden || !cover.width || !cover.getContext('2d').getImageData(0, 0, 1, 1).data[3]) {
+              if (performance.now() > deadline) throw Error('Reading preview attribution did not render');
+              await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            const frame = tile.getBoundingClientRect(), row = foot.getBoundingClientRect();
+            const image = cover.getBoundingClientRect(), name = author.getBoundingClientRect();
+            const title = tile.querySelector('.weread-title').getBoundingClientRect();
+            return { author: author.textContent, title: tile.querySelector('.weread-title').textContent,
+              authorBelowTitle: name.top >= title.bottom, coverRightOfAuthor: image.left >= name.right,
+              footerContained: row.top >= frame.top && row.bottom <= frame.bottom && image.right <= frame.right,
+              coverSize: [image.width, image.height] };
+          })()`)
+          assert.equal(attribution.author, preview.highlight.author)
+          assert.equal(attribution.title, preview.highlight.title)
+          assert.equal(attribution.authorBelowTitle, true)
+          assert.equal(attribution.coverRightOfAuthor, true)
+          assert.equal(attribution.footerContained, true)
+          assert.ok(attribution.coverSize.every(size => size > 0))
+          console.log('READING_ATTRIBUTION_PASS ' + JSON.stringify({ theme, width, ...attribution }))
+        }
         const file = path.join(captureDir, `odk-populated-${page}-${theme}-${width}.png`)
         await capturePaintedFrame()
         fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG())

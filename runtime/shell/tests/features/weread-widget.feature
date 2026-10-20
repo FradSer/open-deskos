@@ -1,8 +1,10 @@
 Feature: WeRead highlight widget
   Scenario: Reading retains its design from before the interface experiment
-    Given the Reading Widget displays a source excerpt
+    Given the Reading Widget displays a source excerpt with an author and cover
     When the Widget renders at a supported Cell size
     Then the original adaptive excerpt type and bottom book details remain
+    And the author appears below the book title with the cover on the right
+    And the normal Shell preview includes both fields from its synthetic source
     And a rule separates the excerpt from the book details
     And no separate instrument heading precedes the excerpt
     And complete text can still shrink or scroll when space is limited

@@ -21,7 +21,12 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.ok(read('odk-futu-holdings').snapshot.positions.every(item => Number.isFinite(item.price)))
   assert.deepEqual(read('odk-camera-frame'), { ok: false }, 'the preview keeps the Camera source unavailable')
   assert.ok(read('odk-hydra-status').nodes.every(item => item.online && Number.isFinite(item.soilPercent)))
-  assert.ok(read('odk-weread-highlight').highlight.markText)
+  const highlight = read('odk-weread-highlight').highlight
+  assert.ok(highlight.markText)
+  assert.ok(highlight.author, 'Reading preview retains the author below the title')
+  assert.match(highlight.cover, /^data:image\/svg\+xml;base64,/, 'Reading preview has a local synthetic cover')
+  assert.equal(highlight.createTime, now)
+  assert.match(Buffer.from(highlight.cover.split(',')[1], 'base64').toString(), /Synthetic reading cover/)
   assert.ok(read('odk-opencode-go-status').snapshot.accounts[0].groups[0].quotas.length)
   assert.equal(read('odk-remote-link-state').state, 'usb')
   const text = preview.briefing.items.map(item => item.text).join(' ')
