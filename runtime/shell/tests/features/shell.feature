@@ -20,6 +20,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     Given the runtime end-to-end gate is run
     When its subprocess checks execute
     Then real sandboxed installed widget placement and live movement must pass
+    And lazy message rendering and retained-history checks must pass
 
   Scenario: Concurrent CM5 deployments keep each source snapshot isolated
     Given multiple development sessions can deploy the shared Shell to CM5
