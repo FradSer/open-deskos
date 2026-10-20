@@ -71,6 +71,7 @@ Feature: Hydra plant and environment Widget on the Desk page
     And both plant placeholders and the omission count remain contained
     And supporting text retains its 12-pixel readable floor
     And the instrument name remains available to assistive technology
+    And the visible-content collector does not count a clipped hidden title
 
   Scenario: Trusted Hydra development surfaces preserve actual rendered consumers
     Given the CLI links an independent Hydra surface with explicit trust
