@@ -50,11 +50,14 @@ Density checks run in E2E. To collect focused measurements:
 pnpm exec electron tests/widget-density.cjs --state=live --sizes=1920x1280,480x854
 pnpm exec electron tests/widget-density.cjs --date=2026-12-31T23:59:00
 pnpm exec electron tests/widget-density.cjs --report-only --output=/tmp/widget-density.json --capture-dir=/tmp/widget-density
+pnpm exec electron tests/hydra-style.cjs --density-report-only
 ```
 
 The content-box target is 62%, with an eight-percentage-point tolerance. Union occupancy must reach 20%; the largest full-width vertical gap is at most 28%. Measure tight text/SVG/meter boxes, not empty containers or backgrounds. Do not count overlaps twice. These are visual boxes, not glyph-pixel coverage.
 
 A fixed clock makes runs repeatable. `--date` changes it; `--capture-dir` saves Home and individual Widget images. A violation returns nonzero. `--report-only` collects the failure and still reports `ok:false`; it never establishes acceptance.
+
+Hydra comparison mode reports composition and density separately. `--density-report-only` does not establish density acceptance.
 
 Wayland startup adds `--ozone-platform-hint=auto`; root startup adds `--no-sandbox`.
 

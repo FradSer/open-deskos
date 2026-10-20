@@ -177,10 +177,13 @@ async function widgetDesignRoles(win) {
           const heading = tile.querySelector('.widget-heading')
           const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
           const style = heading && getComputedStyle(heading)
-          return { id: tile.dataset.widget.slice('odk.tile.'.length), text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
         })
       })()`)
-      for (const row of readings) check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
+      for (const row of readings) {
+        if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
+        else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
+      }
       if (theme === 'instrument') {
         const tone = await win.webContents.executeJavaScript(`(() => {
           const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')]

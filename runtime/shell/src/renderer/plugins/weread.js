@@ -15,7 +15,6 @@
     opensApp: 'weread',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="widget-heading weread-heading">Reading</span>
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">
@@ -62,9 +61,9 @@
         resizeObserver?.disconnect()
       })
       const MIN_TEXT_SIZE = 14
-      const MAX_TEXT_SIZE = 36
-      // Short excerpts remain reading copy, including in a full-page canvas.
-      const textCeiling = width => width <= 480 ? 24 : MAX_TEXT_SIZE
+      const MAX_TEXT_SIZE = 72
+      // A full three-by-three reading canvas supports larger display type.
+      const textCeiling = () => el.clientWidth >= 800 && el.clientHeight >= 800 ? 96 : MAX_TEXT_SIZE
       const FIT_GAP = 28
       // Fluid hero base: characters per line grow sublinearly with length,
       // normalized by the copy width so every density converges near its
@@ -72,7 +71,7 @@
       const fitBaseSize = (length, width) => {
         const unit = width > 0 ? width : 900
         const perLine = Math.max(4, Math.sqrt(Math.max(1, length)) * 2.2)
-        return Math.min(textCeiling(unit), Math.max(MIN_TEXT_SIZE, unit / perLine))
+        return Math.min(textCeiling(), Math.max(MIN_TEXT_SIZE, unit / perLine))
       }
       const stripBrackets = (value) => String(value || '').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim()
       const formatDate = (createTime) => {

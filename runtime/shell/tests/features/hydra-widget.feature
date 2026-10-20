@@ -203,7 +203,8 @@ Feature: Hydra plant and environment Widget on the Desk page
     Given Hydra occupies a Cell at least 480 pixels wide and 340 pixels high
     When the Cell can hold the wide instrument
     Then four environment readings form four columns and one row
-    And both plants appear side by side below the environment
+    And both plants appear side by side above the environment
+    And the header and environment align with the top and bottom content insets
     And every reading retains its unit and complete state
     And the current theme remains selected
 

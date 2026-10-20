@@ -16,8 +16,8 @@ test('Pi summary scales with the tile and compact numerals have no competing shr
   assert.doesNotMatch(css, /font-size: clamp\(48px, 24cqi, 96px\)/)
 })
 
-test('WeRead bounds reading type before fitting to available height', () => {
+test('WeRead allows a readable widescreen excerpt before fitting to available height', () => {
   const source = fs.readFileSync(path.join(renderer, 'plugins/weread.js'), 'utf8')
-  assert.match(source, /const MAX_TEXT_SIZE = 36/)
+  assert.match(source, /const MAX_TEXT_SIZE = 72/)
   assert.match(source, /if \(text.scrollHeight <= maxH\) break/)
 })

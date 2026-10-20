@@ -3254,12 +3254,13 @@ body.kiosk {
    cell keeps the plants and says what it is not showing, and a cell below every
    one of those says it cannot draw the readings at all. */
 /* The full Desk canvas is one instrument: plants above, environment below.
-   The measured wide shape keeps two reading columns without viewport rules. */
+   The measured wide shape keeps plant pairs above the environment strip. */
 .hydra-body[data-shape='wide'] {
-  flex: none;
-  height: auto;
+  flex: 1;
+  height: 100%;
   max-height: 100%;
-  margin-block: auto;
+  margin-block: 0;
+  justify-content: space-between;
   gap: clamp(20px, 2.5cqi, 28px);
 }
 

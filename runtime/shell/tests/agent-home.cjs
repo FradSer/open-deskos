@@ -1049,7 +1049,16 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'Overview returns with Home')
   assert.equal(await evaluate(`document.querySelector('#home-summary details, #home-summary summary')`), null, 'paging never restores source controls')
   assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.widget[data-interaction="display-only"]')).backgroundColor`), 'rgba(0, 0, 0, 0)')
+  const widgetSurface = await evaluate(`(() => {
+    const tile = document.querySelector('.widget[data-interaction="display-only"]')
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--odk-surface)'
+    tile.append(probe)
+    const result = { actual: getComputedStyle(tile).backgroundColor, expected: getComputedStyle(probe).color }
+    probe.remove()
+    return result
+  })()`)
+  assert.equal(widgetSurface.actual, widgetSurface.expected, 'Home instruments use the theme surface')
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form [name="icon"]').value = 'leaf'; document.querySelector('.agent-identity-form').requestSubmit()`)
   publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)

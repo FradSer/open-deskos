@@ -104,11 +104,12 @@ Feature: Legible Widget and App interiors
   Scenario: Every instrument uses the same reading hierarchy
     Given the desktop contains nine display Widgets and retains Clock and Calendar
     When each Widget renders in any supported theme at reference or handheld size
-    Then its visible instrument heading uses the shared readable caption role
+    Then each redesigned Widget uses the shared readable caption role
     And the heading precedes its primary reading without overlap
     And inactive frames use the neutral surface and stroke
     And source states remain text rather than interactive badges
     And opening the Widget retains its existing App and return path
+    And Reading retains its original excerpt and book details without a separate heading
 
   Scenario: Desk instruments use quiet tonal surfaces
     Given the Instrument theme displays the desktop Widgets

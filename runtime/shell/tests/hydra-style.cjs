@@ -119,6 +119,12 @@ app.whenReady().then(async () => {
           contentWidth: body.getBoundingClientRect().width,
           environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
           plantFont: parseFloat(getComputedStyle(host.querySelector('.hydra-plant-soil')).fontSize),
+          edgeInsets: {
+            top: host.querySelector('.hydra-head').getBoundingClientRect().top - host.getBoundingClientRect().top,
+            bottom: host.getBoundingClientRect().bottom - host.querySelector('.hydra-env').getBoundingClientRect().bottom,
+            expectedTop: parseFloat(getComputedStyle(host).paddingTop) + parseFloat(getComputedStyle(host).borderTopWidth),
+            expectedBottom: parseFloat(getComputedStyle(host).paddingBottom) + parseFloat(getComputedStyle(host).borderBottomWidth),
+          },
           meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
             texture: (() => {
               if (!fill.closest('.hydra-watering')) return null
@@ -227,6 +233,7 @@ app.whenReady().then(async () => {
     return { theme: row.theme, ...measured }
   })
   console.log('HYDRA_WIDE_DENSITY ' + JSON.stringify(wideDensity))
+  console.log('HYDRA_DENSITY_RESULT ' + JSON.stringify({ ok: wideDensity.every(row => row.violations.length === 0), reportOnly: reportDensity, gate: reportDensity ? 'comparison-only' : 'enforced', findings: wideDensity.filter(row => row.violations.length) }))
   // The declared shapes, at the cells they are drawn for.
   for (const [name] of CELLS) {
     const shapes = new Set(result.cases.filter(row => row.name === name).map(row => row.shape))
@@ -248,6 +255,8 @@ app.whenReady().then(async () => {
       assert.equal(row.plantColumns, 2, JSON.stringify(row))
       assert.ok(row.environmentFont >= 24 && row.environmentFont <= 40, JSON.stringify(row))
       assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
+      assert.ok(Math.abs(row.edgeInsets.top - row.edgeInsets.expectedTop) < 1, `${row.name} top inset: ${JSON.stringify(row.edgeInsets)}`)
+      assert.ok(Math.abs(row.edgeInsets.bottom - row.edgeInsets.expectedBottom) < 1, `${row.name} bottom inset: ${JSON.stringify(row.edgeInsets)}`)
     }
     if (expected === 'compact') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
@@ -321,6 +330,6 @@ app.whenReady().then(async () => {
   })()`)
   assert.deepEqual(reduced, { property: 'none', duration: '0s' })
   win.webContents.debugger.detach()
-  console.log(`HYDRA_STYLE_PASS ${checked} composition cases, ${result.unconfigured.length} unconfigured cases`)
+  console.log(`${reportDensity ? 'HYDRA_COMPOSITION_PASS' : 'HYDRA_STYLE_PASS'} ${checked} composition cases, ${result.unconfigured.length} unconfigured cases`)
   win.destroy()
 }).then(() => { clearTimeout(timer); app.exit(0) }).catch(error => { clearTimeout(timer); console.error(error); app.exit(1) })

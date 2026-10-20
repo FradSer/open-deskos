@@ -1,10 +1,10 @@
 Feature: WeRead highlight widget
-  Scenario: Excerpts use reading type rather than display headlines
-    Given a short excerpt has room to grow inside its Widget
-    When the copy width is 480 pixels or less
-    Then the excerpt uses at most 24 pixel type
-    When the copy is wider
-    Then the excerpt uses at most 36 pixel type
+  Scenario: Reading retains its design from before the interface experiment
+    Given the Reading Widget displays a source excerpt
+    When the Widget renders at a supported Cell size
+    Then the original adaptive excerpt type and bottom book details remain
+    And a rule separates the excerpt from the book details
+    And no separate instrument heading precedes the excerpt
     And complete text can still shrink or scroll when space is limited
 
   Scenario: Hidden weread acceptance renders at each requested viewport

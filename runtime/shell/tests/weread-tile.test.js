@@ -212,9 +212,9 @@ test('unchanged ticks retain pending cover decoding and failed theme-change load
 
 test('excerpt fitting reserves the resolved row gap instead of the fixed fallback', async () => {
   const result = await mountWith({ status: 'live', highlight: { title: 'Book', markText: 'Complete reading' } }, 900, {
-    gap: '36px', scrollHeight: size => parseFloat(size) > 34 ? 430 : 420,
+    gap: '36px', scrollHeight: size => parseFloat(size) > 70 ? 430 : 420,
   })
-  assert.equal(result.nodes.get('.weread-text').style.fontSize, '34px')
+  assert.equal(result.nodes.get('.weread-text').style.fontSize, '70px')
   assert.equal(result.text('.weread-text'), 'Complete reading')
 })
 
@@ -271,7 +271,7 @@ test('highlight meta splits into bracket-free title, author, and date lines', as
   assert.match(text('.weread-date'), /^\d{4}-\d{2}-\d{2}$/)
   assert.equal(nodes.get('.weread-date').hidden, false)
   assert.equal(text('.weread-text'), '道可道，非常道')
-  assert.equal(nodes.get('.weread-text').style.fontSize, '36px')
+  assert.equal(nodes.get('.weread-text').style.fontSize, '72px')
 })
 
 test('missing author and date collapse their lines without breaking fit', async () => {
@@ -298,8 +298,6 @@ test('excerpt responds to available width while author and date share a size', a
   const wide = await mountWith(state, 900)
   const narrow = await mountWith(state, 300)
   assert.ok(parseFloat(wide.nodes.get('.weread-text').style.fontSize) > parseFloat(narrow.nodes.get('.weread-text').style.fontSize))
-  assert.ok(parseFloat(narrow.nodes.get('.weread-text').style.fontSize) <= 24)
-  assert.ok(parseFloat(wide.nodes.get('.weread-text').style.fontSize) <= 36)
   const css = fs.readFileSync('src/renderer/plugins/weread.css', 'utf8')
   const size = role => css.match(new RegExp('\\.weread-' + role + ' \\{[^}]*font-size: ([^;]+)'))?.[1]
   assert.ok(size('author'))
