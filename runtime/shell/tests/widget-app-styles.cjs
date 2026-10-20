@@ -158,7 +158,7 @@ async function widgets(win, label) {
   })()`)
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
-  check(`${label}: Home handle has a reachable pointer target`, result.indicators)
+  check(`${label}: Page control markers have reachable pointer targets`, result.indicators)
 }
 
 async function pomodoroCentering(win) {

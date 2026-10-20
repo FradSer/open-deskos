@@ -99,13 +99,25 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     setIndex(index, false)
   }
 
+  // The desk shows the page controller below the Widgets. The same control is
+  // the return handle inside an App, where it owns the upward swipe.
+  function controlMode() {
+    return document.getElementById('app-view').hidden ? 'pages' : 'handle'
+  }
+
   function renderDots() {
+    const control = document.getElementById('dots')
+    const mode = controlMode()
+    if (control.dataset.mode !== mode) {
+      control.dataset.mode = mode
+      control.setAttribute('aria-label', mode === 'handle' ? 'Home handle' : 'Page controller')
+    }
+    const returning = mode === 'handle'
     for (const [i, dot] of [...document.querySelectorAll('#dots .dot')].entries()) {
       const active = i === index
       dot.classList.toggle('active', active)
-      dot.hidden = !active
+      dot.hidden = returning && !active
       dot.tabIndex = active ? 0 : -1
-      const returning = !document.getElementById('app-view').hidden
       dot.setAttribute('aria-label', returning ? `Swipe up to return to ${pageNames[index] ?? 'the desk'}` : `${pageNames[i] ?? 'Page'}, page ${i + 1} of ${pageCount()}. Swipe left or right to change page.`)
       dot.setAttribute('aria-keyshortcuts', returning ? 'ArrowUp Enter Space' : 'ArrowLeft ArrowRight Home End')
       if (active) dot.setAttribute('aria-current', 'page')

@@ -85,7 +85,7 @@ test('the focused handle provides a keyboard equivalent and releases listeners',
 function pagerFixture() {
   class Surface extends EventTarget {
     constructor() {
-      super(); this.style = {}; this.hidden = false; this.attributes = new Map(); this.capture = new Set()
+      super(); this.style = {}; this.dataset = {}; this.hidden = false; this.attributes = new Map(); this.capture = new Set()
       const classes = new Set()
       this.classList = { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name),
         toggle(name, value) { if (value) classes.add(name); else classes.delete(name) } }
