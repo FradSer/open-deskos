@@ -125,8 +125,8 @@ test('Hydra uses the wide Desk composition and restores smaller shapes', async t
   const f = await fixture(t)
   f.operations[0].resolve(live)
   await f.settle()
-  for (const [width, height, shape] of [[1103, 730, 'wide'], [480, 340, 'wide'],
-    [479, 340, 'compact'], [480, 339, 'compact'], [186, 400, 'tall'], [116, 120, 'plants'], [1103, 730, 'wide']]) {
+  for (const [width, height, shape] of [[1103, 730, 'wide'], [480, 300, 'wide'],
+    [479, 300, 'compact'], [480, 299, 'compact'], [186, 400, 'tall'], [116, 120, 'plants'], [1103, 730, 'wide']]) {
     f.resize({ width, height })
     f.observers[0].callback()
     assert.equal(f.read('.hydra-body').dataset.shape, shape)
@@ -141,7 +141,7 @@ test('Hydra preserves display states and cell shapes through the selected factor
     { ...live, env: { ...live.env, tempC: -10.2, lux: 0.25, humidity: 0, pressureHpa: 1013.6 },
       nodes: [{ id: 2, online: false, soilPercent: 77, pump: true }, { id: 1, stale: true, soilPercent: 49.4, pump: true }] },
     { ...live, nodes: [{ id: 1, online: true, soilPercent: null }, { id: 2, online: true, soilPercent: 0 }] }]
-  const sizes = [{ width: 1103, height: 730 }, { width: 480, height: 340 }, { width: 186, height: 400 }, { width: 130, height: 180 },
+  const sizes = [{ width: 1103, height: 730 }, { width: 480, height: 300 }, { width: 186, height: 400 }, { width: 130, height: 180 },
     { width: 116, height: 120 }, { width: 100, height: 100 }]
   for (const [index, state] of states.entries()) {
     const f = await fixture(t)

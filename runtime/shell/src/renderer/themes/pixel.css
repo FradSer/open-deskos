@@ -272,7 +272,7 @@
   transition: none;
 }
 
-[data-theme='pixel'] .hydra-body {
+[data-theme='pixel'] .hydra-body:not([data-shape='wide'], [data-shape='compact']) {
   gap: 2cqi;
 }
 

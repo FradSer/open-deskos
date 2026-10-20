@@ -200,11 +200,13 @@ Feature: Hydra plant and environment Widget on the Desk page
     And the Hydra Widget opens the existing Hydra App
 
   Scenario: A wide Cell shows the new environment and plant composition
-    Given Hydra occupies a Cell at least 480 pixels wide and 340 pixels high
+    Given Hydra occupies a Cell at least 480 pixels wide and 300 pixels high
     When the Cell can hold the wide instrument
     Then four environment readings form four columns and one row
     And both plants appear side by side above the environment
-    And the header and environment align with the top and bottom content insets
+    And the header, plants, and environment have gaps between 12 and 20 pixels
+    And the desktop card fits its content with a minimum wide height of 300 pixels
+    And spare Cell height does not stretch gaps inside the card
     And every reading retains its unit and complete state
     And the current theme remains selected
 

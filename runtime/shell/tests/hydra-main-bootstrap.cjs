@@ -147,7 +147,7 @@ app.on('browser-window-created', (_event, win) => {
             || tile.querySelector('#hydra-env-temp .hydra-env-value')?.textContent !== '24.5'
             || tile.querySelector('#hydra-plant-1 .hydra-plant-soil')?.textContent !== '42%'
             || tile.getBoundingClientRect().width < 480
-            || tile.getBoundingClientRect().height < 340
+            || tile.getBoundingClientRect().height < 300
             || tile.querySelector('.hydra-body')?.dataset.shape !== 'wide') {
             if (performance.now() > deadline) throw Error('Actual Main Hydra Widget did not render');
             await new Promise(resolve => requestAnimationFrame(resolve));

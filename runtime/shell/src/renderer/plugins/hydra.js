@@ -17,7 +17,7 @@
   // one states that it cannot show the readings rather than showing a broken
   // fragment of them.
   const WIDE_MIN_WIDTH = 480
-  const WIDE_MIN_HEIGHT = 340
+  const WIDE_MIN_HEIGHT = 300
   const TALL_MIN_HEIGHT = 240
   const TALL_ASPECT = 1.4
   const COMPACT_MIN_HEIGHT = 180

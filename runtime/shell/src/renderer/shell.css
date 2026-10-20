@@ -3255,18 +3255,27 @@ body.kiosk {
    one of those says it cannot draw the readings at all. */
 /* The full Desk canvas is one instrument: plants above, environment below.
    The measured wide shape keeps plant pairs above the environment strip. */
+.widget.w-hydra:has(.hydra-body[data-shape='wide']) {
+  align-self: start;
+  height: auto;
+  min-height: 300px;
+  max-height: 100%;
+}
+
 .hydra-body[data-shape='wide'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
   flex: 1;
-  height: 100%;
+  height: auto;
   max-height: 100%;
   margin-block: 0;
-  justify-content: space-between;
-  gap: clamp(20px, 2.5cqi, 28px);
+  gap: clamp(12px, 1.5cqi, 20px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-head {
   gap: 12px;
-  padding-block-end: 12px;
+  padding-block-end: 0;
 }
 
 .hydra-body[data-shape='wide'] .hydra-head svg {
@@ -3329,12 +3338,13 @@ body.kiosk {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(20px, 4cqi, 48px);
   padding-block-start: 0;
-  padding-block-end: clamp(16px, 2.5cqi, 28px);
+  padding-block-end: clamp(12px, 1.5cqi, 20px);
   border-top: 0;
   border-bottom: 1px solid var(--odk-stroke);
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant {
+  justify-content: space-between;
   gap: clamp(8px, 1.2cqi, 14px);
   padding: clamp(16px, 2.5cqi, 28px);
   border-radius: calc(var(--radius) * 0.4);
@@ -3368,6 +3378,16 @@ body.kiosk {
 
 .hydra-body[data-shape='compact'] {
   justify-content: space-between;
+  gap: clamp(6px, 1.5cqi, 10px);
+}
+
+.hydra-body[data-shape='compact'] .hydra-head {
+  padding-block-end: 0;
+}
+
+.hydra-body[data-shape='compact'] .hydra-head svg {
+  width: clamp(16px, 6cqi, 28px);
+  height: clamp(16px, 6cqi, 28px);
 }
 
 .hydra-body[data-shape='compact'] .hydra-env {
@@ -3392,6 +3412,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='compact'] .hydra-plants {
+  gap: clamp(6px, 1.5cqi, 8px);
   padding-block-start: 0;
 }
 

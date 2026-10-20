@@ -224,6 +224,26 @@ app.whenReady().then(async () => {
           await document.fonts.ready;
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         })()`)
+        if (page === 'desk') {
+          const spacing = await js(`(() => {
+            const card = document.querySelector('[data-widget="odk.tile.hydra"]');
+            const body = card.querySelector('.hydra-body'), head = card.querySelector('.hydra-head');
+            const plants = card.querySelector('.hydra-plants'), env = card.querySelector('.hydra-env');
+            return { shape: body.dataset.shape, cardHeight: card.getBoundingClientRect().height,
+              cellHeight: card.parentElement.getBoundingClientRect().height,
+              contentWidth: body.getBoundingClientRect().width, plantWidth: plants.getBoundingClientRect().width,
+              display: getComputedStyle(body).display, gap: getComputedStyle(body).rowGap, rows: getComputedStyle(body).gridTemplateRows,
+              afterHeader: plants.getBoundingClientRect().top - head.getBoundingClientRect().bottom,
+              beforeEnvironment: env.getBoundingClientRect().top - plants.getBoundingClientRect().bottom,
+              contained: card.scrollHeight <= card.clientHeight + 1 };
+          })()`)
+          assert.equal(spacing.shape, 'wide')
+          assert.equal(spacing.contained, true)
+          assert.ok(Math.abs(spacing.contentWidth - spacing.plantWidth) < 1, 'Hydra content fills the card width')
+          assert.ok(spacing.cardHeight <= spacing.cellHeight - 32, 'Hydra card releases unused Cell height')
+          assert.ok([spacing.afterHeader, spacing.beforeEnvironment].every(gap => gap >= 12 && gap <= 20.1), JSON.stringify(spacing))
+          console.log('HYDRA_COMPACT_CARD_PASS ' + JSON.stringify({ theme, width, ...spacing }))
+        }
         if (page === 'reading') {
           const attribution = await js(`(async () => {
             const tile = document.querySelector('[data-widget="odk.tile.weread"]');

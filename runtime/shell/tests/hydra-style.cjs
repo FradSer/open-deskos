@@ -41,9 +41,9 @@ const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: fa
 // the tile's state line.
 const CELLS = [
   ['Desk canvas', 1103, 730, 'wide'],
-  ['wide boundary', 480, 340, 'wide'],
-  ['below wide width', 479, 340, 'compact'],
-  ['below wide height', 480, 339, 'compact'],
+  ['wide boundary', 480, 300, 'wide'],
+  ['below wide width', 479, 300, 'compact'],
+  ['below wide height', 480, 299, 'compact'],
   ['reference tall', 348, 724, 'tall'],
   ['wide reading boundary', 338, 724, 'tall'],
   ['narrow reading boundary', 334, 724, 'tall'],
@@ -119,11 +119,13 @@ app.whenReady().then(async () => {
           contentWidth: body.getBoundingClientRect().width,
           environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
           plantFont: parseFloat(getComputedStyle(host.querySelector('.hydra-plant-soil')).fontSize),
+          groupGaps: {
+            afterHeader: host.querySelector('.hydra-plants').getBoundingClientRect().top - host.querySelector('.hydra-head').getBoundingClientRect().bottom,
+            beforeEnvironment: host.querySelector('.hydra-env').getBoundingClientRect().top - host.querySelector('.hydra-plants').getBoundingClientRect().bottom,
+          },
           edgeInsets: {
             top: host.querySelector('.hydra-head').getBoundingClientRect().top - host.getBoundingClientRect().top,
-            bottom: host.getBoundingClientRect().bottom - host.querySelector('.hydra-env').getBoundingClientRect().bottom,
             expectedTop: parseFloat(getComputedStyle(host).paddingTop) + parseFloat(getComputedStyle(host).borderTopWidth),
-            expectedBottom: parseFloat(getComputedStyle(host).paddingBottom) + parseFloat(getComputedStyle(host).borderBottomWidth),
           },
           meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
             texture: (() => {
@@ -255,8 +257,6 @@ app.whenReady().then(async () => {
       assert.equal(row.plantColumns, 2, JSON.stringify(row))
       assert.ok(row.environmentFont >= 24 && row.environmentFont <= 40, JSON.stringify(row))
       assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
-      assert.ok(Math.abs(row.edgeInsets.top - row.edgeInsets.expectedTop) < 1, `${row.name} top inset: ${JSON.stringify(row.edgeInsets)}`)
-      assert.ok(Math.abs(row.edgeInsets.bottom - row.edgeInsets.expectedBottom) < 1, `${row.name} bottom inset: ${JSON.stringify(row.edgeInsets)}`)
     }
     if (expected === 'compact') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
@@ -275,6 +275,10 @@ app.whenReady().then(async () => {
       assert.equal(row.plantsShown, 0, JSON.stringify(row))
       assert.match(row.hint, /small/i, JSON.stringify(row))
     }
+  }
+  for (const row of result.cases.filter(row => row.shape === 'wide')) {
+    assert.ok(Math.abs(row.edgeInsets.top - row.edgeInsets.expectedTop) < 1, `${row.theme} ${row.name} top inset: ${JSON.stringify(row.edgeInsets)}`)
+    assert.ok(Object.values(row.groupGaps).every(gap => gap >= 12 && gap <= 20.1), `${row.theme} ${row.name} bounded group gaps: ${JSON.stringify(row.groupGaps)}`)
   }
   for (const row of result.unconfigured) {
     const where = JSON.stringify(row)
