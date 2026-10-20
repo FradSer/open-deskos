@@ -85,7 +85,7 @@ check('reading page exists as a display grid', Boolean(readingPage) && readingPa
 check('reading page hosts the three-by-three WeRead canvas', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
 check('weread fills three rows and three columns from top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
 const deskHydra = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.hydra')
-check('hydra stays on the Desk page', deskHydra?.col === '1' && deskHydra?.row === '1 / 3')
+check('hydra fills the three-column by two-row Desk canvas', deskHydra?.col === '1 / 4' && deskHydra?.row === '1 / 3')
 const preorderPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'preorder')
 check('preorder page exists as a display grid', Boolean(preorderPage) && preorderPage.kind === 'grid' && preorderPage.surface === 'display')
 check('preorder page hosts the three-by-three countdown exactly once', preorderPage?.gridRows === 3 && preorderPage?.widgets?.length === 1 && preorderPage.widgets[0].id === 'odk.tile.preorder', JSON.stringify(preorderPage?.widgets))

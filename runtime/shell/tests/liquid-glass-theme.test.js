@@ -45,6 +45,11 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
   assert.match(appearance, /prefers-reduced-transparency/)
 })
 
+test('Liquid Glass keeps Widgets visible while SDK clip paths are prepared', () => {
+  const css = fs.readFileSync(path.join(renderer, 'themes/liquid-glass.css'), 'utf8')
+  assert.match(css, /html\[data-theme='liquid-glass'\] #home-desk \.widget\.lg-surface\s*\{[^}]*visibility:\s*inherit;/)
+})
+
 function fakeElement(id, box, inViewport = false) {
   const classes = new Set()
   const children = []

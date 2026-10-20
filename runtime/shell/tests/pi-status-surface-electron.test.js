@@ -34,7 +34,7 @@ for (const mode of ['development', 'native']) for (const invalid of ['', 'tick',
         if (invalid === 'tick' || invalid === 'navigation') {
           const entry = path.join(directory, 'entry.js')
           await fs.writeFile(entry, invalid === 'tick' ? (await fs.readFile(entry, 'utf8')).replace('context.onTick?.', 'void ')
-            : (await fs.readFile(entry, 'utf8')).replace("context.navigateToPage?.('pi-sessions')", 'undefined'))
+            : (await fs.readFile(entry, 'utf8')).replace("context.navigateToPage?.('home')", 'undefined'))
         }
         if (mode === 'native') {
           const files = []
@@ -53,7 +53,7 @@ for (const mode of ['development', 'native']) for (const invalid of ['', 'tick',
         { env, signal: t.signal, timeout: 55000, maxBuffer: 1024 * 1024 })
       if (invalid) {
         const expected = invalid === 'tick' ? /Pi subscriptions or consumer ownership changed/
-          : invalid === 'briefing' ? /Pi consumer bypassed selected briefing service/ : /Pi keyboard did not navigate from another page/
+          : invalid === 'briefing' ? /Pi consumer bypassed selected briefing service/ : /Pi keyboard must show the Home Widget without opening its App/
         await assert.rejects(running, error => fixtureRejection(error, expected))
         return
       }

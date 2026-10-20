@@ -22,7 +22,7 @@
     id: 'odk.status.pi-sessions', manifest: { schemaVersion: 1, version: '2.0.0' }, kind: 'status', slot: 'left',
     mount(element, context) {
       element.innerHTML = `
-        <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Pi sessions">
+        <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Show Pi Sessions widget" title="Show Pi Sessions widget">
           <span class="sb-pi-dot"></span>
           <span class="sb-pi-label">PI</span>
           <span class="sb-pi-count" id="sb-pi-count">Unknown</span>
@@ -41,9 +41,9 @@
         dot.className = `sb-pi-dot${working > 0 ? ' active' : ''}`
         if (working > 0) button.classList.add('has-running')
         else button.classList.remove('has-running')
-        button.setAttribute('title', available ? label : `${label} unavailable`)
-        button.setAttribute('aria-label', !available ? `${label} unavailable` : working > 0
-          ? `${label} · ${working} active Pi session${working > 1 ? 's' : ''}` : `${label} · No active Pi sessions`)
+        button.setAttribute('title', 'Show Pi Sessions widget')
+        button.setAttribute('aria-label', !available ? `Show Pi Sessions widget · ${label} unavailable` : working > 0
+          ? `Show Pi Sessions widget · ${label} · ${working} active Pi session${working > 1 ? 's' : ''}` : `Show Pi Sessions widget · ${label} · No active Pi sessions`)
         context.briefing.contribute({ id: 'odk.briefing.pi-sessions', order: 20, parts: statement(available ? response.summary : null) })
       }
       async function refresh() {
@@ -51,7 +51,11 @@
         if (typeof root.odkPlatform?.getPiSessions !== 'function') { render(null, false); return }
         try { render(await root.odkPlatform.getPiSessions()) } catch { render(null, false) }
       }
-      const navigate = () => { if (active()) context.navigateToPage?.('pi-sessions') }
+      const navigate = () => {
+        if (!active()) return
+        context.navigateToPage?.('home')
+        root.document?.querySelector('[data-page-id="home"] [data-widget="odk.tile.pi-sessions"] .widget-launch')?.focus({ preventScroll: true })
+      }
       button.addEventListener('click', navigate)
       context.trackCleanup?.(() => { released = true; button.removeEventListener('click', navigate) })
       void refresh()

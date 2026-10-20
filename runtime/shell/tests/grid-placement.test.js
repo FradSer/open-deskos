@@ -60,17 +60,17 @@ test('a single declared line is answered against the grid too', () => {
 })
 
 test('a page keeps its composition only when the grid can give every tile its lines', () => {
-  // The Home page names the fifth column and the Reading page spans five, so
-  // both need five columns to be the composition they were drawn as.
-  const home = [{ col: '5', row: '2 / 4' }, { col: '2 / 4', row: '2 / 4' }]
-  const reading = [{ col: '1 / 6', row: '1 / 3' }]
-  assert.equal(pageFitsGrid(home, 5, 3), true)
-  assert.equal(pageFitsGrid(reading, 5, 3), true)
-  // Three columns cannot place the fifth, so the page becomes a list of cells
-  // rather than a composition with a tile pushed into an implicit column.
-  assert.equal(pageFitsGrid(home, 3, 4), false)
-  assert.equal(pageFitsGrid(reading, 3, 3), false)
-  assert.equal(pageFitsGrid(home, 5, 2), false)
+  const home = [{ col: '1', row: '1' }, { col: '3', row: '2' }]
+  const desk = [{ col: '1 / 4', row: '1 / 3' }]
+  const reading = [{ col: '1 / 4', row: '1 / 4' }]
+  assert.equal(pageFitsGrid(home, 3, 2), true)
+  assert.equal(pageFitsGrid(desk, 3, 2), true)
+  assert.equal(pageFitsGrid(reading, 3, 3), true)
+  assert.equal(pageFitsGrid(home, 2, 3), false)
+  assert.equal(pageFitsGrid(desk, 2, 3), false)
+  assert.equal(pageFitsGrid(reading, 3, 2), false)
+  // A declaration outside the grid must not create an implicit column.
+  assert.equal(pageFitsGrid([{ col: '5', row: '2 / 4' }], 3, 4), false)
   assert.equal(pageFitsGrid([], 1, 1), true)
 })
 test('a span the grid has no lines for is never kept', () => {
@@ -80,15 +80,12 @@ test('a span the grid has no lines for is never kept', () => {
   assert.equal(placeable, false)
 })
 
-test('a tall instrument keeps its slot on a panel a little shorter than the promised one', () => {
-  // Hydra declares 120px as the narrowest cell it draws its 1x2 slot in. A 1280x740
-  // window computes a 174px cell, which is 12px narrower than the 1280x776 panel the
-  // desk promises, and the slot is still whole there: a floor set to the panel's own
-  // minimum cell would have dropped it and collapsed the tile into a square.
-  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 174, 174, 120), true)
-  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 128, 128, 120), true)
-  // Below the floor the grid takes the single cell the layout model can always give,
-  // and the tile re-composes inside it.
+test('the Desk instrument keeps its canvas when the Cell meets its readable floor', () => {
+  assert.equal(honorsSpan({ columns: 3, rows: 2 }, 174, 174, 120), true)
+  assert.equal(honorsSpan({ columns: 3, rows: 2 }, 128, 128, 120), true)
+  // Below the floor the instrument uses a readable single-Cell fallback.
+  assert.equal(honorsSpan({ columns: 3, rows: 2 }, 50, 50, 120), false)
   assert.equal(honorsSpan({ columns: 1, rows: 2 }, 110, 110, 120), false)
+  assert.equal(honorsSpan({ columns: 1, rows: 2 }, 128, 128, 120), true)
   assert.equal(honorsSpan({ columns: 1, rows: 1 }, 110, 110, 120), true)
 })

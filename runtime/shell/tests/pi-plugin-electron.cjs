@@ -1,6 +1,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, session, protocol } = require('electron')
+const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 if (process.platform === 'linux') app.disableHardwareAcceleration()
 if (process.platform === 'darwin') app.dock.hide()
 const assert = require('node:assert/strict')
@@ -276,6 +277,7 @@ app.whenReady().then(async () => {
       eventRead = () => eventResponse
       scan = async () => scanResponse
       win.setContentSize(...size)
+      await installPiPageCompatibilityFixture(win)
       await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), {
         query: capturedViews && signed ? { piCapturedViews: '1' } : {},
       })

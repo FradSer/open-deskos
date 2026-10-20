@@ -1,6 +1,6 @@
 'use strict'
 
-// Capture what the Pi Sessions page actually looks like at the desk's own size,
+// Capture the Pi Sessions App opened through its Home Widget at the desk's own size,
 // so a claim about its layout can be checked against a picture rather than read
 // out of CSS. Fixtures only: this never touches a real Pi session.
 const assert = require('node:assert/strict')
@@ -62,7 +62,7 @@ async function main() {
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.executeJavaScript('document.fonts.ready')
   await win.webContents.executeJavaScript(
-    "[...document.querySelectorAll('.dot')].find(dot => dot.getAttribute('aria-label')?.includes('Pi Sessions')).click()",
+    "document.querySelector('[data-widget=\"odk.tile.pi-sessions\"] .widget-launch').click()",
   )
   // A hidden window is not repainted on every platform, and a capture of it can
   // return the previous frame: the geometry measured from the live DOM and the

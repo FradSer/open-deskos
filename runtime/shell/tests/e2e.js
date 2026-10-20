@@ -41,6 +41,16 @@ const DRIVER_SCRIPT = `
   const viewport = $('#pages-viewport')
   const track = $('#pages-track')
   const approx = (a, b, tol = 4) => Math.abs(a - b) <= tol
+  const openPiApp = async () => {
+    document.querySelectorAll('#dots .dot')[0].click()
+    document.querySelector('[data-widget="odk.tile.pi-sessions"] .widget-launch').click()
+    const deadline = performance.now() + 5000
+    while ($('#app-view').hidden || window.odkAppPlatform.active()?.appId !== 'pi-sessions' || !$('#app-view .pi-overview-cell')) {
+      if (performance.now() > deadline) throw Error('Pi Widget did not open its App')
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    return $('#app-view')
+  }
 
   await new Promise((resolve) => setTimeout(resolve, 400))
   await document.fonts.ready
@@ -102,7 +112,8 @@ const DRIVER_SCRIPT = `
   out.surfaceSeparation =
     document.querySelector('#pages-track .page[data-page-id="home"]')?.dataset.surface === 'display' &&
     document.querySelector('#home-summary .page[data-page-id="today"]')?.dataset.surface === 'display' &&
-    document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.dataset.surface === 'app'
+    !document.querySelector('#pages-track .page[data-page-id="pi-sessions"]') &&
+    [...document.querySelectorAll('#pages-track > .page')].every(page => page.dataset.surface === 'display')
   // The Home page carries Widgets only: AI usage is a Widget that opens the
   // App, never a desktop page of its own.
   out.usageIsAWidgetNotAPage =
@@ -217,15 +228,14 @@ const DRIVER_SCRIPT = `
   out.gridFlushEdges =
     gridRect.left >= gridPageRect.left - 2 &&
     gridRect.right <= gridPageRect.right + 2
-  // Pages are addressed by layout id: inserting a display page must not retarget a
-  // positional selector onto the wrong surface (see tests/helpers/pages.js).
-  const piAppRect = document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-app-wrapper').getBoundingClientRect()
-  const appPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
-  const appSurfaceWidth = Math.min(metrics.gridW, appPage.clientWidth)
-  const appSurfaceHeight = Math.min(metrics.gridH, appPage.clientHeight - 2 * metrics.gutter)
-  out.appSurfacesMatchGridFootprint =
-    approx(piAppRect.width, appSurfaceWidth) &&
-    approx(piAppRect.height, appSurfaceHeight)
+  const piSurface = await openPiApp()
+  const piAppRect = piSurface.getBoundingClientRect()
+  const paneRect = $('#desk-content').getBoundingClientRect()
+  out.appSurfacesStayInRightPane =
+    piAppRect.left >= paneRect.left && piAppRect.right <= paneRect.right &&
+    piAppRect.top >= paneRect.top && piAppRect.bottom <= paneRect.bottom &&
+    piAppRect.width < paneRect.width && !$('#personal-agent').inert &&
+    piSurface.getAttribute('aria-modal') !== 'true'
   out.cardsHaveNoStateEdgeBars = [...document.querySelectorAll('.widget, .pi-overview-cell')].every((card) => {
     const before = getComputedStyle(card, '::before')
     const border = getComputedStyle(card)
@@ -237,6 +247,7 @@ const DRIVER_SCRIPT = `
     return style.textOverflow !== 'ellipsis' && style.whiteSpace !== 'nowrap'
   })
   out.piRawIdentifiersHidden = document.querySelectorAll('.pi-card-uuid, .pi-card-pid').length === 0
+  await window.odkAppPlatform.closeApp()
   const monitoredSurfaces = [
     ...document.querySelectorAll('.widget'),
     ...document.querySelectorAll('#pages-track .page[data-surface="app"] > div'),
@@ -263,14 +274,15 @@ const DRIVER_SCRIPT = `
   window.odkRemote.subscribeInput((input) => {})
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'up' }))
   out.remoteDisplayPageIgnoresVerticalInput = document.querySelectorAll('#dots .dot')[0].classList.contains('active')
-  jumpToPage('pi-sessions')
+  await openPiApp()
   await new Promise((resolve) => setTimeout(resolve, 300))
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'primary' }))
   await new Promise((resolve) => setTimeout(resolve, 20))
-  out.remoteAppPrimaryEstablishesFocus = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')?.contains(document.activeElement)
+  out.remoteInputKeepsWidgetAppOpen = !$('#app-view').hidden && window.odkAppPlatform.active()?.sourceWidget === 'odk.tile.pi-sessions'
   const pageBeforeFocusMove = text('#page-context')
   window.dispatchEvent(new CustomEvent('odk-remote-input', { detail: 'right' }))
   out.remoteAppDirectionStaysOnPage = text('#page-context') === pageBeforeFocusMove
+  await window.odkAppPlatform.closeApp()
 
   const midY = viewport.getBoundingClientRect().top + viewport.getBoundingClientRect().height / 2
   const x0 = viewport.getBoundingClientRect().left + viewport.clientWidth * 0.8
@@ -349,11 +361,11 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = text('#page-context') === 'Pre-order · 3/5'
-  const piPage = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
+  out.thirdPageContext = text('#page-context') === 'Pre-order · 3/4'
+  const piPage = await openPiApp()
   out.piPageIsInteractiveAppSurface =
-    piPage?.dataset.surface === 'app' &&
-    Boolean(piPage.querySelector('.pi-app-wrapper'))
+    window.odkAppPlatform.active()?.sourceWidget === 'odk.tile.pi-sessions' &&
+    piPage.hidden === false && Boolean(piPage.querySelector('.pi-app-wrapper'))
   out.piPageHasAppControls =
     Boolean(piPage?.querySelector('#pi-detail')) &&
     Boolean(piPage?.querySelector('#pi-overview')) &&
@@ -422,7 +434,7 @@ const DRIVER_SCRIPT = `
     !piPageText.includes('metadata unavailable') &&
     !piPageText.includes('automation')
   out.piFilesOmittedForCompactness = piPage?.querySelector('.pi-files-toggle') === null
-  out.piOverviewOpensTheDetailWithoutRemote = (() => {
+  out.piOverviewOpensTheDetailWithoutRemote = await (async () => {
     const cell = piPage.querySelector('.pi-overview-cell')
     cell.click()
     const detail = piPage.querySelector('#pi-detail')
@@ -431,24 +443,27 @@ const DRIVER_SCRIPT = `
       piPage.querySelector('#pi-view-subtitle').textContent.includes('/') &&
       /elapsed/.test(piPage.querySelector('#pi-view-facts').textContent) &&
       piPage.querySelector('#pi-detail .pi-filter-btn') === null
-    // The page's own primary input returns to the live list.
-    piPage.dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))
-    return opened && piPage.querySelector('#pi-overview').hidden === false && detail.inert === true
+    await window.odkAppPlatform.closeApp()
+    const reopened = await openPiApp()
+    return opened && reopened.querySelector('#pi-overview').hidden === false && reopened.querySelector('#pi-detail').inert === true
   })()
+  await window.odkAppPlatform.closeApp()
+  jumpToPage('preorder')
+  document.querySelector('#dots .dot.active').focus()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/5'
+  out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToLastPage = text('#page-context') === 'Pi Sessions · 5/5'
+  out.endJumpsToLastPage = text('#page-context') === 'Reading · 4/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = text('#page-context') === 'Home · 1/5'
+  out.homeJumpsToToday = text('#page-context') === 'Home · 1/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachLastPage = text('#page-context') === 'Pi Sessions · 5/5'
+  out.consecutiveArrowRightsReachLastPage = text('#page-context') === 'Reading · 4/4'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.arrowRightStaysAtLastPage = text('#page-context') === 'Pi Sessions · 5/5'
+  out.arrowRightStaysAtLastPage = text('#page-context') === 'Reading · 4/4'
   // The Home page carries Widgets only: the AI usage Widget opens the App, and
   // the App owns the quota surface instead of a desktop page.
   document.querySelectorAll('#dots .dot')[0].click()
@@ -535,10 +550,10 @@ function check(results) {
     ['dots stay below the Widget viewport', results.dotsInsideStatusBar],
     ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
-    ['five paged surfaces', results.pageCount === 5],
-    ['one bottom Home handle with five page identities', results.dotCount === 5 && results.visibleHandles === 1],
+    ['four display pages without a Pi App page', results.pageCount === 4],
+    ['one bottom Home handle with four page identities', results.dotCount === 4 && results.visibleHandles === 1],
     ['no separate User Applications page', results.noUserAppsPage],
-    ['page context is tracked', results.pageContext === 'Home · 1/5'],
+    ['page context is tracked', results.pageContext === 'Home · 1/4'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
@@ -563,7 +578,7 @@ function check(results) {
     ['Remote Link navigation moves only an unoccluded bounded pager', results.remoteNavigationMovesPager],
     ['consecutive Remote Link navigation preserves both inputs', results.consecutiveRemoteMovesTwice],
     ['Remote Touchpad ignores vertical input on display pages', results.remoteDisplayPageIgnoresVerticalInput],
-    ['Remote Touchpad establishes App focus with primary input', results.remoteAppPrimaryEstablishesFocus],
+    ['Remote input keeps the Widget App open', results.remoteInputKeepsWidgetAppOpen],
     ['Remote Touchpad directions retain App Focus Mode', results.remoteAppDirectionStaysOnPage],
     ['widgets declared via data-widget', results.widgetsDeclaredViaDataAttr],
     ['market fills the former clock cell from layout config', results.marketPlacementFromConfig],
@@ -581,7 +596,7 @@ function check(results) {
     ['wide right grid has at most three columns', results.gridColumns === 3],
     ['home grid has two rows below Overview', results.gridRows === 2],
     ['grid flush to screen edges', results.gridFlushEdges],
-    ['App surfaces match the widget grid footprint', results.appSurfacesMatchGridFootprint],
+    ['Widget App stays in the right pane and keeps Personal Agent usable', results.appSurfacesStayInRightPane],
     ['cards have no colored top or left state bars', results.cardsHaveNoStateEdgeBars],
     ['essential Widget and App text wraps without ellipsis', results.essentialTextDoesNotUseEllipsis && results.piRawIdentifiersHidden],
     ['all Widgets and direct App surfaces stay within their pages', results.monitoredSurfacesStayInBounds],
@@ -593,7 +608,7 @@ function check(results) {
     ['small drag on tile keeps page', results.transformAfterTileDrag === `translateX(-${results.viewportWidth}px)`],
     ['tile drag never opens a view', results.appHiddenAfterTileDrag],
     ['Widget opens its App and the platform path remains available', results.widgetOpensApp && results.widgetHasNativeContinuation && results.platformAppStillOpensSeparately && results.appSurfaceShowsRuntimeContent && results.appSurfacePreservesSourceContext],
-    ['Pi Sessions is a direct live-session App page', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
+    ['Pi Sessions opens its live-session App from the Home Widget', results.piPageIsInteractiveAppSurface && results.piPageHasAppControls && results.piPageRemovedListControls && results.piPageLandsOnTheLiveList && results.piPageOwnsTheSessionFilter && results.piPageFilterNarrowsTheList && results.piPageShowsLiveStateAndDirectory && results.piPageRendersSessionDetails && results.piFilesOmittedForCompactness && results.piOverviewOpensTheDetailWithoutRemote],
     ['Usage is a Widget App opened from the Home grid', results.usageWidgetOpensTheApp],
     ['separate App intent routes through platform layers', results.platformIntentTrace && results.appEndpointTrace],
     ['State Bar stays concise after App navigation', results.noBottomPeekAfterAppNavigation && results.stateSummaryRemainsRemoved],
@@ -660,13 +675,18 @@ async function runGeometrySweep(win) {
     await new Promise((resolve) => setTimeout(resolve, 400))
     await new Promise((resolve) => setTimeout(resolve, 100))
     const probe = await win.webContents.executeJavaScript(GEOMETRY_PROBE, true)
-    await win.webContents.executeJavaScript(`(() => {
-      const index = window.DESKTOP_LAYOUT.pages.filter(page => !page.persistent).findIndex(page => page.id === 'pi-sessions')
-      document.querySelectorAll('#dots .dot')[index].click()
+    await win.webContents.executeJavaScript(`(async () => {
+      document.querySelectorAll('#dots .dot')[0].click()
+      document.querySelector('[data-widget="odk.tile.pi-sessions"] .widget-launch').click()
+      const deadline = performance.now() + 5000
+      while (document.getElementById('app-view').hidden || !document.querySelector('#app-view .pi-overview-cell')) {
+        if (performance.now() > deadline) throw Error('Pi Widget App did not mount during resize')
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
     })()`, true)
     await new Promise((resolve) => setTimeout(resolve, 350))
     const piProbe = await win.webContents.executeJavaScript(`(() => {
-      const page = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
+      const page = document.getElementById('app-view')
       const pageRect = page.getBoundingClientRect()
       const controls = [...page.querySelectorAll('#pi-detail, #pi-overview')]
       const inside = (rect, parent) => rect.left >= parent.left - 1 && rect.right <= parent.right + 1
@@ -676,11 +696,17 @@ async function runGeometrySweep(win) {
         rowsInside: [...page.querySelectorAll('.pi-overview-cell')].every((cell) => inside(cell.getBoundingClientRect(), pageRect)),
         filtersInside: [...page.querySelectorAll('.pi-filter-btn')].every((button) => {
           const group = button.closest('.pi-overview-filters')
-          return group !== null && inside(button.getBoundingClientRect(), group.getBoundingClientRect())
+          if (!group || !inside(group.getBoundingClientRect(), pageRect)) return false
+          const previous = group.scrollLeft
+          button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+          const reachable = inside(button.getBoundingClientRect(), group.getBoundingClientRect())
+          group.scrollLeft = previous
+          return reachable
         }),
         retiredControlsAbsent: page.querySelectorAll('.pi-filter-group, .pi-overview-open, .pi-session-step').length === 0,
       }
     })()`, true)
+    await win.webContents.executeJavaScript("odkAppPlatform.closeApp()", true)
     await win.webContents.executeJavaScript("document.querySelectorAll('#dots .dot')[1].click()", true)
     await new Promise((resolve) => setTimeout(resolve, 350))
     const checks = [
@@ -886,10 +912,10 @@ async function main() {
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
-    remotePageStates.some((state) => state.page === 1 && state.pages === 5 && state.name === 'Home' && !state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 3 && state.pages === 5 && state.name === 'Pre-order' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 4 && state.pages === 5 && state.name === 'Reading' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 5 && state.pages === 5 && state.name === 'Pi Sessions' && state.canPrev && !state.canNext)
+    remotePageStates.some((state) => state.page === 1 && state.pages === 4 && state.name === 'Home' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 3 && state.pages === 4 && state.name === 'Pre-order' && state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 4 && state.pages === 4 && state.name === 'Reading' && state.canPrev && !state.canNext) &&
+    !remotePageStates.some((state) => state.name === 'Pi Sessions' || state.page > 4 || state.pages !== 4)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
@@ -915,17 +941,17 @@ async function main() {
   )
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToToday = await pageContext() === 'Home · 1/5'
+  const movedToToday = await pageContext() === 'Home · 1/4'
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const heldAtFirstPage = await pageContext() === 'Home · 1/5'
+  const heldAtFirstPage = await pageContext() === 'Home · 1/4'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToHome = await pageContext() === 'Desk · 2/5'
+  const movedToHome = await pageContext() === 'Desk · 2/4'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const consecutiveRemoteMovesTwice = await pageContext() === 'Reading · 4/5'
+  const consecutiveRemoteMovesTwice = await pageContext() === 'Reading · 4/4'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)
@@ -939,6 +965,8 @@ async function main() {
   if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
   const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
   if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
+  const lazyHistoryRuns = ['--lazy-history-only', '--lazy-history-retention-only'].map(flag => runFixture('agent-home.cjs', [flag]))
+  for (const result of lazyHistoryRuns) if (result.error) console.error(`FAIL  Agent lazy history: ${result.error.message}`)
   const navigation = runFixture('widget-navigation.cjs')
   if (navigation.error) console.error(`FAIL  Widget continuations: ${navigation.error.message}`)
   const interiors = runFixture('widget-app-styles.cjs')
@@ -966,6 +994,7 @@ async function main() {
     driverFailures, motionFailures, sweepFailures,
     homeHandle: homeHandle.status,
     agentReference: agentReference.status,
+    lazyHistory: lazyHistoryRuns.map(result => result.status),
     navigation: navigation.status,
     interiors: interiors.status,
     appGallery: appGallery.status,

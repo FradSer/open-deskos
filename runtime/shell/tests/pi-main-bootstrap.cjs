@@ -1,6 +1,7 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, protocol } = require('electron')
+const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -24,7 +25,7 @@ const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 const surfaces = layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
 process.env.ODK_DISABLED_PLUGINS += ',' + surfaces.filter(id => id !== 'odk.page.pi-sessions').join(',')
-if (signed) {
+{
   const loadFile = BrowserWindow.prototype.loadFile
   BrowserWindow.prototype.loadFile = async function (...args) {
     await this.loadURL('about:blank')
@@ -52,7 +53,8 @@ if (signed) {
       } });
     })()`
     new vm.Script(guard)
-    await this.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: guard })
+    if (signed) await this.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: guard })
+    await installPiPageCompatibilityFixture(this)
     return loadFile.apply(this, args)
   }
 }

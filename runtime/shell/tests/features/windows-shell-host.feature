@@ -7,7 +7,7 @@ Feature: 64-bit Windows as a Shell Host
   Scenario: A Windows host starts the same Display Shell without bash
     Given a 64-bit Windows machine with the runtime dependencies installed
     When the operator starts the shell
-    Then the five desktop pages are reachable at the configured content size
+    Then the four display pages are reachable at the configured content size
     And no bash interpreter is required to start or verify it
 
   Scenario: The Windows launcher installs Electron when its binary is absent

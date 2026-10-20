@@ -1,6 +1,6 @@
-Feature: Hydra plant and environment widget on the Home grid
+Feature: Hydra plant and environment Widget on the Desk page
 
-  The Home grid carries a Hydra widget fed by the Hydra MQTT bridge
+  The Desk page carries a Hydra Widget fed by the Hydra MQTT bridge
   (Mosquitto on the NAS). It shows the two caladium watering nodes
   (soil moisture, pump state, online state) and the main node's
   environment sensors (temperature, humidity, pressure, lux).
@@ -10,9 +10,9 @@ Feature: Hydra plant and environment widget on the Home grid
     When the browser loads that entry and the runtime controller replaces the surface
     Then the original desktop container and document remain mounted without navigation
     And the selected independent mount cannot delegate to the default implementation
-    And all 240 theme, Cell, and source-state consumers retain attributes, computed CSS, text, and geometry
+    And all 288 theme, Cell, and source-state consumers retain attributes, computed CSS, text, and geometry
     When the controller restores the captured default definition
-    Then all 240 consumers remain equal and default mounting executes again
+    Then all 288 consumers remain equal and default mounting executes again
     And discovery shutdown releases IPC and captured signed assets
 
   Scenario: Trusted runtime replacement drains signed Hydra source ownership
@@ -62,7 +62,7 @@ Feature: Hydra plant and environment widget on the Home grid
     When actual Renderer discovery loads its entry before Shell composition
     Then actual preload supplies controlled snapshots to the selected surface
     And default and independent surfaces retain readings, effective classes, fonts, and geometry
-    And all three themes preserve ten measured Cell compositions
+    And all three themes preserve twelve measured Cell compositions
     And surface release clears mounted resources and shutdown removes discovery IPC
 
   Scenario: Independent Hydra surfaces preserve readings and resource behavior
@@ -90,7 +90,7 @@ Feature: Hydra plant and environment widget on the Home grid
 
   Scenario: Unconfigured Hydra bridge stays honest
     Given no Hydra MQTT broker URL is configured
-    When the Home grid renders
+    When the Desk page renders
     Then the Hydra widget says the bridge is unconfigured
     And no soil moisture, pump state, or environment reading is fabricated
 
@@ -102,8 +102,8 @@ Feature: Hydra plant and environment widget on the Home grid
     When the Hydra widget refreshes
     Then both plant rows show their soil percentage and watering state
     And the watering plant states its condition in words beside its moisture rail
-    And the environment section renders four equal readout rows with the label above a large tabular reading
-    And the plant band sits below the readout rows, separated from them by the shared stroke
+    And a wide Cell renders four large tabular environment readings in two columns and two rows
+    And two plant readings sit side by side below the environment, separated by the shared stroke
     And every moisture rail draws its fill on a visible track
     And the live badge renders as a quiet outlined live-state pill
     And the widget states a live data status
@@ -176,25 +176,27 @@ Feature: Hydra plant and environment widget on the Home grid
     Then each plant row shows a soil meter bar filled to its reported percentage
     And a plant below the dry threshold shows its meter in the dry color
 
-  Scenario: Hydra occupies the right-edge tall slot and replaces the screen-size tile
-    Given the Home grid renders with the Hydra widget placed at column 5 spanning rows 2 to 4
-    Then the Hydra widget is a one-column by two-row tile
-    And the former screen-size desk-status widget is removed from the grid
-    And the Home grid still declares ten widgets in total
+  Scenario: Hydra uses the available Desk canvas
+    Given the Desk page declares three columns and two rows
+    When the desktop composer places Hydra
+    Then Hydra spans columns 1 to 4 and rows 1 to 3
+    And Home retains its six separate Widgets
+    And the Hydra Widget opens the existing Hydra App
 
-  Scenario: A panel a little shorter than the promised minimum keeps the tall slot
-    Given the desk is drawn on a panel whose cells are narrower than the promised minimum cell
-    When the Home grid renders
-    Then the Hydra widget keeps its one-column by two-row slot
-    And every environment row and plant row is drawn inside that slot without overlapping
-    And the floor the widget declares is the narrowest cell it reads at, not the panel's minimum
+  Scenario: A wide Cell shows the new environment and plant composition
+    Given Hydra occupies a Cell at least 480 pixels wide and 340 pixels high
+    When the Cell can hold the wide instrument
+    Then four environment readings form two columns and two rows
+    And both plants appear side by side below the environment
+    And every reading retains its unit and complete state
+    And the current theme remains selected
 
-  Scenario: A cell too small for the tall composition re-composes instead of overlapping
-    Given the Home grid gives the Hydra widget a single cell
-    When the cell cannot hold the tall composition
-    Then the widget lays out the shape the cell can hold
-    And no reading is drawn outside the tile or over another reading
-    And the shape it chose is the same one in every theme
+  Scenario: A smaller Cell preserves the readable fallback
+    Given the Desk canvas cannot honor the full Hydra span
+    When the composer gives Hydra a smaller measured Cell
+    Then Hydra selects its existing tall, compact, plants-only, or too-small shape
+    And no reading overlaps or leaves its Cell
+    And every theme selects the same shape for the same Cell
 
   Scenario: A shape that leaves readings out says how many
     Given the Hydra widget is drawn in a cell too small for the environment readings

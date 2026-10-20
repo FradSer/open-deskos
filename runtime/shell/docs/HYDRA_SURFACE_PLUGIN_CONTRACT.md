@@ -25,11 +25,14 @@ Offline or missing soil readings use placeholders and an empty meter.
 Stale rows retain historical soil readings without a watering indication.
 Dry meters retain the existing threshold below fifty percent.
 
-The measured Cell selects tall, compact, plants-only, or too-small composition.
+The measured Cell selects wide, tall, compact, plants-only, or too-small composition.
+A Cell at least 480 pixels wide and 340 pixels high selects the wide composition.
+It pairs four environment readings above two side-by-side plant readings.
+The Desk declaration spans three columns and two rows when the grid permits it.
 Plants-only composition uses short labels and states `Not shown · 4`.
 Larger compositions restore full labels and clear omission hints.
 Too-small composition states `Too small`.
-Existing layout thresholds and readable floors remain unchanged.
+Smaller compositions retain their existing thresholds and readable floors.
 
 Mount requests an initial snapshot.
 The first shared tick and every five ticks thereafter request another snapshot.
@@ -42,7 +45,7 @@ New mounts have separate observers and release guards.
 
 The [shared checks](../tests/hydra-surface-lifecycle.test.js) select both implementations through the actual Renderer registry and Host.
 A throwing default mount prevents unintended default execution in independent cases.
-The matrix compares nine states across four cell shapes.
+The matrix compares nine states across six cell sizes.
 Same-instance transitions compare live, stale, offline, unconfigured, and recovered readings with reverse shape changes.
 Separate checks cover request rejection, tick cadence, late success, late rejection, queued resize, and observer cleanup retry.
 A byte comparison verifies the static HTML layout.
@@ -63,10 +66,10 @@ Actual Renderer discovery loads the linked entry before Shell composition.
 Selected catalog versions and a throwing default mount identify independent execution.
 
 The browser uses actual sandboxed preload with controlled Hydra IPC responses.
-It compares eight states across three themes and ten measured Cell sizes with default behavior.
+It compares eight states across three themes and twelve measured Cell sizes with default behavior.
 Snapshots include the host tile, descendant attributes, all computed CSS properties, text, and relative bounds.
 Checks reject escaping element boxes, controls, and text below the fourteen-pixel data or twelve-pixel caption floors.
-These ten Cell sizes do not establish the shared density profile across five standard desktop viewports.
+These twelve Cell sizes do not establish the shared density profile across five standard desktop viewports.
 The existing comparisons cover Cell composition; the remaining density question concerns selected desktop placement at those viewports.
 Reuse the shared collector and current profile for that question; it does not require another plugin mechanism or state matrix.
 Each temporary surface releases through the actual registry before removal.
@@ -94,7 +97,7 @@ Signatures establish provenance and integrity, not a sandbox.
 The production loader reads the external public keyring and captures the verified entry before browser loading.
 The fixture changes the stored entry after capture.
 Captured responses retain the original signed content; a later store snapshot rejects the modified revision.
-Actual discovery, browser execution, registry selection, and preload retain all 240 rendered comparisons against default behavior.
+Actual discovery, browser execution, registry selection, and preload retain all 288 rendered comparisons against default behavior.
 
 The discovery Host starts a separate asset lease after capture.
 Shutdown removes the protocol and discovery IPC handlers.
@@ -113,7 +116,7 @@ Four separate Electron processes select surface versions `2.0.0`, `3.0.0`, `2.0.
 A signed entry marker identifies the executed surface version independently of catalog selection.
 Each reported PID must match the actual spawned child and differ from prior process identities.
 
-Every process compares the complete 240-case rendered matrix with its local default baseline.
+Every process compares the complete 288-case rendered matrix with its local default baseline.
 The child writes all consumer snapshots into its private profile before reporting success.
 The parent compares complete file bytes across process launches.
 Computed CSS property names are sorted without removing properties or changing values.
@@ -168,7 +171,7 @@ Authenticated discovery remains active during signed capture and publication.
 Its protocol route binds before document loading through the explicit runtime capability.
 
 The actual desktop element remains identical and active across both replacements.
-Each phase retains the full 240-case attribute, computed-style, text, geometry, containment, and readable-floor matrix.
+Each phase retains the full 288-case attribute, computed-style, text, geometry, containment, and readable-floor matrix.
 Independent and restored-default results match the initial default matrix without a page navigation.
 A throwing default mount blocks delegation during independent execution.
 A separate captured default mount counter proves the restored implementation executes.

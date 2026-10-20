@@ -3,6 +3,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const { app, BrowserWindow, ipcMain } = require('electron')
+const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
 ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
@@ -266,7 +267,7 @@ async function surfaceAffordances(win) {
       check(`App frame restores after focus leaves: ${theme} ${width}x${height}`, restored === rest.color)
       if (width === 1920) {
         const point = await win.webContents.executeJavaScript(`(() => { const r = document.querySelector('#app-view .quota-card').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 6) } })()`)
-        win.webContents.debugger.attach('1.3')
+        if (!win.webContents.debugger.isAttached()) win.webContents.debugger.attach('1.3')
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
         const pressed = await win.webContents.executeJavaScript(`(() => { const frame = document.getElementById('app-view'), css = getComputedStyle(frame); return { inside: Boolean(document.elementFromPoint(${point.x}, ${point.y})?.closest('#app-view')), color: css.borderTopColor, outline: css.outlineStyle, hit: document.elementFromPoint(${point.x}, ${point.y})?.className } })()`)
         await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
@@ -360,7 +361,7 @@ async function contrastAndMotion(win) {
     })
   })()`)
   for (const { selector, ratio } of ratios) check(`${selector}: contrast ${ratio.toFixed(2)}:1`, ratio >= 4.5)
-  await win.webContents.debugger.attach('1.3')
+  if (!win.webContents.debugger.isAttached()) win.webContents.debugger.attach('1.3')
   try {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
     const reduced = await win.webContents.executeJavaScript(`['.pi-overview-cell', '.button-pill'].every(s => !document.querySelector(s) || getComputedStyle(document.querySelector(s)).transitionDuration.split(', ').every(v => parseFloat(v) === 0))`)
@@ -827,6 +828,7 @@ async function main() {
   const win = new BrowserWindow({ width: 1920, height: 1280, useContentSize: true, frame: false, show: false,
     webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true },
   })
+  await installPiPageCompatibilityFixture(win)
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.executeJavaScript('document.fonts.ready')
   PAGES = await resolvePages(win)

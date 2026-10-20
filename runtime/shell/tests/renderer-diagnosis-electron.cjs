@@ -506,60 +506,48 @@ app.whenReady().then(async () => {
     const result = await win.webContents.executeJavaScript(`(async () => {
       const controller = window.odkRendererRuntime;
       const track = document.getElementById('pages-track');
-      const select = id => {
-        const index = [...track.children].findIndex(page => page.dataset.pageId === id);
-        document.querySelectorAll('#dots .dot')[index].click();
-      };
-      const pi = document.querySelector('[data-page-id="pi-sessions"]');
-      select('pi-sessions');
-      await controller.setEnabled('odk.page.dashboard', true);
-      const inserted = Boolean(document.querySelector('[data-page-id="today"]'));
-      const preserved = document.querySelector('[data-page-id="pi-sessions"]') === pi;
+      const reading = document.querySelector('#pages-track [data-page-id="reading"]');
+      const index = [...track.children].indexOf(reading);
+      document.querySelectorAll('#dots .dot')[index].click();
       const activeId = () => track.children[[...document.querySelectorAll('#dots .dot')].findIndex(dot => dot.classList.contains('active'))].dataset.pageId;
-      const samePage = activeId() === 'pi-sessions';
+      await controller.setEnabled('odk.page.dashboard', true);
+      const inserted = Boolean(document.querySelector('#home-summary [data-page-id="today"]'));
+      const preserved = document.querySelector('#pages-track [data-page-id="reading"]') === reading;
+      const samePage = activeId() === 'reading';
       await window.odkRemote.publishPageState({ fixtureBarrier: 'inserted' });
       await controller.setEnabled('odk.status.clock', true);
       const clock = document.querySelector('[data-status-plugin="odk.status.clock"] .sb-time').textContent;
       await window.odkRemote.publishPageState({ fixtureBarrier: 'status' });
       await controller.setEnabled('odk.page.dashboard', false);
-      const retainedSelection = activeId() === 'pi-sessions';
+      const retainedSelection = activeId() === 'reading' && !document.querySelector('#home-summary [data-page-id="today"]');
       await window.odkRemote.publishPageState({ fixtureBarrier: 'removed' });
-      await controller.setEnabled('odk.page.pi-sessions', false);
-      const fallback = activeId();
-      await controller.setEnabled('odk.page.pi-sessions', true);
-      const fallbackPreserved = activeId() === fallback;
-      const context = document.getElementById('page-context').textContent;
-      return { inserted, preserved, samePage, retainedSelection, clock, fallback, fallbackPreserved, context,
+      await controller.setEnabled('odk.tile.weread', false);
+      const widgetRemoved = !reading.querySelector('[data-widget="odk.tile.weread"]');
+      const emptyGridRetained = activeId() === 'reading' && reading.isConnected;
+      await controller.setEnabled('odk.tile.weread', true);
+      return { inserted, preserved, samePage, retainedSelection, clock, widgetRemoved, emptyGridRetained,
+        restored: Boolean(reading.querySelector('[data-widget="odk.tile.weread"]')) && activeId() === 'reading',
+        context: document.getElementById('page-context').textContent,
         pages: track.children.length, dots: document.querySelectorAll('#dots .dot').length,
         retiredWidgetsAbsent: ['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]')) };
     })()`)
-    assert.equal(result.inserted, true)
-    assert.equal(result.preserved, true)
-    assert.equal(result.samePage, true)
-    assert.equal(result.retainedSelection, true)
+    for (const key of ['inserted', 'preserved', 'samePage', 'retainedSelection', 'widgetRemoved', 'emptyGridRetained', 'restored', 'retiredWidgetsAbsent']) assert.equal(result[key], true, key)
     assert.match(result.clock, /^\d{2}:\d{2}$/)
-    assert.equal(result.fallback, 'quota')
-    assert.equal(result.fallbackPreserved, true)
-    assert.equal(result.pages, result.dots)
-    assert.equal(result.retiredWidgetsAbsent, true)
-    assert.match(result.context, /^Usage/)
-    // Drain the publication IPC through the same renderer-to-Main channel.
+    assert.equal(result.pages, 4)
+    assert.equal(result.dots, 4)
+    assert.match(result.context, /^Reading/)
+    // Drain publication through the same renderer-to-Main channel.
     await win.webContents.executeJavaScript('window.odkRemote.publishPageState({ fixtureBarrier: true })')
-    const piStates = remoteStates.filter(state => state?.name === 'Pi Sessions')
-    assert.ok(piStates.every(state => state.focus === 'items' && state.actions.length === 1), JSON.stringify(piStates))
     for (const phase of ['inserted', 'status', 'removed']) {
       const index = remoteStates.findIndex(state => state.fixtureBarrier === phase)
       assert.ok(index > 0)
       const state = remoteStates[index - 1]
-      assert.equal(state.name, 'Pi Sessions')
-      assert.equal(state.focus, 'items')
-      assert.deepEqual(state.actions, [{ id: 'pi-session-filter', label: 'LIVE' }])
-      assert.equal(state.page, phase === 'removed' ? 3 : 4)
-      assert.equal(state.pages, phase === 'removed' ? 4 : 5)
+      assert.equal(state.name, 'Reading')
+      assert.equal(state.focus, 'controls')
+      assert.deepEqual(state.actions, [])
+      assert.equal(state.page, 4)
+      assert.equal(state.pages, 4)
     }
-    const quota = remoteStates.filter(state => state?.name === 'Usage').at(-1)
-    assert.deepEqual(quota.actions, [])
-    assert.equal(quota.pages, result.pages)
   }
   if (rendererControl) {
     const managed = host.list().find(plugin => plugin.manifest.id === 'odk.system.renderer-control')

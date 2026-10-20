@@ -47,7 +47,7 @@
     slot: 'left',
     mount(el, ctx) {
       el.innerHTML = `
-        <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Pi sessions">
+        <button type="button" class="sb-pi-status flex items-center" id="sb-pi-status" aria-label="Show Pi Sessions widget" title="Show Pi Sessions widget">
           <span class="sb-pi-dot"></span>
           <span class="sb-pi-label">PI</span>
           <span class="sb-pi-count" id="sb-pi-count">Unknown</span>
@@ -69,8 +69,8 @@
         count.textContent = 'Unavailable'
         dot.className = 'sb-pi-dot'
         btn.classList.remove('has-running')
-        btn.setAttribute('aria-label', `${sourceLabel} unavailable`)
-        btn.setAttribute('title', `${sourceLabel} unavailable`)
+        btn.setAttribute('aria-label', `Show Pi Sessions widget · ${sourceLabel} unavailable`)
+        btn.setAttribute('title', 'Show Pi Sessions widget')
         publishBriefing(null)
       }
 
@@ -88,18 +88,18 @@
             unavailable()
             return
           }
-          btn.setAttribute('title', sourceLabel)
+          btn.setAttribute('title', 'Show Pi Sessions widget')
           const running = res?.summary?.running ?? 0
           count.textContent = String(running)
           publishBriefing(res.summary)
           if (running > 0) {
             dot.className = 'sb-pi-dot active'
             btn.classList.add('has-running')
-            btn.setAttribute('aria-label', `${sourceLabel} · ${running} active Pi session${running > 1 ? 's' : ''}`)
+            btn.setAttribute('aria-label', `Show Pi Sessions widget · ${sourceLabel} · ${running} active Pi session${running > 1 ? 's' : ''}`)
           } else {
             dot.className = 'sb-pi-dot'
             btn.classList.remove('has-running')
-            btn.setAttribute('aria-label', `${sourceLabel} · No active Pi sessions`)
+            btn.setAttribute('aria-label', `Show Pi Sessions widget · ${sourceLabel} · No active Pi sessions`)
           }
         } catch {
           unavailable()
@@ -107,7 +107,9 @@
       }
 
       const navigate = () => {
-        if (active()) ctx.navigateToPage?.('pi-sessions')
+        if (!active()) return
+        ctx.navigateToPage?.('home')
+        root.document?.querySelector('[data-page-id="home"] [data-widget="odk.tile.pi-sessions"] .widget-launch')?.focus({ preventScroll: true })
       }
       btn.addEventListener('click', navigate)
       ctx.trackCleanup?.(() => {

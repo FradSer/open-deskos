@@ -242,6 +242,15 @@
   }
 }
 
+/* Wide instruments use the same reading hierarchy with Zpix tracking. */
+[data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-env-value {
+  font-size: clamp(44px, 13cqi, 136px);
+}
+
+[data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
+  font-size: clamp(22px, 5cqi, 56px);
+}
+
 [data-theme='pixel'] .hydra-badge {
   font-size: clamp(12px, 7cqi, 18px);
 }

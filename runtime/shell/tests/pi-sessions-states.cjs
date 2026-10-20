@@ -2,7 +2,7 @@
  * Pi Sessions state capture harness.
  *
  * Loads the shell's own renderer with fixture IPC handlers, drives the Pi
- * Sessions page and the Home tile through the states the plugins define, and
+ * Sessions Widget App and the Home tile through the states the plugins define, and
  * writes one PNG per state plus a manifest of the predicates each one was held
  * to. Every capture asserts its own state predicate before and after the shot,
  * so a state this harness cannot reach is reported instead of being photographed
@@ -220,6 +220,13 @@ async function waitFor(win, expression, timeoutMs = 15000) {
 const pageIndexExpression = (pageId) => `[...document.querySelectorAll('#pages-track .page')].findIndex(page => page.dataset.pageId === ${JSON.stringify(pageId)})`
 
 async function gotoPage(win, pageId) {
+  if (pageId === 'pi-sessions') {
+    await gotoPage(win, 'home')
+    await win.webContents.executeJavaScript(`document.querySelector('[data-widget="odk.tile.pi-sessions"] .widget-launch').click()`, true)
+    if (!await waitFor(win, `!document.getElementById('app-view').hidden && window.odkAppPlatform.active()?.sourceWidget === 'odk.tile.pi-sessions'`)) throw Error('the Pi Sessions Widget did not open its App')
+    return
+  }
+  await win.webContents.executeJavaScript(`window.odkAppPlatform.active() ? window.odkAppPlatform.closeApp() : Promise.resolve(true)`, true)
   await win.webContents.executeJavaScript(`(() => {
     const index = ${pageIndexExpression(pageId)}
     const dot = document.querySelectorAll('#dots .dot')[index]
@@ -228,7 +235,7 @@ async function gotoPage(win, pageId) {
   })()`, true)
   const settled = await waitFor(win, `(() => {
     const page = document.querySelectorAll('#pages-track .page')[${pageIndexExpression(pageId)}]
-    return Boolean(page) && Math.abs(page.getBoundingClientRect().left) < 2
+    return Boolean(page) && Math.abs(page.getBoundingClientRect().left - document.getElementById('pages-viewport').getBoundingClientRect().left) < 2
   })()`)
   if (!settled) throw new Error(`page ${pageId} did not settle in the viewport`)
 }
@@ -274,7 +281,7 @@ async function capture(win, name, predicate, label, timeoutMs = 15000) {
   const held = reached && await win.webContents.executeJavaScript(predicate, true) === true
   results.push({ name, label, reached: held, file: held ? file : null })
   log(`${held ? 'CAPTURED' : 'UNREACHABLE'} ${name} — ${label}`)
-  if (!held) log(`  predicate=${reached} still-holding=${held}: ${predicate}\n  observed: ${await win.webContents.executeJavaScript(`JSON.stringify({ subtitle: ${SUBTITLE}, region: document.querySelector("#pages-track .page[data-page-id='pi-sessions'] #pi-overview-list")?.textContent || null, cells: document.querySelectorAll("#pages-track .page[data-page-id='pi-sessions'] .pi-overview-cell").length, tileTag: document.querySelector("[data-widget='odk.tile.pi-sessions'] .pi-widget-tag-label")?.textContent || null })`, true)}`)
+  if (!held) log(`  predicate=${reached} still-holding=${held}: ${predicate}\n  observed: ${await win.webContents.executeJavaScript(`JSON.stringify({ subtitle: ${SUBTITLE}, region: document.querySelector("#app-view #pi-overview-list")?.textContent || null, cells: document.querySelectorAll("#app-view .pi-overview-cell").length, tileTag: document.querySelector("[data-widget='odk.tile.pi-sessions'] .pi-widget-tag-label")?.textContent || null })`, true)}`)
 }
 
 const widgetBounds = (id) => `(() => {
@@ -299,7 +306,7 @@ async function captureTile(win, name, predicate, label) {
 
 async function applyScan(win, mode, predicate = `true`) {
   scanMode = mode
-  if (!await waitFor(win, predicate, 20000)) throw new Error(`scan mode ${mode} never reached: ${predicate}`)
+  if (!await waitFor(win, predicate, 20000)) throw new Error(`scan mode ${mode} never reached: ${predicate}; observed ${await win.webContents.executeJavaScript(`JSON.stringify({ subtitle: ${SUBTITLE}, cells: ${CELLS}, note: ${NOTE} })`, true)}`)
 }
 
 /* The event read is owned by the page, not by the harness: it runs on a
@@ -308,7 +315,7 @@ async function applyScan(win, mode, predicate = `true`) {
 async function applyEvents(win, mode, predicate = `true`) {
   eventsMode = mode
   const clicked = await win.webContents.executeJavaScript(`(() => {
-    const page = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
+    const page = document.querySelector('#app-view')
     const cell = page.querySelector('.pi-overview-cell:not(.is-selected)') || page.querySelector('.pi-overview-cell')
     if (!cell) return false
     cell.click()
@@ -321,34 +328,34 @@ async function applyEvents(win, mode, predicate = `true`) {
 /** The Overview is a cover over the detail, so both states are driven from the
  *  page's own input rather than from the DOM by hand. */
 const DETAIL_OPEN = `(() => {
-  const page = document.querySelector('#pages-track .page[data-page-id="pi-sessions"]')
+  const page = document.querySelector('#app-view')
   return page.querySelector('#pi-overview').hidden === true && page.querySelector('#pi-detail').inert === false
 })()`
 
 async function openDetail(win) {
-  await win.webContents.executeJavaScript(`document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-overview-cell').click()`, true)
+  await win.webContents.executeJavaScript(`document.querySelector('#app-view .pi-overview-cell').click()`, true)
   if (!await waitFor(win, DETAIL_OPEN)) throw new Error('the session detail did not open')
 }
 
 async function showList(win) {
-  await win.webContents.executeJavaScript(`document.querySelector('#pages-track .page[data-page-id="pi-sessions"]').dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))`, true)
-  if (!await waitFor(win, `document.querySelector('#pages-track .page[data-page-id="pi-sessions"] #pi-overview').hidden === false`)) throw new Error('the session overview did not reopen')
+  await win.webContents.executeJavaScript(`document.querySelector('#app-view .pi-app-wrapper').dispatchEvent(new CustomEvent('odk-remote-page-input', { detail: { input: 'primary' }, bubbles: true }))`, true)
+  if (!await waitFor(win, `document.querySelector('#app-view #pi-overview').hidden === false`)) throw new Error('the session overview did not reopen')
 }
 
-const SUBTITLE = '(document.querySelector("#pages-track .page[data-page-id=\'pi-sessions\'] #pi-view-subtitle")?.textContent || "")'
-const CELLS = '(document.querySelectorAll("#pages-track .page[data-page-id=\'pi-sessions\'] .pi-overview-cell").length)'
-const EVENT_COUNT = '(document.querySelectorAll("#pages-track .page[data-page-id=\'pi-sessions\'] #pi-events .pi-event").length)'
+const SUBTITLE = '(document.querySelector("#app-view #pi-view-subtitle")?.textContent || "")'
+const CELLS = '(document.querySelectorAll("#app-view .pi-overview-cell").length)'
+const EVENT_COUNT = '(document.querySelectorAll("#app-view #pi-events .pi-event").length)'
 const EVENT_COUNT_SEVEN = `${EVENT_COUNT} === 7`
-const FILTERS_EXPR = '(document.querySelectorAll("#pages-track .page[data-page-id=\'pi-sessions\'] #pi-overview-filters .pi-filter-btn").length)'
-const NOTE = '(document.querySelector("#pages-track .page[data-page-id=\'pi-sessions\'] .pi-empty-state")?.textContent || "")'
-const EVENT_NOTE = '(document.querySelector("#pages-track .page[data-page-id=\'pi-sessions\'] #pi-events-host .pi-detail-note")?.textContent || "")'
+const FILTERS_EXPR = '(document.querySelectorAll("#app-view #pi-overview-filters .pi-filter-btn").length)'
+const NOTE = '(document.querySelector("#app-view .pi-empty-state")?.textContent || "")'
+const EVENT_NOTE = '(document.querySelector("#app-view #pi-events-host .pi-detail-note")?.textContent || "")'
 const TILE_COUNT = '(document.querySelector("[data-widget=\'odk.tile.pi-sessions\'] .pi-widget-count")?.textContent || "")'
 const TILE_TAG = '(document.querySelector("[data-widget=\'odk.tile.pi-sessions\'] .pi-widget-tag-label")?.textContent || "")'
 const TILE_SUMMARY = '(document.querySelector("[data-widget=\'odk.tile.pi-sessions\'] .pi-widget-summary")?.textContent || "")'
 
 async function clickFilter(win, filter) {
-  await win.webContents.executeJavaScript(`document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-filter-btn[data-filter="${filter}"]').click()`, true)
-  await waitFor(win, `document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-filter-btn.active')?.dataset.filter === ${JSON.stringify(filter)}`)
+  await win.webContents.executeJavaScript(`document.querySelector('#app-view .pi-filter-btn[data-filter="${filter}"]').click()`, true)
+  await waitFor(win, `document.querySelector('#app-view .pi-filter-btn.active')?.dataset.filter === ${JSON.stringify(filter)}`)
 }
 
 async function main() {
@@ -366,7 +373,7 @@ async function main() {
   await win.loadFile(path.join(RELEASE, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')
-  if (!await waitFor(win, `Boolean(window.__odkGrid) && document.querySelectorAll('#dots .dot').length === 5`, 30000)) {
+  if (!await waitFor(win, `Boolean(window.__odkGrid) && document.querySelectorAll('#dots .dot').length === 4`, 30000)) {
     throw new Error('the shell did not build its pages')
   }
   await win.webContents.executeJavaScript(`Promise.all([
@@ -384,8 +391,8 @@ async function main() {
   await gotoPage(win, 'pi-sessions')
   await capture(win, 'page-01-loading', `${SUBTITLE} === 'Loading Pi sessions...' && ${FILTERS_EXPR} === 5`, 'Session Overview while the first scan is in flight', 40000)
 
-  await applyScan(win, 'mixed', `${SUBTITLE}.includes('session') && ${CELLS} === 2`)
-  await capture(win, 'page-02-live', `${CELLS} === 2 && document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-filter-btn.active')?.dataset.filter === 'live'`, 'Live filter: the page landing state with one working and one idle session')
+  await applyScan(win, 'mixed', `${SUBTITLE} === '' && ${CELLS} === 2`)
+  await capture(win, 'page-02-live', `${CELLS} === 2 && document.querySelector('#app-view .pi-filter-btn.active')?.dataset.filter === 'live'`, 'Live filter: the page landing state with one working and one idle session')
 
   await openDetail(win)
   await capture(win, 'page-03-detail-open', `${DETAIL_OPEN} && ${EVENT_COUNT_SEVEN}`, 'One session opened: the detail body and the session event stream')
@@ -407,7 +414,7 @@ async function main() {
   await capture(win, 'page-09-empty', `${NOTE} === 'No session matches All.'`, 'Empty scan: the page states that nothing matches the filter')
 
   await applyScan(win, 'unavailable', `${SUBTITLE}.includes('unavailable')`)
-  await capture(win, 'page-10-unavailable', `${SUBTITLE}.includes('unavailable') && document.querySelector('#pages-track .page[data-page-id="pi-sessions"] .pi-filter-count')?.textContent === '--'`, 'Unavailable source: counts are withheld, not shown as zero')
+  await capture(win, 'page-10-unavailable', `${SUBTITLE}.includes('unavailable') && document.querySelector('#app-view .pi-filter-count')?.textContent === '--'`, 'Unavailable source: counts are withheld, not shown as zero')
 
   await applyScan(win, 'throw', `${SUBTITLE}.includes('unavailable')`)
   await capture(win, 'page-11-scan-throw', `${SUBTITLE}.includes('unavailable')`, 'Rejected scan is reported as unavailable rather than as an empty desk')
@@ -429,7 +436,9 @@ async function main() {
   /* Session Detail states. The Overview is a cover, so every one of these is
    * shot with the cover open onto the detail. */
   await gotoPage(win, 'pi-sessions')
-  await applyScan(win, 'mixed', `${CELLS} === 3`)
+  await applyScan(win, 'mixed', `${CELLS} === 2`)
+  await clickFilter(win, 'all')
+  if (!await waitFor(win, `${CELLS} === 3`)) throw new Error('the all filter did not include the exited session')
   await clickFilter(win, 'live')
   if (!await waitFor(win, `${CELLS} === 2`)) throw new Error('the live filter did not narrow to two sessions')
 
@@ -458,18 +467,19 @@ async function main() {
   await capture(win, 'page-19-events-loading', `${DETAIL_OPEN} && ${EVENT_NOTE} === 'Reading session events...'`, 'Session Detail while the event read is in flight')
 
   // The source only changes on a scan tick, and the page re-reads the event state
-  // on that same tick, so this waits for the scan rather than for a click. The
-  // source label lives in the Overview's own subtitle, not in the detail's path.
+  // on that same tick, so this waits for the scan rather than for a click.
+  // Use the Main unsupported response for this remote-source fixture.
   sourceKind = 'ssh'
+  eventsMode = 'unsupported'
   await applyScan(win, 'mixed', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('unavailable for Mac / SSH')`)
   await capture(win, 'page-20-remote-unsupported', `${DETAIL_OPEN} && ${EVENT_NOTE}.includes('unavailable for Mac / SSH')`, 'Session Detail: a remote source keeps its events elsewhere')
 
   await showList(win)
-  await capture(win, 'page-21-remote-source', `${SUBTITLE}.includes('Mac / SSH · macbook')`, 'Session Overview: the page names the remote source it reads')
+  await capture(win, 'page-21-remote-source', `${SUBTITLE} === '' && ${CELLS} === 2`, 'Session Overview: the remote list has no duplicate source summary')
   sourceKind = 'local'
 
-  await applyScan(win, 'driven', `${SUBTITLE}.includes('Driven by')`)
-  await capture(win, 'page-22-driven', `${SUBTITLE}.includes('Driven by macbook · hosted-8f21')`, 'Session Overview: a Console is driving a Hosted Pi on this desk')
+  await applyScan(win, 'driven', `document.querySelector('#app-view .pi-overview-path')?.textContent.startsWith('Hosted Pi · ')`)
+  await capture(win, 'page-22-driven', `document.querySelector('#app-view .pi-overview-path')?.textContent.startsWith('Hosted Pi · ') && ${SUBTITLE} === ''`, 'Session Overview: the session card identifies its Hosted Pi')
 
   const missing = results.filter((result) => !result.reached)
   fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), `${JSON.stringify({
@@ -495,11 +505,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('odk-weread-highlight', () => ({ status: 'unconfigured', highlight: null }))
   ipcMain.handle('odk-futu-holdings', () => ({ state: 'live', service: 'futu-poller', updatedAt: Date.now(), snapshot: { totals: { marketVal: 313835.5, plVal: 5946.95, plRatio: 0.0193 }, positions: [{ code: 'US.TEM', marketVal: 7311, dayRatio: 0.031 }, { code: 'US.SDGR', marketVal: 5373, dayRatio: -0.012 }, { code: 'US.TSLA', marketVal: 7067, dayRatio: 0.0074 }] } }))
   ipcMain.handle('odk-weather-status', () => ({ status: 'live', place: 'Shenzhen', current: { temperature: 25, unit: '°C', condition: 'Partly cloudy', sky: 'cloud', code: 2 }, daily: { high: 27, low: 21 }, updatedAt: Date.now(), hint: null, error: null }))
+  ipcMain.handle('odk-renderer-development-plugins', () => [])
   ipcMain.handle('odk-user-apps-list', () => ({ ok: true, apps: [] }))
   ipcMain.handle('odk-user-apps-dispatch', () => ({ ok: false, error: 'fixture does not install applications' }))
-  ipcMain.handle('odk-app-manager-list', () => [])
-  ipcMain.handle('odk-app-manager-state', () => null)
-  ipcMain.handle('odk-app-manager-intent', () => ({ ok: false, error: 'fixture does not dispatch intents' }))
+  const endpoint = require('../src/app-manager-endpoint').createAppManagerEndpoint()
+  ipcMain.handle('odk-app-manager-list', () => endpoint.list())
+  ipcMain.handle('odk-app-manager-state', (_event, appId) => endpoint.get(appId))
+  ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
   ipcMain.handle('odk-remote-publish-page-state', () => true)
   ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable', message: 'Personal Bot service unavailable' }))
   ipcMain.handle('odk-personal-bot-toggle', () => false)

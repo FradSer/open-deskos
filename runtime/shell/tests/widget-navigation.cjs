@@ -49,13 +49,17 @@ app.whenReady().then(async () => {
   await js(`(async () => {
     window.until = async predicate => { const deadline = performance.now() + 5000; while (!predicate()) { if (performance.now() > deadline) throw Error('Condition timed out: ' + predicate.toString()); await new Promise(r => setTimeout(r, 20)); } };
     window.navigationInputTrace = [];
-    for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'gotpointercapture', 'lostpointercapture', 'click']) {
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'gotpointercapture', 'lostpointercapture', 'click', 'focusin', 'focusout']) {
       window.addEventListener(type, event => {
-        navigationInputTrace.push({ type, target: event.target?.id || event.target?.className, pointerType: event.pointerType, pointerId: event.pointerId, x: event.clientX, y: event.clientY });
+        navigationInputTrace.push({ type, target: event.target?.id || event.target?.className, related: event.relatedTarget?.className, pointerType: event.pointerType, pointerId: event.pointerId, x: event.clientX, y: event.clientY });
         if (navigationInputTrace.length > 20) navigationInputTrace.shift();
       }, true);
     }
     await document.fonts.ready;
+    const ids = [...document.querySelectorAll('#pages-track > .page')].map(page => page.dataset.pageId);
+    if (JSON.stringify(ids) !== JSON.stringify(['home', 'desk', 'preorder', 'reading'])) throw Error('Only four display pages belong in the desktop');
+    if (document.querySelector('[data-plugin="odk.page.pi-sessions"], .page[data-page-id="pi-sessions"]')) throw Error('Pi Sessions App must not mount as a desktop page');
+    if (!odkPlugins.byKind('app').some(app => app.appId === 'pi-sessions')) throw Error('Pi Sessions App registration missing');
     const tile = document.querySelector('[data-widget="odk.tile.futu"]');
     if (!tile.querySelector('button.widget-launch')) throw Error('Every Widget needs keyboard App navigation');
   })()`)
@@ -124,6 +128,7 @@ app.whenReady().then(async () => {
         const pane = document.getElementById('desk-content').getBoundingClientRect();
         const frame = document.getElementById('app-view').getBoundingClientRect();
         if (frame.left < pane.left || frame.right > pane.right || frame.width >= pane.width || frame.top < document.getElementById('status-bar').getBoundingClientRect().bottom - 1) throw Error('App card must remain inside the right pane');
+        if (getComputedStyle(tile).visibility !== 'hidden') throw Error('Widget must stay hidden behind its App: ' + JSON.stringify({ theme: odkTheme.get(), widget: tile.dataset.widget, visibility: getComputedStyle(tile).visibility }));
         if (document.getElementById('personal-agent').inert || document.getElementById('status-bar').inert) throw Error('Resident surfaces must stay usable');
         if (document.getElementById('app-view').getAttribute('aria-modal') === 'true') throw Error('Pane App is not modal');
         if (getComputedStyle(tile).borderTopStyle === 'none') throw Error('Widget outline missing');
@@ -141,6 +146,17 @@ app.whenReady().then(async () => {
         await until(() => document.activeElement === document.querySelector('[data-widget="${widgetId}"] .widget-launch'));
       })()`)
     }
+    await js(`document.querySelectorAll('.dot')[3].click(); document.getElementById('sb-pi-status').focus()`)
+    for (const type of ['keyDown', 'char', 'keyUp']) {
+      await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'char' ? { text: '\r' } : {}) })
+    }
+    await js(`(async () => {
+      const launch = document.querySelector('[data-widget="odk.tile.pi-sessions"] .widget-launch');
+      await until(() => document.querySelector('#pages-track .page[data-page-id="home"]').getBoundingClientRect().left === document.getElementById('pages-viewport').getBoundingClientRect().left);
+      if (document.activeElement !== launch || !document.getElementById('app-view').hidden || odkAppPlatform.active()) throw Error('Status must focus the Home Widget without opening its App: ' + JSON.stringify({ activeElement: { tag: document.activeElement?.tagName, id: document.activeElement?.id, widget: document.activeElement?.closest('[data-widget]')?.dataset.widget }, appHidden: document.getElementById('app-view').hidden, activeApp: odkAppPlatform.active(), index: [...document.querySelectorAll('#dots .dot')].findIndex(dot => dot.classList.contains('active')), trace: navigationInputTrace }));
+      if (document.getElementById('sb-pi-status').title !== 'Show Pi Sessions widget') throw Error('Status action must identify the Widget');
+    })()`)
+    console.log('PASS ' + theme + ': four display pages and Pi status focuses its sole Widget App entry')
     await js(`(async () => {
       document.querySelectorAll('.dot')[0].click();
       const overview = document.querySelector('#home-summary .dash');

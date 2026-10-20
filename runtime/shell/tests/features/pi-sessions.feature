@@ -62,7 +62,7 @@ Feature: Local Pi Sessions Monitoring
 
   Scenario: The Session Overview board keeps its lanes in one row at the desk's own width
     Given the Session Overview shows sessions in three Pi states
-    When the board renders at 1280 by 776, the size the desk actually shows
+    When the compatibility Page renders at the CM5 reference size of 1920 by 1280
     Then the three lanes sit in one row
     And every lane stays wide enough for a readable card
     And no lane is pushed sideways out of the surface
@@ -294,3 +294,9 @@ Scenario: A macOS process snapshot resolves Pi work directories in one bounded l
   And unrelated processes are not queried or counted as Pi processes
   And missing or failed directory lookups do not remove Pi process rows
   And metadata identity and orphan accounting remain unchanged
+
+  Scenario: Capture Pi states through the Home Widget App
+    Given the default desktop has four display pages
+    When the state capture harness opens the Pi Sessions Home Widget
+    Then each Overview and Detail state is captured inside its App
+    And returning to Home closes the App before Widget captures

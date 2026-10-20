@@ -7,6 +7,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { resolvePages } = require('./helpers/pages')
 const root = path.resolve(__dirname, '..')
@@ -164,6 +165,7 @@ async function main() {
     if (details.level === 'error' || details.level === 3) rendererErrors.push(String(details.message || ''))
   })
   win.webContents.debugger.attach('1.3')
+  await installPiPageCompatibilityFixture(win)
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
   await win.webContents.executeJavaScript('document.fonts.ready')
@@ -593,7 +595,7 @@ async function main() {
     // The desk's own size, where a lane that wrapped to a second row read as a
     // stacked list rather than a board, and where the filter track centred
     // against the title block instead of sharing the title's line.
-    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1280, height: 776, deviceScaleFactor: 1, mobile: false })
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1280, deviceScaleFactor: 1, mobile: false })
     await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
     await pause(180)
     const desk = await js(`
@@ -614,7 +616,7 @@ async function main() {
         tabHeight: Math.round(tabBox.height),
       }
     `)
-    assert.equal(desk.laneRows, 1, 'at the desk width every lane stays in one row')
+    assert.equal(desk.laneRows, 1, 'at the CM5 reference pane width every lane stays in one row')
     assert.ok(desk.laneWidths.every(width => width >= 260), `every lane keeps a readable card, saw ${desk.laneWidths.join(',')}`)
     assert.equal(desk.insideSurface, true, 'no lane is pushed sideways out of the surface')
     assert.equal(desk.sharesTitleLine, true, 'the filter tabs and the title share one line')
@@ -869,7 +871,7 @@ async function main() {
         await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
         await js("window.dispatchEvent(new Event('resize')); await document.fonts.ready")
         await until(`return window.__odkGrid?.width === ${width} && window.__odkGrid?.height === ${height}`)
-        await until("return Math.abs(surface.closest('.page').getBoundingClientRect().left) <= 1")
+        await until("return Math.abs(surface.closest('.page').getBoundingClientRect().left - document.getElementById('pages-viewport').getBoundingClientRect().left) <= 1")
         await showOverview()
         const failures = await js(`
           const failures = [];

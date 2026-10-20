@@ -77,3 +77,15 @@ test('keeps display widgets separate from interactive App surfaces', () => {
   assert.throws(() => registry.register(plugin({ id: 'odk.status.connection', kind: 'status', slot: 'middle' })), /supported slot/)
   assert.throws(() => registry.register(plugin({ id: 'odk.tile.clock', kind: 'tile', interaction: 'display-only', appId: 'clock' })), /cannot declare an App continuation/)
 })
+
+
+test('the production desktop opens Pi Sessions only through its Home Widget', () => {
+  const root = {}
+  vm.runInNewContext(fs.readFileSync('src/renderer/config/desktop_layout.js', 'utf8'), { window: root })
+  const desktop = root.DESKTOP_LAYOUT.pages.filter(page => !page.persistent)
+  assert.deepEqual(Array.from(desktop, page => page.id), ['home', 'desk', 'preorder', 'reading'])
+  assert.equal(desktop.every(page => page.kind === 'grid' && page.surface === 'display'), true)
+  assert.equal(root.DESKTOP_LAYOUT.pages.some(page => page.plugin === 'odk.page.pi-sessions'), false)
+  const widget = desktop[0].widgets.find(widget => widget.id === 'odk.tile.pi-sessions')
+  assert.equal(widget.opensApp, 'pi-sessions')
+})
