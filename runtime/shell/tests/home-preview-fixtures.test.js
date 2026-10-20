@@ -36,3 +36,17 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.deepEqual([...read('odk-personal-bot-status').remote.messages].reverse().filter(m=>m.presentation==='assistant_update').map(m=>m.text),preview.updates)
   assert(read('odk-personal-bot-status').remote.messages.some(m=>m.presentation===undefined),'legacy reports remain in the synthetic preview')
 })
+
+test('optional time preview uses its own page without overlapping the Desk instrument', async () => {
+  const { installTimeWidgetLayout } = require('./helpers/time-widget-layout')
+  let source
+  const win = { webContents: { debugger: { isAttached: () => true, async sendCommand(name, params) { if (name === 'Page.addScriptToEvaluateOnNewDocument') source = params.source } } } }
+  await installTimeWidgetLayout(win, { pageId: 'time-preview', separatePage: true })
+  const window = {}
+  require('node:vm').runInNewContext(source, { window })
+  window.DESKTOP_LAYOUT = { pages: [{ id: 'desk', widgets: [{ id: 'odk.tile.hydra', col: '1 / 4', row: '1 / 3' }] }] }
+  assert.equal(window.DESKTOP_LAYOUT.pages[0].widgets.length, 1)
+  const page = window.DESKTOP_LAYOUT.pages.find(page => page.id === 'time-preview')
+  assert.equal(page.widgets.length, 2)
+  assert.deepEqual(Array.from(page.widgets, widget => widget.id), ['odk.tile.clock', 'odk.tile.almanac'])
+})

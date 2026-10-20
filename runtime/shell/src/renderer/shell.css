@@ -1042,6 +1042,31 @@ body.kiosk {
   flex: none;
 }
 
+.widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: none;
+  min-width: 0;
+}
+
+.widget-heading {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  color: var(--odk-secondary-strong);
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
+  font-size: clamp(12px, 4.5cqi, 18px);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+[data-theme='pixel'] .widget-heading { letter-spacing: normal; }
+
 .w-name,
 .w-state {
   max-width: 100%;
@@ -1058,8 +1083,8 @@ body.kiosk {
 }
 
 .w-almanac {
-  background: color-mix(in srgb, var(--odk-accent-red) 8%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-red) 18%, var(--odk-stroke));
+  background: var(--odk-surface);
+  border-color: var(--odk-stroke);
   color: var(--odk-primary);
 }
 
@@ -1074,7 +1099,7 @@ body.kiosk {
 
 .al-weekday {
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(22px, 15cqi, 48px);
+  font-size: clamp(12px, 4.5cqi, 18px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -1119,8 +1144,8 @@ body.kiosk {
 }
 
 .w-clock {
-  background: color-mix(in srgb, var(--odk-accent-blue) 12%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-blue) 22%, var(--odk-stroke));
+  background: var(--odk-surface);
+  border-color: var(--odk-stroke);
 }
 
 .w-clock .clock-body {
@@ -1233,12 +1258,19 @@ body.kiosk {
   letter-spacing: -0.02em;
 }
 
+.pomodoro-head {
+  position: absolute;
+  inset: var(--odk-widget-inset);
+  pointer-events: none;
+}
+
 .pomodoro-state {
   position: absolute;
-  top: var(--odk-widget-inset);
-  left: 0;
-  right: 0;
-  text-align: center;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  max-width: 100%;
+  font-size: clamp(12px, 4.5cqi, 16px);
+  text-align: start;
 }
 
 .pomodoro-context {
@@ -1272,8 +1304,8 @@ body.kiosk {
 .w-year {
   align-items: stretch;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--odk-accent-green) 7%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-green) 18%, var(--odk-stroke));
+  background: var(--odk-surface);
+  border-color: var(--odk-stroke);
 }
 
 .year-head {
@@ -1294,7 +1326,7 @@ body.kiosk {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 17cqi;
+  gap: 9cqi;
   margin: auto 0;
   width: 100%;
 }
@@ -1303,11 +1335,11 @@ body.kiosk {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8cqi;
+  gap: 4cqi;
 }
 
 .year-context {
-  font-size: clamp(16px, 9cqi, 30px);
+  font-size: clamp(14px, 6.5cqi, 22px);
 }
 
 .year-pct {
@@ -1324,7 +1356,7 @@ body.kiosk {
 
 .w-year .meter {
   width: 100%;
-  height: max(8px, 4cqi);
+  height: max(6px, 2.5cqi);
   margin: 0;
 }
 
@@ -1469,7 +1501,6 @@ body.kiosk {
   /* The heading owns the title row now that the filter sits in it, so it takes
      the line the facts do not need instead of shrinking to its own text. */
   flex: 1 1 auto;
-}
 }
 
 .app-surface-header p {
@@ -1698,8 +1729,8 @@ body.kiosk {
   flex: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: flex-start;
   gap: clamp(2px, 0.8cqi, 10px);
   padding: clamp(12px, 2.6cqi, 24px) var(--odk-widget-inset) clamp(14px, 3cqi, 28px);
   border-top: 1px solid var(--odk-stroke);
@@ -1747,15 +1778,19 @@ body.kiosk {
   color: var(--odk-secondary-strong);
 }
 
+.widget .preorder-heading {
+  margin-block-end: 0.5em;
+}
+
 .w-preorder .preorder-label {
   margin: 0;
   color: var(--odk-secondary-strong);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  text-align: center;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: start;
 }
 
 [data-theme='pixel'] .w-preorder :is(.preorder-count, .preorder-label) {
@@ -1771,26 +1806,26 @@ body.kiosk {
 
 .w-pi-sessions .pi-widget-body {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: stretch;
   padding: 0;
-  gap: clamp(8px, 4cqi, 32px);
+  gap: clamp(6px, 2cqi, 12px);
   min-height: 0;
 }
 
 .pi-widget-metric-row {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-start;
+  align-self: center;
   gap: 2.5cqi;
   flex: none;
 }
 
 .pi-widget-count {
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(80px, 48cqi, 380px);
+  font-size: clamp(48px, 42cqi, 180px);
   font-weight: 700;
   color: var(--odk-primary);
   line-height: 0.95;
@@ -1810,10 +1845,10 @@ body.kiosk {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--odk-elevated);
-  border: 1px solid var(--odk-stroke);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .pi-widget-tag-label {
@@ -1846,10 +1881,10 @@ body.kiosk {
 .pi-widget-context {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 3px;
-  text-align: center;
-  max-width: 92%;
+  text-align: start;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -2975,28 +3010,28 @@ body.kiosk {
   gap: 3cqi;
   flex-wrap: wrap;
   padding-block-end: 2cqi;
-  border-bottom: 1px solid var(--odk-stroke);
+  border-bottom: 0;
 }
 
 .hydra-head svg {
   width: 9cqi;
   height: 9cqi;
   flex: none;
-  color: var(--odk-accent-green);
+  color: var(--odk-secondary-strong);
 }
 
 .hydra-title {
   color: var(--odk-primary);
   font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 8cqi, 24px);
+  font-size: clamp(12px, 4.5cqi, 18px);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .hydra-badge {
   margin-left: auto;
-  padding: 1cqi 3cqi;
-  border: 1px solid var(--odk-stroke);
+  padding: 0;
+  border: 0;
   border-radius: var(--odk-radius-pill);
   font-size: clamp(12px, 5cqi, 16px);
   font-weight: 700;
@@ -3216,7 +3251,7 @@ body.kiosk {
    The measured wide shape keeps two reading columns without viewport rules. */
 .hydra-body[data-shape='wide'] {
   flex: none;
-  height: max(75%, 280px);
+  height: max(88%, 280px);
   max-height: 100%;
   margin-block: auto;
   gap: clamp(12px, 1.5cqi, 20px);
@@ -3233,12 +3268,12 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-title {
-  font-size: clamp(18px, 2.5cqi, 28px);
+  font-size: clamp(14px, 2.5cqi, 22px);
   line-height: 1.2;
 }
 
 .hydra-body[data-shape='wide'] .hydra-badge {
-  padding: 4px 12px;
+  padding: 0;
   font-size: 14px;
 }
 
@@ -3255,7 +3290,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-cell:nth-child(n+3) {
-  border-top: 1px solid var(--odk-stroke);
+  border-top: 0;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-label {
@@ -3268,7 +3303,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-value {
-  font-size: clamp(44px, 10.5cqi, 112px);
+  font-size: clamp(28px, 5.8cqi, 64px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-unit {
@@ -3276,10 +3311,14 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-plants {
+  flex: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(20px, 4cqi, 48px);
-  padding-block-start: clamp(12px, 2cqi, 24px);
+  padding-block-start: 0;
+  padding-block-end: clamp(16px, 2.5cqi, 28px);
+  border-top: 0;
+  border-bottom: 1px solid var(--odk-stroke);
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant {
@@ -3287,7 +3326,8 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-row {
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-name {
@@ -3299,7 +3339,9 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-soil {
-  font-size: clamp(22px, 5cqi, 56px);
+  flex-basis: 100%;
+  margin-inline-start: 0;
+  font-size: clamp(44px, 11cqi, 120px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-meter {

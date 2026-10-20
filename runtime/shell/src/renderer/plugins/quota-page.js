@@ -222,7 +222,7 @@
     css: 'plugins/quota-page.css',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="quota-state w-state">Loading</span>
+        <div class="widget-head"><span class="widget-heading">AI usage</span><span class="quota-state w-state">Loading</span></div>
         <div class="quota-tile-body widget-signal odk-col items-center justify-center">
           <span class="quota-tile-value runtime-value">--%</span>
           <div class="quota-tile-meter" role="meter" aria-valuemin="0" aria-valuemax="100" hidden>
@@ -327,6 +327,11 @@
 
       ctx.onTick(() => render())
       render()
+      // Read the shared source at mount rather than waiting for its minute tick.
+      if (ctx.subscription.refresh) {
+        void Promise.resolve().then(() => disposed ? undefined : ctx.subscription.refresh())
+          .then(() => render(), () => render({ state: 'unavailable' }))
+      }
     },
   })
 

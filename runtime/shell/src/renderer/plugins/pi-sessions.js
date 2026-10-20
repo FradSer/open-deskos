@@ -215,13 +215,15 @@
       // claims no workspace, session or state it has not read.
       el.innerHTML = `
         <div class="pi-widget-body odk-col items-center justify-center w-full">
-          <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
-            <span class="pi-widget-count">--</span>
-            <span class="pi-widget-unit" hidden></span>
-          </div>
+          <div class="widget-head"><span class="widget-heading">Pi Sessions</span>
           <div class="pi-widget-live-tag odk-row items-center gap-1">
             <span class="pi-indicator-dot pi-indicator-idle"></span>
             <span class="pi-widget-tag-label">READING</span>
+          </div>
+          </div>
+          <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
+            <span class="pi-widget-count">--</span>
+            <span class="pi-widget-unit" hidden></span>
           </div>
           <div class="pi-widget-context odk-col items-center w-full">
             <div class="w-state"></div>

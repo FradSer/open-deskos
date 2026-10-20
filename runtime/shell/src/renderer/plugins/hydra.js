@@ -114,14 +114,8 @@
               <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
               <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
             </svg>
-            <span class="hydra-title">Hydra</span>
+            <span class="hydra-title widget-heading">Hydra</span>
             <span class="hydra-badge" id="hydra-badge">…</span>
-          </div>
-          <div class="hydra-env">
-            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-label">Temp</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-label">Humidity</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-label">Pressure</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-label">Light</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></span></div>
           </div>
           <div class="hydra-plants">
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
@@ -140,6 +134,12 @@
               </div>
               <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
+          </div>
+          <div class="hydra-env">
+            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-label">Temp</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-label">Humidity</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-label">Pressure</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-label">Light</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></span></div>
           </div>
           <p class="hydra-hint" hidden></p>
         </div>`

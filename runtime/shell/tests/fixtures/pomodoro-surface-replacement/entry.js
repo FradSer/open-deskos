@@ -25,7 +25,9 @@
       }
       ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Focus'))
       body.append(ring)
-      element.replaceChildren(make('span', 'pomodoro-state w-state', 'App timer'), body)
+      const heading = make('div', 'widget-head pomodoro-head')
+      heading.append(make('span', 'widget-heading', 'Pomodoro'), make('span', 'pomodoro-state w-state', 'App timer'))
+      element.replaceChildren(heading, body)
     },
   })
 })(window)

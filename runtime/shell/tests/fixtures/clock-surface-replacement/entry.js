@@ -7,9 +7,11 @@
     mount(element, context) {
       // Static markup and Shell styles are shared; formatting and Tick ownership are independent.
       element.innerHTML = `
+        <span class="widget-heading">Clock</span>
         <div class="widget-signal clock-body">
           <time class="w-clock-time">--:--</time>
-        </div>`
+        </div>
+        <span class="w-state clock-context">Local time</span>`
       const display = element.querySelector('.w-clock-time')
       context.onTick(date => {
         const parts = [date.getHours(), date.getMinutes()]

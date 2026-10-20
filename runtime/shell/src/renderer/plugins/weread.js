@@ -15,6 +15,7 @@
     opensApp: 'weread',
     mount(el, ctx) {
       el.innerHTML = `
+        <span class="widget-heading weread-heading">Reading</span>
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">

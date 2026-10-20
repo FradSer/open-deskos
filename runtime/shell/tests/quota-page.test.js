@@ -83,7 +83,7 @@ test('partial failures and unauthorized snapshots cannot claim fresh data', asyn
 // The Home Widget reads the same service. It states one reading and owns no
 // control, so these cases assert the text, the meter, and the silence of an
 // unchanged reading.
-function mountTile(status) {
+function mountTile(status, refresh) {
   const nodes = new Map()
   const cleanups = []
   const writes = []
@@ -118,7 +118,7 @@ function mountTile(status) {
     window: { odkPlugins: { register(value) { registered.push(value) } } } })
   const plugin = registered.find(value => value.id === 'odk.tile.quota')
   assert.ok(plugin, 'odk.tile.quota must be registered')
-  const subscription = { status: () => status }
+  const subscription = { status: () => status, refresh }
   plugin.mount(el, { trackCleanup(fn) { cleanups.push(fn) }, subscription, onTick(fn) { tick = fn } })
   const meter = () => nodes.get('.quota-tile-meter')
   return { plugin, el, nodes, writes, cleanups,
@@ -225,4 +225,18 @@ test('a low raw reading stays low when its displayed percentage rounds up', () =
   assert.equal(tile.text('.quota-tile-value'), '25%')
   assert.equal(tile.text('.quota-state'), 'Low')
   assert.equal(tile.meter().low, true)
+})
+
+// Given a newly mounted Widget, the first reading must not wait for the minute timer.
+test('the usage Widget requests its initial shared reading and ignores completion after release', async () => {
+  let calls = 0, complete
+  const tile = mountTile({ state: 'unconfigured' }, () => { calls++; return new Promise(resolve => { complete = resolve }) })
+  await new Promise(setImmediate)
+  assert.equal(calls, 1)
+  tile.update(windows([['Weekly window', 64]]))
+  tile.cleanups.forEach(fn => fn())
+  tile.writes.length = 0
+  complete()
+  await new Promise(setImmediate)
+  assert.equal(tile.writes.length, 0)
 })

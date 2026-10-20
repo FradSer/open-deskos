@@ -216,7 +216,7 @@
       el.dataset.expanded = String(expanded)
       el.innerHTML = `
         <div class="widget-signal futu-body odk-col ${expanded ? 'runtime-app futu-app' : ''}">
-          ${expanded ? '<header class="reading-head"><h2>Daily return</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header>' : '<div class="futu-name" id="futu-name">Holdings</div>'}
+          ${expanded ? '<header class="reading-head"><h2>Daily return</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header>' : '<div class="futu-name widget-heading" id="futu-name">Holdings</div>'}
           <div class="w-state futu-ratio" id="futu-value" aria-label="Holdings unavailable">--</div>
           ${expanded ? '<div class="futu-columns" aria-hidden="true"><span>Symbol</span><span>Price</span><span>Today</span></div>' : ''}
           <ul class="futu-holdings" id="futu-rows" ${expanded ? 'tabindex="0" aria-label="All holdings"' : ''}></ul>

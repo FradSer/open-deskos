@@ -16,9 +16,11 @@
     opensApp: 'clock',
     mount(el, ctx) {
       el.innerHTML = `
+        <span class="widget-heading">Clock</span>
         <div class="widget-signal clock-body">
           <time class="w-clock-time">--:--</time>
-        </div>`
+        </div>
+        <span class="w-state clock-context">Local time</span>`
 
       const time = el.querySelector('.w-clock-time')
       ctx.onTick((now) => {

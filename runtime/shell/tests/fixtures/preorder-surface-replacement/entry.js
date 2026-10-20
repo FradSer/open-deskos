@@ -12,8 +12,9 @@
             <canvas class="preorder-cover"></canvas>
           </div>
           <div class="preorder-panel">
+            <span class="widget-heading preorder-heading">Pre-order</span>
             <p class="preorder-count" aria-live="off"><span class="preorder-group"><strong class="preorder-num">--</strong><span class="preorder-unit">d</span></span><span class="preorder-group"><strong class="preorder-num">--</strong><span class="preorder-unit">h</span></span></p>
-            <p class="preorder-label">Pre-order &middot; 5:00 a.m. PT 10.16</p>
+            <p class="preorder-label">5:00 a.m. PT · October 16</p>
           </div>
         </div>`
       const count = element.querySelector('.preorder-count')

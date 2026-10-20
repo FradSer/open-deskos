@@ -14,7 +14,7 @@
     opensApp: 'pomodoro',
     mount(el) {
       el.innerHTML = `
-        <span class="pomodoro-state w-state">${this.state}</span>
+        <div class="widget-head pomodoro-head"><span class="widget-heading">Pomodoro</span><span class="pomodoro-state w-state">${this.state}</span></div>
         <div class="pomodoro-body widget-signal">
           <div class="pomodoro-ring-wrap">
             <svg viewBox="0 0 120 120" aria-hidden="true">

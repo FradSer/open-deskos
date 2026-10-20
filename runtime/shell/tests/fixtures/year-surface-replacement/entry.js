@@ -7,6 +7,7 @@
     mount(element, context) {
       // Static markup and Shell styles are shared; elapsed-time projection is independent.
       element.innerHTML = `
+        <span class="widget-heading">Year progress</span>
         <div class="widget-signal year-row">
           <div class="year-signal-line">
             <span class="year-pct">--%</span>

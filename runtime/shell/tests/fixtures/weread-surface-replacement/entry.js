@@ -7,6 +7,7 @@
     kind: 'tile', css: 'plugins/weread.css', app: 'WeRead', state: 'Loading', interaction: 'display-only', opensApp: 'weread',
     mount(element, context) {
       element.innerHTML = `
+        <span class="widget-heading weread-heading">Reading</span>
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">

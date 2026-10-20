@@ -161,6 +161,25 @@ async function widgets(win, label) {
   check(`${label}: Home handle has a reachable pointer target`, result.indicators)
 }
 
+async function widgetDesignRoles(win) {
+  const names = { 'pi-sessions': 'Pi Sessions', pomodoro: 'Pomodoro', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', preorder: 'Pre-order', weread: 'Reading' }
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    await win.webContents.executeJavaScript(`odkTheme.set('${theme}').then(() => document.fonts.ready)`)
+    for (const [width, height] of [[1920, 1280], [1280, 800]]) {
+      await resize(win, width, height)
+      const readings = await win.webContents.executeJavaScript(`(() => {
+        return [...document.querySelectorAll('.widget')].map(tile => {
+          const heading = tile.querySelector('.widget-heading')
+          const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
+          const style = heading && getComputedStyle(heading)
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+        })
+      })()`)
+      for (const row of readings) check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 12, row)
+    }
+  }
+}
+
 async function pomodoroCentering(win) {
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
@@ -179,10 +198,10 @@ async function pomodoroCentering(win) {
         const a = center(frame), b = center(dial), c = center(time)
         return { centered: Math.abs(a.x-b.x) < 1 && Math.abs(a.y-b.y) < 1 && Math.abs(b.x-c.x) < 1 && Math.abs(b.y-c.y) < 1,
           labelInside: label.top >= time.bottom && label.bottom <= ring.bottom + 1 && label.left >= ring.left && label.right <= ring.right,
-          stateAbove: state.bottom <= ring.top && Math.abs(center(state).x-a.x) < 1,
+          stateBelow: state.top >= ring.bottom && state.bottom <= frame.bottom && state.left >= frame.left,
           offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
       })()`)
-      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateAbove, reading)
+      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateBelow, reading)
     }
   }
 }
@@ -838,6 +857,12 @@ async function main() {
     console.log('SURFACE_FRAMES_PASS')
     return
   }
+  if (process.argv.includes('--widget-design-only')) {
+    await widgetDesignRoles(win)
+    assert.equal(failures, 0, `${failures} Widget design checks failed`)
+    console.log('WIDGET_DESIGN_ROLES_PASS')
+    return
+  }
   if (process.argv.includes('--liquid-glass-narrow-scroll-only')) {
     await liquidGlassNarrowDeskScroll(win)
     assert.equal(failures, 0, `${failures} narrow scroll checks failed`)
@@ -851,6 +876,7 @@ async function main() {
     await appPage(win, PAGES.dot('pi-sessions'), label)
     await quotaAppPage(win, label)
   }
+  await widgetDesignRoles(win)
   await liquidGlassNarrowDeskScroll(win)
   await resize(win, 1920, 1280)
   const savedSessions = sessions

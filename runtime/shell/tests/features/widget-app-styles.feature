@@ -100,3 +100,25 @@ Feature: Legible Widget and App interiors
     Then the five-column three-row Widget layout retains its existing footprint
     And the direct App surfaces match that footprint
     And the existing token palette, truthful states, and navigation behavior are preserved
+
+  Scenario: Every instrument uses the same reading hierarchy
+    Given the desktop contains nine display Widgets and retains Clock and Calendar
+    When each Widget renders in any supported theme at reference or handheld size
+    Then its visible instrument heading uses the shared readable caption role
+    And the heading precedes its primary reading without overlap
+    And inactive frames use the neutral surface and stroke
+    And source states remain text rather than interactive badges
+    And opening the Widget retains its existing App and return path
+
+  Scenario: Garden moisture leads environmental context
+    Given Hydra receives two plant readings and four environment readings
+    When the Widget has a wide Cell
+    Then both plant moisture percentages lead the instrument
+    And the four environmental values remain visible below them
+    And every value keeps its source state and unit
+
+  Scenario: Usage reads its source when first mounted
+    Given AI usage has not retrieved a source snapshot
+    When its Widget mounts
+    Then it requests the shared reading without waiting for a minute tick
+    And a late completion cannot write after release

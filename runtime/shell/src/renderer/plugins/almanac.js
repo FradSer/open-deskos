@@ -14,7 +14,7 @@
     opensApp: 'calendar',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="al-weekday"></span>
+        <div class="widget-head"><span class="widget-heading">Calendar</span><span class="al-weekday"></span></div>
         <div class="widget-signal al-body">
           <span class="al-day"></span>
           <span class="al-month"></span>

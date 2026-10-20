@@ -40,7 +40,7 @@
       el.innerHTML = `
         <div class="widget-signal w-weather-content">
           <div class="w-weather-head">
-            <span class="w-weather-place">Weather</span>
+            <span class="w-weather-place widget-heading">Weather</span>
             <span class="widget-glance-badge w-weather-badge">Waiting</span>
           </div>
           <div class="w-weather-main">

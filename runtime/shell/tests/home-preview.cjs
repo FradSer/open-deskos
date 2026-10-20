@@ -6,12 +6,17 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
+const { resolvePages } = require('./helpers/pages')
+const { installTimeWidgetLayout } = require('./helpers/time-widget-layout')
+const allPages = process.argv.includes('--all-pages')
+const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length) || os.tmpdir()
+fs.mkdirSync(captureDir, { recursive: true })
 
 if (process.platform === 'darwin') app.dock.hide()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-home-preview-profile-'))
 app.setPath('userData', profile)
 let win
-const timeout = setTimeout(() => finish(1, Error('Populated Home preview timed out')), 60000)
+const timeout = setTimeout(() => finish(1, Error('Populated Home preview timed out')), allPages ? 180000 : 60000)
 function finish(code, error) {
   clearTimeout(timeout)
   if (error) console.error(error)
@@ -63,11 +68,12 @@ app.whenReady().then(async () => {
     assert.equal(win.webContents.isOffscreen(), true)
     assert.equal(win.webContents.isPainting(), true)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    if (allPages) await installTimeWidgetLayout(win, { pageId: 'time-preview', separatePage: true })
     await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
     await js('window.odkShellReady')
     await js(`(async () => {
       const deadline = performance.now() + 5000;
-      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant')) {
+      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant') || document.querySelector('.quota-tile-value').textContent !== '64%') {
         if (performance.now() > deadline) throw Error('Populated readings did not arrive');
         await new Promise(resolve => setTimeout(resolve, 20));
       }
@@ -192,7 +198,7 @@ app.whenReady().then(async () => {
       else assert.notEqual(state.glassWidget.backgroundImage, 'none', 'Widget card keeps its static glass tint')
     }
     assert.deepEqual(state.viewport, [width, height, 1, 'loaded'])
-    const file = path.join(os.tmpdir(), `odk-populated-home-${theme}-${width}.png`)
+    const file = path.join(captureDir, `odk-populated-home-${theme}-${width}.png`)
     // Acknowledge a native frame, then request the current compositor surface.
     // Paint events can still carry pixels from before the fixture update.
     await capturePaintedFrame()
@@ -204,6 +210,28 @@ app.whenReady().then(async () => {
     fs.writeFileSync(file, capture.toPNG())
     captures.push({ theme, width, height, cell: state.cell,
       ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
+    if (allPages) {
+      const pages = await resolvePages(win)
+      for (const page of ['desk', 'preorder', 'reading', 'time-preview']) {
+        await js(`document.querySelectorAll('.dot')[${pages.dot(page)}].click()`)
+        await js(`(async () => {
+          const node = document.querySelector('[data-page-id="${page}"]'), viewport = document.querySelector('#pages-viewport');
+          const deadline = performance.now() + 5000;
+          while (Math.abs(node.getBoundingClientRect().left - viewport.getBoundingClientRect().left) > 1) {
+            if (performance.now() > deadline) throw Error('Preview page did not settle: ${page}');
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+          await document.fonts.ready;
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        })()`)
+        const file = path.join(captureDir, `odk-populated-${page}-${theme}-${width}.png`)
+        await capturePaintedFrame()
+        fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG())
+        captures.push({ page, theme, width, height, file, synthetic: true })
+      }
+      await js(`document.querySelectorAll('.dot')[${pages.dot('home')}].click()`)
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
   }
   const longCopy = 'You have 3 active sessions across 3 workspaces, while 2 plants report 63% moisture. Taipei is 26°C and overcast; your focus session is in progress, and portfolio readings are available from the latest synchronized snapshot.'
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
