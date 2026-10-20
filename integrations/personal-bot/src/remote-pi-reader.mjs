@@ -51,9 +51,8 @@ export async function createRemotePiReader({env=process.env,link,targets,request
       const matches=[]
       const candidates=configured.filter(target=>source.control==='configured'?target.id===source.target:target.reportMachines?.includes(source.machine))
       if(!candidates.length)throw Error('Reporting machine has no configured control binding')
-      if(candidates.some(target=>target.roots.length>32))throw Error('Incomplete reply inventory; too many configured roots')
-      for(const target of candidates)for(const project of target.roots) {
-        const page=await request(target,{command:'list',project},active)
+      for(const target of candidates) {
+        const page=await request(target,{command:'list',project:source.project},active)
         if(target.endpointKind==='current_session' && page.endpointKind!==undefined && page.endpointKind!=='current_session')throw Error('Configured native endpoint conflicts with the protocol')
         if(!Array.isArray(page.tasks) || page.incomplete || page.truncated || page.tasks.length>100)throw Error('Incomplete reply inventory; clarify before sending')
         for(const task of page.tasks)if(task?.taskId===source.sessionId && task.project===source.project)matches.push({target,task,nativeEndpoint:page.endpointKind==='current_session' || target.endpointKind==='current_session',endpointKind:page.endpointKind==='hosted'?'hosted':'current_session_or_unknown'})
