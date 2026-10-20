@@ -339,7 +339,8 @@ Feature: Personal Agent owns a bounded plugin runtime
     Given an unknown reply retains its source reference, session, thread, text, time, and receipt
     And retention has removed its original displayed message
     When a different owner instruction replies to the latest complete successful result from that same source and thread
-    And the source update and displayed message both occurred after the unknown reply
+    And the host admitted the displayed message after the unknown reply
+    And remote clocks may run ahead or behind without changing local admission order
     And configured tasks have a finished last turn and no active turn
     And reported sessions retain an explicit latest-assistant result
     Then the host can reserve one new reply without replaying the old instruction

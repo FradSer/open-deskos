@@ -728,17 +728,21 @@ test('reply session identity is required on writes and reads without changing in
 })
 
 
-async function unknownReplyContinuation(t,{configured=false}={}) {
+async function unknownReplyContinuation(t,{configured=false,realReport=false,clockOffset=0}={}) {
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-continuation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
- let current={...row('continuation'),updatedAt:Date.now()},reader,task
+ let current={...row('continuation'),updatedAt:Date.now()+clockOffset},reader,task
  if(configured) {
   const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
-  task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',lifecycle:'live',state:'finished',revision:'a'.repeat(64),response:'Computed total: 6',updatedAt:new Date().toISOString(),currentTurnId:null,lastTurnId:'00000000-0000-0000-0000-000000000002',turnOutcome:'finished'}
+  task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',lifecycle:'live',state:'finished',revision:'a'.repeat(64),response:'Computed total: 6',updatedAt:new Date(Date.now()+clockOffset).toISOString(),currentTurnId:null,lastTurnId:'00000000-0000-0000-0000-000000000002',turnOutcome:'finished'}
   reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic']}],link:{conclusions:async()=>({ok:true,records:[],total:0}),stop:async()=>{}},backfill:async()=>null,request:async(_target,params)=>{
    if(params.command==='list')return {tasks:[task],endpointKind:'hosted'}
    if(params.command==='status')return {task}
    throw Error('Unexpected task mutation in reader fixture')
   }})
+  t.after(()=>reader.close())
+ } else if(realReport) {
+  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+  reader=await createRemotePiReader({targets:[],link:{conclusions:async()=>({ok:true,records:[current],total:1}),stop:async()=>{}},backfill:async()=>({truncated:false,events:[{kind:'assistant',eventId:current.eventId,text:current.conclusion,stopReason:'stop'}]})})
   t.after(()=>reader.close())
  }
  const options={file:join(directory,'remote.json'),read:cursor=>reader?reader.read(cursor):Promise.resolve({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('A task result is available.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
@@ -750,8 +754,8 @@ async function unknownReplyContinuation(t,{configured=false}={}) {
  const unknown=structuredClone(remote.data.replies[0])
  const next=async revision=>{
   await new Promise(resolve=>setTimeout(resolve,3))
-  if(configured)Object.assign(task,{revision,updatedAt:new Date().toISOString(),lastTurnId:`${revision[0].repeat(8)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(12)}`})
-  else current={...current,revision,eventId:revision,updatedAt:Date.now()}
+  if(configured)Object.assign(task,{revision,updatedAt:new Date(Date.now()+clockOffset).toISOString(),lastTurnId:`${revision[0].repeat(8)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(12)}`})
+  else current={...current,revision,eventId:revision,updatedAt:Date.now()+clockOffset}
   await remote.poll();return reference(remote.data.messages.at(-1))
  }
  return {remote,options,original,unknown,send,next,reference}
@@ -795,6 +799,29 @@ test('expired reply origins permit only a later complete successful source resul
  })
 })
 
+test('retained completion order uses local admission time despite either remote clock skew',async t=>{
+ for(const configured of [false,true])for(const clockOffset of [-86400000,86400000])await t.test(`${configured?'configured':'real report'} ${clockOffset<0?'behind':'ahead'}`,async t=>{
+  const f=await unknownReplyContinuation(t,{configured,realReport:!configured,clockOffset}),next=await f.next('c'.repeat(64))
+  f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1),expiredMessages:1})
+  const recovered=new RemoteConversation(f.options),message=recovered.data.messages[0]
+  assert.ok(message.at>f.unknown.at,'The resident admitted the displayed completion after its unknown reply')
+  assert.equal(message.sources[0].updatedAt>f.unknown.at,clockOffset>0,'The real reader retains the remote clock without normalizing it')
+  const old=structuredClone(recovered.data.replies[0]),observedAt=message.at
+  // A future remote clock cannot release a result already observed before the reply.
+  recovered.data.messages[0].at=f.unknown.at
+  assert.throws(()=>recovered.beginReply(next,'A distinct instruction after retention'),/unknown|pending/)
+  recovered.data.messages[0].at=observedAt
+  recovered.save(recovered.data)
+  const reply=recovered.beginReply(next,'A distinct instruction after retention')
+  let mutations=0
+  await recovered.dispatchReply(reply,async beforeSend=>{beforeSend();mutations++;return {accepted:false,delivery:'unknown'}})
+  assert.equal(mutations,1);assert.deepEqual(recovered.data.replies[0],old)
+  const restarted=new RemoteConversation(f.options)
+  assert.deepEqual(restarted.data.replies[0],old)
+  assert.throws(()=>restarted.beginReply(next,'Another instruction without a new completion'),/unknown|pending/)
+ })
+})
+
 test('the real report reader does not admit a completion followed by non-assistant activity',async t=>{
  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-report-completion-boundary-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
@@ -820,7 +847,7 @@ test('expired reply origins cannot bypass identity, freshness, completion or dis
   'configured missing turn identity':f=>{delete f.remote.data.messages.at(-1).sources[0].lastTurnId},
   'configured truncated result':f=>{f.remote.data.messages.at(-1).sources[0].truncated=true},
   'configured running state':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
-  'configured old source time':f=>{f.remote.data.messages.at(-1).sources[0].updatedAt=f.unknown.at},
+  'configured old local admission':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
   'different configured target':f=>{f.remote.data.messages.at(-1).sources[0].target='cm5'},
   'different machine':f=>{f.remote.data.messages.at(-1).sources[0].machine='another-host'},
   'different project':f=>{f.remote.data.messages.at(-1).sources[0].project='/another-project'},
@@ -828,8 +855,8 @@ test('expired reply origins cannot bypass identity, freshness, completion or dis
   'different session':f=>{f.remote.data.replies[0].sessionId='another-session'},
   'unchanged source revision':(f,next)=>{f.remote.data.replies[0].replyTo.sourceRevision=next.sourceRevision},
   'unchanged message id':(f,next)=>{f.remote.data.replies[0].replyTo.messageId=next.messageId},
-  'old source time':f=>{f.remote.data.messages.at(-1).sources[0].updatedAt=f.unknown.at},
-  'missing source time':f=>{delete f.remote.data.messages.at(-1).sources[0].updatedAt},
+  'future source with old local admission':f=>{f.remote.data.messages.at(-1).sources[0].updatedAt=f.unknown.at+86400000;f.remote.data.messages.at(-1).at=f.unknown.at},
+  'missing local admission time':f=>{delete f.remote.data.messages.at(-1).at},
   'old message time':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
   'failed completion':f=>{f.remote.data.messages.at(-1).sources[0].conclusionOutcome='failed'},
   'cancelled completion':f=>{f.remote.data.messages.at(-1).sources[0].conclusionOutcome='cancelled'},
@@ -861,7 +888,7 @@ test('new completion continuation refuses ambiguous history, repeated text and p
   'same event identity with a changed outcome':f=>{Object.assign(f.remote.data.messages.at(-1).sources[0],{eventId:f.remote.data.messages[0].sources[0].eventId,conclusionOutcome:'failed'})},
   'no completion identity':f=>{delete f.remote.data.messages.at(-1).sources[0].eventId},
   'old local message time':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
-  'missing origin without a newer source time':f=>{f.remote.data.messages.shift();f.remote.data.messages.at(-1).sources[0].updatedAt=f.unknown.at},
+  'missing origin without a later local admission':f=>{f.remote.data.messages.shift();f.remote.data.messages.at(-1).at=f.unknown.at},
   'unfinished source':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
   'unavailable source':f=>{f.remote.data.messages.at(-1).sources[0].availability='unavailable'},
   'later non-assistant activity':f=>{f.remote.data.messages.at(-1).sources[0].conclusionIsLatestAssistant=false},
@@ -883,7 +910,7 @@ test('a new reply dispatch rechecks its completion boundary and refuses concurre
  const pending=f.remote.dispatchReply(reply,async beforeSend=>{sends++;entered();await wait;beforeSend();return {accepted:false,delivery:'unknown'}})
  await ready
  await assert.rejects(f.remote.dispatchReply(reply,async()=>{sends++;return {accepted:true}}),/attempted|progress/)
- f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1).map(message=>({...message,sources:message.sources.map(source=>({...source,updatedAt:f.unknown.at}))}))})
+ f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1).map(message=>({...message,at:f.unknown.at}))})
  release();await assert.rejects(pending,/unknown/)
  assert.equal(sends,1)
  assert.equal(f.remote.data.replies[1].status,'failed')
