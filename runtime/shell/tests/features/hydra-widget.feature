@@ -57,6 +57,15 @@ Feature: Hydra plant and environment Widget on the Desk page
     Then the complete badge stays inside the Cell without lowering its readable floor
     And environment readings and plant rows remain contained
 
+  Scenario: An unconfigured compact plant Cell keeps its full state visible
+    Given Hydra occupies its narrowest plant Cell of 116 by 120 pixels
+    And the bridge is unconfigured
+    When the Widget renders in each theme
+    Then the complete unconfigured state stays inside the Cell
+    And both plant placeholders and the omission count remain contained
+    And supporting text retains its 12-pixel readable floor
+    And the instrument name remains available to assistive technology
+
   Scenario: Trusted Hydra development surfaces preserve actual rendered consumers
     Given the CLI links an independent Hydra surface with explicit trust
     When actual Renderer discovery loads its entry before Shell composition

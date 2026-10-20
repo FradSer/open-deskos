@@ -3351,6 +3351,20 @@ body.kiosk {
   justify-content: space-between;
 }
 
+/* The longest state needs its own row in the smallest plants-only Cell.
+   Keep the instrument name accessible without spending a second header row. */
+.hydra-body[data-shape='plants'].hydra-unconfigured .hydra-head svg {
+  display: none;
+}
+
+.hydra-body[data-shape='plants'].hydra-unconfigured .hydra-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
 .hydra-body[data-shape='plants'] .hydra-env {
   display: none;
 }
