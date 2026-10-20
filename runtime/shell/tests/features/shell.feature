@@ -9,6 +9,13 @@ Feature: Open DeskOS 跨平台 Display Shell
     When the user returns from the App
     Then the Shell restores the Home Widget focus
 
+  Scenario: Installed Apps extend the four display pages
+    Given the default Shell has four display pages
+    When one installed App adds its interactive page
+    Then pagination contains five pages and retains the four display page identities
+    When the installed App is removed
+    Then pagination contains the four display pages again
+
   Scenario: Desktop placement remains in the recurring Electron gate
     Given the runtime end-to-end gate is run
     When its subprocess checks execute
