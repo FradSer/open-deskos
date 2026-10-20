@@ -1,4 +1,21 @@
 Feature: Personal Agent home briefing
+  Scenario: Conversation history mounts in bounded batches
+    Given the resident snapshot contains remote updates, owner turns, and session replies
+    When the conversation opens
+    Then only the latest twelve timeline items create message nodes
+    And older items remain data until the user scrolls upward or selects Earlier messages
+    When an earlier batch is added
+    Then the previously visible message keeps its screen position
+    And existing message nodes and the unsent draft remain unchanged
+    And thread selection, exact reply references, and live messages remain usable
+    And a deferred reply follows its exact source when the canonical thread changes
+    And later snapshots retain already received owner turns and replies within their existing 128-entry bounds
+    And an expired reply keeps a shared message while its owner turn still retains it
+    And new live turns expire old owner pairs without duplicate or orphan message nodes
+    And a received legacy remote update without a timestamp can enter the latest batch
+    And the composer stays outside the single scroll region
+    And loading history sends no task request or model request
+
   Scenario: Actual child execution reaches the conversation through the resident channel
     Given an isolated resident uses Durable execution with an offline provider
     And a saved reporter has a book avatar

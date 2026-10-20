@@ -409,6 +409,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   }
   await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('textarea').value='Ordinary after reply';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   assert.equal(sentReplyTo.at(-1),undefined,'ordinary sends never inherit the old reference')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Waiting for response…','an accepted unbound receipt without a status push keeps its waiting caption')
   await resize(1920,1280)
 }
 
@@ -435,6 +436,123 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--lazy-history-retention-only')) {
+    const id = i => `${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`
+    const src={key:'source',revision:'a'.repeat(64),machine:'synthetic',sessionId:'session',project:'/synthetic',control:'report_only',availability:'live',threadId:'a'.repeat(64)}
+    const messages=Array.from({length:8},(_,i)=>({id:String(i).padStart(64,'a'),at:i*10,text:`Synthetic remote ${i}`,presentation:'assistant_update',sources:[src],verification:'reported_unverified',synthesisVerification:'passed'}))
+    const replies=Array.from({length:32},(_,i)=>({id:id(i+1),at:i*10+1,threadId:src.threadId,sessionId:src.sessionId,text:`Synthetic reply ${i}`,answer:`Synthetic answer ${i}`,status:'answered',replyTo:{messageId:messages[0].id,sourceKey:src.key,sourceRevision:src.revision}}))
+    const turns=Array.from({length:8},(_,i)=>({id:id(i+101),at:i*10+2,transcript:`Synthetic owner ${i}`,message:`Synthetic response ${i}`,state:'idle'}))
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[...replies].reverse(),total:8},conversation:{revision:1,turns}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    const before=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[{...replies[31],id:id(33),at:400},...replies.slice(1).reverse()],total:8},conversation:{revision:2,turns:[...turns.slice(1),{...turns[7],id:id(109),at:401}]}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<16)button.click()})()`)
+    const after=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
+    assert.deepEqual(before,{reply:false,owner:false},'initially deferred old items have no DOM')
+    assert.deepEqual(after,{reply:true,owner:true},'later snapshots cannot discard already received deferred history')
+    const updatedReply={...replies[0],answer:'A later terminal answer for the same reply identity'}
+    const sharedTurn={...turns[0],id:updatedReply.id,at:updatedReply.at,threadId:src.threadId,transcript:updatedReply.text,message:updatedReply.answer}
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[updatedReply],total:8},conversation:{revision:3,turns:[sharedTurn]}})
+    await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id="${updatedReply.id}"][data-reply-id="${updatedReply.id}"]').length`),1,'same owner and reply identity shares one article')
+    assert.equal(await evaluate(`document.querySelector('.agent-message-assistant[data-owner-turn-id="${updatedReply.id}"] .agent-message-body').textContent`),updatedReply.answer,'a same-identity terminal answer updates its existing article')
+    for(let batch=0;batch<5;batch++) {
+      const nextReplies=Array.from({length:32},(_,i)=>({...replies[0],id:id(5001+batch*32+i),at:1000+batch*1000+i,text:`Reply-only ${batch}:${i}`}))
+      publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:nextReplies.reverse(),total:8},conversation:{revision:4+batch,turns:[sharedTurn]}})
+      await evaluate('new Promise(r=>setTimeout(r,5))')
+    }
+    assert.equal(await evaluate(`!!document.querySelector('.agent-message-user[data-owner-turn-id="${updatedReply.id}"]')&&!document.querySelector('[data-reply-id="${updatedReply.id}"]')`),true,'reply eviction releases its reply identity while the owner still retains the shared article')
+    for(let batch=0;batch<18;batch++) {
+      const base=5000+batch*1000
+      const nextReplies=Array.from({length:32},(_,i)=>({...replies[0],id:id(1001+batch*32+i),at:base+i*10,text:`Bounded reply ${batch}:${i}`,answer:`Bounded reply answer ${batch}:${i}`}))
+      const nextTurns=Array.from({length:8},(_,i)=>({...turns[0],id:id(3001+batch*8+i),at:base+i*35+1,transcript:`Bounded owner ${batch}:${i}`,message:`Bounded owner answer ${batch}:${i}`}))
+      publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:nextReplies.reverse(),total:8},conversation:{revision:9+batch,turns:nextTurns}})
+      await evaluate('new Promise(r=>setTimeout(r,5))')
+    }
+    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<64)button.click()})()`)
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-reply-id]').length`),128,'reply data and DOM keep the existing 128-entry bound')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id]').length`),128,'owner data and DOM keep the existing 128-entry bound')
+    assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"], [data-owner-turn-id="${turns[0].id}"]')`),false,'entries beyond the original bounds expire')
+    for(let i=0;i<2;i++) {
+      const live={state:'thinking',ownerTurnId:id(60001+i),transcript:`Live owner ${i}`,message:`Live response ${i}`,conversation:{revision:30+i,turns:[]},remote:{state:'live',messages:[],replies:[],total:0}}
+      publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.equal(await evaluate(`Array.from(document.querySelectorAll('.agent-message-user')).filter(row=>/^(Bounded owner|Live owner)/.test(row.querySelector('.agent-message-body').textContent)).length`),128,'a new live turn evicts the oldest mounted owner pair within the original bound')
+      publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,20))')
+      assert.equal(await evaluate(`(()=>{const rows=[...document.querySelectorAll('.agent-message-user')].filter(row=>/^(Bounded owner|Live owner)/.test(row.querySelector('.agent-message-body').textContent));return rows.length===128&&new Set(rows.map(row=>row.querySelector('.agent-message-body').textContent)).size===128})()`),true,'later pushes cannot recreate an evicted owner pair or orphan its existing DOM')
+      assert.equal(await evaluate(`Array.from(document.querySelectorAll('.agent-message-body')).filter(body=>body.textContent===${JSON.stringify(live.transcript)}||body.textContent===${JSON.stringify(live.message)}).length`),2,'the current live user and assistant remain mounted exactly once')
+    }
+    assert.equal(sentText.length,0)
+    console.log('PASS deferred owner/reply history survives later snapshots within original 128-entry bounds')
+    return finish(0)
+  }
+  if (process.argv.includes('--lazy-history-only')) {
+    const id = i => `${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`
+    const source = i => ({key:`source-${i}`,revision:String(i).padStart(64,'a'),machine:'synthetic',sessionId:`session-${i%2}`,project:'/synthetic',control:'report_only',availability:'live',threadId:(i%2?'b':'a').repeat(64)})
+    const messages = Array.from({length:8},(_,i)=>({id:String(i).padStart(64,'c'),at:(i*3+2)*10+1,text:`Remote ${i} 完成结果。`.repeat(12),presentation:'assistant_update',sources:[source(i)],verification:'reported_unverified',synthesisVerification:'passed'}))
+    messages[0].at=10000
+    const replies = Array.from({length:32},(_,i)=>({id:id(i+1),at:i*10,threadId:(i%2?'b':'a').repeat(64),sessionId:`session-${i%2}`,text:`Owner reply ${i}`,answer:`Answer ${i} 中文结果。`.repeat(12),status:'answered',replyTo:{messageId:messages[i%8].id,sourceKey:source(i%8).key,sourceRevision:source(i%8).revision}}))
+    const turns = Array.from({length:8},(_,i)=>({id:id(i+101),at:(i*3+1)*10+2,threadId:(i%2?'b':'a').repeat(64),transcript:`Question ${i}`,message:`History ${i} 中文结果。`.repeat(12),state:'idle'}))
+    const frame={state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[...replies].reverse(),total:8},conversation:{revision:1,turns}}
+    await evaluate(`window.createdMessages=0;window.lazyNodes=new WeakSet();window.lazyObserver=new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)if(n.nodeType===1)for(const message of [...(n.matches('.agent-message')?[n]:[]),...n.querySelectorAll('.agent-message')])if(!window.lazyNodes.has(message)){window.lazyNodes.add(message);window.createdMessages++}});window.lazyObserver.observe(document.querySelector('.agent-conversation'),{childList:true,subtree:true})`)
+    publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,40))')
+    assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length<=24&&window.createdMessages<=24`),'only twelve logical items create DOM, without mounting then hiding older messages')
+    assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),false,'oldest reply has no DOM before loading')
+    assert.equal(await evaluate(`document.querySelector('.agent-history-earlier').hidden`),false)
+    assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight-c.clientHeight-c.scrollTop<2})()`),true,'opening follows latest without accidentally loading older items')
+    messages[0].sources[0].threadId='f'.repeat(64)
+    publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
+    await evaluate(`document.querySelector('[data-remote-id="${messages[0].id}"] .agent-session-open').click()`)
+    assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]:not([hidden])')`),true,'a deferred reply follows its exact origin into a changed canonical thread')
+    await evaluate(`document.querySelector('.agent-thread-all').click()`)
+    await evaluate(`(()=>{document.querySelector('textarea').value='Draft 中文';window.retainedLazyNodes=[...document.querySelectorAll('.agent-message')];const c=document.querySelector('.agent-conversation');c.scrollTop=120;window.lazyAnchor=[...c.querySelectorAll('.agent-message')].find(n=>n.getBoundingClientRect().bottom>c.getBoundingClientRect().top);window.lazyTop=window.lazyAnchor.getBoundingClientRect().top;document.querySelector('.agent-history-earlier').focus({preventScroll:true})})()`)
+    await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+    win.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter'})
+    await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`window.retainedLazyNodes.every(n=>n.isConnected)&&Math.abs(window.lazyAnchor.getBoundingClientRect().top-window.lazyTop)<1&&document.querySelector('textarea').value==='Draft 中文'`),true,'earlier insertion preserves viewport anchor, existing nodes and draft')
+    assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>24`))
+    await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');c.scrollTop=0;c.dispatchEvent(new Event('scroll'))})()`)
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>36`),'upward scrolling loads another batch')
+    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-message-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;document.querySelector('.agent-history-earlier').click()`)
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length>window.beforeCancelLoad`),true,'cancel reply immediately restores all-thread history loading without a new push')
+    await evaluate(`while(!document.querySelector('.agent-history-earlier').hidden)document.querySelector('.agent-history-earlier').click()`)
+    assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),true)
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),88,'all three kinds eventually mount exactly once')
+    assert.equal(await evaluate(`(()=>{const times=[...document.querySelectorAll('.agent-conversation > .agent-message')].map(n=>{if(n.dataset.remoteId)return ${JSON.stringify(messages)}.find(m=>m.id===n.dataset.remoteId).at;if(n.dataset.replyId)return ${JSON.stringify(replies)}.find(r=>r.id===n.dataset.replyId).at;const answer=/^Answer (\\d+)/.exec(n.querySelector('.agent-message-body').textContent);if(answer)return Number(answer[1])*10+0.5;return ${JSON.stringify(turns)}.find(t=>t.id===n.dataset.ownerTurnId)?.at});return times.every((at,i)=>i===0||at>=times[i-1])})()`),true,'remote updates, owner turns and replies share chronological order')
+    const expected=messages[7]
+    await evaluate(`document.querySelector('[data-remote-id="${expected.id}"] .agent-message-reply').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false)
+    assert.equal(await evaluate(`document.querySelector('textarea').value`),'Draft 中文')
+    assert.equal(await evaluate(`([...document.querySelectorAll('.agent-message')].filter(n=>!n.hidden)).every(n=>JSON.parse(n.dataset.threadIds||'[]').includes('${'b'.repeat(64)}'))`),true,'reply selection keeps the exact source thread')
+    assert.equal(sentText.length,0,'history and thread interactions never dispatch a request')
+    await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('.agent-latest').click()`)
+    assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight-c.clientHeight-c.scrollTop<2})()`),true)
+    assert.equal(await evaluate(`document.querySelector('.agent-composer').closest('.agent-conversation')===null`),true)
+    await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');c.scrollTop=120;window.liveAnchor=[...c.querySelectorAll('.agent-message')].find(n=>n.getBoundingClientRect().bottom>c.getBoundingClientRect().top);window.liveTop=window.liveAnchor.getBoundingClientRect().top})()`)
+    const live={...frame,state:'thinking',ownerTurnId:id(201),transcript:'A current user request',message:'Actual live draft 中文'}
+    publishStatus(live);await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`Math.abs(window.liveAnchor.getBoundingClientRect().top-window.liveTop)<1&&document.querySelector('.agent-latest').hidden===false&&document.querySelector('textarea').value==='Draft 中文'`),true,'incoming output preserves a reader position and draft')
+    await evaluate(`document.querySelector('.agent-latest').click()`)
+    publishStatus({...live,state:'idle',message:'Actual completed output 中文'.repeat(12)});await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight-c.clientHeight-c.scrollTop<2})()`),true,'new output follows when already at latest')
+    for (const theme of ['instrument','pixel','border-beam']) for (const [width,height] of [[1920,1280],[480,854]]) {
+      await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`);await resize(width,height)
+      await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
+      assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),p=document.querySelector('.agent-panel').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return c.scrollWidth<=c.clientWidth+1&&f.bottom<=p.bottom+1&&f.right<=p.right+1&&getComputedStyle(c).overflowY==='auto'})()`),true,'long CJK history keeps one scroller and a fixed composer')
+      try { fs.writeFileSync(path.join(os.tmpdir(),`odk-lazy-history-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG()) } catch(error) { throw Error(`Lazy capture ${theme} ${width}: ${error.message}`) }
+    }
+    const legacy={id:'e'.repeat(64),text:'Newly received legacy update without a timestamp',presentation:'assistant_update',sources:[source(80)],verification:'reported_unverified',synthesisVerification:'passed'}
+    const dated=Array.from({length:12},(_,i)=>({...legacy,id:String(200+i).padStart(64,'d'),at:Date.now()-1000+i,text:`Dated update ${i}`}))
+    const mixed={...frame,remote:{state:'live',messages:[legacy,...dated.reverse()],replies:[],total:13}}
+    publishStatus(mixed);await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${legacy.id}"]').length`),1,'a newly received legacy update without at is not buried as epoch zero')
+    publishStatus(mixed);await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${legacy.id}"]').length`),1,'repeated legacy snapshots retain one stable remote identity')
+    await evaluate(`window.lazyObserver.disconnect()`)
+    console.log('PASS lazy history bounded DOM, earlier batches, anchor, thread/reply and draft')
+    return finish(0)
+  }
   if (process.argv.includes('--central-history-only')) {
     const first='11111111-1111-4111-8111-111111111111',second='22222222-2222-4222-8222-222222222222',third='33333333-3333-4333-8333-333333333333'
     const turns=[{id:first,at:1000,transcript:'Synthetic earlier question',message:'Synthetic example: \u8fd9\u91cc\u663e\u793a\u4e2d\u592e\u4fdd\u5b58\u7684\u5bf9\u8bdd\u5185\u5bb9\u3002\u957f\u4e2d\u6587\u4f1a\u81ea\u52a8\u6362\u884c\uff0c\u4e0d\u4f1a\u6324\u51fa\u8f93\u5165\u6846\u3002'.repeat(3),state:'idle'},{id:second,at:2000,transcript:'Synthetic interrupted question',message:'Synthetic partial answer',state:'unconfirmed'}]
