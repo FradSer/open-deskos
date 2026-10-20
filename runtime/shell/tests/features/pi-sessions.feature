@@ -62,7 +62,7 @@ Feature: Local Pi Sessions Monitoring
 
   Scenario: The Session Overview board keeps its lanes in one row at the desk's own width
     Given the Session Overview shows sessions in three Pi states
-    When the board renders at 1280 by 776, the size the desk actually shows
+    When the compatibility Page renders at the CM5 reference size of 1920 by 1280
     Then the three lanes sit in one row
     And every lane stays wide enough for a readable card
     And no lane is pushed sideways out of the surface

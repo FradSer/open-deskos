@@ -11,9 +11,11 @@ const live = { ok: true, source: { label: 'Fixture Pi source' }, summary: { runn
 
 async function fixture(t, independent = false) {
   const pending = []
+  const focused = []
   const root = { odkPluginHost: { createPluginHost }, odkPlatform: { getPiSessions() {
     const request = Promise.withResolvers(); pending.push(request); return request.promise
   } } }
+  root.document = { querySelector(selector) { assert.match(selector, /odk\.tile\.pi-sessions/); return { focus() { focused.push('pi-widget') } } } }
   const context = vm.createContext({ window: root, structuredClone, console: { error() {} } })
   for (const file of ['core/registry.js', 'plugins/status-pi-sessions.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/renderer', file), 'utf8'), context)
@@ -45,7 +47,7 @@ async function fixture(t, independent = false) {
     navigateToPage(page) { navigation.push(page) }, briefing: { contribute(value) { contributions.push(structuredClone(value)) } } }
   assert.equal(root.odkPlugins.activate(root.odkPlugins.get(id), element, ui), true)
   const settle = () => new Promise(setImmediate)
-  return { registry: root.odkPlugins, replacement, element, pending, nodes, ticks, contributions, navigation, settle, tick(count = 1) { for (let index = 0; index < count; index++) for (const callback of ticks) callback() },
+  return { registry: root.odkPlugins, replacement, element, pending, nodes, ticks, contributions, navigation, focused, settle, tick(count = 1) { for (let index = 0; index < count; index++) for (const callback of ticks) callback() },
     snapshot() { return [...nodes].map(([selector, node]) => ({ selector, text: node.textContent, className: node.className, classes: [...node.classes].sort(), attrs: { ...node.attrs } })) } }
 }
 
@@ -85,12 +87,14 @@ for (const independent of [false, true]) test(`${independent ? 'independent' : '
   const button = f.nodes.get('#sb-pi-status')
   const capturedClick = button.listeners.get('click')
   capturedClick()
-  assert.deepEqual(f.navigation, ['pi-sessions'])
+  assert.deepEqual(f.navigation, ['home'])
+  assert.deepEqual(f.focused, ['pi-widget'])
   await f.registry.setEnabled(id, false)
   assert.equal(button.listeners.has('click'), false)
   button.listeners.get('click')?.()
   capturedClick()
-  assert.deepEqual(f.navigation, ['pi-sessions'])
+  assert.deepEqual(f.navigation, ['home'])
+  assert.deepEqual(f.focused, ['pi-widget'])
   f.pending[0].resolve(live)
   await f.settle()
 })

@@ -407,6 +407,12 @@ Mark one visible entry with `[data-page-focus]`. Only the visible view can own i
 
 ## Layout and delivery
 
+The production desktop contains Home, Desk, Pre-order, and Reading display pages.
+Pi Sessions opens only from its Home Widget.
+The State Bar Pi indicator selects Home and focuses that Widget.
+The retained `odk.page.pi-sessions` identity supports compatibility checks; production layout does not mount it.
+
+
 Declare placement in `config/desktop_layout.js`:
 
 ```js

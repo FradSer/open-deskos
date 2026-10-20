@@ -1,5 +1,14 @@
 Feature: Open DeskOS 跨平台 Display Shell
 
+  Scenario: Pi Sessions opens only through its Home Widget
+    Given the default Shell has Home, Desk, Pre-order, and Reading pages
+    Then no desktop page mounts the Pi Sessions App
+    When the user clicks the Pi Sessions Widget
+    Then the App opens inside the right pane
+    And the resident Personal Agent remains usable
+    When the user returns from the App
+    Then the Shell restores the Home Widget focus
+
   Scenario: Desktop placement remains in the recurring Electron gate
     Given the runtime end-to-end gate is run
     When its subprocess checks execute
@@ -53,7 +62,7 @@ Feature: Open DeskOS 跨平台 Display Shell
 
   Scenario: Today briefs the desk through Personal Agent
     Given the shell starts at 1920 by 1280
-    Then the first page is Today and shows the current weekday, date, and year
+    Then Home shows Overview with the current weekday, date, and year
     And Today renders Personal Agent statements with source states and measurement times
     And Today states briefing availability without fixed session-count fallback sentences
     And Today does not claim personal data without source evidence
@@ -72,15 +81,15 @@ Feature: Open DeskOS 跨平台 Display Shell
 
   Scenario: CM5 HDMI shell has a responsive Open DeskOS layout
     Given the shell starts at 1920 by 1280
-    Then the State Bar and five-column by three-row widget grid are visible
-    And the shell exposes Today, Home, Reading, and Pi Sessions without a separate User Applications page
+    Then the State Bar and three-column by two-row widget grid are visible
+    And the shell exposes Home, Desk, Pre-order, and Reading without a separate User Applications page
     And the Home grid carries the AI usage Widget that opens its App
     And every visible widget states a truthful status before any App opens
-    And the widget grid has five columns and three rows
+    And the widget grid has three columns and two rows
     And the State Bar is large enough for the Pi Sessions running state to be legible
     And the grid remains horizontally contained and vertically scrollable at alternate window sizes
 
-  Scenario: The five-column layout reflows safely in a narrow development window
+  Scenario: The three-column layout reflows safely in a narrow development window
     Given the shell is resized below the widescreen breakpoint
     When the Home grid is rendered
     Then widgets use the narrow responsive grid instead of overflowing desktop coordinates
@@ -90,7 +99,7 @@ Feature: Open DeskOS 跨平台 Display Shell
   Scenario: Every page uses the widget grid footprint
     Given the shell starts at 1920 by 1280
     Then the Home widgets occupy the shared grid footprint
-    And the Pi Sessions App surface matches that grid width and height
+    And the Pi Sessions App opens from its Widget inside the right pane
     And cards do not use colored top or left edge bars for state
 
   Scenario: Widgets use a unified signal-capsule information hierarchy
@@ -103,14 +112,14 @@ Feature: Open DeskOS 跨平台 Display Shell
     And decorative charts never imply unavailable data
 
   Scenario: App pages extend the Widget signal-capsule language
-    Given the user navigates to Pi Sessions or opens the AI usage App from its Widget
+    Given the user opens Pi Sessions or AI usage from its Home Widget
     Then the App surface uses the same radius, border, spacing, typography, and state-color system as Widgets
     And grouped data remains labeled and scannable without nested decorative cards
     And workspace paths, goals, process commands, and status explanations wrap instead of being hidden by ellipsis
 
   Scenario: Pi Sessions controls remain usable at the minimum portrait size
     Given the shell is resized to 320 by 480
-    When the user navigates to Pi Sessions
+    When the user opens the Pi Sessions Widget
     Then session filters and refresh controls remain inside the App surface
     And each control remains reachable by touch
 
@@ -123,32 +132,25 @@ Feature: Open DeskOS 跨平台 Display Shell
 
   Scenario: CM5 1080P HDMI shell has a balanced widescreen desk instrument layout
     Given the shell starts at 1920 by 1080
-    Then the State Bar and five-column by three-row widget grid are visible
-    And Pi Sessions remains reachable as a later App page
+    Then the State Bar and three-column by two-row widget grid are visible
+    And Pi Sessions remains reachable only through its Home Widget
     And the AI usage App is reachable only from its Home Widget
     And the layout provides balanced card proportions without horizontally stretched rows
-    And Today, Home, and Pi Sessions pages provide structured desk instrument views
+    And Overview, Widgets, and Widget Apps provide structured desk instrument views
     And the grid remains horizontally contained and vertically scrollable at alternate window sizes
-
-  Scenario: Home grid fills the available layout with truthful local desk status
-    Given the Home grid displays the five-column layout
-    When the shell has loaded on the CM5
-    Then the layout shows a Desk status widget
-    And the widget reports the local shell resolution and ready state
-    And it does not require a provider or fabricate personal data
 
   Scenario: Display widgets and App pages remain separate surfaces
     Given the Home grid displays registered widgets
     Then every Home widget displays a reading with a native App continuation button
-    And the Pi Sessions page is a full interactive App surface on page four
+    And the Pi Sessions App opens only from its Home Widget
     And the AI usage App is a full interactive surface opened from its Home Widget
     And App task controls stay inside App surfaces
 
-  Scenario: Pi Sessions App page exposes every local process
+  Scenario: Pi Sessions Widget opens the session App
     Given the local Pi session scanner reports running, settled, and exited processes
-    When the user navigates to the Pi Sessions page
-    Then the page lists every process with workspace, PID, status, and latest goal
-    And search, status filters, refresh, and modified-file details remain interactive
+    When the user clicks the Pi Sessions Widget
+    Then the App lists reported sessions with workspace, status, and latest goal
+    And the session filters and session details remain interactive
     And status filters expose their selected state and session changes are announced
     And an empty scanner result explains that no local Pi sessions were found
 
@@ -190,7 +192,7 @@ Feature: Open DeskOS 跨平台 Display Shell
   Scenario: The desk surface never depends on peripheral gates
     Given the ESP32-P4 camera or the Remote Control is disconnected
     When the Shell starts
-    Then Today, Home, Pi Sessions, Usage, direct touch, and keyboard navigation remain available
+    Then Overview, Home, Widget Apps, direct touch, and keyboard navigation remain available
     And no peripheral integration gates the shell
 
   Scenario: ESP32-P4 SC2336 camera sub-device connects as a generic webcam over USB
@@ -242,7 +244,7 @@ Feature: Open DeskOS 跨平台 Display Shell
     And Back remains available in both modes
 
   Scenario: Remote Touchpad enters App Focus Mode only after selection
-    Given the focused shell is on a Pi Sessions or another App browsing page in browsing mode
+    Given the focused Shell is on an interactive App page in browsing mode
     When the Remote Touchpad sends left or right input
     Then the shell changes only to the adjacent bounded page
     And it does not move an App control focus

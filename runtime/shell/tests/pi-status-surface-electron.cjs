@@ -200,14 +200,14 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
     await js('document.activeElement?.blur()')
     for(const type of ['keyDown','keyUp']) await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',
-      {type,key:'Home',code:'Home',windowsVirtualKeyCode:36})
-    assert.equal(await js(`document.getElementById('page-context').textContent.startsWith('Pi Sessions')`),false,'Keyboard precondition must leave Pi Sessions')
+      {type,key:'End',code:'End',windowsVirtualKeyCode:35})
+    assert.equal(await js(`document.getElementById('page-context').textContent.startsWith('Home')`),false,'Keyboard precondition must leave Home')
     await js(`(()=>{const button=piActual.querySelector('button'); window.piTrustedClick=false;
       button.addEventListener('click',event=>{window.piTrustedClick=event.isTrusted;},{once:true});button.focus();
       if(document.activeElement!==button) throw Error('Pi button focus absent');})()`)
     for(const type of ['keyDown','char','keyUp']) await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',
       {type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
-    assert.equal(await js(`window.piTrustedClick && document.getElementById('page-context').textContent.startsWith('Pi Sessions')`),true,'Pi keyboard did not navigate from another page')
+    assert.equal(await js(`window.piTrustedClick && document.getElementById('page-context').textContent.startsWith('Home') && document.activeElement === document.querySelector('[data-page-id="home"] [data-widget="odk.tile.pi-sessions"] .widget-launch') && document.getElementById('app-view').hidden`),true,'Pi keyboard must show the Home Widget without opening its App')
     await js(`window.odkRendererRuntime.setEnabled('${id}',false)`)
     assert.equal(await js('window.piTicks.size'),0)
     await js(`window.odkRendererRuntime.setEnabled('${id}',true)`)

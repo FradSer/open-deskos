@@ -36,7 +36,6 @@
       { id: 'reading', name: 'Reading', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
         { id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 4' },
       ] },
-      { id: 'pi-sessions', name: 'Pi Sessions', kind: 'page', surface: 'app', plugin: 'odk.page.pi-sessions' },
     ],
   }
 })(typeof window !== 'undefined' ? window : globalThis)

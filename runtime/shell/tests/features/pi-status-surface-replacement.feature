@@ -14,7 +14,7 @@ Feature: Preserve Pi status behavior through plugin lifecycle changes
     When its selected factory is disabled or replaced
     Then shared Tick subscription cleanup completes
     And a late scan success or rejection cannot update released nodes or publish another briefing
-    And the released button cannot navigate to the Pi Sessions page
+    And the released button cannot navigate to Home or focus the Pi Sessions Widget
 
   Scenario: Replacement owns the retained consumer after an earlier scan completes
     Given the default Pi State Bar consumer has a pending scan
@@ -34,7 +34,7 @@ Feature: Preserve Pi status behavior through plugin lifecycle changes
     And Tick observations start before the initial status mount
     When a trusted development link or signed revision replaces the status through the public controller
     Then actual and comparison consumers retain readings, accessible names, styles, and geometry
-    And keyboard activation navigates from another page to the Pi Sessions page
+    And keyboard activation returns to Home and focuses the Pi Sessions Widget without opening an App
     And disable and enable release and reacquire their Tick subscriptions
     And built-in recovery retains the document and active peer surfaces
     And shutdown releases discovery and asset authority before the child closes

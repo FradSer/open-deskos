@@ -10,14 +10,18 @@ It requests one initial scan and another scan on every third shared Tick callbac
 The shared Tick supplies an immediate callback when subscribed.
 The State Bar count does not follow the Pi Sessions page filter.
 
-Successful scans display `summary.running`, with zero as the missing-value default.
+Successful scans display the nonnegative integer `summary.running`.
 Positive counts activate the dot and the `has-running` class.
-The source label supplies the title and accessible name.
+The title states `Show Pi Sessions widget`.
+The accessible name adds the source label and current count to that action.
 An absent source label uses `Pi sessions`.
-Unavailable responses display `--` and preserve unavailable wording.
+Unavailable responses display `Unavailable` and preserve unavailable wording.
 Rejected requests retain the previous source label.
-Missing summaries preserve the existing zero count and unavailable briefing combination.
-The button navigates through the existing `navigateToPage('pi-sessions')` context callback.
+Missing or invalid summaries retain the unavailable state and briefing.
+The button uses `navigateToPage('home')` and focuses the existing Pi Sessions Widget.
+It does not open an App.
+Only Widget activation opens the Pi Sessions App.
+The production desktop has no separate Pi Sessions App page.
 
 ## Legacy briefing
 
@@ -50,8 +54,8 @@ Three themes and three comparison sizes cover text, accessible names, computed s
 Eight response cases preserve actual and comparison readings and legacy briefing parts.
 Controlled Tick callbacks request scans; publication observations confirm that both consumers received new results.
 These controls do not prove natural elapsed-time progression.
-Browser Home input first selects another page in each implementation phase.
-Browser Enter input then activates the actual status button and navigates to Pi Sessions.
+Browser End input first selects another page in each implementation phase.
+Browser Enter input then selects Home and focuses the Pi Sessions Widget without opening an App.
 Disable and enable release and reacquire both Tick subscriptions.
 Controlled entries without Tick subscriptions or navigation are rejected through both loading modes.
 Shutdown releases subscriptions, discovery, and signed asset authority before actual child closure.

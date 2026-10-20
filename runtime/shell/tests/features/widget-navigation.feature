@@ -7,6 +7,17 @@ Feature: Widget continuations in the right desk pane
     And an upward swipe from the bottom handle restores the source page and Widget focus
     And a paging drag does not open an App
 
+  Scenario: Pi Sessions opens only through its Home Widget
+    Given the desktop contains Home, Desk, Pre-order, and Reading
+    Then no Pi Sessions App page is mounted in the desktop pager
+    And the Home Pi Sessions Widget remains display-only
+    When the user activates that Widget
+    Then the existing Pi Sessions App opens in the App frame
+    And return restores the Home Widget focus
+    When the user selects the Pi State Bar indicator
+    Then Home opens and the Pi Sessions Widget receives focus
+    And no App opens until the user activates the Widget
+
   Scenario: Native pointer navigation
     Given a Widget has a native App button
     When the user clicks or taps its content
