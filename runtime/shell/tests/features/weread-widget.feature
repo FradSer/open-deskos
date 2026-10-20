@@ -1,4 +1,12 @@
 Feature: WeRead highlight widget
+  Scenario: Excerpts use reading type rather than display headlines
+    Given a short excerpt has room to grow inside its Widget
+    When the copy width is 480 pixels or less
+    Then the excerpt uses at most 24 pixel type
+    When the copy is wider
+    Then the excerpt uses at most 36 pixel type
+    And complete text can still shrink or scroll when space is limited
+
   Scenario: Hidden weread acceptance renders at each requested viewport
     Given the comparison window stays hidden on a supported Shell Host
     When each of the five standard sizes loads a new Shell document

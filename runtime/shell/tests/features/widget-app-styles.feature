@@ -110,6 +110,15 @@ Feature: Legible Widget and App interiors
     And source states remain text rather than interactive badges
     And opening the Widget retains its existing App and return path
 
+  Scenario: Desk instruments use quiet tonal surfaces
+    Given the Instrument theme displays the desktop Widgets
+    When the user reads the Home instruments
+    Then the Widget surface is one neutral tone above the desktop ground
+    And headings remain at least 16 pixels at reference and handheld sizes
+    And primary figures use regular text weight with tabular digits
+    And the Pi heading, count, and task share one left edge
+    And status colors remain on data rather than the Widget frame
+
   Scenario: Garden moisture leads environmental context
     Given Hydra receives two plant readings and four environment readings
     When the Widget has a wide Cell

@@ -73,7 +73,7 @@ app.whenReady().then(async () => {
             readingColor: getComputedStyle(value).color === color,
             rowColor: getComputedStyle(pill).color === color,
             transparent: getComputedStyle(pill).backgroundColor === 'rgba(0, 0, 0, 0)',
-            readable: parseFloat(getComputedStyle(note).fontSize) >= 18 && parseFloat(getComputedStyle(host.querySelector('.futu-name')).fontSize) >= 18 && parseFloat(getComputedStyle(pill).fontSize) >= 20 && getComputedStyle(note).color === captionColor,
+            readable: parseFloat(getComputedStyle(note).fontSize) >= 18 && parseFloat(getComputedStyle(host.querySelector('.futu-name')).fontSize) >= 16 && parseFloat(getComputedStyle(pill).fontSize) >= 20 && getComputedStyle(note).color === captionColor,
             contained: !ellipsized(value) && host.scrollHeight <= host.clientHeight + 1,
             pixelSpacing: theme !== 'pixel' || getComputedStyle(value).letterSpacing === 'normal',
             staleLabelled: kind !== 'stale' || /Stale/.test(note.textContent),

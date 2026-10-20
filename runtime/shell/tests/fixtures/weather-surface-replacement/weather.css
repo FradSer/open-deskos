@@ -33,7 +33,7 @@
 .w-weather-place {
   min-width: 0;
   max-width: 100%;
-  font-size: clamp(12px, 4.5cqi, 18px);
+  font-size: clamp(16px, 4.5cqi, 20px);
   line-height: 1.5;
   color: var(--odk-secondary-strong);
   overflow-wrap: anywhere;
@@ -98,10 +98,10 @@
 .w-weather-value {
   display: flex;
   align-items: baseline;
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
+  font-family: inherit;
   /* The primary reading keeps its data floor in a constrained lane. */
   font-size: max(14px, min(var(--w-weather-reading), 72cqb));
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -234,7 +234,7 @@
   }
 
   .w-weather-place {
-    font-size: 12px;
+    font-size: 16px;
     /* A narrow cell gives the place two lines and no more: the complete name stays in
        the element, in the tile's accessible name and in its title, while a name too
        long for the cell cannot push the reading out of it. */

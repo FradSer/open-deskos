@@ -41,7 +41,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   gap: clamp(16px, 3cqi, 36px);
   padding: var(--odk-widget-inset);
   margin: 0;
@@ -51,7 +51,7 @@
 
 .w-weread .weread-text {
   min-width: 0;
-  margin: auto 0;
+  margin: 0;
   color: var(--odk-primary);
   max-width: 100%;
   font-size: clamp(14px, 6cqi, 64px);
@@ -122,7 +122,7 @@
   min-width: 0;
   flex: none;
   border-top: 0;
-  padding-top: clamp(12px, 2cqi, 24px);
+  padding-top: 0;
 }
 
 .w-weread .weread-cover-wrap {

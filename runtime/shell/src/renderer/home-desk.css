@@ -36,14 +36,14 @@
 #pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
 #dots::before { border: 0; background: transparent; }
-#home-desk .widget[data-interaction="display-only"] { background: transparent; }
+#home-desk .widget[data-interaction="display-only"] { background: var(--odk-surface); }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
 html[data-fit-canvas="true"] #home-desk .page:has(.widget-grid),
 html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 /* Cards share one frame; control focus does not add a second App outline. */
 #home-desk {
-  --odk-frame-border: color-mix(in srgb, var(--odk-stroke) 70%, var(--odk-secondary));
+  --odk-frame-border: color-mix(in srgb, var(--odk-stroke) 55%, var(--odk-surface));
   --odk-frame-radius: calc(var(--radius) * 0.72);
 }
 #home-desk :is(.widget[data-interaction="display-only"], #app-view),

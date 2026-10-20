@@ -29,6 +29,7 @@ const GOAL_FLOOR = 14
 // The tile's own scan, including a goal longer than the tile is wide.
 installGeometryFixtures(ipcMain, { state: 'live', wide: true })
 const SCANS = [
+  ['short goal', { summary: { running: 1, total: 1, workspacesCount: 1 }, sessions: [{ status: 'running', sessionId: 'short', latestGoal: 'Review', cwd: '/desk' }] }],
   ['working goal', { summary: { running: 2, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS }],
   ['idle goal', { summary: { running: 0, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS.map(session => ({ ...session, status: session.status === 'running' ? 'settled' : session.status, updatedAt: new Date(session.updatedAt).toISOString() })) }],
   ['empty scan', { summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }],
@@ -93,6 +94,7 @@ const READ = `(() => { try {
     summaryFont: parseFloat(getComputedStyle(summary).fontSize),
     countVisible: count.getBoundingClientRect().height > 0,
     countContained: countBounds.left >= metricBounds.left - 1 && countBounds.right <= metricBounds.right + 1,
+    aligned: Math.abs(host.querySelector('.widget-heading').getBoundingClientRect().left - host.getBoundingClientRect().left - parseFloat(getComputedStyle(host).borderLeftWidth) - parseFloat(getComputedStyle(host).paddingLeft)) < 1,
   }
 } catch (error) { return { error: String((error && error.stack) || error) } } })()`
 
@@ -150,6 +152,7 @@ async function main() {
     // The rest of the instrument survives the bound.
     assert.equal(reading.countVisible, true, `${where}: the count stays visible`)
     assert.equal(reading.countContained, true, `${where}: every count digit stays inside its metric row`)
+    assert.equal(reading.aligned, true, `${where}: the heading keeps the shared content edge`)
     // The summary is the line that goes when the cell is smaller than the tile
     // declared it reads at; the primary reading never goes.
     assert.equal(reading.summaryVisible, reading.cell >= 217, `${where}: the full summary follows the measured Cell while compact primary readings stay visible`)

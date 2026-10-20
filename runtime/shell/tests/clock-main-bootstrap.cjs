@@ -376,7 +376,7 @@ async function exercise() {
             ||!odkPlugins.isActive(odkPlugins.get('odk.tile.preorder'),productionPreorder))throw Error('Production Pre-order ownership changed');
           if(count.classList.contains('is-open')!==${opened}||count.getAttribute('aria-live')!=='off')throw Error('Production Pre-order state changed');
           const label=productionPreorder.querySelector('.preorder-label').textContent;
-          if(label!=='Pre-order · 5:00 a.m. PT 10.16')throw Error('Production Pre-order caption changed');
+          if(label!=='5:00 a.m. PT · October 16'||productionPreorder.querySelector('.preorder-heading')?.textContent!=='Pre-order')throw Error('Production Pre-order caption changed');
           if(productionPreorder.querySelector('button:not(.widget-launch),input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production Pre-order gained controls');
           return {count:count.innerHTML,classes:count.className,label,width:canvas.width,height:canvas.height,pixels:canvas.toDataURL()};
         })()`)

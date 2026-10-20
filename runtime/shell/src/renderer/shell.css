@@ -1057,11 +1057,11 @@ body.kiosk {
   flex: none;
   max-width: 100%;
   color: var(--odk-secondary-strong);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 4.5cqi, 18px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(16px, 4.5cqi, 20px);
+  font-weight: 400;
   line-height: 1.35;
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 
@@ -1108,16 +1108,16 @@ body.kiosk {
 }
 
 .al-day {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(72px, 68cqi, 240px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(64px, 54cqi, 180px);
+  font-weight: 400;
   line-height: 0.95;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .al-day-wide {
-  font-size: clamp(64px, 47cqi, 160px);
+  font-size: clamp(56px, 40cqi, 136px);
   letter-spacing: -0.02em;
 }
 
@@ -1156,9 +1156,9 @@ body.kiosk {
 }
 
 .w-clock-time {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(42px, 38cqi, 136px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(40px, 32cqi, 112px);
+  font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -1195,7 +1195,7 @@ body.kiosk {
 }
 
 
-/* Pomodoro keeps its state above a proportionate, static focus dial. */
+/* Pomodoro keeps its state below a proportionate, static focus dial. */
 .w-pomodoro {
   --pomodoro-time-size: clamp(24px, 16cqi, 88px);
   position: relative;
@@ -1250,9 +1250,9 @@ body.kiosk {
 .ring-mmss {
   grid-area: 1 / 1;
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
+  font-family: inherit;
   font-size: var(--pomodoro-time-size);
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -1326,7 +1326,7 @@ body.kiosk {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 9cqi;
+  gap: 6cqi;
   margin: auto 0;
   width: 100%;
 }
@@ -1343,20 +1343,20 @@ body.kiosk {
 }
 
 .year-pct {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(56px, 39cqi, 120px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(44px, 32cqi, 96px);
+  font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .year-pct-wide {
-  font-size: clamp(52px, 33cqi, 108px);
+  font-size: clamp(40px, 29cqi, 88px);
 }
 
 .w-year .meter {
   width: 100%;
-  height: max(6px, 2.5cqi);
+  height: 6px;
   margin: 0;
 }
 
@@ -1765,7 +1765,12 @@ body.kiosk {
 }
 
 .w-preorder .preorder-num {
-  font-weight: 700;
+  font-weight: inherit;
+}
+
+.widget.w-preorder .preorder-count {
+  font-family: inherit;
+  font-weight: 400;
 }
 
 /* The unit is the numeral divided by phi: a golden-ratio suffix that stays
@@ -1785,8 +1790,8 @@ body.kiosk {
 .w-preorder .preorder-label {
   margin: 0;
   color: var(--odk-secondary-strong);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: clamp(14px, 2cqi, 18px);
+  font-weight: 400;
   line-height: 1.4;
   letter-spacing: normal;
   text-transform: none;
@@ -1807,6 +1812,7 @@ body.kiosk {
 .w-pi-sessions .pi-widget-body {
   flex: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   align-items: stretch;
   padding: 0;
@@ -1824,9 +1830,9 @@ body.kiosk {
 }
 
 .pi-widget-count {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(48px, 42cqi, 180px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(40px, 34cqi, 132px);
+  font-weight: 400;
   color: var(--odk-primary);
   line-height: 0.95;
   letter-spacing: -0.02em;
@@ -1890,7 +1896,7 @@ body.kiosk {
 
 .pi-widget-context .w-state {
   font-size: clamp(14px, 3.8cqi, 22px);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--odk-primary);
   max-width: 100%;
   /* A goal longer than the tile is wide wraps and is bounded at two lines, the
@@ -1936,7 +1942,7 @@ body.kiosk {
 
 @container (max-width: 230px) {
   .w-pi-sessions.pi-widget-detailed .pi-widget-body { gap: 5px; }
-  .pi-widget-detailed .pi-widget-count { font-size: clamp(64px, 40cqi, 380px); }
+  .pi-widget-detailed .pi-widget-count { font-size: clamp(48px, 34cqi, 132px); }
 }
 
 .pi-app-wrapper {
@@ -3022,9 +3028,9 @@ body.kiosk {
 
 .hydra-title {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 4.5cqi, 18px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(16px, 4.5cqi, 20px);
+  font-weight: 400;
   letter-spacing: -0.02em;
 }
 
@@ -3247,14 +3253,14 @@ body.kiosk {
    stacks the environment readings, a square cell pairs them two to a row, a short
    cell keeps the plants and says what it is not showing, and a cell below every
    one of those says it cannot draw the readings at all. */
-/* The full Desk canvas is one instrument: environment above, plants below.
+/* The full Desk canvas is one instrument: plants above, environment below.
    The measured wide shape keeps two reading columns without viewport rules. */
 .hydra-body[data-shape='wide'] {
   flex: none;
-  height: max(88%, 280px);
+  height: auto;
   max-height: 100%;
   margin-block: auto;
-  gap: clamp(12px, 1.5cqi, 20px);
+  gap: clamp(20px, 2.5cqi, 28px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-head {
@@ -3268,7 +3274,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-title {
-  font-size: clamp(14px, 2.5cqi, 22px);
+  font-size: clamp(16px, 2.5cqi, 22px);
   line-height: 1.2;
 }
 
@@ -3278,14 +3284,16 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-env {
+  flex: none;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: clamp(20px, 4cqi, 48px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: clamp(12px, 2cqi, 28px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-cell {
   border-top: 0;
+  justify-content: flex-start;
   gap: 2px;
 }
 
@@ -3294,20 +3302,24 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-label {
-  font-size: clamp(14px, 2cqi, 22px);
+  font-size: clamp(14px, 1.7cqi, 18px);
+  font-weight: 400;
   line-height: 1.2;
 }
 
 .hydra-body[data-shape='wide'] .hydra-reading {
-  gap: clamp(8px, 1.5cqi, 16px);
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-value {
-  font-size: clamp(28px, 5.8cqi, 64px);
+  font-family: inherit;
+  font-size: clamp(24px, 3.5cqi, 40px);
+  font-weight: 400;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-unit {
-  font-size: clamp(14px, 2.5cqi, 28px);
+  font-size: 14px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-plants {
@@ -3323,6 +3335,9 @@ body.kiosk {
 
 .hydra-body[data-shape='wide'] .hydra-plant {
   gap: clamp(8px, 1.2cqi, 14px);
+  padding: clamp(16px, 2.5cqi, 28px);
+  border-radius: calc(var(--radius) * 0.4);
+  background: var(--odk-elevated);
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-row {
@@ -3341,11 +3356,13 @@ body.kiosk {
 .hydra-body[data-shape='wide'] .hydra-plant-soil {
   flex-basis: 100%;
   margin-inline-start: 0;
-  font-size: clamp(44px, 11cqi, 120px);
+  font-family: inherit;
+  font-size: clamp(40px, 8cqi, 88px);
+  font-weight: 400;
 }
 
 .hydra-body[data-shape='wide'] .hydra-meter {
-  height: clamp(8px, 1.5cqi, 18px);
+  height: 6px;
 }
 
 .hydra-body[data-shape='compact'] {

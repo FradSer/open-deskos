@@ -14,6 +14,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
+const reportDensity = process.argv.includes('--density-report-only')
 if (captureDir) fs.mkdirSync(captureDir, { recursive: true })
 const root = path.resolve(__dirname, '..')
 app.commandLine.appendSwitch('ozone-platform', 'headless')
@@ -117,6 +118,7 @@ app.whenReady().then(async () => {
           shape: body ? body.dataset.shape : null,
           contentWidth: body.getBoundingClientRect().width,
           environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
+          plantFont: parseFloat(getComputedStyle(host.querySelector('.hydra-plant-soil')).fontSize),
           meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
             texture: (() => {
               if (!fill.closest('.hydra-watering')) return null
@@ -221,7 +223,7 @@ app.whenReady().then(async () => {
   const wideDensity = result.cases.filter(row => row.name === 'Desk canvas').map(row => {
     const measured = measureDensity(row.density.frame, row.density.boxes,
       { target: 0.62, tolerance: 0.08, minOccupied: 0.2, maxEmptyBand: 0.28 })
-    assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
+    if (!reportDensity) assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
     return { theme: row.theme, ...measured }
   })
   console.log('HYDRA_WIDE_DENSITY ' + JSON.stringify(wideDensity))
@@ -241,10 +243,11 @@ app.whenReady().then(async () => {
     }
     if (expected === 'wide') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
-      assert.equal(row.columns, 2, JSON.stringify(row))
-      assert.equal(row.rows, 2, JSON.stringify(row))
+      assert.equal(row.columns, 4, JSON.stringify(row))
+      assert.equal(row.rows, 1, JSON.stringify(row))
       assert.equal(row.plantColumns, 2, JSON.stringify(row))
-      assert.ok(row.environmentFont >= (name === 'Desk canvas' ? 96 : 44), JSON.stringify(row))
+      assert.ok(row.environmentFont >= 24 && row.environmentFont <= 40, JSON.stringify(row))
+      assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
     }
     if (expected === 'compact') {
       assert.equal(row.envShown, 4, JSON.stringify(row))

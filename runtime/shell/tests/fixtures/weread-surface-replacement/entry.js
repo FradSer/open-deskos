@@ -62,7 +62,8 @@
           - (Number.isFinite(gap) ? gap : 28)
         if (available <= 0) return
         const columns = Math.max(4, Math.sqrt(Math.max(1, nodes.text.textContent.length)) * 2.2)
-        let size = Math.max(14, Math.min(element.clientWidth >= 800 && element.clientHeight >= 800 ? 96 : 72, (nodes.copy.clientWidth > 0 ? nodes.copy.clientWidth : 900) / columns))
+        const width = nodes.copy.clientWidth > 0 ? nodes.copy.clientWidth : 900
+        let size = Math.max(14, Math.min(width <= 480 ? 24 : 36, width / columns))
         nodes.text.style.fontSize = `${size}px`
         for (let attempt = 0; attempt < 60 && size > 14 && nodes.text.scrollHeight > available; attempt++) {
           size = Math.max(14, size - 2)

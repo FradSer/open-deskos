@@ -118,7 +118,7 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the Hydra widget refreshes
     Then both plant rows show their soil percentage and watering state
     And the watering plant states its condition in words beside its moisture rail
-    And a wide Cell renders four large tabular environment readings in two columns and two rows
+    And a wide Cell renders four secondary tabular environment readings in one row
     And two plant readings sit side by side below the environment, separated by the shared stroke
     And every moisture rail draws its fill on a visible track
     And the live badge renders as a quiet outlined live-state pill
@@ -202,7 +202,7 @@ Feature: Hydra plant and environment Widget on the Desk page
   Scenario: A wide Cell shows the new environment and plant composition
     Given Hydra occupies a Cell at least 480 pixels wide and 340 pixels high
     When the Cell can hold the wide instrument
-    Then four environment readings form two columns and two rows
+    Then four environment readings form four columns and one row
     And both plants appear side by side below the environment
     And every reading retains its unit and complete state
     And the current theme remains selected

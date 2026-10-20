@@ -175,7 +175,18 @@ async function widgetDesignRoles(win) {
           return { id: tile.dataset.widget.slice('odk.tile.'.length), text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
         })
       })()`)
-      for (const row of readings) check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 12, row)
+      for (const row of readings) check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
+      if (theme === 'instrument') {
+        const tone = await win.webContents.executeJavaScript(`(() => {
+          const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')]
+          const probe = document.createElement('span'); probe.style.color = 'var(--odk-surface)'; document.body.append(probe)
+          const surface = getComputedStyle(probe).color; probe.remove()
+          const values = tiles.flatMap(tile => [...tile.querySelectorAll('.pi-widget-count, .ring-mmss, .futu-ratio, .year-pct, .w-weather-value, .quota-tile-value')])
+          const pi = document.querySelector('.w-pi-sessions'), left = pi.getBoundingClientRect().left + parseFloat(getComputedStyle(pi).borderLeftWidth) + parseFloat(getComputedStyle(pi).paddingLeft)
+          return { aligned: ['.widget-heading', '.pi-widget-count', '.pi-widget-context'].every(selector => Math.abs(pi.querySelector(selector).getBoundingClientRect().left - left) < 1), tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), regular: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === '400' && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
+        })()`)
+        check(`${theme} ${width}: tonal surfaces and regular tabular readings`, tone.tonal && tone.regular && tone.aligned, tone)
+      }
     }
   }
 }
