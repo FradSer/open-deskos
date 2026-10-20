@@ -728,18 +728,36 @@ test('reply session identity is required on writes and reads without changing in
 })
 
 
-async function unknownReplyContinuation(t,{configured=false}={}) {
+async function unknownReplyContinuation(t,{configured=false,realReport=false,clockOffset=0}={}) {
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-continuation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
- let current={...row('continuation'),updatedAt:Date.now()}
- if(configured)Object.assign(current,{control:'configured',target:'mac',taskId:'00000000-0000-0000-0000-000000000001',sessionId:'00000000-0000-0000-0000-000000000001',taskRevision:'a'.repeat(64),turnOutcome:'finished',lastTurnId:'00000000-0000-0000-0000-000000000002'})
- const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('A task result is available.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ let current={...row('continuation'),updatedAt:Date.now()+clockOffset},reader,task
+ if(configured) {
+  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+  task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',lifecycle:'live',state:'finished',revision:'a'.repeat(64),response:'Computed total: 6',updatedAt:new Date(Date.now()+clockOffset).toISOString(),currentTurnId:null,lastTurnId:'00000000-0000-0000-0000-000000000002',turnOutcome:'finished'}
+  reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic']}],link:{conclusions:async()=>({ok:true,records:[],total:0}),stop:async()=>{}},backfill:async()=>null,request:async(_target,params)=>{
+   if(params.command==='list')return {tasks:[task],endpointKind:'hosted'}
+   if(params.command==='status')return {task}
+   throw Error('Unexpected task mutation in reader fixture')
+  }})
+  t.after(()=>reader.close())
+ } else if(realReport) {
+  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+  reader=await createRemotePiReader({targets:[],link:{conclusions:async()=>({ok:true,records:[current],total:1}),stop:async()=>{}},backfill:async()=>({truncated:false,events:[{kind:'assistant',eventId:current.eventId,text:current.conclusion,stopReason:'stop'}]})})
+  t.after(()=>reader.close())
+ }
+ const options={file:join(directory,'remote.json'),read:cursor=>reader?reader.read(cursor):Promise.resolve({ok:true,records:[current],total:1,nextCursor:null,omitted:0}),synthesize:async input=>({updates:updates('A task result is available.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll()
  const reference=message=>({messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision})
  const original=reference(remote.data.messages[0]),reply=remote.beginReply(original,'First explicit owner instruction')
  const send=async beforeSend=>{beforeSend();return {accepted:false,delivery:'unknown',mutationId:'00000000-0000-0000-0000-000000000009'}}
  await remote.dispatchReply(reply,send)
  const unknown=structuredClone(remote.data.replies[0])
- const next=async revision=>{await new Promise(resolve=>setTimeout(resolve,3));current={...current,revision,eventId:revision,updatedAt:Date.now(),...(configured?{lastTurnId:`${revision[0].repeat(8)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(12)}`}:{})};await remote.poll();return reference(remote.data.messages.at(-1))}
+ const next=async revision=>{
+  await new Promise(resolve=>setTimeout(resolve,3))
+  if(configured)Object.assign(task,{revision,updatedAt:new Date(Date.now()+clockOffset).toISOString(),lastTurnId:`${revision[0].repeat(8)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(4)}-${revision[0].repeat(12)}`})
+  else current={...current,revision,eventId:revision,updatedAt:Date.now()+clockOffset}
+  await remote.poll();return reference(remote.data.messages.at(-1))
+ }
  return {remote,options,original,unknown,send,next,reference}
 }
 
@@ -758,13 +776,119 @@ test('a new completion permits distinct owner replies across multiple turns with
  assert.throws(()=>recovered.beginReply(last,'A fourth instruction without another completion'),/unknown/)
 })
 
+test('expired reply origins permit only a later complete successful source result without changing unknown evidence',async t=>{
+ for(const configured of [false,true])await t.test(configured?'configured':'report only',async t=>{
+  const f=await unknownReplyContinuation(t,{configured}),next=await f.next('c'.repeat(64))
+  f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1),expiredMessages:1})
+  const recovered=new RemoteConversation(f.options)
+  if(configured) {
+   const source=recovered.data.messages[0].sources[0]
+   assert.equal(Object.hasOwn(source,'conclusionIsLatestAssistant'),false)
+   assert.equal(Object.hasOwn(source,'latestEventIsAssistant'),false)
+   assert.equal(Object.hasOwn(source,'eventId'),false)
+   assert.equal(source.turnOutcome,'finished');assert.equal(source.currentTurnId,null)
+  }
+  const reply=recovered.beginReply(next,'A distinct request after retention')
+  let sends=0
+  await recovered.dispatchReply(reply,async beforeSend=>{beforeSend();sends++;return {accepted:false,delivery:'unknown'}})
+  assert.equal(sends,1);assert.deepEqual(recovered.data.replies[0],f.unknown)
+  assert.throws(()=>recovered.beginReply(next,'Another request on the same result'),/unknown|pending/)
+  const restarted=new RemoteConversation(f.options)
+  assert.deepEqual(restarted.data.replies[0],f.unknown);assert.equal(restarted.data.replies.length,2)
+  assert.equal(restarted.data.replies[1].status,'unknown')
+ })
+})
+
+test('retained completion order uses local admission time despite either remote clock skew',async t=>{
+ for(const configured of [false,true])for(const clockOffset of [-86400000,86400000])await t.test(`${configured?'configured':'real report'} ${clockOffset<0?'behind':'ahead'}`,async t=>{
+  const f=await unknownReplyContinuation(t,{configured,realReport:!configured,clockOffset}),next=await f.next('c'.repeat(64))
+  f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1),expiredMessages:1})
+  const recovered=new RemoteConversation(f.options),message=recovered.data.messages[0]
+  assert.ok(message.at>f.unknown.at,'The resident admitted the displayed completion after its unknown reply')
+  assert.equal(message.sources[0].updatedAt>f.unknown.at,clockOffset>0,'The real reader retains the remote clock without normalizing it')
+  const old=structuredClone(recovered.data.replies[0]),observedAt=message.at
+  // A future remote clock cannot release a result already observed before the reply.
+  recovered.data.messages[0].at=f.unknown.at
+  assert.throws(()=>recovered.beginReply(next,'A distinct instruction after retention'),/unknown|pending/)
+  recovered.data.messages[0].at=observedAt
+  recovered.save(recovered.data)
+  const reply=recovered.beginReply(next,'A distinct instruction after retention')
+  let mutations=0
+  await recovered.dispatchReply(reply,async beforeSend=>{beforeSend();mutations++;return {accepted:false,delivery:'unknown'}})
+  assert.equal(mutations,1);assert.deepEqual(recovered.data.replies[0],old)
+  const restarted=new RemoteConversation(f.options)
+  assert.deepEqual(restarted.data.replies[0],old)
+  assert.throws(()=>restarted.beginReply(next,'Another instruction without a new completion'),/unknown|pending/)
+ })
+})
+
+test('the real report reader does not admit a completion followed by non-assistant activity',async t=>{
+ const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-report-completion-boundary-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const source={...row('actual-report'),updatedAt:Date.now()}
+ let latestTool=true,models=0
+ const reader=await createRemotePiReader({targets:[],link:{conclusions:async()=>({ok:true,records:[source],total:1}),stop:async()=>{}},backfill:async()=>({truncated:false,events:[{kind:'assistant',eventId:'completed-report-event',text:'Computed total: 6',stopReason:'stop'},...(latestTool?[{kind:'tool',eventId:'later-read',text:'A later file read'}]:[])]})})
+ t.after(()=>reader.close())
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:cursor=>reader.read(cursor),synthesize:async input=>{models++;return {updates:updates('A completed result.',input.records),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}})
+ await remote.poll();assert.equal(models,0);assert.equal(remote.data.messages.length,0)
+ latestTool=false;await remote.poll();assert.equal(models,1);assert.equal(remote.data.messages.length,1)
+ const stored=remote.data.messages[0].sources[0]
+ assert.equal(stored.conclusionIsLatestAssistant,true);assert.equal(stored.eventId,'completed-report-event')
+ assert.equal(Object.hasOwn(stored,'latestEventIsAssistant'),false,'Collection admission checks this field before the existing reference projection')
+})
+
+test('expired reply origins cannot bypass identity, freshness, completion or dispatch boundaries',async t=>{
+ const cases={
+  'queued':f=>{f.remote.data.replies[0].status='queued'},
+  'dispatching':f=>{f.remote.data.replies[0].status='dispatching'},
+  'different thread':f=>{f.remote.data.replies[0].threadId='f'.repeat(64)},
+  'configured failed outcome':f=>{f.remote.data.messages.at(-1).sources[0].turnOutcome='failed'},
+  'configured active turn':f=>{f.remote.data.messages.at(-1).sources[0].currentTurnId='00000000-0000-0000-0000-000000000008'},
+  'configured missing turn identity':f=>{delete f.remote.data.messages.at(-1).sources[0].lastTurnId},
+  'configured truncated result':f=>{f.remote.data.messages.at(-1).sources[0].truncated=true},
+  'configured running state':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
+  'configured old local admission':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
+  'different configured target':f=>{f.remote.data.messages.at(-1).sources[0].target='cm5'},
+  'different machine':f=>{f.remote.data.messages.at(-1).sources[0].machine='another-host'},
+  'different project':f=>{f.remote.data.messages.at(-1).sources[0].project='/another-project'},
+  'different source key':(f,next)=>{f.remote.data.replies[0].replyTo.sourceKey='another-source'},
+  'different session':f=>{f.remote.data.replies[0].sessionId='another-session'},
+  'unchanged source revision':(f,next)=>{f.remote.data.replies[0].replyTo.sourceRevision=next.sourceRevision},
+  'unchanged message id':(f,next)=>{f.remote.data.replies[0].replyTo.messageId=next.messageId},
+  'future source with old local admission':f=>{f.remote.data.messages.at(-1).sources[0].updatedAt=f.unknown.at+86400000;f.remote.data.messages.at(-1).at=f.unknown.at},
+  'missing local admission time':f=>{delete f.remote.data.messages.at(-1).at},
+  'old message time':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
+  'failed completion':f=>{f.remote.data.messages.at(-1).sources[0].conclusionOutcome='failed'},
+  'cancelled completion':f=>{f.remote.data.messages.at(-1).sources[0].conclusionOutcome='cancelled'},
+  'truncated completion':f=>{f.remote.data.messages.at(-1).sources[0].truncated=true},
+  'missing truncation evidence':f=>{delete f.remote.data.messages.at(-1).sources[0].truncated},
+  'missing completion identity':f=>{delete f.remote.data.messages.at(-1).sources[0].eventId},
+  'running source':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
+  'current turn':f=>{f.remote.data.messages.at(-1).sources[0].currentTurnId='active'},
+  'unavailable source':f=>{f.remote.data.messages.at(-1).sources[0].availability='unavailable'},
+  'later source activity':f=>{f.remote.data.messages.at(-1).sources[0].conclusionIsLatestAssistant=false},
+  'later non-assistant event':f=>{f.remote.data.messages.at(-1).sources[0].latestEventIsAssistant=false},
+  'ambiguous old origin':f=>{const origin=structuredClone(f.remote.data.messages[0]);origin.id=f.original.messageId;origin.sources[0].revision=f.original.sourceRevision;f.remote.data.messages.unshift(origin,structuredClone(origin))},
+  'missing latest-assistant evidence':f=>{delete f.remote.data.messages.at(-1).sources[0].conclusionIsLatestAssistant},
+  'repeated owner text':()=>{},
+  'newer displayed result':f=>{const latest=structuredClone(f.remote.data.messages.at(-1));latest.id='d'.repeat(64);latest.at++;latest.sources[0].revision='d'.repeat(64);latest.sources[0].eventId='d'.repeat(64);f.remote.data.messages.push(latest)},
+ }
+ for(const [name,change]of Object.entries(cases))await t.test(name,async t=>{
+  const f=await unknownReplyContinuation(t,{configured:name==='different configured target'||name.startsWith('configured ')}),next=await f.next('c'.repeat(64))
+  f.remote.data.messages.shift();change(f,next);f.remote.save(f.remote.data)
+  const before=await readFile(f.options.file)
+  assert.throws(()=>f.remote.beginReply(next,name==='repeated owner text'?' First explicit owner instruction ':'A distinct later instruction'),/unknown|pending/)
+  assert.deepEqual(await readFile(f.options.file),before);assert.equal(f.remote.data.replies.length,1)
+ })
+})
+
 test('new completion continuation refuses ambiguous history, repeated text and pending delivery',async t=>{
  const cases={
   'same completion identity':f=>{f.remote.data.messages.at(-1).sources[0].eventId=f.remote.data.messages[0].sources[0].eventId},
   'same event identity with a changed outcome':f=>{Object.assign(f.remote.data.messages.at(-1).sources[0],{eventId:f.remote.data.messages[0].sources[0].eventId,conclusionOutcome:'failed'})},
   'no completion identity':f=>{delete f.remote.data.messages.at(-1).sources[0].eventId},
   'old local message time':f=>{f.remote.data.messages.at(-1).at=f.unknown.at},
-  'missing origin':f=>{f.remote.data.messages.shift()},
+  'missing origin without a later local admission':f=>{f.remote.data.messages.shift();f.remote.data.messages.at(-1).at=f.unknown.at},
   'unfinished source':f=>{f.remote.data.messages.at(-1).sources[0].state='running'},
   'unavailable source':f=>{f.remote.data.messages.at(-1).sources[0].availability='unavailable'},
   'later non-assistant activity':f=>{f.remote.data.messages.at(-1).sources[0].conclusionIsLatestAssistant=false},
@@ -786,13 +910,26 @@ test('a new reply dispatch rechecks its completion boundary and refuses concurre
  const pending=f.remote.dispatchReply(reply,async beforeSend=>{sends++;entered();await wait;beforeSend();return {accepted:false,delivery:'unknown'}})
  await ready
  await assert.rejects(f.remote.dispatchReply(reply,async()=>{sends++;return {accepted:true}}),/attempted|progress/)
- f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1)})
+ f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1).map(message=>({...message,at:f.unknown.at}))})
  release();await assert.rejects(pending,/unknown/)
  assert.equal(sends,1)
  assert.equal(f.remote.data.replies[1].status,'failed')
  assert.deepEqual(f.remote.data.replies[0],f.unknown)
 })
 
+
+test('a retained-origin reply refuses a newer result that arrives before its send boundary',async t=>{
+ const f=await unknownReplyContinuation(t),next=await f.next('c'.repeat(64))
+ f.remote.save({...f.remote.data,messages:f.remote.data.messages.slice(1)})
+ const reply=f.remote.beginReply(next,'A distinct retained-origin instruction')
+ let release,entered,mutations=0
+ const ready=new Promise(resolve=>{entered=resolve}),wait=new Promise(resolve=>{release=resolve})
+ const pending=f.remote.dispatchReply(reply,async beforeSend=>{entered();await wait;beforeSend();mutations++;return {accepted:true}})
+ await ready;await f.next('d'.repeat(64));release()
+ await assert.rejects(pending,/unknown/)
+ assert.equal(mutations,0);assert.deepEqual(f.remote.data.replies[0],f.unknown)
+ assert.equal(f.remote.data.replies[1].status,'failed')
+})
 
 test('a changed Hosted turn outcome cannot substitute for a new real turn identity',async t=>{
  const f=await unknownReplyContinuation(t,{configured:true}),next=await f.next('c'.repeat(64))
