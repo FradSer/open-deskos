@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
+if (process.platform === 'linux') app.disableHardwareAcceleration()
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const { resolvePages } = require('./helpers/pages')
@@ -141,7 +142,7 @@ function inspect() {
 
 async function main() {
   const win = new BrowserWindow({ width: 1920, height: 1280, show: false, frame: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true },
   })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
