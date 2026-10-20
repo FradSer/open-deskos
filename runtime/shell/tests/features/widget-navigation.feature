@@ -32,7 +32,8 @@ Feature: Widget continuations in the right desk pane
   Scenario: Complete Futu holdings
     Given Futu reports more than three positions
     When the user opens the Futu Widget
-    Then the App shows every position with symbol, price, and daily change
+    Then the App retains visible separators between holding rows
+    And the App shows every position with symbol, price, and daily change
     And the list scrolls vertically inside the right pane
     And refresh preserves scroll position
     And stale, empty, unauthorized, malformed, and unavailable data have explicit states

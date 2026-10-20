@@ -106,6 +106,10 @@
 }
 
 .futu-holding + .futu-holding {
+  border-top: 1px solid var(--odk-stroke);
+}
+
+.widget .futu-holding + .futu-holding {
   border-top: 0;
 }
 

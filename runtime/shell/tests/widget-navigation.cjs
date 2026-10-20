@@ -166,6 +166,8 @@ app.whenReady().then(async () => {
       await until(() => document.querySelectorAll('.futu-app .futu-holding').length === 40);
       const list = document.querySelector('.futu-app .futu-holdings');
       if (list.scrollHeight <= list.clientHeight) throw Error('Complete holdings list must scroll');
+      const rowStyle = getComputedStyle(list.children[1]);
+      if (parseFloat(rowStyle.borderTopWidth) < 1 || rowStyle.borderTopStyle === 'none') throw Error('App holdings must retain visible row separators');
       const priceHead = document.querySelector('.futu-columns > :nth-child(2)').getBoundingClientRect();
       const firstPrice = list.querySelector('.futu-price').getBoundingClientRect();
       if (Math.abs(priceHead.right - firstPrice.right) > 1) throw Error('Holdings prices must align with their column heading');
