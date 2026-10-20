@@ -294,3 +294,9 @@ Scenario: A macOS process snapshot resolves Pi work directories in one bounded l
   And unrelated processes are not queried or counted as Pi processes
   And missing or failed directory lookups do not remove Pi process rows
   And metadata identity and orphan accounting remain unchanged
+
+  Scenario: Capture Pi states through the Home Widget App
+    Given the default desktop has four display pages
+    When the state capture harness opens the Pi Sessions Home Widget
+    Then each Overview and Detail state is captured inside its App
+    And returning to Home closes the App before Widget captures

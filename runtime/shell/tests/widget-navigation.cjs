@@ -128,6 +128,7 @@ app.whenReady().then(async () => {
         const pane = document.getElementById('desk-content').getBoundingClientRect();
         const frame = document.getElementById('app-view').getBoundingClientRect();
         if (frame.left < pane.left || frame.right > pane.right || frame.width >= pane.width || frame.top < document.getElementById('status-bar').getBoundingClientRect().bottom - 1) throw Error('App card must remain inside the right pane');
+        if (getComputedStyle(tile).visibility !== 'hidden') throw Error('Widget must stay hidden behind its App: ' + JSON.stringify({ theme: odkTheme.get(), widget: tile.dataset.widget, visibility: getComputedStyle(tile).visibility }));
         if (document.getElementById('personal-agent').inert || document.getElementById('status-bar').inert) throw Error('Resident surfaces must stay usable');
         if (document.getElementById('app-view').getAttribute('aria-modal') === 'true') throw Error('Pane App is not modal');
         if (getComputedStyle(tile).borderTopStyle === 'none') throw Error('Widget outline missing');

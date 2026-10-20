@@ -26,6 +26,8 @@ Feature: Optional Liquid Glass theme
     When the SDK registers the visible Widget before its clip path is ready
     Then the Widget keeps its static rounded fallback and keyboard focus
     And the prepared SDK clip path keeps its normal rendering
+    When a Widget App opens
+    Then its background Widgets inherit the hidden pager visibility
 
   Scenario: Keep Overview content outside a separate glass card
     Given the home Overview shares its canvas with Liquid Glass Widgets

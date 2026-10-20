@@ -1249,6 +1249,12 @@ Feature: Active product components use replaceable plugin contracts
     Then cleanup completes before its container is removed
     And failed cleanup preserves the owned container for retry
 
+  Scenario: Runtime controller preserves the selected display grid
+    Given Reading is selected in the four-page desktop
+    When the controller changes the resident Overview, State Bar clock, and Reading Widget
+    Then Reading retains its page identity and selection
+    And Remote state keeps four display pages and no App actions
+
   Scenario: Runtime status placement preserves independent State Bar items
     Given the State Bar excludes one declared status plugin during startup
     When its factory becomes available and status placement is reconciled

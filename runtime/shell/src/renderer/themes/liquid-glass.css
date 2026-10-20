@@ -69,7 +69,7 @@ html[data-theme='liquid-glass'] #status-bar .sb-pi-status:active:not(:disabled) 
 
 /* Keep the static shape visible until the SDK sets its measured clip path. */
 html[data-theme='liquid-glass'] #home-desk .widget.lg-surface {
-  visibility: visible;
+  visibility: inherit;
   box-sizing: border-box;
   color: var(--odk-primary);
 }
