@@ -1,8 +1,7 @@
 'use strict'
 // The Hydra composition harness: the same cell seam the Futu tile uses.
 //
-// Hydra is a tall instrument: its full composition is a 1x2 slot, so the question
-// this gate answers is what the tile does in a cell that cannot hold that. Three
+// Hydra uses a wide Desk canvas and retains smaller measured shapes. Three
 // things are asserted for every cell and every theme: nothing is drawn outside
 // the cell, no reading falls below the readable floor, and a shape that leaves
 // readings out says how many it left out. The cell, not the window and not the
@@ -13,6 +12,9 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
+const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
+const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
+if (captureDir) fs.mkdirSync(captureDir, { recursive: true })
 const root = path.resolve(__dirname, '..')
 app.commandLine.appendSwitch('ozone-platform', 'headless')
 app.disableHardwareAcceleration()
@@ -23,7 +25,7 @@ app.setPath('userData', userData)
 app.on('will-quit', () => { try { fs.rmSync(userData, { recursive: true, force: true }) } catch {} })
 const timer = setTimeout(() => app.exit(1), 60000)
 
-const THEMES = ['instrument', 'pixel', 'border-beam']
+const THEMES = ['instrument', 'pixel', 'border-beam', 'liquid-glass']
 // A snapshot with the widest values the bridge can carry: a two-digit humidity, a
 // four-figure pressure, and a lux value in the abbreviated form.
 const LIVE = {
@@ -37,6 +39,10 @@ const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: fa
 // a compact window, the cells a short window computes, and a cell too small for
 // the tile's state line.
 const CELLS = [
+  ['Desk canvas', 1103, 730, 'wide'],
+  ['wide boundary', 480, 340, 'wide'],
+  ['below wide width', 479, 340, 'compact'],
+  ['below wide height', 480, 339, 'compact'],
   ['reference tall', 348, 724, 'tall'],
   ['wide reading boundary', 338, 724, 'tall'],
   ['narrow reading boundary', 334, 724, 'tall'],
@@ -55,30 +61,38 @@ const DATA_FLOOR = 14
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 776, webPreferences: { offscreen: true, backgroundThrottling: false } })
+  win.webContents.on('console-message', details => { if (details.level === 'error') console.error('Hydra fixture renderer:', details.message) })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
+  await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1280, height: 776, deviceScaleFactor: 1, mobile: false })
+  win.webContents.setZoomFactor(1)
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
   })
   const result = await win.webContents.executeJavaScript(`(async () => {
+    if (innerWidth !== 1280 || innerHeight !== 776 || devicePixelRatio !== 1 || visualViewport.scale !== 1) throw Error('Hydra rendering scale changed')
     const SNAPSHOTS = ${JSON.stringify(SNAPSHOTS)}
     const CAPTION_FLOOR = ${CAPTION_FLOOR}
     const DATA_FLOOR = ${DATA_FLOOR}
     const mount = async (theme, width, height, snapshot) => {
-      document.documentElement.dataset.theme = theme
+      window.odkTheme.set(theme)
+      await document.fonts.ready
       await new Promise(resolve => setTimeout(resolve, 120))
       const host = document.createElement('div')
       host.className = 'widget widget-display-only w-hydra'
+      host.dataset.widget = 'odk.tile.hydra-preview'
       host.style.cssText = 'position:fixed;left:0;top:0;width:' + width + 'px;height:' + height + 'px;--cell-dim:' + Math.min(width, height) + 'px;'
       document.body.append(host)
       window.odkPlatform = { getHydraStatus: async () => snapshot }
-      window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup() {} })
+      host.cleanups = []
+      window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup(cleanup) { host.cleanups.push(cleanup) } })
       await new Promise(resolve => setTimeout(resolve, 160))
       for (const fill of host.querySelectorAll('.hydra-meter-fill')) {
         for (const animation of fill.getAnimations()) animation.finish()
       }
       return host
     }
+    const release = host => { for (const cleanup of host.cleanups) cleanup(); host.remove() }
     const cases = []
     for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
       for (const theme of ${JSON.stringify(THEMES)}) {
@@ -126,6 +140,10 @@ app.whenReady().then(async () => {
           })),
           escaping,
           contained: host.scrollHeight <= host.clientHeight + 1,
+          rendering: { viewport: [innerWidth, innerHeight], dpr: devicePixelRatio, zoom: visualViewport.scale, fonts: document.fonts.status, theme: window.odkTheme.get() },
+          rows: new Set(envCells.filter(node => node.getBoundingClientRect().height > 0).map(node => Math.round(node.getBoundingClientRect().top))).size,
+          density: (${collectWidgetContent.toString()})().find(widget => widget.id === 'odk.tile.hydra-preview'),
+          plantColumns: new Set(plants.filter(node => node.getBoundingClientRect().height > 0).map(node => Math.round(node.getBoundingClientRect().left))).size,
           columns: new Set(envCells.filter(node => node.getBoundingClientRect().height > 0).map(node => Math.round(node.getBoundingClientRect().left))).size,
           envShown: envCells.filter(node => node.getBoundingClientRect().height > 0).length,
           plantsShown: plants.filter(node => node.getBoundingClientRect().height > 0).length,
@@ -137,7 +155,7 @@ app.whenReady().then(async () => {
             .map(node => parseFloat(getComputedStyle(node).fontSize)).sort((a, b) => a - b)[0] ?? 0,
           ellipsized: texts.filter(node => node.scrollWidth > node.clientWidth + 1).map(node => String(node.className).slice(0, 24)),
         })
-        host.remove()
+        release(host)
       }
     }
     // An unconfigured bridge states itself at every cell rather than drawing
@@ -157,7 +175,7 @@ app.whenReady().then(async () => {
           .map(node => node.textContent))],
         contained: host.scrollHeight <= host.clientHeight + 1,
       })
-      host.remove()
+      release(host)
     }
     return { cases, unconfigured }
   })()`)
@@ -196,6 +214,13 @@ app.whenReady().then(async () => {
     }
     checked += 1
   }
+  const wideDensity = result.cases.filter(row => row.name === 'Desk canvas').map(row => {
+    const measured = measureDensity(row.density.frame, row.density.boxes,
+      { target: 0.62, tolerance: 0.08, minOccupied: 0.2, maxEmptyBand: 0.28 })
+    assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
+    return { theme: row.theme, ...measured }
+  })
+  console.log('HYDRA_WIDE_DENSITY ' + JSON.stringify(wideDensity))
   // The declared shapes, at the cells they are drawn for.
   for (const [name] of CELLS) {
     const shapes = new Set(result.cases.filter(row => row.name === name).map(row => row.shape))
@@ -209,6 +234,13 @@ app.whenReady().then(async () => {
       assert.equal(row.envShown, 4, JSON.stringify(row))
       // The tall composition stacks the instrument rows: one column of readings.
       assert.equal(row.columns, 1, JSON.stringify(row))
+    }
+    if (expected === 'wide') {
+      assert.equal(row.envShown, 4, JSON.stringify(row))
+      assert.equal(row.columns, 2, JSON.stringify(row))
+      assert.equal(row.rows, 2, JSON.stringify(row))
+      assert.equal(row.plantColumns, 2, JSON.stringify(row))
+      assert.ok(row.environmentFont >= (name === 'Desk canvas' ? 96 : 44), JSON.stringify(row))
     }
     if (expected === 'compact') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
@@ -240,6 +272,31 @@ app.whenReady().then(async () => {
     // draws none at all rather than a fabricated one.
     assert.deepEqual(row.readings, row.readings.length === 0 ? [] : ['--'], where)
     assert.equal(row.contained, true, where)
+  }
+  if (captureDir) {
+    for (const theme of THEMES) {
+      await win.webContents.executeJavaScript(`(async () => {
+        window.odkTheme.set('${theme}');
+        const host = document.createElement('div');
+        host.className = 'widget widget-display-only w-hydra';
+        host.id = 'hydra-capture';
+        host.style.cssText = 'position:fixed;z-index:1000;left:0;top:0;width:1103px;height:730px;--cell-dim:357px';
+        document.body.append(host);
+        window.odkPlatform = { getHydraStatus: async () => (${JSON.stringify(LIVE)}) };
+        window.hydraCaptureCleanups = [];
+        window.odkPlugins.get('odk.tile.hydra').mount(host, { onTick() {}, trackCleanup(cleanup) { window.hydraCaptureCleanups.push(cleanup) } });
+        await document.fonts.ready;
+        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      })()`)
+      const image = await win.webContents.capturePage({ x: 0, y: 0, width: 1103, height: 730 })
+      assert.equal(image.isEmpty(), false)
+      const normalized = image.resize({ width: 1103, height: 730 })
+      assert.deepEqual(normalized.getSize(), { width: 1103, height: 730 })
+      fs.writeFileSync(path.join(captureDir, `hydra-wide-${theme}.png`), normalized.toPNG())
+      await win.webContents.executeJavaScript('window.hydraCaptureCleanups.forEach(cleanup => cleanup()); document.getElementById("hydra-capture").remove(); delete window.hydraCaptureCleanups')
+    }
+    fs.writeFileSync(path.join(captureDir, 'report.json'), JSON.stringify({ cases: result.cases, wideDensity }, null, 2))
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],

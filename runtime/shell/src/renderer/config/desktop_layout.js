@@ -26,7 +26,7 @@
         ],
       },
       { id: 'desk', name: 'Desk', kind: 'grid', surface: 'display', widgets: [
-        { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1', row: '1 / 3' },
+        { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1 / 4', row: '1 / 3' },
       ] },
       // The countdown is an image-led hero instrument, so it owns a whole 3x3
       // canvas the same way the Reading page gives WeRead one instrument.

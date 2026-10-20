@@ -58,7 +58,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
         assert.equal(report.signedSurface, version !== '1.0.0')
         assert.equal(report.entryCount, version === '1.0.0' ? 0 : 1)
         assert.equal(report.actualPreload, true)
-        assert.equal(report.comparisons, 240)
+        assert.equal(report.comparisons, 288)
         assert.equal(report.discoveryReleased, true)
         assert.equal(report.assetLeaseReleased, true)
         assert.equal(report.capturedSurfaceIntegrity, false)
@@ -66,7 +66,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
         assert.deepEqual(config().plugins['odk.tile.clock'], { enabled: false })
         assert.equal(config().plugins[id].enabled, true)
         const bytes = await fs.readFile(consumers)
-        assert.equal(JSON.parse(bytes).length, 240)
+        assert.equal(JSON.parse(bytes).length, 288)
         return bytes
       } finally { await closed; await fs.rm(profile, { recursive: true, force: true }) }
     }

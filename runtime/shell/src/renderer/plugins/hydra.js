@@ -8,20 +8,16 @@
   const PLANT_LABELS = ['Plant 1', 'Plant 2']
   const PLANT_LABELS_SHORT = ['P1', 'P2']
 
-  // Hydra's full composition is a one-column by two-row slot: four stacked
-  // environment rows above two plant rows. Measured in this tile, the slot is
-  // whole from a 120px cell, so that is the Minimum Readable Cell it declares.
-  // A previous declaration used the layout model's minimum cell, which is a
-  // property of one panel rather than of this tile: on a window a few pixels
-  // shorter than that panel the grid refused the 1x2 span, the tile fell back to
-  // a single square, and the four environment rows were drawn straight through
-  // the two plant rows.
+  // The Desk declares a full canvas. Wide Cells pair the environment readings
+  // and plants; smaller Cells retain their measured readable compositions.
   const MIN_CELL = 120
   // Below the tall slot the tile re-composes in the cell it was given rather than
   // letting the cell cut it. Each threshold is the cell this tile was measured
   // drawing that shape in whole, across all three themes; a cell below the last
   // one states that it cannot show the readings rather than showing a broken
   // fragment of them.
+  const WIDE_MIN_WIDTH = 480
+  const WIDE_MIN_HEIGHT = 340
   const TALL_MIN_HEIGHT = 240
   const TALL_ASPECT = 1.4
   const COMPACT_MIN_HEIGHT = 180
@@ -70,6 +66,7 @@
   // a square cell is not, whatever panel the window was.
   function shapeForCell(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 'tall'
+    if (width >= WIDE_MIN_WIDTH && height >= WIDE_MIN_HEIGHT) return 'wide'
     if (width >= MIN_CELL && height >= TALL_MIN_HEIGHT && height >= width * TALL_ASPECT) return 'tall'
     if (width >= COMPACT_MIN_CELL && height >= COMPACT_MIN_HEIGHT) return 'compact'
     if (width >= PLANTS_MIN_CELL && height >= PLANTS_MIN_HEIGHT) return 'plants'

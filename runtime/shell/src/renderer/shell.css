@@ -3212,6 +3212,100 @@ body.kiosk {
    stacks the environment readings, a square cell pairs them two to a row, a short
    cell keeps the plants and says what it is not showing, and a cell below every
    one of those says it cannot draw the readings at all. */
+/* The full Desk canvas is one instrument: environment above, plants below.
+   The measured wide shape keeps two reading columns without viewport rules. */
+.hydra-body[data-shape='wide'] {
+  flex: none;
+  height: max(75%, 280px);
+  max-height: 100%;
+  margin-block: auto;
+  gap: clamp(12px, 1.5cqi, 20px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-head {
+  gap: 12px;
+  padding-block-end: 12px;
+}
+
+.hydra-body[data-shape='wide'] .hydra-head svg {
+  width: 28px;
+  height: 28px;
+}
+
+.hydra-body[data-shape='wide'] .hydra-title {
+  font-size: clamp(18px, 2.5cqi, 28px);
+  line-height: 1.2;
+}
+
+.hydra-body[data-shape='wide'] .hydra-badge {
+  padding: 4px 12px;
+  font-size: 14px;
+}
+
+.hydra-body[data-shape='wide'] .hydra-env {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: clamp(20px, 4cqi, 48px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-env-cell {
+  border-top: 0;
+  gap: 2px;
+}
+
+.hydra-body[data-shape='wide'] .hydra-env-cell:nth-child(n+3) {
+  border-top: 1px solid var(--odk-stroke);
+}
+
+.hydra-body[data-shape='wide'] .hydra-env-label {
+  font-size: clamp(14px, 2cqi, 22px);
+  line-height: 1.2;
+}
+
+.hydra-body[data-shape='wide'] .hydra-reading {
+  gap: clamp(8px, 1.5cqi, 16px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-env-value {
+  font-size: clamp(44px, 10.5cqi, 112px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-env-unit {
+  font-size: clamp(14px, 2.5cqi, 28px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-plants {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(20px, 4cqi, 48px);
+  padding-block-start: clamp(12px, 2cqi, 24px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-plant {
+  gap: clamp(8px, 1.2cqi, 14px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-plant-row {
+  gap: 12px;
+}
+
+.hydra-body[data-shape='wide'] .hydra-plant-name {
+  font-size: clamp(14px, 2cqi, 22px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-plant-state {
+  font-size: clamp(14px, 1.6cqi, 18px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-plant-soil {
+  font-size: clamp(22px, 5cqi, 56px);
+}
+
+.hydra-body[data-shape='wide'] .hydra-meter {
+  height: clamp(8px, 1.5cqi, 18px);
+}
+
 .hydra-body[data-shape='compact'] {
   justify-content: space-between;
 }

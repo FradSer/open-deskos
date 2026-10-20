@@ -60,7 +60,8 @@
         const { width, height } = element.getBoundingClientRect()
         let shape = 'tall'
         if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-          shape = width >= 120 && height >= 240 && height >= width * 1.4 ? 'tall'
+          shape = width >= 480 && height >= 340 ? 'wide'
+            : width >= 120 && height >= 240 && height >= width * 1.4 ? 'tall'
             : width >= 130 && height >= 180 ? 'compact'
               : width >= 116 && height >= 120 ? 'plants' : 'small'
         }

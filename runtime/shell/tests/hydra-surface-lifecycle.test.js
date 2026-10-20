@@ -121,13 +121,27 @@ test('Hydra failed observer release remains retryable and blocks late callbacks'
 })
 
 
+test('Hydra uses the wide Desk composition and restores smaller shapes', async t => {
+  const f = await fixture(t)
+  f.operations[0].resolve(live)
+  await f.settle()
+  for (const [width, height, shape] of [[1103, 730, 'wide'], [480, 340, 'wide'],
+    [479, 340, 'compact'], [480, 339, 'compact'], [186, 400, 'tall'], [116, 120, 'plants'], [1103, 730, 'wide']]) {
+    f.resize({ width, height })
+    f.observers[0].callback()
+    assert.equal(f.read('.hydra-body').dataset.shape, shape)
+    assert.equal(f.read('.hydra-hint').hidden, shape !== 'plants')
+    assert.equal(f.read('#hydra-plant-2').querySelector('.hydra-plant-state').textContent, 'Watering')
+  }
+})
+
 test('Hydra preserves display states and cell shapes through the selected factory', async t => {
   const states = [null, { configured: false }, live, { ...live, connected: false }, { ...live, mainOnline: false },
     { ...live, env: { ...live.env, stale: true } }, { ...live, env: null, nodes: [] },
     { ...live, env: { ...live.env, tempC: -10.2, lux: 0.25, humidity: 0, pressureHpa: 1013.6 },
       nodes: [{ id: 2, online: false, soilPercent: 77, pump: true }, { id: 1, stale: true, soilPercent: 49.4, pump: true }] },
     { ...live, nodes: [{ id: 1, online: true, soilPercent: null }, { id: 2, online: true, soilPercent: 0 }] }]
-  const sizes = [{ width: 186, height: 400 }, { width: 130, height: 180 },
+  const sizes = [{ width: 1103, height: 730 }, { width: 480, height: 340 }, { width: 186, height: 400 }, { width: 130, height: 180 },
     { width: 116, height: 120 }, { width: 100, height: 100 }]
   for (const [index, state] of states.entries()) {
     const f = await fixture(t)
@@ -210,4 +224,16 @@ nodeTest('independent Hydra shares only the static visual layout', () => {
   const layout = source => source.split('innerHTML = `')[1].split('`')[0]
   assert.equal(layout(fs.readFileSync(path.join(__dirname, 'fixtures/hydra-surface-replacement/entry.js'), 'utf8')),
     layout(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/hydra.js'), 'utf8')))
+})
+
+nodeTest('Desk declares the complete Hydra canvas with the same App continuation', () => {
+  const root = {}
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), { window: root })
+  const desk = root.DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')
+  assert.equal(desk.widgets.length, 1)
+  assert.equal(desk.widgets[0].id, 'odk.tile.hydra')
+  assert.equal(desk.widgets[0].col, '1 / 4')
+  assert.equal(desk.widgets[0].row, '1 / 3')
+  assert.equal(desk.widgets[0].opensApp, 'hydra')
+  assert.equal(root.DESKTOP_LAYOUT.pages.find(page => page.id === 'home').widgets.length, 6)
 })
