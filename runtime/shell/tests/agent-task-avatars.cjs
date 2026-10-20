@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
     const clip = await evaluate(`(()=>{const r=document.querySelector('.agent-panel').getBoundingClientRect();return {x:Math.ceil(r.x),y:Math.ceil(r.y),width:Math.floor(r.width),height:Math.floor(r.height)}})()`)
     fs.writeFileSync(process.env.ODK_AGENT_AVATAR_CAPTURE, (await win.webContents.capturePage(clip)).toPNG())
   }
-  assert.equal(await evaluate(`(()=>{const input=document.querySelector('.agent-composer textarea');input.focus();return document.activeElement===input})()`), true)
+  assert.equal(await evaluate(`(()=>{const box=document.querySelector('.agent-composer');if(box.dataset.mode==='voice')document.querySelector('.agent-keys').click();const input=document.querySelector('.agent-composer textarea');input.focus();return document.activeElement===input})()`), true)
   console.log('Child avatars: identity, lifecycle, unavailable state, literal names, four themes, narrow layout, large text and composer passed.')
   finish(0)
 }).catch(error => { console.error(error); finish(1) })

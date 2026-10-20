@@ -22,13 +22,53 @@
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
-        <form class="agent-composer"><span class="agent-input-avatar" aria-hidden="true"></span><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea>
-          <button class="agent-mic" type="button" aria-label="Record voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg></button><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
+        <form class="agent-composer" data-mode="voice"><span class="agent-input-avatar" aria-hidden="true"></span><button class="agent-mic" type="button" aria-label="Start voice request"><svg data-tabler="microphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 5a3 3 0 0 1 3 -3a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3a3 3 0 0 1 -3 -3l0 -5" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M8 21l8 0" /><path d="M12 17l0 4" /></svg><span class="agent-mic-label">Tap to talk</span></button><button class="agent-keys" type="button" aria-label="Switch to keyboard input"><svg data-tabler="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" /><path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" /></svg></button><textarea rows="1" maxlength="3000" aria-label="Message Personal Agent"></textarea><button class="agent-send" type="submit" aria-label="Send message"><svg data-tabler="arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 11l-6 -6" /><path d="M6 11l6 -6" /></svg></button></form>
       </div>`
       const $ = selector => el.querySelector(selector)
       const conversation = $('.agent-conversation')
       const input = $('textarea')
+      const composer = $('.agent-composer')
+      const micControl = $('.agent-mic')
+      const keysControl = $('.agent-keys')
+      const voiceLabel = $('.agent-mic-label')
+      const sendControl = $('.agent-send')
       const state = $('.agent-state')
+      const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
+      const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+      let composerMode = 'keyboard'
+      let voiceStarted = false
+      function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
+      function fieldControl() { return composerMode === 'keyboard' ? input : micControl }
+      // The voice control states the next action of its own mode. A host that
+      // declares no voice input states that condition instead.
+      function renderVoiceControl() {
+        const ready = voiceAvailable(), busy = busyStates.includes(lastStatus)
+        micControl.disabled = !ready || (busy && lastStatus !== 'recording')
+        micControl.setAttribute('aria-label', !ready ? 'Microphone unavailable on this host'
+          : lastStatus === 'recording' ? 'Stop recording'
+            : composerMode === 'keyboard' ? 'Record voice request'
+              : voiceStarted ? 'Switch to keyboard input'
+                : 'Start voice request')
+        voiceLabel.textContent = !ready ? 'Voice unavailable'
+          : composerMode === 'keyboard' ? 'Voice'
+            : busy ? stateLabels[lastStatus] || 'Tap to talk'
+              : voiceStarted ? 'Type instead'
+                : 'Tap to talk'
+        micControl.dataset.recording = String(lastStatus === 'recording')
+      }
+      // Voice is the default composer. The field itself is the voice control, and
+      // the keyboard is the explicit alternative next to it.
+      function setComposerMode(mode, focus = false) {
+        composerMode = mode === 'voice' ? 'voice' : 'keyboard'
+        const voice = composerMode === 'voice'
+        composer.dataset.mode = composerMode
+        input.hidden = voice
+        sendControl.hidden = voice
+        keysControl.hidden = !voice
+        if (voice) voiceStarted = false
+        renderVoiceControl()
+        if (focus) fieldControl().focus({ preventScroll: true })
+      }
       let identity = { name: 'Personal Agent', icon: 'message' }
       try { const saved = JSON.parse(localStorage.getItem('odk.agent.identity')); if (typeof saved?.name === 'string' && saved.name.trim() && Object.hasOwn(GLYPHS, saved.icon)) identity = { name: saved.name.slice(0, 40), icon: saved.icon } } catch {}
       let released = false
@@ -56,6 +96,7 @@
       let lastRemoteComplete = true
       const children = new Map()
       let lastStatus = 'unknown'
+      setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
       function setState(message, caption = message) {
         if (state.textContent !== caption) state.textContent = caption
@@ -243,7 +284,8 @@
           sessionId: source.sessionId, threadId: source.threadId, preview: item.text.length > 100 ? item.text.slice(0, 100) + '…' : item.text })
         if (source.threadId) openThread({ id: source.threadId, sessionId: source.sessionId })
         replyContext()
-        input.focus({ preventScroll: true })
+        // A reply reference is answered by typing, so the reference opens the keyboard.
+        setComposerMode('keyboard', true)
       }
       function sessionLabel(source, item, recordKey) {
         const row = document.createElement('div')
@@ -527,15 +569,14 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const labels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-        const caption = status.state === 'idle' ? readyCaption : labels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? readyCaption : stateLabels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption, status.proposalError ? 'Suggestions unavailable' : caption)
-        $('.agent-send').disabled = busy || status.state === 'unavailable' || pending
-        const voiceAvailable = root.odkPersonalBot?.supportsVoiceInput !== false
-        $('.agent-mic').disabled = !voiceAvailable || (busy && status.state !== 'recording')
-        $('.agent-mic').setAttribute('aria-label', !voiceAvailable ? 'Microphone unavailable on this host' : status.state === 'recording' ? 'Stop recording' : 'Record voice request')
-        $('.agent-mic').dataset.recording = String(status.state === 'recording')
+        sendControl.disabled = busy || status.state === 'unavailable' || pending
         lastStatus = status.state
+        // A host that declares no voice input opens the keyboard and never traps
+        // the owner in a microphone it cannot use.
+        if (!voiceAvailable() && !busy && composerMode === 'voice') setComposerMode('keyboard')
+        renderVoiceControl()
         if (bottom) latest()
         else $('.agent-latest').hidden = false
       }
@@ -558,7 +599,7 @@
         try { localStorage.setItem('odk.agent.identity', JSON.stringify(identity)) } catch { setState('Identity changed for this window. Storage unavailable.', 'Identity changed for this window') }
         applyIdentity()
         $('.agent-identity').open = false
-        input.focus()
+        fieldControl().focus({ preventScroll: true })
       })
       $('.agent-composer').addEventListener('submit', async event => {
         event.preventDefault()
@@ -590,10 +631,22 @@
       input.addEventListener('keydown', event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('.agent-composer').requestSubmit() }
       })
-      $('.agent-reply-cancel').addEventListener('click', () => { if (!pending) { selectedReply = null;openThread(null);replyContext();input.focus({ preventScroll: true }) } })
+      $('.agent-reply-cancel').addEventListener('click', () => { if (!pending) { selectedReply = null;openThread(null);replyContext();fieldControl().focus({ preventScroll: true }) } })
       $('.agent-thread-all').addEventListener('click', () => { openThread(null);conversation.focus({ preventScroll: true }) })
       $('.agent-history-earlier').addEventListener('click', loadEarlier)
-      $('.agent-mic').addEventListener('click', () => root.odkPersonalBotStatus?.mic())
+      // Voice is the default composer, so the first tap on the voice field starts
+      // the request. A later tap while the composer is idle opens the keyboard,
+      // and the microphone of the keyboard opens voice and records in one tap.
+      micControl.addEventListener('click', () => {
+        if (composerMode === 'voice' && voiceAvailable() && voiceStarted && !busyStates.includes(lastStatus)) {
+          setComposerMode('keyboard', true)
+          return
+        }
+        if (composerMode === 'keyboard') setComposerMode('voice')
+        voiceStarted = true
+        root.odkPersonalBotStatus?.mic()
+      })
+      keysControl.addEventListener('click', () => setComposerMode('keyboard', true))
       $('.agent-latest').addEventListener('click', latest)
       function handleScroll() {
         if(released)return

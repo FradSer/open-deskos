@@ -143,7 +143,14 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
+.agent-composer .agent-mic, .agent-composer .agent-keys { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .agent-composer .agent-mic { border-color: transparent; background: transparent; }
+.agent-mic-label { display: none; font-size: 16px; color: var(--odk-primary); }
+/* Voice is the default composer: the field itself is the voice control, and the
+   keyboard is the explicit alternative beside it. */
+.agent-composer[data-mode="voice"] .agent-mic { flex: 1; min-height: 44px; padding-inline: 16px; border-color: var(--odk-stroke); background: var(--odk-elevated); }
+.agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
+.agent-composer[data-mode="voice"] .agent-mic[data-recording="true"] { border-color: var(--odk-accent-red); }
 .agent-mic[data-recording="true"] { color: var(--odk-accent-red); border-color: var(--odk-accent-red); }
 .agent-message-user { margin-inline-start: auto; }
 .sb-peripheral { align-items: center; }
