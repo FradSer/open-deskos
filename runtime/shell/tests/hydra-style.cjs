@@ -172,6 +172,7 @@ app.whenReady().then(async () => {
           padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
           badge: host.querySelector('.hydra-badge').textContent,
           instrumentName: host.querySelector('.hydra-title').textContent,
+          clipped: (${collectWidgetContent.toString()})().find(widget => widget.id === 'odk.tile.hydra-preview').clipped,
           readings: [...new Set([...host.querySelectorAll('.hydra-env-value, .hydra-plant-soil')]
             .filter(node => node.getBoundingClientRect().height > 0)
             .map(node => node.textContent))],
@@ -267,6 +268,7 @@ app.whenReady().then(async () => {
     const where = JSON.stringify(row)
     assert.equal(row.badge, 'Unconfigured', where)
     assert.equal(row.instrumentName, 'Hydra', where)
+    assert.equal(row.clipped, false, where)
     if (row.shape === 'plants') {
       const [width, height] = row.cell.split('x').map(Number)
       const inset = Math.max(12, Math.min(Math.min(width, height) * 0.08, 28))
