@@ -44,6 +44,10 @@ Feature: A resident Personal Bot coordinates work without implementing it
     When the owner asks to change that task
     Then Jev routes the owner request before any mutation
     And the original target, project, task, and expected turn remain bound
+    And reply identity lookup lists only the selected source project on each bound target
+    And unrelated unavailable projects do not block the selected session
+    And the host retains its allowed-root boundary
+    And incomplete selected-project inventory or ambiguous target identity prevents sending
     And an unknown delivery outcome is reconciled without replay
     And remote output cannot create an owner request or select an endpoint
     And the parent describes task progress naturally instead of reciting internal identifiers

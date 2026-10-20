@@ -517,17 +517,19 @@ test('reply references bind the exact durable message and session thread across 
  assert.equal(recovered.resolveReply(replyTo).source.revision,replyTo.sourceRevision,'A historical immutable message still refers to the same session')
 })
 
-test('a report reply resolves one configured original session and never invents a replacement',async()=>{
+test('a report reply resolves its exact project without unrelated inventory and never invents a replacement',async()=>{
  const {createRemotePiReader}=await import('../src/remote-pi-reader.mjs')
  const task={taskId:'00000000-0000-0000-0000-000000000001',project:'/synthetic/project',revision:'c'.repeat(64),state:'settled',lifecycle:'live',deliveries:[]}
- let tasks=[task],incomplete=false,statusChanged=false;const sent=[]
- const request=async(target,params)=>{sent.push({target:target.id,...params});return params.command==='list'?{tasks,incomplete,endpointKind:statusChanged?'hosted':'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'invalid'}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
+ let tasks=[task],incomplete=false,statusChanged=false,hostDenied=false;const sent=[]
+ const request=async(target,params)=>{sent.push({target:target.id,...params});if(hostDenied)throw Error('Host refused project');if(params.command==='list'&&params.project!==task.project)return {tasks:[],incomplete:true};return params.command==='list'?{tasks,incomplete,endpointKind:statusChanged?'hosted':'current_session'}:params.command==='status'?{task:statusChanged?{...task,revision:'invalid'}:task}:{accepted:true,delivery:'ran',mutationId:'00000000-0000-0000-0000-000000000002',task}}
  const report={...row('source'),sessionId:task.taskId,project:task.project}
- const reader=await createRemotePiReader({targets:[{id:'mac',roots:['/synthetic'],reportMachines:['synthetic-mac']}],link:{stop:async()=>{},conclusions:async()=>({ok:true,records:[report],nextCursor:null})},backfill:async()=>null,request})
+ const targets=[{id:'mac',roots:['/synthetic','/synthetic/overlap'],reportMachines:['synthetic-mac']}]
+ const reader=await createRemotePiReader({targets,link:{stop:async()=>{},conclusions:async()=>({ok:true,records:[report],nextCursor:null})},backfill:async()=>null,request})
  const source=(await reader.read()).records[0]
  const params={sourceRevision:source.revision,prompt:'Use adb to input 安卓'}
  await reader.followup(source,params,undefined,{explicitReply:true})
  assert.deepEqual(sent.at(-1),{target:'mac',command:'prompt',project:task.project,taskId:task.taskId,prompt:params.prompt})
+ assert.deepEqual(sent.filter(item=>item.command==='list').map(item=>item.project),[task.project],'identity lookup lists the exact project once, even with overlapping configured roots')
  const count=()=>sent.filter(r=>r.command==='prompt').length
  tasks=[task,task];await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/ambiguous/i);assert.equal(count(),1)
  tasks=[task];incomplete=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/incomplete/i);assert.equal(count(),1)
@@ -540,6 +542,16 @@ test('a report reply resolves one configured original session and never invents 
    await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/not live/);Object.assign(task,previous);assert.equal(count(),1)
  }
  await assert.rejects(reader.followup(source,params));assert.equal(count(),1)
+ statusChanged=false;hostDenied=true;await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/Host refused/);assert.equal(count(),1)
+ hostDenied=false;targets.push({...targets[0],id:'cm5'})
+ await assert.rejects(reader.followup(source,params,undefined,{explicitReply:true}),/ambiguous/);assert.equal(count(),1);targets.pop()
+ const {createHash}=await import('node:crypto')
+ const configured={...source,control:'configured',target:'mac',taskId:task.taskId,key:createHash('sha256').update(JSON.stringify(['mac',task.project,task.taskId])).digest('hex')}
+ targets[0].roots=Array.from({length:33},(_,i)=>`/synthetic/root-${i}`)
+ await reader.followup(configured,params,undefined,{explicitReply:true});assert.equal(count(),2)
+ assert.deepEqual(sent.slice(-3).map(item=>[item.command,item.project]),[['list',task.project],['status',task.project],['prompt',task.project]])
+ await assert.rejects(reader.followup({...configured,key:'invalid'},params,undefined,{explicitReply:true}),/identity/);assert.equal(count(),2)
+ await assert.rejects(reader.followup({...source,machine:'unbound-machine'},params,undefined,{explicitReply:true}),/no configured control binding/);assert.equal(count(),2)
  await reader.close()
 })
 
