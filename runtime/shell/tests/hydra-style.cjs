@@ -162,20 +162,23 @@ app.whenReady().then(async () => {
     // readings it does not have.
     const unconfigured = []
     for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
-      const host = await mount('instrument', width, height, SNAPSHOTS.unconfigured)
-      const body = host.querySelector('.hydra-body')
-      const padding = getComputedStyle(host)
-      unconfigured.push({
-        name, cell: width + 'x' + height,
-        shape: body?.dataset.shape,
-        padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
-        badge: host.querySelector('.hydra-badge').textContent,
-        readings: [...new Set([...host.querySelectorAll('.hydra-env-value, .hydra-plant-soil')]
-          .filter(node => node.getBoundingClientRect().height > 0)
-          .map(node => node.textContent))],
-        contained: host.scrollHeight <= host.clientHeight + 1,
-      })
-      release(host)
+      for (const theme of ${JSON.stringify(THEMES)}) {
+        const host = await mount(theme, width, height, SNAPSHOTS.unconfigured)
+        const body = host.querySelector('.hydra-body')
+        const padding = getComputedStyle(host)
+        unconfigured.push({
+          name, theme, cell: width + 'x' + height,
+          shape: body?.dataset.shape,
+          padding: ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(padding['padding' + side])),
+          badge: host.querySelector('.hydra-badge').textContent,
+          instrumentName: host.querySelector('.hydra-title').textContent,
+          readings: [...new Set([...host.querySelectorAll('.hydra-env-value, .hydra-plant-soil')]
+            .filter(node => node.getBoundingClientRect().height > 0)
+            .map(node => node.textContent))],
+          contained: host.scrollHeight <= host.clientHeight + 1,
+        })
+        release(host)
+      }
     }
     return { cases, unconfigured }
   })()`)
@@ -263,6 +266,7 @@ app.whenReady().then(async () => {
   for (const row of result.unconfigured) {
     const where = JSON.stringify(row)
     assert.equal(row.badge, 'Unconfigured', where)
+    assert.equal(row.instrumentName, 'Hydra', where)
     if (row.shape === 'plants') {
       const [width, height] = row.cell.split('x').map(Number)
       const inset = Math.max(12, Math.min(Math.min(width, height) * 0.08, 28))
