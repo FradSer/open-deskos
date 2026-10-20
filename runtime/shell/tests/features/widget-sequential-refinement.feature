@@ -112,7 +112,17 @@ Feature: Independent instrument refinement
   Scenario: Sparse instruments use their content area without an empty middle band
     Given a square Home Widget has only a small set of readings
     When it renders at desktop and handheld sizes
-    Then Pi presents working and idle counts beside each other
+    Then Pi shows one large working count above its Working capsule
+    And the idle count appears below the capsule
     And primary numerals and the focus dial use more of their available content area
     And supporting labels stay with their readings
     And Hydra uses larger plant and environment readings within its three-by-one span
+
+  Scenario: Built-in Widget headings have one matching theme icon
+    Given all built-in Widgets render in a supported theme
+    When a Widget mounts, refreshes, or is replaced
+    Then one decorative icon appears before its title
+    And the icon retains a clear gap and does not hide the title
+    And the Pixel theme uses its pixel icon variant
+    And existing Hydra icons are not duplicated
+    And dynamic place, service, and book titles keep their icons after updates

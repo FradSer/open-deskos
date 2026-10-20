@@ -56,16 +56,16 @@ const READ = `(() => {
   const host = document.querySelector('[data-widget="odk.tile.pi-sessions"]');
   const count = host.querySelector('.pi-widget-count'), label = host.querySelector('.pi-widget-tag-label'), summary = host.querySelector('.pi-widget-summary');
   const bounds = host.getBoundingClientRect(), reading = count.getBoundingClientRect(), metric = count.parentElement.getBoundingClientRect();
-  const idle = host.querySelector('.pi-widget-idle-count'), second = idle.getBoundingClientRect(), peer = idle.parentElement.getBoundingClientRect();
-  const heading = host.querySelector('.widget-heading').getBoundingClientRect();
+  const capsule = host.querySelector('.pi-widget-live-tag').getBoundingClientRect(), footer = summary.getBoundingClientRect();
+  const heading = (host.querySelector('.widget-title') || host.querySelector('.widget-heading')).getBoundingClientRect();
   return { viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
-    cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: host.querySelector('.pi-widget-idle-count').textContent + ' idle',
+    cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: summary.textContent, capsuleBelowCount: capsule.top >= reading.bottom + 4, idleBelowCapsule: footer.top >= capsule.bottom + 4,
     details: host.querySelectorAll('.pi-widget-activity,.pi-widget-context,.w-state').length,
     font: parseFloat(getComputedStyle(label).fontSize),
     scrollable: ['auto', 'scroll'].includes(getComputedStyle(host).overflowY),
     hiddenV: host.scrollHeight - host.clientHeight,
     summaryVisible: summary.getBoundingClientRect().height > 0,
-    countContained: reading.left >= metric.left && reading.right <= metric.right && second.left >= peer.left && second.right <= peer.right,
+    countContained: reading.left >= metric.left && reading.right <= metric.right,
     aligned: Math.abs(heading.left - bounds.left - parseFloat(getComputedStyle(host).borderLeftWidth) - parseFloat(getComputedStyle(host).paddingLeft)) < 1 };
 })()`
 
@@ -99,7 +99,7 @@ async function main() {
         await win.webContents.executeJavaScript(`document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
         const reading = await win.webContents.executeJavaScript(READ)
         assert.equal(reading.count, String(payload.summary.running))
-        assert.equal(reading.label, 'Working')
+        assert.equal(reading.label, payload.summary.running > 0 ? 'Working...' : 'Idle')
         assert.equal(reading.idle, payload.sessions.filter(session => session.status === 'settled').length + ' idle')
         assert.deepEqual(reading.viewport, { width, height, scale: 1 }, `${name} ${state} ${theme}: measured viewport matches the case`)
         results.push({ panel: name, state, theme, ...reading })
@@ -108,6 +108,8 @@ async function main() {
   }
   for (const reading of results) {
     const where = `${reading.panel} ${reading.state} ${reading.theme}`
+    assert.equal(reading.capsuleBelowCount, true, `${where}: capsule follows the count`)
+    assert.equal(reading.idleBelowCapsule, true, `${where}: idle count follows the capsule`)
     assert.equal(reading.details, 0, `${where}: task details belong to the App`)
     assert.ok(reading.font >= LABEL_FLOOR, `${where}: labels remain readable`)
     assert.equal(reading.scrollable, false, `${where}: no inner scroll`)

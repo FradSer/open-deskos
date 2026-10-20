@@ -678,7 +678,6 @@ test('Pi Sessions widget reports scanner failure without fabricating zero sessio
 
   const nodes = {
     '.pi-widget-count': { textContent: '' },
-    '.pi-widget-idle-count': { textContent: '' },
     '.pi-indicator-dot': { className: '' },
     '.pi-widget-tag-label': { textContent: '', className: '' },
     '.pi-widget-summary': { textContent: '' },

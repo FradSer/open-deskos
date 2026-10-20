@@ -97,6 +97,19 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
         if (node.scrollWidth > node.clientWidth + 1 && s.textOverflow !== 'ellipsis' && !['auto','scroll'].includes(s.overflowX)) findings.push({ kind: 'text-overflow', id: card.dataset.widget, className: node.className });
       }
       if (!card.querySelector('.widget-launch') || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
+      const heading = card.querySelector('.widget-heading,.weread-title');
+      const titleGroup = heading?.closest('.widget-title') || heading?.parentElement;
+      const icons = titleGroup ? [...titleGroup.querySelectorAll(':scope > svg.widget-heading-icon')] : [];
+      if (icons.length !== 1) findings.push({ kind: 'missing-heading-icon', id: card.dataset.widget, count: icons.length });
+      else {
+        const icon = icons[0], glyph = icon.getBoundingClientRect(), title = heading.getBoundingClientRect();
+        if (icon.getAttribute('aria-hidden') !== 'true' || icon.getAttribute('focusable') !== 'false'
+          || glyph.width < 18 || glyph.width > 24 || Math.abs(glyph.width - glyph.height) > 1
+          || glyph.right + 4 > title.left || glyph.left < box.left || title.right > box.right + 1
+          || (document.documentElement.dataset.theme === 'pixel' ? icon.getAttribute('fill') !== 'currentColor' || icon.hasAttribute('stroke') : icon.getAttribute('stroke') !== 'currentColor'))
+          findings.push({ kind: 'heading-icon-layout', id: card.dataset.widget });
+      }
+
       return { id: card.dataset.widget, col, row, columns, rows, width: box.width, height: box.height, app: card.dataset.openApp };
     });
     return { columns, rows, overview, cards, findings };

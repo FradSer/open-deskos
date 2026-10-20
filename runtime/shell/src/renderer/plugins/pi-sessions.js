@@ -212,26 +212,21 @@
           <div class="widget-head"><span class="widget-heading">Pi Sessions</span></div>
           <div class="pi-widget-metric-row">
             <span class="pi-widget-count">--</span>
-            <span class="pi-widget-tag-label">Reading</span>
+            <span class="pi-widget-live-tag"><span class="pi-indicator-dot" aria-hidden="true"></span><span class="pi-widget-tag-label">Reading</span></span>
           </div>
-          <div class="pi-widget-idle">
-            <span class="pi-widget-idle-count">--</span>
-            <span class="pi-widget-summary">Idle</span>
-          </div>
+          <span class="pi-widget-summary">Waiting for sessions</span>
         </div>`
       const count = el.querySelector('.pi-widget-count')
       const label = el.querySelector('.pi-widget-tag-label')
       const summary = el.querySelector('.pi-widget-summary')
-      const idleCount = el.querySelector('.pi-widget-idle-count')
       let ticks = 0, requested = 0, applied = 0, disposed = false
       ctx.trackCleanup?.(() => { disposed = true; requested++ })
       const unavailable = () => {
         count.textContent = '--'
         label.textContent = 'Unavailable'
-        idleCount.textContent = '--'
-        el.style?.setProperty('--pi-count-digits', '2')
         summary.textContent = 'Open Pi Sessions'
         el.classList.remove('pi-widget-wide-count')
+        el.classList.remove('pi-widget-working')
       }
       const refresh = async () => {
         if (disposed) return
@@ -245,11 +240,10 @@
           const working = scan.summary?.running ?? sessions.filter(session => session.status === 'running').length
           const idle = sessions.filter(session => session.status === 'settled').length
           count.textContent = String(working)
-          label.textContent = 'Working'
-          idleCount.textContent = String(idle)
-          summary.textContent = 'Idle'
-          el.classList.toggle('pi-widget-wide-count', Math.max(count.textContent.length, idleCount.textContent.length) > 2)
-          el.style?.setProperty('--pi-count-digits', String(Math.max(count.textContent.length, idleCount.textContent.length)))
+          label.textContent = working > 0 ? 'Working...' : 'Idle'
+          summary.textContent = `${idle} idle`
+          el.classList.toggle('pi-widget-working', working > 0)
+          el.classList.toggle('pi-widget-wide-count', count.textContent.length > 2)
         } catch {
           if (disposed || token < applied) return
           applied = token

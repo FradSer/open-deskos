@@ -110,18 +110,8 @@
   font-size: clamp(14px, 24cqi, 40px);
 }
 
-[data-theme='pixel'] :is(.pi-widget-count, .pi-widget-idle-count) {
-  /* Zpix digits have narrow advances; retain the count's hierarchy in its cell. */
-  font-size: clamp(28px, calc(76cqi / var(--pi-count-digits, 2)), 180px);
-  letter-spacing: normal;
-  line-height: 1;
-}
-
-[data-theme='pixel'] .pi-widget-tag-label,
-[data-theme='pixel'] .pi-widget-summary {
-  font-size: clamp(14px, 5cqi, 22px);
-  line-height: 1.4;
-}
+[data-theme='pixel'] .pi-widget-count { font-size: clamp(56px, 56cqi, 192px); line-height: 1; }
+[data-theme='pixel'] .pi-widget-wide-count .pi-widget-count { font-size: clamp(40px, 42cqi, 144px); }
 
 /* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
    the countdown caption scales with the tile like every other supporting line

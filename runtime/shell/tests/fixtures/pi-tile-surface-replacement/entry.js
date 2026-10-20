@@ -9,15 +9,11 @@
           <div class="widget-head"><span class="widget-heading">Pi Sessions</span></div>
           <div class="pi-widget-metric-row">
             <span class="pi-widget-count">--</span>
-            <span class="pi-widget-tag-label">Reading</span>
+            <span class="pi-widget-live-tag"><span class="pi-indicator-dot" aria-hidden="true"></span><span class="pi-widget-tag-label">Reading</span></span>
           </div>
-          <div class="pi-widget-idle">
-            <span class="pi-widget-idle-count">--</span>
-            <span class="pi-widget-summary">Idle</span>
-          </div>
+          <span class="pi-widget-summary">Waiting for sessions</span>
         </div>`
       const count = el.querySelector('.pi-widget-count'), label = el.querySelector('.pi-widget-tag-label'), summary = el.querySelector('.pi-widget-summary')
-      const idleCount = el.querySelector('.pi-widget-idle-count')
       let released = false, requested = 0, applied = 0, ticks = 0
       ctx.trackCleanup?.(() => { released = true })
       const draw = scan => {
@@ -25,11 +21,10 @@
         const sessions = Array.isArray(scan?.sessions) ? scan.sessions : []
         const running = scan?.summary?.running ?? sessions.filter(session => session.status === 'running').length
         count.textContent = live ? String(running) : '--'
-        label.textContent = live ? 'Working' : 'Unavailable'
-        idleCount.textContent = live ? String(sessions.filter(session => session.status === 'settled').length) : '--'
-        summary.textContent = live ? 'Idle' : 'Open Pi Sessions'
-        el.classList.toggle('pi-widget-wide-count', live && Math.max(count.textContent.length, idleCount.textContent.length) > 2)
-        el.style?.setProperty('--pi-count-digits', String(Math.max(count.textContent.length, idleCount.textContent.length)))
+        label.textContent = live ? (running > 0 ? 'Working...' : 'Idle') : 'Unavailable'
+        summary.textContent = live ? `${sessions.filter(session => session.status === 'settled').length} idle` : 'Open Pi Sessions'
+        el.classList.toggle('pi-widget-working', live && running > 0)
+        el.classList.toggle('pi-widget-wide-count', live && count.textContent.length > 2)
       }
       const refresh = async () => {
         if (released) return
