@@ -56,28 +56,33 @@ test('optional time preview uses its own page without overlapping the Desk instr
   assert.deepEqual(Array.from(page.widgets, widget => widget.id), ['odk.tile.clock', 'odk.tile.almanac'])
 })
 
-test('Widget harness packs every registered card into shared three-by-three pages', async () => {
+test('Widget harness retains declared spans and the original Home with Overview', async () => {
   const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
   let source
   const win = { webContents: { debugger: { isAttached: () => true, async sendCommand(name, params) {
     if (name === 'Page.addScriptToEvaluateOnNewDocument') source = params.source
   } } } }
   await installWidgetGridLayout(win)
-  const ids = Array.from({ length: 12 }, (_, index) => `odk.tile.fixture-${index}`)
+  const ids = ['odk.tile.hydra', 'odk.tile.weread', ...Array.from({ length: 15 }, (_, index) => `odk.tile.fixture-${index}`)]
   const window = { odkPlugins: { byKind: kind => { assert.equal(kind, 'tile'); return ids.map(id => ({ id, opensApp: id.slice(9) })) } } }
   require('node:vm').runInNewContext(source, { window })
-  const original = { id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: ids[0], col: '1', row: '1' }] }
+  const original = [
+    { id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: ids[2], col: '1', row: '1' }, { id: ids[3], col: '2 / 4', row: '1' }] },
+    { id: 'desk', name: 'Desk', kind: 'grid', widgets: [{ id: ids[0], col: '1 / 4', row: '1' }] },
+    { id: 'reading', name: 'Reading', kind: 'grid', widgets: [{ id: ids[1], col: '1', row: '1' }] },
+    { id: 'large', name: 'Large', kind: 'grid', widgets: [{ id: ids[4], col: '1 / 4', row: '1 / 3' }] },
+  ]
   const before = JSON.stringify(original)
-  window.DESKTOP_LAYOUT = { pages: [original] }
+  window.DESKTOP_LAYOUT = { pages: original.slice() }
   assert.equal(JSON.stringify(original), before)
   const pages = window.DESKTOP_LAYOUT.pages.filter(page => window.__odkWidgetGridPages.includes(page.id))
-  assert.equal(pages.length, 2)
-  assert.deepEqual(pages.map(page => page.widgets.length), [9, 3])
-  assert.deepEqual(pages.flatMap(page => page.widgets.map(widget => widget.id)), ids)
-  for (const page of pages) {
-    assert.equal(page.gridRows, 3)
-    const positions = page.widgets.map(widget => `${widget.col},${widget.row}`)
-    assert.equal(new Set(positions).size, positions.length)
-    assert.ok(page.widgets.every(widget => /^[1-3]$/.test(widget.col) && /^[1-3]$/.test(widget.row)))
-  }
+  assert.equal(pages.length, 6)
+  assert.deepEqual(pages.slice(0, 4).map(page => page.id), ['home', 'desk', 'reading', 'large'])
+  assert.deepEqual(pages.slice(4).map(page => page.widgets.length), [9, 3])
+  assert.deepEqual(pages.flatMap(page => page.widgets.map(widget => widget.id)).sort(), ids.slice().sort())
+  assert.equal(pages[1].widgets[0].col, '1 / 4')
+  assert.equal(pages[1].widgets[0].row, '1')
+  assert.equal(pages[2].widgets[0].col, '1')
+  assert.equal(pages[2].widgets[0].row, '1')
+  assert.equal(pages[3].widgets[0].row, '1 / 3')
 })

@@ -49,41 +49,59 @@ function capturePaintedFrame() {
   })
 }
 
-async function verifyWidgetGrid(win, page, theme, width, report) {
-  const js = source => win.webContents.executeJavaScript(source)
-  const result = await js(`(() => {
-    const page = document.querySelector('[data-page-id="${page}"]'), grid = page.querySelector('.widget-grid');
+async function verifyWidgetGrid(win, pageId, theme, width, report) {
+  const result = await win.webContents.executeJavaScript(`(() => {
+    const pageId = ${JSON.stringify(pageId)};
+    const page = document.querySelector('[data-page-id="' + pageId + '"]'), grid = page.querySelector('.widget-grid');
+    const definition = DESKTOP_LAYOUT.pages.find(page => page.id === pageId);
     const style = getComputedStyle(grid), frame = grid.getBoundingClientRect();
     const tracksX = style.gridTemplateColumns.split(' '), tracksY = style.gridTemplateRows.split(' ');
-    const columns = tracksX.length, rows = tracksY.length;
+    const cellW = parseFloat(tracksX[0]), cellH = parseFloat(tracksY[0]);
+    const gapX = parseFloat(style.columnGap), gapY = parseFloat(style.rowGap);
+    const reservedRows = pageId === 'home' ? 1 : 0;
+    const columns = tracksX.length, rows = tracksY.length + reservedRows;
     const findings = [], positions = new Set();
     const viewport = document.getElementById('pages-viewport').getBoundingClientRect();
-    if (frame.left < viewport.left - 1 || frame.right > viewport.right + 1 || frame.top < viewport.top - 1 || frame.bottom > viewport.bottom + 1) findings.push({ kind: 'grid-outside-viewport', bottom: frame.bottom, viewportBottom: viewport.bottom });
+    if (frame.left < viewport.left - 1 || frame.right > viewport.right + 1 || frame.top < viewport.top - 1 || frame.bottom > viewport.bottom + 1) findings.push({ kind: 'grid-outside-viewport' });
     if (columns !== 3 || rows !== 3) findings.push({ kind: 'grid-shape', columns, rows });
+    let overview = null;
+    if (reservedRows) {
+      const summary = page.querySelector('#home-summary');
+      const box = summary?.getBoundingClientRect();
+      overview = { present: !!summary, columns: 3, rows: 1, row: 1 };
+      if (!box || Math.abs(box.width - frame.width) > 1 || Math.abs(box.height - cellH) > 1 || Math.abs(box.bottom + gapY - frame.top) > 1 || box.top < viewport.top - 1 || !summary.querySelector('#dash-narrative')?.textContent.trim()) findings.push({ kind: 'overview-region-missing-or-changed' });
+      for (let col = 1; col <= 3; col++) positions.add(col + ',1');
+    }
+    const range = value => { const [start, end] = String(value).split('/').map(Number); return { start, span: Number.isFinite(end) ? end - start : 1 }; };
     const cards = [...grid.children].filter(card => card.matches('[data-widget]')).map(card => {
+      const model = definition.widgets.find(widget => widget.id === card.dataset.widget);
+      const expectedCol = range(model?.col), expectedRow = range(model?.row);
       const box = card.getBoundingClientRect(), css = getComputedStyle(card);
-      const col = Number(css.gridColumnStart), row = Number(css.gridRowStart), slot = col + ',' + row;
-      if (![col, row].every(line => line >= 1 && line <= 3) || positions.has(slot)) findings.push({ kind: 'grid-position', id: card.dataset.widget, col, row });
-      positions.add(slot);
-      const x = frame.left + (col - 1) * (parseFloat(tracksX[0]) + parseFloat(style.columnGap));
-      const y = frame.top + (row - 1) * (parseFloat(tracksY[0]) + parseFloat(style.rowGap));
+      const col = Number(css.gridColumnStart), localRow = Number(css.gridRowStart), row = localRow + reservedRows;
+      const columns = expectedCol.span, rows = expectedRow.span;
+      if (col !== expectedCol.start || localRow !== expectedRow.start || col < 1 || row < 1 || col + columns > 4 || row + rows > 4) findings.push({ kind: 'grid-position', id: card.dataset.widget });
+      for (let x = col; x < col + columns; x++) for (let y = row; y < row + rows; y++) {
+        const slot = x + ',' + y;
+        if (positions.has(slot)) findings.push({ kind: 'overlapping-span', id: card.dataset.widget, slot });
+        positions.add(slot);
+      }
+      const x = frame.left + (col - 1) * (cellW + gapX), y = frame.top + (localRow - 1) * (cellH + gapY);
       if (Math.abs(box.left - x) > 1 || Math.abs(box.top - y) > 1) findings.push({ kind: 'card-outside-slot', id: card.dataset.widget });
-      if (Math.abs(box.width - parseFloat(tracksX[0])) > 1 || Math.abs(box.height - parseFloat(tracksY[0])) > 1) findings.push({ kind: 'card-not-one-cell', id: card.dataset.widget, width: box.width, height: box.height });
+      if (Math.abs(box.width - (cellW * columns + gapX * (columns - 1))) > 1 || Math.abs(box.height - (cellH * rows + gapY * (rows - 1))) > 1) findings.push({ kind: 'card-span-changed', id: card.dataset.widget, columns, rows, width: box.width, height: box.height });
       if (box.left < frame.left - 1 || box.right > frame.right + 1 || box.top < frame.top - 1 || box.bottom > frame.bottom + 1) findings.push({ kind: 'card-outside-grid', id: card.dataset.widget });
-      if (card.scrollWidth > card.clientWidth + 1 || card.scrollHeight > card.clientHeight + 1) findings.push({ kind: 'hidden-card-content', id: card.dataset.widget, horizontal: card.scrollWidth - card.clientWidth, vertical: card.scrollHeight - card.clientHeight });
+      if (card.scrollWidth > card.clientWidth + 1 || card.scrollHeight > card.clientHeight + 1) findings.push({ kind: 'hidden-card-content', id: card.dataset.widget });
       for (const node of card.querySelectorAll('*')) {
         const r = node.getBoundingClientRect(), s = getComputedStyle(node);
         if (!r.width || !r.height || node.closest('svg') || node.children.length || !node.textContent.trim() || s.clipPath !== 'none') continue;
         if (parseFloat(s.fontSize) < 12) findings.push({ kind: 'small-text', id: card.dataset.widget, className: node.className });
         if (node.scrollWidth > node.clientWidth + 1 && s.textOverflow !== 'ellipsis' && !['auto','scroll'].includes(s.overflowX)) findings.push({ kind: 'text-overflow', id: card.dataset.widget, className: node.className });
       }
-      const launch = card.querySelector('.widget-launch');
-      if (!launch || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
-      return { id: card.dataset.widget, col, row, width: box.width, height: box.height, app: card.dataset.openApp };
+      if (!card.querySelector('.widget-launch') || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
+      return { id: card.dataset.widget, col, row, columns, rows, width: box.width, height: box.height, app: card.dataset.openApp };
     });
-    return { columns, rows, cards, findings };
+    return { columns, rows, overview, cards, findings };
   })()`)
-  const run = { page, theme, width, ...result }
+  const run = { page: pageId, theme, width, ...result }
   report.runs.push(run)
   return run
 }
@@ -235,7 +253,7 @@ app.whenReady().then(async () => {
     assert.equal(state.square, true)
     if (theme === 'liquid-glass') assert.ok(['sdk', 'fallback'].includes(await js('document.documentElement.dataset.liquidGlass')))
     assert.equal(state.columns, 3)
-    assert.equal(state.rows, widgetGrid ? 3 : 2)
+    assert.equal(widgetGrid ? await js('window.__odkGrid.canvasRows') : state.rows, widgetGrid ? 3 : 2)
     assert.equal(state.pi, '3')
     assert.match(state.weather, /Taipei/)
     assert.match(state.weather, /26/)
@@ -275,18 +293,16 @@ app.whenReady().then(async () => {
     const backingScale = bitmap.width / width
     assert.ok(backingScale >= 1 && backingScale <= 2)
     assert.equal(bitmap.height / height, backingScale, 'Preview capture must not crop the viewport')
-    fs.writeFileSync(file, capture.toPNG())
-    captures.push({ theme, width, height, cell: state.cell,
-      ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
+    if (!widgetGrid) {
+      fs.writeFileSync(file, capture.toPNG())
+      captures.push({ theme, width, height, cell: state.cell,
+        ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
+    }
     if (allPages) {
       const pages = await resolvePages(win)
+      if (widgetGrid) assert.equal(pages.dot('home'), 0, 'Overview belongs to the first desktop page')
       const previewPages = widgetGrid ? await js('window.__odkWidgetGridPages') : ['desk', 'preorder', 'reading', 'time-preview']
       for (const page of previewPages) {
-        if (widgetGrid) await js(`(() => {
-          const grid = document.querySelector('[data-page-id="${page}"] .widget-grid');
-          grid.style.gridTemplateColumns = 'repeat(3, var(--cell-w))';
-          grid.style.gridTemplateRows = 'repeat(3, var(--cell-h))';
-        })()`)
         await js(`document.querySelectorAll('.dot')[${pages.dot(page)}].click()`)
         await js(`(async () => {
           const node = document.querySelector('[data-page-id="${page}"]'), viewport = document.querySelector('#pages-viewport');
@@ -305,19 +321,19 @@ app.whenReady().then(async () => {
             const body = card.querySelector('.hydra-body'), head = card.querySelector('.hydra-head');
             const plants = card.querySelector('.hydra-plants'), env = card.querySelector('.hydra-env');
             return { shape: body.dataset.shape, cardHeight: card.getBoundingClientRect().height,
-              cellHeight: card.parentElement.getBoundingClientRect().height,
+              cellHeight: parseFloat(getComputedStyle(card.parentElement).gridTemplateRows),
               contentWidth: body.getBoundingClientRect().width, plantWidth: plants.getBoundingClientRect().width,
               display: getComputedStyle(body).display, gap: getComputedStyle(body).rowGap, rows: getComputedStyle(body).gridTemplateRows,
               afterHeader: plants.getBoundingClientRect().top - head.getBoundingClientRect().bottom,
-              beforeEnvironment: env.getBoundingClientRect().top - plants.getBoundingClientRect().bottom,
+              beforeEnvironment: env.getBoundingClientRect().left - plants.getBoundingClientRect().right,
               contained: card.scrollHeight <= card.clientHeight + 1 };
           })()`)
-          assert.equal(spacing.shape, 'wide')
+          assert.equal(spacing.shape, 'wide-short')
           assert.equal(spacing.contained, true)
-          assert.ok(Math.abs(spacing.contentWidth - spacing.plantWidth) < 1, 'Hydra content fills the card width')
-          assert.ok(spacing.cardHeight <= spacing.cellHeight - 32, 'Hydra card releases unused Cell height')
-          assert.ok([spacing.afterHeader, spacing.beforeEnvironment].every(gap => gap >= 12 && gap <= 20.1), JSON.stringify(spacing))
-          console.log('HYDRA_COMPACT_CARD_PASS ' + JSON.stringify({ theme, width, ...spacing }))
+          assert.ok(spacing.plantWidth > spacing.contentWidth / 2, 'Hydra gives both plants the main content area')
+          assert.ok(Math.abs(spacing.cardHeight - spacing.cellHeight) < 1, 'Hydra retains one complete grid row')
+          assert.ok([spacing.afterHeader, spacing.beforeEnvironment].every(gap => gap >= 8 && gap <= 16.1), JSON.stringify(spacing))
+          console.log('HYDRA_THREE_BY_ONE_PASS ' + JSON.stringify({ theme, width, ...spacing }))
         }
         if (page === 'reading') {
           const attribution = await js(`(async () => {

@@ -40,6 +40,9 @@ const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: fa
 // a compact window, the cells a short window computes, and a cell too small for
 // the tile's state line.
 const CELLS = [
+  ['Desk strip', 1103, 357, 'wide-short'],
+  ['handheld Desk strip', 619, 196, 'wide-short'],
+  ['short wide boundary', 560, 186, 'wide-short'],
   ['Desk canvas', 1103, 730, 'wide'],
   ['wide boundary', 480, 300, 'wide'],
   ['below wide width', 479, 300, 'compact'],
@@ -256,6 +259,13 @@ app.whenReady().then(async () => {
       assert.equal(row.rows, 1, JSON.stringify(row))
       assert.equal(row.plantColumns, 2, JSON.stringify(row))
       assert.ok(row.environmentFont >= 24 && row.environmentFont <= 40, JSON.stringify(row))
+      assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
+    }
+    if (expected === 'wide-short') {
+      assert.equal(row.envShown, 4, JSON.stringify(row))
+      assert.equal(row.columns, 2, JSON.stringify(row))
+      assert.equal(row.rows, 2, JSON.stringify(row))
+      assert.equal(row.plantColumns, 2, JSON.stringify(row))
       assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
     }
     if (expected === 'compact') {

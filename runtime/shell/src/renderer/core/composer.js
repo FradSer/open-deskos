@@ -178,6 +178,7 @@
       if (page.kind !== 'grid') continue
       const grid = track.querySelector(`.page[data-page-id="${page.id}"] .widget-grid`)
       if (!grid) continue
+      grid.style.gridTemplateRows = `repeat(${page.gridRows || 'var(--rows)'}, var(--cell-h))`
       for (const widgetDef of page.widgets) {
         const tile = grid.querySelector(`[data-widget="${widgetDef.id}"]`)
         if (!tile) continue
@@ -229,6 +230,7 @@
     if (page.kind === 'grid') {
       const grid = document.createElement('div')
       grid.className = 'widget-grid grid'
+      grid.style.gridTemplateRows = `repeat(${page.gridRows || 'var(--rows)'}, var(--cell-h))`
       for (const widget of page.widgets) grid.append(buildTile(page, widget, uiCtx))
       section.append(grid)
     } else {
@@ -338,6 +340,7 @@
           continue
         }
         const grid = section.querySelector('.widget-grid')
+        grid.style.gridTemplateRows = `repeat(${page.gridRows || 'var(--rows)'}, var(--cell-h))`
         const wantedTiles = new Set(page.widgets.map(widget => widget.id))
         const tiles = new Map([...grid.children].filter(tile => tile.dataset.widget).map(tile => [tile.dataset.widget, tile]))
         for (const [id, tile] of tiles) {

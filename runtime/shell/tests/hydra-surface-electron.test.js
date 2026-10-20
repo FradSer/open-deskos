@@ -38,7 +38,7 @@ for (const mode of ['development', 'native', 'runtime-development', 'runtime-nat
       assert.equal(report.pid, operation.child.pid)
       assert.deepEqual({ ...report, pid: undefined }, { ok: true, actualPreload: true, developmentLoaded: !native,
         ...(native ? { signedSurface: true, capturedSurfaceIntegrity: true, assetLeaseReleased: true } : {}),
-        independentSurface: true, themes: 3, cells: 12, states: 8, comparisons: runtime ? 576 : 288, discoveryReleased: true,
+        independentSurface: true, themes: 3, cells: 13, states: 8, comparisons: runtime ? 624 : 312, discoveryReleased: true,
         ...(runtime ? { runtimeSurface: true, documentLoads: 1, restoredDefault: true, retainedDesktop: true, defaultDelegationRefused: true } : {}), pid: undefined })
     } finally { await closed }
   } finally { await fs.rm(root, { recursive: true, force: true }) }

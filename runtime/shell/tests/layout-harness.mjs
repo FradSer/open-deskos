@@ -82,10 +82,10 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 }
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
-check('reading page hosts the three-by-three WeRead canvas', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
-check('weread fills three rows and three columns from top-left', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
+check('reading page retains the three-by-three grid', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
+check('weread keeps one column and one row from top-left', readingPage?.widgets?.[0]?.col === '1' && readingPage?.widgets?.[0]?.row === '1')
 const deskHydra = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.hydra')
-check('hydra fills the three-column by two-row Desk canvas', deskHydra?.col === '1 / 4' && deskHydra?.row === '1 / 3')
+check('hydra keeps its three-column by one-row Desk card', deskHydra?.col === '1 / 4' && deskHydra?.row === '1')
 const preorderPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'preorder')
 check('preorder page exists as a display grid', Boolean(preorderPage) && preorderPage.kind === 'grid' && preorderPage.surface === 'display')
 check('preorder page hosts the three-by-three countdown exactly once', preorderPage?.gridRows === 3 && preorderPage?.widgets?.length === 1 && preorderPage.widgets[0].id === 'odk.tile.preorder', JSON.stringify(preorderPage?.widgets))

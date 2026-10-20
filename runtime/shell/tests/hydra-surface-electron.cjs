@@ -80,7 +80,7 @@ app.whenReady().then(async () => {
     { ...live, mainOnline: false, nodes: [{ id: 1, online: false, soilPercent: 80, pump: true }] },
     { ...live, connected: false }, { configured: false }, { ...live, env: null, nodes: [] },
     { ...live, env: { ...live.env, lux: 0.25 }, nodes: [{ id: 1, stale: true, pump: true, soilPercent: 49 }] }, live]
-  const cells = [[1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
+  const cells = [[619, 196], [1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
     [168, 168], [128, 128], [116, 120], [110, 260], [94, 94]]
   const themes = ['instrument', 'pixel', 'border-beam']
   const baseline = []
@@ -214,7 +214,7 @@ app.whenReady().then(async () => {
     }
     if (phaseIndex === 0) baseline.push(...result)
     else lastConsumers = result
-    assert.equal(result.length, 288)
+    assert.equal(result.length, themes.length * cells.length * states.length)
     failed = true
     await assert.rejects(win.webContents.executeJavaScript('window.odkPlatform.getHydraStatus()'), /Controlled Hydra IPC failure/)
     failed = false
@@ -237,7 +237,7 @@ app.whenReady().then(async () => {
   const report = { ok: true, pid: process.pid, actualPreload: true, developmentLoaded: !signedSurface,
     ...(signedSurface ? { signedSurface: surfaceRevision !== '1.0.0', capturedSurfaceIntegrity: !surfaceRevision, assetLeaseReleased: true } : {}),
     ...(surfaceRevision ? { surfaceProcessRestart: true, surfaceVersion: surfaceRevision, executedVersion, entryCount } : {}),
-    independentSurface: surfaceRevision !== '1.0.0', themes: 3, cells: 12, states: 8, comparisons: runtimeSurface ? 576 : 288, discoveryReleased: true,
+    independentSurface: surfaceRevision !== '1.0.0', themes: themes.length, cells: cells.length, states: states.length, comparisons: themes.length * cells.length * states.length * (runtimeSurface ? 2 : 1), discoveryReleased: true,
     ...(runtimeSurface ? { runtimeSurface: true, documentLoads, restoredDefault: true, retainedDesktop: true, defaultDelegationRefused: true } : {}) }
   if (consumerFile) fs.writeFileSync(consumerFile, JSON.stringify(lastConsumers))
   await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(report)}\n`, error => error ? reject(error) : resolve()))

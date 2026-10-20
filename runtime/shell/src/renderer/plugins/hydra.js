@@ -66,6 +66,7 @@
   // a square cell is not, whatever panel the window was.
   function shapeForCell(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 'tall'
+    if (width >= 560 && height >= 186 && width >= height * 2.4) return 'wide-short'
     if (width >= WIDE_MIN_WIDTH && height >= WIDE_MIN_HEIGHT) return 'wide'
     if (width >= MIN_CELL && height >= TALL_MIN_HEIGHT && height >= width * TALL_ASPECT) return 'tall'
     if (width >= COMPACT_MIN_CELL && height >= COMPACT_MIN_HEIGHT) return 'compact'

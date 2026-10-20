@@ -112,7 +112,7 @@ Feature: WeRead highlight widget
   Scenario: Home keeps chatbot and settings while Reading hosts WeRead
     Given the home layout is loaded
     Then it contains the chatbot and settings widgets
-    And the reading page hosts the WeRead widget spanning three columns and two rows anchored top-left
+    And the reading page hosts the WeRead widget spanning one column and one row anchored top-left
 
   Scenario: WeRead widget shows the latest personal highlight
     Given the WeRead API returns recent highlights

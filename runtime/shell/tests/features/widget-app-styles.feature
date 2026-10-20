@@ -143,7 +143,10 @@ Feature: Legible Widget and App interiors
     Given the Shell preview uses isolated synthetic readings
     When the Widget grid harness renders each supported theme and panel size
     Then each harness page has exactly three columns and three rows
-    And each registered Widget occupies one unique Cell within those nine positions
+    And each registered Widget retains its declared span without overlap
+    And Home retains Overview across the first row and all three columns
+    And Hydra spans three columns and one row
+    And WeRead spans one column and one row
     And additional Widgets use another three-by-three harness page
     And every Widget keeps its content and App entry inside its Cell
     And the original desktop placement remains unchanged

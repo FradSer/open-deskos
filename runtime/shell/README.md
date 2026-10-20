@@ -44,7 +44,7 @@ Border Beam uses local CSS inspired by [Libraries.dev](https://github.com/Jakuba
 
 All themes retain page, focus and hit areas. State Bar paging uses dots/bars. Pi and page capsules are 44px high. Run `pnpm geometry` after Widget composition, placement or type changes. Widgets adapt to Cells and preserve type floors. Apps can scroll; glanceable Widgets cannot.
 
-Run `pnpm exec electron tests/home-preview.cjs --widget-grid` to check every registered Widget in shared three-by-three grids. Geometry and E2E include this check. Its report and captures use an isolated temporary directory.
+Run `pnpm exec electron tests/home-preview.cjs --widget-grid` to check every registered Widget in shared three-by-three grids. The harness preserves each declared card span and the first Home Overview row. Geometry and E2E include this check. Its report and captures use an isolated temporary directory.
 
 Density checks run in E2E. To collect focused measurements:
 

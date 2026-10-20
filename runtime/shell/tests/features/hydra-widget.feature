@@ -192,10 +192,11 @@ Feature: Hydra plant and environment Widget on the Desk page
     Then each plant row shows a soil meter bar filled to its reported percentage
     And a plant below the dry threshold shows its meter in the dry color
 
-  Scenario: Hydra uses the available Desk canvas
-    Given the Desk page declares three columns and two rows
+  Scenario: Hydra keeps its three-by-one Desk card
+    Given the Desk page uses a three-by-three grid
     When the desktop composer places Hydra
-    Then Hydra spans columns 1 to 4 and rows 1 to 3
+    Then Hydra spans columns 1 to 4 and one row
+    And both plants and all four environment readings remain visible
     And Home retains its six separate Widgets
     And the Hydra Widget opens the existing Hydra App
 

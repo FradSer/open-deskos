@@ -34,14 +34,15 @@ function widgetGridLayout() {
       layout = value
       const plugins = window.odkPlugins.byKind('tile')
       const byId = new Map(plugins.map(plugin => [plugin.id, plugin]))
-      const placed = layout.pages.flatMap(page => (page.widgets || []).map(widget => widget.id))
-      const ids = [...new Set([...placed.filter(id => byId.has(id)), ...byId.keys()])]
-      window.__odkWidgetGridPages = []
-      for (let offset = 0; offset < ids.length; offset += 9) {
-        const id = `widget-grid-${offset / 9 + 1}`
+      const gridPages = layout.pages.filter(page => page.kind === 'grid')
+      const placed = new Set(gridPages.flatMap(page => page.widgets.map(widget => widget.id)))
+      const extra = [...byId.keys()].filter(id => !placed.has(id))
+      window.__odkWidgetGridPages = gridPages.map(page => page.id)
+      for (let offset = 0; offset < extra.length; offset += 9) {
+        const id = `widget-grid-extra-${offset / 9 + 1}`
         window.__odkWidgetGridPages.push(id)
-        layout.pages.push({ id, name: `Widget grid ${offset / 9 + 1}`, kind: 'grid', surface: 'display', gridRows: 3,
-          widgets: ids.slice(offset, offset + 9).map((id, index) => ({ id, opensApp: byId.get(id).opensApp,
+        layout.pages.push({ id, name: `Additional Widgets ${offset / 9 + 1}`, kind: 'grid', surface: 'display', gridRows: 3,
+          widgets: extra.slice(offset, offset + 9).map((id, index) => ({ id, opensApp: byId.get(id).opensApp,
             col: String(index % 3 + 1), row: String(Math.floor(index / 3) + 1) })) })
       }
     },

@@ -37,7 +37,7 @@ function element(dataset = {}) {
   return node
 }
 
-function buildShell({ columns, rows, cell, minCell }) {
+function buildShell({ columns, rows, cell, minCell, gridRows }) {
   const plugins = new Map()
   const register = (plugin) => plugins.set(plugin.id, plugin)
   const root = {
@@ -65,7 +65,7 @@ function buildShell({ columns, rows, cell, minCell }) {
   // shell's own global rather than an argument.
   root.DESKTOP_LAYOUT = {
     pages: [{
-      id: 'home', name: 'Home', kind: 'grid', surface: 'display',
+      id: 'home', name: 'Home', kind: 'grid', surface: 'display', gridRows,
       widgets: [{ id: 'odk.tile.wide', col: '2 / 4', row: '2 / 4' }],
     }],
   }
@@ -120,4 +120,17 @@ test('a panel that changes its cell re-decides the spans that are already on scr
   root.odkComposer.placeGridTiles(track)
   assert.equal(tile.dataset.span, 'dropped')
   assert.equal(tile.style.gridColumn, '')
+})
+
+
+test('a grid retains empty declared rows and follows updated page geometry', () => {
+  const { root, track } = buildShell({ columns: 3, rows: 2, cell: 196, minCell: 186, gridRows: 3 })
+  const grid = track.children[0].children[0]
+  assert.equal(grid.style.gridTemplateRows, 'repeat(3, var(--cell-h))')
+  root.DESKTOP_LAYOUT.pages[0].gridRows = 2
+  root.odkComposer.placeGridTiles(track)
+  assert.equal(grid.style.gridTemplateRows, 'repeat(2, var(--cell-h))')
+  delete root.DESKTOP_LAYOUT.pages[0].gridRows
+  root.odkComposer.placeGridTiles(track)
+  assert.equal(grid.style.gridTemplateRows, 'repeat(var(--rows), var(--cell-h))')
 })

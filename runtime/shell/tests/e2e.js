@@ -175,7 +175,7 @@ const DRIVER_SCRIPT = `
   const hydraTile = document.querySelector('[data-widget="odk.tile.hydra"]')
   out.hydraTileMounted = Boolean(hydraTile?.querySelector('.hydra-head'))
   out.hydraTilePlacement = hydraTile && getComputedStyle(hydraTile).gridColumnStart === '1' &&
-    getComputedStyle(hydraTile).gridRowStart === '1' && getComputedStyle(hydraTile).gridRowEnd === '3'
+    getComputedStyle(hydraTile).gridRowStart === '1' && getComputedStyle(hydraTile).gridRowEnd === 'auto'
   out.hydraStateIsHonest = ['Unconfigured', 'Waiting', 'Offline', 'Stale env', 'Live'].includes(hydraTile?.querySelector('.hydra-badge')?.textContent)
   out.widgetsAreDisplayOnly =
     [...document.querySelectorAll('.widget')].every((widget) =>

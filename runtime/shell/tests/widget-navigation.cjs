@@ -181,7 +181,7 @@ app.whenReady().then(async () => {
       await odkAppPlatform.closeApp();
       const reading = document.querySelector('[data-page-id="reading"] .widget-grid');
       const excerpt = reading.querySelector('.w-weread');
-      if (getComputedStyle(excerpt).gridColumn !== '1 / 4' || getComputedStyle(excerpt).gridRow !== '1 / 4') throw Error('WeRead must be 3x3');
+      if (getComputedStyle(excerpt).gridColumnStart !== '1' || getComputedStyle(excerpt).gridColumnEnd !== 'auto' || getComputedStyle(excerpt).gridRowStart !== '1' || getComputedStyle(excerpt).gridRowEnd !== 'auto') throw Error('WeRead must be 1x1');
       const countdown = document.querySelector('[data-page-id="preorder"] .widget-grid').querySelector('.w-preorder');
       if (getComputedStyle(countdown).gridColumn !== '1 / 4' || getComputedStyle(countdown).gridRow !== '1 / 4') throw Error('Pre-order countdown must be 3x3');
       if (document.querySelectorAll('[data-page-id="desk"] .w-preorder').length) throw Error('Pre-order must own its page');
