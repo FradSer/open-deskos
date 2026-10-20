@@ -9,6 +9,8 @@ Feature: Personal Agent home briefing
     And existing message nodes and the unsent draft remain unchanged
     And thread selection, exact reply references, and live messages remain usable
     And a deferred reply follows its exact source when the canonical thread changes
+    And later snapshots retain already received owner turns and replies within their existing 128-entry bounds
+    And an expired reply keeps a shared message while its owner turn still retains it
     And the composer stays outside the single scroll region
     And loading history sends no task request or model request
 

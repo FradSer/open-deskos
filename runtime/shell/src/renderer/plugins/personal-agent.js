@@ -42,6 +42,8 @@
       const remoteRecords = new Map()
       const timeline = new Map()
       const remoteArchive = new Map()
+      const ownerArchive = new Map()
+      const replyArchive = new Map()
       let allowedHistory = new Set()
       let historyEntries = []
       let lastSnapshot
@@ -77,7 +79,26 @@
           .flatMap(item=>item.sources.filter(source=>source.key===reply.replyTo.sourceKey && source.revision===reply.replyTo.sourceRevision))
         return origins.length===1 && origins[0].threadId ? origins[0].threadId : reply.threadId
       }
+      function removeMessage(article) { if (article) { timeline.delete(article);article.remove() } }
       function prepareHistory(status) {
+        for (const item of status.conversation?.turns || []) ownerArchive.set(item.id, item)
+        for (const item of [...(status.remote?.replies || [])].reverse()) replyArchive.set(item.id, item)
+        while (ownerArchive.size > 128) {
+          const id = ownerArchive.keys().next().value, owner = ownerTurns.get(id)
+          ownerArchive.delete(id);ownerTurns.delete(id)
+          if (owner && !durableReplies.has(id) && owner !== turn) for (const body of [owner.user, owner.response]) removeMessage(body.closest('article'))
+        }
+        while (replyArchive.size > 128) {
+          const id = replyArchive.keys().next().value, row = durableReplies.get(id)
+          replyArchive.delete(id);durableReplies.delete(id)
+          if (!row) continue
+          if (ownerTurns.has(id) || turn?.user?.closest('article') === row.article) {
+            delete row.article.dataset.replyId;row.details.remove();row.status.remove()
+          } else {
+            removeMessage(row.article)
+            if (row.answer) removeMessage(row.answer.closest('article'))
+          }
+        }
         for (const item of [...(status.remote?.messages || [])].reverse()) remoteArchive.set(remoteKey(item), item)
         while (remoteArchive.size > 64) {
           const key = remoteArchive.keys().next().value
@@ -87,8 +108,8 @@
         }
         const entries = new Map()
         for (const [key, item] of remoteArchive) entries.set(`remote:${key}`, {key:`remote:${key}`,at:item.at || 0,threads:(item.sources || []).map(source=>source.threadId)})
-        for (const item of status.conversation?.turns || []) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[item.threadId]})
-        for (const item of status.remote?.replies || []) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[replyThread(item)]})
+        for (const item of ownerArchive.values()) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[item.threadId]})
+        for (const item of replyArchive.values()) entries.set(`owner:${item.id}`, {key:`owner:${item.id}`,at:item.at,threads:[replyThread(item)]})
         allowedHistory = new Set([...allowedHistory].filter(key=>entries.has(key)))
         historyEntries = [...entries.values()].filter(item=>!selectedThread || item.threads.includes(selectedThread.id)).sort((a,b)=>a.at-b.at)
         for (const item of historyEntries.slice(-12)) allowedHistory.add(item.key)
@@ -260,8 +281,7 @@
       }
       let historyCoverage
       function renderHistory(frame) {
-        if (!frame || !Array.isArray(frame.turns)) return
-        for (const item of frame.turns) {
+        for (const item of ownerArchive.values()) {
           if (!allowedHistory.has(`owner:${item.id}`) && !ownerTurns.has(item.id)) continue
           const durable = durableReplies.get(item.id)
           let owner = ownerTurns.get(item.id)
@@ -297,16 +317,16 @@
           ownerTurns.delete(id)
           if (!durableReplies.has(id) && owner !== turn) for (const body of [owner.user, owner.response]) { const article = body.closest('article');timeline.delete(article);article.remove() }
         }
-        if (!historyCoverage && frame.omittedCount) {
+        if (!historyCoverage && frame?.omittedCount) {
           historyCoverage = document.createElement('details');historyCoverage.className = 'agent-remote-coverage'
           const label = document.createElement('summary');label.textContent = 'Earlier messages'
           const body = document.createElement('p');historyCoverage.append(label, body);conversation.append(historyCoverage)
         }
-        if (historyCoverage) { historyCoverage.hidden = !frame.omittedCount;historyCoverage.querySelector('p').textContent = `${frame.omittedCount} earlier owner turns are not shown here.` }
+        if (historyCoverage && frame) { historyCoverage.hidden = !frame.omittedCount;historyCoverage.querySelector('p').textContent = `${frame.omittedCount} earlier owner turns are not shown here.` }
         orderTimeline();showThread(selectedThread)
       }
-      function renderReplies(replies) {
-        for (const reply of [...(replies || [])].reverse()) {
+      function renderReplies() {
+        for (const reply of replyArchive.values()) {
           if (!allowedHistory.has(`owner:${reply.id}`) && !durableReplies.has(reply.id)) continue
           let row = durableReplies.get(reply.id)
           if (!row) {
@@ -445,7 +465,7 @@
                         ? 'Some earlier replies have expired.' : 'Some task updates are not available yet.'
         remoteCoverage.querySelector('[role="status"]').hidden = !['unavailable', 'stale'].includes(frame.state)
         updateReplyChoices()
-        renderReplies(frame.replies)
+        renderReplies()
         orderTimeline()
         showThread(selectedThread)
         remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired; ${frame.omittedReplies || 0} earlier replies not shown; ${frame.expiredReplies || 0} earlier replies expired.`
@@ -515,7 +535,7 @@
         released = true;clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
         $('.agent-history-earlier').removeEventListener('click', loadEarlier)
-        lastSnapshot = undefined;remoteArchive.clear();allowedHistory.clear();historyEntries = []
+        lastSnapshot = undefined;remoteArchive.clear();ownerArchive.clear();replyArchive.clear();allowedHistory.clear();historyEntries = []
       })
       const initialRevision = revision
       root.odkPersonalBot?.getStatus().then(status => { if (revision === initialRevision) render(status) }).catch(() => { if (revision === initialRevision) render({ state: 'unavailable' }) })

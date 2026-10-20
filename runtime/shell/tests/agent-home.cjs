@@ -436,6 +436,48 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--lazy-history-retention-only')) {
+    const id = i => `${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`
+    const src={key:'source',revision:'a'.repeat(64),machine:'synthetic',sessionId:'session',project:'/synthetic',control:'report_only',availability:'live',threadId:'a'.repeat(64)}
+    const messages=Array.from({length:8},(_,i)=>({id:String(i).padStart(64,'a'),at:i*10,text:`Synthetic remote ${i}`,presentation:'assistant_update',sources:[src],verification:'reported_unverified',synthesisVerification:'passed'}))
+    const replies=Array.from({length:32},(_,i)=>({id:id(i+1),at:i*10+1,threadId:src.threadId,sessionId:src.sessionId,text:`Synthetic reply ${i}`,answer:`Synthetic answer ${i}`,status:'answered',replyTo:{messageId:messages[0].id,sourceKey:src.key,sourceRevision:src.revision}}))
+    const turns=Array.from({length:8},(_,i)=>({id:id(i+101),at:i*10+2,transcript:`Synthetic owner ${i}`,message:`Synthetic response ${i}`,state:'idle'}))
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[...replies].reverse(),total:8},conversation:{revision:1,turns}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    const before=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[{...replies[31],id:id(33),at:400},...replies.slice(1).reverse()],total:8},conversation:{revision:2,turns:[...turns.slice(1),{...turns[7],id:id(109),at:401}]}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<16)button.click()})()`)
+    const after=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
+    assert.deepEqual(before,{reply:false,owner:false},'initially deferred old items have no DOM')
+    assert.deepEqual(after,{reply:true,owner:true},'later snapshots cannot discard already received deferred history')
+    const updatedReply={...replies[0],answer:'A later terminal answer for the same reply identity'}
+    const sharedTurn={...turns[0],id:updatedReply.id,at:updatedReply.at,threadId:src.threadId,transcript:updatedReply.text,message:updatedReply.answer}
+    publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[updatedReply],total:8},conversation:{revision:3,turns:[sharedTurn]}})
+    await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id="${updatedReply.id}"][data-reply-id="${updatedReply.id}"]').length`),1,'same owner and reply identity shares one article')
+    assert.equal(await evaluate(`document.querySelector('.agent-message-assistant[data-owner-turn-id="${updatedReply.id}"] .agent-message-body').textContent`),updatedReply.answer,'a same-identity terminal answer updates its existing article')
+    for(let batch=0;batch<5;batch++) {
+      const nextReplies=Array.from({length:32},(_,i)=>({...replies[0],id:id(5001+batch*32+i),at:1000+batch*1000+i,text:`Reply-only ${batch}:${i}`}))
+      publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:nextReplies.reverse(),total:8},conversation:{revision:4+batch,turns:[sharedTurn]}})
+      await evaluate('new Promise(r=>setTimeout(r,5))')
+    }
+    assert.equal(await evaluate(`!!document.querySelector('.agent-message-user[data-owner-turn-id="${updatedReply.id}"]')&&!document.querySelector('[data-reply-id="${updatedReply.id}"]')`),true,'reply eviction releases its reply identity while the owner still retains the shared article')
+    for(let batch=0;batch<18;batch++) {
+      const base=5000+batch*1000
+      const nextReplies=Array.from({length:32},(_,i)=>({...replies[0],id:id(1001+batch*32+i),at:base+i*10,text:`Bounded reply ${batch}:${i}`,answer:`Bounded reply answer ${batch}:${i}`}))
+      const nextTurns=Array.from({length:8},(_,i)=>({...turns[0],id:id(3001+batch*8+i),at:base+i*35+1,transcript:`Bounded owner ${batch}:${i}`,message:`Bounded owner answer ${batch}:${i}`}))
+      publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:nextReplies.reverse(),total:8},conversation:{revision:9+batch,turns:nextTurns}})
+      await evaluate('new Promise(r=>setTimeout(r,5))')
+    }
+    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<64)button.click()})()`)
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-reply-id]').length`),128,'reply data and DOM keep the existing 128-entry bound')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id]').length`),128,'owner data and DOM keep the existing 128-entry bound')
+    assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"], [data-owner-turn-id="${turns[0].id}"]')`),false,'entries beyond the original bounds expire')
+    assert.equal(sentText.length,0)
+    console.log('PASS deferred owner/reply history survives later snapshots within original 128-entry bounds')
+    return finish(0)
+  }
   if (process.argv.includes('--lazy-history-only')) {
     const id = i => `${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`
     const source = i => ({key:`source-${i}`,revision:String(i).padStart(64,'a'),machine:'synthetic',sessionId:`session-${i%2}`,project:'/synthetic',control:'report_only',availability:'live',threadId:(i%2?'b':'a').repeat(64)})
