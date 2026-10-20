@@ -34,6 +34,12 @@ Feature: Hydra plant and environment Widget on the Desk page
     And shutdown releases source, discovery, protocol, and broker connections
     And source selection and all stored revisions remain unchanged
 
+  Scenario: Joint Hydra startup waits for the measured wide Cell
+    Given the joint Main fixture uses its 1920 by 1280 desktop
+    When telemetry arrives before the first Cell resize callback
+    Then the fixture waits for wide Cell geometry and the wide composition
+    And complete rendered comparisons remain unchanged across surface revisions
+
   Scenario: Signed Hydra surface revisions preserve separate process consumers
     Given signed source and surface selections share one external publisher policy
     When the Native CLI updates, rolls back, and removes the surface selection
