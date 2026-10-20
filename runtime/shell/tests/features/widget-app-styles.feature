@@ -119,6 +119,12 @@ Feature: Legible Widget and App interiors
     And the Pi heading, count, and task share one left edge
     And status colors remain on data rather than the Widget frame
 
+  Scenario: Glass clipping keeps the shared rounded frame
+    Given the glass SDK applies its clip path and resets the inline corner radius
+    When the Widget uses the Liquid Glass theme
+    Then its visible frame keeps the shared App corner radius
+    And no square frame surrounds the rounded glass surface
+
   Scenario: Garden moisture leads environmental context
     Given Hydra receives two plant readings and four environment readings
     When the Widget has a wide Cell

@@ -11,6 +11,11 @@ const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-widget-styles-'))
+app.setPath('userData', profile)
+app.on('will-quit', () => {
+  try { fs.rmSync(profile, { recursive: true, force: true }) } catch { /* Windows can retain the profile lock during shutdown. */ }
+})
 const longPath = `/workspace/${'long-workspace-segment/'.repeat(8)}project`
 let quota = { state: 'unconfigured' }
 // Layout ids resolve to page positions once the renderer is loaded.
@@ -189,6 +194,22 @@ async function widgetDesignRoles(win) {
       }
     }
   }
+  const glassFrame = await win.webContents.executeJavaScript(`(() => {
+    const tile = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
+    const radius = tile.style.borderRadius, hadSurface = tile.classList.contains('lg-surface')
+    try {
+      tile.classList.add('lg-surface')
+      // The SDK writes this inline value when it installs the measured path.
+      tile.style.borderRadius = '0px'
+      const actual = getComputedStyle(tile).borderTopLeftRadius
+      const expected = getComputedStyle(document.getElementById('app-view')).borderTopLeftRadius
+      return { actual, expected, rounded: parseFloat(actual) > 0 && actual === expected }
+    } finally {
+      tile.style.borderRadius = radius
+      if (!hadSurface) tile.classList.remove('lg-surface')
+    }
+  })()`)
+  check('Liquid Glass SDK clipping retains the shared rounded frame', glassFrame.rounded, glassFrame)
 }
 
 async function pomodoroCentering(win) {
