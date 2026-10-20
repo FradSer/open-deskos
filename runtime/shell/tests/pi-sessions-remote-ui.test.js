@@ -60,7 +60,8 @@ for (const independent of [false, true]) {
 test(`${independent ? 'independent' : 'default'} widget keeps connection failures distinct from an idle count`, async () => {
   const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   await view.show(live)
-  assert.equal(view.node('.pi-widget-summary').textContent, '0 idle')
+  assert.equal(view.node('.pi-widget-idle-count').textContent, '0')
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Idle')
   await view.show(failed)
   assert.equal(view.node('.pi-widget-count').textContent, '--')
   assert.equal(view.node('.pi-widget-tag-label').textContent, 'Unavailable')
@@ -72,20 +73,23 @@ test(`${independent ? 'independent' : 'default'} tile shows working and idle cou
   const settled = (sessionId) => ({ sessionId, status: 'settled', cwd: '/workspace/desk', workspaceName: 'desk', startedAt: 0, updatedAt: 1 })
   const idle = { ok: true, source, summary: { running: 0, total: 2, workspacesCount: 1 }, sessions: [settled('a'), settled('b')], workspaces: [] }
   await view.show(idle)
-  assert.equal(view.node('.pi-widget-summary').textContent, '2 idle')
+  assert.equal(view.node('.pi-widget-idle-count').textContent, '2')
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Idle')
   assert.equal(view.node('.pi-widget-count').textContent, '0')
   assert.equal(view.node('.pi-widget-tag-label').textContent, 'Working')
   assert.equal(view.classes.has('pi-widget-detailed'), false)
 
   await view.show({ ...idle, sessions: [{ ...settled('a'), updatedAt: '2026-10-03T00:00:00Z', latestGoal: 'Review the desktop' }] })
   assert.equal(view.classes.has('pi-widget-detailed'), false)
-  assert.equal(view.node('.pi-widget-summary').textContent, '1 idle')
+  assert.equal(view.node('.pi-widget-idle-count').textContent, '1')
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Idle')
 
   const empty = { ok: true, source, summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [], workspaces: [] }
   await view.show({ ...empty, summary: { running: 123, total: 123, workspacesCount: 1 } })
   assert.equal(view.classes.has('pi-widget-wide-count'), true)
   await view.show(empty)
-  assert.equal(view.node('.pi-widget-summary').textContent, '0 idle')
+  assert.equal(view.node('.pi-widget-idle-count').textContent, '0')
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Idle')
   assert.equal(view.node('.pi-widget-count').textContent, '0')
   assert.equal(view.classes.has('pi-widget-detailed'), false)
   assert.equal(view.classes.has('pi-widget-wide-count'), false)

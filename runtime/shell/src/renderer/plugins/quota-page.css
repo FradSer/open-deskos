@@ -232,7 +232,7 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 
 .quota-tile-value {
   font-family: inherit;
-  font-size: clamp(32px, 29cqi, 84px);
+  font-size: clamp(32px, 40cqi, 128px);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1;

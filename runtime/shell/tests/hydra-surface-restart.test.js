@@ -12,6 +12,7 @@ const { readConfig, resolveConfigPath, updateConfig } = require('../src/plugin-c
 const id = 'odk.tile.hydra'
 const cm5 = process.platform === 'linux' && process.arch === 'arm64'
 const childTimeout = cm5 ? 160000 : 80000
+const comparisons = 13 * 3 * 8 // Cell shapes, themes, and reading states.
 
 test('signed Hydra surface revisions preserve rendered consumers across separate processes', { timeout: 4 * childTimeout + 100000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-hydra-surface-revisions-'))
@@ -58,7 +59,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
         assert.equal(report.signedSurface, version !== '1.0.0')
         assert.equal(report.entryCount, version === '1.0.0' ? 0 : 1)
         assert.equal(report.actualPreload, true)
-        assert.equal(report.comparisons, 288)
+        assert.equal(report.comparisons, comparisons)
         assert.equal(report.discoveryReleased, true)
         assert.equal(report.assetLeaseReleased, true)
         assert.equal(report.capturedSurfaceIntegrity, false)
@@ -66,7 +67,7 @@ test('signed Hydra surface revisions preserve rendered consumers across separate
         assert.deepEqual(config().plugins['odk.tile.clock'], { enabled: false })
         assert.equal(config().plugins[id].enabled, true)
         const bytes = await fs.readFile(consumers)
-        assert.equal(JSON.parse(bytes).length, 288)
+        assert.equal(JSON.parse(bytes).length, comparisons)
         return bytes
       } finally { await closed; await fs.rm(profile, { recursive: true, force: true }) }
     }

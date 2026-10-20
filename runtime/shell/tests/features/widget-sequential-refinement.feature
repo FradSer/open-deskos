@@ -108,3 +108,11 @@ Feature: Independent instrument refinement
     When the App publishes a replacement focus reader
     Then the existing Widget reads the replacement service
     And late readings from the previous service cannot overwrite it
+
+  Scenario: Sparse instruments use their content area without an empty middle band
+    Given a square Home Widget has only a small set of readings
+    When it renders at desktop and handheld sizes
+    Then Pi presents working and idle counts beside each other
+    And primary numerals and the focus dial use more of their available content area
+    And supporting labels stay with their readings
+    And Hydra uses larger plant and environment readings within its three-by-one span

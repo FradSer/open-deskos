@@ -11,9 +11,13 @@
             <span class="pi-widget-count">--</span>
             <span class="pi-widget-tag-label">Reading</span>
           </div>
-          <span class="pi-widget-summary">Waiting for sessions</span>
+          <div class="pi-widget-idle">
+            <span class="pi-widget-idle-count">--</span>
+            <span class="pi-widget-summary">Idle</span>
+          </div>
         </div>`
       const count = el.querySelector('.pi-widget-count'), label = el.querySelector('.pi-widget-tag-label'), summary = el.querySelector('.pi-widget-summary')
+      const idleCount = el.querySelector('.pi-widget-idle-count')
       let released = false, requested = 0, applied = 0, ticks = 0
       ctx.trackCleanup?.(() => { released = true })
       const draw = scan => {
@@ -22,8 +26,10 @@
         const running = scan?.summary?.running ?? sessions.filter(session => session.status === 'running').length
         count.textContent = live ? String(running) : '--'
         label.textContent = live ? 'Working' : 'Unavailable'
-        summary.textContent = live ? `${sessions.filter(session => session.status === 'settled').length} idle` : 'Open Pi Sessions'
-        el.classList.toggle('pi-widget-wide-count', live && count.textContent.length > 2)
+        idleCount.textContent = live ? String(sessions.filter(session => session.status === 'settled').length) : '--'
+        summary.textContent = live ? 'Idle' : 'Open Pi Sessions'
+        el.classList.toggle('pi-widget-wide-count', live && Math.max(count.textContent.length, idleCount.textContent.length) > 2)
+        el.style?.setProperty('--pi-count-digits', String(Math.max(count.textContent.length, idleCount.textContent.length)))
       }
       const refresh = async () => {
         if (released) return

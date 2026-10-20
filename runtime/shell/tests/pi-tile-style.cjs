@@ -31,6 +31,7 @@ const SCANS = [
   ['working goal', { summary: { running: 2, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS }],
   ['idle goal', { summary: { running: 0, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS.map(session => ({ ...session, status: session.status === 'running' ? 'settled' : session.status, updatedAt: new Date(session.updatedAt).toISOString() })) }],
   ['empty scan', { summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }],
+  ['three-digit idle count', { summary: { running: 0, total: 123, workspacesCount: 1 }, sessions: Array.from({ length: 123 }, (_, index) => ({ sessionId: String(index), status: 'settled' })) }],
   ['three-digit count', { summary: { running: 123, total: 123, workspacesCount: 1 }, sessions: Array.from({ length: 123 }, (_, index) => ({ sessionId: String(index), status: 'running' })) }],
 ]
 let scan = SCANS[0][1]
@@ -54,16 +55,17 @@ async function settleViewport(win, width, height) {
 const READ = `(() => {
   const host = document.querySelector('[data-widget="odk.tile.pi-sessions"]');
   const count = host.querySelector('.pi-widget-count'), label = host.querySelector('.pi-widget-tag-label'), summary = host.querySelector('.pi-widget-summary');
-  const bounds = host.getBoundingClientRect(), reading = count.getBoundingClientRect();
+  const bounds = host.getBoundingClientRect(), reading = count.getBoundingClientRect(), metric = count.parentElement.getBoundingClientRect();
+  const idle = host.querySelector('.pi-widget-idle-count'), second = idle.getBoundingClientRect(), peer = idle.parentElement.getBoundingClientRect();
   const heading = host.querySelector('.widget-heading').getBoundingClientRect();
   return { viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
-    cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: summary.textContent,
+    cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: host.querySelector('.pi-widget-idle-count').textContent + ' idle',
     details: host.querySelectorAll('.pi-widget-activity,.pi-widget-context,.w-state').length,
     font: parseFloat(getComputedStyle(label).fontSize),
     scrollable: ['auto', 'scroll'].includes(getComputedStyle(host).overflowY),
     hiddenV: host.scrollHeight - host.clientHeight,
     summaryVisible: summary.getBoundingClientRect().height > 0,
-    countContained: reading.left >= bounds.left && reading.right <= bounds.right,
+    countContained: reading.left >= metric.left && reading.right <= metric.right && second.left >= peer.left && second.right <= peer.right,
     aligned: Math.abs(heading.left - bounds.left - parseFloat(getComputedStyle(host).borderLeftWidth) - parseFloat(getComputedStyle(host).paddingLeft)) < 1 };
 })()`
 

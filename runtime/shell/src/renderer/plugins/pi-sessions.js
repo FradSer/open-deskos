@@ -214,16 +214,22 @@
             <span class="pi-widget-count">--</span>
             <span class="pi-widget-tag-label">Reading</span>
           </div>
-          <span class="pi-widget-summary">Waiting for sessions</span>
+          <div class="pi-widget-idle">
+            <span class="pi-widget-idle-count">--</span>
+            <span class="pi-widget-summary">Idle</span>
+          </div>
         </div>`
       const count = el.querySelector('.pi-widget-count')
       const label = el.querySelector('.pi-widget-tag-label')
       const summary = el.querySelector('.pi-widget-summary')
+      const idleCount = el.querySelector('.pi-widget-idle-count')
       let ticks = 0, requested = 0, applied = 0, disposed = false
       ctx.trackCleanup?.(() => { disposed = true; requested++ })
       const unavailable = () => {
         count.textContent = '--'
         label.textContent = 'Unavailable'
+        idleCount.textContent = '--'
+        el.style?.setProperty('--pi-count-digits', '2')
         summary.textContent = 'Open Pi Sessions'
         el.classList.remove('pi-widget-wide-count')
       }
@@ -240,8 +246,10 @@
           const idle = sessions.filter(session => session.status === 'settled').length
           count.textContent = String(working)
           label.textContent = 'Working'
-          summary.textContent = `${idle} idle`
-          el.classList.toggle('pi-widget-wide-count', count.textContent.length > 2)
+          idleCount.textContent = String(idle)
+          summary.textContent = 'Idle'
+          el.classList.toggle('pi-widget-wide-count', Math.max(count.textContent.length, idleCount.textContent.length) > 2)
+          el.style?.setProperty('--pi-count-digits', String(Math.max(count.textContent.length, idleCount.textContent.length)))
         } catch {
           if (disposed || token < applied) return
           applied = token

@@ -1197,7 +1197,7 @@ body.kiosk {
 
 /* Pomodoro keeps its state below a proportionate, static focus dial. */
 .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 16cqi, 88px);
+  --pomodoro-time-size: clamp(24px, 20cqi, 100px);
   position: relative;
   align-items: stretch;
   justify-content: center;
@@ -1206,6 +1206,7 @@ body.kiosk {
 }
 
 .w-pomodoro .pomodoro-body {
+  container-type: size;
   position: relative;
   display: flex;
   flex: 1;
@@ -1225,8 +1226,8 @@ body.kiosk {
 
 .pomodoro-ring-wrap svg {
   grid-area: 1 / 1;
-  width: 70cqi;
-  height: 70cqi;
+  width: min(90cqi, 100cqb);
+  height: auto;
   flex-shrink: 0;
   aspect-ratio: 1;
   transform: rotate(-90deg);
@@ -1341,14 +1342,14 @@ body.kiosk {
 
 .year-pct {
   font-family: inherit;
-  font-size: clamp(44px, 32cqi, 96px);
+  font-size: clamp(44px, 40cqi, 132px);
   font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .year-pct-wide {
-  font-size: clamp(40px, 29cqi, 88px);
+  font-size: clamp(40px, 35cqi, 116px);
 }
 
 .w-year .meter {
@@ -1802,12 +1803,16 @@ body.kiosk {
 .w-pi-sessions .pi-widget-body {
   flex: 1;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--odk-space-2);
   min-height: 0;
 }
 
-.pi-widget-metric-row {
+.pi-widget-body > .widget-head { grid-column: 1 / -1; }
+
+.pi-widget-metric-row,
+.pi-widget-idle {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1816,17 +1821,16 @@ body.kiosk {
   min-height: 0;
 }
 
-.pi-widget-count {
+.pi-widget-count,
+.pi-widget-idle-count {
   font-family: inherit;
-  font-size: clamp(48px, 38cqi, 152px);
+  font-size: clamp(28px, calc(62cqi / var(--pi-count-digits, 2)), 160px);
   font-weight: 400;
   color: var(--odk-primary);
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-
-.pi-widget-wide-count .pi-widget-count { font-size: clamp(40px, 30cqi, 120px); }
 
 .pi-widget-tag-label,
 .pi-widget-summary {
@@ -3331,7 +3335,7 @@ body.kiosk {
   flex-basis: 100%;
   margin: 0;
   font-family: inherit;
-  font-size: clamp(32px, 6.5cqi, 72px);
+  font-size: clamp(32px, 10cqi, 112px);
   font-weight: 400;
 }
 
@@ -3363,7 +3367,7 @@ body.kiosk {
 
 .hydra-body[data-shape='wide-short'] .hydra-env-value {
   font-family: inherit;
-  font-size: clamp(18px, 2.7cqi, 30px);
+  font-size: clamp(18px, 4cqi, 44px);
   font-weight: 400;
 }
 

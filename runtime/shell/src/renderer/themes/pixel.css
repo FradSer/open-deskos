@@ -110,27 +110,17 @@
   font-size: clamp(14px, 24cqi, 40px);
 }
 
-[data-theme='pixel'] .pi-widget-count {
+[data-theme='pixel'] :is(.pi-widget-count, .pi-widget-idle-count) {
   /* Zpix digits have narrow advances; retain the count's hierarchy in its cell. */
-  font-size: clamp(56px, 56cqi, 200px);
+  font-size: clamp(28px, calc(76cqi / var(--pi-count-digits, 2)), 180px);
   letter-spacing: normal;
   line-height: 1;
-}
-
-[data-theme='pixel'] .pi-widget-wide-count .pi-widget-count {
-  font-size: clamp(48px, 42cqi, 180px);
 }
 
 [data-theme='pixel'] .pi-widget-tag-label,
 [data-theme='pixel'] .pi-widget-summary {
   font-size: clamp(14px, 5cqi, 22px);
   line-height: 1.4;
-}
-
-@container (max-width: 240px) {
-  [data-theme='pixel'] .w-pi-sessions:not(.pi-widget-wide-count) .pi-widget-count {
-    font-size: clamp(48px, 44cqi, 180px);
-  }
 }
 
 /* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
