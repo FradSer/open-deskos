@@ -241,3 +241,16 @@ test('the usage Widget requests its initial shared reading and ignores completio
   await new Promise(setImmediate)
   assert.equal(tile.writes.length, 0)
 })
+
+
+test('the quota Widget identifies the service behind the tightest window', () => {
+  const status = windows([['Weekly', 58], ['5 hour', 12]])
+  status.snapshot.accounts[1].provider = 'antigravity'
+  const tile = mountTile(status)
+  assert.equal(tile.text('.widget-heading'), 'Antigravity')
+  tile.update(windows([['Weekly', 58]]))
+  assert.equal(tile.text('.widget-heading'), 'ChatGPT')
+  tile.update({ state: 'unconfigured' })
+  assert.equal(tile.text('.widget-heading'), 'AI usage')
+  assert.equal(tile.text('.quota-tile-context'), 'Connect an account')
+})

@@ -12,7 +12,7 @@ test('preorder countdown scales below the former compact 60px floor', () => {
 })
 
 test('Pi summary scales with the tile and compact numerals have no competing shrink override', () => {
-  assert.match(css, /\.pi-widget-summary \{[^}]*font-size: max\(12px, 4cqi\)/)
+  assert.match(css, /\.pi-widget-summary \{[^}]*font-size: clamp\(14px, 5cqi, 22px\)/)
   assert.doesNotMatch(css, /font-size: clamp\(48px, 24cqi, 96px\)/)
 })
 

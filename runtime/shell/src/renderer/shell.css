@@ -1259,19 +1259,16 @@ body.kiosk {
 }
 
 .pomodoro-head {
-  position: absolute;
-  inset: var(--odk-widget-inset);
+  position: static;
   pointer-events: none;
 }
 
 .pomodoro-state {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline-start: 0;
-  max-width: 100%;
   font-size: clamp(12px, 4.5cqi, 16px);
-  text-align: start;
+  color: var(--odk-secondary-strong);
+  text-align: end;
 }
+
 
 .pomodoro-context {
   position: absolute;
@@ -1802,147 +1799,43 @@ body.kiosk {
   letter-spacing: normal;
 }
 
-.pi-widget-title {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-}
-
 .w-pi-sessions .pi-widget-body {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
-  align-items: stretch;
-  padding: 0;
-  gap: clamp(6px, 2cqi, 12px);
+  gap: var(--odk-space-2);
   min-height: 0;
 }
 
 .pi-widget-metric-row {
   display: flex;
-  align-items: baseline;
-  justify-content: flex-start;
-  align-self: center;
-  gap: 2.5cqi;
-  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--odk-space-2);
+  min-height: 0;
 }
 
 .pi-widget-count {
   font-family: inherit;
-  font-size: clamp(40px, 34cqi, 132px);
+  font-size: clamp(48px, 38cqi, 152px);
   font-weight: 400;
   color: var(--odk-primary);
-  line-height: 0.95;
+  line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.pi-widget-unit {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(14px, 5cqi, 26px);
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-  letter-spacing: 0.08em;
-}
+.pi-widget-wide-count .pi-widget-count { font-size: clamp(40px, 30cqi, 120px); }
 
-.pi-widget-live-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  border: 0;
-}
-
-.pi-widget-tag-label {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-  letter-spacing: 0.04em;
-}
-
-.pi-widget-tag-label.text-odk-green {
-  color: var(--odk-accent-green);
-}
-
-.pi-indicator-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-}
-
-.pi-indicator-running {
-  background: var(--odk-accent-green);
-}
-
-.pi-indicator-idle {
-  background: var(--odk-secondary);
-}
-
-.pi-widget-context {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  text-align: start;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.pi-widget-context .w-state {
-  font-size: clamp(14px, 3.8cqi, 22px);
-  font-weight: 400;
-  color: var(--odk-primary);
-  max-width: 100%;
-  /* A goal longer than the tile is wide wraps and is bounded at two lines, the
-     same reading the Session Overview's cards give it, so a long prompt is
-     shortened rather than cut away. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-.pi-widget-context .pi-widget-activity {
-  font-size: clamp(12px, 3.2cqi, 18px);
-  color: var(--odk-secondary-strong);
-  line-height: 1.35;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: 0;
-  display: block;
-}
-
-.pi-widget-context .pi-widget-activity .pi-pulse-dot {
-  display: inline-block;
-  margin-right: 5px;
-  vertical-align: 1px;
-}
-
-.pi-widget-metric-row > .odk-row {
-  flex-wrap: wrap;
-}
-
+.pi-widget-tag-label,
 .pi-widget-summary {
   color: var(--odk-secondary-strong);
-  font-size: max(12px, 4cqi);
+  font-size: clamp(14px, 5cqi, 22px);
   line-height: 1.4;
-  white-space: normal;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-@container (max-width: 230px) {
-  .w-pi-sessions.pi-widget-detailed .pi-widget-body { gap: 5px; }
-  .pi-widget-detailed .pi-widget-count { font-size: clamp(48px, 34cqi, 132px); }
 }
 
 .pi-app-wrapper {
@@ -2901,10 +2794,6 @@ body.kiosk {
   .pi-widget-metric-row {
     gap: 3cqi;
   }
-
-  .pi-widget-metric-row > .odk-row {
-    flex-wrap: nowrap;
-  }
 }
 
 @media (height <= 700px) {
@@ -3418,7 +3307,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide-short'] .hydra-plant {
-  justify-content: space-between;
+  justify-content: center;
   padding: clamp(8px, 1.2cqi, 16px);
   gap: 6px;
   border-radius: calc(var(--radius) * 0.4);

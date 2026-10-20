@@ -87,3 +87,24 @@ Feature: Independent instrument refinement
     Then the matching views return and the empty status clears
     When the catalog itself is empty
     Then the status says "No built-in views available."
+
+  Scenario: Home instruments show only decision-ready readings
+    Given Pi has working, idle, and exited sessions with task details
+    When Home renders
+    Then the Pi Widget shows working and idle counts without goals or activity
+    And task details remain in the Pi Sessions App
+    And the Pomodoro ring is centered below its heading and state
+    And each Widget preserves its configured grid span
+
+  Scenario: Overview aligns its header by the text baseline
+    Given Overview shows a weekday and calendar date
+    When its width changes in a supported theme
+    Then the weekday and date share a text baseline
+    And a red indicator at least 16 pixels wide has at least 8 pixels of clearance
+    And refreshing keeps the same indicator footprint
+
+  Scenario: A mounted timer Widget follows a replaced App service
+    Given a Widget receives its context through the renderer registry
+    When the App publishes a replacement focus reader
+    Then the existing Widget reads the replacement service
+    And late readings from the previous service cannot overwrite it

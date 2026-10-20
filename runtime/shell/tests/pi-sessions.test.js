@@ -696,9 +696,9 @@ test('Pi Sessions widget reports scanner failure without fabricating zero sessio
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.equal(nodes['.pi-widget-count'].textContent, '--')
-  assert.equal(nodes['.pi-widget-tag-label'].textContent, 'OFFLINE')
-  assert.equal(nodes['.pi-widget-summary'].textContent, 'Scanner unavailable')
-  assert.equal(nodes['.w-state'].textContent, 'Unavailable')
+  assert.equal(nodes['.pi-widget-tag-label'].textContent, 'Unavailable')
+  assert.equal(nodes['.pi-widget-summary'].textContent, 'Open Pi Sessions')
+  assert.doesNotMatch(fakeEl.innerHTML, /pi-widget-activity|class="w-state"/)
 })
 
 test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts interactive indicator', () => {
@@ -756,7 +756,7 @@ test('status-pi-sessions plugin satisfies Open DeskOS status contract and mounts
   assert.ok(fakeEl.innerHTML.includes('PI'))
   assert.equal(typeof btnListeners.click, 'function')
   btnListeners.click()
-  assert.equal(navigated, 'pi-sessions')
+  assert.equal(navigated, 'home')
 
   return new Promise((resolve) => setImmediate(() => {
     const [statement] = contributions

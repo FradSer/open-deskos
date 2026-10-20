@@ -154,8 +154,7 @@
             <div class="dash-wd" id="dash-wd"></div>
             <span class="dash-presence" aria-hidden="true"></span>
             <div class="dash-date text-right">
-              <span id="dash-md"></span>
-              <span id="dash-y"></span>
+              <span id="dash-md"></span><span id="dash-y"></span>
             </div>
           </header>
           <p class="dash-narrative" id="dash-narrative" role="status" aria-live="polite" aria-atomic="true"></p>

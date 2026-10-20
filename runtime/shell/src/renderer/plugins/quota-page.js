@@ -232,6 +232,7 @@
           <span class="quota-tile-context">AI usage</span>
         </div>`
 
+      const headingNode = el.querySelector('.widget-heading')
       const stateNode = el.querySelector('.quota-state')
       const valueNode = el.querySelector('.quota-tile-value')
       const meterNode = el.querySelector('.quota-tile-meter')
@@ -248,7 +249,8 @@
       // A window that produced a finite percentage is the only thing this Widget
       // may draw as a meter. Every other reading states itself in words and hides
       // the meter, so an unavailable window is never presented as 0 or 100.
-      const showWindow = (state, window, percent) => {
+      const showWindow = (state, window, percent, service) => {
+        text(headingNode, service)
         text(stateNode, state)
         text(valueNode, `${percent}%`)
         text(contextNode, window)
@@ -268,7 +270,8 @@
         }
         if (unknownNode && !unknownNode.hidden) unknownNode.hidden = true
       }
-      const showWords = (state, value, context) => {
+      const showWords = (state, value, context, service = 'AI usage') => {
+        text(headingNode, service)
         text(stateNode, state)
         text(valueNode, value)
         text(contextNode, context)
@@ -292,7 +295,7 @@
         const total = Array.isArray(accounts) ? accounts.length : 0
 
         if (status.state === 'unconfigured') {
-          showWords('Unconfigured', '--%', 'CLIProxyAPI')
+          showWords('Unconfigured', '--%', 'Connect an account')
           return
         }
         if (status.state === 'unavailable' || status.state === 'unauthorized') {
@@ -303,14 +306,14 @@
 
         const windows = (Array.isArray(accounts) ? accounts : [])
           .filter((account) => !account.error)
-          .flatMap((account) => (account.groups || []).flatMap((group) => group.quotas || []))
+          .flatMap((account) => (account.groups || []).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
           .filter((quota) => isPercent(quota.remainingPct))
 
         if (windows.length > 0) {
           // The tightest window is the one that can stop work, so it leads.
           const lowest = windows.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), windows[0])
           const percent = Math.round(lowest.remainingPct)
-          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent)
+          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, ({ codex: 'ChatGPT', antigravity: 'Antigravity', xai: 'Grok' })[lowest.account.provider] || 'AI usage')
           return
         }
         // Accounts that returned no usable window are a count, never a reading.

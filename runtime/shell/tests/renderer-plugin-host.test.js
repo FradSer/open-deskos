@@ -706,3 +706,17 @@ test('a disconnected released element cannot receive a new mount', async () => {
   assert.equal(mounts, 1)
   await registry.stop()
 })
+
+test('surface context follows the current read-only focus service after replacement', async () => {
+  const { registry } = fixture()
+  let current = Object.freeze({ snapshot: () => 'first' }), context
+  registry.register(tile('odk.tile.focus-reader', { mount(_el, ctx) { context = ctx } }))
+  await registry.start()
+  registry.activate(registry.get('odk.tile.focus-reader'), {}, { get focus() { return current } })
+  assert.equal(context.focus.snapshot(), 'first')
+  current = Object.freeze({ snapshot: () => 'replacement' })
+  assert.equal(context.focus.snapshot(), 'replacement')
+  current = null
+  assert.equal(context.focus, null)
+  await registry.stop()
+})

@@ -75,9 +75,9 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
         publishStatus({...retained,briefing:{state,items,generatedAt:1000,omittedSources:0}})
         await evaluate('new Promise(r=>setTimeout(r,30))')
         assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.textContent===window.overviewChatText&&c.children.length===window.overviewChatNodes.length&&window.overviewChatNodes.every((n,i)=>c.children[i]===n)})()`),true,'automatic Overview refresh never appends conversation text')
-        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
+        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,clearance:r.left-w.right,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
         assert.equal(result.same,true,'the indicator node survives refresh')
-        assert.ok(result.display!=='none'&&result.width>=12&&result.height>=12&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
+        assert.ok(result.display!=='none'&&result.width>=16&&result.height>=16&&result.clearance>=8&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
         if(!position)position={left:result.left,top:result.top,width:result.width,height:result.height}
         assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
         if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
@@ -952,11 +952,20 @@ app.whenReady().then(async () => {
       const header = await evaluate(`(() => {
         const day = document.querySelector('.dash-wd').getBoundingClientRect()
         const date = document.querySelector('.dash-date').getBoundingClientRect()
-        return { align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom, centers: Math.abs((day.top + day.bottom) / 2 - (date.top + date.bottom) / 2) }
+        const baseline = selector => {
+          const parent = document.querySelector(selector), marker = document.createElement('i')
+          marker.style.cssText = 'display:inline-block;width:0;height:0'
+          parent.append(marker)
+          const y = marker.getBoundingClientRect().bottom
+          marker.remove()
+          return y
+        }
+        return { align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom,
+          baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')) }
       })()`)
-      assert.equal(header.align, 'center')
+      assert.equal(header.align, 'baseline')
       assert.equal(header.sameRow, true, theme + ' ' + width + ' weekday and date share one row')
-      if (header.sameRow) assert.ok(header.centers < 1, theme + ' ' + width + ' header centers align')
+      assert.ok(header.baseline < 1, theme + ' ' + width + ' weekday and date baselines align')
       const sentence = await evaluate(`(() => {
         const dash = document.querySelector('.dash')
         const paragraph = document.querySelector('#dash-narrative')

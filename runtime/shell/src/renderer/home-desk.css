@@ -20,10 +20,10 @@
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
 #home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
-#home-summary .dash-head { flex-wrap: nowrap; gap: 0; }
+#home-summary .dash-head { flex-wrap: nowrap; align-items: baseline; gap: 12px; }
 #home-summary .dash-wd { font-size: clamp(32px, 6cqw, 96px); }
-#home-summary .dash-presence { width: 12px; height: 12px; }
-#home-summary .dash-date { display: flex; gap: 0; font-size: clamp(14px, 2.3cqw, 40px); white-space: nowrap; letter-spacing: normal; }
+#home-summary .dash-presence { width: clamp(16px, 1.8cqw, 24px); height: auto; aspect-ratio: 1; }
+#home-summary .dash-date { display: inline-block; gap: 0; font-size: clamp(14px, 2.3cqw, 40px); white-space: nowrap; letter-spacing: normal; }
 #home-summary .dash-date span { display: inline; }
 #home-summary #dash-y::before { content: ', '; }
 #home-summary .dash-narrative { font-size: var(--overview-copy-size, clamp(16px, 3.6cqw, 48px)); line-height: 1.5; letter-spacing: normal; }

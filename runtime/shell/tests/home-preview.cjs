@@ -310,6 +310,25 @@ app.whenReady().then(async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         })()`)
         const gridReading = widgetGrid ? await verifyWidgetGrid(win, page, theme, width, gridReport) : null
+        if (page === 'home') {
+          const alignment = await js(`(() => {
+            const host = document.querySelector('#home-summary');
+            const baseline = selector => {
+              const parent = host.querySelector(selector), marker = document.createElement('i');
+              marker.style.cssText = 'display:inline-block;width:0;height:0'; parent.append(marker);
+              const y = marker.getBoundingClientRect().bottom; marker.remove(); return y;
+            };
+            const ring = document.querySelector('.pomodoro-ring-wrap').getBoundingClientRect();
+            const body = document.querySelector('.pomodoro-body').getBoundingClientRect();
+            const head = document.querySelector('.pomodoro-head').getBoundingClientRect();
+            return { baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')),
+              centered: Math.abs(ring.top + ring.height / 2 - body.top - body.height / 2),
+              below: ring.top >= head.bottom };
+          })()`);
+          assert.ok(alignment.baseline < 1, 'Weekday and date share a text baseline: ' + JSON.stringify(alignment));
+          assert.ok(alignment.centered < 1 && alignment.below, 'The ring is centered below its header: ' + JSON.stringify(alignment));
+        }
+
         if (page === 'desk') {
           const spacing = await js(`(() => {
             const card = document.querySelector('[data-widget="odk.tile.hydra"]');
