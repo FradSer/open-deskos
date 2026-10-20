@@ -126,3 +126,18 @@ Feature: Independent instrument refinement
     And the Pixel theme uses its pixel icon variant
     And existing Hydra icons are not duplicated
     And dynamic place, service, and book titles keep their icons after updates
+
+
+  Scenario: Compact reading leaves room for the excerpt
+    Given WeRead uses one grid cell with a book cover and author
+    When the cell is smaller than 250 pixels
+    Then the excerpt has at least three visible lines
+    And the source row uses no more than 44 percent of the cell height
+    And the book title remains available in full
+
+  Scenario: Instruments separate headings from readings
+    Given Pi and Hydra render at desktop and handheld sizes
+    When their content fills the configured spans
+    Then Pi reserves space below its heading before the working count
+    And Hydra groups plant readings without nested card surfaces
+    And Calendar centers its date in the content area

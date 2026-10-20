@@ -241,6 +241,7 @@
           date.textContent = ''
           text.textContent = state.status === 'error' ? 'Open WeRead and select Refresh.' : 'Save a highlight in WeRead.'
         }
+        title.title = title.textContent
         author.hidden = !author.textContent
         date.hidden = !date.textContent
         scheduleFit()

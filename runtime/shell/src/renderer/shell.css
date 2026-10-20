@@ -1094,7 +1094,7 @@ body.kiosk {
   justify-content: flex-start;
   flex: 0 0 auto;
   gap: var(--odk-space-2);
-  margin: auto 0 4cqi;
+  margin: auto 0;
 }
 
 .al-weekday {
@@ -1805,16 +1805,18 @@ body.kiosk {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--odk-space-2);
   min-height: 0;
+  container-type: size;
 }
 
-.pi-widget-body > .widget-head { position: absolute; inset-block-start: var(--odk-widget-inset); inset-inline: var(--odk-widget-inset); }
+.pi-widget-body > .widget-head { align-self: stretch; }
 
-.pi-widget-metric-row { display: flex; flex-direction: column; align-items: center; gap: var(--odk-space-3); }
-.pi-widget-count { font-family: inherit; font-size: clamp(56px, 48cqi, 168px); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--odk-primary); }
-.pi-widget-wide-count .pi-widget-count { font-size: clamp(40px, 34cqi, 120px); }
+.pi-widget-metric-row { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: var(--odk-space-2); }
+.pi-widget-count { font-family: inherit; font-size: clamp(40px, min(48cqi, 45cqb), 160px); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--odk-primary); }
+.pi-widget-wide-count .pi-widget-count { font-size: clamp(32px, min(34cqi, 45cqb), 120px); }
+.pi-widget-summary { flex: none; margin-block-end: 4px; }
 .pi-widget-live-tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-elevated); }
 .pi-widget-tag-label, .pi-widget-summary { font-size: clamp(14px, 5cqi, 20px); line-height: 1.4; color: var(--odk-secondary-strong); font-variant-numeric: tabular-nums; }
 .pi-indicator-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--odk-secondary-strong); }
@@ -3291,10 +3293,10 @@ body.kiosk {
 
 .hydra-body[data-shape='wide-short'] .hydra-plant {
   justify-content: center;
-  padding: clamp(8px, 1.2cqi, 16px);
+  padding: 0 clamp(4px, 0.8cqi, 8px);
   gap: 6px;
-  border-radius: calc(var(--radius) * 0.4);
-  background: var(--odk-elevated);
+  border-radius: 0;
+  background: transparent;
 }
 
 .hydra-body[data-shape='wide-short'] .hydra-plant-row {
@@ -3303,7 +3305,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide-short'] .hydra-plant-name {
-  font-size: clamp(12px, 1.6cqi, 16px);
+  font-size: clamp(14px, 1.6cqi, 18px);
 }
 
 .hydra-body[data-shape='wide-short'] .hydra-plant-state {

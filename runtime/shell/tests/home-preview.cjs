@@ -374,7 +374,14 @@ app.whenReady().then(async () => {
             }
             const frame = tile.getBoundingClientRect(), row = foot.getBoundingClientRect();
             const image = cover.getBoundingClientRect(), name = author.getBoundingClientRect();
-            const title = tile.querySelector('.weread-title').getBoundingClientRect();
+            const titleNode = tile.querySelector('.weread-title');
+            if (titleNode.title !== titleNode.textContent) throw Error('WeRead full title is unavailable');
+            const title = titleNode.getBoundingClientRect();
+            const excerpt = tile.querySelector('.weread-text');
+            if (frame.width < 250) {
+              const assertCompact = { excerptHeight: excerpt.clientHeight, lineHeight: parseFloat(getComputedStyle(excerpt).lineHeight), footerHeight: row.height, cellHeight: frame.height };
+              if (excerpt.clientHeight < parseFloat(getComputedStyle(excerpt).lineHeight) * 3 - 1 || row.height > frame.height * 0.44) throw Error('Compact WeRead attribution crowds the excerpt: ' + JSON.stringify(assertCompact));
+            }
             return { author: author.textContent, title: tile.querySelector('.weread-title').textContent,
               authorBelowTitle: name.top >= title.bottom, coverRightOfAuthor: image.left >= name.right,
               footerContained: row.top >= frame.top && row.bottom <= frame.bottom && image.right <= frame.right,

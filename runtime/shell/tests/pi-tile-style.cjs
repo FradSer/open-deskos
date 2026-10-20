@@ -59,6 +59,7 @@ const READ = `(() => {
   const capsule = host.querySelector('.pi-widget-live-tag').getBoundingClientRect(), footer = summary.getBoundingClientRect();
   const heading = (host.querySelector('.widget-title') || host.querySelector('.widget-heading')).getBoundingClientRect();
   return { viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
+    headingClearance: reading.top - heading.bottom,
     cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: summary.textContent, capsuleBelowCount: capsule.top >= reading.bottom + 4, idleBelowCapsule: footer.top >= capsule.bottom + 4,
     details: host.querySelectorAll('.pi-widget-activity,.pi-widget-context,.w-state').length,
     font: parseFloat(getComputedStyle(label).fontSize),
@@ -108,6 +109,7 @@ async function main() {
   }
   for (const reading of results) {
     const where = `${reading.panel} ${reading.state} ${reading.theme}`
+    assert.ok(reading.headingClearance >= 4, `${where}: heading stays above the count` )
     assert.equal(reading.capsuleBelowCount, true, `${where}: capsule follows the count`)
     assert.equal(reading.idleBelowCapsule, true, `${where}: idle count follows the capsule`)
     assert.equal(reading.details, 0, `${where}: task details belong to the App`)

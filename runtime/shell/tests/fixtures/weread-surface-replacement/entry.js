@@ -152,6 +152,7 @@
             highlight.author || '', date(highlight.createTime), highlight.markText]
           : [state.status === 'error' ? 'Sync unavailable' : 'No highlights', '', '', state.status === 'error' ? 'Open WeRead and select Refresh.' : 'Save a highlight in WeRead.']
         ;['title', 'author', 'date', 'text'].forEach((name, index) => { nodes[name].textContent = fields[index] })
+        nodes.title.title = nodes.title.textContent
         nodes.author.hidden = !nodes.author.textContent
         nodes.date.hidden = !nodes.date.textContent
         schedule()
