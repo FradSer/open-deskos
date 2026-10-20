@@ -199,7 +199,22 @@ export class RemoteConversation {
         && Number.isFinite(message.at) && message.at>reply.at && message.presentation==='assistant_update'
         && previousCompletion && nextCompletion && previousCompletion!==nextCompletion && previousTurn!==nextTurn && settledCompletion(source)
         && typeof text==='string' && text.trim() && text.trim()!==reply.text.trim()
-      return !continuation
+      // Retention can remove the old origin before its unknown receipt expires.
+      // Only a later complete successful result on that exact source/thread can
+      // admit a distinct owner request; the old mutation remains unknown.
+      const retainedContinuation=origins.length===0 && reply.status==='unknown'
+        && reply.threadId===threadId && reply.sessionId===source.sessionId && reply.replyTo.sourceKey===source.key
+        && reply.replyTo.messageId!==message.id && reply.replyTo.sourceRevision!==source.revision
+        && Number.isFinite(message.at) && message.at>reply.at && message.presentation==='assistant_update'
+        && Number.isFinite(source.updatedAt) && source.updatedAt>reply.at
+        && ['settled','finished','ended','exited'].includes(source.state) && settledCompletion(source) && nextCompletion
+        && ['finished','reported_finished'].includes(source.turnOutcome??source.conclusionOutcome)
+        && source.truncated===false && (source.control==='configured'
+          ? source.turnOutcome==='finished' && !source.currentTurnId
+          : source.conclusionIsLatestAssistant===true)
+        && !this.data.messages.some(other=>other.id!==message.id && other.at>=message.at && other.sources.some(record=>record.key===source.key))
+        && typeof text==='string' && text.trim() && text.trim()!==reply.text.trim()
+      return !(continuation || retainedContinuation)
     }))throw Error('Previous reply delivery is unknown or pending; reconcile without replay')
     return {replyTo:structuredClone(replyTo),source:structuredClone(source),threadId}
   }

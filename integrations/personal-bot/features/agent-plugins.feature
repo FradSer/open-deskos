@@ -274,7 +274,7 @@ Feature: Personal Agent owns a bounded plugin runtime
     And its original message reference, thread, text, time, and receipt remain unchanged
     And completed and unknown replies retain their existing states
     And a reporting-machine mapping change cannot release unknown delivery
-    And missing origin history keeps a conservative unknown-session lock
+    And missing origin history keeps an unknown-session lock without a later complete successful result
     And a second restart performs no checkpoint write or model or task call
 
   Scenario: Reply writes use the same private checkpoint contract as restart reads
@@ -334,6 +334,18 @@ Feature: Personal Agent owns a bounded plugin runtime
     And a valid source reserves its single attempt before saving or publishing
     And one owner turn cannot create another reply operation
     And later distinct requests require a new completed turn after unknown delivery
+
+  Scenario: A retained completion can continue after an unknown reply origin expires
+    Given an unknown reply retains its source reference, session, thread, text, time, and receipt
+    And retention has removed its original displayed message
+    When a different owner instruction replies to the latest complete successful result from that same source and thread
+    And the source update and displayed message both occurred after the unknown reply
+    And configured tasks have a finished last turn and no active turn
+    And reported sessions retain an explicit latest-assistant result
+    Then the host can reserve one new reply without replaying the old instruction
+    And the old unknown reply and receipt remain unchanged after restart
+    But queued, dispatching, repeated, ambiguous, older, truncated, or cross-source requests remain blocked
+    And dispatch checks the completion boundary again immediately before sending
 
   Scenario: Fresh Pi work differs from reading retained task results
     Given an owner names an existing Pi task without a reply reference
