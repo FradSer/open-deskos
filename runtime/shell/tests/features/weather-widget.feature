@@ -6,6 +6,7 @@ Feature: Weather instrument on the Home grid
     And the document uses the requested width and height after loading
     And its device scale and page zoom are one before measurements
     And Linux comparisons select software rendering before Electron is ready
+    And other hosts retain their rendering selection
     And the complete layout matrix uses an offscreen painting window
     And existing per-operation deadlines and density tolerances remain unchanged
 
