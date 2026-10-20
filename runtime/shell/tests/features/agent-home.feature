@@ -384,6 +384,7 @@ Feature: Personal Agent home briefing
 
   Scenario: The resident conversation follows the reference layout
     Given the Agent has real conversation messages
+    And the scroll fixture extends beyond the near-latest threshold
     When the left pane renders in a supported theme
     Then one avatar is centered above a compact name and status capsule
     And the capsule opens the existing identity form with keyboard or pointer input
@@ -392,6 +393,7 @@ Feature: Personal Agent home briefing
     And scrolling earlier messages preserves the composer position
     And Jump to latest restores the newest message
     And Jump to latest overlays the conversation without moving messages or the composer
+    And scroll controls are checked after the native scroll event settles
     And the native scrollbar is transparent until scrolling and fades after scrolling stops
     And reduced motion hides the idle scrollbar without a fade
     And narrow windows and long names retain usable input and recovery text
