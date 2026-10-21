@@ -8,6 +8,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 if (process.platform === 'linux') app.disableHardwareAcceleration()
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 ipcMain.handle('odk-renderer-development-plugins', () => [])
+ipcMain.handle('odk-personal-bot-status', () => ({ state: 'unavailable' }))
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const { resolvePages } = require('./helpers/pages')
 
@@ -265,8 +266,9 @@ async function main() {
 
 function finish(code) {
   clearTimeout(timeout)
-  fs.rmSync(scratch, { recursive: true, force: true })
-  app.exit(code)
+  try { fs.rmSync(scratch, { recursive: true, force: true }) } catch (error) {
+    console.error('Weather profile cleanup deferred:', error.code)
+  } finally { app.exit(code) }
 }
 const timeout = setTimeout(() => { console.error('Weather layout timed out'); finish(1) }, 120000)
 app.whenReady().then(main).catch(error => { console.error(error); finish(1) })

@@ -330,3 +330,11 @@ Feature: Weather instrument on the Home grid
     And the high and low remain readable supporting values
     And negative and multi-digit readings preserve this hierarchy
     And default and independent Weather surfaces enforce the same hierarchy
+
+  Scenario: Weather geometry uses readable font metrics on each host
+    Given Windows and CM5 render the same Weather contract
+    When long conditions or compact Cells constrain the reading
+    Then the primary numeral and unit do not overlap the place or condition
+    And the primary numeral uses the bundled display font outside Pixel
+    And Pixel retains its regular pixel font
+    And deferred profile cleanup cannot replace a failed geometry verdict

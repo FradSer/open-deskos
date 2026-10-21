@@ -98,11 +98,11 @@
 .w-weather-value {
   display: flex;
   align-items: baseline;
-  font-family: inherit;
+  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
   /* The primary reading keeps its data floor in a constrained lane. */
-  font-size: max(14px, min(var(--w-weather-reading), 82cqb));
-  font-weight: 400;
-  line-height: 1.15;
+  font-size: max(14px, min(var(--w-weather-reading), 78cqb));
+  font-weight: 700;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
@@ -154,7 +154,7 @@
 
 .w-weather-condition {
   font-size: clamp(14px, 6cqi, 20px);
-  line-height: 1.4;
+  line-height: 1.5;
   color: var(--odk-primary);
   overflow-wrap: anywhere;
 }
@@ -247,11 +247,11 @@
   /* The condition names the weather, so it keeps the data floor at 14px; only the
      place, which is a caption, steps down to the caption floor. */
   .w-weather-condition {
-    line-height: 1.35;
+    line-height: 1.5;
   }
 
   .w-weather-range-value {
-    font-size: 16px;
+    font-size: 14px;
   }
 
   /* A narrow cell spends its lines on what only it can say. The badge already
