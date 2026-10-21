@@ -80,6 +80,7 @@
       plant.root.className = 'hydra-plant hydra-idle'
       plant.state.textContent = ''
       plant.soil.textContent = '--'
+      plant.soil.classList.remove('hydra-plant-soil-wide')
       plant.meterFill.style.transform = 'scaleX(0)'
       plant.meterFill.classList.remove('hydra-meter-dry')
       return
@@ -90,6 +91,7 @@
     plant.root.className = `hydra-plant${offline ? ' hydra-offline' : ''}${stale ? ' hydra-stale' : ''}${watering ? ' hydra-watering' : ''}`
     plant.state.textContent = plantState(entry)
     plant.soil.textContent = formatSoil(entry)
+    plant.soil.classList.toggle('hydra-plant-soil-wide', plant.soil.textContent.length > 3)
     const percent = offline || entry.soilPercent === undefined || entry.soilPercent === null ? 0 : Math.round(entry.soilPercent)
     plant.meterFill.style.transform = `scaleX(${percent / 100})`
     plant.meterFill.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)

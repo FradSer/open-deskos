@@ -208,6 +208,30 @@ test('Hydra restores readings and full labels after state and shape transitions'
   else baselines.set('transitions', views)
 })
 
+test('Hydra fits a full moisture reading and clears its width state with new telemetry', async t => {
+  const f = await fixture(t)
+  const states = [
+    { ...live, nodes: [{ id: 1, online: true, soilPercent: 100 }] },
+    live,
+    { ...live, nodes: [{ id: 1, online: true, soilPercent: 100, stale: true }] },
+    { ...live, nodes: [{ id: 1, online: false, soilPercent: 100 }] },
+    { configured: false },
+  ]
+  for (const [index, state] of states.entries()) {
+    if (index > 0) {
+      const requests = f.operations.length
+      for (let tick = 0; tick < 5 && f.operations.length === requests; tick++) f.staleTicks[0]()
+      assert.equal(f.operations.length, requests + 1)
+    }
+    f.operations.at(-1).resolve(state)
+    await f.settle()
+    const soil = f.read('#hydra-plant-1').querySelector('.hydra-plant-soil')
+    assert.equal(soil.textContent, ['100%', '62%', '100%', '--', '--'][index])
+    assert.equal(soil.classes.has('hydra-plant-soil-wide'), index === 0 || index === 2)
+    if (index === 2) assert.equal(f.read('#hydra-plant-1').querySelector('.hydra-plant-state').textContent, 'Stale')
+  }
+})
+
 test('Hydra active IPC rejection shows Waiting and remains refreshable', async t => {
   const f = await fixture(t)
   f.operations[0].reject(Error('Controlled IPC failure'))

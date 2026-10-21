@@ -173,11 +173,20 @@
 
 /* Wide instruments use the same reading hierarchy with Zpix tracking. */
 [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-env-value {
-  font-size: clamp(28px, 6.5cqi, 72px);
+  font-size: clamp(24px, 3.5cqi, 40px);
 }
 
 [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
-  font-size: clamp(44px, 12cqi, 128px);
+  font-size: max(40px, min(22cqi, calc(var(--cell-dim) * 0.25)));
+}
+
+@container (min-width: 700px) {
+  [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
+    font-size: 21cqi;
+  }
+  [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil-wide {
+    font-size: 17cqi;
+  }
 }
 
 [data-theme='pixel'] .hydra-badge {
@@ -243,4 +252,8 @@
     /* One grid unit of the pixel set: a stepped-down sky still lands on whole units. */
     --w-weather-glyph: 24px;
   }
+}
+
+[data-theme='pixel'] .w-pomodoro {
+  --pomodoro-time-size: clamp(24px, 15cqi, 100px);
 }

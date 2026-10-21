@@ -34,7 +34,7 @@ const LIVE = {
   env: { tempC: 31.3, humidity: 79.8, pressureHpa: 998.9, lux: 1234, updatedAt: Date.now(), stale: false },
   nodes: [{ id: 1, online: true, pump: false, soilPercent: 62 }, { id: 2, online: true, pump: true, soilPercent: 48 }],
 }
-const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: false, env: null, nodes: [] } }
+const SNAPSHOTS = { full: { ...LIVE, nodes: LIVE.nodes.map(node => ({ ...node, soilPercent: 100 })) }, live: LIVE, unconfigured: { configured: false, connected: false, env: null, nodes: [] } }
 // Tall cells: the two promised panels, a panel a few pixels short of the promised
 // minimum, and the narrowest cell the tall composition is drawn in. Square cells:
 // a compact window, the cells a short window computes, and a cell too small for
@@ -44,6 +44,8 @@ const CELLS = [
   ['handheld Desk strip', 619, 196, 'wide-short'],
   ['short wide boundary', 560, 186, 'wide-short'],
   ['Desk canvas', 1103, 730, 'wide'],
+  ['full moisture Desk', 1103, 730, 'wide', true],
+  ['full moisture strip', 619, 196, 'wide-short', true],
   ['wide boundary', 480, 300, 'wide'],
   ['below wide width', 479, 300, 'compact'],
   ['below wide height', 480, 299, 'compact'],
@@ -98,9 +100,9 @@ app.whenReady().then(async () => {
     }
     const release = host => { for (const cleanup of host.cleanups) cleanup(); host.remove() }
     const cases = []
-    for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
+    for (const [name, width, height, , full] of ${JSON.stringify(CELLS)}) {
       for (const theme of ${JSON.stringify(THEMES)}) {
-        const host = await mount(theme, width, height, SNAPSHOTS.live)
+        const host = await mount(theme, width, height, full ? SNAPSHOTS.full : SNAPSHOTS.live)
         if (name.endsWith('reading boundary')) {
           host.style.padding = '28px'
           await new Promise(resolve => setTimeout(resolve, 160))
@@ -208,7 +210,7 @@ app.whenReady().then(async () => {
       assert.equal(meter.transition, row.theme === 'pixel' ? 'none' : 'transform', where)
       assert.equal(parseFloat(meter.origin), 0, where)
       if (meter.texture) assert.equal(meter.texture.changed, true, where + ' watering texture must follow the semantic primary color')
-      if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - [0.62, 0.48][index]) < 0.001, where)
+      if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - (row.name.startsWith('full moisture') ? 1 : [0.62, 0.48][index])) < 0.001, where)
     }
     assert.equal(row.contained, true, where)
     assert.equal(row.ellipsized.length, 0, where)
@@ -231,7 +233,7 @@ app.whenReady().then(async () => {
     }
     checked += 1
   }
-  const wideDensity = result.cases.filter(row => row.name === 'Desk canvas').map(row => {
+  const wideDensity = result.cases.filter(row => ['Desk canvas', 'full moisture Desk'].includes(row.name)).map(row => {
     const measured = measureDensity(row.density.frame, row.density.boxes,
       { target: 0.62, tolerance: 0.08, minOccupied: 0.2, maxEmptyBand: 0.28 })
     if (!reportDensity) assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
