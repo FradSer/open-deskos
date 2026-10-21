@@ -1,5 +1,5 @@
 'use strict'
-const { app, BrowserWindow, ipcMain, session } = require('electron')
+const { app, BrowserWindow, ipcMain, session, nativeImage } = require('electron')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -73,7 +73,7 @@ app.whenReady().then(async () => {
     assert.equal(frame.isEmpty(), false)
     fs.writeFileSync(path.join(evidence, name + '.png'), frame.toPNG())
   }
-  async function compareWeRead(theme) {
+  async function compareWeRead(theme, variant = '') {
     await js(`(async () => {
       await odkTheme.set('${theme}');
       document.querySelectorAll('.dot')[2].click();
@@ -82,29 +82,33 @@ app.whenReady().then(async () => {
       await until(() => !!document.querySelector('.weread-date')?.textContent);
       if (odkTheme.get()==='liquid-glass') await until(() => ['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass));
     })()`)
-    await capture(`${theme}-weread-widget`)
+    await capture(`${theme}${variant}-weread-widget`)
     const before = await js(`(() => {
       const tile = document.querySelector('.w-weread');
+      const cover = tile.querySelector('.weread-cover').getBoundingClientRect();
       const properties = ['backgroundColor','backgroundImage','boxShadow','backdropFilter','borderTopWidth','borderTopStyle','borderTopColor','borderTopLeftRadius'];
       const styles = node => Object.fromEntries(properties.map(key => [key,getComputedStyle(node)[key]]));
       window.readingFrameStyles = styles;
-      return {frame:styles(tile), text:tile.querySelector('.weread-text').textContent,
+      return {frame:styles(tile),coverRatio:cover.width/cover.height, text:tile.querySelector('.weread-text').textContent,
         metadata:['title','author','date'].map(key => {const n=tile.querySelector('.weread-'+key),s=getComputedStyle(n);return {text:n.textContent,size:parseFloat(s.fontSize),weight:s.fontWeight,color:s.color,lineHeight:s.lineHeight}})};
     })()`)
     await js(`(async () => {
       await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
-      await until(() => !!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled);
+      await until(() => !!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled && document.querySelector('.reading-book-cover')?.complete);
       if (odkTheme.get()==='liquid-glass') await until(() => document.documentElement.dataset.liquidGlass==='fallback' || (document.documentElement.dataset.liquidGlass==='sdk' && document.getElementById('app-view').classList.contains('lg-surface')));
     })()`)
-    await capture(`${theme}-weread-app`)
+    await capture(`${theme}${variant}-weread-app`)
     const after = await js(`(() => {
       const card=document.getElementById('app-view');
-      return {frame:readingFrameStyles(card),text:card.querySelector('.reading-excerpt').textContent,
+      const cover=card.querySelector('.weread-cover'),box=cover.getBoundingClientRect();
+      return {frame:readingFrameStyles(card),coverRatio:box.width/box.height,naturalRatio:cover.naturalWidth/cover.naturalHeight,text:card.querySelector('.reading-excerpt').textContent,
         metadata:[...card.querySelector('.reading-book-meta').children].map(n=>{const s=getComputedStyle(n);return {text:n.textContent,size:parseFloat(s.fontSize),weight:s.fontWeight,color:s.color,lineHeight:s.lineHeight}})};
     })()`)
     console.log('WEREAD_COMPARISON '+JSON.stringify({theme,before,after,evidence}))
     assert.deepEqual(after.frame,before.frame,theme+': WeRead App material and radius must match its Widget')
     assert.equal(after.text,before.text)
+    assert.ok(Math.abs(after.coverRatio-after.naturalRatio)<0.01,'WeRead App must retain the original cover ratio')
+    assert.ok(Math.abs(before.coverRatio-after.naturalRatio)<0.01,'WeRead Widget must retain the original cover ratio')
     for (let i=0;i<3;i++) {
       assert.equal(after.metadata[i].text,before.metadata[i].text)
       assert.ok(before.metadata[i].size >= (i===0?18:16),'WeRead Widget metadata must remain legible')
@@ -113,6 +117,13 @@ app.whenReady().then(async () => {
       assert.equal(after.metadata[i].color,before.metadata[i].color)
     }
     await js('odkAppPlatform.closeApp()')
+  }
+  async function comparePortraitCover() {
+    const cover=nativeImage.createFromBitmap(Buffer.from(Array(8).fill([80,160,100,255]).flat()),{width:2,height:4}).toDataURL()
+    wereadReading={status:'live',highlight:{...preview.highlight,cover}}
+    await js(`(async()=>{await odkRendererRuntime.setEnabled('odk.tile.weread',false);await odkRendererRuntime.setEnabled('odk.tile.weread',true)})()`)
+    await compareWeRead('liquid-glass','-portrait')
+    wereadReading=undefined
   }
   async function stressWeReadApp() {
     for (const [width,height] of [[1280,800],[960,640],[480,854],[320,480]]) {
@@ -163,6 +174,7 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--weread-compare')) {
     win.setContentSize(1280,800)
     for (const theme of ['liquid-glass','instrument','pixel','border-beam']) await compareWeRead(theme)
+    await comparePortraitCover()
     await stressWeReadApp()
     console.log('WIDGET_NAVIGATION_EVIDENCE '+evidence)
     finish(0)
@@ -421,6 +433,7 @@ app.whenReady().then(async () => {
   console.log('PASS disable, replacement, and recovery preserve exactly one App continuation')
   console.log('PASS Futu empty, unconfigured, unauthorized, unavailable, and loading states')
   assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 8)
+  await comparePortraitCover()
   await stressWeReadApp()
   console.log('WIDGET_NAVIGATION_EVIDENCE ' + evidence)
   finish(0)

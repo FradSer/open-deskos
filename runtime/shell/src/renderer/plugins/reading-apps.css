@@ -27,3 +27,4 @@
 #app-view .weread-app .reading-content { padding: 0; }
 #app-view .weread-app .weread-foot { max-height: 50%; overflow-y: auto; align-items: safe center; }
 .weread-app .weread-foot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
+.weread-app img.weread-cover { aspect-ratio: auto; }

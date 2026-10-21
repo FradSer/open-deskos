@@ -131,7 +131,7 @@ Feature: WeRead highlight widget
     And the creation date appears below without an underline
     And the cover renders beside the meta block preserving its original aspect
 
-  Scenario: WeRead meta steps down by the golden ratio
+  Scenario: WeRead metadata retains a clear hierarchy
     Given the WeRead widget is rendered in a wide grid
     Then the title remains larger than the author
     And the author and date share one size separated by spacing

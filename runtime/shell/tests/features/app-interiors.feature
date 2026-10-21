@@ -11,6 +11,7 @@ Feature: Built-in App interiors
     When its Widget opens the WeRead App
     Then the excerpt and bottom book row retain their visual hierarchy and typography
     And book metadata remains legible on the Windows handheld
+    And non-three-by-four covers retain their original aspect ratio on both surfaces
     And the App retains Refresh and source recovery instructions
 
   Scenario: Existing Renderer replacement preserves built-in views
