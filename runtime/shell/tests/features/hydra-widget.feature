@@ -290,3 +290,17 @@ Feature: Hydra plant and environment Widget on the Desk page
     And each mode keeps its watchdog, cancellation, matrix, and cleanup
     And revision updates and rollback remain serial
     And other hosts retain one worker
+
+  Scenario: A tall assigned wide Cell keeps its instrument grouped
+    Given Hydra receives a wide Cell at 1103 by 730 pixels
+    When each supported theme renders live telemetry
+    Then two plant readings and all four environment readings remain visible
+    And the groups use bounded gaps instead of stretching to the Cell edges
+    And the unchanged strict density profile passes
+
+  Scenario: A full soil reading adapts without changing telemetry
+    Given a plant reports 100 percent moisture
+    When the wide instrument renders the reading
+    Then the complete value fits inside its plant panel
+    And a later two-digit or unavailable reading clears the width adjustment
+    And stale and offline states retain their existing meanings
