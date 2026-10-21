@@ -15,6 +15,8 @@ const { resolvePages } = require('./helpers/pages')
 const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
 installGeometryFixtures(ipcMain)
+ipcMain.removeHandler('odk-remote-link-state')
+ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-overview-markdown-'))
 app.setPath('userData', profile)
@@ -188,7 +190,7 @@ app.whenReady().then(async () => {
       // The same list with the pointer resting on a row that is not the current
       // session: the pointer is not a session state, so the rows still read as
       // one style with a single current-session band.
-      win.webContents.debugger.attach('1.3')
+      if (!win.webContents.debugger.isAttached()) win.webContents.debugger.attach('1.3')
       await win.webContents.debugger.sendCommand('DOM.enable')
       await win.webContents.debugger.sendCommand('CSS.enable')
       const { root } = await win.webContents.debugger.sendCommand('DOM.getDocument')
