@@ -181,6 +181,9 @@
 }
 
 @container (min-width: 700px) {
+  [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-row {
+    min-height: calc(21cqi + 32px);
+  }
   [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
     font-size: 21cqi;
   }
