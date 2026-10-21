@@ -99,6 +99,7 @@ html[data-theme='liquid-glass'] .widget :is(.widget-heading, .futu-name, .hydra-
   letter-spacing: -0.01em;
 }
 
+/* System UI numerals retain this theme's independent reading scale. */
 html[data-theme='liquid-glass'] .widget .year-pct {
   font-size: clamp(44px, 54cqi, 180px);
   letter-spacing: -0.035em;

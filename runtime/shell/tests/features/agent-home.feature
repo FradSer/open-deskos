@@ -555,3 +555,13 @@ Scenario: Hidden previews capture the current native viewport
     And reduced motion shows the matching static pose with readable status
     And hidden documents pause playback and released pages stop all animation work
     And the engine loads locally under the unchanged content security policy
+
+  Scenario: Agent identity floats above the conversation
+    Given the resident Agent has a Onee avatar and an identity capsule
+    When the conversation scrolls in any supported theme or panel size
+    Then the capsule overlaps the lower part of the avatar
+    And the header has no opaque background or backdrop blur
+    And messages scroll behind the header and receive input outside the capsule
+    And selected task navigation passes message input outside its readable return button
+    And the capsule and composer retain keyboard and pointer access
+    And the identity form remains inside the panel

@@ -64,7 +64,9 @@ test('signed independent Weather surface update rollback and removal preserve se
         assert.notEqual(report.pid, process.pid)
         assert.equal(pids.has(report.pid), false)
         pids.add(report.pid)
-        assert.equal(report.consumers.length, 15)
+        assert.deepEqual(report.consumers.map(([key]) => key).sort(),
+          ['1920x1280', '1920x1080', '960x640', '480x854', '320x480']
+            .flatMap(size => ['instrument', 'pixel', 'border-beam', 'liquid-glass'].map(theme => `${size}/${theme}`)).sort())
         const { initial, initialProviderCalls, snapshot, rendered, health } = report.cache
         assert.equal(initialProviderCalls, 0)
         assert.equal(snapshot.status, offline ? 'stale' : 'live')

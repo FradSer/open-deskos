@@ -331,6 +331,7 @@ Feature: Weather instrument on the Home grid
     And the high and low remain readable supporting values
     And negative and multi-digit readings preserve this hierarchy
     And default and independent Weather surfaces enforce the same hierarchy
+    And source and surface process restarts retain every theme and size combination
 
   Scenario: Weather geometry uses readable font metrics on each host
     Given Windows and CM5 render the same Weather contract
