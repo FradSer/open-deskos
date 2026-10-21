@@ -99,14 +99,21 @@ html[data-theme='liquid-glass'] .widget :is(.widget-heading, .futu-name, .hydra-
   letter-spacing: -0.01em;
 }
 
-html[data-theme='liquid-glass'] .widget :is(.year-pct, .quota-tile-value) {
-  font-size: clamp(40px, 44cqi, 148px);
+html[data-theme='liquid-glass'] .widget .year-pct {
+  font-size: clamp(44px, 54cqi, 180px);
+  letter-spacing: -0.035em;
+}
+
+html[data-theme='liquid-glass'] .widget .quota-tile-value {
+  font-size: clamp(32px, 32cqi, 112px);
   letter-spacing: -0.035em;
 }
 
 html[data-theme='liquid-glass'] .widget .year-pct-wide {
-  font-size: clamp(36px, 36cqi, 128px);
+  font-size: clamp(40px, 42cqi, 148px);
 }
+
+html[data-theme='liquid-glass'] .year-signal-line:has(.year-pct-wide) { gap: 8cqi; }
 
 html[data-theme='liquid-glass'] .year-signal-line {
   gap: clamp(8px, 2cqi, 16px);
@@ -130,7 +137,7 @@ html[data-theme='liquid-glass'] .pi-widget-summary {
   margin-block-end: auto;
 }
 
-html[data-theme='liquid-glass'] .w-pomodoro .ring-track {
+html[data-theme='liquid-glass'] .w-pomodoro :is(.ring-track, .ring-arc) {
   stroke: color-mix(in srgb, var(--odk-primary) 20%, var(--odk-surface));
 }
 
@@ -170,6 +177,8 @@ html[data-theme='liquid-glass'] .w-weather-support {
 }
 
 html[data-theme='liquid-glass'] .w-weather-glyph {
+  justify-self: end;
+  margin-inline-end: var(--odk-space-2);
   grid-column: 1;
   grid-row: 1;
   width: 24px;

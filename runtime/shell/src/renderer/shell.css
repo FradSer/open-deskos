@@ -1123,9 +1123,10 @@ body.kiosk {
 }
 
 
-/* Pomodoro keeps its state below a proportionate, static focus dial. */
+/* Pomodoro groups its header above a compact, centered focus dial. */
 .w-pomodoro {
   --pomodoro-time-size: clamp(24px, 20cqi, 100px);
+  gap: var(--odk-space-2);
   position: relative;
   align-items: stretch;
   justify-content: center;
@@ -1137,7 +1138,8 @@ body.kiosk {
   container-type: size;
   position: relative;
   display: flex;
-  flex: 1;
+  flex: none;
+  height: 60cqi;
   align-items: center;
   justify-content: center;
   min-height: 0;
@@ -1154,7 +1156,7 @@ body.kiosk {
 
 .pomodoro-ring-wrap svg {
   grid-area: 1 / 1;
-  width: min(90cqi, 100cqb);
+  width: min(60cqi, 100cqb);
   height: auto;
   flex-shrink: 0;
   aspect-ratio: 1;
@@ -1276,8 +1278,11 @@ body.kiosk {
   font-variant-numeric: tabular-nums;
 }
 
+.year-row:has(.year-pct-wide) { gap: 10cqi; }
+.year-signal-line:has(.year-pct-wide) { gap: 6cqi; }
+
 .year-pct-wide {
-  font-size: clamp(40px, 40cqi, 144px);
+  font-size: clamp(40px, 42cqi, 148px);
 }
 
 .w-year .meter {
