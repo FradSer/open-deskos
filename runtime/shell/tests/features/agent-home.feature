@@ -539,3 +539,11 @@ Scenario: Hidden previews capture the current native viewport
     When the user presses Home
     Then another batch mounts without replacing existing nodes
     And the draft and viewport anchor remain unchanged
+
+  Scenario: The default Agent avatar follows the ring reference
+    Given the Agent has no saved custom identity
+    When its header renders in a supported theme
+    Then a violet ring surrounds a white circular core
+    And a white name capsule sits directly below the ring
+    And the name and identity editor remain accessible
+    And idle and Thinking states retain the same conversation position
