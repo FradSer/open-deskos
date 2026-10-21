@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { protectProactivePath } from '../src/proactive-private.mjs'
 import { RemoteConversation, validateRemoteSummary, validateRemoteReview } from '../src/remote-conversation.mjs'
 const row = (key,revision='a'.repeat(64)) => ({ key, machine:'synthetic-mac',sessionId:key,project:'/synthetic/project',revision,updatedAt:1,state:'settled',availability:'live',conclusionOutcome:'reported_finished',eventId:revision,latestEventIsAssistant:true,conclusionIsLatestAssistant:true,conclusion:'Computed total: 6',truncated:false,control:'report_only' })
-const updates = (value, records) => [{text:value,sourceKeys:records.map(record=>record.key)}]
+const updates = (value, records) => [{text:value,taskName:'Task result',sourceKeys:records.map(record=>record.key)}]
 test('all connected conclusions are paged, synthesized once, and retain source context after restart',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-conversation-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const batches=[];let calls=0
@@ -218,21 +218,21 @@ test('faithfulness review uses exact report references without execution certifi
 
 test('short assistant updates partition tasks and retain per-message source ownership', () => {
  const records=[row('build'),row('design')]
- const value={updates:[{text:'构建已完成，日志里有六项检查结果。',sourceKeys:['build']},{text:'界面调整还在进行，暂时没有新的结果。',sourceKeys:['design']}],citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}
+ const value={updates:[{text:'构建已完成，日志里有六项检查结果。',taskName:'Task result',sourceKeys:['build']},{text:'界面调整还在进行，暂时没有新的结果。',taskName:'Task result',sourceKeys:['design']}],citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}
  assert.equal(validateRemoteSummary(value,records),value)
- for(const updates of [[],[{text:'结果',sourceKeys:['build']}],[{text:'结果',sourceKeys:['build','design']},{text:'重复',sourceKeys:['build']}],[{text:'结果',sourceKeys:['unknown','design']}],[{text:'x'.repeat(601),sourceKeys:['build','design']}],[{text:'结果',sourceKeys:[]}],[{text:'结果',sourceKeys:['build','design'],action:'run'}]])assert.throws(()=>validateRemoteSummary({...value,updates},records))
+ for(const updates of [[],[{text:'结果',taskName:'Task result',sourceKeys:['build']}],[{text:'结果',taskName:'Task result',sourceKeys:['build','design']},{text:'重复',taskName:'Task result',sourceKeys:['build']}],[{text:'结果',taskName:'Task result',sourceKeys:['unknown','design']}],[{text:'x'.repeat(601),taskName:'Task result',sourceKeys:['build','design']}],[{text:'结果',taskName:'Task result',sourceKeys:[]}],[{text:'结果',taskName:'Task result',sourceKeys:['build','design'],action:'run'}]])assert.throws(()=>validateRemoteSummary({...value,updates},records))
  assert.throws(()=>validateRemoteSummary({...value,summary:'old schema'},records))
- assert.equal(validateRemoteSummary({...value,updates:[{text:'😀'.repeat(300),sourceKeys:['build','design']}]},records).updates[0].text.length,600)
- assert.throws(()=>validateRemoteSummary({...value,updates:[{text:'😀'.repeat(301),sourceKeys:['build','design']}]},records))
+ assert.equal(validateRemoteSummary({...value,updates:[{text:'😀'.repeat(300),taskName:'Task result',sourceKeys:['build','design']}]},records).updates[0].text.length,600)
+ assert.throws(()=>validateRemoteSummary({...value,updates:[{text:'😀'.repeat(301),taskName:'Task result',sourceKeys:['build','design']}]},records))
  const many=Array.from({length:4},(_,i)=>row(`key-${i}`)),citations=many.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))
- assert.throws(()=>validateRemoteSummary({updates:many.map(r=>({text:'中'.repeat(501),sourceKeys:[r.key]})),citations},many))
- assert.equal(validateRemoteSummary({updates:many.map(r=>({text:'中'.repeat(500),sourceKeys:[r.key]})),citations},many).updates.length,4)
+ assert.throws(()=>validateRemoteSummary({updates:many.map(r=>({text:'中'.repeat(501),taskName:'Task result',sourceKeys:[r.key]})),citations},many))
+ assert.equal(validateRemoteSummary({updates:many.map(r=>({text:'中'.repeat(500),taskName:'Task result',sourceKeys:[r.key]})),citations},many).updates.length,4)
 })
 
 test('one durable batch appends separate assistant messages and restores without replay',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-updates-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const file=join(directory,'remote.json'),records=[row('task-a'),row('task-b')];let calls=0
- const synthesize=async input=>{calls++;return {updates:input.records.map((r,i)=>({text:i?'第二项还在等待输入。':'第一项完成了本轮修改。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}}
+ const synthesize=async input=>{calls++;return {updates:input.records.map((r,i)=>({text:i?'第二项还在等待输入。':'第一项完成了本轮修改。',taskName:'Task result',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}}
  const read=async()=>({ok:true,records,total:2,nextCursor:null,omitted:0})
  const remote=new RemoteConversation({file,read,synthesize,publish:()=>{}})
  const saved=[],save=remote.save.bind(remote);remote.save=value=>{saved.push(structuredClone(value));return save(value)}
@@ -272,7 +272,7 @@ test('legacy checkpoint messages and held revisions survive new updates without 
 test('assistant message order and exact references survive restart across an eight-message page',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-update-pages-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const file=join(directory,'remote.json'),records=Array.from({length:9},(_,i)=>row(`task-${i}`));let calls=0
- const options={file,read:async cursor=>{const offset=cursor?Number(cursor):0;return {ok:true,records:records.slice(offset,offset+4),total:9,omitted:Math.max(0,9-offset-4),nextCursor:offset+4<9?String(offset+4):null}},synthesize:async input=>{calls++;return {updates:input.records.map(r=>({text:`任务 ${r.key} 有新进展。`,sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}}
+ const options={file,read:async cursor=>{const offset=cursor?Number(cursor):0;return {ok:true,records:records.slice(offset,offset+4),total:9,omitted:Math.max(0,9-offset-4),nextCursor:offset+4<9?String(offset+4):null}},synthesize:async input=>{calls++;return {updates:input.records.map(r=>({text:`任务 ${r.key} 有新进展。`,taskName:'Task result',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}},publish:()=>{}}
  const remote=new RemoteConversation(options);await remote.poll();await remote.poll();await remote.poll()
  assert.equal(calls,3);const disk=JSON.parse(await readFile(file,'utf8'))
  assert.deepEqual(disk.messages.map(m=>m.sources[0].key),records.map(r=>r.key))
@@ -378,7 +378,7 @@ test('one completion hint drains paginated results and leaves a rejected batch h
   const records=Array.from({length:7},(_,i)=>row('completed-'+i));let calls=0
   const options={file:join(directory,`state-${rejectFirst}.json`),read:async cursor=>({ok:true,records:cursor?records.slice(4):records.slice(0,4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>{
    calls++;if(rejectFirst&&calls===1)throw Error('owned review held')
-   return {updates:input.records.map(r=>({text:'这项任务已经结束。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}
+   return {updates:input.records.map(r=>({text:'这项任务已经结束。',taskName:'Task result',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}
   },publish:()=>{}}
   const remote=new RemoteConversation(options);await remote.drain()
   assert.equal(calls,2);assert.equal(remote.snapshot().hasMore,false)
@@ -590,7 +590,7 @@ test('a historical native reply uses fresh session status rather than the list s
 
 test('historical duplicate message IDs resolve only the complete immutable reply tuple',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-duplicate-reply-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
- const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('first'),row('second')],total:2,omitted:0,nextCursor:null}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[row('first'),row('second')],total:2,omitted:0,nextCursor:null}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',taskName:'Task result',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
  await remote.poll();const [first,second]=remote.data.messages
  remote.save({...remote.data,messages:[first,{...second,id:first.id}]})
  const replyTo={messageId:first.id,sourceKey:'second',sourceRevision:second.sources[0].revision}
@@ -612,7 +612,7 @@ test('unknown reply delivery remains durable and cannot be resent after restart'
 test('combined reply and source projections fit the whole remote frame and report omitted history',async t=>{
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-reply-budget-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const records=Array.from({length:7},(_,i)=>({...row('source-'+i),project:'/'+('long-project/'.repeat(300))}))
- const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async cursor=>({ok:true,records:records.slice(cursor?4:0,cursor?7:4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async cursor=>({ok:true,records:records.slice(cursor?4:0,cursor?7:4),total:7,nextCursor:cursor?null:'next',omitted:cursor?0:3}),synthesize:async input=>({updates:input.records.map(r=>({text:'结果已返回。',taskName:'Task result',sourceKeys:[r.key]})),citations:input.records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
  await remote.drain();const message=remote.data.messages[0]
  const replies=Array.from({length:32},(_,i)=>({id:`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`,threadId:'c'.repeat(64),sessionId:message.sources[0].sessionId,text:'中'.repeat(1000),answer:'答'.repeat(1000),replyTo:{messageId:message.id,sourceKey:message.sources[0].key,sourceRevision:message.sources[0].revision},at:i,status:'answered'}))
  remote.save({...remote.data,replies});const frame=remote.snapshot()
@@ -1019,4 +1019,74 @@ test('a sent reply remains unknown when receipt writes fail before service recov
  assert.equal(sends,1);assert.equal(failures,2);assert.equal(service.status.state,'error');assert.equal(remote.data.replies[0].status,'unknown');assert.equal(remote.data.replies[0].receipt,undefined)
  assert.throws(()=>remote.beginReply(reference,'Another instruction without a new completion'),/unknown|pending/);const recovered=new RemoteConversation(options);assert.equal(recovered.data.replies[0].status,'unknown')
  await service.close();await remote.close();await recovered.close()
+})
+
+test('new summaries require a concise grounded task name and retain it across restart',async t=>{
+ const records=[row('android')], citations=records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))
+ const update={text:'客户端已连接，设备输入仍待验证。',sourceKeys:['android'],taskName:'Android 客户端连接'}
+ assert.equal(validateRemoteSummary({updates:[update],citations},records).updates[0].taskName,update.taskName)
+ for(const taskName of [undefined,'','x'.repeat(41),'bad\nname'])assert.throws(()=>validateRemoteSummary({updates:[{...update,taskName}],citations},records))
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-task-name-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const options={file:join(directory,'remote.json'),read:async()=>({ok:true,records,total:1,nextCursor:null}),synthesize:async()=>({updates:[update],citations}),publish:()=>{}}
+ const remote=new RemoteConversation(options);await remote.poll()
+ assert.equal(remote.snapshot().messages[0].sources[0].taskName,update.taskName)
+ const restored=new RemoteConversation({...options,synthesize:async()=>{throw Error('No model call on replay')}})
+ await restored.poll(); assert.equal(restored.snapshot().messages[0].sources[0].taskName,update.taskName)
+})
+
+test('retained task naming drains bounded batches without replaying summaries or changing source identities',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-retained-names-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json');let current=row('session-0')
+ const seed=new RemoteConversation({file,read:async()=>({ok:true,records:[current],total:1,nextCursor:null}),synthesize:async({records})=>({updates:updates(`Result for ${current.sessionId}`,records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}})
+ for(let i=0;i<9;i++){current=row(`session-${i}`);await seed.poll()}
+ const legacy=JSON.parse(await readFile(file,'utf8'));for(const message of legacy.messages)for(const source of message.sources)delete source.taskName
+ await writeFile(file,JSON.stringify(legacy))
+ const batches=[];let summaryCalls=0
+ const options={file,read:async()=>({ok:true,records:[],total:0,nextCursor:null}),synthesize:async()=>{summaryCalls++;throw Error('No summary replay')},publish:()=>{},nameTasks:async({records})=>{
+  batches.push(records.length)
+  return {names:records.map((r,i)=>({key:r.key,name:`Task ${batches.length}-${i}`})),citations:records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))}
+ }}
+ const remote=new RemoteConversation(options);await remote.drain()
+ assert.deepEqual(batches,[7,2]);assert.equal(summaryCalls,0)
+ assert.equal(new Set(remote.data.messages.flatMap(message=>message.sources.map(source=>source.taskName))).size,9)
+ const withoutNames=remote.data.messages.map(message=>({...message,sources:message.sources.map(({taskName,...source})=>source)}))
+ assert.deepEqual(withoutNames,legacy.messages,'naming preserves message IDs, text, order and source revisions')
+ const recovered=new RemoteConversation({...options,nameTasks:async()=>assert.fail('Already named')});await recovered.drain()
+ assert.equal(recovered.snapshot().messages.every(message=>message.sources.every(source=>source.taskName)),true)
+})
+
+test('retained-task naming failures have a bounded retry count and reviewed replacements update all task labels',async t=>{
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-name-replacement-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+ const file=join(directory,'remote.json');let current=row('android'),name='Android connection',nameCalls=0
+ const options={file,read:async()=>({ok:true,records:[current],total:1,nextCursor:null}),synthesize:async({records})=>({updates:[{text:'Result received.',taskName:name,sourceKeys:records.map(r=>r.key)}],citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+ const seed=new RemoteConversation(options);await seed.poll()
+ const legacy=JSON.parse(await readFile(file,'utf8'));delete legacy.messages[0].sources[0].taskName;await writeFile(file,JSON.stringify(legacy))
+ const named={...options,nameTasks:async()=>{nameCalls++;throw Error('Names require review')}}
+ const remote=new RemoteConversation(named);await remote.poll();await remote.poll();await new RemoteConversation(named).poll();await new RemoteConversation(named).poll();assert.equal(nameCalls,3)
+ current=row('android','b'.repeat(64));name='Android microphone acceptance'
+ await remote.poll();assert.equal(remote.data.messages.length,2)
+ assert.deepEqual(remote.data.messages.flatMap(message=>message.sources.map(source=>source.taskName)),[name,name],'reviewed replacement is not overwritten by the old title')
+})
+
+test('pending retained names preserve concurrent reply receipts and cannot publish after close',async t=>{
+ for(const close of [false,true])await t.test(close?'shutdown':'owner receipt',async t=>{
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-name-race-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
+  const file=join(directory,'remote.json'),source=row('android'),seedOptions={file,read:async()=>({ok:true,records:[source],total:1,nextCursor:null}),synthesize:async({records})=>({updates:updates('Android connection is ready.',records),citations:records.map(r=>({key:r.key,revision:r.revision,quote:'total: 6'}))}),publish:()=>{}}
+  const seed=new RemoteConversation(seedOptions);await seed.poll()
+  const legacy=JSON.parse(await readFile(file,'utf8'));delete legacy.messages[0].sources[0].taskName;await writeFile(file,JSON.stringify(legacy))
+  let release,entered;const started=new Promise(resolve=>{entered=resolve})
+  const remote=new RemoteConversation({...seedOptions,nameTasks:({records})=>{entered();return new Promise(resolve=>{release=()=>resolve({names:records.map(r=>({key:r.key,name:'Android 客户端连接'})),citations:records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))})})}})
+  const pending=remote.poll();await started
+  const message=remote.snapshot().messages[0],reference={messageId:message.id,sourceKey:source.key,sourceRevision:source.revision}
+  const reply=remote.beginReply(reference,'Continue this task')
+  remote.completeReply(reply.id,{status:'unknown',receipt:{delivery:'unknown'}})
+  const stopping=close?remote.close():undefined
+  release();await pending;await stopping
+  assert.equal(remote.data.replies[0].status,'unknown');assert.equal(remote.data.replies[0].receipt.delivery,'unknown')
+  assert.equal(remote.data.messages[0].sources[0].taskName,close?undefined:'Android 客户端连接')
+  if(close) {
+   const restarted=new RemoteConversation({...seedOptions,nameTasks:async({records})=>({names:records.map(r=>({key:r.key,name:'Android 客户端连接'})),citations:records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))})})
+   await restarted.poll();assert.equal(restarted.data.messages[0].sources[0].taskName,'Android 客户端连接','interrupted read-only naming can resume without replaying messages or requests')
+  }
+ })
 })

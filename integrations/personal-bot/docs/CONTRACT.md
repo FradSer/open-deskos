@@ -963,7 +963,7 @@ Reporting text cannot select an SSH host, file, or command.
 
 Each synthesis uses an ephemeral provider session without tools, Skills, extensions, or memory.
 A separate zero-tool reviewer checks report faithfulness, source ownership, and readable assistant updates.
-The synthesis returns `updates: [{text, sourceKeys}]` and the existing `citations` array.
+The synthesis returns `updates: [{text, taskName, sourceKeys}]` and the existing `citations` array.
 Each batch has one to seven updates, with no more updates than source records.
 Each update has at most 600 UTF-16 code units; the batch text limit is 2,000 units.
 Each source key belongs to exactly one update.
@@ -974,8 +974,28 @@ Swapped task attribution remains held even when all citations are valid.
 
 The host default is short, natural Simplified Chinese.
 Remote source language cannot override that default.
-Updates lead with a completed result, final failure, or evidenced blocker.
-Generic reporting and verification notices appear in Sources, not in message bodies.
+Updates lead with a concrete result, final failure, or evidenced blocker.
+They use one or two short paragraphs, with a list only for parallel actionable items.
+They omit unsolicited handoff scripts, review inventories, and permission boilerplate.
+Material deliverables and evidence boundaries take precedence over brevity.
+
+Each update supplies a nonblank, single-line `taskName` with at most 40 UTF-16 code units.
+The name describes work from the assigned sources; it grants no authority.
+Source references retain this name across restart.
+Later updates reuse suitable stored names or supply reviewed replacements when the work changes.
+The current name applies across messages with the same exact session thread.
+Startup also names retained tasks in batches of at most seven through separate tool-free generation and review.
+This pass changes labels only; it preserves messages, source revisions, replies, and completion watermarks.
+Transient naming failures permit at most three attempts per unchanged input.
+Rejected names remain held; interrupted read-only naming can resume after restart.
+Until naming succeeds, older references use a project label.
+Task labels below messages open the exact thread and retain explicit reply selection.
+
+The conversation shows messages without Sources, Conversation details, or Earlier messages disclosures.
+Upward scrolling loads retained history and preserves the reading position.
+The header hides its status caption when ready and shows Thinking while processing a request.
+Delivery uncertainty, stale task updates, and connection failure remain visible.
+Technical provenance stays in `remote_pi_updates`, outside the conversation text.
 The reviewer rejects even one blanket verification closing sentence.
 Updates still explain material task-specific gaps in ordinary language.
 They retain useful metrics and file names, but exclude audit identifiers and raw backend details.

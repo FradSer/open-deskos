@@ -965,7 +965,7 @@ async function main() {
   if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
   const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
   if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
-  const lazyHistoryRuns = ['--lazy-history-only', '--lazy-history-retention-only'].map(flag => runFixture('agent-home.cjs', [flag]))
+  const lazyHistoryRuns = ['--lazy-history-only', '--lazy-history-retention-only', '--short-history-only'].map(flag => runFixture('agent-home.cjs', [flag]))
   for (const result of lazyHistoryRuns) if (result.error) console.error(`FAIL  Agent lazy history: ${result.error.message}`)
   const navigation = runFixture('widget-navigation.cjs')
   if (navigation.error) console.error(`FAIL  Widget continuations: ${navigation.error.message}`)

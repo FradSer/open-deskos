@@ -39,3 +39,15 @@ test('session threads and durable owner replies retain only bounded references',
   const invalid=structuredClone(input);mutate(invalid);assert.equal(parseRemoteConversation(invalid).state,'unavailable')
  }
 })
+
+test('descriptive task names survive projection without granting control',()=>{
+ const input=frame(); input.messages[0].sources[0].taskName='Android 客户端连接'
+ const source=parseRemoteConversation(input).messages[0].sources[0]
+ assert.equal(source.taskName,'Android 客户端连接'); assert.equal(source.control,'report_only')
+ for(const taskName of ['', 'x'.repeat(41), 'bad\nname', 42]) {
+  input.messages[0].sources[0].taskName=taskName
+  assert.equal(parseRemoteConversation(input).state,'unavailable')
+ }
+ delete input.messages[0].sources[0].taskName
+ assert.equal(parseRemoteConversation(input).state,'partial','legacy sources remain readable')
+})

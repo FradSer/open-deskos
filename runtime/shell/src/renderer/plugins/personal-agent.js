@@ -13,12 +13,12 @@
     mount(el, ctx) {
       el.innerHTML = `<div class="agent-panel">
         <header class="agent-head"><span class="agent-avatar" aria-hidden="true"></span>
-          <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-status-dot" aria-hidden="true"></span><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
+          <details class="agent-identity"><summary aria-label="Edit Agent identity"><h1 class="agent-name"></h1><span class="agent-state" role="status">Checking Personal Bot…</span><svg data-tabler="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6 9l6 6l6 -6" /></svg></summary><form class="agent-identity-form"><p class="agent-status-detail">Checking Personal Bot…</p>
             <label>Name<input name="name" maxlength="40" required /></label>
             <label>Icon<select name="icon"><option value="message">Message</option><option value="leaf">Leaf</option><option value="terminal">Terminal</option></select></label>
             <button type="submit">Save</button></form></details></header>
         <nav class="agent-thread-nav" aria-label="Session thread" hidden><button class="agent-thread-all" type="button">All messages</button><span></span></nav>
-        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><button class="agent-history-earlier" type="button" hidden>Earlier messages</button><p class="agent-empty">Ask about your desk or continue a task.</p></div>
+        <div class="agent-history"><div class="agent-conversation" tabindex="0" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"><p class="agent-empty">Ask about your desk or continue a task.</p></div>
         <button class="agent-latest" type="button" hidden>Jump to latest <svg data-tabler="arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" /></svg></button>
         </div>
         <aside class="agent-reply-context" aria-label="Reply reference" hidden><div><span class="agent-reply-session"></span><span class="agent-reply-preview"></span></div><button class="agent-reply-cancel" type="button">Cancel reply</button></aside>
@@ -51,20 +51,18 @@
       let lastScrollTop = 0
       let selectedReply = null
       let selectedThread = null
-      let earlierUpdates
-      let remoteCoverage
-      let lastRemoteComplete = true
       const children = new Map()
       let lastStatus = 'unknown'
       let pending = false
       function setState(message, caption = message) {
         if (state.textContent !== caption) state.textContent = caption
         if ($('.agent-status-detail').textContent !== message) $('.agent-status-detail').textContent = message
-        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}, ${caption}. View status and edit identity`)
+        state.hidden = !caption
+        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}. View status and edit identity`)
       }
       function applyIdentity() {
         $('.agent-name').textContent = identity.name
-        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}, ${state.textContent}. View status and edit identity`)
+        $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${state.textContent ? ', ' + state.textContent : ''}. View status and edit identity`)
         for (const node of el.querySelectorAll('.agent-avatar, .agent-input-avatar')) node.innerHTML = glyph(identity.icon)
         for (const node of el.querySelectorAll('.agent-message-assistant')) node.setAttribute('aria-label', identity.name)
         root.odkIcons?.apply?.(el)
@@ -127,10 +125,9 @@
         historyEntries = [...entries.values()].filter(item=>!selectedThread || item.threads.includes(selectedThread.id)).sort((a,b)=>a.at-b.at)
         for (const item of historyEntries.slice(-12)) allowedHistory.add(item.key)
         if (status.ownerTurnId) allowedHistory.add(`owner:${status.ownerTurnId}`)
-        $('.agent-history-earlier').hidden = !historyEntries.some(item=>!allowedHistory.has(item.key))
       }
       function loadEarlier() {
-        if (released || !lastSnapshot || $('.agent-history-earlier').hidden) return
+        if (released || !lastSnapshot || !historyEntries.some(item=>!allowedHistory.has(item.key))) return
         const top = conversation.getBoundingClientRect().top
         const anchor = [...conversation.querySelectorAll('.agent-message')].find(node=>!node.hidden && node.getBoundingClientRect().bottom>top)
         const before = anchor?.getBoundingClientRect().top
@@ -138,7 +135,6 @@
         render(lastSnapshot)
         if (anchor?.isConnected) conversation.scrollTop += anchor.getBoundingClientRect().top-before
         lastScrollTop = conversation.scrollTop
-        if ($('.agent-history-earlier').hidden && document.activeElement === $('.agent-history-earlier')) conversation.focus({preventScroll:true})
       }
       function openThread(thread) {
         selectedThread = thread
@@ -162,7 +158,7 @@
         } else article.innerHTML = '<div class="agent-message-body"></div>'
         const body = article.querySelector('.agent-message-body')
         body.textContent = text
-        conversation.insertBefore(article, remoteCoverage?.parentElement === conversation ? remoteCoverage : null)
+        conversation.append(article)
         root.odkIcons?.apply?.(article)
         return body
       }
@@ -190,28 +186,33 @@
         }
         for (const [id, row] of children) if (!active.has(id)) { row.remove(); children.delete(id) }
       }
-      function shortSession(value) { return value.length > 24 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value }
+      function taskName(source) {
+        if (source.taskName) return source.taskName
+        const project = source.project?.split(/[\\/]/).filter(Boolean).at(-1)
+        return project ? `${project} task` : 'Pi task'
+      }
+      function replySource(reply) {
+        return [...remoteArchive.values()].find(item=>item.id===reply.replyTo.messageId)?.sources.find(source=>source.key===reply.replyTo.sourceKey && source.revision===reply.replyTo.sourceRevision)
+      }
       function showThread(thread) {
         selectedThread = thread
         const navigation = $('.agent-thread-nav')
         navigation.hidden = !thread || Boolean(selectedReply && selectedReply.threadId === thread.id)
-        navigation.querySelector('span').textContent = thread ? `Session ${shortSession(thread.sessionId)}` : ''
-        navigation.querySelector('span').title = thread?.sessionId || ''
+        navigation.querySelector('span').textContent = thread ? thread.name || 'Task messages' : ''
+        navigation.querySelector('span').title = thread?.name || ''
         for (const article of conversation.querySelectorAll('.agent-message')) {
           const ids = JSON.parse(article.dataset.threadIds || '[]')
           article.hidden = Boolean(thread && !ids.includes(thread.id))
         }
         for (const row of children.values()) row.hidden = Boolean(thread)
-        if (earlierUpdates) earlierUpdates.hidden = Boolean(thread && ![...earlierUpdates.querySelectorAll('.agent-message')].some(node => !node.hidden))
-        if (remoteCoverage) remoteCoverage.hidden = Boolean(thread) || lastRemoteComplete
       }
       function replyContext() {
         const context = $('.agent-reply-context')
         context.hidden = !selectedReply
         const navigation = $('.agent-thread-nav')
         navigation.hidden = !selectedThread || Boolean(selectedReply && selectedReply.threadId === selectedThread.id)
-        $('.agent-reply-session').textContent = selectedReply ? `Reply to session ${shortSession(selectedReply.sessionId)}` : ''
-        $('.agent-reply-session').title = selectedReply?.sessionId || ''
+        $('.agent-reply-session').textContent = selectedReply ? `Reply to ${selectedReply.taskName}` : ''
+        $('.agent-reply-session').title = selectedReply?.taskName || ''
         $('.agent-reply-preview').textContent = selectedReply?.preview || ''
       }
       function referenceCount(item, source) {
@@ -240,8 +241,8 @@
       function selectReply(item, source) {
         if (pending || root.odkPersonalBot?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
         selectedReply = Object.freeze({ reference: Object.freeze({ messageId: item.id, sourceKey: source.key, sourceRevision: source.revision }),
-          sessionId: source.sessionId, threadId: source.threadId, preview: item.text.length > 100 ? item.text.slice(0, 100) + '…' : item.text })
-        if (source.threadId) openThread({ id: source.threadId, sessionId: source.sessionId })
+          sessionId: source.sessionId, taskName: taskName(source), threadId: source.threadId, preview: item.text.length > 100 ? item.text.slice(0, 100) + '…' : item.text })
+        if (source.threadId) openThread({ id: source.threadId, sessionId: source.sessionId, name: taskName(source) })
         replyContext()
         input.focus({ preventScroll: true })
       }
@@ -250,12 +251,12 @@
         row.className = 'agent-message-session'
         const label = document.createElement(source.threadId ? 'button' : 'span')
         label.className = 'agent-session-open'
-        label.textContent = `Session ${shortSession(source.sessionId)}`
-        label.title = source.sessionId
+        label.textContent = taskName(source)
+        label.title = taskName(source)
         if (source.threadId) {
           label.type = 'button'
-          label.setAttribute('aria-label', `View thread for Pi session ${source.sessionId}`)
-          label.addEventListener('click', () => { openThread({ id: source.threadId, sessionId: source.sessionId }); latest() })
+          label.setAttribute('aria-label', `View task: ${taskName(source)}`)
+          label.addEventListener('click', () => { openThread({ id: source.threadId, sessionId: source.sessionId, name: taskName(source) }); latest() })
         }
         row.append(label)
         if (/^[a-f0-9]{64}$/.test(item.id) && typeof source.key === 'string' && source.key.trim() && /^[a-f0-9]{64}$/.test(source.revision)) {
@@ -265,7 +266,7 @@
           button.dataset.sourceRevision = source.revision;button.dataset.replyMessageId = item.id;button.dataset.recordKey = recordKey
           button.disabled = root.odkPersonalBot?.supportsReplyTo !== true
           if (button.disabled) button.title = 'Session replies need an updated host.'
-          button.setAttribute('aria-label', `Reply to Pi session ${source.sessionId}`)
+          button.setAttribute('aria-label', `Reply to ${taskName(source)}`)
           button.addEventListener('click', () => selectReply(item, source))
           const note = document.createElement('span');note.className = 'agent-reply-unavailable';note.hidden = true
           row.append(button, note)
@@ -281,7 +282,7 @@
           const current = remoteRecords.get(recordKey)
           if (!current || button.disabled) return
           if (current.sources.length === 1) selectReply(current, current.sources[0])
-          else { details.open = true;details.querySelector('.agent-session-reply:not(:disabled)')?.focus({ preventScroll: true }) }
+          else details.querySelector('.agent-session-reply:not(:disabled)')?.focus({ preventScroll: true })
         })
         return button
       }
@@ -292,7 +293,6 @@
         else delete article.dataset.threadId
         if (Number.isFinite(at)) timeline.set(article, at)
       }
-      let historyCoverage
       function renderHistory(frame) {
         for (const item of ownerArchive.values()) {
           if (!allowedHistory.has(`owner:${item.id}`) && !ownerTurns.has(item.id)) continue
@@ -326,12 +326,6 @@
           } else notice?.remove()
         }
         trimOwnerTurns()
-        if (!historyCoverage && frame?.omittedCount) {
-          historyCoverage = document.createElement('details');historyCoverage.className = 'agent-remote-coverage'
-          const label = document.createElement('summary');label.textContent = 'Earlier messages'
-          const body = document.createElement('p');historyCoverage.append(label, body);conversation.append(historyCoverage)
-        }
-        if (historyCoverage && frame) { historyCoverage.hidden = !frame.omittedCount;historyCoverage.querySelector('p').textContent = `${frame.omittedCount} earlier owner turns are not shown here.` }
         orderTimeline();showThread(selectedThread)
       }
       function renderReplies() {
@@ -343,8 +337,7 @@
             const body = owner?.user || message('user', reply.text)
             if (owner) owner.bound = true
             const article = body.closest('article');article.dataset.replyId = reply.id
-            const details = document.createElement('details');details.className = 'agent-reply-details'
-            const label = document.createElement('summary');label.textContent = 'Details';details.append(label);article.append(details)
+            const details = document.createElement('div');details.className = 'agent-reply-details';article.append(details)
             const status = document.createElement('span');status.className = 'agent-reply-status';details.append(status)
             row = { article, status, details, answer: owner?.response || null };durableReplies.set(reply.id, row)
             timelineEntry(article, reply.at, [reply.threadId])
@@ -352,13 +345,14 @@
           const threadId = replyThread(reply)
           timelineEntry(row.article, reply.at, [threadId])
           if (row.answer) timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
-          if (row.threadId !== threadId) {
+          if (row.threadId !== threadId || row.taskName !== taskName(replySource(reply) || {})) {
             row.article.querySelector('.agent-message-session')?.remove()
-            if (reply.sessionId) row.details.append(sessionLabel({ sessionId: reply.sessionId, threadId }, {}))
-            row.threadId = threadId
+            if (reply.sessionId) row.details.append(sessionLabel({ ...replySource(reply), sessionId: reply.sessionId, threadId }, {}))
+            row.threadId = threadId;row.taskName = taskName(replySource(reply) || {})
           }
           row.status.textContent = ({ queued: 'Queued for this session', dispatching: 'Sending to this session', delivered: 'Sent to this session', unknown: 'Delivery not confirmed. Check the session before retrying.', answered: 'Personal Agent replied', failed: 'Reply failed. Check connection details before retrying.' })[reply.status] || 'Status unavailable'
-          ;(['queued', 'dispatching', 'unknown', 'failed'].includes(reply.status) ? row.article : row.details).append(row.status)
+          row.status.hidden = !['queued', 'dispatching', 'unknown', 'failed'].includes(reply.status)
+          row.article.append(row.status)
           if (reply.answer) {
             if (!row.answer) { row.answer = message('assistant', '');timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId]) }
             timelineEntry(row.answer.closest('article'), reply.at + 0.5, [threadId])
@@ -374,6 +368,14 @@
       }
       function orderTimeline() {
         const ordered = [...timeline].filter(([article]) => article.parentElement === conversation).sort((a, b) => a[1] - b[1])
+        // A retained origin precedes replies to it, including legacy messages without a timestamp.
+        for (const reply of [...replyArchive.values()].sort((a,b)=>a.at-b.at)) {
+          const row=durableReplies.get(reply.id)
+          const origins=[...remoteRecords].filter(([,item])=>item.id===reply.replyTo.messageId && item.sources.some(source=>source.key===reply.replyTo.sourceKey && source.revision===reply.replyTo.sourceRevision))
+          if(!row || origins.length!==1 || origins[0][1].at!==undefined)continue
+          const origin=remoteMessages.get(origins[0][0]),from=ordered.findIndex(([article])=>article===origin),to=ordered.findIndex(([article])=>article===row.article)
+          if(to>=0 && from>to)ordered.splice(to,0,...ordered.splice(from,1))
+        }
         for (let index = ordered.length - 2; index >= 0; index--) {
           const node = ordered[index][0], next = ordered[index + 1][0]
           const children = [...conversation.children]
@@ -387,7 +389,7 @@
           if (remoteMessages.has(recordKey)) {
             const previous = remoteRecords.get(recordKey)
             remoteRecords.set(recordKey, item)
-            if (item.sources.some((source, index) => source.threadId !== previous.sources[index].threadId)) {
+            if (item.sources.some((source, index) => source.threadId !== previous.sources[index].threadId || source.taskName !== previous.sources[index].taskName)) {
               const article = remoteMessages.get(recordKey), body = article.querySelector('.agent-message-body')
               const focused = [...body.querySelectorAll('.agent-message-session')].findIndex(row => row.contains(document.activeElement))
               const replyFocused = document.activeElement?.classList.contains('agent-session-reply')
@@ -396,9 +398,9 @@
               timelineEntry(article, remoteObservedAt.get(recordKey), item.sources.map(source => source.threadId))
               for (const [index, source] of item.sources.entries()) {
                 const oldThread = previous.sources[index].threadId
-                if (selectedThread && selectedThread.id === oldThread) selectedThread = source.threadId ? { id: source.threadId, sessionId: source.sessionId } : null
+                if (selectedThread && selectedThread.id === oldThread) selectedThread = source.threadId ? { id: source.threadId, sessionId: source.sessionId, name: taskName(source) } : null
                 if (selectedReply?.reference.messageId === item.id && selectedReply.reference.sourceKey === source.key && selectedReply.reference.sourceRevision === source.revision) {
-                  selectedReply = Object.freeze({ ...selectedReply, threadId: source.threadId, sessionId: source.sessionId })
+                  selectedReply = Object.freeze({ ...selectedReply, threadId: source.threadId, sessionId: source.sessionId, taskName: taskName(source) })
                 }
               }
               if (focused >= 0) body.querySelectorAll('.agent-message-session')[focused]?.querySelector(replyFocused ? '.agent-session-reply' : '.agent-session-open')?.focus({ preventScroll: true })
@@ -413,75 +415,29 @@
           article.dataset.remoteId = item.id
           timelineEntry(article, remoteObservedAt.get(recordKey), (item.sources || []).map(source => source.threadId))
           remoteMessages.set(recordKey, article)
-          if (item.presentation === 'assistant_update') article.classList.add('agent-update')
-          else {
-            if (!earlierUpdates) {
-              earlierUpdates = document.createElement('details')
-              earlierUpdates.className = 'agent-earlier-updates'
-              const label = document.createElement('summary')
-              label.textContent = 'Earlier task updates'
-              earlierUpdates.append(label)
-              conversation.insertBefore(earlierUpdates, article)
-            }
-            earlierUpdates.append(article)
-          }
+          article.classList.add('agent-update')
           while (remoteMessages.size > 64) {
             const first = remoteMessages.keys().next().value
             timeline.delete(remoteMessages.get(first));remoteMessages.get(first)?.remove(); remoteMessages.delete(first);remoteRecords.delete(first)
           }
-          const details = document.createElement('details')
+          const details = document.createElement('div')
           details.className = 'agent-update-sources'
-          const title = document.createElement('summary')
-          title.textContent = 'Sources'
-          details.append(title)
-          const scope = document.createElement('p')
-          scope.textContent = 'Reported by connected agents. Execution is not independently verified.'
-          details.append(scope)
-          for (const source of item.sources ?? []) {
-            const line = document.createElement('p')
-            line.textContent = `${source.machine} · ${source.sessionId} · ${source.project} · ${source.control === 'configured' ? 'Configured control target' : 'Report only'} · ${source.availability} · bounded history`
-            const reference = document.createElement('p')
-            reference.textContent = `Source: ${source.key || 'Unavailable'}\nRevision: ${source.revision || 'Unavailable'}`
-            details.append(line, reference)
-          }
-          if (item.omittedSources) {
-            const note = document.createElement('p')
-            note.textContent = `${item.omittedSources} source references omitted. Ask for remote Pi updates to inspect them.`
-            details.append(note)
-          }
-          const actions = document.createElement('div');actions.className = 'agent-message-actions'
-          if (item.sources?.length) actions.append(messageReply(item, recordKey, details))
-          actions.append(details);body.append(actions)
+          details.setAttribute('role','group')
+          details.setAttribute('aria-label','Related tasks')
           for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
+          const actions = document.createElement('div');actions.className = 'agent-message-actions'
+          if (item.sources?.length === 1) actions.append(messageReply(item, recordKey, details))
+          actions.append(details);body.append(actions)
         }
-        if (!remoteCoverage) {
-          remoteCoverage = document.createElement('section')
-          remoteCoverage.className = 'agent-remote-coverage'
-          remoteCoverage.innerHTML = '<p role="status"></p><details><summary>Conversation details</summary><p></p></details>'
-          conversation.append(remoteCoverage)
-        }
-        const historyOmitted = Math.max(0, (frame.total || 0) - (frame.messages?.length || 0))
-        const complete = !historyOmitted && !frame.expiredMessages && frame.state === 'live' && !frame.hasMore && !frame.omitted && !frame.heldCount && !frame.omittedReplies && !frame.expiredReplies
-        lastRemoteComplete = complete
-        remoteCoverage.querySelector('[role="status"]').textContent = frame.state === 'unavailable'
-          ? 'I cannot reach the other agents right now.' : frame.state === 'stale'
-            ? 'These task updates may be out of date.' : frame.heldCount
-              ? 'Some task updates still need review.' : frame.hasMore
-                ? 'More task updates are available. Ask to see them.' : historyOmitted > 0
-                  ? 'Earlier task updates are available. Ask to see them.' : frame.expiredMessages
-                    ? 'Some earlier task updates have expired.' : frame.omittedReplies
-                      ? 'Some earlier replies are not shown here.' : frame.expiredReplies
-                        ? 'Some earlier replies have expired.' : 'Some task updates are not available yet.'
-        remoteCoverage.querySelector('[role="status"]').hidden = !['unavailable', 'stale'].includes(frame.state)
         updateReplyChoices()
         renderReplies()
         orderTimeline()
         showThread(selectedThread)
-        remoteCoverage.querySelector('details p').textContent = `Remote state: ${frame.state}. ${frame.omitted || 0} sources remain in bounded pages; ${frame.heldCount || 0} revisions require review; ${historyOmitted} earlier summaries remain in history; ${frame.expiredMessages || 0} superseded summaries expired; ${frame.omittedReplies || 0} earlier replies not shown; ${frame.expiredReplies || 0} earlier replies expired.`
       }
+
       function readinessCaption(value, judgment) {
-        if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? 'Ready' : 'Connection unavailable'
-        return value?.status === 'verified' ? 'Ready' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
+        if (judgment !== undefined) return judgment.status === 'ready' && ['model', 'jev'].includes(judgment.provider) ? '' : 'Connection unavailable'
+        return value?.status === 'verified' ? '' : value?.status === 'checking' ? 'Connecting…' : 'Connection unavailable'
       }
       function render(status) {
         if (released || ctx.signal?.aborted || !status?.state) return
@@ -527,9 +483,9 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const labels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
-        const caption = status.state === 'idle' ? readyCaption : labels[status.state] || 'Personal Bot status unknown'
-        setState(status.proposalError || caption, status.proposalError ? 'Suggestions unavailable' : caption)
+        const labels = { idle: '', thinking: 'Thinking…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : labels[status.state] || 'Personal Bot status unknown'
+        setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
         $('.agent-send').disabled = busy || status.state === 'unavailable' || pending
         const voiceAvailable = root.odkPersonalBot?.supportsVoiceInput !== false
         $('.agent-mic').disabled = !voiceAvailable || (busy && status.state !== 'recording')
@@ -543,7 +499,8 @@
       ctx.trackCleanup?.(() => {
         released = true;clearTimeout(scrollIdle);delete conversation.dataset.scrolling;unsub?.()
         conversation.removeEventListener('scroll', handleScroll)
-        $('.agent-history-earlier').removeEventListener('click', loadEarlier)
+        conversation.removeEventListener('wheel', handleHistoryWheel)
+        conversation.removeEventListener('keydown', handleHistoryKey)
         lastSnapshot = undefined;remoteArchive.clear();remoteObservedAt.clear();ownerArchive.clear();replyArchive.clear();allowedHistory.clear();historyEntries = []
       })
       const initialRevision = revision
@@ -592,7 +549,6 @@
       })
       $('.agent-reply-cancel').addEventListener('click', () => { if (!pending) { selectedReply = null;openThread(null);replyContext();input.focus({ preventScroll: true }) } })
       $('.agent-thread-all').addEventListener('click', () => { openThread(null);conversation.focus({ preventScroll: true }) })
-      $('.agent-history-earlier').addEventListener('click', loadEarlier)
       $('.agent-mic').addEventListener('click', () => root.odkPersonalBotStatus?.mic())
       $('.agent-latest').addEventListener('click', latest)
       function handleScroll() {
@@ -605,7 +561,13 @@
         clearTimeout(scrollIdle)
         scrollIdle = setTimeout(() => { delete conversation.dataset.scrolling }, 700)
       }
+      function handleHistoryWheel(event) { if(event.deltaY<0 && conversation.scrollTop<80)loadEarlier() }
+      function handleHistoryKey(event) {
+        if(event.target===conversation && (event.key==='Home' || ['PageUp','ArrowUp'].includes(event.key) && conversation.scrollTop<80))loadEarlier()
+      }
       conversation.addEventListener('scroll', handleScroll, { passive: true })
+      conversation.addEventListener('wheel', handleHistoryWheel, { passive: true })
+      conversation.addEventListener('keydown', handleHistoryKey)
     },
   })
 })(window)

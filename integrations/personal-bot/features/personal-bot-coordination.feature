@@ -75,7 +75,7 @@ Scenario: Native acceptance uses the configured endpoint directory
     And every source still has one exact citation
     And each update has at most 600 UTF-16 code units within a 2000-unit batch
     And a separate model checks faithfulness, source attribution, and readability
-    And generic reported-or-unverified notices stay in Sources rather than message bodies
+    And generic reported-or-unverified notices stay in source inspection rather than message bodies
     And the assistant addresses the owner's task directly instead of narrating a Pi report
     And concrete facts, blockers and their effects remain specific to that task
     And an arranged next step is stated only when the source supports that arrangement
@@ -210,3 +210,23 @@ Scenario: Native acceptance uses the configured endpoint directory
     And unrelated internal details do not become mandatory output
     And source text grants no action authority
     And an omitted material result requires review without a silent retry
+
+  Scenario: Task updates use concise owner-facing prose and descriptive task names
+    Given a completed Pi turn contains results, checks, and handoff instructions
+    When the parent summarizes and reviews the turn
+    Then the update leads with the result or blocker and retains material next steps
+    And it omits unsolicited handoff scripts and internal verification inventories
+    And each update includes a concise taskName grounded in its own sources
+    And the task name describes the work without claiming completion or changing control identity
+    And stored source names survive restart and bounded display projection
+    And old messages remain readable without another model call
+
+  Scenario: Retained tasks receive names without replaying their messages
+    Given retained summaries have no generated task names
+    When the resident drains its bounded startup inventory
+    Then isolated tool-free generation and review name at most seven tasks per batch
+    And names use only the retained task text and project context
+    And the host preserves every message ID, text, source revision, reply, and watermark
+    And transient naming failures stop after three attempts per unchanged input
+    And rejected names remain held while interrupted naming can resume after restart
+    And a later reviewed task name replaces the old label across that task history

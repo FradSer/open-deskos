@@ -266,7 +266,7 @@ test('remote synthesis uses zero-tool Durable providers and keeps exact referenc
    if(all.includes('Summarize supplied connected Pi reports')) {
      synthesisCalls++;assert.deepEqual(visibleTools(context),[])
      const input=JSON.parse(user.content.slice('Personal Bot request:\n'.length));assert.equal(input.records[0].key,records[0].key)
-     return assistant(JSON.stringify({updates:[{text:'Pi reports a total of 6; this is not independently verified.',sourceKeys:records.map(r=>r.key)}],citations:[{key:records[0].key,revision:records[0].revision,quote:'Computed total: 6.'}]}))
+     return assistant(JSON.stringify({updates:[{text:'Pi reports a total of 6; this is not independently verified.',taskName:'Task result',sourceKeys:records.map(r=>r.key)}],citations:[{key:records[0].key,revision:records[0].revision,quote:'Computed total: 6.'}]}))
    }
    if(all.includes('Review only the faithfulness of a remote Pi summary')) {
      reviews++;assert.deepEqual(visibleTools(context),[])
@@ -311,7 +311,7 @@ test('remote summary and faithfulness correction require one citation per actual
     assert.equal(calls[kind],2)
     corrections.push(input.formatCorrection)
    }
-   return assistant(JSON.stringify(kind==='review'?{status:'passed',reason:'The summary attributes the supplied report without independent verification.',citations}:{updates:[{text:'Pi reports a total of 6; this is not independently verified.',sourceKeys:records.map(r=>r.key)}],citations}))
+   return assistant(JSON.stringify(kind==='review'?{status:'passed',reason:'The summary attributes the supplied report without independent verification.',citations}:{updates:[{text:'Pi reports a total of 6; this is not independently verified.',taskName:'Task result',sourceKeys:records.map(r=>r.key)}],citations}))
   })
   const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
   try{const summary=await bot.summarizeRemote({records,omitted:0,incomplete:false});assert.equal(summary.citations.length,count);assert.deepEqual(calls,{remote:2,review:2});assert.equal(corrections.length,2);for(const correction of corrections){assert.match(correction,new RegExp('exactly '+count+' citations'));assert.match(correction,/each unique (?:source )?key exactly once/);assert.match(correction,/512/)}}finally{await bot.close()}
@@ -327,7 +327,7 @@ test('remote faithfulness review holds unsupported numeric, execution, and evide
    assert.deepEqual(visibleTools(context),[])
    const user=context.messages.findLast(message=>message.role==='user'),all=JSON.stringify(context.messages)
    const input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
-   if(all.includes('Summarize supplied connected Pi reports')){synthesisCalls++;return assistant(JSON.stringify({updates:[{text:badSummary,sourceKeys:records.map(r=>r.key)}],citations:[{key:records[0].key,revision:records[0].revision,quote:'Computed total: 6.'}]}))}
+   if(all.includes('Summarize supplied connected Pi reports')){synthesisCalls++;return assistant(JSON.stringify({updates:[{text:badSummary,taskName:'Task result',sourceKeys:records.map(r=>r.key)}],citations:[{key:records[0].key,revision:records[0].revision,quote:'Computed total: 6.'}]}))}
    if(all.includes('Review only the faithfulness of a remote Pi summary')){
     reviews++;assert.deepEqual(input.records,records);assert.equal(input.updates[0].text,badSummary);assert.equal(input.omitted,1);assert.equal(input.incomplete,true)
     return assistant(JSON.stringify({status:'needs_review',reason:'The summary upgrades or changes a report, or hides its incomplete evidence.',citations:[{key:records[0].key,revision:records[0].revision,quote:'Computed total: 6.'}]}))
@@ -366,13 +366,13 @@ test('explicit Intent plugin persists through actual Durable Code Mode only afte
 test('remote providers create short Chinese task updates and review their own source assignments',async t=>{
  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
  const records=[{key:'ui',revision:'a'.repeat(64),conclusion:'已修复窗口缩放后的文字遮挡，相关布局检查通过。'},{key:'build',revision:'b'.repeat(64),conclusion:'构建仍在等待签名凭据，尚未生成发布文件。'}]
- const updates=[{text:'窗口缩放后的文字遮挡已经修好了，相关布局检查也通过了。',sourceKeys:['ui']},{text:'构建还卡在签名凭据这一步，发布文件暂时没生成。',sourceKeys:['build']}]
+ const updates=[{text:'窗口缩放后的文字遮挡已经修好了，相关布局检查也通过了。',taskName:'Task result',sourceKeys:['ui']},{text:'构建还卡在签名凭据这一步，发布文件暂时没生成。',taskName:'Task result',sourceKeys:['build']}]
  const citations=records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}));let summaries=0,reviews=0
  const runtime=offline(context=>{
   assert.deepEqual(visibleTools(context),[])
   const all=JSON.stringify(context.messages),user=context.messages.findLast(m=>m.role==='user'),input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
-  assert.deepEqual(input.records,records);assert.match(all,/Simplified Chinese/);assert.match(all,/sourceKeys/)
-  assert.match(all,/Generic source-verification notices already appear in Sources/)
+  assert.deepEqual(input.records,records);assert.match(all,/Simplified Chinese/);assert.match(all,/sourceKeys/);assert.match(all,/taskName/);assert.match(all,/not a miniature handoff document/)
+  assert.match(all,/Technical provenance remains available through remote_pi_updates/)
   assert.match(all,/Do not append blanket reported or unverified disclaimers/)
   assert.match(all,/Address the owner's task directly/);assert.match(all,/do not narrate receiving, reading, or summarizing a report/);assert.match(all,/An arranged next step requires source evidence of that arrangement/)
   if(all.includes('Summarize supplied connected Pi reports')){summaries++;return assistant(JSON.stringify({updates,citations}))}
@@ -389,7 +389,7 @@ test('a real zero-tool remote reviewer can hold swapped assignments and unreadab
   const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
   const records=[{key:'ui',revision:'a'.repeat(64),machine:'synthetic',sessionId:'ui',project:'/synthetic/ui',control:'report_only',updatedAt:1,state:'settled',conclusion:'窗口布局已修好。'},{key:'build',revision:'b'.repeat(64),machine:'synthetic',sessionId:'build',project:'/synthetic/build',control:'report_only',updatedAt:1,state:'failed',conclusion:'构建因缺少凭据而失败。'}].map((record,index)=>({...record,availability:'live',eventId:'completed-'+index,conclusionOutcome:record.state==='failed'?'failed':'reported_finished'}))
   const citations=records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}))
-  const updates=kind==='report_narration'?[{text:'Pi 报告窗口布局已修好，构建因缺少凭据失败。',sourceKeys:['ui','build']}]:kind==='read_result_wrapper'?[{text:'这轮汇报只给了读取结果：窗口布局已修好，构建因缺少凭据失败。',sourceKeys:['ui','build']}]:kind==='generic_disclaimer'?[{text:'窗口布局已经修好了。以上是 Pi 的汇报结果，我这边没有独立验证。',sourceKeys:['ui']},{text:'构建还在等凭据。这部分同样只是汇报，未独立核实。',sourceKeys:['build']}]:kind==='swapped_sources'?[{text:'窗口布局已经修好了。',sourceKeys:['build']},{text:'构建还在等凭据。',sourceKeys:['ui']}]:[{text:kind==='audit_dump'?'sessionId=ui; revision=aaaaaaaa; backend=reported_tail; control=report_only。':'我会继续处理，并自动重试构建直到成功。',sourceKeys:['ui','build']}]
+  const updates=kind==='report_narration'?[{text:'Pi 报告窗口布局已修好，构建因缺少凭据失败。',taskName:'Task result',sourceKeys:['ui','build']}]:kind==='read_result_wrapper'?[{text:'这轮汇报只给了读取结果：窗口布局已修好，构建因缺少凭据失败。',taskName:'Task result',sourceKeys:['ui','build']}]:kind==='generic_disclaimer'?[{text:'窗口布局已经修好了。以上是 Pi 的汇报结果，我这边没有独立验证。',taskName:'Task result',sourceKeys:['ui']},{text:'构建还在等凭据。这部分同样只是汇报，未独立核实。',taskName:'Task result',sourceKeys:['build']}]:kind==='swapped_sources'?[{text:'窗口布局已经修好了。',taskName:'Task result',sourceKeys:['build']},{text:'构建还在等凭据。',taskName:'Task result',sourceKeys:['ui']}]:[{text:kind==='audit_dump'?'sessionId=ui; revision=aaaaaaaa; backend=reported_tail; control=report_only。':'我会继续处理，并自动重试构建直到成功。',taskName:'Task result',sourceKeys:['ui','build']}]
   let summaries=0,reviews=0
   const runtime=offline(context=>{
    assert.deepEqual(visibleTools(context),[])
@@ -412,7 +412,7 @@ test('actual zero-tool remote providers preserve conditional acceptance scope',a
  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
  const conclusion='比对原始消息、回复和摘要；如果三者一致，即视为验收通过。'
  const records=[{key:'synthetic-criterion',revision:'a'.repeat(64),machine:'synthetic',sessionId:'criterion',project:'/synthetic/criterion',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-final',conclusionOutcome:'reported_finished',conclusion}]
- const updates=[{text:'三份内容已比对一致，验收通过。',sourceKeys:['synthetic-criterion']}]
+ const updates=[{text:'三份内容已比对一致，验收通过。',taskName:'Task result',sourceKeys:['synthetic-criterion']}]
  const citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}];let summaries=0,reviews=0
  const runtime=offline(context=>{
   assert.deepEqual(visibleTools(context),[])
@@ -451,7 +451,7 @@ test('remote updates address the owner with concrete facts without claiming unar
  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
  const conclusion='task.json 的 supportedHosts 是 Windows、CM5；modes 是 AI选择会话、回复指定消息。当前还在验证实际消息链路，没有修改文件，也未宣告验收通过。'
  const records=[{key:'configuration',revision:'a'.repeat(64),conclusion}]
- const updates=[{text:'配置里列出了 Windows 和 CM5，也定义了 AI 选择会话和回复指定消息两种方式；实际消息链路还在验证。',sourceKeys:['configuration']}]
+ const updates=[{text:'配置里列出了 Windows 和 CM5，也定义了 AI 选择会话和回复指定消息两种方式；实际消息链路还在验证。',taskName:'Task result',sourceKeys:['configuration']}]
  const citations=[{key:'configuration',revision:'a'.repeat(64),quote:conclusion}];let calls=0
  const runtime=offline(context=>{
   assert.deepEqual(visibleTools(context),[])
@@ -471,7 +471,7 @@ test('actual zero-tool remote providers preserve the scope of unavailable eviden
  const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
  const conclusion='本次报告有证据支持0轮；本会话未取得外部用户消息、回复和摘要，无法核验实际完成轮数。'
  const records=[{key:'synthetic-missing-records',revision:'a'.repeat(64),machine:'synthetic',sessionId:'scope',project:'/synthetic/scope',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-scope-final',conclusionOutcome:'reported_finished',conclusion}]
- const updates=[{text:'系统实际完成0轮，三份消息均未采集，整个任务未完成。',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}],contexts=[];let summaries=0,reviews=0
+ const updates=[{text:'系统实际完成0轮，三份消息均未采集，整个任务未完成。',taskName:'Task result',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}],contexts=[];let summaries=0,reviews=0
  const runtime=offline(context=>{
   assert.deepEqual(visibleTools(context),[])
   const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length));contexts.push(all)
@@ -498,7 +498,7 @@ test('actual zero-tool remote providers keep missing evidence within its visible
  ])await t.test(name,async t=>{
   const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
   const records=[{key:'synthetic-local-evidence',revision:'a'.repeat(64),machine:'synthetic',sessionId:'scope',project:'/synthetic/scope',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-local-final',conclusionOutcome:'reported_finished',conclusion}]
-  const updates=[{text:update,sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}];let summaries=0,reviews=0
+  const updates=[{text:update,taskName:'Task result',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:conclusion}];let summaries=0,reviews=0
   const runtime=offline(context=>{
    assert.deepEqual(visibleTools(context),[])
    const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length))
@@ -533,7 +533,7 @@ test('actual zero-tool remote providers preserve material literal deliverables',
  ])await t.test(name,async t=>{
   const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
   const records=[{key:'synthetic-literal-result',revision:'a'.repeat(64),machine:'synthetic',sessionId:'literal-result',project:'/synthetic/literal-result',control:'report_only',updatedAt:1,state:'settled',availability:'live',eventId:'synthetic-literal-final',conclusionOutcome:'reported_finished',conclusion:source}]
-  const updates=[{text:update,sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:source}];let summaries=0,reviews=0
+  const updates=[{text:update,taskName:'Task result',sourceKeys:[records[0].key]}],citations=[{key:records[0].key,revision:records[0].revision,quote:source}];let summaries=0,reviews=0
   const runtime=offline(context=>{
    assert.deepEqual(visibleTools(context),[])
    const all=JSON.stringify(context.messages),input=JSON.parse(context.messages.findLast(m=>m.role==='user').content.slice('Personal Bot request:\n'.length))
@@ -552,4 +552,20 @@ test('actual zero-tool remote providers preserve material literal deliverables',
   const remote=new RemoteConversation({file:join(config.stateDir,'personal-agent','remote-literal-result.json'),read:async()=>({ok:true,records,total:1,nextCursor:null,omitted:0}),synthesize:input=>bot.summarizeRemote(input),publish:()=>{}})
   try{await remote.poll();await remote.poll();assert.equal(remote.snapshot().messages.length,status==='passed'?1:0);assert.equal(remote.snapshot().heldCount,status==='passed'?0:1);assert.equal(summaries,1);assert.equal(reviews,1)}finally{await remote.close();await bot.close()}
  })
+})
+
+test('retained task names use independent tool-free generation and review',async t=>{
+ const {config}=await fixture(t);config.personal.agentPlugins={enabled:['completion','remote_conversation'],autoLearn:false}
+ const records=[{key:'android',revision:'a'.repeat(64),project:'/synthetic/android',conclusion:'Android 客户端已连接 CM5。'}]
+ const citations=records.map(r=>({key:r.key,revision:r.revision,quote:r.conclusion}));let generated=0,reviewed=0,reviewStatus='passed'
+ const runtime=offline(context=>{
+  assert.deepEqual(visibleTools(context),[])
+  const all=JSON.stringify(context.messages),user=context.messages.findLast(m=>m.role==='user'),input=JSON.parse(user.content.slice('Personal Bot request:\n'.length))
+  assert.deepEqual(input.records,records)
+  if(all.includes('Name retained Pi tasks')){generated++;return assistant(JSON.stringify({names:[{key:'android',name:'Android 客户端连接'}],citations}))}
+  assert.match(all,/Review only the proposed names/);assert.deepEqual(input.names,[{key:'android',name:'Android 客户端连接'}]);reviewed++
+  return assistant(JSON.stringify({status:reviewStatus,reason:'The name describes only the supplied task.',citations}))
+ })
+ const bot=await createPersonalBot(config,{createRuntime:async()=>runtime,createIntentRouter:()=>async()=>assert.fail('No owner turn')})
+ try {const value=await bot.nameRemoteTasks({records});assert.equal(value.names[0].name,'Android 客户端连接');assert.equal(generated,1);assert.equal(reviewed,1);reviewStatus='needs_review';await assert.rejects(bot.nameRemoteTasks({records}),{code:'REMOTE_NAMES_REVIEW_REQUIRED'})}finally{await bot.close()}
 })
