@@ -65,7 +65,6 @@ async function measureSize(win, width, height) {
       'odk.tile.settings': '.widget-status-layout',
       'odk.tile.hydra': '.hydra-body',
       'odk.tile.weread': '.weread-copy',
-      'odk.tile.preorder': '.preorder-panel',
       'odk.tile.quota': '.quota-tile-body',
     }
     const sides = style => ['Top', 'Right', 'Bottom', 'Left'].map(side => parseFloat(style['padding' + side]))
@@ -106,8 +105,6 @@ async function measureSize(win, width, height) {
     const matches = value => Math.abs(value - measurement.expected) < 1
     if (id === 'odk.tile.weread') {
       if (!measurement.content.every(matches)) insetIssues.push(`${id}: excerpt inset ${measurement.content.join('/')}, expected ${measurement.expected}`)
-    } else if (id === 'odk.tile.preorder') {
-      if (!matches(measurement.content[1]) || !matches(measurement.content[3])) insetIssues.push(`${id}: panel inline inset ${measurement.content[1]}/${measurement.content[3]}, expected ${measurement.expected}`)
     } else if (id === 'odk.tile.weather') {
       if (!measurement.frame.every(matches)) insetIssues.push(`${id}: frame inset ${measurement.frame.join('/')}, expected ${measurement.expected}`)
       if (measurement.content[1] >= 1 || measurement.content[3] >= 1 || measurement.content[0] > 1 || measurement.content[2] > 1) {
@@ -131,7 +128,6 @@ async function measureSize(win, width, height) {
   const results = widgets.map(widget => {
     // Numeric glanceable instruments: sparse ink by design; keep the fill/empty-band gate, relax per-widget.
     const profiles = {
-      'odk.tile.clock': { target: 0.38, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.36 },
       // Futu holdings: anchored header, fitted day-ratio, up to five 14px
       // holding rows, footer note, distributed to fill the 1x1 cell.
       // Compliant multi-row text profile under the hardness rules: no
@@ -148,7 +144,6 @@ async function measureSize(win, width, height) {
       // resolutions, against 21.8-26.9% with a live reading.
       'odk.tile.weather': WEATHER_PROFILE,
       'odk.tile.pomodoro': { target: 0.42, tolerance: 0.14, minOccupied: 0.15, maxEmptyBand: 0.36 },
-      'odk.tile.almanac': { target: 0.58, tolerance: 0.16, minOccupied: 0.18, maxEmptyBand: 0.28 },
       // Live wide Hydra uses the shared reading-density limits. Smaller shapes
       // and unavailable placeholders retain their existing measured profile.
       'odk.tile.hydra': padding.hydraShape === 'wide' && fixtureState === 'live' ? DEFAULTS
@@ -159,17 +154,7 @@ async function measureSize(win, width, height) {
       // line rather than letting a smaller cell cut it, and the narrower
       // composition measures 19.4% in a 204px cell.
       'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.32 },
-      // Pre-order countdown: an image-led instrument. The hero figure is a
-      // canvas, which collectWidgetContent does not count as ink, so the
-      // measured band is only the panel text below the figure. The profile
-      // encodes that measurement limitation rather than hiding it: the 3x3
-      // canvas measured 6.6% fill / 5.0% occupied / 81.4% empty on 1920x1280 and
-      // 9.5 / 7.2 / 77.9 on 1920x1080, while a single cell measures 28.9% fill /
-      // 16.5% occupied / 58.1% empty. The occupied floor still fails a canvas
-      // whose countdown or caption disappears.
-      'odk.tile.preorder': { target: 0.18, tolerance: 0.18, minOccupied: 0.04, maxEmptyBand: 0.85 },
-      // WeRead is the same shape: a canvas cover that the collector cannot see
-      // as ink, beside a quote that fills its own copy area.
+      // The cover is a canvas; density measures the excerpt and source text.
       'odk.tile.weread': WEREAD_PROFILE,
       // AI usage: the shared fixture answers the quota service as unconfigured,
       // so every measured band is the placeholder reading and not a live

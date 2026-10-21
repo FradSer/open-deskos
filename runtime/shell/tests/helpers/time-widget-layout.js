@@ -2,29 +2,6 @@
 
 // Preview and lifecycle layouts stay inside the isolated test document.
 // Production placement remains unchanged.
-function timeWidgetLayout({ pageId = 'desk', separatePage = false } = {}) {
-  let layout
-  Object.defineProperty(window, 'DESKTOP_LAYOUT', {
-    configurable: true,
-    get() { return layout },
-    set(value) {
-      layout = value
-      let desk = layout.pages.find(page => page.id === pageId)
-      if (!desk && separatePage) {
-        desk = { id: pageId, name: 'Time', kind: 'grid', surface: 'display', widgets: [] }
-        layout.pages.push(desk)
-      }
-      const existing = new Set(layout.pages.flatMap(page => (page.widgets || []).map(widget => widget.id)))
-      for (const widget of [
-        { id: 'odk.tile.clock', col: '1', row: separatePage ? '1' : '2' },
-        { id: 'odk.tile.almanac', col: '2', row: separatePage ? '1' : '2' },
-      ]) {
-        if (!existing.has(widget.id)) desk.widgets.push(widget)
-      }
-    },
-  })
-}
-
 function widgetGridLayout() {
   let layout
   Object.defineProperty(window, 'DESKTOP_LAYOUT', {
@@ -60,12 +37,8 @@ async function installLayoutScript(win, source) {
   })
 }
 
-async function installTimeWidgetLayout(win, options = {}) {
-  await installLayoutScript(win, `(${timeWidgetLayout.toString()})(${JSON.stringify(options)})`)
-}
-
 async function installWidgetGridLayout(win) {
   await installLayoutScript(win, `(${widgetGridLayout.toString()})()`)
 }
 
-module.exports = { installTimeWidgetLayout, installWidgetGridLayout }
+module.exports = { installWidgetGridLayout }

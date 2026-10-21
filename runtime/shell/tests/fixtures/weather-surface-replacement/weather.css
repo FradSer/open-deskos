@@ -2,7 +2,7 @@
    own row; the sky, the condition and the daily range read as one supporting group
    below it, the way the reference card separates a hero figure from its support. */
 .w-weather-content {
-  --w-weather-reading: 34cqi;
+  --w-weather-reading: 46cqi;
   /* The supporting sky is drawn at the size the pixel artwork needs — two grid units
      of the 24-unit set, so no run of it falls under a readable width — and large
      enough to carry the tile's only graphic on a desk-sized cell. */
@@ -100,7 +100,7 @@
   align-items: baseline;
   font-family: inherit;
   /* The primary reading keeps its data floor in a constrained lane. */
-  font-size: max(14px, min(var(--w-weather-reading), 72cqb));
+  font-size: max(14px, min(var(--w-weather-reading), 82cqb));
   font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.02em;

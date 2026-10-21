@@ -83,13 +83,9 @@ for (const page of DESKTOP_LAYOUT.pages.filter((p) => p.kind === 'grid' && p.wid
 const readingPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'reading')
 check('reading page exists as a display grid', Boolean(readingPage) && readingPage.kind === 'grid' && readingPage.surface === 'display')
 check('reading page retains the three-by-three grid', readingPage?.gridRows === 3 && readingPage?.widgets?.length === 1 && readingPage.widgets[0].id === 'odk.tile.weread', JSON.stringify(readingPage?.widgets))
-check('weread keeps one column and one row from top-left', readingPage?.widgets?.[0]?.col === '1' && readingPage?.widgets?.[0]?.row === '1')
+check('weread spans three columns and three rows', readingPage?.widgets?.[0]?.col === '1 / 4' && readingPage?.widgets?.[0]?.row === '1 / 4')
 const deskHydra = DESKTOP_LAYOUT.pages.find(page => page.id === 'desk')?.widgets?.find(tile => tile.id === 'odk.tile.hydra')
 check('hydra keeps its three-column by one-row Desk card', deskHydra?.col === '1 / 4' && deskHydra?.row === '1')
-const preorderPage = DESKTOP_LAYOUT.pages.find((p) => p.id === 'preorder')
-check('preorder page exists as a display grid', Boolean(preorderPage) && preorderPage.kind === 'grid' && preorderPage.surface === 'display')
-check('preorder page hosts the three-by-three countdown exactly once', preorderPage?.gridRows === 3 && preorderPage?.widgets?.length === 1 && preorderPage.widgets[0].id === 'odk.tile.preorder', JSON.stringify(preorderPage?.widgets))
-check('preorder fills three rows and three columns from top-left', preorderPage?.widgets?.[0]?.col === '1 / 4' && preorderPage?.widgets?.[0]?.row === '1 / 4')
 const placements = DESKTOP_LAYOUT.pages.flatMap(page => page.widgets ?? []).map(widget => widget.id)
 check('each grid Widget is hosted by exactly one page', new Set(placements).size === placements.length, placements.join(', '))
 const market = DESKTOP_LAYOUT.pages.find(p => p.id === 'home')?.widgets?.find(tile => tile.id === 'odk.tile.futu')
@@ -116,12 +112,12 @@ check('weread cover bitmap is fitted by ratio', wereadJs.includes('aspectRatio')
 check('weread foot separates with a stroke', /\.weread-foot\s*\{[^}]*border-top:\s*1px solid var\(--odk-stroke\)/.test(wereadCss), 'no hairline between text and meta')
 // Meta lines breathe in proportion to their size: the row gap must clear
 // 1cqi so the enlarged title never crowds the author line.
-const wereadMetaGap = Number((wereadCss.match(/\.weread-meta\s*\{[^}]*gap:\s*clamp\([^,]+,\s*([\d.]+)cqi/) || [])[1])
-check('weread meta lines breathe', wereadMetaGap >= 1, `meta gap is ${wereadMetaGap}cqi`)
+const wereadMetaGap = Number((wereadCss.match(/\.weread-meta\s*\{[^}]*gap:\s*([\d.]+)px/) || [])[1])
+check('weread meta lines breathe', wereadMetaGap >= 2, `meta gap is ${wereadMetaGap}px`)
 // Best practice: multi-line passages read at >=1.4 leading with pretty
 // wrapping, short headings balance, and numeric dates stay tabular.
 check('weread text uses passage leading and wrapping', /\.weread-text\s*\{[^}]*line-height:\s*1\.45/.test(wereadCss) && /\.weread-text\s*\{[^}]*text-wrap:\s*pretty/.test(wereadCss), 'text lacks 1.45/pretty passage treatment')
-check('weread title balances and date stays tabular', /\.weread-title\s*\{[^}]*text-wrap:\s*balance/.test(wereadCss) && /\.weread-date\s*\{[^}]*font-variant-numeric:\s*tabular-nums/.test(wereadCss), 'title/date lack balance/tabular treatment')
+check('weread title can truncate and date stays tabular', /\.weread-title\s*\{[^}]*text-overflow:\s*ellipsis/.test(wereadCss) && /\.weread-date\s*\{[^}]*font-variant-numeric:\s*tabular-nums/.test(wereadCss), 'title/date lack balance/tabular treatment')
 // Meta sizing lives in the scoped sheet for every theme: no theme file may
 // re-cap it (a stale pixel cap once shrank the title below the author).
 const wereadPixelCss = require('node:fs').readFileSync(require('node:path').join(harnessDirectory, '../src/renderer/themes/pixel.css'), 'utf8')
@@ -135,26 +131,14 @@ const shellCss = require('node:fs').readFileSync(require('node:path').join(harne
 check('every grid pins to top', /\.widget-grid\s*\{[^}]*margin:\s*0 auto/.test(shellCss))
 check('single-tile grid pins to top', shellCss.includes('.widget-grid:has(> .widget:only-child)') && shellCss.includes('margin: 0 auto'))
 
-// The pre-order countdown reads from the instrument surface below a hairline
 // stroke. Depth stays tonal and stroked: the photo gets no scrim and no shadow.
-const preorderCss = (shellCss.match(/\.w-preorder[^]*?(?=\.pi-widget-title)/) || [''])[0]
-check('preorder block is styled', preorderCss.includes('.preorder-panel'), 'no .w-preorder rules found')
-check('preorder photo carries no scrim', !preorderCss.includes('linear-gradient'), 'scrim gradient reintroduced')
-check('preorder type carries no drop shadow', !preorderCss.includes('text-shadow'), 'text-shadow reintroduced')
-check('preorder panel separates with a stroke', /\.preorder-panel\s*\{[^}]*border-top:\s*1px solid var\(--odk-stroke\)/.test(preorderCss))
 
 // The unit is the numeral divided by phi: em-relative, so count/unit is
 // exactly the golden ratio at every density, compact tiles included.
-const preorderUnitEm = Number((preorderCss.match(/\.preorder-unit\s*\{[^}]*font-size:\s*([\d.]+)em/) || [])[1])
-check('preorder units follow the golden ratio', Math.abs(preorderUnitEm - 1 / 1.6180339887) < 0.005, `unit ratio is ${preorderUnitEm}em`)
 
 // Zpix is a bitmap face: a flat 12px never reads as pixel art. Pixel-theme type
 // sizing scales with the tile and keeps 12px only as its floor.
 const pixelCss = require('node:fs').readFileSync(require('node:path').join(harnessDirectory, '../src/renderer/themes/pixel.css'), 'utf8')
-const preorderLabelPixel = pixelCss.match(/\[data-theme='pixel'\] \.w-preorder \.preorder-label\s*\{([^}]*)\}/)
-check('preorder caption scales in the pixel theme', Boolean(preorderLabelPixel) && /font-size:\s*max\(12px,\s*\d+(\.\d+)?cqi\)/.test(preorderLabelPixel[1]), preorderLabelPixel ? preorderLabelPixel[1].trim() : 'no pixel override for .preorder-label')
-const preorderLabelCqi = Number(((preorderLabelPixel?.[1] || '').match(/max\(12px,\s*([\d.]+)cqi\)/) || [])[1])
-check('preorder caption clears the text floor at desk density', preorderLabelCqi >= 5.2, `caption scales at ${preorderLabelCqi}cqi`)
 
 if (failures > 0) {
   console.error(`layout harness: ${failures} failure(s)`)

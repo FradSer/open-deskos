@@ -123,7 +123,7 @@ app.whenReady().then(async () => {
   const baseline = []
   await js('window.dashboardFormerNodes = []')
   await js(`(async () => {
-    if (!await window.odkAppPlatform.openApp({ appId: 'clock' })) throw Error('Clock App did not open');
+    if (!await window.odkAppPlatform.openApp({ appId: 'year' })) throw Error('Clock App did not open');
     window.dashboardForeground = document.querySelector('#app-runtime').firstElementChild;
     window.dashboardPageContext = document.querySelector('#page-context').textContent;
   })()`)
@@ -152,7 +152,7 @@ app.whenReady().then(async () => {
       && document.querySelector('[data-plugin="odk.page.dashboard"]') === dashboardPage
       && document.querySelector('[data-widget="odk.tile.year"]') === dashboardPeer
       && document.querySelector('#app-runtime').firstElementChild === dashboardForeground
-      && window.odkAppPlatform.active()?.appId === 'clock'
+      && window.odkAppPlatform.active()?.appId === 'year'
       && document.querySelector('#page-context').textContent === dashboardPageContext
       && window.odkPlugins.isActive(window.odkPlugins.get('odk.page.dashboard'), dashboardPage)`), true)
     await js(`(() => {
@@ -237,7 +237,7 @@ app.whenReady().then(async () => {
         if (performance.now()>deadline) throw Error('Backward Tick did not update Dashboard');
         await new Promise(resolve => setTimeout(resolve, 10));
       }
-      if (!await window.odkAppPlatform.openApp({ appId: 'clock' })) throw Error('Clock App did not reopen');
+      if (!await window.odkAppPlatform.openApp({ appId: 'year' })) throw Error('Clock App did not reopen');
       dashboardForeground = document.querySelector('#app-runtime').firstElementChild;
     })()`)
   }

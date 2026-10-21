@@ -61,7 +61,7 @@ app.whenReady().then(async () => {
   // Observe keyboard focus without showing a window or taking desktop focus.
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
   let replacements = fs.readFileSync(path.join(__dirname, 'fixtures/builtin-view-replacements.js'), 'utf8')
-  if (process.env.ODK_BUILTIN_VIEWS_INVALID) replacements = replacements.replace("text(value, reading); value.dateTime = reading", "text(value, 'wrong'); value.dateTime = reading")
+  if (process.env.ODK_BUILTIN_VIEWS_INVALID) replacements = replacements.replace("text(value, Math.round(100 * (now.getTime() - boundaries[0]) / (boundaries[1] - boundaries[0])) + '%')", "text(value, 'wrong')")
   await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: (external ? '' : replacements) + `;
     window.viewExternalEntries=[];
     (()=>{const OriginalDate=Date;window.viewTime=new OriginalDate(2026,0,1,12,34).getTime();
@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
     window.viewStateSubscriptions=0;const subscribe=odkAppPlatform.subscribeAppState;
     odkAppPlatform.subscribeAppState=callback=>{const cancel=subscribe(callback);viewStateSubscriptions++;return()=>{cancel();viewStateSubscriptions--}};
   })()`)
-  const ids = ['calendar', 'clock', 'pomodoro', 'year', 'app-manager'], baseline = new Map()
+  const ids = ['pomodoro', 'year', 'app-manager'], baseline = new Map()
   const tick = parts => js(`(()=>{viewTime=new Date(...${JSON.stringify(parts)}).getTime();for(const callback of [...viewTicks])callback(new Date())})()`)
   const snapshot = () => js(`Array.from(document.querySelectorAll('#app-runtime .runtime-app,#app-runtime .runtime-app *'),node=>({
     tag:node.tagName,classes:node.className,text:node.children.length?null:node.textContent,dateTime:node.getAttribute('datetime'),
@@ -195,14 +195,14 @@ app.whenReady().then(async () => {
       }
       await js(`(async()=>{
         const definitions=${external ? 'await odkRendererDevelopment.load({runtime:true})' : 'odkBuiltinViewReplacements'};
-        if(definitions.length!==5)throw Error('Independent App entries absent');
+        if(definitions.length!==3)throw Error('Independent App entries absent');
         for(const definition of definitions){
           odkPlugins.get(definition.id).lifecycle.mount=()=>{throw Error('Default App delegation refused')};
           await odkRendererRuntime.replace(definition);
           if(odkPlugins.get(definition.id).manifest.version!==${JSON.stringify(version)})throw Error('Independent App selection absent');
         }
       })()`)
-      assert.deepEqual(await js('viewExternalEntries.slice(-5).sort()'), external ? ids.map(id => 'odk.app.' + id).sort() : [])
+      assert.deepEqual(await js('viewExternalEntries.slice(-3).sort()'), external ? ids.map(id => 'odk.app.' + id).sort() : [])
       if (external) assert.deepEqual(await js(`${JSON.stringify(ids)}.map(id=>viewExecutedVersions['odk.app.'+id])`), ids.map(() => version))
       if (native) {
         revisions.push(version)
@@ -234,9 +234,8 @@ app.whenReady().then(async () => {
       await focus('#app-back', phase, id)
       keyboardLoops++
       const states = []
-      if (id === 'clock' || id === 'calendar' || id === 'year') {
-        const dates = id === 'clock' ? [[2026,0,1,23,59], [2026,0,2,0,0]]
-          : id === 'calendar' ? [[2028,1,29,12,34], [2028,2,1,12,34]] : [[2026,11,31,23,59], [2027,0,1,0,0]]
+      if (id === 'year') {
+        const dates = [[2026,11,31,23,59], [2027,0,1,0,0]]
         for (const date of dates) { await tick(date); states.push(await snapshot()) }
         assert.equal(await js('viewTicks.size'), subscriptions + 1)
       } else if (id === 'app-manager') {
@@ -244,9 +243,9 @@ app.whenReady().then(async () => {
         await key('Tab')
         assert.equal(await js("document.activeElement===document.querySelector('#app-search')"), true)
         await focus('#app-search', phase, id)
-        await win.webContents.insertText(' CLOCK ')
-        await wait("document.querySelectorAll('#app-runtime .app-list li').length===1&&document.querySelector('#app-runtime .app-list strong').textContent==='Clock'")
-        await key('Backspace', [], ' CLOCK '.length)
+        await win.webContents.insertText(' YEAR ')
+        await wait("document.querySelectorAll('#app-runtime .app-list li').length===1&&document.querySelector('#app-runtime .app-list strong').textContent==='Year progress'")
+        await key('Backspace', [], ' YEAR '.length)
         await wait("document.querySelector('#app-search').value===''&&document.querySelectorAll('#app-runtime .app-list li').length>1")
         await key('Tab')
         assert.equal(await js("!document.querySelector('#app-view').contains(document.activeElement)"), true)
@@ -254,7 +253,7 @@ app.whenReady().then(async () => {
         if (await js('document.activeElement===document.body')) await key('Tab')
         assert.equal(await js("document.querySelector('#status-bar').contains(document.activeElement)"), true)
         keyboardSearches++
-        for (const query of [' CLOCK ', 'missing', '']) {
+        for (const query of [' YEAR ', 'missing', '']) {
           await js(`(()=>{const input=document.querySelector('#app-search');input.value=${JSON.stringify(query)};input.dispatchEvent(new Event('input'))})()`)
           states.push(await snapshot())
         }
@@ -276,8 +275,6 @@ app.whenReady().then(async () => {
       } else states.push(await snapshot())
       if (phase === 'default') baseline.set(id, states)
       else assert.deepEqual(states, baseline.get(id), `${phase} ${id} reading changed`)
-      if (id === 'clock') assert.equal(await js("document.querySelector('#app-runtime time').dateTime"), '00:00')
-      if (id === 'calendar') assert.equal(await js("document.querySelector('#app-runtime time').dateTime"), '2028-03-01')
       if (id === 'year') assert.equal(await js("document.querySelector('#app-runtime .runtime-value').textContent"), '0%')
       if (id === 'pomodoro') {
         assert.equal(await js("document.querySelector('#app-runtime .runtime-state').textContent"), 'Focus')
@@ -298,7 +295,7 @@ app.whenReady().then(async () => {
       assert.equal(await js('document.activeElement===viewFocusOrigin'), true)
       assert.equal(await js(`odkAppPlatform.openApp({appId:${JSON.stringify(id)}})`), true)
       if (id === 'app-manager') await wait("document.querySelector('#app-runtime .app-list li')")
-      if (id === 'clock') await js("document.querySelector('#dots .dot.active').focus()")
+      if (id === 'year') await js("document.querySelector('#dots .dot.active').focus()")
       await key('Escape')
       await wait("!odkAppPlatform.active()&&document.querySelector('#app-view').hidden")
       assert.equal(await js('document.activeElement===viewFocusOrigin'), true)
@@ -342,6 +339,6 @@ app.whenReady().then(async () => {
   await discoveryHost.stop()
   assert.equal(await js('odkRendererPluginBridge.list().then(()=>false,()=>true)'), true)
   if (native) assert.equal(await protocol.isProtocolHandled(NATIVE_PLUGIN_SCHEME), false)
-  console.log(JSON.stringify({ views: 5, phases: phases.length, focusChecks, externalEntries: external ? await js('viewExternalEntries.length') : 0, ...(native ? { protocolReleased: true, revisions } : {}), discoveryReleased: true, actualPreload: true, documentLoads: loads, pointerBack, lateReplies, keyboard: { loops: keyboardLoops, searches: keyboardSearches, reloads: keyboardReloads, back: keyboardBack }, subscriptionsReleased: true, tickTimerReleased: true }))
+  console.log(JSON.stringify({ views: 3, phases: phases.length, focusChecks, externalEntries: external ? await js('viewExternalEntries.length') : 0, ...(native ? { protocolReleased: true, revisions } : {}), discoveryReleased: true, actualPreload: true, documentLoads: loads, pointerBack, lateReplies, keyboard: { loops: keyboardLoops, searches: keyboardSearches, reloads: keyboardReloads, back: keyboardBack }, subscriptionsReleased: true, tickTimerReleased: true }))
   await finish(0)
 }).catch(error => { void finish(1, error) })

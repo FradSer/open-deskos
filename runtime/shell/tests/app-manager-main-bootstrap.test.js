@@ -169,11 +169,11 @@ test('production Main preserves signed built-in App consumers and detects invali
         delete env.ELECTRON_RUN_AS_NODE
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         if (mode !== 'default') await installBuiltinViews(directory, env, {
-          invalid: mode === 'incorrect', omitApp: mode === 'missing' ? 'clock' : undefined, signal: t.signal,
+          invalid: mode === 'incorrect', omitApp: mode === 'missing' ? 'year' : undefined, signal: t.signal,
         })
         const running = runCommand(electron, [`--user-data-dir=${env.ODK_APP_MANAGER_MAIN_PROFILE}`, path.join(__dirname, 'app-manager-main-bootstrap.cjs')],
           { env, signal: t.signal, timeout: 35000, maxBuffer: 1024 * 1024 })
-        if (mode === 'incorrect') await assert.rejects(running, /Production built-in Clock reading changed/)
+        if (mode === 'incorrect') await assert.rejects(running, /Production built-in Year reading changed/)
         else if (mode === 'missing') await assert.rejects(running, /Production built-in fallback guard triggered/)
         else {
           const report = JSON.parse((await running).stdout.trim().split('\n').pop())
@@ -184,7 +184,7 @@ test('production Main preserves signed built-in App consumers and detects invali
           assert.equal(report.protocolReleased, true)
           assert.equal(report.builtinViews.version, version)
           assert.equal(report.builtinViews.phases, mode === 'default' ? 1 : 3)
-          assert.equal(report.builtinViews.transitions, mode === 'default' ? 0 : 10)
+          assert.equal(report.builtinViews.transitions, mode === 'default' ? 0 : 6)
           if (baseline) assert.deepEqual(report.builtinViews.startup, baseline)
           else baseline = report.builtinViews.startup
         }

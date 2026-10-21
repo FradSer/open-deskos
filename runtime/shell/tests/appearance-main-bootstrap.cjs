@@ -35,7 +35,7 @@ verifierModule.createUserAppVerifier = options => {
 const layout = {}
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/config/desktop_layout.js'), 'utf8'), layout)
 process.env.ODK_DISABLED_PLUGINS += ',' + layout.DESKTOP_LAYOUT.pages.flatMap(page => page.widgets?.map(widget => widget.id) || [page.plugin])
-  .filter(id => id !== 'odk.tile.clock').join(',')
+  .filter(id => id !== 'odk.tile.year').join(',')
 
 // Capture the production Host without replacing its capabilities or handlers.
 const hostModule = require('../src/plugin-host')
@@ -68,6 +68,8 @@ async function fail(error) {
 
 app.on('browser-window-created', (_event, win) => {
   win.webContents.setBackgroundThrottling(false)
+  assert.equal(win.webContents.isOffscreen(), true)
+  assert.equal(win.webContents.isPainting(), true)
   const loadFile = win.loadFile.bind(win)
   win.loadFile = async (...args) => {
     try {
@@ -118,8 +120,17 @@ app.on('browser-window-created', (_event, win) => {
       assert.deepEqual(lastVerification, { ok: true })
       await js(`(async () => {
         const until = performance.now() + 8000;
-        while (document.querySelector('[data-user-app-id="counter"]')?.dataset.state !== 'ready') {
-          if (performance.now() > until) throw Error('Installed App did not mount');
+        let selected = false;
+        while (!selected || document.querySelector('[data-user-app-id="counter"]')?.dataset.state !== 'ready') {
+          if (performance.now() > until) throw Error('Installed App did not mount: ' + JSON.stringify({
+            selected, state: document.querySelector('[data-user-app-id="counter"]')?.dataset.state,
+            markers: [...document.querySelectorAll('#dots .dot')].map(node => node.getAttribute('aria-label')),
+            frame: Boolean(document.querySelector('[data-user-app-id="counter"] iframe')),
+          }));
+          if (!selected) {
+            const marker = document.querySelector('#dots .dot[aria-label^="Counter, page "]');
+            if (marker) { marker.click(); selected = true; }
+          }
           await new Promise(resolve => requestAnimationFrame(resolve));
         }
         window.__retainedDocument = document;
@@ -241,4 +252,18 @@ app.on('will-quit', () => {
     console.log(JSON.stringify({ ...report, released: true }))
   } catch (error) { console.error(error); app.exit(1) }
 })
-require('../src/main')
+// Preserve production Main while giving its single hidden test window an offscreen render target.
+const Module = require('node:module')
+const loadModule = Module._load
+const AcceptanceWindow = new Proxy(BrowserWindow, {
+  construct(Window, [options]) {
+    return new Window({ ...options, webPreferences: { ...options.webPreferences, offscreen: true } })
+  },
+})
+Module._load = function (request, parent, ...args) {
+  if (request === 'electron' && parent?.filename === require.resolve('../src/main')) {
+    return { ...require('electron'), BrowserWindow: AcceptanceWindow }
+  }
+  return loadModule.call(this, request, parent, ...args)
+}
+try { require('../src/main') } finally { Module._load = loadModule }

@@ -200,7 +200,7 @@ const DRIVER_SCRIPT = `
   const dotTransform = getComputedStyle(dots[0]).transform
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
-  const signalSelector = '.w-state, .al-day, .w-clock-time, .year-pct, .widget-status-value, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .preorder-count, .weather-temp, .weather-state, .futu-total, .w-settings .widget-status-value'
+  const signalSelector = '.w-state, .year-pct, .widget-status-value, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .weather-temp, .weather-state, .futu-total, .w-settings .widget-status-value'
   out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
   out.timeAndDateWidgetsRemoved = !document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')
   out.overviewDateRetained = Boolean(text('.dash-wd') && text('.dash-date'))
@@ -361,7 +361,7 @@ const DRIVER_SCRIPT = `
   await new Promise((resolve) => setTimeout(resolve, 350))
   out.transformAfterDotJump = track.style.transform
   out.thirdDotActive = document.querySelectorAll('#dots .dot')[2].classList.contains('active')
-  out.thirdPageContext = text('#page-context') === 'Pre-order · 3/4'
+  out.thirdPageContext = text('#page-context') === 'Reading · 3/3'
   const piPage = await openPiApp()
   out.piPageIsInteractiveAppSurface =
     window.odkAppPlatform.active()?.sourceWidget === 'odk.tile.pi-sessions' &&
@@ -448,22 +448,22 @@ const DRIVER_SCRIPT = `
     return opened && reopened.querySelector('#pi-overview').hidden === false && reopened.querySelector('#pi-detail').inert === true
   })()
   await window.odkAppPlatform.closeApp()
-  jumpToPage('preorder')
+  jumpToPage('reading')
   document.querySelector('#dots .dot.active').focus()
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
-  out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/4'
+  out.arrowLeftReturnsToGrid = text('#page-context') === 'Desk · 2/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-  out.endJumpsToLastPage = text('#page-context') === 'Reading · 4/4'
+  out.endJumpsToLastPage = text('#page-context') === 'Reading · 3/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-  out.homeJumpsToToday = text('#page-context') === 'Home · 1/4'
+  out.homeJumpsToToday = text('#page-context') === 'Home · 1/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.consecutiveArrowRightsReachLastPage = text('#page-context') === 'Reading · 4/4'
+  out.consecutiveArrowRightsReachLastPage = text('#page-context') === 'Reading · 3/3'
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-  out.arrowRightStaysAtLastPage = text('#page-context') === 'Reading · 4/4'
+  out.arrowRightStaysAtLastPage = text('#page-context') === 'Reading · 3/3'
   // The Home page carries Widgets only: the AI usage Widget opens the App, and
   // the App owns the quota surface instead of a desktop page.
   document.querySelectorAll('#dots .dot')[0].click()
@@ -540,7 +540,7 @@ function check(results) {
     ['renderer plugins run on the common host', results.rendererHostRunning],
     ['focused State Bar without desktop chrome clutter', results.focusedStateBar && results.noDockOrDesktopIconPile],
     ['plugin registry includes shell, state and app plugins',
-      ['odk.tile.almanac', 'odk.tile.clock', 'odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.tile.quota', 'odk.page.quota', 'odk.app.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.calendar', 'odk.app.clock', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
+      ['odk.page.dashboard', 'odk.page.pi-sessions', 'odk.tile.hydra', 'odk.tile.pomodoro', 'odk.tile.pi-sessions', 'odk.tile.quota', 'odk.page.quota', 'odk.app.quota', 'odk.status.clock', 'odk.status.connection', 'odk.status.pi-sessions', 'odk.tile.year', 'odk.app.app-manager', 'odk.app.pomodoro', 'odk.app.year', 'odk.app.pi-sessions'].every((id) => results.pluginIds.includes(id))],
     ['duplicate plugin registration rejected', results.duplicateRegistrationRejected],
     ['desktop layout validates against registry', results.layoutValidated],
     ['unknown plugin rejected by composer', results.unknownPluginRejected],
@@ -550,10 +550,10 @@ function check(results) {
     ['dots stay below the Widget viewport', results.dotsInsideStatusBar],
     ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
-    ['four display pages without a Pi App page', results.pageCount === 4],
-    ['one bottom Home handle with four page identities', results.dotCount === 4 && results.visibleHandles === 1],
+    ['three display pages without a Pi App page', results.pageCount === 3],
+    ['one bottom Home handle with three page identities', results.dotCount === 3 && results.visibleHandles === 1],
     ['no separate User Applications page', results.noUserAppsPage],
-    ['page context is tracked', results.pageContext === 'Home · 1/4'],
+    ['page context is tracked', results.pageContext === 'Home · 1/3'],
     ['bundled fonts are loaded', results.fontsLoaded],
     ['clock HH:MM', results.clockFormatted],
     ['dashboard weekday header', results.dashWeekday],
@@ -655,7 +655,7 @@ async function runGeometrySweep(win) {
     // a blind sleep races cold-start rAF throttling in hidden windows, so
     // poll until the applied metrics match the layout module (bounded).
     const viewportSize = await win.webContents.executeJavaScript('({ width: document.getElementById("pages-viewport").clientWidth, height: document.getElementById("pages-viewport").clientHeight, deskHeight: document.getElementById("desk-content").clientHeight, minCell: window.__odkGrid.minCell })', true)
-    const expectedMetrics = layout.computeDesk(width, height, viewportSize.width, viewportSize.height, layout.gridWidgetCount(desktopLayout), viewportSize.deskHeight, viewportSize.minCell)
+    const expectedMetrics = layout.computeDesk(width, height, viewportSize.width - (width < 640 ? 8 : 0), viewportSize.height, layout.gridWidgetCount(desktopLayout), viewportSize.deskHeight, viewportSize.minCell)
     const expectedCell = expectedMetrics.cellW
     const deadline = Date.now() + 5000
     let settled = false
@@ -912,10 +912,9 @@ async function main() {
   results.endpointListCalled = endpointCalls.list > 0
   results.endpointIntentCalled = endpointCalls.intent > 0
   results.remotePageStatePublishesAuthoritativeBoundaries =
-    remotePageStates.some((state) => state.page === 1 && state.pages === 4 && state.name === 'Home' && !state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 3 && state.pages === 4 && state.name === 'Pre-order' && state.canPrev && state.canNext) &&
-    remotePageStates.some((state) => state.page === 4 && state.pages === 4 && state.name === 'Reading' && state.canPrev && !state.canNext) &&
-    !remotePageStates.some((state) => state.name === 'Pi Sessions' || state.page > 4 || state.pages !== 4)
+    remotePageStates.some((state) => state.page === 1 && state.pages === 3 && state.name === 'Home' && !state.canPrev && state.canNext) &&
+    remotePageStates.some((state) => state.page === 3 && state.pages === 3 && state.name === 'Reading' && state.canPrev && !state.canNext) &&
+    !remotePageStates.some((state) => state.name === 'Pi Sessions' || state.page > 3 || state.pages !== 3)
   win.webContents.send('odk-remote-link-state', { state: 'usb', sequence: 1 })
   await new Promise((resolve) => setTimeout(resolve, 50))
   results.stateShowsUsbRemote = await win.webContents.executeJavaScript(
@@ -941,17 +940,17 @@ async function main() {
   )
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToToday = await pageContext() === 'Home · 1/4'
+  const movedToToday = await pageContext() === 'Home · 1/3'
   win.webContents.send('odk-remote-navigation', { direction: 'previous' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const heldAtFirstPage = await pageContext() === 'Home · 1/4'
+  const heldAtFirstPage = await pageContext() === 'Home · 1/3'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 1400))
-  const movedToHome = await pageContext() === 'Desk · 2/4'
+  const movedToHome = await pageContext() === 'Desk · 2/3'
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   win.webContents.send('odk-remote-navigation', { direction: 'next' })
   await new Promise((resolve) => setTimeout(resolve, 100))
-  const consecutiveRemoteMovesTwice = await pageContext() === 'Reading · 4/4'
+  const consecutiveRemoteMovesTwice = await pageContext() === 'Reading · 3/3'
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)

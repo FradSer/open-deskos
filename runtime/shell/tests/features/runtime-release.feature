@@ -73,6 +73,7 @@ Feature: Immutable runtime release deployment
     Given a staged candidate release
     When the installer seals the candidate
     Then the candidate contains the staged peripherals, integrations, experiments, and agent skills trees
+    And the candidate contains Android main sources for its boundary checks
     And device preflight resolves repository sources from inside the candidate
     And release commands use the candidate as ODK_RUNTIME_ROOT
     And preflight never reads ambient copies outside the candidate

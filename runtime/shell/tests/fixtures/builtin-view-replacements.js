@@ -1,6 +1,6 @@
 ;(function (root) {
   'use strict'
-  const titles = { calendar: 'Calendar', clock: 'Clock', pomodoro: 'Pomodoro', year: 'Year progress', 'app-manager': 'Built-in views' }
+  const titles = { pomodoro: 'Pomodoro', year: 'Year progress', 'app-manager': 'Built-in views' }
   const text = (node, value) => { if (node.textContent !== value) node.textContent = value }
   // This fixture owns a separate session. It uses only the public App context.
   const duration = 25 * 60
@@ -127,8 +127,8 @@
       ctx.trackCleanup(ctx.platform.subscribeAppState(() => { if (rows.length) render() }))
       void load(); return
     }
-    const value = make(id === 'year' ? 'p' : 'time', id === 'calendar' ? 'runtime-date app-detail' : 'runtime-value')
-    const status = make('p', 'runtime-state app-detail', id === 'calendar' ? 'Calendar events unavailable. Date uses the local clock.' : id === 'clock' ? 'Local time' : '')
+    const value = make('p', 'runtime-value')
+    const status = make('p', 'runtime-state app-detail', '')
     let meter, completed, remaining
     if (id === 'year') {
       body.dataset.view = 'year'
@@ -143,16 +143,7 @@
       body.append(reading, calendar)
     } else body.append(value, status)
     ctx.onTick(now => {
-      if (id === 'clock') {
-        const reading = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now)
-        if (value.textContent === reading) return
-        text(value, reading); value.dateTime = reading
-      } else if (id === 'calendar') {
-        const key = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-        if (value.dateTime === key) return
-        value.dateTime = key
-        text(value, new Intl.DateTimeFormat('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(now))
-      } else {
+      {
         const year = now.getFullYear(), boundaries = [new Date(year, 0, 1).getTime(), new Date(year + 1, 0, 1).getTime()]
         text(value, Math.round(100 * (now.getTime() - boundaries[0]) / (boundaries[1] - boundaries[0])) + '%')
         text(status, `of ${year} elapsed · Local time`)

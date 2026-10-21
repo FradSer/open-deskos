@@ -7,8 +7,8 @@ const path = require('node:path')
 const { installBuiltinViews, builtinViewTimeouts } = require('./helpers/builtin-view-selection')
 const { runCommand, fixtureRejection } = require('./helpers/hydra-wire-lifecycle')
 
-for (const mode of ['programmatic', 'development', 'native']) for (const fault of ['none', 'clock', 'focus']) test(`${mode} built-in view replacement ${fault === 'clock' ? 'rejects changed time behavior' : fault === 'focus' ? 'rejects missing keyboard focus' : 'preserves public App behavior'}`, { timeout: builtinViewTimeouts(mode).test }, async t => {
-  const invalid = fault === 'clock'
+for (const mode of ['programmatic', 'development', 'native']) for (const fault of ['none', 'year', 'focus']) test(`${mode} built-in view replacement ${fault === 'year' ? 'rejects changed time behavior' : fault === 'focus' ? 'rejects missing keyboard focus' : 'preserves public App behavior'}`, { timeout: builtinViewTimeouts(mode).test }, async t => {
+  const invalid = fault === 'year'
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'odk-builtin-views-'))
   const env = { ...process.env, ODK_BUILTIN_VIEWS_PROFILE: profile, ODK_BUILTIN_VIEWS_MODE: mode, ODK_BUILTIN_VIEWS_INVALID: invalid ? '1' : '', ODK_BUILTIN_VIEWS_FOCUS_INVALID: fault === 'focus' ? '1' : '',
     ODK_CONFIG_DIR: path.join(profile, 'config'), XDG_STATE_HOME: path.join(profile, 'state'), LOCALAPPDATA: path.join(profile, 'state') }
@@ -18,16 +18,16 @@ for (const mode of ['programmatic', 'development', 'native']) for (const fault o
     const renderingArgs = process.platform === 'linux' ? ['--disable-gpu'] : []
     const running = runCommand(require('electron'), [...renderingArgs, `--user-data-dir=${profile}`, path.join(__dirname, 'builtin-view-replacement.cjs')],
       { env, signal: t.signal, timeout: builtinViewTimeouts(mode).child, maxBuffer: 1024 * 1024 })
-    if (fault !== 'none') await assert.rejects(running, error => fixtureRejection(error, invalid ? /independent clock reading changed/ : /Keyboard focus marker absent/))
+    if (fault !== 'none') await assert.rejects(running, error => fixtureRejection(error, invalid ? /independent year reading changed/ : /Keyboard focus marker absent/))
     else {
       const phases = mode === 'native' ? 5 : 3
       const result = await running
       if (env.ODK_BUILTIN_VIEWS_TRACE === '1') process.stderr.write(result.stderr)
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
-        views: 5, phases, focusChecks: phases * 21, externalEntries: mode === 'native' ? 15 : mode === 'development' ? 5 : 0,
+        views: 3, phases, focusChecks: phases * 15, externalEntries: mode === 'native' ? 9 : mode === 'development' ? 3 : 0,
         ...(mode === 'native' ? { protocolReleased: true, revisions: ['2.0.0', '3.0.0', '2.0.0'] } : {}),
-        discoveryReleased: true, actualPreload: true, documentLoads: 1, pointerBack: phases * 9, lateReplies: phases * 2,
-        keyboard: { loops: phases * 5, searches: phases, reloads: phases, back: phases * 5 },
+        discoveryReleased: true, actualPreload: true, documentLoads: 1, pointerBack: phases * 7, lateReplies: phases * 2,
+        keyboard: { loops: phases * 3, searches: phases, reloads: phases, back: phases * 3 },
         subscriptionsReleased: true, tickTimerReleased: true,
       })
     }

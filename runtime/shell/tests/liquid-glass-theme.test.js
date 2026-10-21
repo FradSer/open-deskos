@@ -19,7 +19,7 @@ test('Liquid Glass is the fourth built-in appearance and preserves Shell typogra
   assert.equal(plugin.appearance.css, 'themes/liquid-glass.css')
   assert.deepEqual(plugin.appearance.faces, ['noto-sans-sc', 'montserrat-bold', 'zpix'])
   assert.equal(plugin.appearance.tokens['--odk-font'], '"Noto Sans SC", "Montserrat", "Zpix", sans-serif')
-  assert.equal(plugin.appearance.tokens['--odk-radius-card'], '24px')
+  assert.equal(plugin.appearance.tokens['--odk-radius-card'], '32px')
 })
 
 test('Liquid Glass uses the local SDK stylesheet and static accessibility fallback', () => {
@@ -33,7 +33,7 @@ test('Liquid Glass uses the local SDK stylesheet and static accessibility fallba
   assert.match(css, /html\[data-theme='liquid-glass'\]\[data-liquid-glass='sdk'\][\s\S]*?background: transparent;/)
   assert.match(css, /html\[data-theme='liquid-glass'\]\[data-liquid-glass='sdk'\][\s\S]*?backdrop-filter: none;/)
   assert.match(css, /--odk-primary:\s*#f3f7fc/)
-  assert.match(css, /--odk-radius-card:\s*24px/)
+  assert.match(css, /--odk-radius-card:\s*32px/)
   assert.match(css, /#liquid-glass-backdrop\s*\{\s*position:\s*absolute;\s*inset:\s*0;/)
   assert.doesNotMatch(css, /#status-bar::before/)
   assert.match(css, /#home-desk :is\(\.widget\[data-interaction='display-only'\], :where\(#app-view\)\)\s*\{[^}]*background:\s*var\(--odk-glass-material\)/)

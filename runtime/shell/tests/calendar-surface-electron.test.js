@@ -47,7 +47,7 @@ for (const mode of ['development', 'native']) {
         { env, signal: t.signal, timeout: 55000, maxBuffer: 1024 * 1024 })
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
         actualPreload: true, mode, identities: specs.map(spec => spec.id), documentLoads: 1,
-        themes: 3, sizes: 3, comparisons: 54, sharedTickChanges: 12,
+        themes: 3, sizes: 3, comparisons: 36, sharedTickChanges: 12,
         retainedConsumers: true, restored: true, discoveryReleased: true, assetLeaseReleased: mode === 'native',
       })
     } finally { await fs.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }

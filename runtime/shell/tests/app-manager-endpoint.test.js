@@ -5,56 +5,56 @@ const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 test('ships English names for every built-in view', () => {
   const endpoint = createAppManagerEndpoint()
   assert.deepEqual(endpoint.list().map((app) => app.name), [
-    'Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pre-order',
-    'Calendar', 'Clock', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas',
+    'Futu holdings', 'Weather', 'Hydra plants', 'WeRead',
+    'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas',
   ])
 })
 
 test('lists app metadata and enforces one foreground UI app', () => {
   const endpoint = createAppManagerEndpoint({ apps: [
-    { appId: 'clock', name: '时钟', kind: 'ui', version: '1', source: 'builtin', capabilities: [] },
+    { appId: 'year', name: '时钟', kind: 'ui', version: '1', source: 'builtin', capabilities: [] },
     { appId: 'sensor', name: '传感器', kind: 'service', version: '1', source: 'sideload', capabilities: ['network'] },
   ] })
   assert.deepEqual(endpoint.list().map(({ appId, kind, state }) => ({ appId, kind, state })), [
-    { appId: 'clock', kind: 'ui', state: 'installed' },
+    { appId: 'year', kind: 'ui', state: 'installed' },
     { appId: 'sensor', kind: 'service', state: 'installed' },
   ])
-  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'year' }).ok, true)
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'sensor' }).ok, true)
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'other' }).error, 'not-found')
 })
 
 test('rejects starting an app after removal', () => {
   const endpoint = createAppManagerEndpoint()
-  assert.equal(endpoint.remove('clock').ok, true)
-  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+  assert.equal(endpoint.remove('year').ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'year' }).error, 'not-installed')
 })
 
 test('preserves the foreground app when the target is removed', () => {
   const endpoint = createAppManagerEndpoint()
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'pomodoro' }).ok, true)
-  assert.equal(endpoint.remove('clock').ok, true)
-  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+  assert.equal(endpoint.remove('year').ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'year' }).error, 'not-installed')
   assert.equal(endpoint.foreground().appId, 'pomodoro')
   assert.equal(endpoint.get('pomodoro').state, 'running')
 })
 
 test('keeps removed apps removed when stop is requested', () => {
   const endpoint = createAppManagerEndpoint()
-  assert.equal(endpoint.remove('clock').ok, true)
-  assert.equal(endpoint.stop('clock').error, 'not-installed')
-  assert.equal(endpoint.get('clock').state, 'removed')
-  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).error, 'not-installed')
+  assert.equal(endpoint.remove('year').ok, true)
+  assert.equal(endpoint.stop('year').error, 'not-installed')
+  assert.equal(endpoint.get('year').state, 'removed')
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'year' }).error, 'not-installed')
 })
 
 test('switches foreground apps only after the target is accepted', () => {
   const endpoint = createAppManagerEndpoint()
-  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
+  assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'year' }).ok, true)
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'missing' }).error, 'not-found')
-  assert.equal(endpoint.foreground().appId, 'clock')
+  assert.equal(endpoint.foreground().appId, 'year')
   assert.equal(endpoint.dispatch({ type: 'open-app', appId: 'pomodoro' }).ok, true)
   assert.equal(endpoint.foreground().appId, 'pomodoro')
-  assert.equal(endpoint.get('clock').state, 'stopped')
+  assert.equal(endpoint.get('year').state, 'stopped')
   assert.equal(endpoint.dispatch({ type: 'action', appId: 'pomodoro', action: 'stop' }).ok, true)
 })
 

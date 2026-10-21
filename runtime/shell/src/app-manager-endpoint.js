@@ -3,10 +3,7 @@ const BUILTIN_APPS = [
   { appId: 'weather', name: 'Weather', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'hydra', name: 'Hydra plants', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'weread', name: 'WeRead', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
-  { appId: 'preorder', name: 'Pre-order', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
 
-  { appId: 'calendar', name: 'Calendar', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
-  { appId: 'clock', name: 'Clock', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'pomodoro', name: 'Pomodoro', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'year', name: 'Year progress', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },
   { appId: 'app-manager', name: 'Built-in views', kind: 'ui', version: 'builtin', source: 'builtin', capabilities: [] },

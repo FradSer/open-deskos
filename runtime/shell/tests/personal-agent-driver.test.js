@@ -7,6 +7,7 @@ const path = require('node:path')
 const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
 const fixture = require('./fixtures/personal-agent-v1.json')
+const { androidPath } = require('./helpers/repo-root')
 
 const fixtureFile = path.join(__dirname, 'fixtures', 'personal-agent-v1.json')
 
@@ -164,7 +165,7 @@ test('the Android message shim preserves reply references and declares text-only
   const native = { postMessage(raw) { sent.push(JSON.parse(raw)) } }
   const window = { ODKAndroid: native }
   const timers = new Map(); let nextTimer = 0
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../android/app/src/main/assets/host/odk-bridge.js'), 'utf8'), {
+  vm.runInNewContext(fs.readFileSync(androidPath('app/src/main/assets/host/odk-bridge.js', __dirname), 'utf8'), {
     window, setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id }, clearTimeout(id) { timers.delete(id) },
   })
   const ref = { messageId: 'a'.repeat(64), sourceKey: 'original', sourceRevision: 'b'.repeat(64) }
@@ -179,7 +180,7 @@ test('the Android message shim preserves reply references and declares text-only
 })
 
 test('the Android native boundary uses only platform main-frame facts for requests and status', () => {
-  const activity = fs.readFileSync(path.join(__dirname, '../../android/app/src/main/kotlin/com/odk/shell/ShellActivity.kt'), 'utf8')
+  const activity = fs.readFileSync(androidPath('app/src/main/kotlin/com/odk/shell/ShellActivity.kt', __dirname), 'utf8')
   assert.ok(!activity.includes('addJavascriptInterface'))
   assert.ok(activity.includes('WebViewCompat.addWebMessageListener'))
   assert.ok(activity.includes('permitsDocument(view === shell, isMainFrame, origin.toString(), shell.url)'))

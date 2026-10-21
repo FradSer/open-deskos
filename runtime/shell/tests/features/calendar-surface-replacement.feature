@@ -3,7 +3,7 @@ Feature: Independent calendar and State Bar time surfaces
 
   Scenario: Authenticated time surface activation preserves production consumers
     Given production Main runs all plugins with private state and controlled external inputs
-    When the CLI activates signed Almanac, Year, and State Bar Clock entries and restores their built-in implementations
+    When the CLI activates signed Year and State Bar Clock entries and restores their built-in implementations
     Then the same actual containers preserve readings across leap day and year boundaries
     And the selected entries execute without default mount delegation
     And shared Tick ownership, foreground navigation, and peer ports remain unchanged
@@ -52,12 +52,12 @@ Feature: Independent calendar and State Bar time surfaces
 
   Scenario: Hidden production comparison owns a render target
     Given production Main runs a hidden comparison window
-    When the fixture compares calendar, tool, and Pre-order rendering
+    When the fixture compares Year and tool rendering
     Then the window retains production preferences and an offscreen render target
     And the fixture restores the module loader after Main loads
 
   Scenario: Native combined comparison has a bounded workload budget
-    Given Linux arm64 runs Clock, calendar, tools, and Pre-order comparisons in one process
+    Given Linux arm64 runs State Bar time, Year, and tool comparisons in one process
     When the comparison observes shared Tick transitions and signed activation
     Then its fixture has a sixty-second deadline inside its parent watchdog
     And other hosts and shorter Clock modes retain their existing deadlines

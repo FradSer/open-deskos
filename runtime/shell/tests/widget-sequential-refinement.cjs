@@ -75,13 +75,11 @@ app.whenReady().then(async () => {
           search.dispatchEvent(new Event('input'))
           if (status.textContent || !appHost.querySelector('li')) failures.push('catalog recovery')
           await odkAppPlatform.closeApp()
-          for (const id of ['calendar', 'clock', 'pomodoro', 'year']) {
+          for (const id of ['pomodoro', 'year']) {
             await odkAppPlatform.openApp({ appId: id })
             const surface = document.querySelector('#app-runtime .runtime-app')
             if (surface.scrollWidth > surface.clientWidth + 1) failures.push(id + ': overflow')
             if (id === 'pomodoro' && (!surface.querySelector('.pomodoro-dial') || !surface.querySelector('button'))) failures.push('pomodoro missing timer')
-            if (id === 'calendar' && !surface.querySelector('time').dateTime) failures.push('calendar missing date')
-            if (id === 'clock' && !/^\\d{2}:\\d{2}$/.test(surface.querySelector('time').dateTime)) failures.push('clock missing time')
             if (id === 'year' && !surface.querySelector('.runtime-value').textContent.includes('%')) failures.push('year missing progress')
             for (const node of surface.querySelectorAll('p,time,h2')) {
               if (node.scrollWidth > node.clientWidth + 1) failures.push(id + ': text overflow')
@@ -89,7 +87,7 @@ app.whenReady().then(async () => {
             }
             await odkAppPlatform.closeApp()
           }
-          if (document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')) failures.push('retired time or date Widget')
+          if (document.querySelector('[data-widget="odk.tile.year"], [data-widget="odk.tile.pomodoro"]')) failures.push('retired time or date Widget')
           return failures
         })()`)
         assert.deepEqual(failures, [], `${theme} ${width}x${height}`)
@@ -99,7 +97,7 @@ app.whenReady().then(async () => {
         await new Promise(resolve => setTimeout(resolve, 50))
         assert.equal(await win.webContents.executeJavaScript(`(() => {
           const search = document.querySelector('#app-runtime input')
-          search.value = 'clock'; search.dispatchEvent(new Event('input'))
+          search.value = 'year'; search.dispatchEvent(new Event('input'))
           return document.querySelector('#app-runtime [role="status"]').textContent
         })()`), 'Loading built-in views.')
         pendingCatalog(endpoint.list())
@@ -110,7 +108,7 @@ app.whenReady().then(async () => {
         await new Promise(resolve => setTimeout(resolve, 50))
         assert.equal(await win.webContents.executeJavaScript(`(() => {
           const search = document.querySelector('#app-runtime input')
-          search.value = 'clock'; search.dispatchEvent(new Event('input'))
+          search.value = 'year'; search.dispatchEvent(new Event('input'))
           return document.querySelector('#app-runtime [role="status"]').textContent.includes('endpoint-unavailable') && !document.querySelector('.app-manager-retry').hidden
         })()`), true)
         catalogMode = 'success'
@@ -134,7 +132,7 @@ app.whenReady().then(async () => {
         for (const close of ['back', 'escape']) {
           await win.webContents.executeJavaScript(`(async () => {
             document.querySelectorAll('#dots .dot')[1].focus()
-            await odkAppPlatform.openApp({ appId: 'clock' })
+            await odkAppPlatform.openApp({ appId: 'year' })
           })()`)
           assert.equal(await win.webContents.executeJavaScript(`document.activeElement.id`), 'app-back')
           await win.webContents.executeJavaScript(close === 'back'

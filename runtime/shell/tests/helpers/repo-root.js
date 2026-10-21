@@ -29,4 +29,16 @@ function integrationURL(relative, start = __dirname) {
   return pathToFileURL(integrationPath(relative, start)).href
 }
 
-module.exports = { findRepositoryRoot, integrationPath, integrationURL }
+function androidPath(relative, start = __dirname) {
+  const root = fs.realpathSync(findRepositoryRoot(start))
+  const checkout = fs.existsSync(path.join(root, 'runtime', 'shell', 'package.json'))
+  const source = path.join(root, ...(checkout ? ['runtime', 'android'] : ['android']))
+  const boundary = fs.realpathSync(source)
+  const target = fs.realpathSync(path.resolve(source, relative))
+  if (boundary !== source || !target.startsWith(boundary + path.sep)) {
+    throw new Error('Android source escapes its selected source boundary')
+  }
+  return target
+}
+
+module.exports = { findRepositoryRoot, integrationPath, integrationURL, androidPath }

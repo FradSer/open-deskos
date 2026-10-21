@@ -67,33 +67,6 @@
   font-synthesis: none;
 }
 
-/* Zpix has narrower Latin advances than the Instrument theme's display face. */
-[data-theme='pixel'] .w-clock-time {
-  font-size: clamp(42px, 40cqi, 136px);
-  letter-spacing: 0;
-  transform: translateX(2.5cqi);
-}
-
-
-
-[data-theme='pixel'] .al-month {
-  font-size: clamp(20px, 12cqi, 40px);
-}
-
-[data-theme='pixel'] .al-day {
-  font-size: clamp(72px, 68cqi, 240px);
-  letter-spacing: normal;
-}
-
-[data-theme='pixel'] .al-day-wide {
-  font-size: clamp(64px, 50cqi, 160px);
-  letter-spacing: normal;
-}
-
-[data-theme='pixel'] .al-day-narrow + .al-month {
-  font-size: clamp(64px, 22cqi, 160px);
-}
-
 [data-theme='pixel'] .year-pct {
   font-size: clamp(56px, 46cqi, 120px);
 }
@@ -113,12 +86,6 @@
 [data-theme='pixel'] .pi-widget-count { font-size: clamp(40px, min(56cqi, 45cqb), 160px); line-height: 1; }
 [data-theme='pixel'] .pi-widget-wide-count .pi-widget-count { font-size: clamp(32px, min(42cqi, 45cqb), 120px); }
 
-/* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
-   the countdown caption scales with the tile like every other supporting line
-   and keeps 12px only as its floor. */
-[data-theme='pixel'] .w-preorder .preorder-label {
-  font-size: max(12px, 5.2cqi);
-}
 
 [data-theme='pixel'] .pi-skill-bracket {
   color: var(--odk-accent-green) !important;

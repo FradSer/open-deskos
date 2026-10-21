@@ -7,7 +7,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
 const { resolvePages } = require('./helpers/pages')
-const { installTimeWidgetLayout, installWidgetGridLayout } = require('./helpers/time-widget-layout')
+const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
 const widgetGrid = process.argv.includes('--widget-grid')
 const allPages = process.argv.includes('--all-pages') || widgetGrid
 const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length) || (widgetGrid ? fs.mkdtempSync(path.join(os.tmpdir(), 'odk-widget-grid-')) : os.tmpdir())
@@ -52,6 +52,7 @@ function capturePaintedFrame() {
 async function verifyWidgetGrid(win, pageId, theme, width, report) {
   const result = await win.webContents.executeJavaScript(`(() => {
     const pageId = ${JSON.stringify(pageId)};
+    const theme = ${JSON.stringify(theme)};
     const page = document.querySelector('[data-page-id="' + pageId + '"]'), grid = page.querySelector('.widget-grid');
     const definition = DESKTOP_LAYOUT.pages.find(page => page.id === pageId);
     const style = getComputedStyle(grid), frame = grid.getBoundingClientRect();
@@ -98,16 +99,31 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
       }
       if (!card.querySelector('.widget-launch') || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
       const heading = card.querySelector('.widget-heading,.weread-title');
-      const titleGroup = heading?.closest('.widget-title') || heading?.parentElement;
-      const icons = titleGroup ? [...titleGroup.querySelectorAll(':scope > svg.widget-heading-icon')] : [];
-      if (icons.length !== 1) findings.push({ kind: 'missing-heading-icon', id: card.dataset.widget, count: icons.length });
-      else {
-        const icon = icons[0], glyph = icon.getBoundingClientRect(), title = heading.getBoundingClientRect();
-        if (icon.getAttribute('aria-hidden') !== 'true' || icon.getAttribute('focusable') !== 'false'
-          || glyph.width < 18 || glyph.width > 24 || Math.abs(glyph.width - glyph.height) > 1
-          || glyph.right + 4 > title.left || glyph.left < box.left || title.right > box.right + 1
-          || (document.documentElement.dataset.theme === 'pixel' ? icon.getAttribute('fill') !== 'currentColor' || icon.hasAttribute('stroke') : icon.getAttribute('stroke') !== 'currentColor'))
-          findings.push({ kind: 'heading-icon-layout', id: card.dataset.widget });
+      const glyphs = card.querySelectorAll('.widget-title > svg,.widget-heading-icon');
+      if (glyphs.length) findings.push({ kind: 'automatic-heading-icon', id: card.dataset.widget });
+      if (card.dataset.widget === 'odk.tile.hydra' && !card.querySelector('.hydra-head svg[data-tabler="leaf"]')) findings.push({ kind: 'missing-hydra-leaf' });
+      if (card.dataset.widget === 'odk.tile.year' && heading) findings.push({ kind: 'redundant-heading', id: card.dataset.widget });
+      if (card.dataset.widget === 'odk.tile.quota' && heading?.textContent !== 'ChatGPT') findings.push({ kind: 'missing-service-heading', id: card.dataset.widget });
+      if (theme === 'liquid-glass') {
+        if (card.dataset.widget === 'odk.tile.pi-sessions') {
+          const capsule = card.querySelector('.pi-widget-live-tag').getBoundingClientRect();
+          const idle = card.querySelector('.pi-widget-summary').getBoundingClientRect();
+          if (idle.top - capsule.bottom > 12) findings.push({ kind: 'detached-idle-count' });
+        }
+        if (heading && Number(getComputedStyle(heading).fontWeight) < 500) findings.push({ kind: 'weak-reference-heading', id: card.dataset.widget });
+        if (card.dataset.widget === 'odk.tile.weather') {
+          const city = card.querySelector('.w-weather-head').getBoundingClientRect();
+          const temperature = card.querySelector('.w-weather-reading').getBoundingClientRect();
+          if (temperature.top - city.bottom > 12 || temperature.top < city.bottom) findings.push({ kind: 'detached-city-temperature' });
+          const glyph = card.querySelector('.w-weather-glyph').getBoundingClientRect();
+          const condition = card.querySelector('.w-weather-body').getBoundingClientRect();
+          if (glyph.bottom > condition.top || Math.abs(glyph.left - condition.left) > 1) findings.push({ kind: 'ungrouped-weather-support' });
+        }
+        if (card.dataset.widget === 'odk.tile.year' && parseFloat(getComputedStyle(card.querySelector('.year-pct')).fontSize) > box.width * .5) findings.push({ kind: 'oversized-reference-percentage' });
+        if (card.dataset.widget === 'odk.tile.weread') {
+          const cover = card.querySelector('.weread-cover-wrap');
+          if (!cover.hidden && cover.getBoundingClientRect().width < Math.min(100, box.width * .16)) findings.push({ kind: 'undersized-reading-cover' });
+        }
       }
 
       return { id: card.dataset.widget, col, row, columns, rows, width: box.width, height: box.height, app: card.dataset.openApp };
@@ -167,7 +183,6 @@ app.whenReady().then(async () => {
     assert.equal(win.webContents.isPainting(), true)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     if (widgetGrid) await installWidgetGridLayout(win)
-    else if (allPages) await installTimeWidgetLayout(win, { pageId: 'time-preview', separatePage: true })
     await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
     await js('window.odkShellReady')
     await js(`(async () => {
@@ -309,7 +324,7 @@ app.whenReady().then(async () => {
     if (allPages) {
       const pages = await resolvePages(win)
       if (widgetGrid) assert.equal(pages.dot('home'), 0, 'Overview belongs to the first desktop page')
-      const previewPages = widgetGrid ? await js('window.__odkWidgetGridPages') : ['desk', 'preorder', 'reading', 'time-preview']
+      const previewPages = widgetGrid ? await js('window.__odkWidgetGridPages') : ['desk', 'reading']
       for (const page of previewPages) {
         await js(`document.querySelectorAll('.dot')[${pages.dot(page)}].click()`)
         await js(`(async () => {

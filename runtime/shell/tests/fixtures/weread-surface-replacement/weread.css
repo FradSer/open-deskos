@@ -98,11 +98,6 @@ html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
   text-overflow: ellipsis;
 }
 
-.w-weread .weread-meta > .widget-title {
-  display: flex;
-  align-items: center;
-}
-
 .w-weread .weread-meta .weread-title {
   min-width: 0;
 }

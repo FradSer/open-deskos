@@ -167,7 +167,7 @@ async function widgets(win, label) {
 }
 
 async function widgetDesignRoles(win) {
-  const names = { 'pi-sessions': 'Pi Sessions', pomodoro: 'Pomodoro', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', preorder: 'Pre-order', weread: 'Reading' }
+  const names = { 'pi-sessions': 'Pi Sessions', pomodoro: 'Pomodoro', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', weread: 'Reading' }
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await win.webContents.executeJavaScript(`odkTheme.set('${theme}').then(() => document.fonts.ready)`)
     for (const [width, height] of [[1920, 1280], [1280, 800]]) {
@@ -331,7 +331,7 @@ async function surfaceAffordances(win) {
       await closeQuota(win)
     }
     const foreground = await win.webContents.executeJavaScript(`(async () => {
-      await odkAppPlatform.openApp({ appId: 'clock' })
+      await odkAppPlatform.openApp({ appId: 'year' })
       const css = getComputedStyle(document.querySelector('#app-view'))
       return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
     })()`)
@@ -863,7 +863,7 @@ async function scannerRecovery(win) {
 }
 
 async function builtinApps(win) {
-  for (const id of ['calendar', 'clock', 'pomodoro', 'year', 'app-manager', 'pi-sessions', 'quota']) {
+  for (const id of ['pomodoro', 'year', 'app-manager', 'pi-sessions', 'quota']) {
     const result = await win.webContents.executeJavaScript(`(async () => {
       await window.odkAppPlatform.openApp({ appId: '${id}' })
       const surface = document.querySelector('#app-runtime .runtime-app')

@@ -209,7 +209,6 @@ app
       if(app==='weather')result.hero=!!root.querySelector('.weather-reading');
       if(app==='hydra')result.plants=!!root.querySelector('.plant-readings');
       if(app==='weread'){const q=root.querySelector('blockquote');result.reading=${JSON.stringify(sourceState)}==='live'?q&&parseFloat(getComputedStyle(q).lineHeight)/parseFloat(getComputedStyle(q).fontSize)>=1.5:root.querySelector('.reading-status').textContent.length>0;}
-      if(app==='preorder')result.art=document.querySelector('.reading-preorder').getBoundingClientRect().height>=frame.height*.65;
       if(app==='futu')result.returnLabel=root.querySelector('.reading-head h2')?.textContent==='Daily return';
       if(app==='quota')result.hasQuota=!!root.querySelector('.quota-card');
       return result;

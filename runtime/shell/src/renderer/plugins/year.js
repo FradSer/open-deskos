@@ -18,7 +18,6 @@
     opensApp: 'year',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="widget-heading">Year progress</span>
         <div class="widget-signal year-row">
           <div class="year-signal-line">
             <span class="year-pct">--%</span>

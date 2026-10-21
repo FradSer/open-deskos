@@ -100,6 +100,13 @@ test('CM5 staging command delegates release construction and verification to the
   assert.match(stageRelease, /ssh "\$\{TARGET\}" "cd '\$\{STAGING_ROOT\}\/runtime\/shell' && bash scripts\/cm5-install\.sh"/)
 })
 
+test('CM5 staging seals Android boundary inputs without build outputs', () => {
+  assert.ok(stageRelease.includes('"${ROOT}/runtime/android/app/src/main/"'))
+  assert.ok(stageRelease.includes('"${TARGET}:${STAGING_ROOT}/runtime/android/app/src/main/"'))
+  assert.ok(installer.includes('"${REPOSITORY_ROOT}/runtime/android/app/src/main"'))
+  assert.ok(installer.includes('"${RELEASE_DIR}/android/app/src/main"'))
+})
+
 test('release validator fails closed when packaged composition is invalid', () => {
   assert.match(validator, /validateRuntimeComposition/)
   assert.match(validator, /release path is required/)

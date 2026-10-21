@@ -6,13 +6,9 @@ const path = require('node:path')
 const renderer = path.join(__dirname, '../src/renderer')
 const css = fs.readFileSync(path.join(renderer, 'shell.css'), 'utf8')
 
-test('preorder countdown scales below the former compact 60px floor', () => {
-  assert.match(css, /\.w-preorder \.preorder-count \{[^}]*font-size: clamp\(24px, 17cqi, 136px\)/)
-  assert.match(css, /\.w-preorder \.preorder-count\.is-open \{[^}]*font-size: clamp\(24px, 17\.5cqi, 140px\)/)
-})
 
 test('Pi summary scales with the tile and compact numerals have no competing shrink override', () => {
-  assert.match(css, /\.pi-widget-summary \{[^}]*font-size: clamp\(14px, 5cqi, 22px\)/)
+  assert.match(css, /\.pi-widget-summary \{[^}]*font-size: clamp\(14px, 5cqi, 20px\)/)
   assert.doesNotMatch(css, /font-size: clamp\(48px, 24cqi, 96px\)/)
 })
 

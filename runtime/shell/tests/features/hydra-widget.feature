@@ -266,3 +266,27 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the Pixel theme renders its environment readings
     Then the readings use the larger 40-pixel size
     And a narrower panel retains its 32-pixel limit without clipping
+
+  Scenario: Runtime replacement budgets cover the restored rendering phase
+    Given CM5 compares default, independent, and restored Hydra rendering
+    When it runs the full comparison matrix
+    Then the fixture allows 225 seconds for its three phases
+    And child and parent watchdogs leave bounded cleanup time
+    And ordinary two-phase comparisons retain their 150-second fixture budget
+    And other hosts retain their existing budgets
+
+  Scenario: Complete style comparisons avoid nested cross-process objects
+    Given Hydra captures every computed style property and its exact value
+    When the renderer sends a comparison snapshot
+    Then it sends a canonical lossless string for each computed style
+    And property order does not change equality
+    And changed, added, or removed properties still fail equality
+    And the full cell, theme, state, and lifecycle matrix remains unchanged
+
+  Scenario: Independent CM5 surface modes use bounded parallel workers
+    Given each Hydra surface mode owns its configuration and Electron process
+    When CM5 runs the independent surface comparison modes
+    Then at most two modes run at the same time
+    And each mode keeps its watchdog, cancellation, matrix, and cleanup
+    And revision updates and rollback remain serial
+    And other hosts retain one worker

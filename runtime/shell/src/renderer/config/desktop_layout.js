@@ -29,12 +29,8 @@
       { id: 'desk', name: 'Desk', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
         { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1 / 4', row: '1' },
       ] },
-      // The countdown keeps its full three-by-three product canvas.
-      { id: 'preorder', name: 'Pre-order', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
-        { id: 'odk.tile.preorder', opensApp: 'preorder', col: '1 / 4', row: '1 / 4' },
-      ] },
       { id: 'reading', name: 'Reading', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
-        { id: 'odk.tile.weread', opensApp: 'weread', col: '1', row: '1' },
+        { id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 4' },
       ] },
     ],
   }

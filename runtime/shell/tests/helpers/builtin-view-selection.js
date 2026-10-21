@@ -13,14 +13,14 @@ async function installBuiltinViews(profile, env, { mode = 'native', invalid = fa
     env.ODK_NATIVE_KEYRING = keyring
     await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { views: {
       publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }),
-      identities: ['calendar', 'clock', 'pomodoro', 'year', 'app-manager'].map(id => `odk.app.${id}`),
+      identities: ['pomodoro', 'year', 'app-manager'].map(id => `odk.app.${id}`),
       hosts: ['electron-renderer'],
     } } }))
   }
   let source = await fs.readFile(path.join(__dirname, '../fixtures/builtin-view-replacements.js'), 'utf8')
-  if (invalid) source = source.replace("text(value, reading); value.dateTime = reading", "text(value, 'wrong'); value.dateTime = reading")
+  if (invalid) source = source.replace("text(value, Math.round(100 * (now.getTime() - boundaries[0]) / (boundaries[1] - boundaries[0])) + '%')", "text(value, 'wrong')")
   for (const version of mode === 'native' ? ['2.0.0', '3.0.0'] : ['2.0.0']) {
-    for (const appId of ['calendar', 'clock', 'pomodoro', 'year', 'app-manager']) {
+    for (const appId of ['pomodoro', 'year', 'app-manager']) {
       const id = `odk.app.${appId}`
       const directory = path.join(profile, `${appId}-${version}`)
       await fs.mkdir(directory)

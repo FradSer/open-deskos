@@ -15,10 +15,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/shell' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${STAGING_ROOT}/.agents' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
+ssh "${TARGET}" "mkdir -p '${STAGING_ROOT}/runtime/shell' '${STAGING_ROOT}/runtime/android/app/src/main' '${STAGING_ROOT}/integrations' '${STAGING_ROOT}/experiments' '${STAGING_ROOT}/peripherals' '${STAGING_ROOT}/.agents' '${REMOTE_ROOT}/releases' '${REMOTE_ROOT}/state'"
 
 rsync -a --delete --exclude node_modules --exclude .DS_Store --exclude 'native/odk-process/build' \
   "${ROOT}/runtime/shell/" "${TARGET}:${STAGING_ROOT}/runtime/shell/"
+rsync -a --delete --exclude .DS_Store \
+  "${ROOT}/runtime/android/app/src/main/" "${TARGET}:${STAGING_ROOT}/runtime/android/app/src/main/"
 rsync -a --delete --exclude .DS_Store --exclude 'node_modules' --exclude '.env*' --exclude 'auth.json' --exclude '.pi' --exclude '*.env' \
   "${ROOT}/integrations/" "${TARGET}:${STAGING_ROOT}/integrations/"
 rsync -a --delete --exclude .DS_Store \

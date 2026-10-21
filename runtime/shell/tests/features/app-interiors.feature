@@ -1,7 +1,7 @@
 Feature: Built-in App interiors
 
   Scenario: Existing Renderer replacement preserves built-in views
-    Given Calendar, Clock, Pomodoro, Year progress, and Built-in views use registered App surfaces
+    Given Pomodoro, Year progress, and Built-in views use registered App surfaces
     When independent definitions replace them through the existing Renderer controller
     Then opening each App retains its title, semantic interior, and behavior
     And local date, minute, and year changes retain their existing readings
@@ -10,7 +10,7 @@ Feature: Built-in App interiors
     And restoring defaults retains the same behavior
 
   Scenario: Built-in views expose a coherent semantic interior
-    Given a user opens a built-in Calendar, Clock, Pomodoro, Year progress, or AI usage view
+    Given a user opens a built-in Pomodoro, Year progress, or AI usage view
     Then the App retains its runtime surface
     And its title is inside an App surface header with an App surface heading
     And explanatory copy uses the App detail anatomy
@@ -58,17 +58,17 @@ Feature: Built-in App interiors
 
   Scenario: Trusted external entries preserve built-in App views
     Given independent App entries are linked through the development CLI
-    When the existing Renderer loader selects Calendar, Clock, Pomodoro, Year progress, and Built-in views
+    When the existing Renderer loader selects Pomodoro, Year progress, and Built-in views
     Then each selected entry executes through the public App platform
     And the same behavior scenarios pass for default, external, and restored views
-    And an entry with changed Clock behavior fails the shared comparison
+    And an entry with changed Year behavior fails the shared comparison
     And shutdown removes the development discovery handler
 
   Scenario: Signed external entries preserve built-in App views
     Given signed independent App entries are installed through the native CLI with explicit publisher trust
-    When the existing verified asset loader selects Calendar, Clock, Pomodoro, Year progress, and Built-in views
+    When the existing verified asset loader selects Pomodoro, Year progress, and Built-in views
     Then the shared behavior and keyboard scenarios pass for default, signed, and restored views
-    And a signed entry with changed Clock behavior fails the shared comparison
+    And a signed entry with changed Year behavior fails the shared comparison
     And shutdown removes discovery and the signed asset protocol
 
   Scenario: Built-in replacements preserve pane keyboard behavior
@@ -81,7 +81,7 @@ Feature: Built-in App interiors
     And Escape closes the App and restores the original control focus
 
   Scenario: Signed built-in App revisions preserve behavior
-    Given signed Calendar, Clock, Pomodoro, Year progress, and Built-in views entries are selected at version two
+    Given signed Pomodoro, Year progress, and Built-in views entries are selected at version two
     And all App sessions are closed between replacement phases
     When the native CLI updates their selection to version three
     And the existing loader replaces their closed views in the same document
@@ -94,12 +94,12 @@ Feature: Built-in App interiors
 
   Scenario: Production Main preserves selected built-in App consumers
     Given all Main plugins run with controlled external inputs
-    When production startup selects signed Calendar, Clock, Pomodoro, Year progress, and Built-in views entries
+    When production startup selects signed Pomodoro, Year progress, and Built-in views entries
     Then their public App readings match the default implementation
     And authenticated restoration and activation preserve those readings in the same document
     And Main ports, desktop nodes, and saved selections remain unchanged
-    And an incorrect signed Clock reading fails the same consumer check
-    And a missing Clock definition fails the default fallback guard
+    And an incorrect signed Year reading fails the same consumer check
+    And a missing Year definition fails the default fallback guard
     And shutdown removes Main handlers and the native asset protocol
 
   Scenario: Selected built-in App controls retain keyboard focus presentation

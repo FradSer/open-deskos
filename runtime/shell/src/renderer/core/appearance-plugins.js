@@ -81,7 +81,7 @@
         '--odk-primary': '#f3f7fc',
         '--odk-secondary': '#a6b3c3',
         '--odk-secondary-strong': '#d4deea',
-        '--odk-radius-card': '24px',
+        '--odk-radius-card': '32px',
         '--odk-font': '"Noto Sans SC", "Montserrat", "Zpix", sans-serif',
       },
       faces: ['noto-sans-sc', 'montserrat-bold', 'zpix'],

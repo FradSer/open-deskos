@@ -34,8 +34,8 @@ const configPath = resolveConfigPath(process.env)
 const selectedConfiguration = fs.readFileSync(configPath)
 if (mode !== 'signed') {
   const config = JSON.parse(selectedConfiguration)
-  delete config.plugins['odk.tile.clock'].native
-  if (mode === 'calendar') for (const spec of [...require('./helpers/calendar-surfaces'), ...require('./helpers/desk-tool-surfaces'), { id: 'odk.tile.preorder' }]) delete config.plugins[spec.id].native
+  delete config.plugins['odk.status.clock'].native
+  if (mode === 'calendar') for (const spec of [...require('./helpers/calendar-surfaces').filter(spec => spec.id !== 'odk.status.clock'), ...require('./helpers/desk-tool-surfaces')]) delete config.plugins[spec.id].native
   fs.writeFileSync(configPath, JSON.stringify(config))
 }
 
@@ -74,7 +74,6 @@ BrowserWindow.prototype.loadFile = async function (...args) {
     stage = 'install-time-observation'
     this.webContents.debugger.attach('1.3')
     await this.webContents.debugger.sendCommand('Page.enable')
-    await require('./helpers/time-widget-layout').installTimeWidgetLayout(this)
     await this.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
       const ActualDate=Date;
       window.clockFixedTime=new ActualDate(2026,0,1,12,34).getTime();
@@ -154,10 +153,10 @@ async function exercise() {
   assert.equal(controlVersion, selectedControl ? '2.0.0' : '1.0.0')
   if (selectedControl) assert.equal(globalThis.clockSelectedControlEntry, true)
   assert.ok(host.list().every(plugin => plugin.enabled && plugin.state === 'running'))
-  assert.equal(await js("odkPlugins.get('odk.tile.clock').manifest.version || '1.0.0'"), mode === 'signed' ? '2.0.0' : '1.0.0')
-  assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"), true)
+  assert.equal(await js("odkPlugins.get('odk.status.clock').manifest.version || '1.0.0'"), mode === 'signed' ? '2.0.0' : '1.0.0')
+  assert.equal(await js("odkAppPlatform.openApp({appId:'year'})"), true)
   await js(`window.clockDocument=document;
-    window.clockPlacement=document.querySelector('[data-widget="odk.tile.clock"]');
+    window.clockPlacement=document.querySelector('[data-status-plugin="odk.status.clock"]');
     window.clockForeground=document.querySelector('#app-runtime').firstElementChild;
     window.clockPeerNodes=[...document.querySelectorAll('[data-widget], [data-status-plugin]')].filter(node=>node!==clockPlacement);
     if(!clockPlacement||clockTickOwners<=0||clockTickAcquisitions<=0)throw Error('Clock acquisition observation missing');`)
@@ -170,16 +169,16 @@ async function exercise() {
     await js(`odkTheme.set(${JSON.stringify(theme)})`)
     return js(`(async()=>{
       const sheet=new CSSStyleSheet();
-      sheet.replaceSync('[data-widget="odk.tile.clock"], [data-widget="odk.tile.clock"] * {transition:none!important;animation:none!important}');
+      sheet.replaceSync('[data-status-plugin="odk.status.clock"], [data-status-plugin="odk.status.clock"] * {transition:none!important;animation:none!important}');
       document.adoptedStyleSheets=[...document.adoptedStyleSheets,sheet];
       try {
       await Promise.all([document.fonts.load('700 32px "Montserrat"'),document.fonts.load('400 16px "Noto Sans SC"'),document.fonts.load('400 16px "Zpix"')]);
       await document.fonts.ready;
       if(devicePixelRatio!==1||visualViewport.scale!==1||innerWidth!==1920||innerHeight!==1280)throw Error('Clock measurement inputs changed');
-      const time=clockPlacement.querySelector('time'),bounds=time.getBoundingClientRect(),frame=clockPlacement.getBoundingClientRect(),style=getComputedStyle(time);
+      const time=clockPlacement.querySelector('.sb-time'),bounds=time.getBoundingClientRect(),frame=document.getElementById('status-bar').getBoundingClientRect(),style=getComputedStyle(time);
       if(style.transitionDuration!=='0s'||style.animationName!=='none')throw Error('Clock comparison motion control failed');
       if(bounds.width<=0||bounds.height<=0||bounds.left<frame.left||bounds.right>frame.right||bounds.top<frame.top||bounds.bottom>frame.bottom)throw Error('Clock time clipped');
-      if(time.textContent!=='12:34'||time.dateTime!=='12:34')throw Error('Clock time differs');
+      if(time.textContent!=='12:34')throw Error('Clock time differs');
       return {markup:clockPlacement.innerHTML,text:time.textContent,dateTime:time.dateTime,width:bounds.width,height:bounds.height,
         left:bounds.left-frame.left,top:bounds.top-frame.top,font:style.fontFamily,size:style.fontSize,weight:style.fontWeight,color:style.color};
       } finally {
@@ -207,12 +206,12 @@ async function exercise() {
   let themeComparisons = 0, tickTransitions = 0
   async function probe(version) {
     versions.push(version)
-    assert.equal(await js("odkPlugins.get('odk.tile.clock').manifest.version || '1.0.0'"), version)
+    assert.equal(await js("odkPlugins.get('odk.status.clock').manifest.version || '1.0.0'"), version)
     if (version !== '1.0.0') assert.equal(await js('clockExecutedRevision'), version)
     assert.equal(await js('clockTickOwners'), subscriptions, 'Clock Tick subscription changed')
-    assert.equal(await js(`document===clockDocument&&document.querySelector('[data-widget="odk.tile.clock"]')===clockPlacement
-      &&odkPlugins.isActive(odkPlugins.get('odk.tile.clock'),clockPlacement)&&clockPeerNodes.every(node=>node.isConnected)
-      &&document.querySelector('#app-runtime').firstElementChild===clockForeground&&odkAppPlatform.active()?.appId==='clock'`), true)
+    assert.equal(await js(`document===clockDocument&&document.querySelector('[data-status-plugin="odk.status.clock"]')===clockPlacement
+      &&odkPlugins.isActive(odkPlugins.get('odk.status.clock'),clockPlacement)&&clockPeerNodes.every(node=>node.isConnected)
+      &&document.querySelector('#app-runtime').firstElementChild===clockForeground&&odkAppPlatform.active()?.appId==='year'`), true)
     assert.deepEqual(host.get('odk:system/app-manager/v1').captureState(), managerState)
     for (const [name, value] of peerPorts) assert.equal(host.get(name), value)
     let index = 0
@@ -223,7 +222,7 @@ async function exercise() {
       await js(`(async()=>{
         clockFixedTime=new Date(2026,0,1,12,${minute}).getTime();
         const until=performance.now()+3000;
-        while(clockPlacement.querySelector('time').textContent!=='12:${minute}'||clockPlacement.querySelector('time').dateTime!=='12:${minute}'){
+        while(clockPlacement.querySelector('.sb-time').textContent!=='12:${minute}'){
           if(performance.now()>until)throw Error('Clock shared Tick did not update');
           await new Promise(resolve=>setTimeout(resolve,10));
         }
@@ -234,10 +233,10 @@ async function exercise() {
   const activate = async version => {
     stage = `activate-${version}`
     const saved = fs.readFileSync(configPath)
-    const receipt = JSON.parse((await command(['activate', 'odk.tile.clock', '--runtime'])).stdout)
+    const receipt = JSON.parse((await command(['activate', 'odk.status.clock', '--runtime'])).stdout)
     assert.equal(receipt.scope, 'electron-renderer')
     assert.equal(receipt.version, version)
-    assert.equal(receipt.revision, JSON.parse(saved).plugins['odk.tile.clock'].native.revision)
+    assert.equal(receipt.revision, JSON.parse(saved).plugins['odk.status.clock'].native.revision)
     assert.deepEqual(fs.readFileSync(configPath), saved)
     await probe(version)
   }
@@ -249,7 +248,7 @@ async function exercise() {
   const revoked = Buffer.from(JSON.stringify({ schemaVersion: 1, publishers: {} }))
   fs.writeFileSync(configPath, broken); fs.writeFileSync(policyPath, revoked)
   try {
-    const restored = JSON.parse((await command(['restore-default', 'odk.tile.clock', '--runtime'])).stdout)
+    const restored = JSON.parse((await command(['restore-default', 'odk.status.clock', '--runtime'])).stdout)
     assert.equal(restored.implementation, 'built-in')
     assert.equal(restored.version, '1.0.0')
     assert.deepEqual(fs.readFileSync(configPath), broken)
@@ -257,10 +256,10 @@ async function exercise() {
     await probe('1.0.0')
   } finally { fs.writeFileSync(configPath, saved); fs.writeFileSync(policyPath, policy) }
   await activate('2.0.0')
-  const updated = JSON.parse((await command(['native', 'update', 'odk.tile.clock', path.join(root, 'bundle-3.0.0'), '--keyring', policyPath, '--trust'])).stdout)
+  const updated = JSON.parse((await command(['native', 'update', 'odk.status.clock', path.join(root, 'bundle-3.0.0'), '--keyring', policyPath, '--trust'])).stdout)
   assert.equal(updated.effect, 'selection-only')
   await activate('3.0.0')
-  let calendar, deskTools, preorder
+  let calendar, deskTools
   if (mode === 'calendar') {
     async function selectLocalSurface(spec, phase) {
       stage = `local-${phase}-${spec.id}`
@@ -284,10 +283,10 @@ async function exercise() {
       assert.deepEqual(host.get('odk:system/app-manager/v1').captureState(), managerState)
       for (const [name, value] of peerPorts) assert.equal(host.get(name), value)
       assert.equal(await js(`document===clockDocument&&clockPeerNodes.every(node=>node.isConnected)
-        &&document.querySelector('[data-widget="odk.tile.clock"]')===clockPlacement
-        &&document.querySelector('#app-runtime').firstElementChild===clockForeground&&odkAppPlatform.active()?.appId==='clock'`), true)
+        &&document.querySelector('[data-status-plugin="odk.status.clock"]')===clockPlacement
+        &&document.querySelector('#app-runtime').firstElementChild===clockForeground&&odkAppPlatform.active()?.appId==='year'`), true)
     }
-    const specs = require('./helpers/calendar-surfaces')
+    const specs = require('./helpers/calendar-surfaces').filter(spec => spec.id !== 'odk.status.clock')
     const calendarBaseline = []
     await js(`window.calendarProductionConsumers=${JSON.stringify(specs)}.map(spec=>({spec,node:document.querySelector(spec.selector)}));
       if(calendarProductionConsumers.some(({node})=>!node))throw Error('Production calendar placement missing'); void 0;`)
@@ -297,8 +296,7 @@ async function exercise() {
       for (const parts of [[2024, 1, 29, 12, 35], [2026, 11, 31, 23, 59], [2027, 0, 1, 0, 0], [2026, 0, 1, 12, 34]]) {
         const date = new Date(...parts)
         const ratio = (date - new Date(parts[0], 0, 1)) / (new Date(parts[0] + 1, 0, 1) - new Date(parts[0], 0, 1))
-        const expected = [date.toLocaleString('en-US', { weekday: 'short' }), String(parts[2]), date.toLocaleString('en-US', { month: 'short' }),
-          `${Math.round(ratio * 100)}%`, [parts[3], parts[4]].map(value => String(value).padStart(2, '0')).join(':')]
+        const expected = [`${Math.round(ratio * 100)}%`]
         const views = await js(`(async()=>{
           clockFixedTime=new Date(...${JSON.stringify(parts)}).getTime();
           const until=performance.now()+3000, expected=${JSON.stringify(expected)};
@@ -341,53 +339,7 @@ async function exercise() {
     }
     deskTools = { identities: tools.map(spec => spec.id), phases: 3 }
     assert.equal(app.isHardwareAccelerationEnabled(), false)
-    const preorderSpec = { id: 'odk.tile.preorder' }
-    const preorderBaseline = []
-    await js(`window.productionPreorder=document.querySelector('[data-widget="odk.tile.preorder"]');
-      if(!productionPreorder)throw Error('Production Pre-order placement missing'); void 0;`)
-    for (const phase of ['default', 'signed', 'restored']) {
-      await selectLocalSurface(preorderSpec, phase)
-      let index = 0
-      for (const opened of [false, true]) {
-        stage = `preorder-${phase}-${opened ? 'open' : 'countdown'}`
-        const view = await js(`(async()=>{
-          clockFixedTime=Date.UTC(2026,9,16,12)-${opened ? 0 : 3600000};
-          const count=productionPreorder.querySelector('.preorder-count'),canvas=productionPreorder.querySelector('canvas');
-          const until=performance.now()+4000;
-          while(count.textContent!==${JSON.stringify(opened ? 'Open now' : '0d1h')}||!canvas.getContext('2d').getImageData(0,0,1,1).data[3]){
-            if(performance.now()>until)throw Error('Production Pre-order consumer did not settle');
-            await new Promise(resolve=>requestAnimationFrame(resolve));
-          }
-          await document.fonts.ready;
-          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          const previousPaints=localCanvasPaints.get(canvas)||0;
-          if(previousPaints===0)throw Error('Production Pre-order initial draw observation missing');
-          const theme=${JSON.stringify(opened ? 'border-beam' : 'instrument')};
-          odkTheme.set(theme);
-          await document.fonts.ready;
-          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          const paintDeadline=performance.now()+4000;
-          while((localCanvasPaints.get(canvas)||0)<=previousPaints){
-            if(performance.now()>paintDeadline)throw Error('Production Pre-order theme redraw did not settle');
-            await new Promise(resolve=>requestAnimationFrame(resolve));
-          }
-          if(document.documentElement.dataset.theme!==theme||devicePixelRatio!==1||visualViewport.scale!==1)throw Error('Production Pre-order rendering inputs changed');
-          if(document.querySelector('[data-widget="odk.tile.preorder"]')!==productionPreorder
-            ||!odkPlugins.isActive(odkPlugins.get('odk.tile.preorder'),productionPreorder))throw Error('Production Pre-order ownership changed');
-          if(count.classList.contains('is-open')!==${opened}||count.getAttribute('aria-live')!=='off')throw Error('Production Pre-order state changed');
-          const label=productionPreorder.querySelector('.preorder-label').textContent;
-          if(label!=='5:00 a.m. PT · October 16'||productionPreorder.querySelector('.preorder-heading')?.textContent!=='Pre-order')throw Error('Production Pre-order caption changed');
-          if(productionPreorder.querySelector('button:not(.widget-launch),input,select,textarea,a[href],[tabindex],[contenteditable="true"]'))throw Error('Production Pre-order gained controls');
-          return {count:count.innerHTML,classes:count.className,label,width:canvas.width,height:canvas.height,pixels:canvas.toDataURL()};
-        })()`)
-        view.pixels = crypto.createHash('sha256').update(view.pixels).digest('hex')
-        if (phase === 'default') preorderBaseline.push(view)
-        else assert.deepEqual(view, preorderBaseline[index])
-        index++
-        await assertUnchangedShell()
-      }
-    }
-    preorder = { phases: 3, countdownTransitions: 6, canvasPixels: true, softwareRaster: true }
+
   }
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
@@ -402,7 +354,7 @@ async function exercise() {
   })()`)
   report = { productionMain: true, mode, controlVersion, documentLoads: loads, primingLoads, mainPlugins: host.list().length,
     ...(bridgeControl ? { bridgeControlSelection: { version: '2.0.0', lifecycleReceipts: 2, subscriptionReleased: true } } : {}),
-    themeComparisons, tickTransitions, versions, subscriptionsReleased: true, ...(calendar ? { calendar, deskTools, preorder } : {}) }
+    themeComparisons, tickTransitions, versions, subscriptionsReleased: true, ...(calendar ? { calendar, deskTools } : {}) }
   win.webContents.debugger.detach()
   app.quit()
 }

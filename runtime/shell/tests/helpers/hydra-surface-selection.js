@@ -71,4 +71,12 @@ async function capture(env, keyring, assets, { mutate = true, productionPolicy =
   return entries
 }
 
-module.exports = { prepare, capture }
+function hydraSurfaceTimeouts(runtime, platform = process.platform, arch = process.arch) {
+  if (platform !== 'linux' || arch !== 'arm64') return { fixture: 70000, child: 80000, test: 90000 }
+  // Runtime replacement adds the restored phase to the ordinary two-phase matrix.
+  return runtime
+    ? { fixture: 225000, child: 235000, test: 255000 }
+    : { fixture: 150000, child: 160000, test: 180000 }
+}
+
+module.exports = { prepare, capture, hydraSurfaceTimeouts }

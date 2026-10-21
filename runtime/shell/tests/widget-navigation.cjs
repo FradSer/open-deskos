@@ -57,7 +57,7 @@ app.whenReady().then(async () => {
     }
     await document.fonts.ready;
     const ids = [...document.querySelectorAll('#pages-track > .page')].map(page => page.dataset.pageId);
-    if (JSON.stringify(ids) !== JSON.stringify(['home', 'desk', 'preorder', 'reading'])) throw Error('Only four display pages belong in the desktop');
+    if (JSON.stringify(ids) !== JSON.stringify(['home', 'desk', 'reading'])) throw Error('Only three display pages belong in the desktop');
     if (document.querySelector('[data-plugin="odk.page.pi-sessions"], .page[data-page-id="pi-sessions"]')) throw Error('Pi Sessions App must not mount as a desktop page');
     if (!odkPlugins.byKind('app').some(app => app.appId === 'pi-sessions')) throw Error('Pi Sessions App registration missing');
     const tile = document.querySelector('[data-widget="odk.tile.futu"]');
@@ -166,7 +166,7 @@ app.whenReady().then(async () => {
       await until(() => document.querySelector('.pomodoro-state').textContent === 'Ready' && document.querySelector('.ring-mmss').textContent === '25:00');
     })()`)
     console.log('PASS ' + theme + ': Pomodoro Widget follows actual App start, pause, and reset')
-    await js(`document.querySelectorAll('.dot')[3].click(); document.getElementById('sb-pi-status').focus()`)
+    await js(`document.querySelectorAll('.dot')[2].click(); document.getElementById('sb-pi-status').focus()`)
     for (const type of ['keyDown', 'char', 'keyUp']) {
       await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'char' ? { text: '\r' } : {}) })
     }
@@ -176,7 +176,7 @@ app.whenReady().then(async () => {
       if (document.activeElement !== launch || !document.getElementById('app-view').hidden || odkAppPlatform.active()) throw Error('Status must focus the Home Widget without opening its App: ' + JSON.stringify({ activeElement: { tag: document.activeElement?.tagName, id: document.activeElement?.id, widget: document.activeElement?.closest('[data-widget]')?.dataset.widget }, appHidden: document.getElementById('app-view').hidden, activeApp: odkAppPlatform.active(), index: [...document.querySelectorAll('#dots .dot')].findIndex(dot => dot.classList.contains('active')), trace: navigationInputTrace }));
       if (document.getElementById('sb-pi-status').title !== 'Show Pi Sessions widget') throw Error('Status action must identify the Widget');
     })()`)
-    console.log('PASS ' + theme + ': four display pages and Pi status focuses its sole Widget App entry')
+    console.log('PASS ' + theme + ': three display pages and Pi status focuses its sole Widget App entry')
     await js(`(async () => {
       document.querySelectorAll('.dot')[0].click();
       const overview = document.querySelector('#home-summary .dash');
@@ -201,10 +201,7 @@ app.whenReady().then(async () => {
       await odkAppPlatform.closeApp();
       const reading = document.querySelector('[data-page-id="reading"] .widget-grid');
       const excerpt = reading.querySelector('.w-weread');
-      if (getComputedStyle(excerpt).gridColumnStart !== '1' || getComputedStyle(excerpt).gridColumnEnd !== 'auto' || getComputedStyle(excerpt).gridRowStart !== '1' || getComputedStyle(excerpt).gridRowEnd !== 'auto') throw Error('WeRead must be 1x1');
-      const countdown = document.querySelector('[data-page-id="preorder"] .widget-grid').querySelector('.w-preorder');
-      if (getComputedStyle(countdown).gridColumn !== '1 / 4' || getComputedStyle(countdown).gridRow !== '1 / 4') throw Error('Pre-order countdown must be 3x3');
-      if (document.querySelectorAll('[data-page-id="desk"] .w-preorder').length) throw Error('Pre-order must own its page');
+      if (getComputedStyle(excerpt).gridColumn !== '1 / 4' || getComputedStyle(excerpt).gridRow !== '1 / 4') throw Error('WeRead must span 3x3');
     })()`)
     await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type:'mouseMoved',x:0,y:0})
     // Compare every source and continuation after native launches, not just Futu.
@@ -224,15 +221,13 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {features:[]})
     await js(`(async () => { await odkAppPlatform.openApp({ appId: 'futu' }); await until(() => document.querySelectorAll('.futu-app .futu-holding').length === 40); })()`)
     await capture(`${theme}-futu`)
-    await js(`(async () => { await odkAppPlatform.closeApp(); document.querySelectorAll('.dot')[3].click(); })()`)
+    await js(`(async () => { await odkAppPlatform.closeApp(); document.querySelectorAll('.dot')[2].click(); })()`)
     await capture(`${theme}-reading`)
-    await js(`document.querySelectorAll('.dot')[2].click()`)
-    await capture(`${theme}-preorder`)
     await js(`document.querySelectorAll('.dot')[1].click()`)
     await capture(`${theme}-desk`)
     await js(`document.querySelectorAll('.dot')[0].click()`)
     await capture(`${theme}-home`)
-    console.log(`PASS ${theme}: native mouse and touch on all Widgets, pane bounds, focus, materials, complete scrolling holdings, 3x3 reading, 3x3 pre-order countdown`)
+    console.log(`PASS ${theme}: native mouse and touch on all Widgets, pane bounds, focus, materials, complete scrolling holdings, 3x3 reading`)
   }
   for (const [width, height] of [[1280, 776], [960, 640], [480, 854], [320, 480]]) {
     win.setContentSize(width, height)
@@ -319,7 +314,7 @@ app.whenReady().then(async () => {
   })()`)
   console.log('PASS disable, replacement, and recovery preserve exactly one App continuation')
   console.log('PASS Futu empty, unconfigured, unauthorized, unavailable, and loading states')
-  assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 9)
+  assert.equal(await js('document.querySelectorAll("#pages-track .widget .widget-launch").length'), 8)
   console.log('WIDGET_NAVIGATION_EVIDENCE ' + evidence)
   finish(0)
 }).catch(async error => {

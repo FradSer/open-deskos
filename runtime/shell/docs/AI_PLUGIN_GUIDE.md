@@ -308,15 +308,9 @@ Read [the Hydra surface contract](HYDRA_SURFACE_PLUGIN_CONTRACT.md) when replaci
 Read [the Camera source contract](CAMERA_PLUGIN_CONTRACT.md) when replacing capture, frame caching, or source lifecycle behavior.
 The Camera Widget is retired. The Camera source and peripheral status remain separate.
 
-## Clock surface contract
+## Year and State Bar time contracts
 
-Read [the Clock surface contract](CLOCK_SURFACE_PLUGIN_CONTRACT.md) when replacing local time formatting or shared Tick subscription ownership.
-
-Read [calendar and State Bar time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRACT.md) when replacing Almanac, Year progress, or State Bar Clock.
-
-## Pre-order surface contract
-
-Read [the Pre-order contract](PREORDER_SURFACE_PLUGIN_CONTRACT.md) when replacing countdowns, hero canvas processing, or pending image ownership.
+Read [time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRACT.md) when replacing Year or State Bar time.
 
 ## Pomodoro surface contract
 
@@ -411,7 +405,7 @@ Mark one visible entry with `[data-page-focus]`. Only the visible view can own i
 
 ## Layout and delivery
 
-The production desktop contains Home, Desk, Pre-order, and Reading display pages.
+The production desktop contains Home, Desk, and Reading display pages.
 Pi Sessions opens only from its Home Widget.
 The State Bar Pi indicator selects Home and focuses that Widget.
 The retained `odk.page.pi-sessions` identity supports compatibility checks; production layout does not mount it.

@@ -117,26 +117,6 @@
   const publishFocus = () => root.odkServices?.registerService('odk.service.focus', focusReading)
   if (!root.odkServices?.get?.('odk.service.focus')) publishFocus()
 
-  root.odkPlugins.register(app('calendar', 'Calendar', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Calendar</h2></header><time class="runtime-date app-detail"></time><p class="runtime-state app-detail">Calendar events unavailable. Date uses the local clock.</p></div>'
-    const date = el.querySelector('.runtime-date')
-    ctx.onTick((now) => {
-      const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      if (date.dateTime === day) return
-      date.dateTime = day
-      date.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    })
-  }))
-  root.odkPlugins.register(app('clock', 'Clock', (el, ctx) => {
-    el.innerHTML = '<div class="runtime-app"><header class="app-surface-header"><h2 class="app-surface-heading">Clock</h2></header><time class="runtime-value">--:--</time><p class="runtime-state app-detail">Local time</p></div>'
-    const value = el.querySelector('.runtime-value')
-    ctx.onTick((now) => {
-      const reading = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-      if (value.textContent === reading) return
-      value.textContent = reading
-      value.dateTime = reading
-    })
-  }))
   root.odkPlugins.register(app('pomodoro', 'Pomodoro', (el, ctx) => {
     publishFocus()
     el.innerHTML = '<div class="runtime-app" data-view="pomodoro"><header class="app-surface-header"><h2 class="app-surface-heading">Pomodoro</h2></header><div class="pomodoro-app-body"><p class="runtime-value pomodoro-dial" id="pomodoro-dial">25:00</p><p class="runtime-state app-detail" id="pomodoro-state">Focus</p><div class="pomodoro-controls"><button class="button-pill button-primary pomodoro-toggle" id="pomodoro-toggle" type="button">Start</button><button class="button-pill button-secondary pomodoro-reset" id="pomodoro-reset" type="button" hidden>Reset</button></div><p class="app-detail">25-minute focus session</p></div></div>'
