@@ -813,6 +813,7 @@ app.whenReady().then(async () => {
     finish(0);return
   }
   if (process.argv.includes('--agent-reference-only')) {
+    assert.equal(await evaluate(`document.querySelector('.agent-input-avatar')`),null,'the composer does not duplicate the animated avatar')
     assert.equal(await evaluate(`document.querySelector('.agent-identity summary').contains(document.querySelector('.agent-state'))`),true,'name and status share one capsule')
     const failures=[]
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
@@ -1162,7 +1163,7 @@ app.whenReady().then(async () => {
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')
-  assert.equal(await evaluate(`document.querySelector('.agent-avatar').innerHTML === document.querySelector('.agent-input-avatar').innerHTML`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-avatar').length===1 && !!document.querySelector('.agent-avatar .bs-avatar svg') && !document.querySelector('.agent-input-avatar')`), true,'one live avatar stays in the header')
   assert.equal(await evaluate(`document.querySelector('#personal-bot-status').hidden && !document.querySelector('#home-desk').inert`), true)
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.deepEqual(sentText, ['Typed question'])

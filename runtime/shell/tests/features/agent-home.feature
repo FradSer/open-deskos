@@ -551,6 +551,7 @@ Scenario: Hidden previews capture the current native viewport
     And new task reports get one reaction without replaying retained reports
     And repeated status frames do not restart an unchanged animation
     And input never waits for an animation to finish
+    And the composer does not duplicate the animated avatar
     And reduced motion shows the matching static pose with readable status
     And hidden documents pause playback and released pages stop all animation work
     And the engine loads locally under the unchanged content security policy
