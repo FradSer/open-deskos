@@ -65,13 +65,13 @@ app.whenReady().then(async () => {
   if (linkedMode) {
     const folder = path.join(root, 'development')
     fs.mkdirSync(folder)
-    fs.writeFileSync(path.join(folder, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'odk.tile.clock', name: 'Linked Clock', version: '2.0.0',
+    fs.writeFileSync(path.join(folder, 'manifest.json'), JSON.stringify({ schemaVersion: 1, id: 'odk.tile.year', name: 'Linked Clock', version: '2.0.0',
       kind: 'surface', host: 'electron-renderer', surfaceKind: 'tile', interaction: 'display-only',
-      provides: [{ interface: 'odk:surface/odk.tile.clock/v1' }], requires: [], permissions: [], entry: 'entry.js', css: 'clock.css' }))
-    fs.writeFileSync(path.join(folder, 'clock.css'), '[data-widget="odk.tile.clock"] { --odk-linked-css-fixture: loaded; }')
+      provides: [{ interface: 'odk:surface/odk.tile.year/v1' }], requires: [], permissions: [], entry: 'entry.js', css: 'clock.css' }))
+    fs.writeFileSync(path.join(folder, 'clock.css'), '[data-widget="odk.tile.year"] { --odk-linked-css-fixture: loaded; }')
     fs.writeFileSync(path.join(folder, 'entry.js'), `
       (() => {
-      const original = window.odkPlugins.get('odk.tile.clock');
+      const original = window.odkPlugins.get('odk.tile.year');
       window.__odkReplacementTrace = [];
       window.odkRendererDevelopment.define({ id: original.id, kind: 'tile', interaction: 'display-only', app: 'Clock',
         create() { window.__odkReplacementTrace.push('create'); return { stop() { window.__odkReplacementTrace.push('stop'); } }; },
@@ -84,13 +84,13 @@ app.whenReady().then(async () => {
     const execFile = require('node:util').promisify(require('node:child_process').execFile)
     if (nativeMode) {
       fs.mkdirSync(path.join(folder, 'assets'))
-      fs.writeFileSync(path.join(folder, 'assets', 'extra.css'), '[data-widget="odk.tile.clock"] { --odk-native-relative-fixture: captured; }')
+      fs.writeFileSync(path.join(folder, 'assets', 'extra.css'), '[data-widget="odk.tile.year"] { --odk-native-relative-fixture: captured; }')
       fs.writeFileSync(path.join(folder, 'clock.css'), '@import url("assets/extra.css");\n' + fs.readFileSync(path.join(folder, 'clock.css'), 'utf8'))
       fs.writeFileSync(path.join(folder, 'assets', 'value.json'), '{"value":42}')
       // Use an independent factory with the same Clock behavior and scoped tick.
       fs.writeFileSync(path.join(folder, 'entry.js'), `(() => {
         window.__odkReplacementTrace = [];
-        window.odkRendererDevelopment.define({ id: 'odk.tile.clock', kind: 'tile', app: 'Clock', state: 'Available', interaction: 'display-only',
+        window.odkRendererDevelopment.define({ id: 'odk.tile.year', kind: 'tile', app: 'Clock', state: 'Available', interaction: 'display-only',
           create() { window.__odkReplacementTrace.push('create'); return { stop() { window.__odkReplacementTrace.push('stop'); } }; },
           mount(el, ctx) {
             window.__odkReplacementTrace.push('mount');
@@ -112,14 +112,14 @@ app.whenReady().then(async () => {
         signature: crypto.sign(null, Buffer.from('Open DeskOS native bundle v1\n' + JSON.stringify(payload)), keys.privateKey).toString('base64') }))
       const policy = path.join(root, 'publishers.json')
       fs.writeFileSync(policy, JSON.stringify({ schemaVersion: 1, publishers: { fixture: {
-        publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: ['odk.tile.clock'], hosts: ['electron-renderer'],
+        publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }), identities: ['odk.tile.year'], hosts: ['electron-renderer'],
       } } }))
       controlEnv.ODK_NATIVE_KEYRING = policy
       await execFile(process.execPath, [path.resolve(__dirname, '../scripts/odk-plugin-cli.js'), 'native', 'install', folder, '--trust', '--keyring', policy], {
         env: { ...controlEnv, ELECTRON_RUN_AS_NODE: '1' },
       })
       const config = readConfig(resolveConfigPath(controlEnv))
-      const revision = config.plugins['odk.tile.clock'].native.revision
+      const revision = config.plugins['odk.tile.year'].native.revision
       const stored = path.join(controlHost.stateDir, 'plugins', 'native', 'revisions', revision)
       if (corruptNativeEntry) fs.writeFileSync(path.join(stored, 'entry.js'), 'unverified before discovery')
       nativeEntries = await loadNativeRendererPlugins(config, { env: controlEnv, assets: nativeAssets, report() {} })
@@ -162,7 +162,7 @@ app.whenReady().then(async () => {
     await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `
       window.__odkReplacementTrace = [];
       Object.defineProperty(window, 'odkRendererReplacements', { get() {
-        const original = window.odkPlugins.get('odk.tile.clock');
+        const original = window.odkPlugins.get('odk.tile.year');
         if (${invalidReplacement}) return [{ ...original, kind: 'page' }];
         original.create = () => { throw Error('unselected factory must not execute'); };
         return [{ ...original, manifest: { ...original.manifest, version: '2.0.0' },
@@ -251,13 +251,12 @@ app.whenReady().then(async () => {
     ...(runtimeController ? ['odk.page.dashboard'] : []), ...resolveStartupDisabled(developmentEnv)]
   const appearances = loadAppearanceReplacements(readConfig(resolveConfigPath(developmentEnv)))
   const query = { disabledPlugins: disabled.join(','), ...(appearances.length ? { appearanceReplacements: JSON.stringify(appearances) } : {}) }
-  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'), { query })
   await win.webContents.executeJavaScript('Promise.all([window.odkShellReady, window.odkRendererDiagnosis.ready, window.odkTheme.ready])')
   if (bridgeDiagnosisProof) {
     await win.webContents.executeJavaScript(`(async () => {
       window.bridgeRetainedDocument = document;
-      window.bridgeRetainedClock = document.querySelector('[data-widget="odk.tile.clock"]');
+      window.bridgeRetainedClock = document.querySelector('[data-widget="odk.tile.year"]');
       if (${selectedDiagnosisBridge}) {
         const runtime = window.odkRendererDiagnosis;
         const manifest = runtime.catalog().find(plugin => plugin.manifest.id === 'odk.renderer.plugin-diagnostics').manifest;
@@ -339,7 +338,7 @@ app.whenReady().then(async () => {
     const plugin = renderer.plugins.find(plugin => plugin.manifest.id === 'odk.renderer.plugin-diagnostics')
     assert.equal(plugin.manifest.version, process.env.ODK_RENDERER_BRIDGE_EXPECTED_VERSION)
     const documentRetained = await win.webContents.executeJavaScript(`document === bridgeRetainedDocument
-      && bridgeRetainedClock.isConnected && document.querySelector('[data-widget="odk.tile.clock"]') === bridgeRetainedClock`)
+      && bridgeRetainedClock.isConnected && document.querySelector('[data-widget="odk.tile.year"]') === bridgeRetainedClock`)
     assert.equal(documentRetained, true)
     bridgeDiagnosisSelection = { version: plugin.manifest.version, documentRetained, plugins: renderer.plugins }
   }
@@ -389,39 +388,39 @@ app.whenReady().then(async () => {
   if (replacementMode || linkedMode) {
     const selection = await win.webContents.executeJavaScript(`({
       trace: [...(window.__odkReplacementTrace || [])],
-      version: window.odkPlugins.catalog().find(plugin => plugin.manifest.id === 'odk.tile.clock').manifest.version,
-      count: document.querySelectorAll('[data-widget="odk.tile.clock"]').length,
-      role: document.querySelector('[data-widget="odk.tile.clock"]').dataset.interaction,
+      version: window.odkPlugins.catalog().find(plugin => plugin.manifest.id === 'odk.tile.year').manifest.version,
+      count: document.querySelectorAll('[data-widget="odk.tile.year"]').length,
+      role: document.querySelector('[data-widget="odk.tile.year"]').dataset.interaction,
     })`)
     assert.deepEqual(selection, { trace: invalidReplacement || rejectedLinkedEntry ? [] : ['create', 'mount'], version: invalidReplacement || rejectedLinkedEntry ? '1.0.0' : '2.0.0', count: 1, role: 'display-only' })
     if (linkedMode && !rejectedLinkedEntry) await win.webContents.executeJavaScript(`new Promise((resolve, reject) => {
-      const link = document.querySelector('link[data-plugin="odk.tile.clock"]');
+      const link = document.querySelector('link[data-plugin="odk.tile.year"]');
       if (!link) return reject(Error('linked stylesheet not mounted'));
       if (link.sheet) return resolve();
       link.addEventListener('load', resolve, { once: true });
       link.addEventListener('error', () => reject(Error('linked stylesheet failed')), { once: true });
     })`)
     if (nativeMode && !rejectedLinkedEntry) {
-      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('[data-widget="odk.tile.clock"]')).getPropertyValue('--odk-native-relative-fixture').trim()`), 'captured')
+      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('[data-widget="odk.tile.year"]')).getPropertyValue('--odk-native-relative-fixture').trim()`), 'captured')
       const jsonUrl = new URL('assets/value.json', nativeEntries[0].entryUrl).href
       assert.deepEqual(await win.webContents.executeJavaScript(`fetch(${JSON.stringify(jsonUrl)}).then(response => response.json())`), { value: 42 })
-      const reading = await win.webContents.executeJavaScript(`({ text: document.querySelector('[data-widget="odk.tile.clock"] time').textContent,
-        dateTime: document.querySelector('[data-widget="odk.tile.clock"] time').dateTime })`)
+      const reading = await win.webContents.executeJavaScript(`({ text: document.querySelector('[data-widget="odk.tile.year"] time').textContent,
+        dateTime: document.querySelector('[data-widget="odk.tile.year"] time').dateTime })`)
       assert.match(reading.text, /^\d{2}:\d{2}$/)
       assert.equal(reading.dateTime, reading.text)
     }
     if (runtimeLifecycle) {
       const result = await win.webContents.executeJavaScript(`(async () => {
         const registry = window.odkPlugins;
-        const def = registry.get('odk.tile.clock');
-        const element = document.querySelector('[data-widget="odk.tile.clock"]');
+        const def = registry.get('odk.tile.year');
+        const element = document.querySelector('[data-widget="odk.tile.year"]');
         await registry.setEnabled(def.id, false);
         const disabled = registry.catalog().find(plugin => plugin.manifest.id === def.id).state;
         const cleared = element.childElementCount === 0;
         const refused = registry.activate(def, element, { onTick: window.odkServices.onTick }) === false;
         await registry.setEnabled(def.id, true);
         const mounted = Boolean(element.querySelector('time'));
-        return { disabled, cleared, refused, mounted, sameElement: document.querySelector('[data-widget="odk.tile.clock"]') === element,
+        return { disabled, cleared, refused, mounted, sameElement: document.querySelector('[data-widget="odk.tile.year"]') === element,
           reading: element.querySelector('time').textContent,
           weather: registry.catalog().find(plugin => plugin.manifest.id === 'odk.tile.weather').state };
       })()`)
@@ -438,7 +437,7 @@ app.whenReady().then(async () => {
   }
   if (linkedMode) {
     const style = await win.webContents.executeJavaScript(`({
-      applied: getComputedStyle(document.querySelector('[data-widget="odk.tile.clock"]')).getPropertyValue('--odk-linked-css-fixture').trim(),
+      applied: getComputedStyle(document.querySelector('[data-widget="odk.tile.year"]')).getPropertyValue('--odk-linked-css-fixture').trim(),
       staged: document.querySelectorAll('link[media="not all"]').length,
     })`)
     assert.deepEqual(style, { applied: rejectedLinkedEntry ? '' : 'loaded', staged: 0 })
@@ -447,23 +446,23 @@ app.whenReady().then(async () => {
     const result = await win.webContents.executeJavaScript(`(async () => {
       const registry = window.odkPlugins;
       const track = document.getElementById('pages-track');
-      const retained = document.querySelector('[data-widget="odk.tile.almanac"]');
+      const retained = document.querySelector('[data-widget="odk.tile.pomodoro"]');
       const layout = window.DESKTOP_LAYOUT;
       const context = { onTick: window.odkServices.onTick };
-      await registry.setEnabled('odk.tile.clock', false);
+      await registry.setEnabled('odk.tile.year', false);
       await window.odkComposer.reconcile(layout, track, context);
-      const removed = !document.querySelector('[data-widget="odk.tile.clock"]');
-      await registry.setEnabled('odk.tile.clock', true);
+      const removed = !document.querySelector('[data-widget="odk.tile.year"]');
+      await registry.setEnabled('odk.tile.year', true);
       await window.odkComposer.reconcile(layout, track, context);
-      const clock = document.querySelector('[data-widget="odk.tile.clock"]');
-      return { removed, reading: clock.querySelector('time').textContent,
-        retained: document.querySelector('[data-widget="odk.tile.almanac"]') === retained,
+      const clock = document.querySelector('[data-widget="odk.tile.year"]');
+      return { removed, reading: clock.querySelector('.year-pct').textContent,
+        retained: document.querySelector('[data-widget="odk.tile.pomodoro"]') === retained,
         retiredWidgetsAbsent: ['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]')) };
     })()`)
     assert.equal(result.removed, true)
     assert.equal(result.retained, true)
     assert.equal(result.retiredWidgetsAbsent, true)
-    assert.match(result.reading, /^\d{2}:\d{2}$/)
+    assert.match(result.reading, /^\d+%$/)
   }
   if (statusReconcile) {
     const result = await win.webContents.executeJavaScript(`(async () => {
@@ -533,8 +532,8 @@ app.whenReady().then(async () => {
     })()`)
     for (const key of ['inserted', 'preserved', 'samePage', 'retainedSelection', 'widgetRemoved', 'emptyGridRetained', 'restored', 'retiredWidgetsAbsent']) assert.equal(result[key], true, key)
     assert.match(result.clock, /^\d{2}:\d{2}$/)
-    assert.equal(result.pages, 4)
-    assert.equal(result.dots, 4)
+    assert.equal(result.pages, 3)
+    assert.equal(result.dots, 3)
     assert.match(result.context, /^Reading/)
     // Drain publication through the same renderer-to-Main channel.
     await win.webContents.executeJavaScript('window.odkRemote.publishPageState({ fixtureBarrier: true })')
@@ -546,7 +545,7 @@ app.whenReady().then(async () => {
       assert.equal(state.focus, 'controls')
       assert.deepEqual(state.actions, [])
       assert.equal(state.page, 4)
-      assert.equal(state.pages, 4)
+      assert.equal(state.pages, 3)
     }
   }
   if (rendererControl) {
@@ -564,10 +563,10 @@ app.whenReady().then(async () => {
     const command = async (verb, id) => JSON.parse((await run(process.execPath, [cli, verb, id, '--runtime'], { env })).stdout)
     assert.equal((await command('enable', 'odk.status.clock')).scope, 'electron-renderer')
     assert.match(await win.webContents.executeJavaScript('document.querySelector("[data-status-plugin=\\"odk.status.clock\\"] .sb-time").textContent'), /^\d{2}:\d{2}$/)
-    assert.equal((await command('disable', 'odk.tile.clock')).state, 'disabled')
-    assert.equal(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.clock\\"]") === null'), true)
-    assert.equal((await command('enable', 'odk.tile.clock')).state, 'running')
-    assert.match(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.clock\\"] time").textContent'), /^\d{2}:\d{2}$/)
+    assert.equal((await command('disable', 'odk.tile.year')).state, 'disabled')
+    assert.equal(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.year\\"]") === null'), true)
+    assert.equal((await command('enable', 'odk.tile.year')).state, 'running')
+    assert.match(await win.webContents.executeJavaScript('document.querySelector("[data-widget=\\"odk.tile.year\\"] .year-pct").textContent'), /^\d+%$/)
     assert.equal(await win.webContents.executeJavaScript(`['odk.tile.camera', 'odk.tile.chat', 'odk.tile.settings'].every(id => !document.querySelector('[data-widget="' + id + '"]'))`), true)
     await win.webContents.executeJavaScript("window.odkTheme.set('pixel')")
     assert.equal((await command('disable', 'odk.theme.pixel')).state, 'disabled')
@@ -591,11 +590,11 @@ app.whenReady().then(async () => {
         await document.fonts.ready;
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const style = getComputedStyle(document.documentElement);
-        const widget = document.querySelector('[data-widget="odk.tile.clock"]');
+        const widget = document.querySelector('[data-widget="odk.tile.year"]');
         const rect = widget.getBoundingClientRect();
         results.push({ theme: window.odkTheme.get(), primary: style.getPropertyValue('--odk-primary').trim(),
           radius: style.getPropertyValue('--odk-radius-card').trim(), font: getComputedStyle(document.body).fontFamily,
-          textFont: getComputedStyle(widget.querySelector('time')).fontFamily,
+          textFont: getComputedStyle(widget.querySelector('.year-pct')).fontFamily,
           bounds: [rect.x, rect.y, rect.width, rect.height] });
       }
       window.odkTheme.set('pixel');

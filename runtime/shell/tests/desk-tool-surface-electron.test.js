@@ -33,8 +33,8 @@ for (const mode of ['development', 'native']) for (const dependencyViolation of 
         if (dependencyViolation && spec.file === 'pomodoro') {
           const entry = path.join(directory, 'entry.js')
           const source = await fs.readFile(entry, 'utf8')
-          assert.ok(source.includes('mount(element) {'))
-          await fs.writeFile(entry, source.replace('mount(element) {', 'mount(element, context) { context.connection?.subscribe(() => {});'))
+          assert.ok(source.includes('mount(element, context = {}) {'))
+          await fs.writeFile(entry, source.replace('mount(element, context = {}) {', 'mount(element, context = {}) { context.connection?.subscribe(() => {});'))
         }
         if (mode === 'native') {
           const files = []

@@ -100,3 +100,73 @@ Feature: Legible Widget and App interiors
     Then the five-column three-row Widget layout retains its existing footprint
     And the direct App surfaces match that footprint
     And the existing token palette, truthful states, and navigation behavior are preserved
+
+  Scenario: Every instrument uses the same reading hierarchy
+    Given the desktop contains nine display Widgets and retains Clock and Calendar
+    When each Widget renders in any supported theme at reference or handheld size
+    Then each redesigned Widget uses the shared readable caption role
+    And the heading precedes its primary reading without overlap
+    And inactive frames use the neutral surface and stroke
+    And source states remain text rather than interactive badges
+    And opening the Widget retains its existing App and return path
+    And Reading retains its original excerpt and book details without a separate heading
+
+  Scenario: Desk instruments use quiet tonal surfaces
+    Given the Instrument theme displays the desktop Widgets
+    When the user reads the Home instruments
+    Then the Widget surface is one neutral tone above the desktop ground
+    And headings remain at least 16 pixels at reference and handheld sizes
+    And primary figures use regular text weight with tabular digits
+    And the Pi heading, count, and task share one left edge
+    And status colors remain on data rather than the Widget frame
+
+  Scenario: Glass clipping keeps the shared rounded frame
+    Given the glass SDK applies its clip path and resets the inline corner radius
+    When the Widget uses the Liquid Glass theme
+    Then its visible frame keeps the shared App corner radius
+    And no square frame surrounds the rounded glass surface
+
+  Scenario: Garden moisture leads environmental context
+    Given Hydra receives two plant readings and four environment readings
+    When the Widget has a wide Cell
+    Then both plant moisture percentages lead the instrument
+    And the four environmental values remain visible below them
+    And every value keeps its source state and unit
+
+  Scenario: Usage reads its source when first mounted
+    Given AI usage has not retrieved a source snapshot
+    When its Widget mounts
+    Then it requests the shared reading without waiting for a minute tick
+    And a late completion cannot write after release
+
+  Scenario: The harness checks every registered Widget in a shared three-by-three grid
+    Given the Shell preview uses isolated synthetic readings
+    When the Widget grid harness renders each supported theme and panel size
+    Then each harness page has exactly three columns and three rows
+    And each registered Widget retains its declared span without overlap
+    And Home retains Overview across the first row and all three columns
+    And Hydra spans three columns and one row
+    And WeRead spans one column and one row
+    And additional Widgets use another three-by-three harness page
+    And every Widget keeps its content and App entry inside its Cell
+    And the original desktop placement remains unchanged
+
+  Scenario: A missing Widget reading gives a recovery path
+    Given Weather, WeRead, Holdings, or AI usage has no usable source reading
+    When its Widget shows an empty or failed state
+    Then the copy names the next action
+    And no empty quota reading claims that data is available
+    And WeRead does not display a provider error or environment key
+
+  Scenario: Calendar captions remain legible over the glass material
+    Given Calendar uses the Liquid Glass theme
+    When its weekday renders over the measured material
+    Then the weekday uses the supporting text role
+    And its rendered text contrast is at least 4.5 to 1
+
+  Scenario: Additional registered Widgets cannot consume the Overview row
+    Given Home reserves one Overview row and two Widget rows
+    And another page contains nine Widgets
+    When the shared canvas calculates its rows
+    Then Home keeps Overview and six cards within three logical rows
+    And its Widget grid does not inherit the other page's third row

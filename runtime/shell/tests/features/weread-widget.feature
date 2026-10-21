@@ -1,4 +1,14 @@
 Feature: WeRead highlight widget
+  Scenario: Reading retains its design from before the interface experiment
+    Given the Reading Widget displays a source excerpt with an author and cover
+    When the Widget renders at a supported Cell size
+    Then the original adaptive excerpt type and bottom book details remain
+    And the author appears below the book title with the cover on the right
+    And the normal Shell preview includes both fields from its synthetic source
+    And a rule separates the excerpt from the book details
+    And no separate instrument heading precedes the excerpt
+    And complete text can still shrink or scroll when space is limited
+
   Scenario: Hidden weread acceptance renders at each requested viewport
     Given the comparison window stays hidden on a supported Shell Host
     When each of the five standard sizes loads a new Shell document
@@ -102,7 +112,7 @@ Feature: WeRead highlight widget
   Scenario: Home keeps chatbot and settings while Reading hosts WeRead
     Given the home layout is loaded
     Then it contains the chatbot and settings widgets
-    And the reading page hosts the WeRead widget spanning three columns and two rows anchored top-left
+    And the reading page hosts the WeRead widget spanning one column and one row anchored top-left
 
   Scenario: WeRead widget shows the latest personal highlight
     Given the WeRead API returns recent highlights
@@ -189,3 +199,10 @@ Feature: WeRead highlight widget
     And source-only revision fixtures retain their 45 second watchdog
     And each readiness check retains its four second deadline
     And other hosts retain their existing aggregate deadlines
+
+  Scenario: The App launcher leaves a long excerpt available to pointer scrolling
+    Given the excerpt exceeds its readable Widget region
+    When a pointer is over the excerpt
+    Then the excerpt receives pointer and wheel input above the App launcher
+    And its scrollbar signals the additional content
+    And the book details still open the WeRead App

@@ -67,33 +67,6 @@
   font-synthesis: none;
 }
 
-/* Zpix has narrower Latin advances than the Instrument theme's display face. */
-[data-theme='pixel'] .w-clock-time {
-  font-size: clamp(42px, 40cqi, 136px);
-  letter-spacing: 0;
-  transform: translateX(2.5cqi);
-}
-
-
-
-[data-theme='pixel'] .al-month {
-  font-size: clamp(20px, 12cqi, 40px);
-}
-
-[data-theme='pixel'] .al-day {
-  font-size: clamp(72px, 68cqi, 240px);
-  letter-spacing: normal;
-}
-
-[data-theme='pixel'] .al-day-wide {
-  font-size: clamp(64px, 50cqi, 160px);
-  letter-spacing: normal;
-}
-
-[data-theme='pixel'] .al-day-narrow + .al-month {
-  font-size: clamp(64px, 22cqi, 160px);
-}
-
 [data-theme='pixel'] .year-pct {
   font-size: clamp(56px, 46cqi, 120px);
 }
@@ -110,53 +83,9 @@
   font-size: clamp(14px, 24cqi, 40px);
 }
 
-[data-theme='pixel'] .pi-widget-count {
-  /* Zpix digits have narrow advances; retain the count's hierarchy in its cell. */
-  font-size: clamp(80px, 80cqi, 380px);
-  letter-spacing: normal;
-  line-height: 1;
-}
+[data-theme='pixel'] .pi-widget-count { font-size: clamp(40px, min(56cqi, 45cqb), 160px); line-height: 1; }
+[data-theme='pixel'] .pi-widget-wide-count .pi-widget-count { font-size: clamp(32px, min(42cqi, 45cqb), 120px); }
 
-/* Goals/activity and wider counts share the cell's space with more content. */
-[data-theme='pixel'] .pi-widget-detailed .pi-widget-count,
-[data-theme='pixel'] .pi-widget-wide-count .pi-widget-count {
-  font-size: clamp(80px, 42cqi, 380px);
-}
-
-@container (max-width: 230px) {
-  [data-theme='pixel'] .pi-widget-detailed .pi-widget-count { font-size: clamp(64px, 40cqi, 380px); }
-}
-
-[data-theme='pixel'] .pi-widget-unit {
-  font-size: max(12px, 6.5cqi);
-  letter-spacing: 0.04em;
-}
-
-[data-theme='pixel'] .pi-widget-tag-label {
-  font-size: max(12px, 3.5cqi);
-}
-
-[data-theme='pixel'] .pi-widget-summary {
-  line-height: 1.35;
-}
-
-/* The compact square reserves room for both the bitmap glyph and summary. */
-@container (max-width: 240px) {
-  [data-theme='pixel'] .w-pi-sessions:not(.pi-widget-detailed):not(.pi-widget-wide-count) .pi-widget-body:has(.pi-widget-summary:not([hidden])) .pi-widget-count {
-    font-size: clamp(80px, 76cqi, 380px);
-  }
-}
-
-[data-theme='pixel'] .pi-widget-context .w-state {
-  font-size: clamp(14px, 4.6cqi, 20px);
-}
-
-/* Zpix is a bitmap face: at a flat 12px its grid never reads as pixel art, so
-   the countdown caption scales with the tile like every other supporting line
-   and keeps 12px only as its floor. */
-[data-theme='pixel'] .w-preorder .preorder-label {
-  font-size: max(12px, 5.2cqi);
-}
 
 [data-theme='pixel'] .pi-skill-bracket {
   color: var(--odk-accent-green) !important;
@@ -244,11 +173,20 @@
 
 /* Wide instruments use the same reading hierarchy with Zpix tracking. */
 [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-env-value {
-  font-size: clamp(44px, 13cqi, 136px);
+  font-size: clamp(24px, 3.5cqi, 40px);
 }
 
 [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
-  font-size: clamp(22px, 5cqi, 56px);
+  font-size: max(40px, min(22cqi, calc(var(--cell-dim) * 0.25)));
+}
+
+@container (min-width: 700px) {
+  [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil {
+    font-size: 21cqi;
+  }
+  [data-theme='pixel'] .hydra-body[data-shape='wide'] .hydra-plant-soil-wide {
+    font-size: 17cqi;
+  }
 }
 
 [data-theme='pixel'] .hydra-badge {
@@ -272,7 +210,7 @@
   transition: none;
 }
 
-[data-theme='pixel'] .hydra-body {
+[data-theme='pixel'] .hydra-body:not([data-shape='wide'], [data-shape='wide-short'], [data-shape='compact']) {
   gap: 2cqi;
 }
 
@@ -314,4 +252,8 @@
     /* One grid unit of the pixel set: a stepped-down sky still lands on whole units. */
     --w-weather-glyph: 24px;
   }
+}
+
+[data-theme='pixel'] .w-pomodoro {
+  --pomodoro-time-size: clamp(24px, 15cqi, 100px);
 }

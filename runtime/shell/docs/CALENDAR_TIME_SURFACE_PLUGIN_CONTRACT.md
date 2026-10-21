@@ -1,9 +1,8 @@
-# Calendar and State Bar time surface contracts
+# Year and State Bar time surface contracts
 
-Read this when replacing `odk.tile.almanac`, `odk.tile.year`, or `odk.status.clock`.
+Read this when replacing `odk.tile.year` or `odk.status.clock`.
 The [built-in guide](AI_PLUGIN_GUIDE.md) owns registration and shared Tick context.
 The [runtime contract](RUNTIME_PLUGIN_REPLACEMENT.md) owns selection and built-in recovery.
-The separate [Clock tile contract](CLOCK_SURFACE_PLUGIN_CONTRACT.md) owns `odk.tile.clock`.
 
 ## Common ownership
 
@@ -14,16 +13,6 @@ Failed cleanup retains ownership and blocks another mount until release succeeds
 Recovery preserves the current reading and actual mounted container.
 Tile replacements retain display-only interaction; State Bar Clock retains the right slot.
 None of these surfaces requires capability grants.
-
-## Almanac
-
-Almanac displays the English short weekday, unpadded day number, and English short month.
-The local year, month, and day define its update identity.
-Another Tick on that local date does not rewrite its text.
-Day numbers of ten or more use `al-day-wide`.
-Day one uses `al-day-narrow`.
-All other dates remove those classes as applicable.
-Leap day, month boundaries, year boundaries, and backward date changes follow the supplied local Date.
 
 ## Year
 
@@ -40,12 +29,11 @@ Unchanged meter values and unchanged percentage readings do not rewrite their re
 
 State Bar Clock displays zero-padded local hours and minutes as `HH:mm`.
 Each supplied Tick writes the reading, including repeated readings in the same minute.
-This differs from the Clock tile's unchanged-minute write suppression.
 The replacement preserves the existing State Bar slot and surrounding Shell layout.
 
 ## Independent examples and evidence
 
-Independent examples own [Almanac formatting](../tests/fixtures/almanac-surface-replacement/entry.js), [Year projection](../tests/fixtures/year-surface-replacement/entry.js), and [State Bar time](../tests/fixtures/status-clock-surface-replacement/entry.js).
+Independent examples own [Year projection](../tests/fixtures/year-surface-replacement/entry.js), and [State Bar time](../tests/fixtures/status-clock-surface-replacement/entry.js).
 They share static markup, Shell styles, fonts, and the public Tick service without calling default factories.
 [Shared lifecycle checks](../tests/calendar-surface-lifecycle.test.js) compare date transitions, write counts, failed cleanup, enable, disable, and recovery.
 Year projection also has Node checks in New York and Shanghai timezones across both daylight-saving transitions.
@@ -59,7 +47,7 @@ The [feature matrix](PLUGIN_FEATURE_MATRIX.md) owns remaining gaps, and [Plugin 
 
 ## Authenticated production Main activation
 
-The existing [Clock production fixture](../tests/clock-main-bootstrap.test.js) also installs the three independent time surfaces with one scoped publisher policy.
+The existing [Clock production fixture](../tests/clock-main-bootstrap.test.js) also installs the retained independent time surfaces with one scoped publisher policy.
 Actual Main runs every plugin with private state and controlled external inputs.
 The fixture starts with built-in time surfaces and activates signed entries through the actual CLI and Renderer control channel.
 Default mount guards and executed entry markers identify the selected implementations.

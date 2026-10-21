@@ -7,7 +7,7 @@ const { spawnSync } = require('node:child_process')
 const { posixOnlyReason } = require('./not-ported')
 
 const { findRepositoryRoot } = require('./helpers/repo-root')
-const { integrationPath, integrationURL } = require('./helpers/repo-root')
+const { integrationPath, integrationURL, androidPath } = require('./helpers/repo-root')
 
 function makeTree(layout) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-repo-root-'))
@@ -97,4 +97,29 @@ test('browser provisioning checks consume the flat release integration', { skip:
     cwd: release, env, encoding: 'utf8', timeout: 30000,
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+})
+
+for (const sealed of [false, true]) test(`Android source checks use the ${sealed ? 'sealed release' : 'checkout'} boundary`, () => {
+  const relative = 'app/src/main/assets/host/odk-bridge.js'
+  const source = (sealed ? 'android/' : 'runtime/android/') + relative
+  const root = makeTree([
+    sealed ? 'scripts/cm5-install.sh' : 'runtime/shell/package.json',
+    'peripherals/esp32-p4-camera/README.md',
+    source,
+    sealed ? 'runtime/android/ambient.js' : 'android/ambient.js',
+  ])
+  try {
+    const start = path.join(root, ...(sealed ? ['tests'] : ['runtime', 'shell', 'tests']))
+    assert.equal(androidPath(relative, start), fs.realpathSync(path.join(root, source)))
+    fs.rmSync(path.join(root, sealed ? 'android' : 'runtime/android'), { recursive: true })
+    assert.throws(() => androidPath(relative, start), /ENOENT/)
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})
+
+test('Android source checks reject a source link outside the Android source boundary', { skip: posixOnlyReason('cm5-tooling') }, () => {
+  const root = makeTree(['scripts/cm5-install.sh', 'peripherals/esp32-p4-camera/README.md', 'ambient/file.js'])
+  try {
+    fs.symlinkSync(path.join(root, 'ambient'), path.join(root, 'android'), 'dir')
+    assert.throws(() => androidPath('file.js', path.join(root, 'tests')), /Android source escapes/)
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })

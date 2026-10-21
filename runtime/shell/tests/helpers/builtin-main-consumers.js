@@ -5,7 +5,7 @@ const path = require('node:path')
 const { runCommand } = require('./hydra-wire-lifecycle')
 
 async function exerciseBuiltinMainViews(win, host, { version, configPath }) {
-  const ids = ['calendar', 'clock', 'pomodoro', 'year', 'app-manager']
+  const ids = ['pomodoro', 'year', 'app-manager']
   const js = source => win.webContents.executeJavaScript(source)
   assert.deepEqual(await js(`${JSON.stringify(ids)}.map(id=>odkPlugins.get('odk.app.'+id).manifest.version||'1.0.0')`), ids.map(() => version))
   if (version !== '1.0.0') assert.deepEqual(await js(`${JSON.stringify(ids)}.map(id=>viewExecutedVersions['odk.app.'+id])`), ids.map(() => version))
@@ -18,15 +18,13 @@ async function exerciseBuiltinMainViews(win, host, { version, configPath }) {
       assert.equal(await js(`odkAppPlatform.openApp({appId:${JSON.stringify(id)}})`), true)
       if (id === 'app-manager') await js(`(async()=>{const deadline=performance.now()+3000;while(!document.querySelector('#app-runtime .app-list li')){if(performance.now()>deadline)throw Error('Production catalog did not render');await new Promise(resolve=>setTimeout(resolve,10))}})()`)
       readings[id] = await js(`(()=>{const el=document.querySelector('#app-runtime .runtime-app');const value=el.querySelector('.runtime-value,.runtime-date');return{heading:el.querySelector('h2').textContent,value:value?.textContent||null,date:value?.getAttribute('datetime')||null,state:el.querySelector('.runtime-state')?.textContent||'',rows:[...el.querySelectorAll('.app-list li')].map(row=>row.textContent)}})()`)
-      if (id === 'clock') assert.equal(readings[id].value, '12:34', 'Production built-in Clock reading changed')
-      if (id === 'calendar') assert.equal(readings[id].date, '2026-01-01')
-      if (id === 'year') assert.equal(readings[id].value, '0%')
+      if (id === 'year') assert.equal(readings[id].value, '0%', 'Production built-in Year reading changed')
       if (id === 'pomodoro') assert.equal(readings[id].value, '25:00')
       if (id === 'app-manager') {
-        assert.equal(readings[id].rows.length, 12)
-        await js("(()=>{const input=document.querySelector('#app-search');input.value=' CLOCK ';input.dispatchEvent(new Event('input'))})()")
+        assert.equal(readings[id].rows.length, 9)
+        await js("(()=>{const input=document.querySelector('#app-search');input.value=' YEAR ';input.dispatchEvent(new Event('input'))})()")
         assert.equal(await js("document.querySelectorAll('#app-runtime .app-list li').length"), 1)
-        assert.equal(await js("document.querySelector('#app-runtime .app-list strong').textContent"), 'Clock')
+        assert.equal(await js("document.querySelector('#app-runtime .app-list strong').textContent"), 'Year progress')
       }
       assert.equal(await js('odkAppPlatform.closeApp()'), true)
       assert.equal(host.get('odk:system/app-manager/v1').foreground(), null)

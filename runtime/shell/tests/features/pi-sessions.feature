@@ -179,10 +179,11 @@ Feature: Local Pi Sessions Monitoring
 
   Scenario: Pi Sessions App reads a reported goal and latest content as Markdown
     Given a session reports a goal and a latest content line that carry Markdown emphasis and inline code
-    When that session's card is rendered
+    When that session's card is rendered through the isolated independent page compatibility fixture
     Then the card shows the emphasis and the inline code as formatting rather than as Markdown syntax
     And the card keeps the words the session reported
     And a reported line without Markdown is rendered unchanged
+    And a long activity retains its full reported text within the one-line summary
     And the Session Detail reads that same reported line the same way
 
   Scenario: Session Overview cards share one fill until a card is the current session

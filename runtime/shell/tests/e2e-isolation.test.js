@@ -32,10 +32,6 @@ test('geometry includes the isolated calendar and State Bar replacement matrix',
   assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/calendar-surface-electron\.test\.js(?:$| &&)/)
 })
 
-test('geometry includes the isolated Clock replacement comparison matrix', () => {
-  const { scripts } = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'))
-  assert.match(scripts.geometry, /node --test --test-concurrency=1 tests\/clock-surface-electron\.test\.js(?:$| &&)/)
-})
 
 test('keyboard fixtures do not request desktop window focus', () => {
   for (const file of ['page-indicator.cjs', 'pixel-font.cjs']) {
@@ -240,7 +236,7 @@ test('installed Widget geometry waits for the requested renderer viewport', asyn
 })
 
 
-for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs']])
+for (const [name, file] of [['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs']])
   test(`${name} comparison establishes renderer metrics after hidden loading`, async () => {
     const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
     const start = source.indexOf('  await win.loadFile(')
@@ -269,7 +265,7 @@ for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar'
   })
 
 
-for (const [name, file] of [['Clock', 'clock-surface-electron.cjs'], ['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Quota', 'quota-surface-electron.cjs'], ['Quota provider', 'quota-plugin-electron.cjs'], ['Input status', 'input-status-surface-electron.cjs'], ['Pre-order', 'preorder-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs']])
+for (const [name, file] of [['Calendar', 'calendar-surface-electron.cjs'], ['Desk tools', 'desk-tool-surface-electron.cjs'], ['Pi status', 'pi-status-surface-electron.cjs'], ['Quota', 'quota-surface-electron.cjs'], ['Quota provider', 'quota-plugin-electron.cjs'], ['Input status', 'input-status-surface-electron.cjs'], ['Dashboard', 'dashboard-surface-electron.cjs'], ['Installed desktop', 'user-app-desktop-plugins-electron.cjs'], ['Built-in views', 'builtin-view-replacement.cjs'], ['Weather', 'weather-plugin-electron.cjs'], ['WeRead', 'weread-plugin-electron.cjs'], ['Pi Widget', 'pi-tile-surface-electron.cjs'], ['Pi App and Page', 'pi-plugin-electron.cjs'], ['Hydra', 'hydra-surface-electron.cjs']])
   test(`${name} comparisons render frames without showing a host window`, () => {
     const source = fs.readFileSync(path.join(__dirname, file), 'utf8')
     const start = source.indexOf('new BrowserWindow(')
@@ -333,32 +329,6 @@ for (const size of [[320, 480], [960, 640], [1920, 1280]]) {
     const source = fs.readFileSync(path.join(__dirname, 'input-status-surface-electron.cjs'), 'utf8')
     const start = source.indexOf('      win.setContentSize(width,height)')
     const end = source.indexOf('      await js(`window.odkTheme.set(', start)
-    assert.ok(start > 0 && end > start)
-    let viewport = [1280, 776], scale = 1.25
-    const calls = []
-    await vm.runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
-      width: size[0], height: size[1],
-      win: {
-        setContentSize(...bounds) { assert.deepEqual(bounds, size); calls.push('size') },
-        webContents: { debugger: { async sendCommand(name, metrics) {
-          assert.equal(name, 'Emulation.setDeviceMetricsOverride')
-          assert.equal(metrics.mobile, false)
-          viewport = [metrics.width, metrics.height]; scale = metrics.deviceScaleFactor
-          calls.push('metrics')
-        } } },
-      },
-    })
-    assert.deepEqual(viewport, size)
-    assert.equal(scale, 1)
-    assert.deepEqual(calls, ['size', 'metrics'])
-  })
-}
-
-for (const size of [[320, 480], [960, 640], [1920, 1280]]) {
-  test(`Pre-order comparison establishes renderer metrics at ${size.join('x')}`, async () => {
-    const source = fs.readFileSync(path.join(__dirname, 'preorder-surface-electron.cjs'), 'utf8')
-    const start = source.indexOf('      win.setContentSize(width, height)')
-    const end = source.indexOf('      await js(`(async()=>{', start)
     assert.ok(start > 0 && end > start)
     let viewport = [1280, 776], scale = 1.25
     const calls = []
@@ -512,14 +482,18 @@ for (const [platform, arch] of [['linux', 'arm64'], ['linux', 'x64'], ['darwin',
 }
 
 
-test('Clock Main hidden comparison preserves production preferences with an offscreen render target', () => {
-  const source = fs.readFileSync(path.join(__dirname, 'clock-main-bootstrap.cjs'), 'utf8')
+for (const fixture of ['clock-main-bootstrap.cjs', 'dashboard-main-bootstrap.cjs', 'appearance-main-bootstrap.cjs']) test(`${fixture} hidden comparison preserves production preferences with an offscreen render target`, () => {
+  const source = fs.readFileSync(path.join(__dirname, fixture), 'utf8')
   const start = source.indexOf('// Preserve production Main while giving its single hidden test window an offscreen render target.')
-  assert.ok(start >= 0, 'Clock Main hidden window needs its own render target')
+  assert.ok(start >= 0, 'Main hidden window needs its own render target')
   const preferences = { preload: '/controlled/preload.js', sandbox: true, contextIsolation: true }
   const options = { width: 1920, height: 1280, webPreferences: preferences }
-  let actual, selected
-  class NativeWindow { constructor(value) { actual = value } }
+  let actual, selected, constructed
+  const windows = []
+  class NativeWindow {
+    constructor(value) { actual = value; windows.push(this) }
+    static getAllWindows() { return windows.filter(win => win.constructor === NativeWindow) }
+  }
   const original = () => { throw Error('Unexpected module load') }
   const loader = { _load: original }
   const electron = { BrowserWindow: NativeWindow, retainedExport: {} }
@@ -528,7 +502,7 @@ test('Clock Main hidden comparison preserves production preferences with an offs
     if (name === 'electron') return electron
     assert.equal(name, '../src/main')
     selected = loader._load('electron', { filename: '/controlled/main.js' })
-    new selected.BrowserWindow(options)
+    constructed = new selected.BrowserWindow(options)
   }
   fakeRequire.resolve = name => { assert.equal(name, '../src/main'); return '/controlled/main.js' }
   vm.runInNewContext(source.slice(start), { require: fakeRequire, BrowserWindow: NativeWindow })
@@ -540,4 +514,8 @@ test('Clock Main hidden comparison preserves production preferences with an offs
   assert.equal(loader._load, original)
   assert.equal(options.webPreferences, preferences)
   assert.equal(preferences.offscreen, undefined)
+  if (fixture === 'appearance-main-bootstrap.cjs') {
+    assert.equal(constructed.constructor, NativeWindow)
+    assert.deepEqual(selected.BrowserWindow.getAllWindows(), [constructed])
+  }
 })

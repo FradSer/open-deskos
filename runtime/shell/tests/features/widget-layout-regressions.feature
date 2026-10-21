@@ -42,3 +42,10 @@ Feature: Responsive summary widget interiors
     When the fixture starts before loading Home
     Then offscreen rendering supplies an active frame source
     And resizing retains Widget text fitting and all geometry assertions
+
+  Scenario: Shared grids reserve Overview space only on Home
+    Given a nine-card page shares the desktop with Home and its Overview
+    When the handheld computes its common three-row canvas
+    Then the nine-card page retains three visible rows
+    And the layout does not reserve a fourth row for another Overview
+    And Home with extra installed cards retains its readable scrolling fallback

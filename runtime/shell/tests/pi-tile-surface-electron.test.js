@@ -17,7 +17,7 @@ for (const mode of ['programmatic', 'development']) for (const invalid of [false
       const entry = path.join(directory, 'entry.js')
       let source = await fs.readFile(entry, 'utf8')
       source = source.replace('    mount(el, ctx) {', '    mount(el, ctx) { window.piTileEntryMounts=(window.piTileEntryMounts||0)+1;')
-      if (invalid) source = source.replace("count.textContent = String(running)", "count.textContent = 'wrong'")
+      if (invalid) source = source.replace("count.textContent = live ? String(running) : '--'", "count.textContent = 'wrong'")
       await fs.writeFile(entry, 'window.piTileEntryExecutions=(window.piTileEntryExecutions||0)+1;\n' + source)
       await runCommand(process.execPath, [path.join(__dirname, '../scripts/odk-plugin-cli.js'), 'link', directory, '--trust', '--replace'], { env, signal: t.signal, timeout: 10000 })
     }

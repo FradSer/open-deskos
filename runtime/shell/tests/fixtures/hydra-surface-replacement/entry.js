@@ -13,14 +13,8 @@
               <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
               <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
             </svg>
-            <span class="hydra-title">Hydra</span>
+            <span class="hydra-title widget-heading">Hydra</span>
             <span class="hydra-badge" id="hydra-badge">…</span>
-          </div>
-          <div class="hydra-env">
-            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-label">Temp</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-label">Humidity</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-label">Pressure</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></span></div>
-            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-label">Light</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></span></div>
           </div>
           <div class="hydra-plants">
             <div class="hydra-plant hydra-idle" id="hydra-plant-1">
@@ -39,6 +33,12 @@
               </div>
               <div class="hydra-meter meter" aria-hidden="true"><div class="hydra-meter-fill meter-fill"></div></div>
             </div>
+          </div>
+          <div class="hydra-env">
+            <div class="hydra-env-cell" id="hydra-env-temp"><span class="hydra-env-label">Temp</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">°C</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-humidity"><span class="hydra-env-label">Humidity</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">%</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-pressure"><span class="hydra-env-label">Pressure</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">hPa</span></span></div>
+            <div class="hydra-env-cell" id="hydra-env-lux"><span class="hydra-env-label">Light</span><span class="hydra-reading"><span class="hydra-env-value">--</span><span class="hydra-env-unit">lx</span></span></div>
           </div>
           <p class="hydra-hint" hidden></p>
         </div>`
@@ -60,7 +60,8 @@
         const { width, height } = element.getBoundingClientRect()
         let shape = 'tall'
         if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-          shape = width >= 480 && height >= 340 ? 'wide'
+          shape = width >= 560 && height >= 186 && width >= height * 2.4 ? 'wide-short'
+            : width >= 480 && height >= 300 ? 'wide'
             : width >= 120 && height >= 240 && height >= width * 1.4 ? 'tall'
             : width >= 130 && height >= 180 ? 'compact'
               : width >= 116 && height >= 120 ? 'plants' : 'small'
@@ -114,6 +115,7 @@
             plant.node.className = 'hydra-plant hydra-idle'
             plant.state.textContent = ''
             plant.soil.textContent = '--'
+            plant.soil.classList.remove('hydra-plant-soil-wide')
             plant.meter.style.transform = 'scaleX(0)'
             plant.meter.classList.remove('hydra-meter-dry')
             continue
@@ -125,6 +127,7 @@
           plant.node.className = `hydra-plant${offline ? ' hydra-offline' : ''}${stale ? ' hydra-stale' : ''}${watering ? ' hydra-watering' : ''}`
           plant.state.textContent = offline ? 'Offline' : stale ? 'Stale' : watering ? 'Watering' : ''
           plant.soil.textContent = offline || missing ? '--' : `${Math.round(entry.soilPercent)}%`
+          plant.soil.classList.toggle('hydra-plant-soil-wide', plant.soil.textContent.length > 3)
           plant.meter.style.transform = `scaleX(${percent / 100})`
           plant.meter.classList.toggle('hydra-meter-dry', !offline && percent > 0 && percent < 50)
         }

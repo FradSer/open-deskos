@@ -26,6 +26,8 @@ function usedTablerIconNames() {
     }
   }
   walk(RENDERER_DIR)
+  const headingSource = fs.readFileSync(path.join(RENDERER_DIR, 'core/icons.js'), 'utf8')
+  for (const match of headingSource.matchAll(/name: '([a-z0-9-]+)'/g)) names.add(match[1])
   return [...names].sort()
 }
 

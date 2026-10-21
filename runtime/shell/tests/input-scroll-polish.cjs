@@ -62,11 +62,14 @@ app.whenReady().then(async () => {
   await js(`window.polishUntil=async f=>{const end=performance.now()+4000;while(!f()){if(performance.now()>end)throw Error('Readiness: '+f);await new Promise(r=>setTimeout(r,20))}};void 0`)
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
+  check('composer opens on the voice field', await js(`(()=>{const box=document.querySelector('.agent-composer');return box.dataset.mode==='voice'&&document.querySelector('.agent-composer textarea').hidden&&!document.querySelector('.agent-keys').hidden&&document.querySelector('.agent-composer .agent-mic-label').textContent==='Tap to talk'})()`))
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1280, 800], [480, 854], [320, 480]]) {
       const where = `${theme}-${width}`
       win.setContentSize(width, height)
-      await js(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await polishUntil(()=>innerWidth===${width}&&innerHeight===${height});await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-composer textarea').focus()})()`)
+      await js(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await polishUntil(()=>innerWidth===${width}&&innerHeight===${height});await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-composer .agent-mic').focus()})()`)
+      check(where + ': microphone control keeps its own focus ring', await js(`(()=>{const field=document.querySelector('.agent-composer .agent-mic'),s=getComputedStyle(field);return field.matches(':focus-visible')&&s.outlineStyle==='solid'&&s.outlineWidth==='2px'})()`))
+      await js(`(async()=>{const box=document.querySelector('.agent-composer');if(box.dataset.mode==='voice')document.querySelector('.agent-keys').click();await polishUntil(()=>box.dataset.mode==='keyboard');document.querySelector('.agent-composer textarea').focus()})()`)
       const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity summary');return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
       check(where + ': default name is whole on one line', identity.nameHeight <= identity.nameLine + 1 && identity.nameWhole)
       check(where + ': identity capsule keeps control height', identity.height <= 46)

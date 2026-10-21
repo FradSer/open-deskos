@@ -50,7 +50,7 @@ if (viewVersion) {
       window.builtinDefaultMounts=0;
       window.builtinAllowDefaults=false;
       if (${viewVersion === '1.0.0'}) return;
-      const identities=new Set(['calendar','clock','pomodoro','year','app-manager'].map(id=>'odk.app.'+id));
+      const identities=new Set(['pomodoro','year','app-manager'].map(id=>'odk.app.'+id));
       let registry;
       Object.defineProperty(window,'odkPlugins',{configurable:true,get(){return registry},set(value){
         registry=value;const register=value.register;
@@ -167,7 +167,7 @@ app.on('browser-window-created', (_event, win) => {
         await counterFrame.executeJavaScript('counter.click()')
         await js(`window.desktopRetainedDocument=document;window.desktopRetainedCounter=document.querySelector('[data-user-app-id="counter"] iframe');
           window.desktopRetainedClock=document.querySelector('[data-widget="odk.tile.year"]');`)
-        assert.equal(await js(`odkAppPlatform.openApp({appId:'clock'})`), true)
+        assert.equal(await js(`odkAppPlatform.openApp({appId:'year'})`), true)
         await js('window.desktopRetainedForeground=document.querySelector("#app-runtime").firstElementChild')
         const managerState = host.get('odk:system/app-manager/v1').captureState()
         const moved = { pageId: 'desk', col: '3 / 5', row: '3' }
@@ -198,7 +198,7 @@ app.on('browser-window-created', (_event, win) => {
         const { runCommand } = require('./helpers/hydra-wire-lifecycle')
         const command = args => runCommand(process.execPath, [path.join(base, 'scripts/odk-plugin-cli.js'), ...args],
           { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 10000, maxBuffer: 65536 })
-        assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"), true)
+        assert.equal(await js("odkAppPlatform.openApp({appId:'year'})"), true)
         assert.equal((await js("odkPlatform.dispatchIntent({type:'remove-app',appId:'pomodoro'})")).ok, true)
         await js('window.retainedManagerDocument=document; window.retainedClockSurface=document.querySelector("#app-runtime").firstElementChild')
         const before = host.get('odk:system/app-manager/v1').captureState()
@@ -207,8 +207,8 @@ app.on('browser-window-created', (_event, win) => {
         if (fullComposition) await js('window.retainedDesktopNodes=[...document.querySelectorAll("[data-widget], [data-status-plugin], [data-built-by=composer]")]')
         const retained = async () => {
           assert.deepEqual(host.get('odk:system/app-manager/v1').captureState(), before)
-          assert.equal(await js('document===retainedManagerDocument && document.querySelector("#app-runtime").firstElementChild===retainedClockSurface && odkAppPlatform.active()?.appId==="clock" && !document.querySelector("#app-view").hidden'), true)
-          assert.equal((await js("odkPlatform.getAppState('clock')")).state, 'running')
+          assert.equal(await js('document===retainedManagerDocument && document.querySelector("#app-runtime").firstElementChild===retainedClockSurface && odkAppPlatform.active()?.appId==="year" && !document.querySelector("#app-view").hidden'), true)
+          assert.equal((await js("odkPlatform.getAppState('year')")).state, 'running')
           assert.equal((await js("odkPlatform.getAppState('pomodoro')")).state, 'removed')
           assert.deepEqual(fs.readFileSync(configPath), savedConfiguration)
           if (fullComposition) {

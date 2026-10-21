@@ -198,185 +198,60 @@
    * Tile Widget: odk.tile.pi-sessions
    * --------------------------------------------------------- */
   const PI_TILE_ID = 'odk.tile.pi-sessions'
-  // Measured: below a 217px cell this tile hides the bottom of its own content, so
-  // a span that would give it less than that is not kept, and at that size the
-  // tile drops its summary line rather than letting the cell cut it.
-  const PI_TILE_MIN_CELL = 217
   root.odkPlugins.register({
     id: PI_TILE_ID,
-    manifest: { schemaVersion: 1, minCell: PI_TILE_MIN_CELL },
+    manifest: { schemaVersion: 1, minCell: 186 },
     kind: 'tile',
     app: 'Pi Sessions',
     state: 'Live',
     interaction: 'display-only',
     opensApp: 'pi-sessions',
     mount(el, ctx) {
-      // Before the first scan answers, the tile knows nothing: it states that, and
-      // claims no workspace, session or state it has not read.
       el.innerHTML = `
-        <div class="pi-widget-body odk-col items-center justify-center w-full">
-          <div class="pi-widget-metric-row odk-row items-baseline justify-center w-full">
+        <div class="pi-widget-body w-full">
+          <div class="widget-head"><span class="widget-heading">Pi Sessions</span></div>
+          <div class="pi-widget-metric-row">
             <span class="pi-widget-count">--</span>
-            <span class="pi-widget-unit" hidden></span>
+            <span class="pi-widget-live-tag"><span class="pi-indicator-dot" aria-hidden="true"></span><span class="pi-widget-tag-label">Reading</span></span>
           </div>
-          <div class="pi-widget-live-tag odk-row items-center gap-1">
-            <span class="pi-indicator-dot pi-indicator-idle"></span>
-            <span class="pi-widget-tag-label">READING</span>
-          </div>
-          <div class="pi-widget-context odk-col items-center w-full">
-            <div class="w-state"></div>
-            <div class="pi-widget-activity" hidden></div>
-            <span class="pi-widget-summary">Not scanned yet</span>
-          </div>
+          <span class="pi-widget-summary">Waiting for sessions</span>
         </div>`
-
-      const countEl = el.querySelector('.pi-widget-count')
-      const dotEl = el.querySelector('.pi-indicator-dot')
-      const tagLabelEl = el.querySelector('.pi-widget-tag-label')
-      const summaryEl = el.querySelector('.pi-widget-summary')
-      const stateEl = el.querySelector('.w-state')
-      const activityEl = el.querySelector('.pi-widget-activity')
-
-      let tickCount = 0
-      let scanToken = 0
-      let appliedScanToken = 0
-      let disposed = false
-      ctx.trackCleanup?.(() => { disposed = true; scanToken++ })
-
+      const count = el.querySelector('.pi-widget-count')
+      const label = el.querySelector('.pi-widget-tag-label')
+      const summary = el.querySelector('.pi-widget-summary')
+      let ticks = 0, requested = 0, applied = 0, disposed = false
+      ctx.trackCleanup?.(() => { disposed = true; requested++ })
+      const unavailable = () => {
+        count.textContent = '--'
+        label.textContent = 'Unavailable'
+        summary.textContent = 'Open Pi Sessions'
+        el.classList.remove('pi-widget-wide-count')
+        el.classList.remove('pi-widget-working')
+      }
       const refresh = async () => {
         if (disposed) return
-        const token = ++scanToken
+        const token = ++requested
         try {
-          const res = typeof root.odkPlatform?.getPiSessions === 'function'
-            ? await root.odkPlatform.getPiSessions()
-            : null
-          // Polling can outpace a remote scan: discard older applied results,
-          // rather than starving all completions while the next poll is pending.
-          if (disposed || token < appliedScanToken) return
-          appliedScanToken = token
-          el.classList.remove('pi-widget-detailed')
-          el.classList.remove('pi-widget-wide-count')
-          if (!res || res.ok === false) {
-            countEl.textContent = '--'
-            dotEl.className = 'pi-indicator-dot pi-indicator-idle'
-            tagLabelEl.textContent = 'OFFLINE'
-            tagLabelEl.className = 'pi-widget-tag-label'
-            // The indicator already names the failure, so this line spends itself
-            // on the source that failed and what happens next.
-            summaryEl.textContent = res?.source?.label
-              ? `${res.source.label} · Retrying automatically`
-              : 'Scanner unavailable'
-            stateEl.textContent = 'Unavailable'
-            if (activityEl) {
-              activityEl.hidden = true
-              activityEl.textContent = ''
-            }
-            return
-          }
-          const running = res?.summary?.running ?? 0
-          const liveSessions = sessionSet(res, 'live')
-          const live = liveSessions.length
-          const wsCount = res?.summary?.workspacesCount ?? 0
-
-          countEl.textContent = String(running)
-          if (countEl.textContent.length > 2) el.classList.add('pi-widget-wide-count')
-          summaryEl.textContent = `${res.source?.label ? `${res.source.label} · ` : ''}${wsCount} workspace${wsCount !== 1 ? 's' : ''} · ${live} live`
-
-          const activeSession = res.sessions?.find((session) => session.status === 'running')
-
-          if (running > 0) {
-            dotEl.className = 'pi-indicator-dot pi-indicator-running'
-            tagLabelEl.textContent = 'Working...'
-            tagLabelEl.className = 'pi-widget-tag-label text-odk-green'
-
-            if (activeSession && (activeSession.latestGoal || activeSession.activity)) {
-              el.classList.add('pi-widget-detailed')
-              if (stateEl) stateEl.innerHTML = renderGoalHtml(activeSession.latestGoal || `${running} working`)
-              if (activityEl) {
-                activityEl.hidden = false
-                activityEl.innerHTML = `<span class="pi-pulse-dot"></span>${renderActivityHtml(activeSession.activity || 'Working...')}`
-              }
-            } else {
-              if (stateEl) stateEl.textContent = `${running} working`
-              if (activityEl) {
-                activityEl.hidden = true
-                activityEl.textContent = ''
-              }
-            }
-          } else {
-            dotEl.className = 'pi-indicator-dot pi-indicator-idle'
-            tagLabelEl.textContent = 'IDLE'
-            tagLabelEl.className = 'pi-widget-tag-label'
-            if (activityEl) {
-              activityEl.hidden = true
-              activityEl.textContent = ''
-            }
-            // The tag already says idle and the summary already counts, so this
-            // line states what Pi is on instead: the freshest live session's own
-            // goal, with the count as the fallback when none is reported.
-            const freshest = liveSessions.reduce((best, session) =>
-              (Date.parse(session.updatedAt) || 0) > (Date.parse(best?.updatedAt) || 0) ? session : best, null)
-            const goal = normalizeInline(freshest?.latestGoal)
-            if (stateEl) {
-              if (goal) {
-                el.classList.add('pi-widget-detailed')
-                stateEl.innerHTML = renderGoalHtml(goal)
-              }
-              // A set with no goal to report falls back to its own count, which is
-              // the reading the tile's density profile is measured against.
-              else stateEl.textContent = live > 0 ? `${live} idle` : 'Idle'
-            }
-          }
+          const scan = await root.odkPlatform?.getPiSessions?.()
+          if (disposed || token < applied) return
+          applied = token
+          if (!scan || scan.ok === false) { unavailable(); return }
+          const sessions = sessionSet(scan, 'live')
+          const working = scan.summary?.running ?? sessions.filter(session => session.status === 'running').length
+          const idle = sessions.filter(session => session.status === 'settled').length
+          count.textContent = String(working)
+          label.textContent = working > 0 ? 'Working...' : 'Idle'
+          summary.textContent = `${idle} idle`
+          el.classList.toggle('pi-widget-working', working > 0)
+          el.classList.toggle('pi-widget-wide-count', count.textContent.length > 2)
         } catch {
-          if (disposed || token < appliedScanToken) return
-          appliedScanToken = token
-          el.classList.remove('pi-widget-detailed')
-          el.classList.remove('pi-widget-wide-count')
-          countEl.textContent = '--'
-          dotEl.className = 'pi-indicator-dot pi-indicator-idle'
-          tagLabelEl.textContent = 'ERROR'
-          tagLabelEl.className = 'pi-widget-tag-label'
-          summaryEl.textContent = 'Retrying automatically'
-          stateEl.textContent = 'Unavailable'
-          if (activityEl) {
-            activityEl.hidden = true
-            activityEl.textContent = ''
-          }
+          if (disposed || token < applied) return
+          applied = token
+          unavailable()
         }
       }
-
-      refresh()
-
-      // A glanceable tile re-composes rather than letting the cell cut it. Below
-      // the Minimum Readable Cell this tile declared, the summary line is the one
-      // that goes: the count and the goal stay, because those are what the tile is
-      // for. The decision is made from the cell it was given, so the same tile
-      // keeps its full composition on the reference panel.
-      const declaredMinCell = PI_TILE_MIN_CELL
-      const meetsFloor = root.odkGridPlacement?.meetsMinCell
-      const fitToCell = () => {
-        if (disposed) return
-        const box = el.getBoundingClientRect()
-        // The Shell owns this question for the whole runtime, so the tile asks the
-        // same one rather than keeping its own copy of the rule.
-        const roomy = meetsFloor ? meetsFloor(box.width, box.height, declaredMinCell) : true
-        summaryEl.hidden = !roomy
-      }
-      fitToCell()
-      if (typeof ResizeObserver !== 'undefined') {
-        const observer = new ResizeObserver(fitToCell)
-        observer.observe(el)
-        ctx.trackCleanup?.(() => observer.disconnect())
-      }
-
-      if (ctx?.onTick) {
-        ctx.onTick(() => {
-          tickCount += 1
-          if (tickCount % 3 === 0) {
-            refresh()
-          }
-        })
-      }
+      void refresh()
+      ctx.onTick?.(() => { if (++ticks % 3 === 0) void refresh() })
     },
   })
 

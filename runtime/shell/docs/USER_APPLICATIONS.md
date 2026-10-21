@@ -129,7 +129,7 @@ An active installed App supports a two-finger inward pinch through its Shell boo
 Two-finger scrolling and spreading do not return to Home.
 Widgets do not receive this return capability.
 The Shell checks the current App frame and modal owner before returning.
-The Home handle remains available without touch input.
+The App return handle remains available without touch input.
 Trackpad wheel gestures and external embedded frames do not use this capability.
 
 ## Runtime safety and limits

@@ -256,6 +256,7 @@ Supported-device acceptance remains unfinished.
 
 | Member | Contract |
 | --- | --- |
+| `ctx.focus.snapshot()` / `.subscribe(cb)` | Optional read-only Pomodoro state from the active App implementation; subscription returns cleanup |
 | `ctx.onTick(cb)` | Shared one-second tick; immediate initial call; returns cleanup; final cleanup stops its interval |
 | `ctx.connection.subscribe(cb)` | Network boolean; immediate initial call; returns cleanup |
 | `ctx.connection.labelFor(online)` | Shared network wording |
@@ -288,6 +289,9 @@ Default input cleanup is registered before restoration notifies consumers.
 Replacement implementations own their resources; registration does not acquire or release those resources.
 Existing mounted consumers use another implementation after remounting.
 Registration does not rebind their existing subscriptions.
+The Pomodoro Widget checks its optional focus reader on each Tick.
+It releases the previous reader before it subscribes to a replacement.
+Opening a Pomodoro App publishes that implementation's read-only focus state.
 
 Plugins read configuration from `ctx`. They must not read environment variables or URL parameters themselves.
 
@@ -304,15 +308,9 @@ Read [the Hydra surface contract](HYDRA_SURFACE_PLUGIN_CONTRACT.md) when replaci
 Read [the Camera source contract](CAMERA_PLUGIN_CONTRACT.md) when replacing capture, frame caching, or source lifecycle behavior.
 The Camera Widget is retired. The Camera source and peripheral status remain separate.
 
-## Clock surface contract
+## Year and State Bar time contracts
 
-Read [the Clock surface contract](CLOCK_SURFACE_PLUGIN_CONTRACT.md) when replacing local time formatting or shared Tick subscription ownership.
-
-Read [calendar and State Bar time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRACT.md) when replacing Almanac, Year progress, or State Bar Clock.
-
-## Pre-order surface contract
-
-Read [the Pre-order contract](PREORDER_SURFACE_PLUGIN_CONTRACT.md) when replacing countdowns, hero canvas processing, or pending image ownership.
+Read [time contracts](CALENDAR_TIME_SURFACE_PLUGIN_CONTRACT.md) when replacing Year or State Bar time.
 
 ## Pomodoro surface contract
 
@@ -407,7 +405,7 @@ Mark one visible entry with `[data-page-focus]`. Only the visible view can own i
 
 ## Layout and delivery
 
-The production desktop contains Home, Desk, Pre-order, and Reading display pages.
+The production desktop contains Home, Desk, and Reading display pages.
 Pi Sessions opens only from its Home Widget.
 The State Bar Pi indicator selects Home and focuses that Widget.
 The retained `odk.page.pi-sessions` identity supports compatibility checks; production layout does not mount it.

@@ -36,7 +36,8 @@
   }
 
   function apply(scope) {
-    for (const svg of (scope || root.document).querySelectorAll('svg[data-tabler]')) {
+    const target = scope || root.document
+    for (const svg of target.querySelectorAll('svg[data-tabler]')) {
       applyIcon(svg)
     }
   }

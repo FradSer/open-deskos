@@ -2,13 +2,13 @@ async function today(win, check) {
   const result = await win.webContents.executeJavaScript(`(() => {
     const surface = document.querySelector('.dash')
     const box = surface.getBoundingClientRect()
-    const fits = [...surface.querySelectorAll('.dash-wd, .dash-date, .dash-clause')].every(el => {
+    const readings = [...surface.querySelectorAll('.dash-wd, .dash-date, .dash-clause')].map(el => {
       const r = el.getBoundingClientRect()
-      return r.left >= box.left && r.right <= box.right && el.scrollWidth <= el.clientWidth + 1
+      return { name: el.className, text: el.textContent, left: r.left, right: r.right, width: el.clientWidth, scroll: el.scrollWidth, fits: r.left >= box.left && r.right <= box.right && el.scrollWidth <= el.clientWidth + 1 }
     })
-    return { fits, noDot: !document.querySelector('.dash-status-dot') }
+    return { fits: readings.every(row => row.fits), readings, box: {left: box.left, right: box.right}, noDot: !document.querySelector('.dash-status-dot') }
   })()`)
-  check('Today wraps the date and every contributed statement', result.fits)
+  check('Today wraps the date and every contributed statement', result.fits, result)
   check('Today has no decorative active-state dot', result.noDot)
 }
 

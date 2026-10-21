@@ -155,6 +155,8 @@ app.whenReady().then(async () => {
     }
     const overflow = text.scrollHeight > text.clientHeight + 1;
     if (overflow) {
+      const hit = document.elementFromPoint(text.getBoundingClientRect().left + text.clientWidth / 2, text.getBoundingClientRect().top + Math.min(8, text.clientHeight / 2));
+      if (hit !== text && !text.contains(hit)) throw Error('WeRead scrolling is blocked by the App launcher');
       if (getComputedStyle(text).overflowY !== 'auto' || text.tabIndex !== 0) throw Error('WeRead excerpt has no accessible scroll path');
       const previous = text.scrollTop;
       text.scrollTop = text.scrollHeight;
@@ -290,7 +292,7 @@ app.whenReady().then(async () => {
         document.querySelectorAll('#dots .dot')[Number(page.dataset.page)].click()`)
       await wait(`document.querySelector('.weread-title')?.textContent === 'Loading'`)
       const results = [await collect()]
-      assert.equal(results[0].text, 'Syncing highlights...')
+      assert.equal(results[0].text, 'Loading highlights…')
       releaseNotebook({ ok: true, json: async () => ({ books: books() }) })
       releaseNotebook = null
       pendingNotebook = null
@@ -310,8 +312,8 @@ app.whenReady().then(async () => {
       if (surfaceReplacement) assert.equal(results[1].scrollable, true, 'Independent surface acceptance must exercise actual overflow keys')
       if (results[1].scrollable) await checkKeyboardScroll()
       for (const next of [
-        { state: { empty: true }, title: 'No highlights', text: 'No highlights available' },
-        { state: { fail: true }, title: 'Sync unavailable', text: 'Fixture synchronization unavailable' },
+        { state: { empty: true }, title: 'No highlights', text: 'Save a highlight in WeRead.' },
+        { state: { fail: true }, title: 'Sync unavailable', text: 'Open WeRead and select Refresh.' },
         { state: {}, title: 'Long English 与中文书名', text: markText },
         { state: { missing: true, rejectedCover: true }, title: 'WeRead', text: markText },
       ]) {
@@ -347,10 +349,10 @@ app.whenReady().then(async () => {
       await host.setEnabled(id, true)
       assertSource()
       await setWidget(true)
-      await wait(`document.querySelector('.weread-title').textContent === 'Not configured'`)
+      await wait(`document.querySelector('.weread-title').textContent === 'Connect WeRead'`)
       results.push(await collect())
       assert.equal(providerCalls, before, 'Unconfigured source cannot contact the provider')
-      assert.equal(results.at(-1).text, 'Set WEREAD_API_KEY to sync')
+      assert.equal(results.at(-1).text, 'Connect WeRead, then open to refresh.')
       const key = `${size.join('x')}/${theme}`
       if (!signed || restartVersion) baseline.set(key, results)
       else assert.deepEqual(results, baseline.get(key), `WeRead rendered parity ${key}`)

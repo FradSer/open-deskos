@@ -58,7 +58,6 @@ app.whenReady().then(async () => {
   await win.loadURL('about:blank')
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')
-  await require('./helpers/time-widget-layout').installTimeWidgetLayout(win)
   await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
     const ActualDate = Date;
     window.calendarTime = new ActualDate(2026, 0, 1, 12, 34).getTime();
@@ -92,12 +91,12 @@ app.whenReady().then(async () => {
       if (!window.odkPlugins.activate(window.odkPlugins.get(spec.id), sample, ui)) throw Error('Time surface mount refused');
       window.calendarConsumers.push({ spec, actual, sample });
     }
-    if (window.calendarSubscriptions !== 3) throw Error('Initial Tick subscriptions not observed');
+    if (window.calendarSubscriptions !== 2) throw Error('Initial Tick subscriptions not observed');
     const sheet = new CSSStyleSheet();
     sheet.replaceSync('[id^="calendar-"], [id^="calendar-"] * {transition:none!important;animation:none!important}');
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]; window.calendarSheet = sheet;
   })()`)
-  const activeConsumers = `document === window.calendarDocument && window.calendarSubscriptions === 3
+  const activeConsumers = `document === window.calendarDocument && window.calendarSubscriptions === 2
     && window.calendarConsumers.every(({spec, actual, sample}) => document.querySelector(spec.selector) === actual
       && document.getElementById('calendar-' + spec.file) === sample
       && window.odkPlugins.isActive(window.odkPlugins.get(spec.id), actual)
@@ -112,7 +111,7 @@ app.whenReady().then(async () => {
       await js(`(async () => {
         for (const {spec} of window.calendarConsumers) window.odkPlugins.get(spec.id).lifecycle.mount = () => { throw Error('Default time surface delegation refused'); };
         const definitions = await window.odkRendererDevelopment.load({ runtime: true });
-        if (definitions.length !== 3) throw Error('Time surface entries absent');
+        if (definitions.length !== 2) throw Error('Time surface entries absent');
         for (const definition of definitions) {
           await window.odkRendererRuntime.replace(definition);
           if (!(${activeConsumers})) throw Error('Replacement changed independent consumer ownership');
@@ -193,6 +192,6 @@ app.whenReady().then(async () => {
   if (signed) for (const entry of entries) assert.equal(assets.response({url:entry.entryUrl}).status,410)
   clearTimeout(timeout)
   console.log(JSON.stringify({ actualPreload:true, mode:signed?'native':'development', identities:specs.map(spec=>spec.id), documentLoads:loads,
-    themes:3, sizes:3, comparisons:54, sharedTickChanges:12, retainedConsumers:true, restored:true, discoveryReleased:true, assetLeaseReleased:signed }))
+    themes:3, sizes:3, comparisons:36, sharedTickChanges:12, retainedConsumers:true, restored:true, discoveryReleased:true, assetLeaseReleased:signed }))
   app.quit()
 }).catch(error => { void finish(1,error) })

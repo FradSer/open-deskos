@@ -85,3 +85,10 @@ Feature: Read AI quotas with clear provenance and recovery
     Then the Widget reads the subscription service again
     And failed accounts cannot supply current percentages
     And a reading below 25 percent remains low after display rounding
+
+  Scenario: The Home Widget names the service that owns its quota
+    Given a ChatGPT account and an Antigravity account return quota windows
+    When the tightest known window changes between accounts
+    Then the Widget heading names ChatGPT or Antigravity for that window
+    And it never presents CLIProxyAPI as a subscription name
+    And missing configuration asks to connect an account without inventing a provider

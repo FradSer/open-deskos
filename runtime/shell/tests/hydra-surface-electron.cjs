@@ -25,13 +25,14 @@ if (consumerFile) {
   assert.equal(path.dirname(consumerFile), profile)
 }
 const { createNativeRendererAssets, NATIVE_PLUGIN_SCHEME } = require('../src/native-renderer-assets')
-const { capture } = require('./helpers/hydra-surface-selection')
+const { capture, hydraSurfaceTimeouts } = require('./helpers/hydra-surface-selection')
+const { serializeComputedStyle } = require('./helpers/hydra-style-snapshot')
 const assets = signedSurface ? createNativeRendererAssets() : null
 if (signedSurface) require('../src/user-app-system').registerUserAppScheme(protocol)
 let win, host, finishing
 app.on('window-all-closed', () => {})
 // CM5 needs more time to compare every computed property across all phases.
-const fixtureTimeout = process.platform === 'linux' && process.arch === 'arm64' ? 150000 : 70000
+const fixtureTimeout = hydraSurfaceTimeouts(runtimeSurface).fixture
 const timer = setTimeout(() => { void finish(1, Error('HYDRA_SURFACE_TIMEOUT')) }, fixtureTimeout)
 async function finish(code, error) {
   if (finishing) return finishing
@@ -61,8 +62,10 @@ app.whenReady().then(async () => {
   })
   win = new BrowserWindow({ show: false, width: 1920, height: 1280, useContentSize: true,
     webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true,
-      nodeIntegration: false, sandbox: true, backgroundThrottling: false } })
+      nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true } })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  assert.equal(win.webContents.isOffscreen(), true)
+  assert.equal(win.webContents.isPainting(), true)
   let documentLoads = 0
   win.webContents.on('did-finish-load', () => { documentLoads++ })
   let entries = []
@@ -80,7 +83,7 @@ app.whenReady().then(async () => {
     { ...live, mainOnline: false, nodes: [{ id: 1, online: false, soilPercent: 80, pump: true }] },
     { ...live, connected: false }, { configured: false }, { ...live, env: null, nodes: [] },
     { ...live, env: { ...live.env, lux: 0.25 }, nodes: [{ id: 1, stale: true, pump: true, soilPercent: 49 }] }, live]
-  const cells = [[1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
+  const cells = [[619, 196], [1103, 730], [480, 340], [348, 724], [186, 400], [168, 336], [120, 240], [292, 292],
     [168, 168], [128, 128], [116, 120], [110, 260], [94, 94]]
   const themes = ['instrument', 'pixel', 'border-beam']
   const baseline = []
@@ -157,6 +160,7 @@ app.whenReady().then(async () => {
         assert.deepEqual(await win.webContents.executeJavaScript('window.odkPlatform.getHydraStatus()'), state)
         if (index > 0) await win.webContents.executeJavaScript("window.odkPlugins.deactivate(window.odkPlugins.get('odk.tile.hydra'), document.getElementById('hydra-acceptance'))")
         const view = await win.webContents.executeJavaScript(`(async () => {
+          const serializeComputedStyle = ${serializeComputedStyle.toString()};
           if (devicePixelRatio !== 1 || visualViewport.scale !== 1) {
             throw Error('Hydra comparison rendering scale changed: ' + JSON.stringify({ devicePixelRatio, zoom: visualViewport.scale }));
           }
@@ -178,7 +182,7 @@ app.whenReady().then(async () => {
           const nodes = [tile, ...tile.querySelectorAll('*')].map(node => {
             const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
             return { attributes: [...node.attributes].map(attribute => [attribute.name, attribute.value]).sort(([a], [b]) => a.localeCompare(b)),
-              computed: Object.fromEntries([...css].sort().map(property => [property, css.getPropertyValue(property)])),
+              computed: serializeComputedStyle(css),
               className: node.getAttribute('class'), text: node.children.length ? null : node.textContent,
               hidden: node.hidden, shape: node.dataset.shape || null, title: node.title,
               font: css.fontFamily, fontSize: css.fontSize, color: css.color, opacity: css.opacity,
@@ -214,7 +218,7 @@ app.whenReady().then(async () => {
     }
     if (phaseIndex === 0) baseline.push(...result)
     else lastConsumers = result
-    assert.equal(result.length, 288)
+    assert.equal(result.length, themes.length * cells.length * states.length)
     failed = true
     await assert.rejects(win.webContents.executeJavaScript('window.odkPlatform.getHydraStatus()'), /Controlled Hydra IPC failure/)
     failed = false
@@ -237,7 +241,7 @@ app.whenReady().then(async () => {
   const report = { ok: true, pid: process.pid, actualPreload: true, developmentLoaded: !signedSurface,
     ...(signedSurface ? { signedSurface: surfaceRevision !== '1.0.0', capturedSurfaceIntegrity: !surfaceRevision, assetLeaseReleased: true } : {}),
     ...(surfaceRevision ? { surfaceProcessRestart: true, surfaceVersion: surfaceRevision, executedVersion, entryCount } : {}),
-    independentSurface: surfaceRevision !== '1.0.0', themes: 3, cells: 12, states: 8, comparisons: runtimeSurface ? 576 : 288, discoveryReleased: true,
+    independentSurface: surfaceRevision !== '1.0.0', themes: themes.length, cells: cells.length, states: states.length, comparisons: themes.length * cells.length * states.length * (runtimeSurface ? 2 : 1), discoveryReleased: true,
     ...(runtimeSurface ? { runtimeSurface: true, documentLoads, restoredDefault: true, retainedDesktop: true, defaultDelegationRefused: true } : {}) }
   if (consumerFile) fs.writeFileSync(consumerFile, JSON.stringify(lastConsumers))
   await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(report)}\n`, error => error ? reject(error) : resolve()))

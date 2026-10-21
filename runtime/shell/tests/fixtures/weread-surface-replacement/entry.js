@@ -10,7 +10,7 @@
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">
-              <p class="weread-text" role="region" aria-label="Highlight excerpt">Syncing highlights...</p>
+              <p class="weread-text" role="region" aria-label="Highlight excerpt">Loading highlights…</p>
               <div class="weread-foot">
                 <div class="weread-meta">
                   <strong class="weread-title">Loading</strong>
@@ -147,11 +147,12 @@
         const nextCover = highlight?.cover || ''
         if (nextCover !== coverSource) { coverSource = nextCover; draw() }
         const fields = state.status === 'unconfigured'
-          ? ['Not configured', '', '', 'Set WEREAD_API_KEY to sync']
+          ? ['Connect WeRead', '', '', 'Connect WeRead, then open to refresh.']
           : highlight ? [String(highlight.title || '').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim() || 'WeRead',
             highlight.author || '', date(highlight.createTime), highlight.markText]
-          : [state.status === 'error' ? 'Sync unavailable' : 'No highlights', '', '', state.error || 'No highlights available']
+          : [state.status === 'error' ? 'Sync unavailable' : 'No highlights', '', '', state.status === 'error' ? 'Open WeRead and select Refresh.' : 'Save a highlight in WeRead.']
         ;['title', 'author', 'date', 'text'].forEach((name, index) => { nodes[name].textContent = fields[index] })
+        nodes.title.title = nodes.title.textContent
         nodes.author.hidden = !nodes.author.textContent
         nodes.date.hidden = !nodes.date.textContent
         schedule()

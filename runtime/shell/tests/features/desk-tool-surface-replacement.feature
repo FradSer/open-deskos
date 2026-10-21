@@ -9,10 +9,11 @@ Feature: Replace the Pomodoro surface without changing behavior
     And normal shutdown releases handlers, signed routes, subscriptions, and private listeners
 
   Scenario: Independent surfaces preserve the current product state
-    Given the Pomodoro Widget identifies the App timer without reporting its session state
+    Given the Pomodoro Widget reads the App timer through the optional read-only focus context
     When independently constructed surfaces replace their built-in definitions
     Then their names, state text, static artwork, placement contracts, and display-only behavior remain unchanged
-    And they acquire no provider, Tick, connection, or input subscriptions
+    And their focus reading uses the shared Tick and releases its subscription
+    And they acquire no provider, connection, or input authority
 
   Scenario: Lifecycle changes preserve other desk surfaces
     Given the built-in or independent Pomodoro surface runs in the Shell

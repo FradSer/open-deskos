@@ -206,6 +206,8 @@ if [ "$(CDPATH= cd -- "${DIR}" >/dev/null && pwd -P)" != "$(CDPATH= cd -- "${REL
       run_as_target_user cp -a "${REPOSITORY_ROOT}/${tree}" "${RELEASE_DIR}/${tree}"
     fi
   done
+  run_as_target_user mkdir -p "${RELEASE_DIR}/android/app/src"
+  run_as_target_user cp -a "${REPOSITORY_ROOT}/runtime/android/app/src/main" "${RELEASE_DIR}/android/app/src/main"
   if [ -f "${REPOSITORY_ROOT}/DESIGN.md" ]; then
     run_as_target_user cp -a "${REPOSITORY_ROOT}/DESIGN.md" "${RELEASE_DIR}/DESIGN.md"
   fi

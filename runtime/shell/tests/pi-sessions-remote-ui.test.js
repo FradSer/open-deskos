@@ -26,7 +26,7 @@ function mount(file, id, independent = false) {
   // A tile is a DOM element, and a Widget that adapts to its Cell measures the
   // one it was given: the double answers with a width the cell would have.
   const classes = new Set()
-  const el = { innerHTML: '', classList: { add(name) { classes.add(name) }, remove(name) { classes.delete(name) } }, querySelector: node, querySelectorAll: () => [], addEventListener() {}, getBoundingClientRect: () => ({ width: 400, height: 400, top: 0, bottom: 400 }) }
+  const el = { innerHTML: '', classList: { add(name) { classes.add(name) }, remove(name) { classes.delete(name) }, toggle(name, on) { if (on) classes.add(name); else classes.delete(name) } }, querySelector: node, querySelectorAll: () => [], addEventListener() {}, getBoundingClientRect: () => ({ width: 400, height: 400, top: 0, bottom: 400 }) }
   const statementText = () => contributions.at(-1)?.parts.map((part) => part.text).join('')
   return { node, classes, contributions, statementText, dispose() { for (const cleanup of cleanups) cleanup() }, async show(value) {
     response = value
@@ -57,35 +57,36 @@ test('status bar identifies Mac and reports unavailable after a successful scan'
 })
 
 for (const independent of [false, true]) {
-test(`${independent ? 'independent' : 'default'} widget identifies Mac source and cannot turn disconnected Mac into idle`, async () => {
+test(`${independent ? 'independent' : 'default'} widget keeps connection failures distinct from an idle count`, async () => {
   const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   await view.show(live)
-  assert.match(view.node('.pi-widget-summary').textContent, /Mac \/ SSH/)
+  assert.equal(view.node('.pi-widget-summary').textContent, '0 idle')
   await view.show(failed)
   assert.equal(view.node('.pi-widget-count').textContent, '--')
-  assert.equal(view.node('.pi-widget-tag-label').textContent, 'OFFLINE')
-  assert.match(view.node('.pi-widget-summary').textContent, /Mac \/ SSH/)
+  assert.equal(view.node('.pi-widget-tag-label').textContent, 'Unavailable')
+  assert.equal(view.node('.pi-widget-summary').textContent, 'Open Pi Sessions')
 })
 
-test(`${independent ? 'independent' : 'default'} tile summary reads source, workspace count, and live count while idle states stay truthful`, async () => {
+test(`${independent ? 'independent' : 'default'} tile shows working and idle counts without task details`, async () => {
   const view = mount('pi-sessions.js', 'odk.tile.pi-sessions', independent)
   const settled = (sessionId) => ({ sessionId, status: 'settled', cwd: '/workspace/desk', workspaceName: 'desk', startedAt: 0, updatedAt: 1 })
   const idle = { ok: true, source, summary: { running: 0, total: 2, workspacesCount: 1 }, sessions: [settled('a'), settled('b')], workspaces: [] }
   await view.show(idle)
-  assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 1 workspace · 2 live')
-  assert.equal(view.node('.w-state').textContent, '2 idle')
-  assert.equal(view.node('.pi-widget-tag-label').textContent, 'IDLE')
+  assert.equal(view.node('.pi-widget-summary').textContent, '2 idle')
+  assert.equal(view.node('.pi-widget-count').textContent, '0')
+  assert.equal(view.node('.pi-widget-tag-label').textContent, 'Idle')
   assert.equal(view.classes.has('pi-widget-detailed'), false)
 
   await view.show({ ...idle, sessions: [{ ...settled('a'), updatedAt: '2026-10-03T00:00:00Z', latestGoal: 'Review the desktop' }] })
-  assert.equal(view.classes.has('pi-widget-detailed'), true)
+  assert.equal(view.classes.has('pi-widget-detailed'), false)
+  assert.equal(view.node('.pi-widget-summary').textContent, '1 idle')
 
   const empty = { ok: true, source, summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [], workspaces: [] }
   await view.show({ ...empty, summary: { running: 123, total: 123, workspacesCount: 1 } })
   assert.equal(view.classes.has('pi-widget-wide-count'), true)
   await view.show(empty)
-  assert.equal(view.node('.pi-widget-summary').textContent, 'Mac / SSH · test-mac · 0 workspaces · 0 live')
-  assert.equal(view.node('.w-state').textContent, 'Idle')
+  assert.equal(view.node('.pi-widget-summary').textContent, '0 idle')
+  assert.equal(view.node('.pi-widget-count').textContent, '0')
   assert.equal(view.classes.has('pi-widget-detailed'), false)
   assert.equal(view.classes.has('pi-widget-wide-count'), false)
 })
@@ -105,7 +106,7 @@ test(`${independent ? 'independent' : 'default'} a late scan success or error ca
       else oldScan.reject(new Error('Old scan failed'))
       await new Promise(resolve => setImmediate(resolve))
       assert.equal(view.node('.pi-widget-count').textContent, '0')
-      assert.equal(view.node('.pi-widget-tag-label').textContent, 'IDLE')
+      assert.equal(view.node('.pi-widget-tag-label').textContent, 'Idle')
       assert.equal(view.classes.has('pi-widget-wide-count'), false)
     })
   }

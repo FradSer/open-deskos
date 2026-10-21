@@ -20,10 +20,10 @@
 #home-desk .home-canvas { gap: var(--widget-gap); }
 #home-summary > .page { height: auto; padding: 0; overflow: visible; }
 #home-summary .dash { width: 100%; height: auto; max-height: none; margin: 0; padding: 16px clamp(16px, calc(var(--cell-dim) * 0.06), 24px) 8px; gap: 12px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
-#home-summary .dash-head { flex-wrap: nowrap; gap: 0; }
+#home-summary .dash-head { flex-wrap: wrap; align-items: baseline; gap: 12px; }
 #home-summary .dash-wd { font-size: clamp(32px, 6cqw, 96px); }
-#home-summary .dash-presence { width: 12px; height: 12px; }
-#home-summary .dash-date { display: flex; gap: 0; font-size: clamp(14px, 2.3cqw, 40px); white-space: nowrap; letter-spacing: normal; }
+#home-summary .dash-presence { width: clamp(16px, 1.8cqw, 24px); height: auto; aspect-ratio: 1; }
+#home-summary .dash-date { display: inline-block; gap: 0; font-size: clamp(14px, 2.3cqw, 40px); white-space: nowrap; letter-spacing: normal; }
 #home-summary .dash-date span { display: inline; }
 #home-summary #dash-y::before { content: ', '; }
 #home-summary .dash-narrative { font-size: var(--overview-copy-size, clamp(16px, 3.6cqw, 48px)); line-height: 1.5; letter-spacing: normal; }
@@ -35,15 +35,14 @@
 }
 #pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
-#dots::before { border: 0; background: transparent; }
-#home-desk .widget[data-interaction="display-only"] { background: transparent; }
+#home-desk .widget[data-interaction="display-only"] { background: var(--odk-surface); }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
 html[data-fit-canvas="true"] #home-desk .page:has(.widget-grid),
 html[data-fit-canvas="true"] #home-summary { overflow: clip; }
 /* Cards share one frame; control focus does not add a second App outline. */
 #home-desk {
-  --odk-frame-border: color-mix(in srgb, var(--odk-stroke) 70%, var(--odk-secondary));
+  --odk-frame-border: color-mix(in srgb, var(--odk-stroke) 55%, var(--odk-surface));
   --odk-frame-radius: calc(var(--radius) * 0.72);
 }
 #home-desk :is(.widget[data-interaction="display-only"], #app-view),
@@ -143,7 +142,14 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-composer button svg, .agent-latest svg { width: 24px; height: 24px; flex: none; }
 .agent-latest { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .agent-composer .agent-send { background: var(--odk-primary); color: var(--odk-bg); padding: 0; }
+.agent-composer .agent-mic, .agent-composer .agent-keys { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .agent-composer .agent-mic { border-color: transparent; background: transparent; }
+.agent-mic-label { display: none; font-size: 16px; color: var(--odk-primary); }
+/* Voice is the default composer: the field itself is the voice control, and the
+   keyboard is the explicit alternative beside it. */
+.agent-composer[data-mode="voice"] .agent-mic { flex: 1; min-height: 44px; padding-inline: 16px; border-color: var(--odk-stroke); background: var(--odk-elevated); }
+.agent-composer[data-mode="voice"] .agent-mic-label { display: inline; }
+.agent-composer[data-mode="voice"] .agent-mic[data-recording="true"] { border-color: var(--odk-accent-red); }
 .agent-mic[data-recording="true"] { color: var(--odk-accent-red); border-color: var(--odk-accent-red); }
 .agent-message-user { margin-inline-start: auto; }
 .sb-peripheral { align-items: center; }
@@ -257,27 +263,30 @@ html[data-theme='pixel'] #home-summary .dash {
   #status-bar::before { display: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
-/* One Home handle. Page entries retain their routing identity; only the current
-   entry is presented as the shared pointer, keyboard, and assistive control. */
+/* The desk presents the page controller below the Widgets. Inside an App the
+   same control becomes the return handle for the upward swipe. */
 #home-desk #page-center { position: relative; inset: auto; z-index: 21; }
-#home-desk #dots { padding: 0; background: transparent; touch-action: none; user-select: none; }
-#home-desk #dots::before { content: none; }
-#home-desk #dots .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
-#home-desk #dots .dot:not(.active) { display: none; }
-#home-desk #dots .dot::before {
+#home-desk #dots { touch-action: none; user-select: none; }
+#home-desk #dots[data-mode="handle"] { padding: 0; background: transparent; }
+#home-desk #dots[data-mode="handle"]::before { content: none; }
+#home-desk #dots[data-mode="handle"] .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
+#home-desk #dots[data-mode="handle"] .dot:not(.active) { display: none; }
+#home-desk #dots[data-mode="handle"] .dot::before {
   width: 104px; height: 5px; opacity: 1; background: var(--odk-primary);
   border-radius: var(--odk-radius-pill); transition: none;
 }
-#home-desk #dots .dot::after { content: none; }
+#home-desk #dots[data-mode="handle"] .dot::after { content: none; }
 #home-desk #dots .dot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
-#home-desk #dots[data-dragging] .dot::before { background: var(--odk-secondary-strong); }
+#home-desk #dots[data-dragging] .dot.active::before { background: var(--odk-secondary-strong); }
 #app-view #app-back[hidden] { display: none; }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   html[data-theme='liquid-glass'] #home-desk { --odk-frame-border: var(--odk-stroke-focus); }
 }
 @media (forced-colors: active) {
+  #home-desk #dots .dot::after { background: GrayText; forced-color-adjust: none; }
   #home-desk #dots .dot::before,
-  #home-desk #dots[data-dragging] .dot::before { background: ButtonText; forced-color-adjust: none; }
+  #home-desk #dots[data-mode="handle"] .dot.active::before,
+  #home-desk #dots[data-dragging] .dot.active::before { background: ButtonText; forced-color-adjust: none; }
   #home-desk { --odk-frame-border: CanvasText; }
 }
 

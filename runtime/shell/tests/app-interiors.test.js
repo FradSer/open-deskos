@@ -15,20 +15,13 @@ function markupFor(appId) {
 }
 
 test('simple built-in App interiors use the shared semantic anatomy', () => {
-  for (const appId of ['calendar', 'clock', 'pomodoro', 'year']) {
+  for (const appId of ['pomodoro', 'year']) {
     const markup = markupFor(appId)
     assert.match(markup, /class="runtime-app"/)
     assert.match(markup, /class="app-surface-header"/)
     assert.match(markup, /class="app-surface-heading"/)
     assert.match(markup, /class="[^"]*\bapp-detail\b[^"]*"/)
   }
-
-  const calendar = markupFor('calendar')
-  assert.match(calendar, /class="runtime-state app-detail"/)
-
-  const clock = markupFor('clock')
-  assert.match(clock, /<time class="runtime-value">--:--<\/time>/)
-  assert.match(clock, /class="runtime-state app-detail"/)
 
   const pomodoro = markupFor('pomodoro')
   assert.match(pomodoro, /class="runtime-state app-detail"/)

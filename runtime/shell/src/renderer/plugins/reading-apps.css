@@ -14,11 +14,6 @@
 .reading-book { display: flex; align-items: center; gap: 16px; padding-block-start: 16px; border-top: 1px solid var(--odk-stroke); }
 .reading-book-meta { flex: 1; min-width: 0; }
 .reading-book-cover { width: clamp(48px, 12cqi, 132px); max-height: 180px; object-fit: contain; flex: none; }
-#app-view .runtime-app:has(.reading-preorder) { height: 100%; min-height: 0; }
-#app-view .runtime-app:has(.reading-preorder) > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.reading-preorder { container-type: inline-size; width: 100%; height: 100%; min-height: 260px; flex: 1; }
-.reading-preorder .preorder-panel { border-top: 0; padding-inline: 0; }
-.reading-preorder .preorder-label { font-size: 14px; letter-spacing: normal; text-transform: none; }
 .weather-hero { display: grid; justify-items: start; gap: var(--odk-space-3); margin-block: auto; }
 .weather-place { margin: 0; color: var(--odk-secondary-strong); font-size: 24px; font-weight: 400; }
 #app-view .weather-reading { margin: 0; color: var(--odk-primary); font: 700 clamp(64px, 18cqi, 160px)/1 "Montserrat", "Noto Sans SC", "Zpix", sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

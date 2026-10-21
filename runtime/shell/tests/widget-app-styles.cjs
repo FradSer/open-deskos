@@ -11,6 +11,11 @@ const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
 const { resolvePages } = require('./helpers/pages')
 
 const root = path.resolve(__dirname, '..')
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-widget-styles-'))
+app.setPath('userData', profile)
+app.on('will-quit', () => {
+  try { fs.rmSync(profile, { recursive: true, force: true }) } catch { /* Windows can retain the profile lock during shutdown. */ }
+})
 const longPath = `/workspace/${'long-workspace-segment/'.repeat(8)}project`
 let quota = { state: 'unconfigured' }
 // Layout ids resolve to page positions once the renderer is loaded.
@@ -158,7 +163,63 @@ async function widgets(win, label) {
   })()`)
   check(`${label}: declared Widgets remain readable: ${result.failures.join(', ')}`, result.identitiesMatch && result.failures.length === 0)
   check(`${label}: grid overflow remains reachable`, result.scrollable)
-  check(`${label}: Home handle has a reachable pointer target`, result.indicators)
+  check(`${label}: Page control markers have reachable pointer targets`, result.indicators)
+}
+
+async function widgetDesignRoles(win) {
+  const names = { 'pi-sessions': 'Pi Sessions', pomodoro: 'Pomodoro', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', weread: 'Reading' }
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    await win.webContents.executeJavaScript(`odkTheme.set('${theme}').then(() => document.fonts.ready)`)
+    for (const [width, height] of [[1920, 1280], [1280, 800]]) {
+      await resize(win, width, height)
+      const readings = await win.webContents.executeJavaScript(`(() => {
+        return [...document.querySelectorAll('.widget')].map(tile => {
+          const heading = tile.querySelector('.widget-heading')
+          const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
+          const style = heading && getComputedStyle(heading)
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+        })
+      })()`)
+      for (const row of readings) {
+        if (row.id === 'year') check(`${theme} ${width}: Year identifies itself through its percentage, context and meter without a heading`, row.yearReading, row)
+        else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
+        else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
+      }
+      if (theme === 'instrument') {
+        const tone = await win.webContents.executeJavaScript(`(() => {
+          const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')]
+          const probe = document.createElement('span'); probe.style.color = 'var(--odk-surface)'; document.body.append(probe)
+          const surface = getComputedStyle(probe).color; probe.remove()
+          const values = tiles.flatMap(tile => [...tile.querySelectorAll('.pi-widget-count, .ring-mmss, .futu-ratio, .year-pct, .w-weather-value, .quota-tile-value')])
+          const pi = document.querySelector('.w-pi-sessions'), frame = pi.getBoundingClientRect()
+          const heading = pi.querySelector('.widget-head').getBoundingClientRect()
+          const count = pi.querySelector('.pi-widget-count').getBoundingClientRect()
+          const tag = pi.querySelector('.pi-widget-live-tag').getBoundingClientRect()
+          const idle = pi.querySelector('.pi-widget-summary').getBoundingClientRect()
+          const centered = rect => Math.abs((rect.left + rect.right - frame.left - frame.right) / 2) < 1
+          const contained = rect => rect.width > 0 && rect.height > 0 && rect.left >= frame.left && rect.right <= frame.right && rect.top >= frame.top && rect.bottom <= frame.bottom
+          return { aligned: [count, tag, idle].every(centered) && [heading, count, tag, idle].every(contained) && count.top >= heading.bottom && tag.top >= count.bottom && idle.top >= tag.bottom, tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), regular: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === '400' && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
+        })()`)
+        check(`${theme} ${width}: tonal surfaces and regular tabular readings`, tone.tonal && tone.regular && tone.aligned, tone)
+      }
+    }
+  }
+  const glassFrame = await win.webContents.executeJavaScript(`(() => {
+    const tile = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
+    const radius = tile.style.borderRadius, hadSurface = tile.classList.contains('lg-surface')
+    try {
+      tile.classList.add('lg-surface')
+      // The SDK writes this inline value when it installs the measured path.
+      tile.style.borderRadius = '0px'
+      const actual = getComputedStyle(tile).borderTopLeftRadius
+      const expected = getComputedStyle(document.getElementById('app-view')).borderTopLeftRadius
+      return { actual, expected, rounded: parseFloat(actual) > 0 && actual === expected }
+    } finally {
+      tile.style.borderRadius = radius
+      if (!hadSurface) tile.classList.remove('lg-surface')
+    }
+  })()`)
+  check('Liquid Glass SDK clipping retains the shared rounded frame', glassFrame.rounded, glassFrame)
 }
 
 async function pomodoroCentering(win) {
@@ -176,13 +237,17 @@ async function pomodoroCentering(win) {
         const label = tile.querySelector('.pomodoro-context').getBoundingClientRect()
         const state = tile.querySelector('.pomodoro-state').getBoundingClientRect()
         const center = r => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
-        const a = center(frame), b = center(dial), c = center(time)
+        const body = tile.querySelector('.pomodoro-body').getBoundingClientRect()
+        const head = tile.querySelector('.pomodoro-head').getBoundingClientRect()
+        const contained = (r, container) => r.width > 0 && r.height > 0 && r.left >= container.left - 1 && r.right <= container.right + 1 && r.top >= container.top - 1 && r.bottom <= container.bottom + 1
+        const a = center(body), b = center(dial), c = center(time)
         return { centered: Math.abs(a.x-b.x) < 1 && Math.abs(a.y-b.y) < 1 && Math.abs(b.x-c.x) < 1 && Math.abs(b.y-c.y) < 1,
           labelInside: label.top >= time.bottom && label.bottom <= ring.bottom + 1 && label.left >= ring.left && label.right <= ring.right,
-          stateAbove: state.bottom <= ring.top && Math.abs(center(state).x-a.x) < 1,
+          headerAbove: contained(head, frame) && contained(state, head) && head.bottom <= body.top + 1,
+          dialInside: contained(dial, body) && contained(body, frame),
           offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
       })()`)
-      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.stateAbove, reading)
+      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.headerAbove && reading.dialInside, reading)
     }
   }
 }
@@ -277,7 +342,7 @@ async function surfaceAffordances(win) {
       await closeQuota(win)
     }
     const foreground = await win.webContents.executeJavaScript(`(async () => {
-      await odkAppPlatform.openApp({ appId: 'clock' })
+      await odkAppPlatform.openApp({ appId: 'year' })
       const css = getComputedStyle(document.querySelector('#app-view'))
       return { width: css.borderTopWidth, outline: css.outlineStyle, outlineWidth: css.outlineWidth, offset: parseFloat(css.outlineOffset) }
     })()`)
@@ -809,7 +874,7 @@ async function scannerRecovery(win) {
 }
 
 async function builtinApps(win) {
-  for (const id of ['calendar', 'clock', 'pomodoro', 'year', 'app-manager', 'pi-sessions', 'quota']) {
+  for (const id of ['pomodoro', 'year', 'app-manager', 'pi-sessions', 'quota']) {
     const result = await win.webContents.executeJavaScript(`(async () => {
       await window.odkAppPlatform.openApp({ appId: '${id}' })
       const surface = document.querySelector('#app-runtime .runtime-app')
@@ -838,6 +903,12 @@ async function main() {
     console.log('SURFACE_FRAMES_PASS')
     return
   }
+  if (process.argv.includes('--widget-design-only')) {
+    await widgetDesignRoles(win)
+    assert.equal(failures, 0, `${failures} Widget design checks failed`)
+    console.log('WIDGET_DESIGN_ROLES_PASS')
+    return
+  }
   if (process.argv.includes('--liquid-glass-narrow-scroll-only')) {
     await liquidGlassNarrowDeskScroll(win)
     assert.equal(failures, 0, `${failures} narrow scroll checks failed`)
@@ -851,6 +922,7 @@ async function main() {
     await appPage(win, PAGES.dot('pi-sessions'), label)
     await quotaAppPage(win, label)
   }
+  await widgetDesignRoles(win)
   await liquidGlassNarrowDeskScroll(win)
   await resize(win, 1920, 1280)
   const savedSessions = sessions

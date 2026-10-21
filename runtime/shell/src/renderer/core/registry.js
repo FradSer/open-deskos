@@ -60,7 +60,7 @@
     }
   }
 
-  function scopedContext(ctx) {
+  function scopedContext(ctx, context) {
     const cleanups = new Set()
     const trackCleanup = (cleanup) => {
       if (typeof cleanup === 'function') cleanups.add(cleanup)
@@ -68,6 +68,8 @@
     }
     return {
       ...ctx,
+      get focus() { return ctx.focus },
+      ...(context ? { signal: context.signal, getPort: context.get, capability: context.capability } : {}),
       onTick: (listener) => trackCleanup(ctx.onTick(listener)),
       trackCleanup,
       cleanup() {
@@ -548,10 +550,7 @@
     if (!context && def.manifest.requires?.length) return false
     if (instances.has(el)) deactivate(instances.get(el))
     if (elementReleases.has(el)) return false
-    const scoped = scopedContext({
-      ...ctx,
-      ...(context ? { signal: context.signal, getPort: context.get, capability: context.capability } : {}),
-    })
+    const scoped = scopedContext(ctx, context)
     ensurePluginStyles(def)
     if (def.kind !== 'app') placements.set(el, { def, ctx })
     const instance = { def, el, ctx: scoped }

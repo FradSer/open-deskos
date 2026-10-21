@@ -55,3 +55,15 @@ test('unsupported canvas sizes cannot shrink every Widget below its reading floo
     assert.ok(metrics.cellDim >= metrics.minCell)
   }
 })
+
+test('a shared three-row canvas does not reserve an extra Overview row on every page', () => {
+  const metrics = computeDesk(1280, 776, 857, 652, 9, 700, 217, 3)
+  assert.equal(metrics.cols, 3)
+  assert.equal(metrics.rows, 3)
+  assert.equal(metrics.fitCanvas, true)
+  assert.ok(metrics.cellDim >= 186)
+  assert.ok(3 * metrics.cellDim + 64 <= 700 - 48)
+  const extraHomeRow = computeDesk(1280, 776, 857, 652, 8, 700, 217, 4)
+  assert.equal(extraHomeRow.fitCanvas, false)
+  assert.ok(extraHomeRow.cellDim >= 217)
+})

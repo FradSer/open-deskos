@@ -53,7 +53,7 @@ async function samplesCheck(win) {
   await waitForTheme(win, 'pixel')
   await js(win, `(async () => {
     await document.fonts.load('400 24px Zpix', ${JSON.stringify(samples.join(' '))})
-    await odkAppPlatform.openApp({ appId: 'calendar' })
+    await odkAppPlatform.openApp({ appId: 'year' })
     const surface = document.querySelector('#app-runtime .runtime-app')
     const section = document.createElement('section')
     section.id = 'zpix-samples'

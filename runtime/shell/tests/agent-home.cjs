@@ -75,9 +75,9 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
         publishStatus({...retained,briefing:{state,items,generatedAt:1000,omittedSources:0}})
         await evaluate('new Promise(r=>setTimeout(r,30))')
         assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.textContent===window.overviewChatText&&c.children.length===window.overviewChatNodes.length&&window.overviewChatNodes.every((n,i)=>c.children[i]===n)})()`),true,'automatic Overview refresh never appends conversation text')
-        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
+        const result=await evaluate(`(()=>{const n=document.querySelector('.dash-presence'),r=n.getBoundingClientRect(),w=document.querySelector('.dash-wd').getBoundingClientRect(),s=getComputedStyle(n),spinner=getComputedStyle(n,'::after'),probe=document.createElement('span');probe.style.color='var(--odk-accent-red)';document.body.append(probe);const red=getComputedStyle(probe).color;probe.remove();return {same:n===window.overviewPresence,display:s.display,width:r.width,height:r.height,left:r.left,top:r.top,near:r.left>=w.right&&r.left-w.right<40,clearance:r.left-w.right,center:Math.abs(r.top+r.height/2-w.top-w.height/2),background:s.backgroundColor,red,animation:spinner.animationName,border:spinner.borderTopWidth,busy:document.querySelector('#dash-narrative').getAttribute('aria-busy')==='true',narrative:document.querySelector('#dash-narrative').textContent}})()`)
         assert.equal(result.same,true,'the indicator node survives refresh')
-        assert.ok(result.display!=='none'&&result.width>=12&&result.height>=12&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
+        assert.ok(result.display!=='none'&&result.width>=16&&result.height>=16&&result.clearance>=8&&result.near&&result.center<1,JSON.stringify({theme,width,state,...result}))
         if(!position)position={left:result.left,top:result.top,width:result.width,height:result.height}
         assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
         if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
@@ -601,7 +601,7 @@ app.whenReady().then(async () => {
         await evaluate(`window.odkTheme.set('${theme}')`)
         for(const [width,height] of [[320,480],[480,854],[1280,776],[1920,1280]]) {
           await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
-          const geometry=await evaluate(`(()=>{const panel=document.querySelector('#personal-agent'),body=document.querySelector('.agent-message'),input=document.querySelector('textarea'),log=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer').getBoundingClientRect();return {pane:panel.clientWidth,body:parseFloat(getComputedStyle(body).fontSize),input:parseFloat(getComputedStyle(input).fontSize),composerBottom:composer.bottom,overflow:log.scrollWidth-log.clientWidth,pageOverflow:document.documentElement.scrollWidth-innerWidth,targets:[...document.querySelectorAll('.agent-composer button')].every(b=>b.getBoundingClientRect().height>=44&&b.getBoundingClientRect().width>=44)}})()`)
+          const geometry=await evaluate(`(()=>{const panel=document.querySelector('#personal-agent'),body=document.querySelector('.agent-message'),input=document.querySelector('textarea'),log=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer').getBoundingClientRect();return {pane:panel.clientWidth,body:parseFloat(getComputedStyle(body).fontSize),input:parseFloat(getComputedStyle(input).fontSize),composerBottom:composer.bottom,overflow:log.scrollWidth-log.clientWidth,pageOverflow:document.documentElement.scrollWidth-innerWidth,targets:[...document.querySelectorAll('.agent-composer button')].filter(b=>b.getClientRects().length).every(b=>b.getBoundingClientRect().height>=44&&b.getBoundingClientRect().width>=44)}})()`)
           assert.ok(geometry.body>=20&&geometry.body<=24&&geometry.input>=20&&geometry.input<=22,JSON.stringify({theme,width,...geometry}))
           assert.ok(geometry.composerBottom<=height&&geometry.overflow<=1&&geometry.pageOverflow<=1&&geometry.targets,JSON.stringify({theme,width,...geometry}))
           if(width===1280)assert.ok(geometry.pane<width/2,'type uses the actual Agent pane, not full screen width')
@@ -795,7 +795,7 @@ app.whenReady().then(async () => {
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelector('.agent-identity').open`),true,await evaluate(`JSON.stringify({active:document.activeElement.outerHTML,focused:document.hasFocus()})`))
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Mori';document.querySelector('.agent-identity-form').requestSubmit()`)
-    assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+    assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer .agent-mic')`),true,'saving the identity focuses the default voice field')
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       await resize(320,480)
       await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));document.querySelector('.agent-identity-form [name="name"]').value='中文'.repeat(20);document.querySelector('.agent-identity-form').requestSubmit();await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-identity summary').focus()})()`)
@@ -806,7 +806,7 @@ app.whenReady().then(async () => {
       assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-identity-form button')`),true)
       for(const type of ['mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,...popup.save})
       await evaluate('new Promise(r=>setTimeout(r,20))')
-      assert.equal(await evaluate(`!document.querySelector('.agent-identity').open&&document.activeElement===document.querySelector('.agent-composer textarea')`),true)
+      assert.equal(await evaluate(`!document.querySelector('.agent-identity').open&&document.activeElement===document.querySelector('.agent-composer .agent-mic')`),true)
     }
     await resize(1280,800)
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Personal Agent';document.querySelector('.agent-identity-form').requestSubmit();window.dispatchEvent(new Event('resize'))`)
@@ -952,11 +952,20 @@ app.whenReady().then(async () => {
       const header = await evaluate(`(() => {
         const day = document.querySelector('.dash-wd').getBoundingClientRect()
         const date = document.querySelector('.dash-date').getBoundingClientRect()
-        return { align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom, centers: Math.abs((day.top + day.bottom) / 2 - (date.top + date.bottom) / 2) }
+        const baseline = selector => {
+          const parent = document.querySelector(selector), marker = document.createElement('i')
+          marker.style.cssText = 'display:inline-block;width:0;height:0'
+          parent.append(marker)
+          const y = marker.getBoundingClientRect().bottom
+          marker.remove()
+          return y
+        }
+        return { align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom,
+          baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')) }
       })()`)
-      assert.equal(header.align, 'center')
+      assert.equal(header.align, 'baseline')
       assert.equal(header.sameRow, true, theme + ' ' + width + ' weekday and date share one row')
-      if (header.sameRow) assert.ok(header.centers < 1, theme + ' ' + width + ' header centers align')
+      assert.ok(header.baseline < 1, theme + ' ' + width + ' weekday and date baselines align')
       const sentence = await evaluate(`(() => {
         const dash = document.querySelector('.dash')
         const paragraph = document.querySelector('#dash-narrative')
@@ -1049,7 +1058,16 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').getBoundingClientRect().x`), firstCard.x, 'Overview returns with Home')
   assert.equal(await evaluate(`document.querySelector('#home-summary details, #home-summary summary')`), null, 'paging never restores source controls')
   assert.equal(await evaluate(`document.querySelectorAll('#pages-track [data-plugin="odk.page.dashboard"]').length`), 1)
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.widget[data-interaction="display-only"]')).backgroundColor`), 'rgba(0, 0, 0, 0)')
+  const widgetSurface = await evaluate(`(() => {
+    const tile = document.querySelector('.widget[data-interaction="display-only"]')
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--odk-surface)'
+    tile.append(probe)
+    const result = { actual: getComputedStyle(tile).backgroundColor, expected: getComputedStyle(probe).color }
+    probe.remove()
+    return result
+  })()`)
+  assert.equal(widgetSurface.actual, widgetSurface.expected, 'Home instruments use the theme surface')
   await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form [name="icon"]').value = 'leaf'; document.querySelector('.agent-identity-form').requestSubmit()`)
   publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
@@ -1087,11 +1105,20 @@ app.whenReady().then(async () => {
   publishStatus({ state: 'recording', message: '' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
   await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
-  assert.equal(micToggles, 1, 'home Stop toggles the active recording')
+  assert.equal(micToggles, 1, 'the voice field stops the active recording')
   publishStatus({ state: 'idle', transcript: 'Question 中文', message: 'Final response' })
   await evaluate(`new Promise(r => setTimeout(r, 30));`)
+  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'voice', 'the composer keeps the voice field')
   await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
-  assert.equal(micToggles, 2, 'next home mic starts another voice turn')
+  assert.equal(micToggles, 1, 'a second tap on the idle voice field opens the keyboard instead of recording')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'keyboard', 'the second tap switches the composer to the keyboard')
+  assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-composer textarea')`), true, 'the keyboard takes focus')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').hidden`), false, 'the text field becomes the visible field')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer .agent-keys').hidden`), true, 'the keyboard control leaves the voice field')
+  await evaluate(`document.querySelector('.agent-mic').click(); new Promise(r => setTimeout(r, 30))`)
+  assert.equal(micToggles, 2, 'the microphone of the keyboard starts the next voice turn')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer').dataset.mode`), 'voice', 'the microphone returns to the voice field')
+  assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').hidden`), true)
   const identity = await evaluate(`document.querySelector('.agent-name').textContent`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await resize(320, 480)

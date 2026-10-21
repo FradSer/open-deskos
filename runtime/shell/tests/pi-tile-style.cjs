@@ -1,6 +1,4 @@
-// The Pi Sessions tile is a glanceable instrument, so its reading has to be
-// drawable inside the cell it is given. A goal longer than one line wraps and is
-// bounded rather than being cut away, and the rest of the tile stays readable.
+// Pi Widgets show working and idle counts; task details belong to the App.
 const { app, BrowserWindow, ipcMain } = require('electron')
 const assert = require('node:assert/strict')
 const path = require('node:path')
@@ -23,15 +21,17 @@ const timer = setTimeout(() => { console.error('PI_TILE_STYLE_TIMEOUT'); app.exi
 // small cell comes from a compact layout, where the page's composition cannot
 // be placed and every tile gets a single cell.
 const CASES = [['reference panel', 357, 1920, 1280], ['handheld panel', 196, 1280, 776], ['small cell', 217, 480, 854], ['below-floor cell', 217, 480, 854, 206]]
-const THEMES = ['instrument', 'pixel', 'border-beam']
-const GOAL_FLOOR = 14
+const THEMES = ['instrument', 'pixel', 'border-beam', 'liquid-glass']
+const LABEL_FLOOR = 14
 
 // The tile's own scan, including a goal longer than the tile is wide.
 installGeometryFixtures(ipcMain, { state: 'live', wide: true })
 const SCANS = [
+  ['short goal', { summary: { running: 1, total: 1, workspacesCount: 1 }, sessions: [{ status: 'running', sessionId: 'short', latestGoal: 'Review', cwd: '/desk' }] }],
   ['working goal', { summary: { running: 2, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS }],
   ['idle goal', { summary: { running: 0, total: 5, workspacesCount: 4 }, sessions: WIDE_SESSIONS.map(session => ({ ...session, status: session.status === 'running' ? 'settled' : session.status, updatedAt: new Date(session.updatedAt).toISOString() })) }],
   ['empty scan', { summary: { running: 0, total: 0, workspacesCount: 0 }, sessions: [] }],
+  ['three-digit idle count', { summary: { running: 0, total: 123, workspacesCount: 1 }, sessions: Array.from({ length: 123 }, (_, index) => ({ sessionId: String(index), status: 'settled' })) }],
   ['three-digit count', { summary: { running: 123, total: 123, workspacesCount: 1 }, sessions: Array.from({ length: 123 }, (_, index) => ({ sessionId: String(index), status: 'running' })) }],
 ]
 let scan = SCANS[0][1]
@@ -52,49 +52,23 @@ async function settleViewport(win, width, height) {
   assert.fail(`Pi viewport did not settle at ${width}x${height}: ${JSON.stringify(actual)}`)
 }
 
-const READ = `(() => { try {
-  const GOAL_FLOOR = ${GOAL_FLOOR}
-  const host = document.querySelector('[data-widget="odk.tile.pi-sessions"]')
-  if (!host) return { error: 'tile not mounted' }
-  const goal = host.querySelector('.pi-widget-context .w-state')
-  const summary = host.querySelector('.pi-widget-summary')
-  const count = host.querySelector('.pi-widget-count')
-  const countRange = document.createRange()
-  countRange.selectNodeContents(count)
-  const countBounds = countRange.getBoundingClientRect()
-  const metricBounds = count.parentElement.getBoundingClientRect()
-  const style = getComputedStyle(goal)
-  const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5
-  const lines = Math.round(goal.getBoundingClientRect().height / lineHeight)
-  // The width the goal would need on a single line, measured on the element
-  // itself with its bound lifted, so "did this need to wrap" is a measurement
-  // rather than an assumption about the text. Measuring a clone is not enough:
-  // the Pixel theme's CJK face is a full-width pixel font, and a clone can end up
-  // measured in the fallback face instead of the one the tile renders.
-  const bound = goal.style.whiteSpace
-  goal.style.whiteSpace = 'nowrap'
-  const singleLineWidth = goal.scrollWidth
-  goal.style.whiteSpace = bound
-  const needsWrap = singleLineWidth > goal.clientWidth + 1
-  return {
-    error: null,
-    viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
-    cell: Math.round(host.getBoundingClientRect().width),
-    layoutCell: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-dim')) || 0,
-    text: goal.textContent.trim(),
-    font: parseFloat(style.fontSize),
-    lines,
-    needsWrap,
-    wrapped: lines > 1,
-    saysItIsBounded: style.textOverflow === 'ellipsis' || style.webkitLineClamp !== 'none',
+const READ = `(() => {
+  const host = document.querySelector('[data-widget="odk.tile.pi-sessions"]');
+  const count = host.querySelector('.pi-widget-count'), label = host.querySelector('.pi-widget-tag-label'), summary = host.querySelector('.pi-widget-summary');
+  const bounds = host.getBoundingClientRect(), reading = count.getBoundingClientRect(), metric = count.parentElement.getBoundingClientRect();
+  const capsule = host.querySelector('.pi-widget-live-tag').getBoundingClientRect(), footer = summary.getBoundingClientRect();
+  const heading = (host.querySelector('.widget-title') || host.querySelector('.widget-heading')).getBoundingClientRect();
+  return { viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
+    headingClearance: reading.top - heading.bottom,
+    cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: summary.textContent, capsuleBelowCount: capsule.top >= reading.bottom + 4, idleBelowCapsule: footer.top >= capsule.bottom + 4,
+    details: host.querySelectorAll('.pi-widget-activity,.pi-widget-context,.w-state').length,
+    font: parseFloat(getComputedStyle(label).fontSize),
     scrollable: ['auto', 'scroll'].includes(getComputedStyle(host).overflowY),
     hiddenV: host.scrollHeight - host.clientHeight,
     summaryVisible: summary.getBoundingClientRect().height > 0,
-    summaryFont: parseFloat(getComputedStyle(summary).fontSize),
-    countVisible: count.getBoundingClientRect().height > 0,
-    countContained: countBounds.left >= metricBounds.left - 1 && countBounds.right <= metricBounds.right + 1,
-  }
-} catch (error) { return { error: String((error && error.stack) || error) } } })()`
+    countContained: reading.left >= metric.left && reading.right <= metric.right,
+    aligned: Math.abs(heading.left - bounds.left - parseFloat(getComputedStyle(host).borderLeftWidth) - parseFloat(getComputedStyle(host).paddingLeft)) < 1 };
+})()`
 
 async function main() {
   const win = new BrowserWindow({
@@ -125,44 +99,26 @@ async function main() {
         await wait(400)
         await win.webContents.executeJavaScript(`document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`)
         const reading = await win.webContents.executeJavaScript(READ)
-        assert.equal(reading.error, null, `${name} ${state} ${theme}: ${reading.error}`)
+        assert.equal(reading.count, String(payload.summary.running))
+        assert.equal(reading.label, payload.summary.running > 0 ? 'Working...' : 'Idle')
+        assert.equal(reading.idle, payload.sessions.filter(session => session.status === 'settled').length + ' idle')
         assert.deepEqual(reading.viewport, { width, height, scale: 1 }, `${name} ${state} ${theme}: measured viewport matches the case`)
         results.push({ panel: name, state, theme, ...reading })
       }
     }
   }
-  for (const [name, cell] of CASES) {
-    const reading = results.find((item) => item.panel === name)
-    assert.equal(reading.layoutCell, cell, `${name}: the layout produced a ${reading.layoutCell}px cell, not the ${cell}px this case is about`)
-  }
   for (const reading of results) {
-    assert.ok(!reading.error, JSON.stringify(reading))
     const where = `${reading.panel} ${reading.state} ${reading.theme}`
-    // A goal too wide for its cell wraps instead of being cut away; a goal that
-    // fits stays on one line, because bounding is not the same as using up space.
-    assert.equal(reading.wrapped, reading.needsWrap, `${where}: the goal wraps only when it has to (needs ${reading.needsWrap})`)
-    assert.ok(reading.lines <= 2, `${where}: the goal is bounded at two lines, measured ${reading.lines}`)
-    assert.equal(reading.saysItIsBounded, true, `${where}: a bounded goal says so`)
-    assert.ok(reading.font >= GOAL_FLOOR, `${where}: goal type ${reading.font}px is under the data floor`)
-    // A glanceable tile does not scroll, and nothing is hidden by it.
-    assert.equal(reading.scrollable, false, `${where}: a glanceable tile does not scroll`)
-    assert.ok(reading.hiddenV <= 1, `${where}: the tile hides ${reading.hiddenV}px of its own content`)
-    // The rest of the instrument survives the bound.
-    assert.equal(reading.countVisible, true, `${where}: the count stays visible`)
-    assert.equal(reading.countContained, true, `${where}: every count digit stays inside its metric row`)
-    // The summary is the line that goes when the cell is smaller than the tile
-    // declared it reads at; the primary reading never goes.
-    assert.equal(reading.summaryVisible, reading.cell >= 217, `${where}: the full summary follows the measured Cell while compact primary readings stay visible`)
-  }
-  // Below the declared minimum the tile drops its least essential line rather
-  // than letting the cell cut it off.
-  for (const reading of results.filter((item) => item.panel === 'below-floor cell')) {
-    const where = `${reading.panel} ${reading.state} ${reading.theme}`
-    assert.ok(reading.hiddenV <= 1, `${where}: the tile hides ${reading.hiddenV}px of its own content`)
-    assert.equal(reading.countVisible, true, `${where}: the primary reading stays visible`)
-    assert.equal(reading.cell, 206, `${where}: the fixture supplied a cell below the declared minimum`)
-    assert.equal(reading.summaryVisible, false, `${where}: a cell below the declared minimum drops the summary rather than clipping it`)
-    assert.ok(reading.font >= GOAL_FLOOR, `${where}: goal type ${reading.font}px is under the data floor`)
+    assert.ok(reading.headingClearance >= 4, `${where}: heading stays above the count` )
+    assert.equal(reading.capsuleBelowCount, true, `${where}: capsule follows the count`)
+    assert.equal(reading.idleBelowCapsule, true, `${where}: idle count follows the capsule`)
+    assert.equal(reading.details, 0, `${where}: task details belong to the App`)
+    assert.ok(reading.font >= LABEL_FLOOR, `${where}: labels remain readable`)
+    assert.equal(reading.scrollable, false, `${where}: no inner scroll`)
+    assert.ok(reading.hiddenV <= 1, `${where}: all readings fit`)
+    assert.equal(reading.countContained, true, `${where}: every count digit fits`)
+    assert.equal(reading.aligned, true, `${where}: heading follows the shared inset`)
+    assert.equal(reading.summaryVisible, true, `${where}: idle count remains visible`)
   }
   console.log(`PI_TILE_STYLE_PASS ${results.length} cases`)
   win.destroy()

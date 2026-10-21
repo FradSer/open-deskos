@@ -3,7 +3,7 @@
 const installed = new WeakSet()
 
 // Opt in only when a harness tests the retained independent page-plugin contract.
-// Production navigation and E2E must use the default four-page layout instead.
+// Production navigation and E2E must use the default three-page layout instead.
 async function installPiPageCompatibilityFixture(win) {
   if (installed.has(win.webContents)) return
   if (!win.webContents.getURL()) await win.loadURL('about:blank')
@@ -16,8 +16,8 @@ async function installPiPageCompatibilityFixture(win) {
       get() { return layout; },
       set(value) {
         const ids = value.pages.filter(page => !page.persistent).map(page => page.id);
-        if (JSON.stringify(ids) !== JSON.stringify(['home', 'desk', 'preorder', 'reading'])) {
-          throw Error('Pi page compatibility fixture requires the production four-page layout');
+        if (JSON.stringify(ids) !== JSON.stringify(['home', 'desk', 'reading'])) {
+          throw Error('Pi page compatibility fixture requires the production three-page layout');
         }
         window.piPageCompatibilityProductionIds = ids;
         layout = { ...value, pages: [...value.pages,

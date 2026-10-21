@@ -8,15 +8,15 @@ test('runtime manager replacement preserves active foreground and removed catalo
   const selected = await selection(t)
   const definitions = await selected.load()
   const current = await runtime(t)
-  current.dispatch({ type: 'open-app', appId: 'clock' })
+  current.dispatch({ type: 'open-app', appId: 'year' })
   current.dispatch({ type: 'remove-app', appId: 'pomodoro' })
   const before = current.list()
   const foreground = current.host.get(SYSTEM_PORTS.appManager).foreground()
   await current.host.replace(definitions[0])
   const after = current.host.get(SYSTEM_PORTS.appManager).foreground()
   console.log(JSON.stringify({ boundary: 'Host.replace', beforeForeground: foreground?.appId, afterForeground: after?.appId || null,
-    beforeClock: before.find(app => app.appId === 'clock').state,
-    afterClock: current.get('clock').state, removedAppReappeared: current.list().some(app => app.appId === 'pomodoro') }))
+    beforeClock: before.find(app => app.appId === 'year').state,
+    afterClock: current.get('year').state, removedAppReappeared: current.list().some(app => app.appId === 'pomodoro') }))
   assert.deepEqual(after, foreground)
   assert.deepEqual(current.list(), before)
 })
@@ -26,8 +26,8 @@ test('failed candidate restores the previous manager state as well as its factor
   const selected = await selection(t)
   const [definition] = await selected.load()
   const current = await runtime(t)
-  current.dispatch({ type: 'open-app', appId: 'clock' })
-  current.dispatch({ type: 'action', appId: 'clock', action: 'pause' })
+  current.dispatch({ type: 'open-app', appId: 'year' })
+  current.dispatch({ type: 'action', appId: 'year', action: 'pause' })
   current.dispatch({ type: 'remove-app', appId: 'pomodoro' })
   const before = current.list()
   const foreground = current.host.get(SYSTEM_PORTS.appManager).foreground()
@@ -49,7 +49,7 @@ test('actual native activator preserves existing manager state before reporting 
   const id = 'odk.system.app-manager'
   const { createNativeRuntimeActivator } = require('../src/native-runtime-activation')
   const activate = createNativeRuntimeActivator({ host: current.host, env: selected.env, defaults: [current.host.definition(id)] })
-  current.dispatch({ type: 'open-app', appId: 'clock' })
+  current.dispatch({ type: 'open-app', appId: 'year' })
   current.dispatch({ type: 'remove-app', appId: 'pomodoro' })
   const before = current.list()
   const foreground = current.host.get(SYSTEM_PORTS.appManager).foreground()
@@ -71,8 +71,8 @@ for (const [name, create] of [
 ]) {
   test(`${name} manager snapshots restore complete state atomically without aliases`, () => {
     const manager = create()
-    manager.start('clock')
-    manager.pause('clock')
+    manager.start('year')
+    manager.pause('year')
     manager.remove('pomodoro')
     const captured = manager.captureState()
     const restored = create()
@@ -81,7 +81,7 @@ for (const [name, create] of [
     assert.equal(restored.foreground().state, 'paused')
     assert.equal(restored.get('pomodoro').state, 'removed')
     captured.states[0].state = 'removed'
-    assert.equal(restored.get('calendar').state, 'installed')
+    assert.equal(restored.get('weather').state, 'installed')
     const before = restored.captureState()
     for (const change of [null, { ...before, version: 2 }, { ...before, states: [] },
       { ...before, states: [...before.states, before.states[0]] },
@@ -101,7 +101,7 @@ test('released default and signed IPC callbacks refuse new state changes', async
     const callback = current.handlers.get('odk-app-manager-intent')
     const manager = current.host.get(SYSTEM_PORTS.appManager)
     await current.host.stop()
-    assert.throws(() => callback(null, { type: 'open-app', appId: 'clock' }), /App Manager unavailable/)
+    assert.throws(() => callback(null, { type: 'open-app', appId: 'year' }), /App Manager unavailable/)
     assert.equal(manager.foreground(), null)
   }
 })

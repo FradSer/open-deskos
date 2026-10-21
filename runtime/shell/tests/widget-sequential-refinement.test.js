@@ -4,67 +4,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-test('recurring e2e gate requires sequential verification', () => {
+test('recurring gates require sequential and shared-grid verification', () => {
   const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
   assert.match(source, /widget-sequential-refinement\.cjs/)
   assert.match(source, /sequential: sequential\.status/)
-})
-
-test('Clock keeps minute readings stable and exposes semantic local time', () => {
-  let plugin
-  let tick
-  let writes = 0
-  let reading = ''
-  const time = {
-    dateTime: '',
-    get textContent() { return reading },
-    set textContent(value) { writes += 1; reading = value },
-  }
-  const el = { innerHTML: '', querySelector: () => time }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/clock.js'), 'utf8'), {
-    odkPlugins: { register(value) { plugin = value } },
-  })
-  plugin.mount(el, { onTick(callback) { tick = callback } })
-  tick(new Date(2026, 0, 1, 23, 59, 1))
-  tick(new Date(2026, 0, 1, 23, 59, 59))
-  assert.equal(writes, 1, 'same-minute ticks must not replace the reading')
-  assert.match(el.innerHTML, /<time class="w-clock-time"/)
-  assert.doesNotMatch(el.innerHTML, /aria-live|role="status"/)
-  assert.equal(time.dateTime, '23:59')
-  tick(new Date(2026, 0, 2, 0, 0, 0))
-  assert.equal(reading, '00:00')
-  assert.equal(time.dateTime, '00:00')
-  assert.equal(writes, 2)
-})
-
-test('Calendar updates only when the local calendar date changes', () => {
-  let plugin
-  let tick
-  let writes = 0
-  const nodes = new Map()
-  const el = { querySelector(selector) {
-    if (!nodes.has(selector)) {
-      let text = ''
-      nodes.set(selector, {
-        get textContent() { return text },
-        set textContent(value) { writes += 1; text = value },
-        classList: { toggle() {} },
-      })
-    }
-    return nodes.get(selector)
-  } }
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/renderer/plugins/almanac.js'), 'utf8'), {
-    odkPlugins: { register(value) { plugin = value } },
-  })
-  plugin.mount(el, { onTick(callback) { tick = callback } })
-  tick(new Date(2026, 0, 31, 23, 59, 1))
-  tick(new Date(2026, 0, 31, 23, 59, 59))
-  assert.equal(writes, 3, 'same-date ticks must preserve all reading nodes')
-  tick(new Date(2026, 1, 1, 0, 0, 0))
-  assert.equal(writes, 6)
-  assert.equal(nodes.get('.al-day').textContent, 1)
-  assert.equal(nodes.get('.al-month').textContent, 'Feb')
-  assert.equal(nodes.get('.al-weekday').textContent, 'Sun')
+  assert.match(source, /runFixture\('home-preview\.cjs', \['--widget-grid'\]/)
+  assert.match(source, /widgetGrid: widgetGrid\.status/)
+  const scripts = require('../package.json').scripts
+  assert.match(scripts.geometry, /electron tests\/home-preview\.cjs --widget-grid/)
 })
 
 test('Year progress preserves unchanged text and meter readings', () => {
@@ -153,7 +100,7 @@ test('Built-in views explains empty search and catalog states', async () => {
     odkPlugins: { register(value) { plugins.push(value) } },
   })
   const plugin = plugins.find(value => value.appId === 'app-manager')
-  let items = [{ name: 'Clock', appId: 'clock', kind: 'ui', version: 'builtin', source: 'builtin', state: 'installed' }]
+  let items = [{ name: 'Clock', appId: 'year', kind: 'ui', version: 'builtin', source: 'builtin', state: 'installed' }]
   const mount = () => plugin.lifecycle.mount({ querySelector: node }, { platform: {
     async listApps() { return items }, subscribeAppState() {},
   } })
@@ -225,36 +172,6 @@ function mountLocalApp(id) {
   plugins.find(value => value.appId === id).lifecycle.mount(el, { onTick(callback) { tick = callback } })
   return { el, nodes, tick: now => tick(now) }
 }
-
-test('Calendar App displays the local date through month rollover without events', () => {
-  const view = mountLocalApp('calendar')
-  view.tick(new Date(2026, 0, 31, 23, 59))
-  assert.equal(view.nodes.get('.runtime-date').dateTime, '2026-01-31')
-  view.tick(new Date(2026, 1, 1))
-  assert.equal(view.nodes.get('.runtime-date').dateTime, '2026-02-01')
-  assert.match(view.nodes.get('.runtime-date').textContent, /February 1, 2026/)
-  assert.match(view.el.innerHTML, /Calendar events unavailable/)
-})
-
-
-test('Clock App keeps minute text stable and reports semantic midnight', () => {
-  const view = mountLocalApp('clock')
-  const value = view.nodes.get('.runtime-value')
-  let writes = 0
-  let reading = ''
-  Object.defineProperty(value, 'textContent', {
-    get() { return reading }, set(text) { reading = text; writes += 1 },
-  })
-  view.tick(new Date(2026, 0, 1, 23, 59, 1))
-  view.tick(new Date(2026, 0, 1, 23, 59, 59))
-  assert.equal(writes, 1)
-  view.tick(new Date(2026, 0, 2))
-  assert.equal(value.dateTime, '00:00')
-  assert.equal(reading, '00:00')
-  assert.match(view.el.innerHTML, /<time class="runtime-value"/)
-  assert.doesNotMatch(view.el.innerHTML, /aria-live|role="status"/)
-})
-
 
 test('Year App calculates local year progress and resets at new year', () => {
   const view = mountLocalApp('year')

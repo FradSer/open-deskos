@@ -17,7 +17,7 @@
     "composition:android": "node tests/personal-agent-device-composition.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "build:native": "node scripts/build-native.mjs",
-    "geometry": "pnpm styles && electron tests/status-bar-style.cjs && electron tests/home-handle.cjs && electron tests/agent-home.cjs --agent-reference-only && electron tests/responsive-matrix.cjs && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/input-scroll-polish.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && electron tests/app-gallery.cjs --verify --all-themes && electron tests/widget-navigation.cjs && node --test --test-concurrency=1 tests/clock-surface-electron.test.js && node --test --test-concurrency=1 tests/calendar-surface-electron.test.js && node --test --test-concurrency=1 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=1 tests/quota-surface-electron.test.js && node --test --test-concurrency=1 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=1 tests/input-status-surface-electron.test.js && node --test --test-concurrency=1 tests/preorder-surface-electron.test.js",
+    "geometry": "pnpm styles && electron tests/status-bar-style.cjs && electron tests/home-handle.cjs && electron tests/agent-home.cjs --agent-reference-only && electron tests/responsive-matrix.cjs && electron tests/home-preview.cjs --widget-grid && electron tests/widget-density.cjs && electron tests/pi-tile-style.cjs && electron tests/futu-style.cjs && electron tests/input-scroll-polish.cjs && electron tests/hydra-style.cjs && electron tests/widget-app-styles.cjs && electron tests/app-gallery.cjs --verify --all-themes && electron tests/widget-navigation.cjs && node --test --test-concurrency=1 tests/calendar-surface-electron.test.js && node --test --test-concurrency=1 tests/desk-tool-surface-electron.test.js && node --test --test-concurrency=1 tests/quota-surface-electron.test.js && node --test --test-concurrency=1 tests/pi-status-surface-electron.test.js && node --test --test-concurrency=1 tests/input-status-surface-electron.test.js",
     "preview:home": "pnpm styles && electron tests/home-preview.cjs"
   },
   "devDependencies": {
@@ -30,7 +30,7 @@
   "dependencies": {
     "@glass-sdk/liquid-glass": "~0.0.2",
     "@highlightjs/cdn-assets": "^11.12.0",
-    "markdown-it": "^15.0.2",
+    "markdown-it": "^15.0.3",
     "mqtt": "^5.15.2"
   },
   "optionalDependencies": {

@@ -6,12 +6,18 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
+const { resolvePages } = require('./helpers/pages')
+const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
+const widgetGrid = process.argv.includes('--widget-grid')
+const allPages = process.argv.includes('--all-pages') || widgetGrid
+const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length) || (widgetGrid ? fs.mkdtempSync(path.join(os.tmpdir(), 'odk-widget-grid-')) : os.tmpdir())
+fs.mkdirSync(captureDir, { recursive: true })
 
 if (process.platform === 'darwin') app.dock.hide()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-home-preview-profile-'))
 app.setPath('userData', profile)
 let win
-const timeout = setTimeout(() => finish(1, Error('Populated Home preview timed out')), 60000)
+const timeout = setTimeout(() => finish(1, Error('Populated Home preview timed out')), allPages ? 180000 : 60000)
 function finish(code, error) {
   clearTimeout(timeout)
   if (error) console.error(error)
@@ -43,12 +49,125 @@ function capturePaintedFrame() {
   })
 }
 
+async function verifyWidgetGrid(win, pageId, theme, width, report) {
+  const result = await win.webContents.executeJavaScript(`(() => {
+    const pageId = ${JSON.stringify(pageId)};
+    const theme = ${JSON.stringify(theme)};
+    const page = document.querySelector('[data-page-id="' + pageId + '"]'), grid = page.querySelector('.widget-grid');
+    const definition = DESKTOP_LAYOUT.pages.find(page => page.id === pageId);
+    const style = getComputedStyle(grid), frame = grid.getBoundingClientRect();
+    const tracksX = style.gridTemplateColumns.split(' '), tracksY = style.gridTemplateRows.split(' ');
+    const cellW = parseFloat(tracksX[0]), cellH = parseFloat(tracksY[0]);
+    const gapX = parseFloat(style.columnGap), gapY = parseFloat(style.rowGap);
+    const reservedRows = pageId === 'home' ? 1 : 0;
+    const columns = tracksX.length, rows = tracksY.length + reservedRows;
+    const findings = [], positions = new Set();
+    const viewport = document.getElementById('pages-viewport').getBoundingClientRect();
+    if (frame.left < viewport.left - 1 || frame.right > viewport.right + 1 || frame.top < viewport.top - 1 || frame.bottom > viewport.bottom + 1) findings.push({ kind: 'grid-outside-viewport' });
+    if (columns !== 3 || rows !== 3) findings.push({ kind: 'grid-shape', columns, rows });
+    let overview = null;
+    if (reservedRows) {
+      const summary = page.querySelector('#home-summary');
+      const box = summary?.getBoundingClientRect();
+      overview = { present: !!summary, columns: 3, rows: 1, row: 1 };
+      if (!box || Math.abs(box.width - frame.width) > 1 || Math.abs(box.height - cellH) > 1 || Math.abs(box.bottom + gapY - frame.top) > 1 || box.top < viewport.top - 1 || !summary.querySelector('#dash-narrative')?.textContent.trim()) findings.push({ kind: 'overview-region-missing-or-changed' });
+      for (let col = 1; col <= 3; col++) positions.add(col + ',1');
+    }
+    const range = value => { const [start, end] = String(value).split('/').map(Number); return { start, span: Number.isFinite(end) ? end - start : 1 }; };
+    const cards = [...grid.children].filter(card => card.matches('[data-widget]')).map(card => {
+      const model = definition.widgets.find(widget => widget.id === card.dataset.widget);
+      const expectedCol = range(model?.col), expectedRow = range(model?.row);
+      const box = card.getBoundingClientRect(), css = getComputedStyle(card);
+      const col = Number(css.gridColumnStart), localRow = Number(css.gridRowStart), row = localRow + reservedRows;
+      const columns = expectedCol.span, rows = expectedRow.span;
+      if (col !== expectedCol.start || localRow !== expectedRow.start || col < 1 || row < 1 || col + columns > 4 || row + rows > 4) findings.push({ kind: 'grid-position', id: card.dataset.widget });
+      for (let x = col; x < col + columns; x++) for (let y = row; y < row + rows; y++) {
+        const slot = x + ',' + y;
+        if (positions.has(slot)) findings.push({ kind: 'overlapping-span', id: card.dataset.widget, slot });
+        positions.add(slot);
+      }
+      const x = frame.left + (col - 1) * (cellW + gapX), y = frame.top + (localRow - 1) * (cellH + gapY);
+      if (Math.abs(box.left - x) > 1 || Math.abs(box.top - y) > 1) findings.push({ kind: 'card-outside-slot', id: card.dataset.widget });
+      if (Math.abs(box.width - (cellW * columns + gapX * (columns - 1))) > 1 || Math.abs(box.height - (cellH * rows + gapY * (rows - 1))) > 1) findings.push({ kind: 'card-span-changed', id: card.dataset.widget, columns, rows, width: box.width, height: box.height });
+      if (box.left < frame.left - 1 || box.right > frame.right + 1 || box.top < frame.top - 1 || box.bottom > frame.bottom + 1) findings.push({ kind: 'card-outside-grid', id: card.dataset.widget });
+      if (card.scrollWidth > card.clientWidth + 1 || card.scrollHeight > card.clientHeight + 1) findings.push({ kind: 'hidden-card-content', id: card.dataset.widget });
+      for (const node of card.querySelectorAll('*')) {
+        const r = node.getBoundingClientRect(), s = getComputedStyle(node);
+        if (!r.width || !r.height || node.closest('svg') || node.children.length || !node.textContent.trim() || s.clipPath !== 'none') continue;
+        if (parseFloat(s.fontSize) < 12) findings.push({ kind: 'small-text', id: card.dataset.widget, className: node.className });
+        if (node.scrollWidth > node.clientWidth + 1 && s.textOverflow !== 'ellipsis' && !['auto','scroll'].includes(s.overflowX)) findings.push({ kind: 'text-overflow', id: card.dataset.widget, className: node.className });
+      }
+      if (!card.querySelector('.widget-launch') || !card.dataset.openApp) findings.push({ kind: 'missing-app-entry', id: card.dataset.widget });
+      const heading = card.querySelector('.widget-heading,.weread-title');
+      const glyphs = card.querySelectorAll('.widget-title > svg,.widget-heading-icon');
+      if (glyphs.length) findings.push({ kind: 'automatic-heading-icon', id: card.dataset.widget });
+      if (card.dataset.widget === 'odk.tile.hydra' && !card.querySelector('.hydra-head svg[data-tabler="leaf"]')) findings.push({ kind: 'missing-hydra-leaf' });
+      if (card.dataset.widget === 'odk.tile.year' && heading) findings.push({ kind: 'redundant-heading', id: card.dataset.widget });
+      if (card.dataset.widget === 'odk.tile.quota' && heading?.textContent !== 'ChatGPT') findings.push({ kind: 'missing-service-heading', id: card.dataset.widget });
+      if (theme === 'liquid-glass') {
+        if (card.dataset.widget === 'odk.tile.pi-sessions') {
+          const capsule = card.querySelector('.pi-widget-live-tag').getBoundingClientRect();
+          const idle = card.querySelector('.pi-widget-summary').getBoundingClientRect();
+          if (idle.top - capsule.bottom > 12) findings.push({ kind: 'detached-idle-count' });
+        }
+        if (heading && Number(getComputedStyle(heading).fontWeight) < 500) findings.push({ kind: 'weak-reference-heading', id: card.dataset.widget });
+        if (card.dataset.widget === 'odk.tile.weather') {
+          const city = card.querySelector('.w-weather-head').getBoundingClientRect();
+          const temperature = card.querySelector('.w-weather-reading').getBoundingClientRect();
+          if (temperature.top - city.bottom > 12 || temperature.top < city.bottom) findings.push({ kind: 'detached-city-temperature' });
+          const glyph = card.querySelector('.w-weather-glyph').getBoundingClientRect();
+          const condition = card.querySelector('.w-weather-body').getBoundingClientRect();
+          if (glyph.bottom > condition.top || Math.abs(glyph.left - condition.left) > 1) findings.push({ kind: 'ungrouped-weather-support', glyph: glyph.toJSON(), condition: condition.toJSON(), temperature: temperature.toJSON(), font: getComputedStyle(card.querySelector('.w-weather-value')).fontSize });
+        }
+        if (card.dataset.widget === 'odk.tile.year' && parseFloat(getComputedStyle(card.querySelector('.year-pct')).fontSize) > box.width * .5) findings.push({ kind: 'oversized-reference-percentage' });
+        if (card.dataset.widget === 'odk.tile.weread') {
+          const cover = card.querySelector('.weread-cover-wrap');
+          if (!cover.hidden && cover.getBoundingClientRect().width < Math.min(100, box.width * .16)) findings.push({ kind: 'undersized-reading-cover' });
+        }
+      }
+
+      return { id: card.dataset.widget, col, row, columns, rows, width: box.width, height: box.height, app: card.dataset.openApp };
+    });
+    return { columns, rows, overview, cards, findings };
+  })()`)
+  const run = { page: pageId, theme, width, ...result }
+  report.runs.push(run)
+  return run
+}
+
+async function verifyWidgetGridNavigation(win, run) {
+  const js = source => win.webContents.executeJavaScript(source)
+  const { page, theme, width } = run
+  for (const card of run.cards) {
+    const action = await js(`(async () => {
+      const card = document.querySelector('[data-page-id="${page}"] [data-widget="${card.id}"]');
+      card.querySelector('.widget-launch')?.click();
+      const deadline = performance.now() + 3000;
+      while (odkAppPlatform.active()?.appId !== card.dataset.openApp && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+      const active = odkAppPlatform.active();
+      const opened = active?.appId === card.dataset.openApp && !document.getElementById('app-view').hidden;
+      await odkAppPlatform.closeApp();
+      return { opened, closed: document.getElementById('app-view').hidden };
+    })()`)
+    if (!action.opened || !action.closed) run.findings.push({ kind: 'app-navigation', id: card.id, ...action })
+  }
+  console.log('WIDGET_GRID_RUN ' + JSON.stringify({ page, theme, width, cards: run.cards.length, findings: run.findings }))
+}
+
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_window, _permission, callback) => callback(false))
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_request, callback) => callback({ cancel: true }))
   const preview = installHomePreviewFixtures(ipcMain)
+  if (widgetGrid) {
+    const endpoint = require('../src/app-manager-endpoint').createAppManagerEndpoint()
+    for (const name of ['odk-app-manager-list', 'odk-app-manager-state']) ipcMain.removeHandler(name)
+    ipcMain.handle('odk-app-manager-list', () => endpoint.list())
+    ipcMain.handle('odk-app-manager-state', (_event, id) => endpoint.get(id))
+    ipcMain.handle('odk-app-manager-intent', (_event, intent) => endpoint.dispatch(intent))
+  }
   const js = source => win.webContents.executeJavaScript(source)
   const captures = []
+  const gridReport = { ok: true, synthetic: true, grid: [3, 3], runs: [], captures }
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) for (const [width, height] of [[1920, 1280], [1280, 776]]) {
     // Start each native surface at its target size. On Linux a resized offscreen
     // surface can emit a correctly sized crop of its previous compositor frame.
@@ -63,11 +182,12 @@ app.whenReady().then(async () => {
     assert.equal(win.webContents.isOffscreen(), true)
     assert.equal(win.webContents.isPainting(), true)
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    if (widgetGrid) await installWidgetGridLayout(win)
     await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
     await js('window.odkShellReady')
     await js(`(async () => {
       const deadline = performance.now() + 5000;
-      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant')) {
+      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant') || document.querySelector('.quota-tile-value').textContent !== '64%') {
         if (performance.now() > deadline) throw Error('Populated readings did not arrive');
         await new Promise(resolve => setTimeout(resolve, 20));
       }
@@ -77,22 +197,17 @@ app.whenReady().then(async () => {
     // These surfaces have no product data channel yet. Scope their simulated
     // display to this fixture, expose it explicitly, and restore it after capture.
     const controls = await js(`(() => {
-      const timer = document.querySelector('[data-widget="odk.tile.pomodoro"]');
       const net = document.querySelector('#sb-net');
-      const nodes = [timer.querySelector('.ring-mmss'), timer.querySelector('.pomodoro-state')];
-      window.previewRestore = { nodes, texts: nodes.map(node => node.textContent), netLabel: net.getAttribute('aria-label'), netTitle: net.getAttribute('title') };
-      nodes[0].textContent = ${JSON.stringify(preview.pomodoro.remaining)};
-      nodes[1].textContent = ${JSON.stringify(preview.pomodoro.state)};
-      timer.dataset.previewSimulated = 'true'; net.dataset.previewConnected = 'true';
+      window.previewRestore = { netLabel: net.getAttribute('aria-label'), netTitle: net.getAttribute('title') };
+      net.dataset.previewConnected = 'true';
       net.setAttribute('aria-label', 'Wi-Fi connected (simulated)'); net.setAttribute('title', 'Wi-Fi connected (simulated)');
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync('#sb-net[data-preview-connected]::after { content: none; } [data-preview-simulated] .ring-arc { stroke: var(--odk-primary); stroke-dashoffset: ${314 * preview.pomodoro.progress}; }');
+      sheet.replaceSync('#sb-net[data-preview-connected]::after { content: none; }');
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       window.previewSheet = sheet;
-      return { timer: nodes[0].textContent, simulated: timer.dataset.previewSimulated, wifi: getComputedStyle(net, '::after').content };
+      return { timer: document.querySelector('.ring-mmss').textContent, wifi: getComputedStyle(net, '::after').content };
     })()`)
-    assert.equal(controls.timer, '18:42')
-    assert.equal(controls.simulated, 'true')
+    assert.equal(controls.timer, '25:00')
     assert.equal(controls.wifi, 'none')
     await js(`(async () => {
       await odkTheme.set('${theme}');
@@ -161,7 +276,7 @@ app.whenReady().then(async () => {
     assert.equal(state.square, true)
     if (theme === 'liquid-glass') assert.ok(['sdk', 'fallback'].includes(await js('document.documentElement.dataset.liquidGlass')))
     assert.equal(state.columns, 3)
-    assert.equal(state.rows, 2)
+    assert.equal(widgetGrid ? await js('window.__odkGrid.canvasRows') : state.rows, widgetGrid ? 3 : 2)
     assert.equal(state.pi, '3')
     assert.match(state.weather, /Taipei/)
     assert.match(state.weather, /26/)
@@ -192,7 +307,7 @@ app.whenReady().then(async () => {
       else assert.notEqual(state.glassWidget.backgroundImage, 'none', 'Widget card keeps its static glass tint')
     }
     assert.deepEqual(state.viewport, [width, height, 1, 'loaded'])
-    const file = path.join(os.tmpdir(), `odk-populated-home-${theme}-${width}.png`)
+    const file = path.join(captureDir, `odk-populated-home-${theme}-${width}.png`)
     // Acknowledge a native frame, then request the current compositor surface.
     // Paint events can still carry pixels from before the fixture update.
     await capturePaintedFrame()
@@ -201,9 +316,122 @@ app.whenReady().then(async () => {
     const backingScale = bitmap.width / width
     assert.ok(backingScale >= 1 && backingScale <= 2)
     assert.equal(bitmap.height / height, backingScale, 'Preview capture must not crop the viewport')
-    fs.writeFileSync(file, capture.toPNG())
-    captures.push({ theme, width, height, cell: state.cell,
-      ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
+    if (!widgetGrid) {
+      fs.writeFileSync(file, capture.toPNG())
+      captures.push({ theme, width, height, cell: state.cell,
+        ...(theme === 'liquid-glass' ? { liquidGlass: await js('document.documentElement.dataset.liquidGlass') } : {}), file })
+    }
+    if (allPages) {
+      const pages = await resolvePages(win)
+      if (widgetGrid) assert.equal(pages.dot('home'), 0, 'Overview belongs to the first desktop page')
+      const previewPages = widgetGrid ? await js('window.__odkWidgetGridPages') : ['desk', 'reading']
+      for (const page of previewPages) {
+        await js(`document.querySelectorAll('.dot')[${pages.dot(page)}].click()`)
+        await js(`(async () => {
+          const node = document.querySelector('[data-page-id="${page}"]'), viewport = document.querySelector('#pages-viewport');
+          const deadline = performance.now() + 5000;
+          while (Math.abs(node.getBoundingClientRect().left - viewport.getBoundingClientRect().left) > 1) {
+            if (performance.now() > deadline) throw Error('Preview page did not settle: ${page}');
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+          await document.fonts.ready;
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        })()`)
+        const gridReading = widgetGrid ? await verifyWidgetGrid(win, page, theme, width, gridReport) : null
+        if (page === 'home') {
+          const alignment = await js(`(() => {
+            const host = document.querySelector('#home-summary');
+            const baseline = selector => {
+              const parent = host.querySelector(selector), marker = document.createElement('i');
+              marker.style.cssText = 'display:inline-block;width:0;height:0'; parent.append(marker);
+              const y = marker.getBoundingClientRect().bottom; marker.remove(); return y;
+            };
+            const ring = document.querySelector('.pomodoro-ring-wrap').getBoundingClientRect();
+            const body = document.querySelector('.pomodoro-body').getBoundingClientRect();
+            const head = document.querySelector('.pomodoro-head').getBoundingClientRect();
+            return { baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')),
+              centered: Math.abs(ring.top + ring.height / 2 - body.top - body.height / 2),
+              below: ring.top >= head.bottom };
+          })()`);
+          assert.ok(alignment.baseline < 1, 'Weekday and date share a text baseline: ' + JSON.stringify(alignment));
+          assert.ok(alignment.centered < 1 && alignment.below, 'The ring is centered below its header: ' + JSON.stringify(alignment));
+        }
+
+        if (page === 'desk') {
+          const spacing = await js(`(() => {
+            const card = document.querySelector('[data-widget="odk.tile.hydra"]');
+            const body = card.querySelector('.hydra-body'), head = card.querySelector('.hydra-head');
+            const plants = card.querySelector('.hydra-plants'), env = card.querySelector('.hydra-env');
+            return { shape: body.dataset.shape, cardHeight: card.getBoundingClientRect().height,
+              cellHeight: parseFloat(getComputedStyle(card.parentElement).gridTemplateRows),
+              contentWidth: body.getBoundingClientRect().width, plantWidth: plants.getBoundingClientRect().width,
+              display: getComputedStyle(body).display, gap: getComputedStyle(body).rowGap, rows: getComputedStyle(body).gridTemplateRows,
+              afterHeader: plants.getBoundingClientRect().top - head.getBoundingClientRect().bottom,
+              beforeEnvironment: env.getBoundingClientRect().left - plants.getBoundingClientRect().right,
+              contained: card.scrollHeight <= card.clientHeight + 1 };
+          })()`)
+          assert.equal(spacing.shape, 'wide-short')
+          assert.equal(spacing.contained, true)
+          assert.ok(spacing.plantWidth > spacing.contentWidth / 2, 'Hydra gives both plants the main content area')
+          assert.ok(Math.abs(spacing.cardHeight - spacing.cellHeight) < 1, 'Hydra retains one complete grid row')
+          assert.ok([spacing.afterHeader, spacing.beforeEnvironment].every(gap => gap >= 8 && gap <= 16.1), JSON.stringify(spacing))
+          console.log('HYDRA_THREE_BY_ONE_PASS ' + JSON.stringify({ theme, width, ...spacing }))
+        }
+        if (page === 'reading') {
+          const attribution = await js(`(async () => {
+            const tile = document.querySelector('[data-widget="odk.tile.weread"]');
+            const author = tile.querySelector('.weread-author'), cover = tile.querySelector('.weread-cover');
+            const wrap = tile.querySelector('.weread-cover-wrap'), foot = tile.querySelector('.weread-foot');
+            const deadline = performance.now() + 5000;
+            while (wrap.hidden || author.hidden || !cover.width || !cover.getContext('2d').getImageData(0, 0, 1, 1).data[3]) {
+              if (performance.now() > deadline) throw Error('Reading preview attribution did not render');
+              await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            const frame = tile.getBoundingClientRect(), row = foot.getBoundingClientRect();
+            const image = cover.getBoundingClientRect(), name = author.getBoundingClientRect();
+            const titleNode = tile.querySelector('.weread-title');
+            if (titleNode.title !== titleNode.textContent) throw Error('WeRead full title is unavailable');
+            const title = titleNode.getBoundingClientRect();
+            const excerpt = tile.querySelector('.weread-text');
+            if (frame.width < 250) {
+              const assertCompact = { excerptHeight: excerpt.clientHeight, lineHeight: parseFloat(getComputedStyle(excerpt).lineHeight), footerHeight: row.height, cellHeight: frame.height };
+              if (excerpt.clientHeight < parseFloat(getComputedStyle(excerpt).lineHeight) * 3 - 1 || row.height > frame.height * 0.44) throw Error('Compact WeRead attribution crowds the excerpt: ' + JSON.stringify(assertCompact));
+            }
+            return { author: author.textContent, title: tile.querySelector('.weread-title').textContent,
+              authorBelowTitle: name.top >= title.bottom, coverRightOfAuthor: image.left >= name.right,
+              footerContained: row.top >= frame.top && row.bottom <= frame.bottom && image.right <= frame.right,
+              coverSize: [image.width, image.height] };
+          })()`)
+          assert.equal(attribution.author, preview.highlight.author)
+          assert.equal(attribution.title, preview.highlight.title)
+          assert.equal(attribution.authorBelowTitle, true)
+          assert.equal(attribution.coverRightOfAuthor, true)
+          assert.equal(attribution.footerContained, true)
+          assert.ok(attribution.coverSize.every(size => size > 0))
+          console.log('READING_ATTRIBUTION_PASS ' + JSON.stringify({ theme, width, ...attribution }))
+        }
+        const file = path.join(captureDir, `odk-populated-${page}-${theme}-${width}.png`)
+        await capturePaintedFrame()
+        fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG())
+        captures.push({ page, theme, width, height, file, synthetic: true })
+        if (widgetGrid) await verifyWidgetGridNavigation(win, gridReading)
+      }
+      if (widgetGrid) {
+        const expected = await js("odkPlugins.byKind('tile').map(plugin => plugin.id).sort()")
+        const covered = gridReport.runs.filter(run => run.theme === theme && run.width === width).flatMap(run => run.cards.map(card => card.id)).sort()
+        assert.deepEqual(covered, expected, 'Every registered Widget appears exactly once in the grid harness')
+        gridReport.widgets = expected
+      }
+      await js(`document.querySelectorAll('.dot')[${pages.dot('home')}].click()`)
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+  }
+  if (widgetGrid) {
+    gridReport.ok = gridReport.runs.every(run => run.findings.length === 0)
+    fs.writeFileSync(path.join(captureDir, 'report.json'), JSON.stringify(gridReport, null, 2) + '\n')
+    console.log('WIDGET_GRID_RESULT ' + JSON.stringify({ ok: gridReport.ok, runs: gridReport.runs.length, findings: gridReport.runs.flatMap(run => run.findings).length, captures: captures.length, directory: captureDir }))
+    finish(gridReport.ok ? 0 : 1)
+    return
   }
   const longCopy = 'You have 3 active sessions across 3 workspaces, while 2 plants report 63% moisture. Taipei is 26°C and overcast; your focus session is in progress, and portfolio readings are available from the latest synchronized snapshot.'
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
@@ -272,14 +500,12 @@ app.whenReady().then(async () => {
     }
   }
   await js(`(() => {
-    const { nodes, texts, netLabel, netTitle } = previewRestore;
-    nodes.forEach((node, index) => { node.textContent = texts[index]; });
-    delete document.querySelector('[data-preview-simulated]').dataset.previewSimulated;
+    const { netLabel, netTitle } = previewRestore;
     const net = document.querySelector('#sb-net'); delete net.dataset.previewConnected;
     net.setAttribute('aria-label', netLabel); net.setAttribute('title', netTitle);
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== previewSheet);
     if (document.adoptedStyleSheets.includes(previewSheet) || document.querySelector('[data-preview-simulated], [data-preview-connected]')) throw Error('Preview controls retained');
-    if (document.querySelector('.ring-mmss').textContent !== '--:--') throw Error('Pomodoro fixture did not restore the product state');
+    if (document.querySelector('.ring-mmss').textContent !== '25:00') throw Error('Pomodoro fixture did not restore the product state');
     delete window.previewRestore; delete window.previewSheet;
   })()`)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {

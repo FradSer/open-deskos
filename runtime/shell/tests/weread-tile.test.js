@@ -287,8 +287,8 @@ test('missing author and date collapse their lines without breaking fit', async 
 
 test('unconfigured state stays honest across the new lines', async () => {
   const { nodes, text } = await mountWith({ status: 'unconfigured', highlight: null })
-  assert.equal(text('.weread-title'), 'Not configured')
-  assert.equal(text('.weread-text'), 'Set WEREAD_API_KEY to sync')
+  assert.equal(text('.weread-title'), 'Connect WeRead')
+  assert.equal(text('.weread-text'), 'Connect WeRead, then open to refresh.')
   assert.equal(nodes.get('.weread-author').hidden, true)
   assert.equal(nodes.get('.weread-date').hidden, true)
 })
@@ -314,6 +314,13 @@ test('excerpt uses the shared widget inset without an oversized horizontal gutte
   const css = fs.readFileSync('src/renderer/plugins/weread.css', 'utf8')
   const copy = css.match(/\.weread-copy\s*\{([^}]+)\}/)[1]
   assert.match(copy, /padding:\s*var\(--odk-widget-inset\)/)
+})
+
+test('unavailable and empty highlights state the next action without exposing source errors', async () => {
+  const failed = await mountWith({ status: 'error', error: 'private-provider-stack', highlight: null })
+  assert.equal(failed.text('.weread-text'), 'Open WeRead and select Refresh.')
+  const empty = await mountWith({ status: 'empty', highlight: null })
+  assert.equal(empty.text('.weread-text'), 'Save a highlight in WeRead.')
 })
 
 }

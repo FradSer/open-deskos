@@ -21,18 +21,53 @@ test('normal Home preview has complete, consistent readings without provider acc
   assert.ok(read('odk-futu-holdings').snapshot.positions.every(item => Number.isFinite(item.price)))
   assert.deepEqual(read('odk-camera-frame'), { ok: false }, 'the preview keeps the Camera source unavailable')
   assert.ok(read('odk-hydra-status').nodes.every(item => item.online && Number.isFinite(item.soilPercent)))
-  assert.ok(read('odk-weread-highlight').highlight.markText)
+  const highlight = read('odk-weread-highlight').highlight
+  assert.ok(highlight.markText)
+  assert.ok(highlight.author, 'Reading preview retains the author below the title')
+  assert.match(highlight.cover, /^data:image\/svg\+xml;base64,/, 'Reading preview has a local synthetic cover')
+  assert.equal(highlight.createTime, now)
+  assert.match(Buffer.from(highlight.cover.split(',')[1], 'base64').toString(), /Synthetic reading cover/)
   assert.ok(read('odk-opencode-go-status').snapshot.accounts[0].groups[0].quotas.length)
   assert.equal(read('odk-remote-link-state').state, 'usb')
   const text = preview.briefing.items.map(item => item.text).join(' ')
   assert.match(text, new RegExp(pi.summary.running + ' active sessions'))
   assert.match(text, /Taipei.*26°C/)
   assert.match(text, new RegExp(read('odk-hydra-status').nodes[0].soilPercent + '%'))
-  assert.equal(preview.pomodoro.remaining, '18:42')
   assert.equal(preview.briefing.generatedAt, now)
   assert.equal(read('odk-personal-bot-status').message, preview.reply)
   assert.equal(preview.synthetic, true)
   assert.equal(preview.updates.length,2)
   assert.deepEqual([...read('odk-personal-bot-status').remote.messages].reverse().filter(m=>m.presentation==='assistant_update').map(m=>m.text),preview.updates)
   assert(read('odk-personal-bot-status').remote.messages.some(m=>m.presentation===undefined),'legacy reports remain in the synthetic preview')
+})
+
+test('Widget harness retains declared spans and the original Home with Overview', async () => {
+  const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
+  let source
+  const win = { webContents: { debugger: { isAttached: () => true, async sendCommand(name, params) {
+    if (name === 'Page.addScriptToEvaluateOnNewDocument') source = params.source
+  } } } }
+  await installWidgetGridLayout(win)
+  const ids = ['odk.tile.hydra', 'odk.tile.weread', ...Array.from({ length: 15 }, (_, index) => `odk.tile.fixture-${index}`)]
+  const window = { odkPlugins: { byKind: kind => { assert.equal(kind, 'tile'); return ids.map(id => ({ id, opensApp: id.slice(9) })) } } }
+  require('node:vm').runInNewContext(source, { window })
+  const original = [
+    { id: 'home', name: 'Home', kind: 'grid', widgets: [{ id: ids[2], col: '1', row: '1' }, { id: ids[3], col: '2 / 4', row: '1' }] },
+    { id: 'desk', name: 'Desk', kind: 'grid', widgets: [{ id: ids[0], col: '1 / 4', row: '1' }] },
+    { id: 'reading', name: 'Reading', kind: 'grid', widgets: [{ id: ids[1], col: '1', row: '1' }] },
+    { id: 'large', name: 'Large', kind: 'grid', widgets: [{ id: ids[4], col: '1 / 4', row: '1 / 3' }] },
+  ]
+  const before = JSON.stringify(original)
+  window.DESKTOP_LAYOUT = { pages: original.slice() }
+  assert.equal(JSON.stringify(original), before)
+  const pages = window.DESKTOP_LAYOUT.pages.filter(page => window.__odkWidgetGridPages.includes(page.id))
+  assert.equal(pages.length, 6)
+  assert.deepEqual(pages.slice(0, 4).map(page => page.id), ['home', 'desk', 'reading', 'large'])
+  assert.deepEqual(pages.slice(4).map(page => page.widgets.length), [9, 3])
+  assert.deepEqual(pages.flatMap(page => page.widgets.map(widget => widget.id)).sort(), ids.slice().sort())
+  assert.equal(pages[1].widgets[0].col, '1 / 4')
+  assert.equal(pages[1].widgets[0].row, '1')
+  assert.equal(pages[2].widgets[0].col, '1')
+  assert.equal(pages[2].widgets[0].row, '1')
+  assert.equal(pages[3].widgets[0].row, '1 / 3')
 })

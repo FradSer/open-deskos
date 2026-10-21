@@ -32,8 +32,18 @@ function applyGeometry() {
     : desk?.clientWidth || window.innerWidth
   // computeDesk already reserves one Widget gap at each horizontal edge.
   const paneBudget = fullPaneBudget - 2 * (sideInset - 16)
-  const m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
+  let m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
     paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell)
+  if (grids.length) {
+    // Pages share one canvas; only Home reserves a row for Overview.
+    const canvasRows = Math.max(...grids.map(grid => {
+      const pageId = grid.closest('.page')?.dataset.pageId
+      const declaredRows = effectiveLayout.pages.find(page => page.id === pageId)?.gridRows || 0
+      return Math.max(declaredRows, Math.ceil(grid.children.length / m.cols)) + (pageId === 'home' ? 1 : 0)
+    }))
+    m = odkLayout.computeDesk(window.innerWidth, window.innerHeight,
+      paneBudget, desk?.clientHeight || window.innerHeight, count, content?.clientHeight, minCell, canvasRows)
+  }
   const root = document.documentElement.style
   const cellDim = m.cellDim || Math.min(m.cellW, m.cellH)
   root.setProperty('--status-h', `${m.statusH}px`)
@@ -99,13 +109,25 @@ function createPager(viewport, track, pageNames, onIndexChange) {
     setIndex(index, false)
   }
 
+  // The desk shows the page controller below the Widgets. The same control is
+  // the return handle inside an App, where it owns the upward swipe.
+  function controlMode() {
+    return document.getElementById('app-view').hidden ? 'pages' : 'handle'
+  }
+
   function renderDots() {
+    const control = document.getElementById('dots')
+    const mode = controlMode()
+    if (control.dataset.mode !== mode) {
+      control.dataset.mode = mode
+      control.setAttribute('aria-label', mode === 'handle' ? 'Home handle' : 'Page controller')
+    }
+    const returning = mode === 'handle'
     for (const [i, dot] of [...document.querySelectorAll('#dots .dot')].entries()) {
       const active = i === index
       dot.classList.toggle('active', active)
-      dot.hidden = !active
+      dot.hidden = returning && !active
       dot.tabIndex = active ? 0 : -1
-      const returning = !document.getElementById('app-view').hidden
       dot.setAttribute('aria-label', returning ? `Swipe up to return to ${pageNames[index] ?? 'the desk'}` : `${pageNames[i] ?? 'Page'}, page ${i + 1} of ${pageCount()}. Swipe left or right to change page.`)
       dot.setAttribute('aria-keyshortcuts', returning ? 'ArrowUp Enter Space' : 'ArrowLeft ArrowRight Home End')
       if (active) dot.setAttribute('aria-current', 'page')
@@ -452,6 +474,7 @@ async function main() {
     REMOTE_LINK_LABELS: odkServices.REMOTE_LINK_LABELS,
     get connection() { return odkServices.connection },
     get subscription() { return odkServices.subscription },
+    get focus() { return odkServices.get('odk.service.focus') },
     get camera() { return odkServices.camera },
     get remoteLink() { return odkServices.remoteLink },
     get briefing() { return odkServices.briefing },

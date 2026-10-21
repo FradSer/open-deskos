@@ -1042,6 +1042,31 @@ body.kiosk {
   flex: none;
 }
 
+.widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: none;
+  min-width: 0;
+}
+
+.widget-heading {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  color: var(--odk-secondary-strong);
+  font-family: inherit;
+  font-size: clamp(16px, 4.5cqi, 20px);
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+[data-theme='pixel'] .widget-heading { letter-spacing: normal; }
+
 .w-name,
 .w-state {
   max-width: 100%;
@@ -1057,57 +1082,6 @@ body.kiosk {
   text-transform: uppercase;
 }
 
-.w-almanac {
-  background: color-mix(in srgb, var(--odk-accent-red) 8%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-red) 18%, var(--odk-stroke));
-  color: var(--odk-primary);
-}
-
-.w-almanac .al-body {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-start;
-  flex: 0 0 auto;
-  gap: var(--odk-space-2);
-  margin: auto 0 4cqi;
-}
-
-.al-weekday {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(22px, 15cqi, 48px);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  color: var(--odk-accent-red);
-  text-transform: uppercase;
-}
-
-.al-day {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(72px, 68cqi, 240px);
-  font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.al-day-wide {
-  font-size: clamp(64px, 47cqi, 160px);
-  letter-spacing: -0.02em;
-}
-
-.al-month {
-  padding-bottom: 0.08em;
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(20px, 14cqi, 40px);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  color: var(--odk-secondary-strong);
-  text-transform: uppercase;
-}
-
-.al-context,
 .year-context,
 .pomodoro-context,
 .widget-status-detail {
@@ -1116,27 +1090,6 @@ body.kiosk {
   font-weight: 400;
   line-height: 1.4;
   overflow-wrap: anywhere;
-}
-
-.w-clock {
-  background: color-mix(in srgb, var(--odk-accent-blue) 12%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-blue) 22%, var(--odk-stroke));
-}
-
-.w-clock .clock-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: auto 0;
-}
-
-.w-clock-time {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(42px, 38cqi, 136px);
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
 }
 
 .widget-signal {
@@ -1170,9 +1123,10 @@ body.kiosk {
 }
 
 
-/* Pomodoro keeps its state above a proportionate, static focus dial. */
+/* Pomodoro groups its header above a compact, centered focus dial. */
 .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 16cqi, 88px);
+  --pomodoro-time-size: clamp(24px, 16cqi, 100px);
+  gap: var(--odk-space-2);
   position: relative;
   align-items: stretch;
   justify-content: center;
@@ -1181,9 +1135,11 @@ body.kiosk {
 }
 
 .w-pomodoro .pomodoro-body {
+  container-type: size;
   position: relative;
   display: flex;
-  flex: 1;
+  flex: none;
+  height: 60cqi;
   align-items: center;
   justify-content: center;
   min-height: 0;
@@ -1200,8 +1156,8 @@ body.kiosk {
 
 .pomodoro-ring-wrap svg {
   grid-area: 1 / 1;
-  width: 70cqi;
-  height: 70cqi;
+  width: min(60cqi, 100cqb);
+  height: auto;
   flex-shrink: 0;
   aspect-ratio: 1;
   transform: rotate(-90deg);
@@ -1225,21 +1181,25 @@ body.kiosk {
 .ring-mmss {
   grid-area: 1 / 1;
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
+  font-family: inherit;
   font-size: var(--pomodoro-time-size);
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.02em;
 }
 
-.pomodoro-state {
-  position: absolute;
-  top: var(--odk-widget-inset);
-  left: 0;
-  right: 0;
-  text-align: center;
+.pomodoro-head {
+  position: static;
+  pointer-events: none;
 }
+
+.pomodoro-state {
+  font-size: clamp(12px, 4.5cqi, 16px);
+  color: var(--odk-secondary-strong);
+  text-align: end;
+}
+
 
 .pomodoro-context {
   position: absolute;
@@ -1272,8 +1232,8 @@ body.kiosk {
 .w-year {
   align-items: stretch;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--odk-accent-green) 7%, var(--odk-surface));
-  border-color: color-mix(in srgb, var(--odk-accent-green) 18%, var(--odk-stroke));
+  background: var(--odk-surface);
+  border-color: var(--odk-stroke);
 }
 
 .year-head {
@@ -1294,7 +1254,7 @@ body.kiosk {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 17cqi;
+  gap: 6cqi;
   margin: auto 0;
   width: 100%;
 }
@@ -1303,28 +1263,31 @@ body.kiosk {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8cqi;
+  gap: 4cqi;
 }
 
 .year-context {
-  font-size: clamp(16px, 9cqi, 30px);
+  font-size: clamp(14px, 6.5cqi, 22px);
 }
 
 .year-pct {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(56px, 39cqi, 120px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(44px, 54cqi, 180px);
+  font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
+.year-row:has(.year-pct-wide) { gap: 10cqi; }
+.year-signal-line:has(.year-pct-wide) { gap: 6cqi; }
+
 .year-pct-wide {
-  font-size: clamp(52px, 33cqi, 108px);
+  font-size: clamp(40px, 42cqi, 148px);
 }
 
 .w-year .meter {
   width: 100%;
-  height: max(8px, 4cqi);
+  height: 6px;
   margin: 0;
 }
 
@@ -1469,7 +1432,6 @@ body.kiosk {
   /* The heading owns the title row now that the filter sits in it, so it takes
      the line the facts do not need instead of shrinking to its own text. */
   flex: 1 1 auto;
-}
 }
 
 .app-surface-header p {
@@ -1657,252 +1619,28 @@ body.kiosk {
 
 /* WeRead styles live in plugins/weread.css (scoped plugin stylesheet). */
 
-/* ---- Pre-order countdown: the product photo owns the upper figure and the
-   countdown reads from the tile's own charcoal surface below, separated by a
-   hairline stroke — the same split the WeRead instrument uses. No scrim, no
-   drop shadow: the desk keeps depth tonal and stroked, and the photo's empty
-   studio floor is cropped away instead of being used as a text panel. */
-.widget.w-preorder {
-  padding: 0;
-}
-
-.w-preorder .preorder-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  overflow: hidden;
-}
-
-.w-preorder .preorder-figure {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.w-preorder .preorder-cover {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
-  border: 0;
-  image-rendering: auto;
-}
-
-.w-preorder .preorder-panel {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(2px, 0.8cqi, 10px);
-  padding: clamp(12px, 2.6cqi, 24px) var(--odk-widget-inset) clamp(14px, 3cqi, 28px);
-  border-top: 1px solid var(--odk-stroke);
-}
-
-.w-preorder .preorder-count {
-  display: flex;
-  align-items: baseline;
-  margin: 0;
-  color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(24px, 17cqi, 136px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.w-preorder .preorder-count.is-open {
-  font-size: clamp(24px, 17.5cqi, 140px);
-  letter-spacing: -0.01em;
-}
-
-.w-preorder .preorder-group {
-  display: inline-flex;
-  align-items: baseline;
-}
-
-.w-preorder .preorder-group + .preorder-group {
-  margin-left: 0.3em;
-}
-
-.w-preorder .preorder-num {
-  font-weight: 700;
-}
-
-/* The unit is the numeral divided by phi: a golden-ratio suffix that stays
-   subordinate at every density, baseline-aligned and muted. */
-.w-preorder .preorder-unit {
-  font-size: 0.618em;
-  font-weight: 500;
-  letter-spacing: 0;
-  margin-left: 0.14em;
-  color: var(--odk-secondary-strong);
-}
-
-.w-preorder .preorder-label {
-  margin: 0;
-  color: var(--odk-secondary-strong);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  text-align: center;
-}
-
-[data-theme='pixel'] .w-preorder :is(.preorder-count, .preorder-label) {
-  letter-spacing: normal;
-}
-
-.pi-widget-title {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: var(--odk-text-label);
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-}
-
 .w-pi-sessions .pi-widget-body {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0;
-  gap: clamp(8px, 4cqi, 32px);
+  justify-content: flex-start;
+  gap: var(--odk-space-2);
   min-height: 0;
+  container-type: size;
 }
 
-.pi-widget-metric-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 2.5cqi;
-  flex: none;
-}
+.pi-widget-body > .widget-head { align-self: stretch; }
 
-.pi-widget-count {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(80px, 48cqi, 380px);
-  font-weight: 700;
-  color: var(--odk-primary);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.pi-widget-unit {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(14px, 5cqi, 26px);
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-  letter-spacing: 0.08em;
-}
-
-.pi-widget-live-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--odk-elevated);
-  border: 1px solid var(--odk-stroke);
-}
-
-.pi-widget-tag-label {
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--odk-secondary-strong);
-  letter-spacing: 0.04em;
-}
-
-.pi-widget-tag-label.text-odk-green {
-  color: var(--odk-accent-green);
-}
-
-.pi-indicator-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-}
-
-.pi-indicator-running {
-  background: var(--odk-accent-green);
-}
-
-.pi-indicator-idle {
-  background: var(--odk-secondary);
-}
-
-.pi-widget-context {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  text-align: center;
-  max-width: 92%;
-  min-width: 0;
-}
-
-.pi-widget-context .w-state {
-  font-size: clamp(14px, 3.8cqi, 22px);
-  font-weight: 700;
-  color: var(--odk-primary);
-  max-width: 100%;
-  /* A goal longer than the tile is wide wraps and is bounded at two lines, the
-     same reading the Session Overview's cards give it, so a long prompt is
-     shortened rather than cut away. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-.pi-widget-context .pi-widget-activity {
-  font-size: clamp(12px, 3.2cqi, 18px);
-  color: var(--odk-secondary-strong);
-  line-height: 1.35;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: 0;
-  display: block;
-}
-
-.pi-widget-context .pi-widget-activity .pi-pulse-dot {
-  display: inline-block;
-  margin-right: 5px;
-  vertical-align: 1px;
-}
-
-.pi-widget-metric-row > .odk-row {
-  flex-wrap: wrap;
-}
-
-.pi-widget-summary {
-  color: var(--odk-secondary-strong);
-  font-size: max(12px, 4cqi);
-  line-height: 1.4;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-@container (max-width: 230px) {
-  .w-pi-sessions.pi-widget-detailed .pi-widget-body { gap: 5px; }
-  .pi-widget-detailed .pi-widget-count { font-size: clamp(64px, 40cqi, 380px); }
-}
+.pi-widget-metric-row { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: var(--odk-space-2); }
+.pi-widget-count { font-family: inherit; font-size: clamp(40px, min(48cqi, 45cqb), 160px); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--odk-primary); }
+.pi-widget-wide-count .pi-widget-count { font-size: clamp(32px, min(34cqi, 45cqb), 120px); }
+.pi-widget-summary { flex: none; margin-block-end: 4px; }
+.pi-widget-live-tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-elevated); }
+.pi-widget-tag-label, .pi-widget-summary { font-size: clamp(14px, 5cqi, 20px); line-height: 1.4; color: var(--odk-secondary-strong); font-variant-numeric: tabular-nums; }
+.pi-indicator-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--odk-secondary-strong); }
+.pi-widget-working .pi-widget-tag-label { color: var(--odk-accent-green); }
+.pi-widget-working .pi-indicator-dot { background: var(--odk-accent-green); }
 
 .pi-app-wrapper {
   --odk-text-label: clamp(14px, 0.9375vw, 18px);
@@ -2860,10 +2598,6 @@ body.kiosk {
   .pi-widget-metric-row {
     gap: 3cqi;
   }
-
-  .pi-widget-metric-row > .odk-row {
-    flex-wrap: nowrap;
-  }
 }
 
 @media (height <= 700px) {
@@ -2975,28 +2709,28 @@ body.kiosk {
   gap: 3cqi;
   flex-wrap: wrap;
   padding-block-end: 2cqi;
-  border-bottom: 1px solid var(--odk-stroke);
+  border-bottom: 0;
 }
 
 .hydra-head svg {
   width: 9cqi;
   height: 9cqi;
   flex: none;
-  color: var(--odk-accent-green);
+  color: var(--odk-secondary-strong);
 }
 
 .hydra-title {
   color: var(--odk-primary);
-  font-family: "Montserrat", "Noto Sans SC", "Zpix", sans-serif;
-  font-size: clamp(12px, 8cqi, 24px);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: clamp(16px, 4.5cqi, 20px);
+  font-weight: 400;
   letter-spacing: -0.02em;
 }
 
 .hydra-badge {
   margin-left: auto;
-  padding: 1cqi 3cqi;
-  border: 1px solid var(--odk-stroke);
+  padding: 0;
+  border: 0;
   border-radius: var(--odk-radius-pill);
   font-size: clamp(12px, 5cqi, 16px);
   font-weight: 700;
@@ -3212,19 +2946,29 @@ body.kiosk {
    stacks the environment readings, a square cell pairs them two to a row, a short
    cell keeps the plants and says what it is not showing, and a cell below every
    one of those says it cannot draw the readings at all. */
-/* The full Desk canvas is one instrument: environment above, plants below.
-   The measured wide shape keeps two reading columns without viewport rules. */
-.hydra-body[data-shape='wide'] {
-  flex: none;
-  height: max(75%, 280px);
+/* The full Desk canvas is one instrument: plants above, environment below.
+   The measured wide shape keeps plant pairs above the environment strip. */
+.widget.w-hydra:has(.hydra-body[data-shape='wide']) {
+  align-self: start;
+  height: auto;
+  min-height: 300px;
   max-height: 100%;
-  margin-block: auto;
+}
+
+.hydra-body[data-shape='wide'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  flex: none;
+  height: auto;
+  max-height: 100%;
+  margin-block: 0;
   gap: clamp(12px, 1.5cqi, 20px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-head {
   gap: 12px;
-  padding-block-end: 12px;
+  padding-block-end: 0;
 }
 
 .hydra-body[data-shape='wide'] .hydra-head svg {
@@ -3233,61 +2977,76 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-title {
-  font-size: clamp(18px, 2.5cqi, 28px);
+  font-size: clamp(16px, 2.5cqi, 22px);
   line-height: 1.2;
 }
 
 .hydra-body[data-shape='wide'] .hydra-badge {
-  padding: 4px 12px;
+  padding: 0;
   font-size: 14px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env {
+  flex: none;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: clamp(20px, 4cqi, 48px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: clamp(12px, 2cqi, 28px);
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-cell {
   border-top: 0;
+  justify-content: flex-start;
   gap: 2px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-cell:nth-child(n+3) {
-  border-top: 1px solid var(--odk-stroke);
+  border-top: 0;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-label {
-  font-size: clamp(14px, 2cqi, 22px);
+  font-size: clamp(14px, 1.7cqi, 18px);
+  font-weight: 400;
   line-height: 1.2;
 }
 
 .hydra-body[data-shape='wide'] .hydra-reading {
-  gap: clamp(8px, 1.5cqi, 16px);
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-value {
-  font-size: clamp(44px, 10.5cqi, 112px);
+  font-family: inherit;
+  font-size: clamp(24px, 3.5cqi, 40px);
+  font-weight: 400;
 }
 
 .hydra-body[data-shape='wide'] .hydra-env-unit {
-  font-size: clamp(14px, 2.5cqi, 28px);
+  font-size: 14px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-plants {
+  flex: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(20px, 4cqi, 48px);
-  padding-block-start: clamp(12px, 2cqi, 24px);
+  padding-block-start: 0;
+  padding-block-end: clamp(12px, 1.5cqi, 20px);
+  border-top: 0;
+  border-bottom: 1px solid var(--odk-stroke);
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant {
+  justify-content: space-between;
   gap: clamp(8px, 1.2cqi, 14px);
+  padding: clamp(16px, 2.5cqi, 28px);
+  border-radius: calc(var(--radius) * 0.4);
+  background: var(--odk-elevated);
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-row {
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-name {
@@ -3299,15 +3058,150 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='wide'] .hydra-plant-soil {
-  font-size: clamp(22px, 5cqi, 56px);
+  flex-basis: 100%;
+  margin-inline-start: 0;
+  font-family: inherit;
+  font-size: max(40px, min(22cqi, calc(var(--cell-dim) * 0.25)));
+  font-weight: 400;
+}
+
+@container (min-width: 700px) {
+  .hydra-body[data-shape='wide'] .hydra-plant-soil {
+    font-size: 21cqi;
+  }
+  .hydra-body[data-shape='wide'] .hydra-plant {
+    padding-block: 52px;
+  }
+  .hydra-body[data-shape='wide'] .hydra-plant-row {
+    min-height: calc(21cqi + 32px);
+  }
+  .hydra-body[data-shape='wide'] .hydra-plant-soil-wide {
+    font-size: 16cqi;
+  }
 }
 
 .hydra-body[data-shape='wide'] .hydra-meter {
-  height: clamp(8px, 1.5cqi, 18px);
+  height: 6px;
+}
+
+/* A three-column strip keeps plants beside the four environment readings. */
+.hydra-body[data-shape='wide-short'] {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'head head' 'plants env';
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  gap: clamp(8px, 1.2cqi, 16px);
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-head {
+  grid-area: head;
+  gap: 10px;
+  padding: 0;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-head svg {
+  width: 24px;
+  height: 24px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-title {
+  font-size: clamp(16px, 2cqi, 20px);
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-badge {
+  font-size: 12px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plants {
+  grid-area: plants;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  gap: clamp(8px, 1.2cqi, 16px);
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plant {
+  justify-content: center;
+  padding: 0 clamp(4px, 0.8cqi, 8px);
+  gap: 6px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plant-row {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plant-name {
+  font-size: clamp(14px, 1.6cqi, 18px);
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plant-state {
+  font-size: 12px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-plant-soil {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: inherit;
+  font-size: clamp(32px, 10cqi, 112px);
+  font-weight: 400;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-meter {
+  height: 6px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-env {
+  grid-area: env;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-env-cell {
+  border: 0;
+  gap: 2px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-env-label {
+  font-size: clamp(12px, 1.4cqi, 16px);
+  font-weight: 400;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-reading {
+  gap: 3px;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-env-value {
+  font-family: inherit;
+  font-size: clamp(18px, 4cqi, 44px);
+  font-weight: 400;
+}
+
+.hydra-body[data-shape='wide-short'] .hydra-env-unit {
+  font-size: 12px;
 }
 
 .hydra-body[data-shape='compact'] {
   justify-content: space-between;
+  gap: clamp(6px, 1.5cqi, 10px);
+}
+
+.hydra-body[data-shape='compact'] .hydra-head {
+  padding-block-end: 0;
+}
+
+.hydra-body[data-shape='compact'] .hydra-head svg {
+  width: clamp(16px, 6cqi, 28px);
+  height: clamp(16px, 6cqi, 28px);
 }
 
 .hydra-body[data-shape='compact'] .hydra-env {
@@ -3332,6 +3226,7 @@ body.kiosk {
 }
 
 .hydra-body[data-shape='compact'] .hydra-plants {
+  gap: clamp(6px, 1.5cqi, 8px);
   padding-block-start: 0;
 }
 
@@ -3414,3 +3309,5 @@ body.kiosk {
 #app-view[data-return-gesture="true"]:not([data-info-view]):not(:has(iframe)) {
   touch-action: pan-x pan-y;
 }
+
+/* Heading icons share the existing theme-aware SVG seam. */

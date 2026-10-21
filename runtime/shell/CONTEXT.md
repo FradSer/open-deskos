@@ -67,6 +67,10 @@ Keep the Pi extension directory at `pi-packages/packages/open-deskos`.
 
 **Spoken Turn**: A voice recording submitted by MIC or silence detected after speech. Waiting without speech is not a turn; it is neither a fixed-duration clip nor a wake-word session.
 
+**Voice Field**: The default Personal Agent composer control. A tap starts a voice request. A later tap while the composer is idle opens the keyboard.
+
+**Composer Keyboard**: The composer state that shows the text field and Send. Its microphone returns to the voice field and starts a request. A host that declares no voice input opens in this state.
+
 **Hidden Voice Interaction**: Activated feedback hidden without cancelling work. MIC restores its latest state before any recording action, including background completion.
 
 **Voice Transcript**: Recognized and normalized speech for the current turn, shown before agent output. It is separate from interpretation and response.

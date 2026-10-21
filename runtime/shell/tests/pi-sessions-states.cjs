@@ -373,7 +373,7 @@ async function main() {
   await win.loadFile(path.join(RELEASE, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Page.enable')
-  if (!await waitFor(win, `Boolean(window.__odkGrid) && document.querySelectorAll('#dots .dot').length === 4`, 30000)) {
+  if (!await waitFor(win, `Boolean(window.__odkGrid) && document.querySelectorAll('#dots .dot').length === 3`, 30000)) {
     throw new Error('the shell did not build its pages')
   }
   await win.webContents.executeJavaScript(`Promise.all([

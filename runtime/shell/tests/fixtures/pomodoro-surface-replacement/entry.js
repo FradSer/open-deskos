@@ -5,7 +5,7 @@
   root.odkRendererDevelopment.define({
     id: 'odk.tile.pomodoro', manifest: { schemaVersion: 1, version: '2.0.0', minCell: 186 },
     kind: 'tile', app: 'Pomodoro', state: 'App timer', interaction: 'display-only', opensApp: 'pomodoro',
-    mount(element) {
+    mount(element, context = {}) {
       const make = (tag, className, text) => {
         const node = document.createElement(tag)
         if (className) node.className = className
@@ -25,7 +25,33 @@
       }
       ring.append(artwork, make('span', 'ring-mmss', '--:--'), make('span', 'pomodoro-context', 'Focus'))
       body.append(ring)
-      element.replaceChildren(make('span', 'pomodoro-state w-state', 'App timer'), body)
+      const heading = make('div', 'widget-head pomodoro-head')
+      heading.append(make('span', 'widget-heading', 'Pomodoro'), make('span', 'pomodoro-state w-state', 'App timer'))
+      element.replaceChildren(heading, body)
+      if (!context.onTick || !context.trackCleanup) return
+      const time = ring.querySelector('.ring-mmss'), state = heading.querySelector('.pomodoro-state')
+      const arc = artwork.querySelector('.ring-arc')
+      let active = true, provider = null, release = null
+      context.trackCleanup(() => { active = false; release?.(); release = null })
+      function paint(value) {
+        if (!active) return
+        const label = value.mode === 'idle' ? 'Ready' : value.state
+        if (time.textContent !== value.time) time.textContent = value.time
+        if (state.textContent !== label) state.textContent = label
+        arc.style.strokeDashoffset = String(314 * Math.max(0, Math.min(1, value.remaining / value.duration)))
+      }
+      function updateReading() {
+        if (!active) return
+        const current = context.focus
+        if (provider !== current) {
+          release?.(); release = null; provider = current
+          if (current) release = current.subscribe(value => { if (context.focus === current) paint(value) })
+        }
+        if (current) paint(current.snapshot())
+        else { time.textContent = '--:--'; state.textContent = 'App timer'; arc.style.strokeDashoffset = '314' }
+      }
+      context.onTick(updateReading)
+      updateReading()
     },
   })
 })(window)

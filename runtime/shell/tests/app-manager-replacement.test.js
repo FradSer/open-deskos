@@ -17,34 +17,34 @@ test('signed App Manager owns construction and preserves IPC transitions from ca
   assert.equal(replacement.creates(), 0)
   assert.equal(replacement.host.list().find(plugin => plugin.manifest.id === ID).manifest.version, '2.0.0')
   assert.deepEqual(replacement.list(), original.list())
-  assert.deepEqual(replacement.list().map(app => app.name), ['Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pre-order', 'Calendar', 'Clock', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas'])
+  assert.deepEqual(replacement.list().map(app => app.name), ['Futu holdings', 'Weather', 'Hydra plants', 'WeRead', 'Pomodoro', 'Year progress', 'Built-in views', 'Pi Sessions', 'AI usage & quotas'])
   replacement.list()[0].capabilities.push('mutated')
-  assert.deepEqual(replacement.get('calendar').capabilities, [])
+  assert.deepEqual(replacement.get('weather').capabilities, [])
   const cases = [
     [null, 'invalid-intent'],
     [{ type: 'action', appId: 'missing', action: 'start' }, 'not-found'],
-    [{ type: 'unknown', appId: 'clock' }, 'unsupported-intent'],
-    [{ type: 'action', appId: 'clock', action: 'unknown' }, 'unsupported-action'],
-    [{ type: 'action', appId: 'clock', action: 'pause' }, 'invalid-state'],
-    [{ type: 'open-app', appId: 'clock' }],
+    [{ type: 'unknown', appId: 'year' }, 'unsupported-intent'],
+    [{ type: 'action', appId: 'year', action: 'unknown' }, 'unsupported-action'],
+    [{ type: 'action', appId: 'year', action: 'pause' }, 'invalid-state'],
+    [{ type: 'open-app', appId: 'year' }],
     [{ type: 'action', appId: 'pomodoro', action: 'start' }, 'foreground-busy'],
-    [{ type: 'remove-app', appId: 'clock' }, 'foreground-busy'],
-    [{ type: 'action', appId: 'clock', action: 'pause' }],
-    [{ type: 'action', appId: 'clock', action: 'resume' }],
+    [{ type: 'remove-app', appId: 'year' }, 'foreground-busy'],
+    [{ type: 'action', appId: 'year', action: 'pause' }],
+    [{ type: 'action', appId: 'year', action: 'resume' }],
     [{ type: 'open-app', appId: 'pomodoro' }],
-    [{ type: 'rollback-open', appId: 'pomodoro', expectedTargetState: 'paused', targetState: 'installed', previousAppId: 'clock', previousState: 'running' }, 'stale-transition'],
+    [{ type: 'rollback-open', appId: 'pomodoro', expectedTargetState: 'paused', targetState: 'installed', previousAppId: 'year', previousState: 'running' }, 'stale-transition'],
     [{ type: 'rollback-open', appId: 'pomodoro', expectedTargetState: 'running', targetState: 'invalid' }, 'invalid-state'],
-    [{ type: 'rollback-open', appId: 'pomodoro', expectedTargetState: 'running', targetState: 'installed', previousAppId: 'clock', previousState: 'running' }],
-    [{ type: 'action', appId: 'clock', action: 'stop' }],
-    [{ type: 'rollback-action', appId: 'clock', expectedState: 'running', previousState: 'running', previousForegroundAppId: 'clock' }, 'stale-transition'],
-    [{ type: 'rollback-action', appId: 'clock', expectedState: 'stopped', previousState: 'running', previousForegroundAppId: 'missing' }, 'not-found'],
-    [{ type: 'rollback-action', appId: 'clock', expectedState: 'stopped', previousState: 'running', previousForegroundAppId: 'clock' }],
-    [{ type: 'action', appId: 'clock', action: 'stop' }],
-    [{ type: 'remove-app', appId: 'clock' }],
-    [{ type: 'open-app', appId: 'clock' }, 'not-installed'],
-    [{ type: 'action', appId: 'clock', action: 'stop' }, 'not-installed'],
-    [{ type: 'install-app', appId: 'clock' }],
-    [{ type: 'open-app', appId: 'clock' }],
+    [{ type: 'rollback-open', appId: 'pomodoro', expectedTargetState: 'running', targetState: 'installed', previousAppId: 'year', previousState: 'running' }],
+    [{ type: 'action', appId: 'year', action: 'stop' }],
+    [{ type: 'rollback-action', appId: 'year', expectedState: 'running', previousState: 'running', previousForegroundAppId: 'year' }, 'stale-transition'],
+    [{ type: 'rollback-action', appId: 'year', expectedState: 'stopped', previousState: 'running', previousForegroundAppId: 'missing' }, 'not-found'],
+    [{ type: 'rollback-action', appId: 'year', expectedState: 'stopped', previousState: 'running', previousForegroundAppId: 'year' }],
+    [{ type: 'action', appId: 'year', action: 'stop' }],
+    [{ type: 'remove-app', appId: 'year' }],
+    [{ type: 'open-app', appId: 'year' }, 'not-installed'],
+    [{ type: 'action', appId: 'year', action: 'stop' }, 'not-installed'],
+    [{ type: 'install-app', appId: 'year' }],
+    [{ type: 'open-app', appId: 'year' }],
   ]
   for (const [intent, error] of cases) {
     const actual = replacement.dispatch(intent)
@@ -54,7 +54,7 @@ test('signed App Manager owns construction and preserves IPC transitions from ca
     assert.deepEqual(replacement.list(), original.list())
     assert.deepEqual(replacement.host.get(SYSTEM_PORTS.appManager).foreground(), original.host.get(SYSTEM_PORTS.appManager).foreground())
   }
-  assert.equal(replacement.get('clock').state, 'running')
+  assert.equal(replacement.get('year').state, 'running')
   assert.equal(replacement.get('pomodoro').state, 'installed')
 })
 
@@ -63,14 +63,14 @@ test('default and signed App Managers withdraw handlers and restart fresh state'
   for (const plugins of [[], await selected.load()]) {
     const f = await runtime(t, plugins)
     const manager = f.host.get(SYSTEM_PORTS.appManager)
-    f.dispatch({ type: 'open-app', appId: 'clock' })
+    f.dispatch({ type: 'open-app', appId: 'year' })
     await f.host.setEnabled(ID, false)
     assert.equal(f.handlers.size, 0)
     assert.equal(f.host.get(SYSTEM_PORTS.appManager), null)
     await f.host.setEnabled(ID, true)
     assert.deepEqual([...f.handlers.keys()].sort(), [...CHANNELS].sort())
     assert.notEqual(f.host.get(SYSTEM_PORTS.appManager), manager)
-    assert.equal(f.get('clock').state, 'installed')
+    assert.equal(f.get('year').state, 'installed')
     assert.equal(f.host.get(SYSTEM_PORTS.appManager).foreground(), null)
     await f.host.stop()
     assert.equal(f.handlers.size, 0)
@@ -86,7 +86,7 @@ test('corrupt and removed App Manager selections start the actual default compos
   assert.deepEqual(rejected, [])
   const f = await runtime(t, rejected)
   assert.equal(f.creates(), 1)
-  assert.equal(f.dispatch({ type: 'open-app', appId: 'clock' }).ok, true)
+  assert.equal(f.dispatch({ type: 'open-app', appId: 'year' }).ok, true)
   await selected.invoke(['remove', ID])
   assert.deepEqual(await selected.load(), [])
   const restored = await runtime(t, await selected.load())

@@ -222,7 +222,7 @@
     css: 'plugins/quota-page.css',
     mount(el, ctx) {
       el.innerHTML = `
-        <span class="quota-state w-state">Loading</span>
+        <div class="widget-head"><span class="widget-heading">AI usage</span><span class="quota-state w-state">Loading</span></div>
         <div class="quota-tile-body widget-signal odk-col items-center justify-center">
           <span class="quota-tile-value runtime-value">--%</span>
           <div class="quota-tile-meter" role="meter" aria-valuemin="0" aria-valuemax="100" hidden>
@@ -232,6 +232,7 @@
           <span class="quota-tile-context">AI usage</span>
         </div>`
 
+      const headingNode = el.querySelector('.widget-heading')
       const stateNode = el.querySelector('.quota-state')
       const valueNode = el.querySelector('.quota-tile-value')
       const meterNode = el.querySelector('.quota-tile-meter')
@@ -248,7 +249,8 @@
       // A window that produced a finite percentage is the only thing this Widget
       // may draw as a meter. Every other reading states itself in words and hides
       // the meter, so an unavailable window is never presented as 0 or 100.
-      const showWindow = (state, window, percent) => {
+      const showWindow = (state, window, percent, service) => {
+        text(headingNode, service)
         text(stateNode, state)
         text(valueNode, `${percent}%`)
         text(contextNode, window)
@@ -268,7 +270,8 @@
         }
         if (unknownNode && !unknownNode.hidden) unknownNode.hidden = true
       }
-      const showWords = (state, value, context) => {
+      const showWords = (state, value, context, service = 'AI usage') => {
+        text(headingNode, service)
         text(stateNode, state)
         text(valueNode, value)
         text(contextNode, context)
@@ -292,25 +295,25 @@
         const total = Array.isArray(accounts) ? accounts.length : 0
 
         if (status.state === 'unconfigured') {
-          showWords('Unconfigured', '--%', 'CLIProxyAPI')
+          showWords('Unconfigured', '--%', 'Connect an account')
           return
         }
         if (status.state === 'unavailable' || status.state === 'unauthorized') {
           const unauthorized = status.state === 'unauthorized'
-          showWords(unauthorized ? 'Unauthorized' : 'Unavailable', '--%', unauthorized ? 'Invalid key' : 'Check connection')
+          showWords(unauthorized ? 'Unauthorized' : 'Unavailable', '--%', unauthorized ? 'Renew access' : 'Open to refresh')
           return
         }
 
         const windows = (Array.isArray(accounts) ? accounts : [])
           .filter((account) => !account.error)
-          .flatMap((account) => (account.groups || []).flatMap((group) => group.quotas || []))
+          .flatMap((account) => (account.groups || []).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
           .filter((quota) => isPercent(quota.remainingPct))
 
         if (windows.length > 0) {
           // The tightest window is the one that can stop work, so it leads.
           const lowest = windows.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), windows[0])
           const percent = Math.round(lowest.remainingPct)
-          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent)
+          showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, ({ codex: 'ChatGPT', antigravity: 'Antigravity', xai: 'Grok' })[lowest.account.provider] || 'AI usage')
           return
         }
         // Accounts that returned no usable window are a count, never a reading.
@@ -322,11 +325,16 @@
           showWords('Available', String(total), total === 1 ? '1 account' : `${total} accounts`)
           return
         }
-        showWords('Available', '--%', 'No quotas returned')
+        showWords('No data', '--%', 'Open to refresh')
       }
 
       ctx.onTick(() => render())
       render()
+      // Read the shared source at mount rather than waiting for its minute tick.
+      if (ctx.subscription.refresh) {
+        void Promise.resolve().then(() => disposed ? undefined : ctx.subscription.refresh())
+          .then(() => render(), () => render({ state: 'unavailable' }))
+      }
     },
   })
 

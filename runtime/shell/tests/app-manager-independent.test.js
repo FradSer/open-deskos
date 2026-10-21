@@ -9,7 +9,7 @@ const { selection, runtime } = require('./helpers/app-manager')
 
 test('independent manager preserves malformed intent responses and action type checks', () => {
   const a = original(), b = independent()
-  for (const intent of [null, undefined, {}, {appId: 1}, {appId: 'clock', type: 'action', action: ['start']}]) {
+  for (const intent of [null, undefined, {}, {appId: 1}, {appId: 'year', type: 'action', action: ['start']}]) {
     assert.deepEqual(b.dispatch(intent), a.dispatch(intent))
   }
 })
@@ -28,13 +28,13 @@ test('independent manager preserves deterministic lifecycle and recovery sequenc
   for (let sequence = 0; sequence < 30; sequence++) {
     const a = original(), b = independent()
     for (let step = 0; step < 300; step++) {
-      const appId = choose(['clock', 'pomodoro', 'year', 'missing'])
+      const appId = choose(['weather', 'pomodoro', 'year', 'missing'])
       const operation = choose(['dispatch','install','remove','start','pause','resume','stop'])
       const intent = { appId, type: choose(['open-app','action','install-app','remove-app','rollback-open','rollback-action','unknown']),
         action: choose(['start','pause','resume','stop','unknown',null,['start']]),
         expectedState: choose(['running','paused','stopped',null]), expectedTargetState: choose(['running','paused','stopped',null]),
         targetState: choose(['installed','running','paused','stopped','invalid']), previousState: choose(['installed','running','paused','stopped','invalid']),
-        previousAppId: choose(['clock','pomodoro','missing',null]), previousForegroundAppId: choose(['clock','pomodoro','missing',null]) }
+        previousAppId: choose(['year','pomodoro','missing',null]), previousForegroundAppId: choose(['year','pomodoro','missing',null]) }
       const argument = operation === 'dispatch' ? intent : appId
       assert.deepEqual(b[operation](argument), a[operation](argument), JSON.stringify({sequence,step,operation,argument}))
       assert.deepEqual(b.list(), a.list())
@@ -49,7 +49,7 @@ test('independent manager preserves deterministic lifecycle and recovery sequenc
         assert.deepEqual(restoredOriginal.foreground(), a.foreground())
         assert.deepEqual(restoredIndependent.foreground(), a.foreground())
       }
-      for (const id of ['clock','pomodoro','year','missing']) assert.deepEqual(b.get(id), a.get(id))
+      for (const id of ['weather','pomodoro','year','missing']) assert.deepEqual(b.get(id), a.get(id))
     }
   }
   for (const [values, seen] of sampled) {
@@ -64,9 +64,9 @@ test('signed independent manager runs from captured own modules through actual C
   const a = await runtime(t)
   const b = await runtime(t, definitions)
   assert.equal(b.creates(), 0)
-  for (const intent of [{type:'open-app',appId:'clock'},{type:'open-app',appId:'pomodoro'},
-    {type:'rollback-open',appId:'pomodoro',expectedTargetState:'running',targetState:'installed',previousAppId:'clock',previousState:'running'},
-    {type:'action',appId:'clock',action:'pause'},{type:'action',appId:'clock',action:'resume'},{type:'action',appId:'clock',action:'stop'}]) {
+  for (const intent of [{type:'open-app',appId:'year'},{type:'open-app',appId:'pomodoro'},
+    {type:'rollback-open',appId:'pomodoro',expectedTargetState:'running',targetState:'installed',previousAppId:'year',previousState:'running'},
+    {type:'action',appId:'year',action:'pause'},{type:'action',appId:'year',action:'resume'},{type:'action',appId:'year',action:'stop'}]) {
     assert.deepEqual(b.dispatch(intent), a.dispatch(intent))
     assert.deepEqual(b.list(), a.list())
   }
@@ -137,7 +137,7 @@ test('development independent manager loads through actual CLI and releases publ
   const originalRuntime = await runtime(t)
   const replacement = await runtime(t, definitions)
   assert.equal(replacement.creates(), 0)
-  for (const appId of ['clock', 'pomodoro']) {
+  for (const appId of ['year', 'pomodoro']) {
     const intent = { type: 'open-app', appId }
     assert.deepEqual(replacement.dispatch(intent), originalRuntime.dispatch(intent))
   }
@@ -148,6 +148,6 @@ test('development independent manager loads through actual CLI and releases publ
   await replacement.host.setEnabled(ID, true)
   assert.notEqual(replacement.host.get(SYSTEM_PORTS.appManager), manager)
   assert.equal(replacement.host.get(SYSTEM_PORTS.appManager).foreground(), null)
-  assert.equal(replacement.get('clock').state, 'installed')
+  assert.equal(replacement.get('year').state, 'installed')
   assert.deepEqual([...replacement.handlers.keys()].sort(), [...CHANNELS].sort())
 })

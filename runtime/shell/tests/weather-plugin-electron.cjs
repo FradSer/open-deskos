@@ -281,7 +281,7 @@ app.whenReady().then(async () => {
       await restart(false)
       await wait('unconfigured')
       results.push(await collect())
-      assert.equal(results[4].detail, 'Location not set')
+      assert.equal(results[4].detail, 'Open Weather for details')
       assert.equal(results[4].badge, 'Unconfigured')
       assert.equal(results[4].condition, 'No weather location')
       failed = false

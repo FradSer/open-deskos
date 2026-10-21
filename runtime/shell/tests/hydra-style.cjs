@@ -14,6 +14,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const captureDir = process.argv.find(arg => arg.startsWith('--capture-dir='))?.slice('--capture-dir='.length)
+const reportDensity = process.argv.includes('--density-report-only')
 if (captureDir) fs.mkdirSync(captureDir, { recursive: true })
 const root = path.resolve(__dirname, '..')
 app.commandLine.appendSwitch('ozone-platform', 'headless')
@@ -33,16 +34,21 @@ const LIVE = {
   env: { tempC: 31.3, humidity: 79.8, pressureHpa: 998.9, lux: 1234, updatedAt: Date.now(), stale: false },
   nodes: [{ id: 1, online: true, pump: false, soilPercent: 62 }, { id: 2, online: true, pump: true, soilPercent: 48 }],
 }
-const SNAPSHOTS = { live: LIVE, unconfigured: { configured: false, connected: false, env: null, nodes: [] } }
+const SNAPSHOTS = { full: { ...LIVE, nodes: LIVE.nodes.map(node => ({ ...node, soilPercent: 100 })) }, live: LIVE, unconfigured: { configured: false, connected: false, env: null, nodes: [] } }
 // Tall cells: the two promised panels, a panel a few pixels short of the promised
 // minimum, and the narrowest cell the tall composition is drawn in. Square cells:
 // a compact window, the cells a short window computes, and a cell too small for
 // the tile's state line.
 const CELLS = [
+  ['Desk strip', 1103, 357, 'wide-short'],
+  ['handheld Desk strip', 619, 196, 'wide-short'],
+  ['short wide boundary', 560, 186, 'wide-short'],
   ['Desk canvas', 1103, 730, 'wide'],
-  ['wide boundary', 480, 340, 'wide'],
-  ['below wide width', 479, 340, 'compact'],
-  ['below wide height', 480, 339, 'compact'],
+  ['full moisture Desk', 1103, 730, 'wide', true],
+  ['full moisture strip', 619, 196, 'wide-short', true],
+  ['wide boundary', 480, 300, 'wide'],
+  ['below wide width', 479, 300, 'compact'],
+  ['below wide height', 480, 299, 'compact'],
   ['reference tall', 348, 724, 'tall'],
   ['wide reading boundary', 338, 724, 'tall'],
   ['narrow reading boundary', 334, 724, 'tall'],
@@ -94,9 +100,9 @@ app.whenReady().then(async () => {
     }
     const release = host => { for (const cleanup of host.cleanups) cleanup(); host.remove() }
     const cases = []
-    for (const [name, width, height] of ${JSON.stringify(CELLS.map(([name, width, height]) => [name, width, height]))}) {
+    for (const [name, width, height, , full] of ${JSON.stringify(CELLS)}) {
       for (const theme of ${JSON.stringify(THEMES)}) {
-        const host = await mount(theme, width, height, SNAPSHOTS.live)
+        const host = await mount(theme, width, height, full ? SNAPSHOTS.full : SNAPSHOTS.live)
         if (name.endsWith('reading boundary')) {
           host.style.padding = '28px'
           await new Promise(resolve => setTimeout(resolve, 160))
@@ -117,6 +123,15 @@ app.whenReady().then(async () => {
           shape: body ? body.dataset.shape : null,
           contentWidth: body.getBoundingClientRect().width,
           environmentFont: parseFloat(getComputedStyle(host.querySelector('.hydra-env-value')).fontSize),
+          plantFont: parseFloat(getComputedStyle(host.querySelector('.hydra-plant-soil')).fontSize),
+          groupGaps: {
+            afterHeader: host.querySelector('.hydra-plants').getBoundingClientRect().top - host.querySelector('.hydra-head').getBoundingClientRect().bottom,
+            beforeEnvironment: host.querySelector('.hydra-env').getBoundingClientRect().top - host.querySelector('.hydra-plants').getBoundingClientRect().bottom,
+          },
+          edgeInsets: {
+            top: host.querySelector('.hydra-head').getBoundingClientRect().top - host.getBoundingClientRect().top,
+            expectedTop: parseFloat(getComputedStyle(host).paddingTop) + parseFloat(getComputedStyle(host).borderTopWidth),
+          },
           meters: [...host.querySelectorAll('.hydra-meter-fill')].map(fill => ({
             texture: (() => {
               if (!fill.closest('.hydra-watering')) return null
@@ -195,7 +210,7 @@ app.whenReady().then(async () => {
       assert.equal(meter.transition, row.theme === 'pixel' ? 'none' : 'transform', where)
       assert.equal(parseFloat(meter.origin), 0, where)
       if (meter.texture) assert.equal(meter.texture.changed, true, where + ' watering texture must follow the semantic primary color')
-      if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - [0.62, 0.48][index]) < 0.001, where)
+      if (meter.fraction !== null) assert.ok(Math.abs(meter.fraction - (row.name.startsWith('full moisture') ? 1 : [0.62, 0.48][index])) < 0.001, where)
     }
     assert.equal(row.contained, true, where)
     assert.equal(row.ellipsized.length, 0, where)
@@ -218,13 +233,14 @@ app.whenReady().then(async () => {
     }
     checked += 1
   }
-  const wideDensity = result.cases.filter(row => row.name === 'Desk canvas').map(row => {
+  const wideDensity = result.cases.filter(row => ['Desk canvas', 'full moisture Desk'].includes(row.name)).map(row => {
     const measured = measureDensity(row.density.frame, row.density.boxes,
       { target: 0.62, tolerance: 0.08, minOccupied: 0.2, maxEmptyBand: 0.28 })
-    assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
+    if (!reportDensity) assert.deepEqual(measured.violations, [], `${row.theme} wide instrument: ${JSON.stringify(measured)}`)
     return { theme: row.theme, ...measured }
   })
   console.log('HYDRA_WIDE_DENSITY ' + JSON.stringify(wideDensity))
+  console.log('HYDRA_DENSITY_RESULT ' + JSON.stringify({ ok: wideDensity.every(row => row.violations.length === 0), reportOnly: reportDensity, gate: reportDensity ? 'comparison-only' : 'enforced', findings: wideDensity.filter(row => row.violations.length) }))
   // The declared shapes, at the cells they are drawn for.
   for (const [name] of CELLS) {
     const shapes = new Set(result.cases.filter(row => row.name === name).map(row => row.shape))
@@ -241,10 +257,18 @@ app.whenReady().then(async () => {
     }
     if (expected === 'wide') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
+      assert.equal(row.columns, 4, JSON.stringify(row))
+      assert.equal(row.rows, 1, JSON.stringify(row))
+      assert.equal(row.plantColumns, 2, JSON.stringify(row))
+      assert.ok(row.environmentFont >= 24 && row.environmentFont <= 40, JSON.stringify(row))
+      assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
+    }
+    if (expected === 'wide-short') {
+      assert.equal(row.envShown, 4, JSON.stringify(row))
       assert.equal(row.columns, 2, JSON.stringify(row))
       assert.equal(row.rows, 2, JSON.stringify(row))
       assert.equal(row.plantColumns, 2, JSON.stringify(row))
-      assert.ok(row.environmentFont >= (name === 'Desk canvas' ? 96 : 44), JSON.stringify(row))
+      assert.ok(row.plantFont > row.environmentFont, JSON.stringify(row))
     }
     if (expected === 'compact') {
       assert.equal(row.envShown, 4, JSON.stringify(row))
@@ -263,6 +287,10 @@ app.whenReady().then(async () => {
       assert.equal(row.plantsShown, 0, JSON.stringify(row))
       assert.match(row.hint, /small/i, JSON.stringify(row))
     }
+  }
+  for (const row of result.cases.filter(row => row.shape === 'wide')) {
+    assert.ok(Math.abs(row.edgeInsets.top - row.edgeInsets.expectedTop) < 1, `${row.theme} ${row.name} top inset: ${JSON.stringify(row.edgeInsets)}`)
+    assert.ok(Object.values(row.groupGaps).every(gap => gap >= 12 && gap <= 20.1), `${row.theme} ${row.name} bounded group gaps: ${JSON.stringify(row.groupGaps)}`)
   }
   for (const row of result.unconfigured) {
     const where = JSON.stringify(row)
@@ -318,6 +346,6 @@ app.whenReady().then(async () => {
   })()`)
   assert.deepEqual(reduced, { property: 'none', duration: '0s' })
   win.webContents.debugger.detach()
-  console.log(`HYDRA_STYLE_PASS ${checked} composition cases, ${result.unconfigured.length} unconfigured cases`)
+  console.log(`${reportDensity ? 'HYDRA_COMPOSITION_PASS' : 'HYDRA_STYLE_PASS'} ${checked} composition cases, ${result.unconfigured.length} unconfigured cases`)
   win.destroy()
 }).then(() => { clearTimeout(timer); app.exit(0) }).catch(error => { clearTimeout(timer); console.error(error); app.exit(1) })

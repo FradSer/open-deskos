@@ -32,30 +32,6 @@
     "capabilities": []
   },
   {
-    "appId": "preorder",
-    "name": "Pre-order",
-    "kind": "ui",
-    "version": "builtin",
-    "source": "builtin",
-    "capabilities": []
-  },
-  {
-    "appId": "calendar",
-    "name": "Calendar",
-    "kind": "ui",
-    "version": "builtin",
-    "source": "builtin",
-    "capabilities": []
-  },
-  {
-    "appId": "clock",
-    "name": "Clock",
-    "kind": "ui",
-    "version": "builtin",
-    "source": "builtin",
-    "capabilities": []
-  },
-  {
     "appId": "pomodoro",
     "name": "Pomodoro",
     "kind": "ui",

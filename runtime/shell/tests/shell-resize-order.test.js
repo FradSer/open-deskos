@@ -16,7 +16,7 @@ test('resize repositions Widgets after applying the new geometry without an obse
   let frame
   const observed = []
   const window = { location: { search: '' }, innerWidth: 960, innerHeight: 640,
-    DESKTOP_LAYOUT: { pages: [{ kind: 'grid', widgets: [{}] }] },
+    DESKTOP_LAYOUT: { pages: [{ id: 'desk', kind: 'grid', gridRows: 3, widgets: [{}] }] },
     addEventListener(name, callback) { assert.equal(name, 'resize'); resize = callback } }
   vm.runInNewContext(source, { window, URLSearchParams, odkLayout: layout,
     document: { documentElement: { dataset: {}, style: { setProperty(name, value) { properties.set(name, value) } } },
@@ -35,7 +35,7 @@ test('resize repositions Widgets after applying the new geometry without an obse
   window.innerWidth = 1920
   window.innerHeight = 1280
   content.clientHeight = 1184
-  grids = [{ children: [{ dataset: { minCell: '217' } }], closest() { return { offsetWidth: 528, clientWidth: 518 } } }]
+  grids = [{ children: [{ dataset: { minCell: '217' } }], closest() { return { dataset: { pageId: 'desk' }, offsetWidth: 528, clientWidth: 518 } } }]
   resize()
   frame()
   assert.deepEqual(observed[1], { columns: '3', cell: '357px', width: 1920 })

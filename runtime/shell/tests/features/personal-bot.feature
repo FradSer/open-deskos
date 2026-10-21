@@ -68,6 +68,28 @@ Feature: Independent resident personal bot
     Then the shell shows starting or sending feedback before the next service status arrives
     And the feedback distinguishes listening, transcription, Pi execution, completion, and failure with persistent text
 
+  Scenario: The Personal Agent composer opens on voice
+    Given the resident personal bot service is connected and the composer is idle
+    When the Personal Agent page opens on a host that records voice
+    Then the message field is one voice button without a text field in view
+    And its accessible name states that a tap starts a voice request
+    When the owner taps the voice button
+    Then one recording toggle is sent to the resident personal bot service
+    When the composer is idle again and the owner taps the voice button once more
+    Then the text field and the Send control replace the voice button
+    And the text field takes keyboard focus
+    When the owner taps the microphone beside the text field
+    Then the voice button returns and the next recording toggle is sent
+    And the keyboard control beside the voice button opens the same text field
+    And a reply reference opens the text field
+
+  Scenario: A host without voice input opens the composer on the keyboard
+    Given a Shell Host declares that it captures no audio
+    When the Personal Agent page opens
+    Then the text field and the Send control are in view and the voice button is not
+    And the microphone control is disabled
+    And it states that microphone input is unavailable on this host
+
   Scenario: The shell displays recording and execution feedback
     Given the personal bot service publishes recording or thinking state
     When the shell receives the status

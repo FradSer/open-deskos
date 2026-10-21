@@ -172,7 +172,7 @@ app.whenReady().then(async () => {
   if (mode === 'retained-cleanup') {
     assert.equal(await js("document.querySelector('#user-app-desktop-status').dataset.state"),'unavailable')
     assert.equal(await js('desktopReleaseAttempts'),2)
-    assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"),true)
+    assert.equal(await js("odkAppPlatform.openApp({appId:'year'})"),true)
     await js('odkAppPlatform.closeApp()')
     await js("document.querySelector('#user-app-desktop-notice button').click()")
   }
@@ -180,7 +180,7 @@ app.whenReady().then(async () => {
   assert.equal(await js('odkUserAppDesktopRuntime.catalog()[0].manifest.version'), mode==='independent'||mode==='wrong-role'||external&&!mode.endsWith('definition-rejected')?'2.0.0':'1.0.0')
   if (mode==='invalid-contract') assert.equal(await js('desktopBadFactoryCreates'),0)
   if (mode==='retained-cleanup') assert.equal(await js('desktopReleaseAttempts'),3)
-  await js("(()=>{window.installedDocument=document;window.installedBuiltin=document.querySelector('[data-widget=\"odk.tile.clock\"]');})()")
+  await js("(()=>{window.installedDocument=document;window.installedBuiltin=document.querySelector('[data-widget=\"odk.tile.year\"]');})()")
   const widget = revision => ({ id:'note',name:'Notes 笔记',version:'1',kind:'widget',revision,placement:{pageId:'reading',col:'4',row:'3'} })
   const counter = { id:'counter',name:'Counter',version:'1',kind:'app',revision:'r1' }
   const update = next => { apps=next;win.webContents.send('odk-user-apps-changed') }
@@ -192,11 +192,11 @@ app.whenReady().then(async () => {
   await js("(()=>{window.installedCounter=document.querySelector('[data-user-app-id=\"counter\"] iframe');window.installedOldWidget=document.querySelector('[data-user-app-id=\"note\"] iframe');})()")
   const counterFrame = win.webContents.mainFrame.frames.find(frame=>frame.url.includes('/counter/'))
   await counterFrame.executeJavaScript('counter.click()')
-  assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"),true)
+  assert.equal(await js("odkAppPlatform.openApp({appId:'year'})"),true)
   await js("window.installedForeground=document.querySelector('#app-runtime').firstElementChild")
   update([widget('r2'),counter])
   await wait("document.querySelector('[data-user-app-id=\"note\"] iframe')?.dataset.revision==='r2'")
-  assert.equal(await js("!installedOldWidget.isConnected&&installedCounter===document.querySelector('[data-user-app-id=\"counter\"] iframe')&&installedBuiltin===document.querySelector('[data-widget=\"odk.tile.clock\"]')&&installedForeground===document.querySelector('#app-runtime').firstElementChild"),true)
+  assert.equal(await js("!installedOldWidget.isConnected&&installedCounter===document.querySelector('[data-user-app-id=\"counter\"] iframe')&&installedBuiltin===document.querySelector('[data-widget=\"odk.tile.year\"]')&&installedForeground===document.querySelector('#app-runtime').firstElementChild"),true)
   assert.equal(await counterFrame.executeJavaScript('counter.textContent'),'1')
   failure=true;update(apps)
   await wait("document.querySelector('#user-app-desktop-status').dataset.state==='unavailable'")

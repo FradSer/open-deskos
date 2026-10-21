@@ -15,6 +15,7 @@
         id: 'home',
         name: 'Home',
         kind: 'grid',
+        gridRows: 2,
         surface: 'display',
         widgets: [
           { id: 'odk.tile.pi-sessions', opensApp: 'pi-sessions', col: '1', row: '1' },
@@ -25,13 +26,8 @@
           { id: 'odk.tile.quota', opensApp: 'quota', col: '3', row: '2' },
         ],
       },
-      { id: 'desk', name: 'Desk', kind: 'grid', surface: 'display', widgets: [
-        { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1 / 4', row: '1 / 3' },
-      ] },
-      // The countdown is an image-led hero instrument, so it owns a whole 3x3
-      // canvas the same way the Reading page gives WeRead one instrument.
-      { id: 'preorder', name: 'Pre-order', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
-        { id: 'odk.tile.preorder', opensApp: 'preorder', col: '1 / 4', row: '1 / 4' },
+      { id: 'desk', name: 'Desk', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
+        { id: 'odk.tile.hydra', opensApp: 'hydra', col: '1 / 4', row: '1' },
       ] },
       { id: 'reading', name: 'Reading', kind: 'grid', surface: 'display', gridRows: 3, widgets: [
         { id: 'odk.tile.weread', opensApp: 'weread', col: '1 / 4', row: '1 / 4' },

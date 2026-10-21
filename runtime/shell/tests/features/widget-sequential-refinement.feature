@@ -6,21 +6,6 @@ Feature: Independent instrument refinement
     When its subprocess checks execute
     Then sequential instrument and App checks must pass for the gate to pass
 
-  Scenario: Clock preserves its reading between minute changes
-    Given the Clock is mounted with the shared local-time service
-    When ticks arrive within the same minute
-    Then the visible time node is not rewritten
-    And the reading remains a semantic local time without live announcements
-    When local time advances past midnight
-    Then the reading and machine-readable time both become "00:00"
-
-  Scenario: Calendar stays stable until the local date changes
-    Given the Calendar displays the current local day
-    When shared ticks arrive on the same date
-    Then its weekday, day and month are not rewritten
-    When the local date changes at midnight
-    Then all date fields update together
-
   Scenario: Year progress preserves unchanged readings
     Given Year progress displays its rounded percentage and precise meter
     When another tick leaves both displayed values unchanged
@@ -42,18 +27,6 @@ Feature: Independent instrument refinement
     Then its soil reading is unavailable and its meter is empty
     When that plant disappears from the snapshot
     Then no watering emphasis remains
-
-  Scenario: Calendar App shows the current local date without invented events
-    Given Calendar is mounted with the shared clock
-    When local midnight crosses a month boundary
-    Then its semantic date updates to the new date
-    And event data remains explicitly unavailable
-
-  Scenario: Clock App preserves its semantic minute reading
-    Given Clock is mounted with the shared clock
-    When ticks arrive within a minute and then cross midnight
-    Then unchanged text is preserved and the semantic time advances to "00:00"
-    And the reading is not a live announcement
 
   Scenario: Year App shows locally calculated year progress
     Given Year progress is mounted with the shared clock
@@ -87,3 +60,92 @@ Feature: Independent instrument refinement
     Then the matching views return and the empty status clears
     When the catalog itself is empty
     Then the status says "No built-in views available."
+
+  Scenario: Home instruments show only decision-ready readings
+    Given Pi has working, idle, and exited sessions with task details
+    When Home renders
+    Then the Pi Widget shows working and idle counts without goals or activity
+    And task details remain in the Pi Sessions App
+    And the Pomodoro ring is centered within its body below its heading and state
+    And the heading, state, dial, and readings stay inside their card
+    And the Year percentage, context, and meter identify the card without a heading
+    And the Pi count, Working capsule, and idle count share the horizontal center
+    And each Widget preserves its configured grid span
+
+  Scenario: Overview retains a readable header on narrow screens
+    Given the Overview content box cannot fit the weekday and full date on one line
+    When Home renders at a narrow supported size
+    Then the date wraps inside the Overview without horizontal overflow
+    And the weekday and status indicator remain visible
+
+  Scenario: Overview aligns its header by the text baseline
+    Given Overview shows a weekday and calendar date
+    When its width changes in a supported theme
+    Then the weekday and date share a text baseline
+    And a red indicator at least 16 pixels wide has at least 8 pixels of clearance
+    And refreshing keeps the same indicator footprint
+
+  Scenario: A mounted timer Widget follows a replaced App service
+    Given a Widget receives its context through the renderer registry
+    When the App publishes a replacement focus reader
+    Then the existing Widget reads the replacement service
+    And late readings from the previous service cannot overwrite it
+
+  Scenario: Sparse instruments use their content area without an empty middle band
+    Given a square Home Widget has only a small set of readings
+    When it renders at desktop and handheld sizes
+    Then Pi shows one large working count above its Working capsule
+    And the idle count appears below the capsule
+    And primary numerals and the focus dial use more of their available content area
+    And supporting labels stay with their readings
+    And Hydra uses larger plant and environment readings within its three-by-one span
+
+  Scenario: Compact reading leaves room for the excerpt
+    Given WeRead uses one grid cell with a book cover and author
+    When the cell is smaller than 250 pixels
+    Then the excerpt has at least three visible lines
+    And the source row uses no more than 44 percent of the cell height
+    And the book title remains available in full
+
+  Scenario: Instruments separate headings from readings
+    Given Pi and Hydra render at desktop and handheld sizes
+    When their content fills the configured spans
+    Then Pi reserves space below its heading before the working count
+    And Hydra groups plant readings without nested card surfaces
+
+
+  Scenario: Reading follows Hydra in a three-column three-row area
+    Given the default desktop shows Home and Hydra
+    When the user moves to the page after Hydra
+    Then WeRead occupies three columns and three rows
+    And Overview keeps its first Home row
+
+  Scenario: Retired views have no installed entry
+    Given Clock, Calendar, and Pre-order are retired
+    When the desktop and built-in catalog load
+    Then their Widgets, Apps, scripts, styles, and bundled artwork are absent
+    And the State Bar still shows local time
+
+  Scenario: Heading icons follow the content
+    Given each Widget has its own information hierarchy
+    When it renders
+    Then Hydra retains its leaf icon
+    And other Widget headings do not receive automatic decorative icons
+
+  Scenario: Apple reference hierarchy adapts to the existing instruments
+    Given Liquid Glass uses the Apple Weather, Batteries, Home, Stocks, and Books reference
+    When Widgets render at desktop and handheld sizes
+    Then headings have medium weight and primary text contrast
+    And Weather keeps its temperature immediately below the city
+    And Year progress leaves clearance around its percentage
+    And the Reading card gives its dynamic book cover a larger source slot
+    And existing spans, source states, and App entries remain unchanged
+
+  Scenario: The second Apple reference keeps related readings together
+    Given Liquid Glass shows Pi status and current weather
+    When the card grows from handheld to desktop size
+    Then the idle count stays within 12 pixels below the Working capsule
+    And the weather glyph appears above its condition and daily range
+    And the glyph and condition share their leading edge
+    And the temperature and daily range scale within the unchanged density band
+    And holding rows retain aligned values and subtle separators

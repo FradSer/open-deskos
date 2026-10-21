@@ -18,7 +18,7 @@
         <div class="widget-signal weread-body odk-col">
           <div class="weread-content">
             <div class="weread-copy">
-              <p class="weread-text" role="region" aria-label="Highlight excerpt">Syncing highlights...</p>
+              <p class="weread-text" role="region" aria-label="Highlight excerpt">Loading highlights…</p>
               <div class="weread-foot">
                 <div class="weread-meta">
                   <strong class="weread-title">Loading</strong>
@@ -226,10 +226,10 @@
           drawCover()
         }
         if (state.status === 'unconfigured') {
-          title.textContent = 'Not configured'
+          title.textContent = 'Connect WeRead'
           author.textContent = ''
           date.textContent = ''
-          text.textContent = 'Set WEREAD_API_KEY to sync'
+          text.textContent = 'Connect WeRead, then open to refresh.'
         } else if (highlight) {
           title.textContent = stripBrackets(highlight.title) || 'WeRead'
           author.textContent = highlight.author || ''
@@ -239,8 +239,9 @@
           title.textContent = state.status === 'error' ? 'Sync unavailable' : 'No highlights'
           author.textContent = ''
           date.textContent = ''
-          text.textContent = state.error || 'No highlights available'
+          text.textContent = state.status === 'error' ? 'Open WeRead and select Refresh.' : 'Save a highlight in WeRead.'
         }
+        title.title = title.textContent
         author.hidden = !author.textContent
         date.hidden = !date.textContent
         scheduleFit()

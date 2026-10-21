@@ -25,7 +25,7 @@ const POSITIONS = [{ code: 'US.TQQQ', price: 1234.56, dayRatio: -0.1236 }, { cod
 // which: the layout follows the cell it is rendered in.
 const NARROW_CELL = 186
 const WIDE_CELL = 340
-const THEMES = ['instrument', 'pixel', 'border-beam']
+const THEMES = ['instrument', 'pixel', 'border-beam', 'liquid-glass']
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1280, height: 776, webPreferences: { offscreen: true, backgroundThrottling: false } })
@@ -73,7 +73,7 @@ app.whenReady().then(async () => {
             readingColor: getComputedStyle(value).color === color,
             rowColor: getComputedStyle(pill).color === color,
             transparent: getComputedStyle(pill).backgroundColor === 'rgba(0, 0, 0, 0)',
-            readable: parseFloat(getComputedStyle(note).fontSize) >= 18 && parseFloat(getComputedStyle(host.querySelector('.futu-name')).fontSize) >= 18 && parseFloat(getComputedStyle(pill).fontSize) >= 20 && getComputedStyle(note).color === captionColor,
+            readable: parseFloat(getComputedStyle(note).fontSize) >= 18 && parseFloat(getComputedStyle(host.querySelector('.futu-name')).fontSize) >= 16 && parseFloat(getComputedStyle(pill).fontSize) >= 20 && getComputedStyle(note).color === captionColor,
             contained: !ellipsized(value) && host.scrollHeight <= host.clientHeight + 1,
             pixelSpacing: theme !== 'pixel' || getComputedStyle(value).letterSpacing === 'normal',
             staleLabelled: kind !== 'stale' || /Stale/.test(note.textContent),

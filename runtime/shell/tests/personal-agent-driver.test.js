@@ -7,6 +7,7 @@ const path = require('node:path')
 const { createPersonalAgentDriver } = require('../src/personal-agent-driver')
 const { projectPersonalAgentFrame } = require('../src/personal-agent-frame')
 const fixture = require('./fixtures/personal-agent-v1.json')
+const { androidPath } = require('./helpers/repo-root')
 
 const fixtureFile = path.join(__dirname, 'fixtures', 'personal-agent-v1.json')
 
@@ -164,7 +165,7 @@ test('the Android message shim preserves reply references and declares text-only
   const native = { postMessage(raw) { sent.push(JSON.parse(raw)) } }
   const window = { ODKAndroid: native }
   const timers = new Map(); let nextTimer = 0
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../android/app/src/main/assets/host/odk-bridge.js'), 'utf8'), {
+  vm.runInNewContext(fs.readFileSync(androidPath('app/src/main/assets/host/odk-bridge.js', __dirname), 'utf8'), {
     window, setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id }, clearTimeout(id) { timers.delete(id) },
   })
   const ref = { messageId: 'a'.repeat(64), sourceKey: 'original', sourceRevision: 'b'.repeat(64) }
@@ -179,7 +180,7 @@ test('the Android message shim preserves reply references and declares text-only
 })
 
 test('the Android native boundary uses only platform main-frame facts for requests and status', () => {
-  const activity = fs.readFileSync(path.join(__dirname, '../../android/app/src/main/kotlin/com/odk/shell/ShellActivity.kt'), 'utf8')
+  const activity = fs.readFileSync(androidPath('app/src/main/kotlin/com/odk/shell/ShellActivity.kt', __dirname), 'utf8')
   assert.ok(!activity.includes('addJavascriptInterface'))
   assert.ok(activity.includes('WebViewCompat.addWebMessageListener'))
   assert.ok(activity.includes('permitsDocument(view === shell, isMainFrame, origin.toString(), shell.url)'))
@@ -201,4 +202,34 @@ test('Android verification selects the exact package process and its own forward
   assert.throws(() => ownedShellPage([page, page], 9229))
   assert.throws(() => ownedShellPage([{ ...page, webSocketDebuggerUrl: 'ws://foreign:9229/page' }], 9229))
   assert.ok(!fs.readFileSync(path.join(__dirname, 'personal-agent-parity-gate.mjs'), 'utf8').includes("'--remove-all'"))
+})
+
+test('cross-capability parity preserves busy and unavailable control boundaries', () => {
+  const { compareParity } = require('./helpers/personal-agent-parity')
+  const box = { x: 0, y: 0, w: 100, h: 44 }
+  for (const state of ['idle', 'error', 'starting', 'sending', 'recording', 'transcribing', 'thinking', 'unavailable']) {
+    const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(state)
+    const reading = voiceInput => ({
+      viewport: { width: 480, height: 853 }, theme: 'instrument', agentPanelPresent: true,
+      requestState: state, panel: box, identity: { box, name: 'Agent', state, label: state },
+      composer: { box, placeholder: 'Message…', insidePanel: true, mode: voiceInput ? 'voice' : 'keyboard' },
+      voiceInput, controls: {
+        mic: { box, hidden: false, disabled: !voiceInput || (busy && state !== 'recording'), label: 'Voice control' },
+        send: { box, hidden: voiceInput, disabled: busy || state === 'unavailable' },
+      }, empty: '', messages: [], children: [], statusPanel: { visible: false }, overflow: [],
+      conversation: { scrollHeight: 100, clientHeight: 100 },
+    })
+    const speaking = reading(true), silent = reading(false)
+    assert.deepEqual(compareParity(speaking, silent), [], state)
+    assert.deepEqual(compareParity(silent, speaking), [], `${state}: capability order is symmetric`)
+    for (const [host, control] of [['voice', 'mic'], ['silent', 'send']]) {
+      const one = structuredClone(speaking), other = structuredClone(silent)
+      const mutated = host === 'voice' ? one : other
+      mutated.controls[control].disabled = !mutated.controls[control].disabled
+      assert.ok(compareParity(one, other).some(row => row.label === `controls.${control}.disabled.${host}Host`), `${state}: wrong ${host} ${control} state must fail`)
+    }
+    const unsupported = structuredClone(silent)
+    unsupported.controls.mic.disabled = false
+    assert.ok(compareParity(speaking, unsupported).some(row => row.label === 'controls.mic.disabled.silentHost'), `${state}: a text-only host cannot enable its microphone`)
+  }
 })

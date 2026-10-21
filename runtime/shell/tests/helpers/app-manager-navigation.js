@@ -11,10 +11,10 @@ exports.exerciseNavigation = async (win, host) => {
     origin.textContent = 'Navigation fixture';
     document.body.append(origin);
     origin.focus();
-    out.clock = await platform.openApp({ appId: 'clock', widgetId: 'fixture', route: 'home' });
+    out.clock = await platform.openApp({ appId: 'year', widgetId: 'fixture', route: 'home' });
     out.pomodoro = await platform.openApp({ appId: 'pomodoro' });
     out.title = document.querySelector('#app-title').textContent;
-    out.clockState = await window.odkPlatform.getAppState('clock');
+    out.clockState = await window.odkPlatform.getAppState('year');
     return out;
   })()`)
   const waitClosed = () => js(`(async () => {
@@ -35,7 +35,7 @@ exports.exerciseNavigation = async (win, host) => {
   await waitClosed()
   await js(`(async () => {
     appManagerResult.backState = await window.odkPlatform.getAppState('pomodoro');
-    appManagerResult.reopened = await window.odkAppPlatform.openApp({ appId: 'clock' });
+    appManagerResult.reopened = await window.odkAppPlatform.openApp({ appId: 'year' });
   })()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
@@ -43,7 +43,7 @@ exports.exerciseNavigation = async (win, host) => {
   Object.assign(result, await js(`(async () => {
     const platform = window.odkAppPlatform;
     const out = appManagerResult;
-    out.escapeState = await window.odkPlatform.getAppState('clock');
+    out.escapeState = await window.odkPlatform.getAppState('year');
     out.managerOpened = await platform.openApp({ appId: 'app-manager' });
     const search = document.querySelector('#app-runtime .app-manager .app-search');
     const list = document.querySelector('#app-runtime .app-manager .app-list');
@@ -58,14 +58,14 @@ exports.exerciseNavigation = async (win, host) => {
     out.filteredRows = list.querySelectorAll('li').length;
     out.filteredName = list.textContent.trim();
     await platform.closeApp();
-    await platform.openApp({ appId: 'clock' });
+    await platform.openApp({ appId: 'year' });
     const target = window.odkPlugins.byKind('app').find(plugin => plugin.appId === 'pomodoro');
     const mount = target.lifecycle.mount;
     target.lifecycle.mount = () => { throw Error('fixture mount failure'); };
     try {
       out.failedOpen = await platform.openApp({ appId: 'pomodoro' });
       out.restored = platform.active()?.appId;
-      out.rollbackClock = await window.odkPlatform.getAppState('clock');
+      out.rollbackClock = await window.odkPlatform.getAppState('year');
       out.rollbackTarget = await window.odkPlatform.getAppState('pomodoro');
     } finally { target.lifecycle.mount = mount; }
     await platform.closeApp();
@@ -79,11 +79,11 @@ exports.exerciseNavigation = async (win, host) => {
   assert.equal(result.reopened, true)
   assert.equal(result.escapeState.state, 'stopped')
   assert.equal(result.managerOpened, true)
-  assert.equal(result.managerRows, 12)
+  assert.equal(result.managerRows, 9)
   assert.equal(result.filteredRows, 1)
   assert.match(result.filteredName, /Pomodoro/)
   assert.equal(result.failedOpen, false)
-  assert.equal(result.restored, 'clock')
+  assert.equal(result.restored, 'year')
   assert.equal(result.rollbackClock.state, 'running', 'App Manager recovery did not restore prior running state')
   assert.equal(result.rollbackTarget.state, 'stopped')
   assert.equal(host.get(SYSTEM_PORTS.appManager).foreground(), null)

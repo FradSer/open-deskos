@@ -1,4 +1,11 @@
 Feature: E2E validates the current declarative desktop
+  Scenario: Hidden comparisons have an active render target
+    Given Appearance and Hydra checks retain real Main, preload, and comparison assertions
+    When they run without a visible desktop window
+    Then their windows render offscreen with background throttling disabled
+    And production window preferences remain unchanged
+    And the checks do not wait for throttled hidden-window animation frames
+
   Scenario: Interaction checks preserve the user's desktop
     Given E2E runs the Shell and its child fixtures
     When the fixtures verify keyboard navigation and theme behavior
@@ -26,7 +33,7 @@ Feature: E2E validates the current declarative desktop
     Given quotas are unconfigured and the current Home widgets are mounted
     When E2E reads Today and every widget signal
     Then Today reports the quota service is not configured
-    And WeRead exposes its highlight state and Pre-order exposes its countdown
+    And WeRead exposes its highlight state
 
   Scenario: Consecutive Remote navigation preserves distinct input
     Given the pager is on Home
@@ -57,3 +64,10 @@ Feature: E2E validates the current declarative desktop
     When the Home fixture loads the desktop before pointer checks
     Then it sets the requested content size and dispatches resize
     And the Overview accepts page swipes without source controls
+
+  Scenario: The desk driver validates page markers without unrelated harnesses
+    Given the Shell starts with its declared display pages
+    When the existing E2E runner uses driver-only mode
+    Then every page has one visible marker on the desk
+    And the driver reports its real failures through its exit status
+    And the default complete E2E still runs all child harnesses

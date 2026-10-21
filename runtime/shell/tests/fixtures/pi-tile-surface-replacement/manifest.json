@@ -7,7 +7,7 @@
   "host": "electron-renderer",
   "surfaceKind": "tile",
   "interaction": "display-only",
-  "minCell": 217,
+  "minCell": 186,
   "provides": [{ "interface": "odk:surface/odk.tile.pi-sessions/v1" }],
   "requires": [],
   "permissions": [],

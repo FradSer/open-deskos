@@ -118,7 +118,7 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the Hydra widget refreshes
     Then both plant rows show their soil percentage and watering state
     And the watering plant states its condition in words beside its moisture rail
-    And a wide Cell renders four large tabular environment readings in two columns and two rows
+    And a wide Cell renders four secondary tabular environment readings in one row
     And two plant readings sit side by side below the environment, separated by the shared stroke
     And every moisture rail draws its fill on a visible track
     And the live badge renders as a quiet outlined live-state pill
@@ -192,18 +192,22 @@ Feature: Hydra plant and environment Widget on the Desk page
     Then each plant row shows a soil meter bar filled to its reported percentage
     And a plant below the dry threshold shows its meter in the dry color
 
-  Scenario: Hydra uses the available Desk canvas
-    Given the Desk page declares three columns and two rows
+  Scenario: Hydra keeps its three-by-one Desk card
+    Given the Desk page uses a three-by-three grid
     When the desktop composer places Hydra
-    Then Hydra spans columns 1 to 4 and rows 1 to 3
+    Then Hydra spans columns 1 to 4 and one row
+    And both plants and all four environment readings remain visible
     And Home retains its six separate Widgets
     And the Hydra Widget opens the existing Hydra App
 
   Scenario: A wide Cell shows the new environment and plant composition
-    Given Hydra occupies a Cell at least 480 pixels wide and 340 pixels high
+    Given Hydra occupies a Cell at least 480 pixels wide and 300 pixels high
     When the Cell can hold the wide instrument
-    Then four environment readings form two columns and two rows
-    And both plants appear side by side below the environment
+    Then four environment readings form four columns and one row
+    And both plants appear side by side above the environment
+    And the header, plants, and environment have gaps between 12 and 20 pixels
+    And the desktop card fits its content with a minimum wide height of 300 pixels
+    And spare Cell height does not stretch gaps inside the card
     And every reading retains its unit and complete state
     And the current theme remains selected
 
@@ -262,3 +266,41 @@ Feature: Hydra plant and environment Widget on the Desk page
     When the Pixel theme renders its environment readings
     Then the readings use the larger 40-pixel size
     And a narrower panel retains its 32-pixel limit without clipping
+
+  Scenario: Runtime replacement budgets cover the restored rendering phase
+    Given CM5 compares default, independent, and restored Hydra rendering
+    When it runs the full comparison matrix
+    Then the fixture allows 225 seconds for its three phases
+    And child and parent watchdogs leave bounded cleanup time
+    And ordinary two-phase comparisons retain their 150-second fixture budget
+    And other hosts retain their existing budgets
+
+  Scenario: Complete style comparisons avoid nested cross-process objects
+    Given Hydra captures every computed style property and its exact value
+    When the renderer sends a comparison snapshot
+    Then it sends a canonical lossless string for each computed style
+    And property order does not change equality
+    And changed, added, or removed properties still fail equality
+    And the full cell, theme, state, and lifecycle matrix remains unchanged
+
+  Scenario: Independent CM5 surface modes use bounded parallel workers
+    Given each Hydra surface mode owns its configuration and Electron process
+    When CM5 runs the independent surface comparison modes
+    Then at most two modes run at the same time
+    And each mode keeps its watchdog, cancellation, matrix, and cleanup
+    And revision updates and rollback remain serial
+    And other hosts retain one worker
+
+  Scenario: A tall assigned wide Cell keeps its instrument grouped
+    Given Hydra receives a wide Cell at 1103 by 730 pixels
+    When each supported theme renders live telemetry
+    Then two plant readings and all four environment readings remain visible
+    And the groups use bounded gaps instead of stretching to the Cell edges
+    And the unchanged strict density profile passes
+
+  Scenario: A full soil reading adapts without changing telemetry
+    Given a plant reports 100 percent moisture
+    When the wide instrument renders the reading
+    Then the complete value fits inside its plant panel
+    And a later two-digit or unavailable reading clears the width adjustment
+    And stale and offline states retain their existing meanings

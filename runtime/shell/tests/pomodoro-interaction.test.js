@@ -21,8 +21,10 @@ function clock(start = Date.parse('2026-01-01T00:00:00Z')) {
 function setup(implementation = 'default') {
   const plugins = new Map()
   const time = clock()
+  const services = new Map()
   const sandbox = {
     Date: time.ControlledDate,
+    odkServices: { get: id => services.get(id), registerService: (id, value) => services.set(id, value) },
     console: { error() {} },
     odkPlugins: {
       register(plugin) {
@@ -38,6 +40,7 @@ function setup(implementation = 'default') {
   for (const plugin of sandbox.odkBuiltinViewReplacements || []) plugins.set(plugin.id, plugin)
   vm.runInContext(fs.readFileSync(path.join(renderer, 'pomodoro.js'), 'utf8'), sandbox)
   time.plugins = plugins
+  time.focus = services.get('odk.service.focus')
   return time
 }
 
@@ -92,7 +95,7 @@ function mountApp(existing, implementation = 'default') {
     onTick(callback) { tick = callback },
   })
   return {
-    app, container, cleanups, tile: time.plugins.get('odk.tile.pomodoro'), advance: time.advance, tick: () => tick(),
+    app, container, cleanups, focus: time.focus, tile: time.plugins.get('odk.tile.pomodoro'), advance: time.advance, tick: () => tick(),
     dial: container.querySelector('#pomodoro-dial'),
     state: container.querySelector('#pomodoro-state'),
     toggle: container.querySelector('#pomodoro-toggle'),
@@ -271,4 +274,59 @@ scenario('the resting Home Widget makes no stale session-state claim', () => {
   assert.match(el.innerHTML, /pomodoro-context">Focus/)
   assert.doesNotMatch(el.innerHTML, /Not started/)
 })
+scenario('the Widget reads the App session and releases its read-only subscription', () => {
+  const app = mount()
+  const nodes = new Map()
+  const el = { innerHTML: '', dataset: {}, querySelector(selector) {
+    if (!nodes.has(selector)) nodes.set(selector, { textContent: '', style: {} })
+    return nodes.get(selector)
+  } }
+  const cleanups = []
+  let tick
+  app.tile.mount(el, { focus: app.focus, onTick(callback) { tick = callback }, trackCleanup(fn) { cleanups.push(fn) } })
+  const read = selector => nodes.get(selector).textContent
+  assert.equal(read('.ring-mmss'), '25:00')
+  assert.equal(read('.pomodoro-state'), 'Ready')
+  assert.deepEqual(Object.keys(app.focus).sort(), ['snapshot', 'subscribe'])
+  app.toggle.click()
+  assert.equal(read('.pomodoro-state'), 'Focusing')
+  app.advance(61000)
+  tick()
+  assert.equal(read('.ring-mmss'), '23:59')
+  app.toggle.click()
+  assert.equal(read('.pomodoro-state'), 'Paused')
+  app.advance(60000)
+  tick()
+  assert.equal(read('.ring-mmss'), '23:59')
+  app.toggle.click()
+  for (const cleanup of app.cleanups) cleanup()
+  app.advance(1000)
+  tick()
+  assert.equal(read('.ring-mmss'), '23:58')
+  for (const cleanup of cleanups) cleanup()
+  app.app.handleAction({ action: 'stop' })
+  tick()
+  assert.equal(read('.ring-mmss'), '23:58')
+})
+
+scenario('the Widget follows a replaced focus reader and rejects late readings', () => {
+  const app = mount()
+  const nodes = new Map(), callbacks = []
+  const el = { innerHTML: '', querySelector(selector) { if (!nodes.has(selector)) nodes.set(selector, { textContent: '', style: {} }); return nodes.get(selector) } }
+  let current = app.focus, tick, oldCallback, released = 0
+  const old = current
+  current = { snapshot: old.snapshot, subscribe(callback) { oldCallback = callback; return () => { released += 1 } } }
+  app.tile.mount(el, { get focus() { return current }, onTick(fn) { tick = fn }, trackCleanup(fn) { callbacks.push(fn) } })
+  current = { snapshot: () => ({ mode: 'paused', state: 'Paused', time: '12:34', remaining: 754, duration: 1500 }), subscribe: () => () => {} }
+  oldCallback({ mode: 'running', state: 'Focusing', time: '00:01', remaining: 1, duration: 1500 })
+  assert.equal(nodes.get('.ring-mmss').textContent, '25:00')
+  tick()
+  assert.equal(released, 1)
+  assert.equal(nodes.get('.ring-mmss').textContent, '12:34')
+  current = null
+  tick()
+  assert.equal(nodes.get('.ring-mmss').textContent, '--:--')
+  for (const cleanup of callbacks) cleanup()
+})
+
 }

@@ -136,7 +136,7 @@ async function exercise() {
   assert.equal(botClients, 1)
   assert.ok(host.list().every(plugin => plugin.enabled && plugin.state === 'running'))
   assert.equal(await js("odkPlugins.get('odk.page.dashboard').manifest.version || '1.0.0'"), mode === 'signed' ? '2.0.0' : '1.0.0')
-  assert.equal(await js("odkAppPlatform.openApp({appId:'clock'})"), true)
+  assert.equal(await js("odkAppPlatform.openApp({appId:'year'})"), true)
   await js(`(()=>{window.dashboardDocument=document;
     window.dashboardPlacement=document.querySelector('[data-plugin="odk.page.dashboard"]');
     window.dashboardForeground=document.querySelector('#app-runtime').firstElementChild;
@@ -218,7 +218,7 @@ async function exercise() {
     assert.equal(await js('dashboardTickOwners'), subscriptions, 'Dashboard Tick subscription changed')
     assert.equal(await js(`document===dashboardDocument&&document.querySelector('[data-plugin="odk.page.dashboard"]')===dashboardPlacement
       &&odkPlugins.isActive(odkPlugins.get('odk.page.dashboard'),dashboardPlacement)&&dashboardPeerNodes.every(node=>node.isConnected)
-      &&document.querySelector('#app-runtime').firstElementChild===dashboardForeground&&odkAppPlatform.active()?.appId==='clock'
+      &&document.querySelector('#app-runtime').firstElementChild===dashboardForeground&&odkAppPlatform.active()?.appId==='year'
       &&document.querySelector('#page-context').textContent===dashboardPageContext`), true)
     assert.deepEqual(host.get('odk:system/app-manager/v1').captureState(), managerState)
     for (const [name, value] of peerPorts) assert.equal(host.get(name), value)

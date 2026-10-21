@@ -141,15 +141,24 @@ test('Remote MIC requests a Shell decision and main rejects busy or duplicate ca
 })
 
 
-test('a text-only host keeps its microphone unavailable without changing other hosts', () => {
+test('a text-only host keeps its microphone unavailable and opens the keyboard', () => {
   const renderer = fs.readFileSync('src/renderer/plugins/personal-agent.js', 'utf8')
-  const start = renderer.indexOf('        const voiceAvailable =')
-  const end = renderer.indexOf('        lastStatus =', start)
+  const start = renderer.indexOf('      const busyStates =')
+  const end = renderer.indexOf('      let identity = {', start)
   assert.ok(start >= 0 && end > start)
+  const source = renderer.slice(start, end)
   for (const supportsVoiceInput of [false, true, undefined]) for (const state of ['idle', 'thinking', 'recording']) {
-    const mic = { dataset: {}, setAttribute(name, value) { this[name] = value } }
-    vm.runInNewContext(renderer.slice(start, end), { root: { odkPersonalBot: { supportsVoiceInput } }, $: () => mic, busy: state !== 'idle', status: { state } })
+    const mic = { dataset: {}, setAttribute(name, value) { this[name] = value } }, send = { hidden: false, disabled: false }
+    const label = { textContent: '' }, composer = { dataset: {} }, keys = { hidden: false }, input = { hidden: false }
+    vm.runInNewContext(`${source}\nsetComposerMode(voiceAvailable() ? 'voice' : 'keyboard');renderVoiceControl()`, {
+      root: { odkPersonalBot: { supportsVoiceInput } }, micControl: mic, voiceLabel: label, sendControl: send,
+      composer, keysControl: keys, input, lastStatus: state,
+    })
     assert.equal(mic.disabled, supportsVoiceInput === false || state === 'thinking')
-    assert.equal(mic['aria-label'], supportsVoiceInput === false ? 'Microphone unavailable on this host' : state === 'recording' ? 'Stop recording' : 'Record voice request')
+    assert.equal(mic['aria-label'], supportsVoiceInput === false ? 'Microphone unavailable on this host' : state === 'recording' ? 'Stop recording' : 'Start voice request')
+    assert.equal(label.textContent, supportsVoiceInput === false ? 'Voice unavailable' : state === 'recording' ? 'Listening…' : state === 'thinking' ? 'Working…' : 'Tap to talk')
+    assert.equal(composer.dataset.mode, supportsVoiceInput === false ? 'keyboard' : 'voice')
+    assert.equal(input.hidden, supportsVoiceInput !== false, 'only the voice field hides the text field')
+    assert.equal(keys.hidden, supportsVoiceInput === false, 'only the voice field shows the keyboard control')
   }
 })

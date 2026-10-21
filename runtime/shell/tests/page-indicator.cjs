@@ -76,27 +76,38 @@ async function pointerSelect(win, index) {
     current += Math.sign(index-current)
     await waitFor(win, `document.querySelectorAll('.dot')[${current}].getAttribute('aria-current') === 'page'`)
   }
+  await waitFor(win, `(() => {
+    return [...document.querySelectorAll('#dots .dot')].every(dot => {
+      const active = dot.classList.contains('active')
+      return getComputedStyle(dot, '::before').opacity === (active ? '1' : '0')
+        && getComputedStyle(dot, '::after').opacity === (active ? '0' : '1')
+    })
+  })()`)
 }
 async function cancelledSwipe(win) {
   const point = await js(win, '(()=>{const r=document.querySelector(".dot.active").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,id:1}})()')
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[point] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchMove', touchPoints:[{...point,x:point.x-90}] })
   await win.webContents.debugger.sendCommand('Input.dispatchTouchEvent', { type:'touchCancel', touchPoints:[] })
-  assert.equal(await js(win, 'document.querySelectorAll(".dot")[0].getAttribute("aria-current")'), 'page', 'Cancelled Home handle swipe must preserve the current page')
+  assert.equal(await js(win, 'document.querySelectorAll(".dot")[0].getAttribute("aria-current")'), 'page', 'Cancelled page control swipe must preserve the current page')
 }
 async function inspect(win) {
   return js(win, `(()=>{
-    const buttons=[...document.querySelectorAll('#dots .dot')], visible=buttons.filter(n=>n.getClientRects().length), active=buttons.find(n=>n.classList.contains('active'));
+    const control=document.getElementById('dots'),buttons=[...document.querySelectorAll('#dots .dot')], visible=buttons.filter(n=>n.getClientRects().length), active=buttons.find(n=>n.classList.contains('active'));
     const index=buttons.indexOf(active), names=window.DESKTOP_LAYOUT.pages.filter(p=>!p.persistent).map(p=>p.name);
-    const r=active.getBoundingClientRect(), nav=document.getElementById('dots').getBoundingClientRect(), v=document.getElementById('pages-viewport').getBoundingClientRect();
-    const marker=getComputedStyle(active,'::before'), after=getComputedStyle(active,'::after');
-    return {count:visible.length,named:active.getAttribute('aria-label').includes(names[index])&&active.getAttribute('aria-label').includes('page '+(index+1)+' of '+names.length),
+    const r=active.getBoundingClientRect(), nav=control.getBoundingClientRect(), v=document.getElementById('pages-viewport').getBoundingClientRect();
+    const marker=getComputedStyle(active,'::before'), after=getComputedStyle(active,'::after'), card=getComputedStyle(control,'::before');
+    const points=buttons.filter(n=>n!==active).map(n=>({hidden:n.hidden,current:n.hasAttribute('aria-current'),tab:n.tabIndex,point:getComputedStyle(n,'::after'),bar:getComputedStyle(n,'::before')}));
+    return {mode:control.dataset.mode,label:control.getAttribute('aria-label'),
+      count:visible.length,total:buttons.length,
+      named:active.getAttribute('aria-label').includes(names[index])&&active.getAttribute('aria-label').includes('page '+(index+1)+' of '+buttons.length),
       quiet:!active.textContent.trim()&&document.getElementById('page-context').classList.contains('sr-only'),
-      selected:visible.length===1&&visible[0]===active&&active.getAttribute('aria-current')==='page'&&buttons.filter(n=>n!==active).every(n=>n.hidden&&n.tabIndex===-1),
-      shape:parseFloat(marker.width)===104&&parseFloat(marker.height)===5&&marker.opacity==='1'&&after.content==='none',
-      hits:r.width>=100&&r.height===44&&[r.top+4,r.top+r.height/2,r.bottom-4].every(y=>document.elementFromPoint(r.x+r.width/2,y)===active),
-      contained:r.left>=v.left&&r.right<=v.right&&Math.abs((nav.left+nav.right)/2-(v.left+v.right)/2)<1&&nav.bottom<=innerHeight+1,
-      noCard:getComputedStyle(document.getElementById('dots'),'::before').content==='none'&&getComputedStyle(active).backgroundColor==='rgba(0, 0, 0, 0)',
+      selected:visible.length===buttons.length&&active.getAttribute('aria-current')==='page'&&points.every(p=>!p.hidden&&!p.current&&p.tab===-1),
+      shape:parseFloat(marker.width)===22&&parseFloat(marker.height)===8&&marker.opacity==='1'&&after.opacity==='0',
+      points:points.every(p=>parseFloat(p.point.width)===8&&parseFloat(p.point.height)===8&&p.point.opacity==='1'&&p.bar.opacity==='0'),
+      hits:r.height===44&&r.width>=28&&[r.top+4,r.top+r.height/2,r.bottom-4].every(y=>document.elementFromPoint(r.x+r.width/2,y)===active),
+      contained:r.left>=v.left&&r.right<=v.right&&Math.abs((nav.left+nav.right)/2-(v.left+v.right)/2)<1&&nav.bottom<=innerHeight+1&&nav.top>=v.bottom-1,
+      capsule:control.dataset.mode==='pages'&&card.content!=='none'&&card.backgroundColor!=='rgba(0, 0, 0, 0)',
       stationary:marker.animationName==='none'&&!/all|width|height/.test(marker.transitionProperty),footprint:[nav.x,nav.y,nav.width,nav.height]};
   })()`)
 }
@@ -119,8 +130,8 @@ async function main() {
       for(let index=0;index<count;index++) {
         await pointerSelect(win,index)
         const value=await inspect(win), label=`${theme} ${width}x${height} page ${index+1}`
-        check(`${label}: one named neutral handle`,value.count===1&&value.named&&value.quiet&&value.selected&&value.shape,value)
-        check(`${label}: centered reachable 44px target without a card`,value.hits&&value.contained&&value.noCard,value)
+        check(`${label}: one named neutral page control`,value.mode==='pages'&&value.label==='Page controller'&&value.count===value.total&&value.named&&value.quiet&&value.selected&&value.shape&&value.points,value)
+        check(`${label}: centered reachable 44px markers in a capsule`,value.hits&&value.contained&&value.capsule,value)
         check(`${label}: stable footprint and restrained feedback`,value.stationary&&(!footprint||value.footprint.every((n,i)=>Math.abs(n-footprint[i])<1)),value)
         footprint=value.footprint
       }
@@ -132,7 +143,7 @@ async function main() {
     await key(win,'End');await key(win,'ArrowLeft')
     check(`${theme}: End and previous page retain focus`,await js(win,`document.activeElement===document.querySelectorAll('.dot')[${count-2}]`))
     await key(win,'Enter');await key(win,'Space')
-    check(`${theme}: Home handle taps do not change page`,await js(win,`document.querySelectorAll('.dot')[${count-2}].classList.contains('active')`))
+    check(`${theme}: page control activation does not change page`,await js(win,`document.querySelectorAll('.dot')[${count-2}].classList.contains('active')`))
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
     await pointerSelect(win,0)
     check(`${theme}: reduced motion retains static feedback`,(await inspect(win)).stationary)
@@ -145,11 +156,11 @@ async function main() {
   await waitFor(win,'window.__odkGrid?.width===innerWidth')
   await js(win,'document.querySelector("#page-center").scrollIntoView({block:"end"})')
   const zoom=await inspect(win)
-  check('200% zoom retains one reachable handle',zoom.count===1&&zoom.hits&&zoom.contained,zoom)
-  assert.equal(failures,0,`${failures} home handle checks failed`)
+  check('200% zoom retains one reachable page control',zoom.mode==='pages'&&zoom.count===zoom.total&&zoom.hits&&zoom.contained,zoom)
+  assert.equal(failures,0,`${failures} page control checks failed`)
   console.log('PAGE_INDICATOR_PASS')
   app.exit(0)
 }
-const timeout=setTimeout(()=>{console.error('Home handle matrix timed out');app.exit(1)},process.arch==='arm64'||process.platform==='win32'?900000:120000)
+const timeout=setTimeout(()=>{console.error('Page control matrix timed out');app.exit(1)},process.arch==='arm64'||process.platform==='win32'?900000:120000)
 process.once('exit',cleanupProfile)
 app.whenReady().then(main).then(()=>clearTimeout(timeout)).catch(error=>{console.error(error);app.exit(1)})

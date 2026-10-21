@@ -35,14 +35,14 @@ for (const { mode, control } of [
         await fs.mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 })
         const keys = crypto.generateKeyPairSync('ed25519')
         const localSurfaces = mode === 'calendar'
-          ? [...require('./helpers/calendar-surfaces'), ...require('./helpers/desk-tool-surfaces'), { file: 'preorder', id: 'odk.tile.preorder' }] : []
+          ? [...require('./helpers/calendar-surfaces').filter(spec => spec.id !== 'odk.status.clock'), ...require('./helpers/desk-tool-surfaces')] : []
         const keyring = path.join(root, 'publishers.json')
         env.ODK_NATIVE_KEYRING = keyring
         await fs.writeFile(keyring, JSON.stringify({ schemaVersion: 1, publishers: { clock: {
-          publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: ['odk.tile.clock', ...localSurfaces.map(spec => spec.id)], hosts: ['electron-renderer'],
+          publicKey: keys.publicKey.export({ format: 'pem', type: 'spki' }), identities: ['odk.status.clock', ...localSurfaces.map(spec => spec.id)], hosts: ['electron-renderer'],
         } } }))
         const bundles = [
-          ...['2.0.0', '3.0.0'].map(version => ({ version, file: 'clock', id: 'odk.tile.clock', directory: `bundle-${version}` })),
+          ...['2.0.0', '3.0.0'].map(version => ({ version, file: 'status-clock', id: 'odk.status.clock', directory: `bundle-${version}` })),
           ...localSurfaces.map(spec => ({ ...spec, version: '2.0.0', directory: `${spec.file}-2.0.0` })),
         ]
         for (const bundle of bundles) {
@@ -57,9 +57,9 @@ for (const { mode, control } of [
             assert.ok(entry.includes('context.onTick(date => {'))
             entry = entry.replace('context.onTick(date => {', 'void (date => {')
           }
-          if (file === 'clock') {
+          if (file === 'status-clock') {
             entry += `\nwindow.clockExecutedRevision=${JSON.stringify(version)};\n`
-            entry += "if ((window.odkPlugins.get('odk.tile.clock').manifest.version || '1.0.0') === '1.0.0') window.odkPlugins.get('odk.tile.clock').lifecycle.mount = () => { throw Error('Default Clock delegation refused') };\n"
+            entry += "if ((window.odkPlugins.get('odk.status.clock').manifest.version || '1.0.0') === '1.0.0') window.odkPlugins.get('odk.status.clock').lifecycle.mount = () => { throw Error('Default Clock delegation refused') };\n"
           } else entry += `\nwindow.localExecutedVersions||={};window.localExecutedVersions[${JSON.stringify(bundle.id)}]=${JSON.stringify(version)};\n`
           await fs.writeFile(path.join(directory, 'entry.js'), entry)
           const files = []
@@ -112,9 +112,8 @@ globalThis.clockSelectedControlEntry=true;
           if (control === 'bridge') assert.deepEqual(report.bridgeControlSelection,
             { version: '2.0.0', lifecycleReceipts: 2, subscriptionReleased: true })
           if (mode === 'calendar') {
-            assert.deepEqual(report.calendar, { identities: require('./helpers/calendar-surfaces').map(spec => spec.id), phases: 3, dateTransitions: 12 })
+            assert.deepEqual(report.calendar, { identities: require('./helpers/calendar-surfaces').filter(spec => spec.id !== 'odk.status.clock').map(spec => spec.id), phases: 3, dateTransitions: 12 })
             assert.deepEqual(report.deskTools, { identities: require('./helpers/desk-tool-surfaces').map(spec => spec.id), phases: 3 })
-            assert.deepEqual(report.preorder, { phases: 3, countdownTransitions: 6, canvasPixels: true, softwareRaster: true })
           }
         }
         const host = resolveShellHost({ env })

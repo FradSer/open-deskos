@@ -2,6 +2,9 @@
 
 ## Scope and status
 
+Some entries below describe retired surfaces.
+Clock, Calendar, and Pre-order are no longer built-in Widgets or Apps.
+
 This audit records checks through 2026-10-12.
 The full plugin goal remains unproven.
 The Renderer control follow-up added three behavior checks after the complete commands below.
@@ -6012,14 +6015,14 @@ Production verification behavior, policy, and deadlines remain unchanged.
 
 ## Clock independent surface replacement
 
-The [Clock contract](CLOCK_SURFACE_PLUGIN_CONTRACT.md) now defines local time formatting and shared Tick ownership.
+The Clock contract (retired) now defines local time formatting and shared Tick ownership.
 The independent example owns its formatting algorithm without calling the default Clock factory.
 It shares static markup, Shell styles, fonts, and the public Tick service.
 Missing independent code initially failed the new lifecycle scenarios.
 One initial test incorrectly expected a rejected disable promise; it now checks the existing `cleanup-failed` catalog state.
 Both implementations preserve padded local time, midnight, backward changes, unchanged-minute writes, disable, enable, and failed cleanup retry.
 
-The [browser fixture](../tests/clock-surface-electron.test.js) loads trusted development links and signed packages through actual preload and the production loader.
+The browser fixture (retired) loads trusted development links and signed packages through actual preload and the production loader.
 It uses a controlled Date before document loading, loaded fonts, fixed scale, and scoped static comparison styles.
 Default, independent, and restored surfaces cover three themes and three square cell sizes.
 Each loading mode performs eighteen baseline comparisons and six actual shared Tick updates.
@@ -6516,8 +6519,8 @@ node --test --test-concurrency=1 tests/e2e-isolation.test.js tests/input-status-
 
 ## Pre-order independent surface replacement
 
-The [replacement scenarios](../tests/features/preorder-surface-replacement.feature) define countdown compatibility and released callback isolation.
-The [lifecycle checks](../tests/preorder-surface-lifecycle.test.js) reproduced three default failures before repair.
+The replacement scenarios (retired) define countdown compatibility and released callback isolation.
+The lifecycle checks (retired) reproduced three default failures before repair.
 Late image and Tick callbacks change disabled or unmounted surfaces despite subscription release.
 The independent entry owns countdown, crop calculation, Pixel processing, and callback fences.
 It shares static markup, artwork, and Shell styles.

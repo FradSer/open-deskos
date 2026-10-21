@@ -64,22 +64,22 @@ app.whenReady().then(async () => {
     assert.equal(await js('piTileEntryExecutions'), 1, 'Linked browser entry did not execute exactly once')
     assert.equal(await js('piTileEntryMounts'), 1, 'Linked implementation did not mount at startup')
     assert.equal(await js("odkPlugins.isActive(odkPlugins.get('odk.tile.pi-sessions'),piTileElement)"), true)
-    await wait("piTileElement.querySelector('.pi-widget-count').textContent==='0'&&piTileElement.querySelector('.pi-widget-tag-label').textContent==='IDLE'")
+    await wait("piTileElement.querySelector('.pi-widget-count').textContent==='0'&&piTileElement.querySelector('.pi-widget-tag-label').textContent==='Idle'")
     await js("void(window.piTileReplacement=odkPlugins.get('odk.tile.pi-sessions'))")
     await js("odkRendererRuntime.restoreDefault('odk.tile.pi-sessions')")
   } else {
     let fixture = fs.readFileSync(path.join(__dirname, 'fixtures/pi-tile-surface-replacement/entry.js'), 'utf8')
-    if (process.env.ODK_PI_TILE_INVALID) fixture = fixture.replace("count.textContent = String(running)", "count.textContent = 'wrong'")
+    if (process.env.ODK_PI_TILE_INVALID) fixture = fixture.replace("count.textContent = live ? String(running) : '--'", "count.textContent = 'wrong'")
     await js(`(()=>{const original=odkRendererDevelopment.define;odkRendererDevelopment.define=definition=>{window.piTileReplacement=definition};try{${fixture}\n}finally{odkRendererDevelopment.define=original}})()`)
   }
   const cases = [
-    { count: '2', label: 'Working...', summary: 'Mac / SSH · 中文 · 1 workspace · 2 live', response: { ok: true, source: { label: 'Mac / SSH · 中文' }, summary: { running: 2, workspacesCount: 1 }, sessions: [{ status: 'running', latestGoal: '**Keep** `Pi`\n中文 <tag>', activity: '<skill name="read">ignored</skill> file' }, { status: 'settled' }] } },
-    { count: '0', label: 'IDLE', summary: '2 workspaces · 2 live', response: { ok: true, summary: { running: 0, workspacesCount: 2 }, sessions: [{ status: 'settled', updatedAt: '2026-10-01', latestGoal: 'Old' }, { status: 'settled', updatedAt: '2026-10-10', latestGoal: 'Fresh 中文' }, { status: 'exited' }] } },
-    { count: '0', label: 'IDLE', summary: '0 workspaces · 0 live', response: { ok: true, sessions: [], summary: { running: 0, workspacesCount: 0 } } },
-    { count: '123', label: 'Working...', summary: '1 workspace · 0 live', response: { ok: true, sessions: [], summary: { running: 123, workspacesCount: 1 } } },
-    { count: '--', label: 'OFFLINE', summary: 'Disconnected Mac · Retrying automatically', response: { ok: false, source: { label: 'Disconnected Mac' } } },
-    { count: '--', label: 'ERROR', summary: 'Retrying automatically', reject: true },
-    { count: '1', label: 'Working...', summary: '1 workspace · 1 live', response: { ok: true, sessions: [{ status: 'running', activity: 'Recover <script>unsafe</script>' }], summary: { running: 1, workspacesCount: 1 } } },
+    { count: '2', label: 'Working...', summary: '1 idle', response: { ok: true, source: { label: 'Mac / SSH · 中文' }, summary: { running: 2, workspacesCount: 1 }, sessions: [{ status: 'running', latestGoal: '**Keep** `Pi`\n中文 <tag>', activity: '<skill name="read">ignored</skill> file' }, { status: 'settled' }] } },
+    { count: '0', label: 'Idle', summary: '2 idle', response: { ok: true, summary: { running: 0, workspacesCount: 2 }, sessions: [{ status: 'settled', updatedAt: '2026-10-01', latestGoal: 'Old' }, { status: 'settled', updatedAt: '2026-10-10', latestGoal: 'Fresh 中文' }, { status: 'exited' }] } },
+    { count: '0', label: 'Idle', summary: '0 idle', response: { ok: true, sessions: [], summary: { running: 0, workspacesCount: 0 } } },
+    { count: '123', label: 'Working...', summary: '0 idle', response: { ok: true, sessions: [], summary: { running: 123, workspacesCount: 1 } } },
+    { count: '--', label: 'Unavailable', summary: 'Open Pi Sessions', response: { ok: false, source: { label: 'Disconnected Mac' } } },
+    { count: '--', label: 'Unavailable', summary: 'Open Pi Sessions', reject: true },
+    { count: '1', label: 'Working...', summary: '0 idle', response: { ok: true, sessions: [{ status: 'running', activity: 'Recover <script>unsafe</script>' }], summary: { running: 1, workspacesCount: 1 } } },
   ]
   const baseline = new Map(), tickCount = await js('piTileTicks.size')
   for (const phase of ['default', 'independent', 'restored']) {

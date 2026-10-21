@@ -74,7 +74,6 @@ for (const spec of specs) {
       for (const f of [baseline, independent]) f.tick(parts)
       const changes = [baseline.writes(), independent.writes()].map((value, index) => value - beforeTransition[index])
       assert.equal(changes[0], changes[1])
-      if (spec.file === 'almanac' && parts.slice(0, 3).join() === previous.slice(0, 3).join()) assert.deepEqual(changes, [0, 0])
       previous = parts
       assert.deepEqual(independent.snapshot(), baseline.snapshot())
       const before = [baseline.writes(), independent.writes()]
@@ -85,7 +84,6 @@ for (const spec of specs) {
     for (const f of [baseline, independent]) {
       f.tick([2026, 0, 1, 0, 0])
       const reading = f.snapshot()
-      if (spec.file === 'almanac') assert.deepEqual(reading.map(item => item.text), ['Thu', '1', 'Jan'])
       if (spec.file === 'year') {
         assert.equal(reading[0].text, '0%')
         assert.equal(reading[2].style.width, '0.00%')

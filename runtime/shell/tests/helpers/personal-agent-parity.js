@@ -103,12 +103,15 @@ function parityScript() {
       })),
       composer: {
         box: box(composer),
+        mode: composer ? composer.dataset.mode || '' : '',
         placeholder: (document.querySelector('.agent-composer textarea') || {}).placeholder || '',
         insidePanel: !!panel && !!composer && composer.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       },
+      requestState: status ? status.dataset.state || 'unknown' : 'unknown',
+      voiceInput: !!(window.odkPersonalBot && window.odkPersonalBot.supportsVoiceInput !== false),
       controls: {
-        mic: { box: box(mic), disabled: !!(mic && mic.disabled), label: (mic && mic.getAttribute('aria-label')) || '' },
-        send: { box: box(send), disabled: !!(send && send.disabled) },
+        mic: { box: box(mic), hidden: !!(mic && mic.hidden), disabled: !!(mic && mic.disabled), label: (mic && mic.getAttribute('aria-label')) || '' },
+        send: { box: box(send), hidden: !!(send && send.hidden), disabled: !!(send && send.disabled) },
       },
       statusPanel: { visible: visible(status), box: box(status) },
       overflow,
@@ -152,15 +155,36 @@ function compareParity(electron, android) {
   differences.push(...compareBoxes('identity', electron.identity.box, android.identity.box))
   differences.push(difference('identity.name', electron.identity.name, android.identity.name))
   differences.push(difference('identity.state', electron.identity.state, android.identity.state))
+  differences.push(difference('requestState', electron.requestState, android.requestState))
   differences.push(difference('identity.label', electron.identity.label, android.identity.label))
   differences.push(...compareBoxes('composer', electron.composer.box, android.composer.box))
   differences.push(difference('composer.placeholder', electron.composer.placeholder, android.composer.placeholder))
   differences.push(difference('composer.insidePanel', electron.composer.insidePanel, android.composer.insidePanel))
-  differences.push(...compareBoxes('controls.mic', electron.controls.mic.box, android.controls.mic.box))
-  differences.push(difference('controls.mic.disabled', electron.controls.mic.disabled, android.controls.mic.disabled))
-  differences.push(difference('controls.mic.label', electron.controls.mic.label, android.controls.mic.label))
-  differences.push(...compareBoxes('controls.send', electron.controls.send.box, android.controls.send.box))
-  differences.push(difference('controls.send.disabled', electron.controls.send.disabled, android.controls.send.disabled))
+  // A host that declares no voice input opens the keyboard by design, so those
+  // two hosts assert the honest shape each one shows instead of comparing it.
+  if (electron.voiceInput === android.voiceInput) {
+    differences.push(difference('composer.mode', electron.composer.mode, android.composer.mode))
+    differences.push(...compareBoxes('controls.mic', electron.controls.mic.box, android.controls.mic.box))
+    differences.push(difference('controls.mic.disabled', electron.controls.mic.disabled, android.controls.mic.disabled))
+    differences.push(difference('controls.mic.label', electron.controls.mic.label, android.controls.mic.label))
+    differences.push(...compareBoxes('controls.send', electron.controls.send.box, android.controls.send.box))
+    differences.push(difference('controls.send.disabled', electron.controls.send.disabled, android.controls.send.disabled))
+  } else {
+    const speaking = electron.voiceInput ? electron : android
+    const silent = electron.voiceInput ? android : electron
+    differences.push(difference('composer.mode.voiceHost', speaking.composer.mode, 'voice'))
+    differences.push(difference('controls.mic.hidden.voiceHost', speaking.controls.mic.hidden, false))
+    const busy = state => ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(state)
+    differences.push(difference('controls.mic.disabled.voiceHost', speaking.controls.mic.disabled, busy(speaking.requestState) && speaking.requestState !== 'recording'))
+    differences.push(difference('controls.mic.label.voiceHost', speaking.controls.mic.label.length > 0, true))
+    differences.push(difference('controls.send.hidden.voiceHost', speaking.controls.send.hidden, true))
+    differences.push(difference('composer.mode.silentHost', silent.composer.mode, 'keyboard'))
+    differences.push(difference('controls.mic.hidden.silentHost', silent.controls.mic.hidden, false))
+    differences.push(difference('controls.mic.disabled.silentHost', silent.controls.mic.disabled, true))
+    differences.push(difference('controls.mic.label.silentHost', silent.controls.mic.label.length > 0, true))
+    differences.push(difference('controls.send.hidden.silentHost', silent.controls.send.hidden, false))
+    differences.push(difference('controls.send.disabled.silentHost', silent.controls.send.disabled, busy(silent.requestState) || silent.requestState === 'unavailable'))
+  }
   differences.push(difference('empty', electron.empty, android.empty))
   differences.push(difference('messageCount', electron.messages.length, android.messages.length))
   const messageCount = Math.min(electron.messages.length, android.messages.length)
