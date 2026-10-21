@@ -317,7 +317,7 @@ app.whenReady().then(async () => {
       if (results[1].scrollable) await checkKeyboardScroll()
       for (const next of [
         { state: { empty: true }, title: 'No highlights', text: 'Save a highlight in WeRead.' },
-        { state: { fail: true }, title: 'Sync unavailable', text: 'Open WeRead and select Refresh.' },
+        { state: { fail: true }, title: 'Sync unavailable', text: 'Open WeRead and click the reading.' },
         { state: {}, title: 'Long English 与中文书名', text: markText },
         { state: { missing: true, rejectedCover: true }, title: 'WeRead', text: markText },
       ]) {

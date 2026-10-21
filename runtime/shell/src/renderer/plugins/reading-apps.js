@@ -8,31 +8,72 @@
       app: name, name, appKind: 'ui', source: 'builtin', capabilities: [],
       css: 'plugins/reading-apps.css',
       mount(el, ctx) {
-        el.innerHTML = `<section class="runtime-app reading-app ${id}-app${id === 'weread' ? ' w-weread' : ''}"><header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header><p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
+        const tapToRefresh = id === 'weread'
+        const header = tapToRefresh ? `<h2 class="sr-only">${name}</h2>` : `<header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header>`
+        el.innerHTML = `<section class="runtime-app reading-app ${id}-app${tapToRefresh ? ' w-weread' : ''}">${header}<p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
+        const surface = el.querySelector('.reading-app')
         const status = el.querySelector('.reading-status')
         const content = el.querySelector('.reading-content')
         if (id === 'weread') content.classList.add('weread-copy')
         const refreshButton = el.querySelector('.reading-refresh')
         let released = false
         let pending = false
+        let observer
         ctx.trackCleanup(() => { released = true })
+        const fit = () => {
+          if (!released && tapToRefresh) root.odkWeReadTypography.fit(surface, content, content.querySelector('.weread-text'), content.querySelector('.weread-foot'), document.querySelector?.('.widget.w-weread'))
+        }
+        if (tapToRefresh && typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(fit)
+          observer.observe(surface)
+          ctx.trackCleanup(() => observer.disconnect())
+        }
+        const fitAfterFonts = () => { fit() }
+        if (tapToRefresh && document.fonts) document.fonts.ready.then(fitAfterFonts).catch(() => {})
         const refresh = async () => {
           if (released || pending) return
           pending = true
-          refreshButton.disabled = true
+          if (refreshButton) refreshButton.disabled = true
+          surface.setAttribute('aria-busy', 'true')
           status.textContent = 'Refreshing'
           try {
             const snapshot = await load()
             if (released) return
             render(content, status, snapshot)
+            if (observer) {
+              observer.disconnect()
+              observer.observe(surface)
+              const foot = content.querySelector('.weread-foot')
+              if (foot) observer.observe(foot)
+            }
+            if (tapToRefresh) status.textContent = status.textContent.replaceAll('select Refresh', 'click the reading').replaceAll('Select Refresh', 'Click the reading')
+            fit()
           } catch {
-            if (!released) status.textContent = 'Source unavailable. Select Refresh to try again.'
+            if (!released) status.textContent = tapToRefresh ? 'Source unavailable. Click the reading to try again.' : 'Source unavailable. Select Refresh to try again.'
           } finally {
             pending = false
-            if (!released) refreshButton.disabled = false
+            if (!released) {
+              if (refreshButton) refreshButton.disabled = false
+              surface.setAttribute('aria-busy', 'false')
+            }
           }
         }
-        refreshButton.addEventListener('click', refresh)
+        if (tapToRefresh) {
+          surface.tabIndex = 0
+          surface.setAttribute('role', 'region')
+          surface.setAttribute('aria-label', 'WeRead. Click or press Enter to refresh.')
+          surface.setAttribute('aria-keyshortcuts', 'Enter Space')
+          surface.addEventListener('click', () => {
+            if (root.getSelection?.()?.isCollapsed === false) return
+            refresh()
+          })
+          surface.addEventListener('keydown', event => {
+            if (event.target !== surface || event.repeat || !['Enter', ' '].includes(event.key)) return
+            event.preventDefault()
+            event.stopPropagation()
+            refresh()
+          })
+        } else refreshButton.addEventListener('click', refresh)
         refresh()
         let ticks = 0
         ctx.onTick(() => { if (++ticks % 30 === 0) refresh() })
@@ -90,9 +131,6 @@
     status.textContent = readingStatus(snapshot, available, 'WeRead')
     if (!available) { content.replaceChildren(node('p', 'No highlights available', 'app-detail')); return }
     const quote = node('blockquote', highlight.markText || '', 'reading-excerpt weread-text')
-    // Use the Widget's character-based display scale. App overflow remains readable.
-    const columns = Math.max(4, Math.sqrt(Math.max(1, highlight.markText.length)) * 2.2)
-    quote.style.fontSize = `clamp(14px, calc(100cqi / ${columns}), 72px)`
     quote.tabIndex = 0
     quote.setAttribute('role', 'region')
     quote.setAttribute('aria-label', 'Highlight excerpt')

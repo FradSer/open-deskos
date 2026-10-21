@@ -12,7 +12,19 @@ Feature: Built-in App interiors
     Then the excerpt and bottom book row retain their visual hierarchy and typography
     And book metadata remains legible on the Windows handheld
     And non-three-by-four covers retain their original aspect ratio on both surfaces
-    And the App retains Refresh and source recovery instructions
+    And the excerpt, title, author, and mark date have the same rendered font sizes on both surfaces
+    And the App has no Refresh button or reserved header space
+    And clicking the App refreshes the highlight once without overlapping requests
+    And Enter or Space can refresh the focused App
+    And selecting text or scrolling an excerpt does not refresh it
+    And source recovery instructions describe clicking the reading
+
+  Scenario: An expanded WeRead App retains its visible Widget type scale
+    Given a narrow layout shows WeRead in a compact fallback card
+    When that Widget opens an expanded App
+    Then the App retains the last visible Widget typography reference
+    And new highlights use that reference width and readable size floors
+    And an App without a mounted Widget fits its own reading lane
 
   Scenario: Existing Renderer replacement preserves built-in views
     Given Pomodoro, Year progress, and Built-in views use registered App surfaces
@@ -162,7 +174,7 @@ Feature: Built-in App interiors
     Given Weather or WeRead needs setup or authorization
     When its Widget opens the App
     Then the App explains the required source connection or authorization
-    And Refresh remains the available recovery action
+    And Weather retains Refresh while WeRead offers click-to-refresh
     And raw source state identifiers do not replace recovery instructions
     And malformed live readings are not presented as current values
 

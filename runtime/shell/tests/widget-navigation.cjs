@@ -89,24 +89,26 @@ app.whenReady().then(async () => {
       const properties = ['backgroundColor','backgroundImage','boxShadow','backdropFilter','borderTopWidth','borderTopStyle','borderTopColor','borderTopLeftRadius'];
       const styles = node => Object.fromEntries(properties.map(key => [key,getComputedStyle(node)[key]]));
       window.readingFrameStyles = styles;
-      return {frame:styles(tile),coverRatio:cover.width/cover.height, text:tile.querySelector('.weread-text').textContent,
+      return {frame:styles(tile),coverRatio:cover.width/cover.height, quoteSize:parseFloat(getComputedStyle(tile.querySelector('.weread-text')).fontSize), text:tile.querySelector('.weread-text').textContent,
         metadata:['title','author','date'].map(key => {const n=tile.querySelector('.weread-'+key),s=getComputedStyle(n);return {text:n.textContent,size:parseFloat(s.fontSize),weight:s.fontWeight,color:s.color,lineHeight:s.lineHeight}})};
     })()`)
     await js(`(async () => {
       await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
-      await until(() => !!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled && document.querySelector('.reading-book-cover')?.complete && document.querySelector('.reading-book-cover').naturalWidth>0);
+      await until(() => !!document.querySelector('.reading-book-title')?.textContent && document.querySelector('.weread-app')?.getAttribute('aria-busy')==='false' && document.querySelector('.reading-book-cover')?.complete && document.querySelector('.reading-book-cover').naturalWidth>0);
       if (odkTheme.get()==='liquid-glass') await until(() => document.documentElement.dataset.liquidGlass==='fallback' || (document.documentElement.dataset.liquidGlass==='sdk' && document.getElementById('app-view').classList.contains('lg-surface')));
     })()`)
     await capture(`${theme}${variant}-weread-app`)
     const after = await js(`(() => {
       const card=document.getElementById('app-view');
       const cover=card.querySelector('.weread-cover'),box=cover.getBoundingClientRect();
-      return {frame:readingFrameStyles(card),coverRatio:box.width/box.height,naturalRatio:cover.naturalWidth/cover.naturalHeight,text:card.querySelector('.reading-excerpt').textContent,
+      return {frame:readingFrameStyles(card),coverRatio:box.width/box.height,naturalRatio:cover.naturalWidth/cover.naturalHeight,quoteSize:parseFloat(getComputedStyle(card.querySelector('.reading-excerpt')).fontSize),text:card.querySelector('.reading-excerpt').textContent,
         metadata:[...card.querySelector('.reading-book-meta').children].map(n=>{const s=getComputedStyle(n);return {text:n.textContent,size:parseFloat(s.fontSize),weight:s.fontWeight,color:s.color,lineHeight:s.lineHeight}})};
     })()`)
     console.log('WEREAD_COMPARISON '+JSON.stringify({theme,before,after,evidence}))
     assert.deepEqual(after.frame,before.frame,theme+': WeRead App material and radius must match its Widget')
     assert.equal(after.text,before.text)
+    assert.equal(await js("document.querySelector('.weread-app .reading-refresh')"),null,'WeRead must have no Refresh button')
+    assert.equal(after.quoteSize,before.quoteSize,theme+': excerpt font sizes must match')
     assert.ok(Math.abs(after.coverRatio-after.naturalRatio)<0.01,'WeRead App must retain the original cover ratio')
     assert.ok(Math.abs(before.coverRatio-after.naturalRatio)<0.01,'WeRead Widget must retain the original cover ratio')
     for (let i=0;i<3;i++) {
@@ -114,6 +116,7 @@ app.whenReady().then(async () => {
       assert.ok(before.metadata[i].size >= (i===0?18:16),'WeRead Widget metadata must remain legible')
       assert.ok(after.metadata[i].size >= (i===0?18:16),'WeRead App metadata must remain legible')
       assert.equal(after.metadata[i].weight,before.metadata[i].weight)
+      assert.equal(after.metadata[i].size,before.metadata[i].size,theme+': metadata font sizes must match')
       assert.equal(after.metadata[i].color,before.metadata[i].color)
     }
     await js('odkAppPlatform.closeApp()')
@@ -125,6 +128,32 @@ app.whenReady().then(async () => {
     await compareWeRead('liquid-glass','-portrait',0.5)
     wereadReading=undefined
   }
+  async function verifyWeReadRefresh() {
+    await js(`(async()=>{
+      await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
+      await until(()=>document.querySelector('.weread-app')?.getAttribute('aria-busy')==='false');
+    })()`)
+    for (const input of ['mouse','touch','keyboard']) {
+      const title='Refreshed with '+input
+      wereadReading={status:'live',highlight:{...preview.highlight,title}}
+      const point=await js(`(()=>{const box=document.querySelector('.weread-app .weread-text').getBoundingClientRect();return {x:box.x+12,y:box.y+12}})()`)
+      if (input==='mouse') {
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point})
+        await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point})
+      } else if (input==='touch') {
+        await touch('touchStart',[{...point,id:1}])
+        await touch('touchEnd',[])
+      } else {
+        await js("document.querySelector('.weread-app').focus()")
+        await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+        await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+      }
+      await js(`until(()=>document.querySelector('.reading-book-title')?.textContent===${JSON.stringify(title)} && document.querySelector('.weread-app').getAttribute('aria-busy')==='false')`)
+    }
+    await js('odkAppPlatform.closeApp()')
+    wereadReading=undefined
+    console.log('PASS WeRead content refresh: native mouse, touch, and keyboard')
+  }
   async function stressWeReadApp() {
     for (const [width,height] of [[1280,800],[960,640],[480,854],[320,480]]) {
       win.setContentSize(width,height)
@@ -133,7 +162,7 @@ app.whenReady().then(async () => {
         await js(`(async()=>{
           await odkTheme.set('${theme}');
           await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
-          await until(()=>!!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled);
+          await until(()=>!!document.querySelector('.reading-book-title')?.textContent && document.querySelector('.weread-app')?.getAttribute('aria-busy')==='false');
           await document.fonts.ready;
           document.getElementById('app-view').scrollIntoView({block:'center'});
         })()`)
@@ -174,7 +203,13 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--weread-compare')) {
     win.setContentSize(1280,800)
     for (const theme of ['liquid-glass','instrument','pixel','border-beam']) await compareWeRead(theme)
+    for (const [width,height] of [[1920,1280],[960,640],[480,854],[320,480]]) {
+      win.setContentSize(width,height)
+      await compareWeRead('liquid-glass','-'+width)
+    }
+    win.setContentSize(1280,800)
     await comparePortraitCover()
+    await verifyWeReadRefresh()
     await stressWeReadApp()
     console.log('WIDGET_NAVIGATION_EVIDENCE '+evidence)
     await js("odkTheme.set('instrument')")
