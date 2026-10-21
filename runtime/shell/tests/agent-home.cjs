@@ -857,6 +857,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelector('.agent-identity').open`),true,await evaluate(`JSON.stringify({active:document.activeElement.outerHTML,focused:document.hasFocus()})`))
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Mori';document.querySelector('.agent-identity-form').requestSubmit()`)
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer .agent-mic')`),true,'saving the identity focuses the default voice field')
+    assert.deepEqual(JSON.parse(await evaluate(`localStorage.getItem('odk.agent.identity')`)),{name:'Mori'},'saving the name does not persist the retired icon selector')
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       await resize(320,480)
       await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));document.querySelector('.agent-identity-form [name="name"]').value='中文'.repeat(20);document.querySelector('.agent-identity-form').requestSubmit();await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-identity summary').focus()})()`)
