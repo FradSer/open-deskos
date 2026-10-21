@@ -5,7 +5,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict'
 
-  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"], #app-view:not([hidden])'
+  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"], #app-view:not([hidden]), #personal-agent .agent-mic'
   const MAX_SURFACES = 10
 
   function createLiquidGlassAppearance(root, doc) {
@@ -160,7 +160,7 @@
       if (root.ResizeObserver) {
         resizeObserver = new root.ResizeObserver(scheduleReconcile)
         resizeObserver.observe(rootElement)
-        for (const id of ['home-summary', 'pages-viewport', 'app-view']) {
+        for (const id of ['home-summary', 'pages-viewport', 'app-view', 'personal-agent']) {
           const element = doc.getElementById(id)
           if (element) resizeObserver.observe(element)
         }
@@ -168,6 +168,8 @@
       if (root.MutationObserver) {
         mutationObserver = new root.MutationObserver(scheduleReconcile)
         mutationObserver.observe(contentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] })
+        const agent = doc.getElementById('personal-agent')
+        if (agent) mutationObserver.observe(agent, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-mode'] })
       }
       addListener(root, 'resize', scheduleReconcile, { passive: true })
       addListener(doc.getElementById('pages-viewport'), 'scroll', scheduleReconcile, { passive: true })

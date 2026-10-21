@@ -63,6 +63,19 @@ Keep native fonts, scale, zoom, gutters, and viewport dimensions in the evidence
 When hosts disagree, inspect selected fonts and glyph metrics before changing geometry or acceptance limits.
 Do not repair capture failures with blind sleeps, repeated full runs, relaxed assertions, or GPU bypasses.
 
+## Theme interaction coverage
+
+Inventory visible Shell controls and identify each control's frame owner before checking a shared theme.
+Include resident panels, built-in Apps, dialogs, and controls that appear after interaction.
+Compare rendered edges, fills, reflections, and focus markers against the accepted material family.
+Check default, hover, pressed, selected, disabled, busy, recording, and invalid states where applicable.
+Verify pointer, keyboard, touch, and source recovery after the appearance change.
+Check reduced transparency, increased contrast, and forced colors separately.
+Keep integrated fields and transparent hit targets under their existing container frame.
+Wire reusable assertions into the existing shared harness, rather than a screenshot-only path.
+Shared stylesheets or token names do not establish rendered parity.
+When equal Widget/App typography is required, compare actual font sizes with identical content, including expanded and compact continuations.
+
 ## Difficult states
 
 Use deterministic success, unavailable, malformed, slow, unauthorized, empty, corrupt-cache, and stale-cache fixtures for external data.

@@ -1,5 +1,15 @@
 Feature: Optional Liquid Glass theme
 
+  Scenario: Interactive surfaces use the Widget glass frame
+    Given Liquid Glass shows the resident Agent and a built-in App
+    Then Tap to talk uses the Widget glass material and rounded edge
+    And the composer, identity capsule, action buttons, fields, and page handle share the glass frame treatment
+    And integrated text input uses its composer frame without a second rectangular border
+    And transparent Widget launch targets and page marks use their existing container frame
+    When a control is focused, pressed, disabled, selected, or recording
+    Then its state remains visible without removing its glass edge
+    And reduced transparency, increased contrast, and forced colors retain readable controls
+
   Scenario: Select and restore Liquid Glass without changing Shell behavior
     Given the Shell uses its default Pixel theme
     When Liquid Glass is selected through the theme API

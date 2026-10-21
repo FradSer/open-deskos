@@ -7,7 +7,9 @@ description: >-
 ---
 # Reflect on Widget development
 
-Improve `.agents/skills/odk-widget/` from evidence in the current conversation.
+Improve the requested Widget skill entry and its canonical instructions from evidence in the current conversation.
+Use [odk-widget](../odk-widget/SKILL.md) as the canonical development workflow.
+Keep [open-deskos-widget](../open-deskos-widget/SKILL.md) as its project entry point without duplicating the workflow.
 The deliverable is a focused skill-documentation change, not another product implementation or deployment.
 
 ## 1. Recover the evidence
@@ -42,6 +44,8 @@ Check whether the target skill already covers it:
 - If the event is a one-off implementation detail, use it as reasoning evidence rather than a permanent instruction. Persist the underlying decision principle, not the incident narrative.
 
 When a visible defect passed a gate, inspect both its assertions and its theme, Cell, state, and replacement coverage.
+For appearance drift, inspect control roles, composite frame ownership, cascade overrides, and interaction states across the same material family.
+Check rendered parity across actual containers; shared stylesheets or token names alone do not prove consistency.
 When exit codes disagree with findings, apply the [execution evidence rules](../odk-widget/references/verification.md#fixture-controls-and-execution-scheduling) before changing product assertions.
 For hierarchy defects, require a comparison between primary and supporting readings, and against the lane the primary reading owns, instead of another presence or overflow check.
 A relative gate passes while the numeral under-fills its own container; compare one value across Cell sizes.
@@ -60,7 +64,8 @@ Keep incident evidence in the report, not as permanent machine-specific defaults
 
 ## 3. Patch the right layer
 
-Edit `.agents/skills/odk-widget/SKILL.md` for universal rules or short conditional pointers.
+Edit the canonical `.agents/skills/odk-widget/SKILL.md` for universal rules or short conditional pointers.
+Keep requested entry points discoverable and verify their links to that canonical owner.
 Put branch-specific reasoning frameworks and acceptance criteria in its `references/` tree.
 Add concrete recipes only for stable technical contracts that actually require them, not merely because a recent incident supplied details.
 Make new references reachable under the exact conditions that need them; keep each rule in one authoritative place.
