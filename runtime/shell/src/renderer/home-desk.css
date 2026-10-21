@@ -285,6 +285,7 @@ html[data-theme='pixel'] #home-summary .dash {
 @media (forced-colors: active) {
   #home-desk #dots .dot::after { background: GrayText; forced-color-adjust: none; }
   #home-desk #dots .dot::before,
+  #home-desk #dots[data-mode="handle"] .dot.active::before,
   #home-desk #dots[data-dragging] .dot.active::before { background: ButtonText; forced-color-adjust: none; }
   #home-desk { --odk-frame-border: CanvasText; }
 }

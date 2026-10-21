@@ -22,6 +22,7 @@ process.once('exit', cleanupProfile)
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const DRIVER_ONLY = process.argv.includes('--driver-only')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 900],
@@ -954,6 +955,15 @@ async function main() {
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)
+  if (DRIVER_ONLY) {
+    clearTimeout(timeout)
+    cleanupPiFixture()
+    win.close()
+    console.log('E2E_DRIVER_RESULT:', JSON.stringify({ ok: driverFailures === 0, driverFailures }))
+    process.exitCode = driverFailures === 0 ? 0 : 1
+    app.exit(process.exitCode)
+    return
+  }
   const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)
   clearTimeout(timeout)

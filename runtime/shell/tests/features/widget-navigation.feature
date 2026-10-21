@@ -104,6 +104,7 @@ Feature: Widget continuations in the right desk pane
     And its target is at least 44 pixels high
     And its accessible name names the page the upward swipe returns to
     And forced colors retain a visible page controller and handle
+    And the App return marker remains visible both at rest and during a drag
     When the App returns to its source Widget
     Then the page controller returns with the same markers and touch targets
     And theme changes preserve its location and touch target
