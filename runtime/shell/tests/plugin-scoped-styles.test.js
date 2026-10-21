@@ -353,3 +353,15 @@ test('ordinary replacement cannot opt into built-in stylesheet recovery', async 
   assert.equal(f.element.text, 'external')
   await f.registry.stop()
 })
+
+// Given a saved icon identifier, only explicit layout utilities enter the stylesheet.
+test('plugin icon identifiers do not emit an unused global ring shadow', async () => {
+  const { createGenerator } = await import('unocss')
+  const { default: config } = await import('../uno.config.mjs')
+  const generator = await createGenerator(config)
+  const { css } = await generator.generate(
+    `const icon = 'ring'; const markup = '<div class="flex"></div>'`,
+  )
+  assert.doesNotMatch(css, /\.ring\s*\{/)
+  assert.match(css, /\.flex\s*\{/)
+})

@@ -17,6 +17,7 @@ const openDeskOsColors = {
 
 export default defineConfig({
   presets: [presetWind3()],
+  blocklist: ['ring'],
   theme: {
     colors: openDeskOsColors,
     spacing: {
