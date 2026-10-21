@@ -64,7 +64,7 @@ html[data-theme='liquid-glass'] #home-desk {
   --odk-frame-border: var(--odk-glass-edge);
   --odk-frame-radius: var(--odk-radius-card);
 }
-.agent-panel { --agent-avatar-size: 112px; --agent-head-overlap: calc(var(--agent-avatar-size) * 0.18); --agent-head-padding: 12px; --agent-head-space: calc(var(--agent-avatar-size) - var(--agent-head-overlap) + 44px + var(--agent-head-padding) + 10px); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: 20px; gap: 10px; }
+.agent-panel { --agent-avatar-size: 112px; --agent-avatar-frame-height: calc(var(--agent-avatar-size) * 2 / 3); --agent-head-overlap: calc(var(--agent-avatar-frame-height) * 0.18); --agent-head-padding: 12px; --agent-head-space: calc(var(--agent-avatar-frame-height) - var(--agent-head-overlap) + 44px + var(--agent-head-padding) + 10px); position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; width: 100%; height: 100%; min-height: 0; padding: 20px; gap: 10px; }
 .agent-head { grid-area: 1 / 1; align-self: start; z-index: 2; pointer-events: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 0; flex: none; min-width: 0; padding-block: 0 12px; }
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
 .agent-avatar svg { width: 32px; height: 32px; }
@@ -298,8 +298,9 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }
 .agent-identity > summary { color: var(--odk-primary); }
 .agent-identity > summary > .agent-name { color: inherit; }
-.agent-avatar[data-avatar="onee"] { width: var(--agent-avatar-size); height: var(--agent-avatar-size); border: 0; background: transparent; }
-.agent-avatar[data-avatar="onee"] :is(.bs-avatar, svg, .agent-avatar-fallback) { width: 100%; height: 100%; }
+.agent-avatar[data-avatar="onee"] { position: relative; width: var(--agent-avatar-size); height: var(--agent-avatar-frame-height); overflow: visible; border: 0; background: transparent; }
+.agent-avatar[data-avatar="onee"] :is(.bs-avatar, .agent-avatar-fallback) { position: absolute; inset-block-start: calc((var(--agent-avatar-frame-height) - var(--agent-avatar-size)) / 2); width: var(--agent-avatar-size); height: var(--agent-avatar-size); }
+.agent-avatar[data-avatar="onee"] svg { width: 100%; height: 100%; }
 @media (max-width: 639px) {
   #personal-agent { min-height: 360px; }
 }
