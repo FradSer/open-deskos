@@ -562,5 +562,6 @@ Scenario: Hidden previews capture the current native viewport
     Then the capsule overlaps the lower part of the avatar
     And the header has no opaque background or backdrop blur
     And messages scroll behind the header and receive input outside the capsule
+    And selected task navigation passes message input outside its readable return button
     And the capsule and composer retain keyboard and pointer access
     And the identity form remains inside the panel

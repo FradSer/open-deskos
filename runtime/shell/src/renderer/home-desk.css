@@ -307,7 +307,7 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-identity > summary > svg { color: inherit; }
 
 /* Session replies retain one conversation scroller and a fixed composer. */
-.agent-thread-nav { grid-area: 1 / 1; align-self: start; z-index: 1; margin-block-start: var(--agent-head-space); display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; font-size: 14px; color: var(--odk-secondary-strong); }
+.agent-thread-nav { grid-area: 1 / 1; align-self: start; z-index: 1; pointer-events: none; margin-block-start: var(--agent-head-space); display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; font-size: 14px; color: var(--odk-secondary-strong); }
 .agent-thread-nav > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-panel :is(.agent-thread-nav,.agent-message-session,.agent-reply-context) button { min-height: 44px; min-width: 44px; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--odk-primary); background: transparent; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); cursor: pointer; }
 .agent-message-session { display: flex; align-items: center; gap: 8px; min-width: 0; margin-block-start: 8px; color: var(--odk-secondary-strong); font-size: 14px; }
@@ -321,4 +321,4 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-panel :is(.agent-thread-nav,.agent-reply-context)[hidden], .agent-panel .agent-message[hidden] { display: none; }
 
 
-.agent-thread-nav button { flex: none; white-space: nowrap; }
+.agent-panel .agent-thread-nav button { flex: none; white-space: nowrap; pointer-events: auto; background: var(--odk-surface); }

@@ -244,6 +244,25 @@ async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
 }
 
+async function assertThreadOverlayInput() {
+  const source={key:'a7'.repeat(32),revision:'b7'.repeat(32),threadId:'c7'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-overlay-session',taskName:'Thread check',control:'report_only',availability:'live'}
+  const messages=Array.from({length:16},(_,i)=>({id:(i+1).toString(16).padStart(64,'0'),at:1000+i,presentation:'assistant_update',text:'Thread result '+i+'. '+'Content remains readable. '.repeat(6),sources:[source]}))
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height]of [[1280,800],[320,480]]) {
+    await resize(width,height)
+    await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready})()`)
+    publishStatus({state:'idle',remote:{state:'live',messages,total:messages.length,replies:[]}})
+    await evaluate(`new Promise(r=>setTimeout(r,30))`)
+    await evaluate(`document.querySelector('.agent-session-open').click()`)
+    const band=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),nav=document.querySelector('.agent-thread-nav'),r=nav.getBoundingClientRect(),first=list.querySelector('.agent-message:not([hidden])');list.scrollTop+=first.getBoundingClientRect().top-r.top+20;const x=r.right-24,y=r.top+r.height/2,button=nav.querySelector('button'),b=button.getBoundingClientRect();return {underlay:!!document.elementFromPoint(x,y)?.closest('.agent-conversation'),button:button.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)),surface:getComputedStyle(button).backgroundColor!=='rgba(0, 0, 0, 0)',x,y,buttonX:b.x+b.width/2,buttonY:b.y+b.height/2,scrollTop:list.scrollTop,navTop:r.top}})()`)
+    assert.ok(band.underlay&&band.button&&band.surface,theme+' '+width+': thread navigation passes input outside its readable button '+JSON.stringify(band))
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:band.x,y:band.y,deltaX:0,deltaY:80})
+    await evaluate(`new Promise(r=>setTimeout(r,80))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${band.scrollTop}&&Math.abs(document.querySelector('.agent-thread-nav').getBoundingClientRect().top-${band.navTop})<1`),true,theme+' '+width+': native wheel scrolls behind thread navigation')
+    for(const type of ['mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:band.buttonX,y:band.buttonY})
+    assert.equal(await evaluate(`document.querySelector('.agent-thread-nav').hidden`),true,'native All messages click exits the exact thread')
+  }
+}
+
 async function assertRemoteConversationHistory() {
   const source={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'session',project:'/synthetic/legacy',control:'report_only',availability:'live'}
   const legacy={id:'e'.repeat(64),at:1000,text:'Legacy <img src=x onerror=alert(1)> report',sources:[source]}
@@ -845,6 +864,7 @@ app.whenReady().then(async () => {
       assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${underlay.scrollTop}&&Math.abs(document.querySelector('.agent-head').getBoundingClientRect().top-${underlay.header})<1`),true,theme+': native wheel scrolls behind a stationary header')
     }
     fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-header-overlay.png'),(await capturePaintedPage(win)).toPNG())
+    await assertThreadOverlayInput()
     await evaluate(`document.querySelector('.agent-latest').click()`)
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-conversation');return n.scrollHeight-n.clientHeight-n.scrollTop<2})()`),true)
     const summary=await evaluate(`(()=>{const n=document.querySelector('.agent-identity summary');n.focus();return document.activeElement===n})()`)
