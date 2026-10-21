@@ -42,6 +42,7 @@ async function glassControls() {
       await polishUntil(()=>document.querySelector('.agent-composer')?.dataset.mode==='voice'&&document.querySelector('.agent-mic-label')?.textContent==='Tap to talk');
     })()`)
     await js(`document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`)
+    await js(`polishUntil(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass))`)
     const inspect = async label => {
       const result=await js(`(()=>{
         const widget=document.querySelector('.widget[data-interaction="display-only"]'),edge=getComputedStyle(widget).borderTopColor;

@@ -6,7 +6,7 @@ Feature: Optional Liquid Glass theme
     And the composer, identity capsule, action buttons, fields, and page handle share the glass frame treatment
     And integrated text input uses its composer frame without a second rectangular border
     And transparent Widget launch targets and page marks use their existing container frame
-    When a control is focused, pressed, disabled, selected, or recording
+    When a control is focused, pressed, disabled, selected, busy, invalid, or recording
     Then its state remains visible without removing its glass edge
     And reduced transparency, increased contrast, and forced colors retain readable controls
 
