@@ -85,7 +85,7 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
       if (glyphs.length) findings.push({ kind: 'automatic-heading-icon', id: card.dataset.widget });
       if (card.dataset.widget === 'odk.tile.hydra' && !card.querySelector('.hydra-head svg[data-tabler="leaf"]')) findings.push({ kind: 'missing-hydra-leaf' });
       if (['odk.tile.year', 'odk.tile.pi-sessions'].includes(card.dataset.widget) && (heading || card.querySelector('.widget-head'))) findings.push({ kind: 'redundant-heading', id: card.dataset.widget });
-      if (['odk.tile.pomodoro', 'odk.tile.quota'].includes(card.dataset.widget)) {
+      if (card.dataset.widget === 'odk.tile.quota') {
         const head = card.querySelector('.widget-head'), style = getComputedStyle(card);
         const expectedTop = box.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
         const expectedLeft = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
@@ -338,14 +338,14 @@ app.whenReady().then(async () => {
               const y = marker.getBoundingClientRect().bottom; marker.remove(); return y;
             };
             const ring = document.querySelector('.pomodoro-ring-wrap').getBoundingClientRect();
+            const lane = document.querySelector('.pomodoro-lane').getBoundingClientRect();
             const body = document.querySelector('.pomodoro-body').getBoundingClientRect();
-            const head = document.querySelector('.pomodoro-head').getBoundingClientRect();
             return { baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')),
-              centered: Math.abs(ring.top + ring.height / 2 - body.top - body.height / 2),
-              below: ring.top >= head.bottom };
+              centered: Math.abs(ring.top + ring.height / 2 - lane.top - lane.height / 2),
+              inside: ring.left >= lane.left - 1 && ring.right <= lane.right + 1 && lane.bottom <= body.bottom + 1 };
           })()`);
           assert.ok(alignment.baseline < 1, 'Weekday and date share a text baseline: ' + JSON.stringify(alignment));
-          assert.ok(alignment.centered < 1 && alignment.below, 'The ring is centered below its header: ' + JSON.stringify(alignment));
+          assert.ok(alignment.centered < 1 && alignment.inside, 'The ring is centered inside its own lane: ' + JSON.stringify(alignment));
         }
 
         if (page === 'desk') {

@@ -2,9 +2,11 @@ Feature: Responsive summary widget interiors
   Scenario: Pomodoro readings stay centered in their dial
     Given Home uses a square Pomodoro Widget in any supported theme
     When the window changes between compact and widescreen sizes
-    Then the countdown shares the center of the dial and Widget
-    And the Focus label stays inside the dial below the countdown
-    And the truthful state remains centered above the dial
+    Then the ring fills its own lane inside the standard density band
+    And the countdown shares the center of the ring and of its lane
+    And the Focus label stays inside the ring below the countdown
+    And a stated state or the neutral reading stays above the dial
+    And the dial carries that reading without a title or a Ready label
 
   Scenario: Resize applies placement after the new grid metrics
     Given the desktop keeps multi-cell Widget spans in a wide window

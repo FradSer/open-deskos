@@ -117,7 +117,7 @@ Use existing plugin implementations as examples:
 | Need | Example | Required distinction |
 | --- | --- | --- |
 | Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
-| Focus timer | `plugins/pomodoro.js` | Keep the heading separate from the centered dial; controls belong to the App |
+| Focus timer | `plugins/pomodoro.js` | Keep the dial and its countdown as the whole reading; state words only for what the dial cannot show; controls belong to the App |
 | Provider allowance | `plugins/quota-page.js` | Use the actual provider name; preserve unknown readings |
 | Current weather | `plugins/weather.js` | Make current temperature dominant; keep the daily high and low as supporting readings |
 | Session summary | `plugins/pi-sessions.js` | Keep count, status capsule, and Idle count; retain the accessible App entry |

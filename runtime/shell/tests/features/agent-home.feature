@@ -395,6 +395,9 @@ Feature: Personal Agent home briefing
     And Jump to latest restores the newest message
     And Jump to latest overlays the conversation without moving messages or the composer
     And scroll controls are checked after the native scroll event settles
+    And messages and the scroll track fade into the top edge of the conversation
+    And the fade leaves the avatar, capsule and composer fully visible and interactive
+    And forced colors keep the conversation unmasked
     And the native scrollbar is transparent until scrolling and fades after scrolling stops
     And reduced motion hides the idle scrollbar without a fade
     And narrow windows and long names retain usable input and recovery text

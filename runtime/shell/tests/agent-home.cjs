@@ -684,7 +684,7 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--scroll-overlay-only')) {
     const evidence=process.env.ODK_AGENT_SCROLL_EVIDENCE
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-    for(const theme of ['instrument','pixel','border-beam'])for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height);await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
       const examples=[['训练进展怎么样？','合成示例：中文识别训练有新进展：验证集 CER 降到 37.35%，最佳和最后检查点已保存到 Drive。控制器仍依赖 Mac 在线，请暂时保留原终端；独立测试还没做。'],['v8 模型有什么变更？','合成示例：v8 模型完成：前留白缩到 10 mm，前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。']]
       for(let i=0;i<8;i++)publishStatus({state:'idle',ownerTurnId:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,transcript:examples[i%2][0],message:examples[i%2][1]})
@@ -746,8 +746,9 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)')
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'}]})
     assert.equal(await evaluate(`matchMedia('(forced-colors: active)').matches`),true)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).maskImage`),'none','forced colors retain an unmasked conversation')
     console.log('Scrollbar forced-colors:',await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`))
-    console.log('PASS overlay latest control, scroll-only scrollbar, keyboard and reduced motion across three themes and sizes');finish(0);return
+    console.log('PASS overlay latest control, scroll-only scrollbar, keyboard and reduced motion across four themes and sizes');finish(0);return
   }
   if (process.argv.includes('--simple-conversation-only')) {
     await assertSimpleConversation();console.log('PASS calm conversation, explicit source reply, retained receipts and compact themes');finish(0);return
@@ -864,8 +865,20 @@ app.whenReady().then(async () => {
     assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready;await new Promise(r=>setTimeout(r,40));const list=document.querySelector('.agent-conversation'),first=list.querySelector('.agent-message');list.scrollTop+=first.getBoundingClientRect().top-list.getBoundingClientRect().top+20})()`)
+      assert.match(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).maskImage`),/linear-gradient.*rgba\(0, 0, 0, 0\).*rgb\(0, 0, 0\) 32px/,'the conversation has a transparent-to-solid top fade')
       const underlay=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),head=document.querySelector('.agent-head'),r=head.getBoundingClientRect(),x=r.left+8,y=r.top+24,hit=document.elementFromPoint(x,y),pill=document.querySelector('.agent-identity summary'),p=pill.getBoundingClientRect();return {message:!!hit?.closest('.agent-message'),capsule:pill.contains(document.elementFromPoint(p.x+p.width/2,p.y+p.height/2)),x,y,scrollTop:list.scrollTop,header:r.top}})()`)
       assert.ok(underlay.message&&underlay.capsule,theme+': header allows message input while capsule stays interactive '+JSON.stringify(underlay))
+      const fadeCrop=await evaluate(`(()=>{const r=document.querySelector('.agent-conversation').getBoundingClientRect();return{x:Math.ceil(r.left+4),y:Math.ceil(r.top),width:Math.min(180,Math.floor(r.width-8)),height:32}})()`)
+      const faded=(await capturePaintedPage(win,fadeCrop)).toBitmap()
+      let plain
+      try {
+        await evaluate(`document.querySelector('.agent-conversation').style.maskImage='none'`)
+        plain=(await capturePaintedPage(win,fadeCrop)).toBitmap()
+      } finally {
+        await evaluate(`document.querySelector('.agent-conversation').style.removeProperty('mask-image')`)
+      }
+      let changed=0;for(let i=0;i<faded.length;i+=4)if(faded[i]!==plain[i]||faded[i+1]!==plain[i+1]||faded[i+2]!==plain[i+2])changed++
+      assert.ok(changed>=16,theme+': the native image shows the top fade: '+changed)
       await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:underlay.x,y:underlay.y,deltaX:0,deltaY:80})
       await evaluate('new Promise(r=>setTimeout(r,80))')
       assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${underlay.scrollTop}&&Math.abs(document.querySelector('.agent-head').getBoundingClientRect().top-${underlay.header})<1`),true,theme+': native wheel scrolls behind a stationary header')

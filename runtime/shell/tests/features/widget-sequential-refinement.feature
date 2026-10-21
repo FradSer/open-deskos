@@ -66,8 +66,8 @@ Feature: Independent instrument refinement
     When Home renders
     Then the Pi Widget shows working and idle counts without goals or activity
     And task details remain in the Pi Sessions App
-    And the Pomodoro ring is centered within its body below its heading and state
-    And the heading, state, dial, and readings stay inside their card
+    And the Pomodoro dial carries its reading without a title or a Ready label
+    And each heading, state, dial, and reading stays inside its card
     And the Year percentage, context, and meter identify the card without a heading
     And the Pi count, Working capsule, and idle count share the horizontal center
     And each Widget preserves its configured grid span
@@ -151,10 +151,11 @@ Feature: Independent instrument refinement
     And holding rows retain aligned values and subtle separators
 
   Scenario: Optional headings keep a stable top position
-    Given ChatGPT and Pomodoro have useful visible headings
+    Given ChatGPT has a useful visible heading and Pomodoro has none
     When their square Widgets render in every supported theme
-    Then each heading follows the card top and leading content inset
-    And the reading is centered in the remaining body below the heading
+    Then the ChatGPT heading follows the card top and leading content inset
+    And its reading is centered in the remaining body below the heading
+    And the Pomodoro dial fills the card and keeps its accessible App name
     And Pi has no visible heading or empty header space
     And the Pi App entry retains its accessible name
 
@@ -163,13 +164,15 @@ Feature: Independent instrument refinement
     When the standard unavailable fixture is measured across supported Cells
     Then its density profile describes the narrow heading-free envelope
     And its occupied floor follows the multi-row contract and its empty-band limit remains unchanged
-    And Pomodoro and provider allowance use the standard envelope band with anchored headings
+    And provider allowance uses the standard envelope band with an anchored heading
+    And Pomodoro keeps that band through its dial without a heading
     And retired Clock, Calendar, and Pre-order remain absent while Year and Pomodoro remain available
 
   Scenario: Shared harnesses enforce each Widget heading contract
     Given default and independent Pi surfaces share the current visual contract
     When Widget harnesses run across four themes and supported compact Cells
     Then Pi has no visible heading and retains its accessible App name
-    And ChatGPT and Pomodoro headings follow the top and leading inset
-    And their primary readings center below the heading without overlap
+    And the ChatGPT heading follows the top and leading inset
+    And Pomodoro keeps its accessible App name without a heading
+    And their primary readings center below any heading without overlap
     And a title regression fails the shared gate

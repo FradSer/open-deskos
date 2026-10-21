@@ -255,6 +255,8 @@
   }
 }
 
-[data-theme='pixel'] .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 15cqi, 100px);
+/* Zpix's narrower advances carry the same ring-derived countdown as the other themes,
+   so one dial reads at one size per card. Only the tracking differs. */
+[data-theme='pixel'] .w-pomodoro .ring-mmss {
+  letter-spacing: normal;
 }
