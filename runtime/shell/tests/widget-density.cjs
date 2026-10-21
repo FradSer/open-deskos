@@ -151,8 +151,9 @@ async function measureSize(win, width, height) {
       // The requested heading-free summary groups one count, its status capsule,
       // and Idle count. Its narrow, centered envelope is intentional; the
       // empty-band limit remains unchanged; the multi-row occupied floor applies.
-      // The Pi harness checks grouping, every digit, and the accessible App name.
-      'odk.tile.pi-sessions': { target: 0.16, tolerance: 0.06, minOccupied: 0.12, maxEmptyBand: 0.32 },
+      // Working and unavailable capsules have different widths, so each fixture
+      // has its own envelope center. The Pi harness checks grouping and access.
+      'odk.tile.pi-sessions': { target: fixtureState === 'live' ? 0.22 : 0.16, tolerance: 0.06, minOccupied: 0.12, maxEmptyBand: 0.32 },
       // The cover is a canvas; density measures the excerpt and source text.
       'odk.tile.weread': WEREAD_PROFILE,
       // The anchored provider heading and centered allowance use the standard

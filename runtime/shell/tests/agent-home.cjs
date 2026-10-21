@@ -338,14 +338,14 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),2,'multiple sessions require explicit reply choices')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'incoming updates do not silently select a target')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-  await evaluate(`document.querySelector('[data-source-key="${second.key}"]').focus()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${second.key}"]').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
   assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/外壳模型调整/)
   await evaluate(`document.querySelector('textarea').value='Keep this draft';document.querySelector('.agent-reply-cancel').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep this draft')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
-  await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${first.key}"]').click()`)
   textAccepted=false
   await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   const expected={messageId:item.id,sourceKey:first.key,sourceRevision:first.revision}
@@ -370,7 +370,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
     await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
     for(const [width,height] of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height)
-      await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+      await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${first.key}"]').click()`)
       const geometry=await evaluate(`(()=>{const c=document.querySelector('.agent-composer').getBoundingClientRect(),r=document.querySelector('.agent-reply-context').getBoundingClientRect(),l=document.querySelector('.agent-conversation'),b=document.querySelector('.agent-reply-cancel').getBoundingClientRect();return {composer:c.bottom,reference:r.bottom,composerTop:c.top,touch:b.height,overflow:l.scrollWidth-l.clientWidth,bodyOverflow:document.documentElement.scrollWidth-innerWidth,region:l.clientHeight,panel:document.querySelector('.agent-panel').getBoundingClientRect().height,head:document.querySelector('.agent-head').getBoundingClientRect().height,nav:document.querySelector('.agent-thread-nav').getBoundingClientRect().height,refHeight:r.height,gap:getComputedStyle(document.querySelector('.agent-panel')).gap,flex:getComputedStyle(l).flex}})()`)
       console.log('SESSION_REPLY_GEOMETRY',JSON.stringify({theme,width,...geometry}))
       assert.ok(geometry.composer<=height&&geometry.reference<=geometry.composerTop&&geometry.touch>=44&&geometry.overflow<=1&&geometry.bodyOverflow<=1&&geometry.region>=40,JSON.stringify({theme,width,...geometry}))

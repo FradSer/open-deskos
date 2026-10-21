@@ -8,7 +8,10 @@ const vm = require('node:vm')
 
 test('preview retains its failure exit when Windows holds the temporary profile', () => {
   const source = fs.readFileSync(path.join(__dirname, 'home-preview.cjs'), 'utf8')
-  const finish = source.slice(source.indexOf('function finish('), source.indexOf('\nfunction capturePaintedFrame('))
+  const start = source.indexOf('function finish(')
+  const end = source.indexOf('\nasync function ', start)
+  assert.ok(start >= 0 && end > start, 'the preview exposes a bounded cleanup function')
+  const finish = source.slice(start, end)
   let destroyed = false
   let exitCode
   const locked = Object.assign(new Error('Temporary profile is locked'), { code: 'EPERM' })
