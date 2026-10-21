@@ -224,7 +224,8 @@ Feature: Weather instrument on the Home grid
     Given the tile renders the daily high and low
     When the range row is inspected
     Then the pair reads high then low as one line
-    And both labels take the supporting role and both values take the primary role
+    And both labels and values remain subordinate to the current temperature
+    And both values use the same data face and weight in each theme
     And no half of the pair carries an emphasis the other half lacks
 
   Scenario: The unit sits on the reading's baseline

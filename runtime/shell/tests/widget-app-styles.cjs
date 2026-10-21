@@ -205,9 +205,9 @@ async function widgetDesignRoles(win) {
           const idle = pi.querySelector('.pi-widget-summary').getBoundingClientRect()
           const centered = rect => Math.abs((rect.left + rect.right - frame.left - frame.right) / 2) < 1
           const contained = rect => rect.width > 0 && rect.height > 0 && rect.left >= frame.left && rect.right <= frame.right && rect.top >= frame.top && rect.bottom <= frame.bottom
-          return { aligned: [count, tag, idle].every(centered) && [count, tag, idle].every(contained) && !pi.querySelector('.widget-head') && tag.top >= count.bottom && idle.top >= tag.bottom, tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), regular: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === (node.classList.contains('w-weather-value') ? '700' : '400') && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
+          return { aligned: [count, tag, idle].every(centered) && [count, tag, idle].every(contained) && !pi.querySelector('.widget-head') && tag.top >= count.bottom && idle.top >= tag.bottom, tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), readingRoles: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === (node.classList.contains('w-weather-value') ? '700' : '400') && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
         })()`)
-        check(`${theme} ${width}: tonal surfaces and tabular reading roles`, tone.tonal && tone.regular && tone.aligned, tone)
+        check(`${theme} ${width}: tonal surfaces and tabular reading roles`, tone.tonal && tone.readingRoles && tone.aligned, tone)
       }
     }
   }
