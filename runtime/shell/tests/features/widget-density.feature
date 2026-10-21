@@ -53,3 +53,10 @@ Feature: Widget content density around sixty-two percent
     Then the selected theme has finished loading before measurement
     And Pomodoro and quota retain their established density profiles
     And unknown theme names fail before measurement
+
+  Scenario: Windows font metrics preserve card containment
+    Given the bundled fonts render on Windows and macOS
+    When the year reading uses a compact cell or WeRead shows its source row
+    Then the year reading stays within the existing density band
+    And every source glyph stays inside its clipping line box
+    And the density profiles and clipping checks remain unchanged

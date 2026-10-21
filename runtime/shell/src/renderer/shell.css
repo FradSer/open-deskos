@@ -1272,7 +1272,7 @@ body.kiosk {
 
 .year-pct {
   font-family: inherit;
-  font-size: clamp(44px, 54cqi, 180px);
+  font-size: clamp(44px, 52cqi, 180px);
   font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
