@@ -72,6 +72,12 @@ Feature: Independent instrument refinement
     And the Pi count, Working capsule, and idle count share the horizontal center
     And each Widget preserves its configured grid span
 
+  Scenario: Overview retains a readable header on narrow screens
+    Given the Overview content box cannot fit the weekday and full date on one line
+    When Home renders at a narrow supported size
+    Then the date wraps inside the Overview without horizontal overflow
+    And the weekday and status indicator remain visible
+
   Scenario: Overview aligns its header by the text baseline
     Given Overview shows a weekday and calendar date
     When its width changes in a supported theme
