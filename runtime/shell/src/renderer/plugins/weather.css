@@ -6,7 +6,7 @@
   /* The supporting sky is drawn at the size the pixel artwork needs — two grid units
      of the 24-unit set, so no run of it falls under a readable width — and large
      enough to carry the tile's only graphic on a desk-sized cell. */
-  --w-weather-glyph: clamp(32px, 20cqi, 56px);
+  --w-weather-glyph: clamp(48px, 24cqi, 72px);
   display: grid;
   flex: 1;
   /* The reading's track keeps a floor of its own: a narrow cell with a long place
@@ -223,7 +223,7 @@
    244px in a 293px one. */
 @container (max-width: 220px) {
   .w-weather-content {
-    --w-weather-glyph: clamp(24px, 15cqi, 32px);
+    --w-weather-glyph: clamp(36px, 20cqi, 44px);
     gap: 1cqi;
   }
 
