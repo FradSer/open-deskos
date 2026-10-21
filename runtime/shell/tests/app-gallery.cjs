@@ -191,7 +191,11 @@ app
         const widgets = await js(
           `[...document.querySelectorAll('#pages-track .widget')].map(n=>({id:n.dataset.widget,appId:n.dataset.openApp,page:n.closest('[data-page-id]').dataset.pageId}))`,
         )
-        assert.equal(widgets.length, 9)
+        assert.deepEqual(widgets.map(widget => widget.id).sort(), [
+          'odk.tile.futu', 'odk.tile.hydra', 'odk.tile.pi-sessions',
+          'odk.tile.pomodoro', 'odk.tile.quota', 'odk.tile.weather',
+          'odk.tile.weread', 'odk.tile.year',
+        ].sort())
         for (const widget of widgets) {
           await js(
             `(async()=>{const page=document.querySelector('[data-page-id="${widget.page}"]'),pages=[...document.querySelectorAll('#pages-track>.page')];document.querySelectorAll('.dot')[pages.indexOf(page)].click();document.querySelector('[data-widget="${widget.id}"] .widget-launch').click();await galleryUntil(()=>odkAppPlatform.active()?.sourceWidget==='${widget.id}'&&!document.getElementById('app-view').hidden);await galleryUntil(()=>!document.querySelector('#app-runtime .reading-refresh:disabled'));await document.fonts.ready;document.getElementById('app-view').scrollIntoView({block:'center'});await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`,

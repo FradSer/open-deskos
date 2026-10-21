@@ -131,6 +131,7 @@ Feature: Widget continuations in the right desk pane
 
   Scenario: Every Widget opens a content-first App
     Given each of the eight Widgets has opened its App
+    And the gallery matches all eight declared Widget identities
     When the App renders at desktop or compact sizes
     Then one shared content inset replaces stacked Shell and App padding
     And no repeated App name occupies a visible title row
@@ -144,7 +145,6 @@ Feature: Widget continuations in the right desk pane
     And Hydra groups plant readings separately from environment measurements
     And Year progress includes the actual elapsed-year meter
     And WeRead keeps the full excerpt and book metadata together
-    And Pre-order uses the card height for its artwork and countdown
     And Pomodoro keeps a truthful unavailable state without timer controls
     And Futu labels the daily return and keeps all holding rows reachable
 
