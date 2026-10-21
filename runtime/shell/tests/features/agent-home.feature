@@ -41,7 +41,7 @@ Feature: Personal Agent home briefing
     And the capsule keeps its 44 pixel control height
     When a long name or status is displayed
     Then the name truncates inside the capsule without wrapping
-    And the status truncates below the capsule without moving the conversation
+    And the status truncates beside the name inside the same capsule without moving the conversation
     And the accessible name retains the complete Agent name and status
 
   Scenario: Text input focus follows the composer capsule
@@ -540,10 +540,18 @@ Scenario: Hidden previews capture the current native viewport
     Then another batch mounts without replacing existing nodes
     And the draft and viewport anchor remain unchanged
 
-  Scenario: The default Agent avatar follows the ring reference
-    Given the Agent has no saved custom identity
-    When its header renders in a supported theme
-    Then a violet ring surrounds a white circular core
-    And a white name capsule sits directly below the ring
-    And the name and identity editor remain accessible
-    And idle and Thinking states retain the same conversation position
+  Scenario: Onee animates the complete Personal Agent interaction
+    Given the local Onee definition and animation engine are available
+    When input starts, voice records, transcription runs, and a reply streams
+    Then Onee shows preparing, listening, thinking, working, and replying animations from actual states
+    And a completed response gets one finite reaction before idle resumes
+    And errors and unavailable transport have distinct animations
+    And refused input cannot celebrate an earlier answer
+    And completion follows observed work for the same service turn
+    And new task reports get one reaction without replaying retained reports
+    And repeated status frames do not restart an unchanged animation
+    And input never waits for an animation to finish
+    And the composer does not duplicate the animated avatar
+    And reduced motion shows the matching static pose with readable status
+    And hidden documents pause playback and released pages stop all animation work
+    And the engine loads locally under the unchanged content security policy

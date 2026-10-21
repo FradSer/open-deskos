@@ -974,6 +974,8 @@ async function main() {
   if (homeHandle.error) console.error(`FAIL  Home handle: ${homeHandle.error.message}`)
   const agentReference = runFixture('agent-home.cjs', ['--agent-reference-only'])
   if (agentReference.error) console.error(`FAIL  Agent reference: ${agentReference.error.message}`)
+  const oneeFlow = runFixture('agent-home.cjs', ['--onee-flow-only'])
+  if (oneeFlow.error) console.error(`FAIL  Agent animation flow: ${oneeFlow.error.message}`)
   const lazyHistoryRuns = ['--lazy-history-only', '--lazy-history-retention-only', '--short-history-only'].map(flag => runFixture('agent-home.cjs', [flag]))
   for (const result of lazyHistoryRuns) if (result.error) console.error(`FAIL  Agent lazy history: ${result.error.message}`)
   const navigation = runFixture('widget-navigation.cjs')
@@ -1005,6 +1007,7 @@ async function main() {
     driverFailures, motionFailures, sweepFailures,
     homeHandle: homeHandle.status,
     agentReference: agentReference.status,
+    oneeFlow: oneeFlow.status,
     lazyHistory: lazyHistoryRuns.map(result => result.status),
     navigation: navigation.status,
     interiors: interiors.status,

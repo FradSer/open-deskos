@@ -67,7 +67,6 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-panel { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; padding: 20px; gap: 10px; }
 .agent-head { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: none; min-width: 0; padding-block: 4px 12px; }
 .agent-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 64px; height: 64px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-surface); }
-.agent-input-avatar { display: none; }
 .agent-avatar svg { width: 32px; height: 32px; }
 .agent-name { margin: 0; min-width: 0; flex: 0 1 auto; font-size: 18px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-identity { position: relative; width: max-content; max-width: 100%; min-width: 0; }
@@ -295,17 +294,18 @@ html[data-theme='pixel'] #home-summary .dash {
 .agent-update-sources { width: 100%; min-width: 0; }
 .agent-reply-details { min-width: 0; }
 .agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }
-.agent-identity > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px; border: 1px solid var(--odk-stroke); background: var(--odk-primary); color: var(--odk-bg); }
-.agent-identity > summary > .agent-name { grid-column: 1; color: inherit; }
+.agent-identity > summary { color: var(--odk-primary); }
+.agent-identity > summary > .agent-name { color: inherit; }
 .agent-head { gap: 0; }
-.agent-head > .agent-avatar { margin-block-end: 0; }
-.agent-avatar[data-icon="ring"] { --agent-avatar-size: 96px; width: var(--agent-avatar-size); height: var(--agent-avatar-size); border: 0; background: transparent; }
-.agent-avatar-ring { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--odk-agent-avatar); }
-html[data-theme='pixel'] .agent-avatar-ring { border-radius: 50% !important; }
-.agent-avatar-ring::after { content: ''; position: absolute; inset: 29%; border-radius: 50%; background: var(--odk-primary); }
-@media (max-width: 639px) { .agent-avatar[data-icon="ring"] { --agent-avatar-size: 48px; } }
-.agent-state-slot { display: flex; align-items: center; justify-content: center; height: 21px; min-height: 21px; max-width: 100%; margin-block-start: 2px; }
-.agent-identity > summary > svg { grid-column: 2; grid-row: 1; color: inherit; }
+.agent-head > .agent-avatar { margin-block-end: 6px; }
+.agent-avatar[data-avatar="onee"] { width: 112px; height: 112px; border: 0; background: transparent; }
+.agent-avatar[data-avatar="onee"] :is(.bs-avatar, svg, .agent-avatar-fallback) { width: 100%; height: 100%; }
+@media (max-width: 639px) {
+  .agent-avatar[data-avatar="onee"] { width: 64px; height: 64px; }
+  #personal-agent { min-height: 360px; }
+}
+.agent-identity > summary > .agent-state { max-width: 50%; }
+.agent-identity > summary > svg { color: inherit; }
 
 /* Session replies retain one conversation scroller and a fixed composer. */
 .agent-thread-nav { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; font-size: 14px; color: var(--odk-secondary-strong); }

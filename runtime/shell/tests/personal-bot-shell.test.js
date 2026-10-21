@@ -231,3 +231,15 @@ test('MIC ignores duplicates until invoke settles, handles rejection, and permit
   await retry
   assert.equal(node.hidden, true, 'A rejected pending command cannot undo Back')
 })
+
+
+test('refused MIC receipts preserve service failures and report refusals without a service frame', async () => {
+  for (const state of ['idle', 'error', 'unavailable']) {
+    const { window, node, elements, listener } = feedbackHarness(async () => ({ accepted: false }))
+    listener({ state, activated: true, message: state === 'error' ? 'Service failed' : '' })
+    assert.equal((await window.odkPersonalBotStatus.mic()).accepted, false)
+    assert.equal(node.dataset.state, state === 'idle' ? 'error' : state)
+    const detail = elements['.personal-bot-status-detail'].textContent
+    assert.match(detail, state === 'unavailable' ? /service.*configuration/i : state === 'error' ? /Service failed/ : /Unable to control recording/)
+  }
+})

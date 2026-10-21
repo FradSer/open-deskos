@@ -15,6 +15,7 @@ let initial = { state: 'idle', jev: {status:'verified'}, briefing: { state: 'emp
 ipcMain.handle('odk-personal-bot-status', () => initial)
 let win
 let micToggles = 0
+let micAccepted = true
 let sentText = []
 let sentReplyTo = []
 let textAccepted = true
@@ -28,7 +29,7 @@ ipcMain.handle('odk-personal-bot-text', async (_event, text, replyTo) => {
   }
   return { accepted: textAccepted }
 })
-ipcMain.handle('odk-personal-bot-toggle', () => { micToggles++; return { accepted: true } })
+ipcMain.handle('odk-personal-bot-toggle', () => { micToggles++; return { accepted: micAccepted } })
 const timer = setTimeout(() => finish(1), 60000)
 const evaluate = script => win.webContents.executeJavaScript(script)
 function finish(code) {
@@ -38,6 +39,7 @@ function finish(code) {
   try { fs.rmSync(profile, { recursive: true, force: true }) } catch {}
   app.exit(code)
 }
+async function capturePaintedFrame() { return (await capturePaintedPage(win)).toPNG() }
 async function resize(width, height) {
   win.setContentSize(width, height)
   await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
@@ -754,7 +756,65 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--session-reply-only')) {
     await assertSessionReplies();await assertDuplicateRemoteIds();await assertThreadProjectionUpdate();console.log('PASS explicit session replies, durable thread, retained draft and compact themes');finish(0);return
   }
+  if (process.argv.includes('--onee-preview-only')) {
+    await evaluate(`odkTheme.set('instrument');document.fonts.ready`)
+    const directory=fs.mkdtempSync(path.join(os.tmpdir(),'odk-onee-animation-'))
+    const rect=await evaluate(`(()=>{const r=document.querySelector('.agent-head').getBoundingClientRect();return {x:Math.floor(r.x+r.width/2-160),y:Math.floor(r.y-8),width:320,height:240}})()`)
+    let frame=0
+    const stages=[{state:'idle'},{state:'starting'},{state:'recording'},{state:'transcribing'},{state:'thinking'},{state:'idle',agents:{state:'live',tasks:[{taskId:'synthetic',identity:{name:'Synthetic checker',avatar:'code'},state:'running'}]}},{state:'thinking',message:'Synthetic reply preview'},{state:'idle',message:'Synthetic completed reply'},{state:'error'},{state:'unavailable'},{state:'idle'}]
+    for(const stage of stages) {
+      publishStatus(stage)
+      for(let sample=0;sample<8;sample++) {
+        // These fixed timeline holds are for the animation recording, not readiness assertions.
+        await new Promise(resolve=>setTimeout(resolve,125))
+        fs.writeFileSync(path.join(directory,String(frame++).padStart(4,'0')+'.png'),(await capturePaintedPage(win,rect)).toPNG())
+      }
+    }
+    console.log('ONEE_ANIMATION_FRAMES '+JSON.stringify({directory,frames:frame,fps:8,synthetic:true}))
+    finish(0);return
+  }
+  if (process.argv.includes('--onee-flow-only')) {
+    const until=async (script,label)=>{const deadline=Date.now()+4500;while(Date.now()<deadline){if(await evaluate(script))return;await new Promise(resolve=>setTimeout(resolve,20))}assert.fail(label)}
+    await until(`typeof odkOneeSdk?.create==='function'&&!!document.querySelector('.agent-avatar .bs-avatar svg')`, 'local Onee engine loads under CSP')
+    await evaluate(`window.oneeSvg=document.querySelector('.agent-avatar svg');window.oneePolicyErrors=[];document.addEventListener('securitypolicyviolation',event=>oneePolicyErrors.push(event.violatedDirective));window.oneePaths=()=>[...document.querySelectorAll('.agent-avatar svg path')].map(n=>n.getAttribute('d')).join('|');void 0`)
+    for(const [state,phase]of [['starting','preparing'],['recording','listening'],['transcribing','transcribing'],['thinking','thinking']]) {
+      const before=await evaluate('oneePaths()')
+      publishStatus({state})
+      await until(`document.querySelector('.agent-avatar').dataset.phase==='${phase}'`, 'Onee '+phase)
+      await until(`oneePaths()!==${JSON.stringify(before)}`, 'Onee geometry animates '+phase)
+      assert.equal(await evaluate(`document.querySelector('.agent-avatar svg')===oneeSvg`),true,'service frames preserve the live Onee scene')
+    }
+    publishStatus({state:'thinking',message:'Synthetic streaming reply'})
+    await until(`document.querySelector('.agent-avatar').dataset.phase==='replying'`, 'Onee follows streamed output')
+    publishStatus({state:'idle',message:'Synthetic completed reply'})
+    await until(`document.querySelector('.agent-avatar').dataset.phase==='complete'`, 'completion reaction starts')
+    await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'completion reaction returns to idle')
+    for(const state of ['error','unavailable']) {publishStatus({state});await until(`document.querySelector('.agent-avatar').dataset.phase==='${state}'`,'Onee '+state)}
+    await evaluate(`Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-avatar').dataset.playback`),'paused')
+    const paused=await evaluate('oneePaths()');await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');assert.equal(await evaluate('oneePaths()'),paused,'background frame stays paused')
+    await evaluate(`delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))`)
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    await until(`document.querySelector('.agent-avatar').dataset.playback==='reduced'`, 'reduced motion reacts to preference changes')
+    publishStatus({state:'recording'});await until(`document.querySelector('.agent-avatar').dataset.phase==='listening'`, 'static listening pose')
+    const reduced=await evaluate('oneePaths()');await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');assert.equal(await evaluate('oneePaths()'),reduced,'reduced pose does not animate')
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
+    await until(`document.querySelector('.agent-avatar').dataset.playback==='playing'`, 'motion resumes with preference')
+    publishStatus({state:'idle'});await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'idle before rejected microphone')
+    micAccepted=false;await evaluate(`document.querySelector('.agent-composer .agent-mic').click()`);await until(`document.querySelector('.agent-avatar').dataset.phase==='error'`, 'microphone rejection ends preparing animation');micAccepted=true
+    publishStatus({state:'idle',message:''});await until(`document.querySelector('.agent-avatar').dataset.phase==='idle'`, 'idle before ordinary text')
+    textAccepted=false;await evaluate(`document.querySelector('.agent-keys').click();document.querySelector('.agent-composer textarea').value='Synthetic refused request';document.querySelector('.agent-composer').requestSubmit()`)
+    await until(`document.querySelector('.agent-avatar').dataset.phase==='error'`, 'ordinary rejected receipt ends sending animation')
+    assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`),'Synthetic refused request','rejected send preserves draft');textAccepted=true
+    assert.deepEqual(await evaluate('oneePolicyErrors'),[],'animation does not weaken or violate CSP')
+    publishStatus({state:'thinking'});await evaluate(`document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`);fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-capsule-thinking.png'),await capturePaintedFrame());
+    publishStatus({state:'idle'});await evaluate('document.fonts.ready');fs.writeFileSync(path.join(os.tmpdir(),'odk-onee-flow.png'),await capturePaintedFrame())
+    console.log('ONEE_FLOW_PASS: actual SVG motion, all request phases, completion, error, hidden pause, reduced motion and unchanged CSP')
+    finish(0);return
+  }
   if (process.argv.includes('--agent-reference-only')) {
+    assert.equal(await evaluate(`document.querySelector('.agent-input-avatar')`),null,'the composer does not duplicate the animated avatar')
+    assert.equal(await evaluate(`document.querySelector('.agent-identity summary').contains(document.querySelector('.agent-state'))`),true,'name and status share one capsule')
     const failures=[]
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       for(const [width,height] of [[1280,800],[1920,1280],[960,640],[480,854],[320,480]]){
@@ -762,9 +822,8 @@ app.whenReady().then(async () => {
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
           const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('summary').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
-          const ring=document.querySelector('.agent-avatar-ring'),ringStyle=ring&&getComputedStyle(ring),core=ring&&getComputedStyle(ring,'::after'),pillStyle=getComputedStyle(identity.querySelector('summary'));
-          const probe=document.createElement('i');probe.style.color='var(--odk-primary)';document.body.append(probe);const primary=getComputedStyle(probe).color;probe.remove();
-          return {roundRing:!!ring&&ringStyle.borderTopLeftRadius==='50%',ring:!!ring&&ringStyle.backgroundColor==='rgb(109, 115, 255)'&&core.backgroundColor===primary&&Math.abs(parseFloat(core.width)/avatar.width-.42)<.02,whiteCapsule:pillStyle.backgroundColor===primary,centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,stacked:pill.top>=avatar.bottom-1,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('summary'));
+          return {onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('summary').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,stacked:pill.top>=avatar.bottom-1,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -794,7 +853,7 @@ app.whenReady().then(async () => {
       for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
       const popup=await evaluate(`(()=>{const form=document.querySelector('.agent-identity-form'),save=form.querySelector('button'),r=form.getBoundingClientRect(),s=save.getBoundingClientRect(),p=document.querySelector('#personal-agent').getBoundingClientRect();return {open:document.querySelector('.agent-identity').open,inside:r.left>=p.left&&r.right<=p.right&&r.top>=p.top&&r.bottom<=p.bottom,hit:document.elementFromPoint(s.x+s.width/2,s.y+s.height/2)===save,save:{x:s.x+s.width/2,y:s.y+s.height/2},bounds:[r.top,r.bottom,p.top,p.bottom]}})()`)
       assert.ok(popup.open&&popup.inside&&popup.hit,theme+': '+JSON.stringify(popup))
-      for(let tab=0;tab<3;tab++)for(const type of ['keyDown','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+      for(let tab=0;tab<2;tab++)for(const type of ['keyDown','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
       assert.equal(await evaluate(`document.activeElement===document.querySelector('.agent-identity-form button')`),true)
       for(const type of ['mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,...popup.save})
       await evaluate('new Promise(r=>setTimeout(r,20))')
@@ -1083,7 +1142,7 @@ app.whenReady().then(async () => {
     return result
   })()`)
   assert.equal(widgetSurface.actual, widgetSurface.expected, 'Home instruments use the theme surface')
-  await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form [name="icon"]').value = 'leaf'; document.querySelector('.agent-identity-form').requestSubmit()`)
+  await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value = 'Mori 中文'; document.querySelector('.agent-identity-form').requestSubmit()`)
   publishStatus({ state: 'thinking', transcript: 'Question 中文', message: 'Partial' })
   await evaluate(`new Promise(r => setTimeout(r, 30))`)
   await evaluate(`window.agentStreamBubble = document.querySelector('.agent-message-bubble'); window.agentStreamBody = document.querySelector('.agent-message-assistant .agent-message-body')`)
@@ -1104,7 +1163,7 @@ app.whenReady().then(async () => {
   await evaluate(`delete window.agentStreamBubble; delete window.agentStreamBody`)
   assert.equal(await evaluate(`document.querySelector('.agent-name').textContent === 'Mori 中文' && document.querySelector('.agent-message-assistant').getAttribute('aria-label') === 'Mori 中文' && document.querySelector('.agent-composer textarea').getAttribute('aria-label').includes('Mori 中文')`), true)
   assert.equal(await evaluate(`document.querySelectorAll('.agent-message-name, .agent-caption, .agent-message time, .agent-message-avatar').length`), 0, 'name is shown once and messages have no timestamps or avatars')
-  assert.equal(await evaluate(`document.querySelector('.agent-avatar').innerHTML === document.querySelector('.agent-input-avatar').innerHTML`), true)
+  assert.equal(await evaluate(`document.querySelectorAll('.agent-avatar').length===1 && !!document.querySelector('.agent-avatar .bs-avatar svg') && !document.querySelector('.agent-input-avatar')`), true,'one live avatar stays in the header')
   assert.equal(await evaluate(`document.querySelector('#personal-bot-status').hidden && !document.querySelector('#home-desk').inert`), true)
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Typed question'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)
   assert.deepEqual(sentText, ['Typed question'])
