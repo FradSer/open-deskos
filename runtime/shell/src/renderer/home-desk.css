@@ -35,7 +35,6 @@
 }
 #pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
-#dots::before { border: 0; background: transparent; }
 #home-desk .widget[data-interaction="display-only"] { background: var(--odk-surface); }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
@@ -257,27 +256,29 @@ html[data-theme='pixel'] #home-summary .dash {
   #status-bar::before { display: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
-/* One Home handle. Page entries retain their routing identity; only the current
-   entry is presented as the shared pointer, keyboard, and assistive control. */
+/* The desk presents the page controller below the Widgets. Inside an App the
+   same control becomes the return handle for the upward swipe. */
 #home-desk #page-center { position: relative; inset: auto; z-index: 21; }
-#home-desk #dots { padding: 0; background: transparent; touch-action: none; user-select: none; }
-#home-desk #dots::before { content: none; }
-#home-desk #dots .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
-#home-desk #dots .dot:not(.active) { display: none; }
-#home-desk #dots .dot::before {
+#home-desk #dots { touch-action: none; user-select: none; }
+#home-desk #dots[data-mode="handle"] { padding: 0; background: transparent; }
+#home-desk #dots[data-mode="handle"]::before { content: none; }
+#home-desk #dots[data-mode="handle"] .dot { width: 144px; height: 44px; padding: 0; background: transparent; touch-action: none; }
+#home-desk #dots[data-mode="handle"] .dot:not(.active) { display: none; }
+#home-desk #dots[data-mode="handle"] .dot::before {
   width: 104px; height: 5px; opacity: 1; background: var(--odk-primary);
   border-radius: var(--odk-radius-pill); transition: none;
 }
-#home-desk #dots .dot::after { content: none; }
+#home-desk #dots[data-mode="handle"] .dot::after { content: none; }
 #home-desk #dots .dot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
-#home-desk #dots[data-dragging] .dot::before { background: var(--odk-secondary-strong); }
+#home-desk #dots[data-dragging] .dot.active::before { background: var(--odk-secondary-strong); }
 #app-view #app-back[hidden] { display: none; }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   html[data-theme='liquid-glass'] #home-desk { --odk-frame-border: var(--odk-stroke-focus); }
 }
 @media (forced-colors: active) {
+  #home-desk #dots .dot::after { background: GrayText; forced-color-adjust: none; }
   #home-desk #dots .dot::before,
-  #home-desk #dots[data-dragging] .dot::before { background: ButtonText; forced-color-adjust: none; }
+  #home-desk #dots[data-dragging] .dot.active::before { background: ButtonText; forced-color-adjust: none; }
   #home-desk { --odk-frame-border: CanvasText; }
 }
 

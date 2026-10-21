@@ -90,15 +90,22 @@ Feature: Widget continuations in the right desk pane
     And ordinary wheel input and Ctrl-wheel retain their existing behavior
     And external frames without the Shell bootstrap retain the Home handle return path
 
-  Scenario: Home pages share one iOS-style handle
+  Scenario: The desk shows a page controller and an App shows the return handle
     Given Home, Desk, or Reading is visible
-    Then one neutral horizontal handle is visible below the cards
-    And its target is at least 44 pixels high
-    And its accessible name states the current page and page count
-    When the user swipes the handle horizontally or uses its arrow keys
-    Then the adjacent page opens and the handle retains keyboard focus
+    Then one page controller sits below the cards with a marker for every page
+    And the current page is a brighter marker while every other page is a point
+    And every marker target is at least 28 by 44 pixels tall
+    And each marker states its page name, position, and page count
+    When the user taps a marker, swipes the controller horizontally, or uses its arrow keys
+    Then that page opens and the page controller retains keyboard focus
     And cancelled swipes preserve the current page
-    And forced colors retain a visible handle
+    When a Widget opens its App
+    Then one neutral horizontal return handle replaces the page controller
+    And its target is at least 44 pixels high
+    And its accessible name names the page the upward swipe returns to
+    And forced colors retain a visible page controller and handle
+    When the App returns to its source Widget
+    Then the page controller returns with the same markers and touch targets
     And theme changes preserve its location and touch target
 
   Scenario: App and Widget use the same frame
