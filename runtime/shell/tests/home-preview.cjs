@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
+const { capturePaintedPage } = require('./helpers/native-page-capture')
 const { resolvePages } = require('./helpers/pages')
 const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
 const widgetGrid = process.argv.includes('--widget-grid')
@@ -28,25 +29,6 @@ function finish(code, error) {
     console.error('Preview profile cleanup deferred:', cleanupError.code)
   }
   app.exit(code)
-}
-
-function capturePaintedFrame() {
-  return new Promise((resolve, reject) => {
-    const contents = win.webContents
-    const [width, height] = win.getContentSize()
-    const cleanup = () => { clearTimeout(timer); contents.removeListener('paint', painted) }
-    const painted = (_event, _dirty, frame) => {
-      const size = frame.getSize()
-      if (frame.isEmpty() || size.width !== width || size.height !== height) return
-      cleanup()
-      resolve(frame.toPNG())
-    }
-    const timer = setTimeout(() => { cleanup(); reject(Error('Preview did not paint its full viewport')) }, 5000)
-    contents.on('paint', painted)
-    // A hidden offscreen window can have valid DOM bounds before Viz has a
-    // capturable surface. Require the native full repaint, not elapsed time.
-    contents.invalidate()
-  })
 }
 
 async function verifyWidgetGrid(win, pageId, theme, width, report) {
@@ -310,8 +292,7 @@ app.whenReady().then(async () => {
     const file = path.join(captureDir, `odk-populated-home-${theme}-${width}.png`)
     // Acknowledge a native frame, then request the current compositor surface.
     // Paint events can still carry pixels from before the fixture update.
-    await capturePaintedFrame()
-    const capture = await win.webContents.capturePage()
+    const capture = await capturePaintedPage(win)
     const bitmap = capture.getSize()
     const backingScale = bitmap.width / width
     assert.ok(backingScale >= 1 && backingScale <= 2)
@@ -411,8 +392,7 @@ app.whenReady().then(async () => {
           console.log('READING_ATTRIBUTION_PASS ' + JSON.stringify({ theme, width, ...attribution }))
         }
         const file = path.join(captureDir, `odk-populated-${page}-${theme}-${width}.png`)
-        await capturePaintedFrame()
-        fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG())
+        fs.writeFileSync(file, (await capturePaintedPage(win)).toPNG())
         captures.push({ page, theme, width, height, file, synthetic: true })
         if (widgetGrid) await verifyWidgetGridNavigation(win, gridReading)
       }
@@ -522,10 +502,10 @@ app.whenReady().then(async () => {
     const compact = await js(`(()=>{const c=document.querySelector('.agent-conversation'),p=document.querySelector('.agent-composer');return {viewport:[innerWidth,innerHeight],overflow:c.scrollWidth-c.clientWidth,composerBottom:p.getBoundingClientRect().bottom,oldClosed:!document.querySelector('.agent-earlier-updates').open,texts:[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)}})()`)
     assert.deepEqual(compact.viewport,[width,height]);assert.ok(compact.overflow<=1);assert.ok(compact.composerBottom<=height);assert.equal(compact.oldClosed,true);assert.deepEqual(compact.texts,preview.updates)
     await js(`document.querySelector('.agent-conversation').scrollTop=0; new Promise(r=>setTimeout(r,100))`)
-    await capturePaintedFrame()
+    const capture = await capturePaintedPage(win)
     assert.equal(await js(`document.querySelector('.agent-conversation').scrollTop`),0)
     const file=path.join(os.tmpdir(),`odk-agent-updates-normal-${theme}-${width}.png`)
-    fs.writeFileSync(file,(await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(file,capture.toPNG())
     captures.push({theme,width,height,file,syntheticUpdates:true})
   }
   console.log('POPULATED_HOME_PREVIEW_PASS ' + JSON.stringify({ synthetic: true, liveProviders: false, fixtureControlsRestored: true, captures }))

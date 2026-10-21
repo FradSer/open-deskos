@@ -491,3 +491,20 @@ Scenario: Conversation type adapts to the available Agent pane
   And composer input remains at least 20 pixels without clipping its short placeholder
   And long CJK text wraps inside the single conversation scroller
   And the fixed composer and 44-pixel controls remain visible in each supported theme
+
+Scenario: A compact desk gives Overview a full readable row
+  Given the desk is 480 or 320 pixels wide and stacks below the conversation
+  When its Widget grid uses a single readable column
+  Then Overview uses the available row without changing Widget sizes
+  And the full date and weekday retain their shared text baseline
+  And the full month in September 30, 2026 stays readable without clipping
+  And compact Widget pages reserve only the scrollbar space that they use
+  And the presence dot and refresh spinner retain their footprint
+  And the desktop Overview stays aligned with its three-column Widget grid
+
+Scenario: Hidden previews capture the current native viewport
+  Given an offscreen preview has valid layout before its native surface is ready
+  When the harness captures the viewport or a scrollbar crop
+  Then it first requires a nonempty native frame with the full viewport size
+  And it reads current compositor pixels with the original capture rectangle
+  And paint failures stop within a deadline without retries

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { capturePaintedPage } = require('./helpers/native-page-capture')
 const { installGeometryFixtures } = require('./helpers/live-fixtures')
 
 if (process.platform === 'darwin') app.dock.hide()
@@ -82,7 +83,7 @@ async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}
         assert.deepEqual({left:result.left,top:result.top,width:result.width,height:result.height},position,'spinner keeps the dot footprint')
         if(state==='loading') {assert.equal(result.animation,'odk-overview-refresh');assert.equal(result.border,'2px');assert.equal(result.busy,true);assert.equal(result.narrative,'Synthetic desk reading.')}
         else {assert.equal(result.animation,'none');assert.equal(result.background,result.red)}
-        if((width===480 || width===1920)&&['empty','loading','error'].includes(state))fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-'+theme+'-'+state+'-'+width+'.png'),(await win.webContents.capturePage()).toPNG())
+        if((width===480 || width===1920)&&['empty','loading','error'].includes(state))fs.writeFileSync(path.join(os.tmpdir(),'odk-overview-'+theme+'-'+state+'-'+width+'.png'),(await capturePaintedPage(win)).toPNG())
       }
     }
   }
@@ -120,7 +121,7 @@ async function assertOptionalJudgmentStatus() {
       assert.match(await evaluate(`document.querySelector('#dash-narrative').textContent`),/2 Synthetic sessions/)
       const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
       assert.ok(layout.visible&&layout.conversation>=40&&layout.composer<=height&&layout.overflow<=1,JSON.stringify({theme,width,...layout}))
-      if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await win.webContents.capturePage()).toPNG())}
+      if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await capturePaintedPage(win)).toPNG())}
     }
   }
   await resize(1920,1280)
@@ -220,7 +221,7 @@ async function assertSimpleConversation() {
       await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
       const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-message-reply')].every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
       assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
-      fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+      fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
@@ -404,7 +405,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
       console.log('SESSION_REPLY_GEOMETRY',JSON.stringify({theme,width,...geometry}))
       assert.ok(geometry.composer<=height&&geometry.reference<=geometry.composerTop&&geometry.touch>=44&&geometry.overflow<=1&&geometry.bodyOverflow<=1&&geometry.region>=40,JSON.stringify({theme,width,...geometry}))
       await evaluate('document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))')
-      fs.writeFileSync(path.join(os.tmpdir(),`odk-session-reply-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+      fs.writeFileSync(path.join(os.tmpdir(),`odk-session-reply-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
   await evaluate(`document.querySelector('.agent-reply-cancel').click();document.querySelector('.agent-thread-all').click();document.querySelector('textarea').value='Ordinary after reply';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
@@ -540,7 +541,7 @@ app.whenReady().then(async () => {
       await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`);await resize(width,height)
       await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
       assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),p=document.querySelector('.agent-panel').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return c.scrollWidth<=c.clientWidth+1&&f.bottom<=p.bottom+1&&f.right<=p.right+1&&getComputedStyle(c).overflowY==='auto'})()`),true,'long CJK history keeps one scroller and a fixed composer')
-      try { fs.writeFileSync(path.join(os.tmpdir(),`odk-lazy-history-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG()) } catch(error) { throw Error(`Lazy capture ${theme} ${width}: ${error.message}`) }
+      try { fs.writeFileSync(path.join(os.tmpdir(),`odk-lazy-history-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG()) } catch(error) { throw Error(`Lazy capture ${theme} ${width}: ${error.message}`) }
     }
     const legacy={id:'e'.repeat(64),text:'Newly received legacy update without a timestamp',presentation:'assistant_update',sources:[source(80)],verification:'reported_unverified',synthesisVerification:'passed'}
     const dated=Array.from({length:12},(_,i)=>({...legacy,id:String(200+i).padStart(64,'d'),at:Date.now()-1000+i,text:`Dated update ${i}`}))
@@ -606,7 +607,7 @@ app.whenReady().then(async () => {
           assert.ok(geometry.composerBottom<=height&&geometry.overflow<=1&&geometry.pageOverflow<=1&&geometry.targets,JSON.stringify({theme,width,...geometry}))
           if(width===1280)assert.ok(geometry.pane<width/2,'type uses the actual Agent pane, not full screen width')
           sizes.push({theme,width,height,...geometry})
-          fs.writeFileSync(path.join(os.tmpdir(),`odk-central-history-${theme}-${width}.png`),(await win.webContents.capturePage()).toPNG())
+          fs.writeFileSync(path.join(os.tmpdir(),`odk-central-history-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
         }
       }
       assert.ok(sizes.find(s=>s.theme==='instrument'&&s.width===1920).body>sizes.find(s=>s.theme==='instrument'&&s.width===320).body,'type grows with pane space')
@@ -615,7 +616,7 @@ app.whenReady().then(async () => {
     for(const width of [1920,320]) {
       await resize(width,width===320?480:1280);await evaluate('document.fonts.ready')
       assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth+1&&document.querySelector('.agent-composer').getBoundingClientRect().bottom<=innerHeight`),true)
-      fs.writeFileSync(path.join(os.tmpdir(),'odk-central-history-'+width+'.png'),(await win.webContents.capturePage()).toPNG())
+      fs.writeFileSync(path.join(os.tmpdir(),'odk-central-history-'+width+'.png'),(await capturePaintedPage(win)).toPNG())
     }
     console.log('PASS central history replay, live precedence, draft retention and exact durable identity')
     finish(0);return
@@ -686,17 +687,17 @@ app.whenReady().then(async () => {
       assert.equal(active.scrolling,'true');assert.ok(!active.color.startsWith('rgba(0, 0, 0, 0)'),active.color)
       await evaluate('new Promise(r=>setTimeout(r,200))')
       const gutter=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),r=c.getBoundingClientRect();return{x:Math.floor(r.right-6),y:Math.ceil(r.top),width:6,height:Math.floor(r.height)-1}})()`)
-      const activeThumb=(await win.webContents.capturePage(gutter)).toBitmap()
-      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-scrolling.png`),(await win.webContents.capturePage()).toPNG(),{mode:0o600})
+      const activeThumb=(await capturePaintedPage(win, gutter)).toBitmap()
+      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-scrolling.png`),(await capturePaintedPage(win)).toPNG(),{mode:0o600})
       await evaluate(`(async()=>{const c=document.querySelector('.agent-conversation'),end=performance.now()+1200;while(c.dataset.scrolling==='true'){if(performance.now()>end)throw Error('Scrollbar idle did not settle');await new Promise(r=>setTimeout(r,20))}await new Promise(r=>setTimeout(r,60))})()`)
       const fading=await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`)
       assert.notEqual(fading,'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','the scrollbar fades instead of disappearing immediately')
       await evaluate(`new Promise(r=>setTimeout(r,160))`)
       assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','idle scrollbar fades to transparent')
-      const idleThumb=(await win.webContents.capturePage(gutter)).toBitmap()
+      const idleThumb=(await capturePaintedPage(win, gutter)).toBitmap()
       let changed=0;for(let p=0;p<activeThumb.length;p+=4)if(activeThumb[p]!==idleThumb[p]||activeThumb[p+1]!==idleThumb[p+1]||activeThumb[p+2]!==idleThumb[p+2])changed++
       assert.ok(changed>=8,'the actual painted native thumb changes between scrolling and idle: '+JSON.stringify({theme,width,changed}))
-      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-idle.png`),(await win.webContents.capturePage()).toPNG(),{mode:0o600})
+      if(evidence&&[1920,320].includes(width))fs.writeFileSync(path.join(evidence,`scroll-overlay-${theme}-${width}-idle.png`),(await capturePaintedPage(win)).toPNG(),{mode:0o600})
       const point=await evaluate(`(()=>{const r=document.querySelector('.agent-conversation').getBoundingClientRect();return{x:r.left+20,y:r.top+r.height/2}})()`)
       await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',...point})
       assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)','hover does not keep the scrollbar visible')
@@ -880,7 +881,7 @@ app.whenReady().then(async () => {
   }
   await send(compact)
 
-  for (const theme of ['instrument', 'pixel', 'border-beam']) {
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [1280, 776], [960, 640], [480, 854], [320, 480]]) {
       await resize(width, height)
       await evaluate(`(async () => { await odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))) })()`)
@@ -949,7 +950,7 @@ app.whenReady().then(async () => {
         assert.deepEqual(geometry.spans, ['kept', 'kept'], 'original instrument proportions survive')
         if (width === 1920) assert.ok(await evaluate(`Array.from(document.querySelectorAll('.widget')).every(tile => tile.getBoundingClientRect().bottom <= tile.closest('.page').getBoundingClientRect().bottom)`), 'reference panel shows complete Widget pages')
       }
-      const header = await evaluate(`(() => {
+      const readOverviewHeader = `(() => {
         const day = document.querySelector('.dash-wd').getBoundingClientRect()
         const date = document.querySelector('.dash-date').getBoundingClientRect()
         const baseline = selector => {
@@ -960,12 +961,35 @@ app.whenReady().then(async () => {
           marker.remove()
           return y
         }
-        return { align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom,
+        return { day: day.toJSON(), date: date.toJSON(), head: document.querySelector('.dash-head').getBoundingClientRect().toJSON(), grid: { cols: window.__odkGrid.cols, width: window.__odkGrid.gridW }, align: getComputedStyle(document.querySelector('.dash-head')).alignItems, sameRow: date.top < day.bottom,
           baseline: Math.abs(baseline('.dash-wd') - baseline('.dash-date')) }
-      })()`)
+      })()`
+      const header = await evaluate(readOverviewHeader)
       assert.equal(header.align, 'baseline')
-      assert.equal(header.sameRow, true, theme + ' ' + width + ' weekday and date share one row')
+      assert.equal(header.sameRow, true, theme + ' ' + width + ' weekday and date share one row: ' + JSON.stringify(header))
       assert.ok(header.baseline < 1, theme + ' ' + width + ' weekday and date baselines align')
+      if (width < 640) {
+        const fullMonth = await evaluate(`(() => {
+          const nodes=['.dash-wd','#dash-md','#dash-y'].map(selector=>document.querySelector(selector))
+          const original=nodes.map(node=>node.textContent)
+          try {
+            ['Wed','September 30','2026'].forEach((text,index)=>{nodes[index].textContent=text})
+            return ${readOverviewHeader}
+          } finally { nodes.forEach((node,index)=>{node.textContent=original[index]}) }
+        })()`)
+        assert.equal(fullMonth.sameRow, true, theme + ' ' + width + ' full month shares the weekday row: ' + JSON.stringify(fullMonth))
+        assert.ok(fullMonth.baseline < 1, theme + ' ' + width + ' full month retains the text baseline')
+        assert.ok(fullMonth.day.left >= fullMonth.head.left && fullMonth.date.right <= fullMonth.head.right + 1, 'The complete full-month header fits its content row')
+        const reachable = await evaluate(`(() => {
+          const page=document.querySelector('[data-page-id="home"]'), original=page.scrollTop
+          try {
+            page.scrollTo({top:page.scrollHeight,behavior:'instant'})
+            const last=[...page.querySelectorAll('.widget')].at(-1).getBoundingClientRect(), box=page.getBoundingClientRect()
+            return page.scrollHeight<=page.clientHeight+1 || (page.scrollTop>0 && last.bottom<=box.bottom+1 && last.top>=box.top-1)
+          } finally { page.scrollTo({top:original,behavior:'instant'}) }
+        })()`)
+        assert.equal(reachable,true,'The final compact Widget remains reachable through the page scroller')
+      }
       const sentence = await evaluate(`(() => {
         const dash = document.querySelector('.dash')
         const paragraph = document.querySelector('#dash-narrative')
@@ -1038,7 +1062,7 @@ app.whenReady().then(async () => {
     await resize(1280, 800)
     await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
     await send(compact)
-    fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-home-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(path.join(os.tmpdir(), 'odk-agent-home-' + theme + '.png'), (await capturePaintedPage(win)).toPNG())
   }
   await resize(1536, 1024)
   await evaluate(`window.dispatchEvent(new Event('resize')); new Promise(r => setTimeout(r, 100))`)
@@ -1136,13 +1160,13 @@ app.whenReady().then(async () => {
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}'); document.querySelectorAll('.dot')[0].click(); new Promise(r => setTimeout(r, 100))`)
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent`), identity)
-    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-stress-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-stress-' + theme + '.png'), (await capturePaintedPage(win)).toPNG())
   }
   await resize(1920, 1280)
   for (const theme of ['instrument', 'pixel', 'border-beam']) {
     await evaluate(`window.odkTheme.set('${theme}'); window.dispatchEvent(new Event('resize')); void document.body.offsetHeight; document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))`)
     await send(compact)
-    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-failure-grid-' + theme + '.png'), (await win.webContents.capturePage()).toPNG())
+    fs.writeFileSync(path.join(os.tmpdir(), 'odk-home-failure-grid-' + theme + '.png'), (await capturePaintedPage(win)).toPNG())
   }
   await assertSessionReplies()
   await assertDuplicateRemoteIds()
