@@ -225,7 +225,7 @@ Feature: Weather instrument on the Home grid
     When the range row is inspected
     Then the pair reads high then low as one line
     And both labels and values remain subordinate to the current temperature
-    And both values use the same bold data face
+    And both values use the same data face and weight in each theme
     And no half of the pair carries an emphasis the other half lacks
 
   Scenario: The unit sits on the reading's baseline

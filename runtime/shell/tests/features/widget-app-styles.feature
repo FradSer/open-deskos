@@ -92,20 +92,20 @@ Feature: Legible Widget and App interiors
     Given the shell is displayed in a compact or desktop window
     When the user selects the center or upper edge of a page indicator
     Then that indicator receives the pointer rather than its neighbor
-    And all four indicators stay between the status information without overlapping
+    And all declared page indicators stay between the status information without overlapping
 
   Scenario: Desktop geometry remains stable
     Given the shell is 1920 by 1280 or 1920 by 1080
     When Home, Pi Sessions, or the AI usage App is displayed
-    Then the five-column three-row Widget layout retains its existing footprint
-    And the direct App surfaces match that footprint
+    Then the three-column Widget grid preserves its declared mixed Cell spans
+    And the App surfaces retain the shared page frame
     And the existing token palette, truthful states, and navigation behavior are preserved
 
   Scenario: Every instrument uses the same reading hierarchy
-    Given the desktop contains nine display Widgets and retains Clock and Calendar
+    Given the desktop contains its registered Home, Desk, and Reading Widgets
     When each Widget renders in any supported theme at reference or handheld size
-    Then each redesigned Widget uses the shared readable caption role
-    And the heading precedes its primary reading without overlap
+    Then each Widget uses readable type roles for its declared content
+    And each declared heading precedes its primary reading without overlap
     And inactive frames use the neutral surface and stroke
     And source states remain text rather than interactive badges
     And opening the Widget retains its existing App and return path
@@ -117,9 +117,9 @@ Feature: Legible Widget and App interiors
     Then the Widget surface is one neutral tone above the desktop ground
     And headings remain at least 16 pixels at reference and handheld sizes
     And primary figures use tabular digits
-    And the Weather primary figure uses the bundled bold display face
+    And the Weather primary figure uses the bundled bold display face outside Pixel
     And other primary figures use regular text weight
-    And the Pi heading, count, and task share one left edge
+    And Pi omits its heading and centers its count, Working capsule, and Idle group
     And status colors remain on data rather than the Widget frame
 
   Scenario: Glass clipping keeps the shared rounded frame
