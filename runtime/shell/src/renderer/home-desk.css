@@ -76,13 +76,11 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-identity summary > svg { width: 16px; height: 16px; flex: none; transform: rotate(-90deg); color: var(--odk-secondary-strong); }
 .agent-identity[open] { position: static; }
 .agent-identity[open] summary > svg { transform: none; }
-.agent-status-dot { width: 5px; height: 5px; flex: none; border-radius: var(--odk-radius-pill); background: var(--odk-secondary); }
 .agent-identity-form { position: absolute; z-index: 3; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(280px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border-radius: 20px; box-shadow: 0 12px 32px color-mix(in srgb, var(--odk-bg) 50%, transparent); background: var(--odk-elevated); border: 1px solid var(--odk-stroke); display: grid; gap: 12px; }
 .agent-status-detail { margin: 0; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .agent-identity-form label { display: grid; gap: 8px; font-size: 14px; }
 .agent-identity-form input, .agent-identity-form select, .agent-identity-form button { font: inherit; color: var(--odk-primary); background: var(--odk-surface); border: 1px solid var(--odk-stroke); min-height: 44px; width: 100%; }
 .agent-history { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
-.agent-history-earlier { justify-self: center; min-height: 44px; padding: 8px 16px; color: var(--odk-secondary-strong); background: transparent; border: 0; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .agent-conversation { display: grid; grid-auto-rows: min-content; align-content: start; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 180ms ease; padding-block: 8px; }
 .agent-conversation[data-scrolling="true"] { scrollbar-color: var(--odk-secondary-strong) transparent; }
 @media (prefers-reduced-motion: reduce) { .agent-conversation { transition: none; } }
@@ -289,34 +287,28 @@ html[data-theme='pixel'] #home-summary .dash {
   #home-desk { --odk-frame-border: CanvasText; }
 }
 
-/* Agent updates share the existing conversation scroll region. */
-.agent-earlier-updates { min-width: 0; }
-.agent-earlier-updates > summary, .agent-remote-coverage summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--odk-secondary-strong); font-size: 14px; }
-.agent-earlier-updates > summary:focus-visible, .agent-remote-coverage summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
-.agent-earlier-updates > .agent-message { margin-block-start: 20px; }
-.agent-remote-coverage { min-width: 0; font-size: 14px; line-height: 1.6; color: var(--odk-secondary-strong); overflow-wrap: anywhere; }
-.agent-remote-coverage p { margin: 0; }
-.agent-update-sources p { color: var(--odk-secondary-strong); font-size: 14px; }
-.agent-update-sources > summary::after, .agent-earlier-updates > summary::after, .agent-remote-coverage summary::after { content: '+'; margin-inline-start: auto; padding-inline-start: 12px; }
-.agent-update-sources[open] > summary::after, .agent-earlier-updates[open] > summary::after, .agent-remote-coverage details[open] > summary::after { content: '−'; }
-
-/* Conversation text comes first; provenance and successful receipts are optional. */
-.agent-message-actions { display: flex; flex-wrap: wrap; align-items: start; column-gap: 16px; margin-block-start: 8px; white-space: normal; }
-.agent-message-actions > details[open] { flex-basis: 100%; }
-.agent-message-reply { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: 0; padding: 8px 0; color: var(--odk-primary); background: transparent; border: 0; font: inherit; font-size: 14px; cursor: pointer; }
-.agent-update-sources:not([open]) { display: inline-block; vertical-align: middle; }
-.agent-reply-details { min-width: 0; margin-block-start: 8px; color: var(--odk-secondary-strong); font-size: 14px; }
-.agent-reply-details > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
-.agent-reply-details > summary:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: 2px; }
-.agent-remote-coverage > [role="status"][hidden] { display: none; }
+/* Task names stay below messages; technical provenance stays outside the timeline. */
+.agent-message-actions { display: flex; align-items: start; gap: 8px; margin-block-start: 8px; white-space: normal; }
+.agent-message-reply { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px 12px; color: var(--odk-secondary-strong); background: transparent; border: 0; font: inherit; font-size: 14px; cursor: pointer; }
+.agent-message-actions:has(> .agent-message-reply) .agent-session-reply { display: none; }
+.agent-message-actions > .agent-message-reply { order: 1; flex: none; }
+.agent-update-sources { width: 100%; min-width: 0; }
+.agent-reply-details { min-width: 0; }
+.agent-panel .agent-reply-status[hidden], .agent-panel .agent-state[hidden] { display: none; }
+.agent-identity > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px; border: 0; background: transparent; }
+.agent-identity > summary > .agent-name { grid-column: 1; }
+.agent-head { gap: 0; }
+.agent-head > .agent-avatar { margin-block-end: 10px; }
+.agent-state-slot { display: flex; align-items: center; justify-content: center; height: 21px; min-height: 21px; max-width: 100%; margin-block-start: 2px; }
+.agent-identity > summary > svg { grid-column: 2; grid-row: 1; }
 
 /* Session replies retain one conversation scroller and a fixed composer. */
 .agent-thread-nav { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; font-size: 14px; color: var(--odk-secondary-strong); }
 .agent-thread-nav > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-panel :is(.agent-thread-nav,.agent-message-session,.agent-reply-context) button { min-height: 44px; min-width: 44px; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--odk-primary); background: transparent; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); cursor: pointer; }
 .agent-message-session { display: flex; align-items: center; gap: 8px; min-width: 0; margin-block-start: 8px; color: var(--odk-secondary-strong); font-size: 14px; }
-.agent-message-session .agent-session-open { min-width: 0; overflow-wrap: anywhere; text-align: start; }
-.agent-message-session .agent-session-reply { margin-inline-start: auto; flex: none; }
+.agent-panel .agent-message-session .agent-session-open { min-width: 0; flex: 1; color: var(--odk-secondary-strong); border: 0; border-radius: 0; padding-inline: 0; overflow-wrap: anywhere; text-align: start; }
+.agent-panel .agent-message-session .agent-session-reply { margin-inline-start: auto; flex: none; border: 0; color: var(--odk-secondary-strong); }
 .agent-reply-context { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; border-inline-start: 2px solid var(--odk-stroke-focus); padding-inline-start: 12px; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.4; }
 .agent-reply-context > div { display: grid; min-width: 0; gap: 2px; flex: 1; }
 .agent-reply-context strong { font-weight: 400; color: var(--odk-primary); }
