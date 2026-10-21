@@ -110,8 +110,10 @@ html[data-theme='liquid-glass'] .widget .quota-tile-value {
 }
 
 html[data-theme='liquid-glass'] .widget .year-pct-wide {
-  font-size: clamp(40px, 48cqi, 164px);
+  font-size: clamp(40px, 42cqi, 148px);
 }
+
+html[data-theme='liquid-glass'] .year-signal-line:has(.year-pct-wide) { gap: 8cqi; }
 
 html[data-theme='liquid-glass'] .year-signal-line {
   gap: clamp(8px, 2cqi, 16px);
