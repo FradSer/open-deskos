@@ -121,7 +121,7 @@ async function assertOptionalJudgmentStatus() {
       publishStatus({state:'idle',jev:{status:'disabled'},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'},briefing:{state:'error',generatedAt:1,omittedSources:0,items:[{text:'2 Synthetic sessions',segments:[{text:'2 Synthetic sessions',icon:'sessions'}],sources:[{id:'synthetic.sessions',label:'Synthetic sessions',state:'live'}]}]}})
       await evaluate('new Promise(r=>setTimeout(r,20))')
       assert.match(await evaluate(`document.querySelector('#dash-narrative').textContent`),/2 Synthetic sessions/)
-      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
+      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&c.top<=s.top&&s.bottom<c.bottom,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
       assert.ok(layout.visible&&layout.conversation>=40&&layout.composer<=height&&layout.overflow<=1,JSON.stringify({theme,width,...layout}))
       if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await capturePaintedPage(win)).toPNG())}
     }
@@ -153,7 +153,7 @@ async function assertJevStartupStatus() {
   await resize(320,480)
   publishStatus({state:'idle',jev:{status:'checking'}});await evaluate('new Promise(r=>setTimeout(r,30))')
   const geometry=await evaluate(`(()=>{const h=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {header:h.bottom,conversation:c.top,height:c.height,composer:f.bottom}})()`)
-  assert.ok(geometry.header<=geometry.conversation&&geometry.height>=40&&geometry.composer<=480,JSON.stringify(geometry))
+  assert.ok(geometry.header>geometry.conversation&&geometry.height>=40&&geometry.composer<=480,JSON.stringify(geometry))
   await resize(1920,1280);await evaluate("odkTheme.set('instrument')")
 }
 
@@ -822,8 +822,9 @@ app.whenReady().then(async () => {
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
           const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('summary').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
+          const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('summary'));
-          return {onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('summary').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,stacked:pill.top>=avatar.bottom-1,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          return {onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('summary').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,overlap:pill.top<avatar.bottom-8&&pill.top>avatar.top+avatar.height/2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -835,6 +836,15 @@ app.whenReady().then(async () => {
     await evaluate('new Promise(r=>setTimeout(r,60))')
     const scroll=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer');window.referenceComposerY=composer.getBoundingClientRect().y;list.scrollTop=0;list.dispatchEvent(new Event('scroll'));return {overflow:list.scrollHeight>list.clientHeight,latest:!document.querySelector('.agent-latest').hidden,fixed:Math.abs(composer.getBoundingClientRect().y-referenceComposerY)<1}})()`)
     assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
+      await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready;await new Promise(r=>setTimeout(r,40));const list=document.querySelector('.agent-conversation'),first=list.querySelector('.agent-message');list.scrollTop+=first.getBoundingClientRect().top-list.getBoundingClientRect().top+20})()`)
+      const underlay=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),head=document.querySelector('.agent-head'),r=head.getBoundingClientRect(),x=r.left+8,y=r.top+24,hit=document.elementFromPoint(x,y),pill=document.querySelector('.agent-identity summary'),p=pill.getBoundingClientRect();return {message:!!hit?.closest('.agent-message'),capsule:pill.contains(document.elementFromPoint(p.x+p.width/2,p.y+p.height/2)),x,y,scrollTop:list.scrollTop,header:r.top}})()`)
+      assert.ok(underlay.message&&underlay.capsule,theme+': header allows message input while capsule stays interactive '+JSON.stringify(underlay))
+      await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:underlay.x,y:underlay.y,deltaX:0,deltaY:80})
+      await evaluate('new Promise(r=>setTimeout(r,80))')
+      assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${underlay.scrollTop}&&Math.abs(document.querySelector('.agent-head').getBoundingClientRect().top-${underlay.header})<1`),true,theme+': native wheel scrolls behind a stationary header')
+    }
+    fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-header-overlay.png'),(await capturePaintedPage(win)).toPNG())
     await evaluate(`document.querySelector('.agent-latest').click()`)
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-conversation');return n.scrollHeight-n.clientHeight-n.scrollTop<2})()`),true)
     const summary=await evaluate(`(()=>{const n=document.querySelector('.agent-identity summary');n.focus();return document.activeElement===n})()`)
