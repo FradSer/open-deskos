@@ -7,6 +7,7 @@ const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
 if (process.platform === 'linux') app.disableHardwareAcceleration()
 ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
+ipcMain.handle('odk-renderer-development-plugins', () => [])
 const { collectWidgetContent, measureDensity } = require('./helpers/widget-density')
 const { resolvePages } = require('./helpers/pages')
 
@@ -71,6 +72,8 @@ function inspect() {
   const boxes = []
   const issues = []
   const primaryFont = parseFloat(getComputedStyle(tile.querySelector('.w-weather-number')).fontSize)
+  const rangeFont = Math.max(...[...tile.querySelectorAll('.w-weather-range-value')].map(node => parseFloat(getComputedStyle(node).fontSize)))
+  if (['live', 'stale'].includes(tile.dataset.state) && primaryFont < rangeFont * 1.5) issues.push(`current temperature loses priority: ${primaryFont}px / range ${rangeFont}px`)
   if (primaryFont < 14) issues.push(`primary reading below 14px: ${primaryFont}`)
   const walker = document.createTreeWalker(tile, NodeFilter.SHOW_TEXT)
   while (walker.nextNode()) {
@@ -127,7 +130,7 @@ function inspect() {
   if (pixel && (glyph.width % 24 !== 0 || glyph.height % 24 !== 0)) issues.push('fractional pixel grid')
   if (pixel && getComputedStyle(tile.querySelector('svg')).stroke !== 'none') issues.push('stroked pixel icon')
   return {
-    issues, primaryFont, glyph, reading, head, main, support, range: rect('.w-weather-range'),
+    issues, primaryFont, rangeFont, glyph, reading, head, main, support, range: rect('.w-weather-range'),
     state: tile.dataset.state, place: tile.querySelector('.w-weather-place').textContent,
     badge: tile.querySelector('.w-weather-badge').textContent,
     badgeVisible: tile.querySelector('.w-weather-badge').getClientRects().length > 0,
@@ -151,10 +154,10 @@ async function main() {
   const home = (await resolvePages(win)).dot('home')
   const runs = []
   const failures = []
-  for (const theme of ['pixel', 'instrument', 'border-beam']) {
+  for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
     await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)}); document.querySelectorAll('.dot')[${home}].click()`)
     await win.webContents.executeJavaScript(`Promise.all([document.fonts.load('400 16px "Zpix"'), document.fonts.load('700 32px "Montserrat"'), document.fonts.load('400 16px "Noto Sans SC"')])`)
-    for (const [width, height] of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) {
+    for (const [width, height] of [[1920, 1280], [1920, 1080], [1280, 800], [960, 640], [480, 854], [320, 480]]) {
       win.setContentSize(width, height)
       await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
       await win.webContents.executeJavaScript('window.dispatchEvent(new Event("resize"))')
@@ -217,7 +220,7 @@ async function main() {
   }
   // Native Chromium zoom is independent from a narrow viewport. Keep the current
   // provider reading and exercise all theme changes without remounting the tile.
-  for (const theme of ['pixel', 'instrument', 'border-beam']) {
+  for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
     await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
     await win.webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
     win.setContentSize(960, 640)
@@ -235,7 +238,7 @@ async function main() {
   }
   // A pressure fixture isolates the CSS reading floor from the supported desk
   // composition. It does not claim this short lane occurs in a production slot.
-  for (const theme of ['pixel', 'instrument', 'border-beam']) {
+  for (const theme of ['pixel', 'instrument', 'border-beam', 'liquid-glass']) {
     await win.webContents.executeJavaScript(`window.odkTheme.set(${JSON.stringify(theme)})`)
     const floor = await win.webContents.executeJavaScript(`(() => {
       const hero = document.querySelector('.w-weather-hero')

@@ -154,50 +154,8 @@ html[data-theme='liquid-glass'] .widget .futu-holding + .futu-holding {
   padding-block-start: 3px;
 }
 
-html[data-theme='liquid-glass'] .w-weather-content {
-  --w-weather-reading: 50cqi;
-  gap: clamp(4px, 2cqi, 8px);
-}
-
-html[data-theme='liquid-glass'] .w-weather-place {
-  line-height: 1.2;
-}
-
 html[data-theme='liquid-glass'] .w-weather-hero {
   align-items: flex-start;
-}
-
-html[data-theme='liquid-glass'] .w-weather-value {
-  font-weight: 300;
-}
-
-html[data-theme='liquid-glass'] .w-weather-support {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 3px;
-}
-
-html[data-theme='liquid-glass'] .w-weather-glyph {
-  justify-self: start;
-  grid-column: 1;
-  grid-row: 1;
-  width: 24px;
-  height: 24px;
-}
-
-html[data-theme='liquid-glass'] .w-weather-body {
-  grid-row: 2;
-}
-
-html[data-theme='liquid-glass'] .w-weather-range {
-  grid-row: 3;
-}
-
-html[data-theme='liquid-glass'] .w-weather-range-value {
-  font-size: clamp(28px, 18cqi, 52px);
-}
-
-html[data-theme='liquid-glass'] [data-widget='odk.tile.weather'][data-reading-length='4'] .w-weather-range-value {
-  font-size: clamp(18px, 10cqi, 32px);
 }
 
 html[data-theme='liquid-glass'] .hydra-head > svg {

@@ -6,6 +6,11 @@ Read this during implementation. Product requirements belong to `PRODUCT.md`, `D
 
 Define each reading's source, unit, scope, measurement time, and availability.
 Preserve these distinctions during responsive changes.
+Rank the primary answer, supporting readings, and metadata before choosing their visual roles.
+Preserve this order through theme overrides and responsive rules.
+Reduce supporting emphasis before reducing the primary reading when space is limited.
+Keep each reading above its readability floor.
+When the primary reading is unavailable, show that state instead of promoting a supporting value as its substitute.
 Never replace missing evidence with a plausible value.
 Trace defects through parents, shared styles, component constraints, and content before adjusting a local property.
 Compare user-approved neighboring surfaces in their actual composition.
@@ -112,6 +117,7 @@ Use existing plugin implementations as examples:
 | Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
 | Focus timer | `plugins/pomodoro.js` | Keep the heading separate from the centered dial; controls belong to the App |
 | Provider allowance | `plugins/quota-page.js` | Use the actual provider name; preserve unknown readings |
+| Current weather | `plugins/weather.js` | Make current temperature dominant; keep the daily high and low as supporting readings |
 | Session summary | `plugins/pi-sessions.js` | Keep count, status capsule, and Idle count; retain the accessible App entry |
 | Progress | `plugins/year.js` | Rounded text and precise meter; text carries accessible meaning |
 | Telemetry | `plugins/hydra.js` | Mount a truthful null snapshot; preserve independent cell failures |

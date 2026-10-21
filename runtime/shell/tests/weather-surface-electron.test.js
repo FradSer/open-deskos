@@ -35,7 +35,7 @@ for (const mode of ['development', 'native']) test(`${mode} independent Weather 
     try {
       const result = await operation
       assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').pop()), {
-        ok: true, actualPreload: true, signedIndependent: true, themes: 3, sizes: 5, states: 6,
+        ok: true, actualPreload: true, signedIndependent: true, themes: 4, sizes: 5, states: 6,
         independentSurface: true, developmentLoaded: mode === 'development',
         ...(mode === 'native' ? { signedSurface: true, capturedSurfaceIntegrity: true, assetLeaseReleased: true } : {}),
       })

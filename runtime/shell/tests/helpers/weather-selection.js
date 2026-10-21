@@ -72,7 +72,7 @@ async function loadPrepared(env, { mutate = false } = {}) {
 }
 
 function surfaceTimeouts(platform = process.platform) {
-  // Linux runs thirty fresh documents; measured complete halves exceed the original aggregate budget.
+  // Linux runs forty fresh documents; measured complete halves exceed the original aggregate budget.
   return platform === 'linux'
     ? { fixture: 75000, child: 85000, test: 120000, revisions: 360000 }
     : { fixture: 45000, child: 55000, test: 60000, revisions: 180000 }

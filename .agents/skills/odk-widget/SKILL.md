@@ -57,6 +57,8 @@ Use its ownership and evidence gates when a source change affects a Widget or Ap
 
 Write Given/When/Then in the affected `.feature` file.
 Define title visibility, accessible names, insets, spans, and independent reading geometry in the existing shared Widget harness.
+Define the primary reading and its supporting readings before choosing display sizes.
+Verify their rendered hierarchy across themes, Cell sizes, and replacement paths.
 Keep these assertions active in normal and replacement paths.
 For a bug, describe the failed visible state and add a failing test through a public interface.
 Then implement, pass the test, and refactor.
