@@ -73,13 +73,13 @@ app.whenReady().then(async () => {
     assert.equal(frame.isEmpty(), false)
     fs.writeFileSync(path.join(evidence, name + '.png'), frame.toPNG())
   }
-  async function compareWeRead(theme, variant = '') {
+  async function compareWeRead(theme, variant = '', expectedCoverRatio = 3/4) {
     await js(`(async () => {
       await odkTheme.set('${theme}');
       document.querySelectorAll('.dot')[2].click();
       await until(() => [...document.querySelectorAll('link[rel=stylesheet]')].every(link => link.sheet));
       await document.fonts.ready;
-      await until(() => !!document.querySelector('.weread-date')?.textContent);
+      await until(() => !!document.querySelector('.weread-date')?.textContent && !document.querySelector('.weread-cover-wrap').hidden && Math.abs(document.querySelector('.widget .weread-cover').width/document.querySelector('.widget .weread-cover').height-${expectedCoverRatio})<0.01);
       if (odkTheme.get()==='liquid-glass') await until(() => ['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass));
     })()`)
     await capture(`${theme}${variant}-weread-widget`)
@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
     })()`)
     await js(`(async () => {
       await odkAppPlatform.openApp({appId:'weread',widgetId:'odk.tile.weread',route:'reading'});
-      await until(() => !!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled && document.querySelector('.reading-book-cover')?.complete);
+      await until(() => !!document.querySelector('.reading-book-title')?.textContent && !document.querySelector('.reading-refresh').disabled && document.querySelector('.reading-book-cover')?.complete && document.querySelector('.reading-book-cover').naturalWidth>0);
       if (odkTheme.get()==='liquid-glass') await until(() => document.documentElement.dataset.liquidGlass==='fallback' || (document.documentElement.dataset.liquidGlass==='sdk' && document.getElementById('app-view').classList.contains('lg-surface')));
     })()`)
     await capture(`${theme}${variant}-weread-app`)
@@ -122,7 +122,7 @@ app.whenReady().then(async () => {
     const cover=nativeImage.createFromBitmap(Buffer.from(Array(8).fill([80,160,100,255]).flat()),{width:2,height:4}).toDataURL()
     wereadReading={status:'live',highlight:{...preview.highlight,cover}}
     await js(`(async()=>{await odkRendererRuntime.setEnabled('odk.tile.weread',false);await odkRendererRuntime.setEnabled('odk.tile.weread',true)})()`)
-    await compareWeRead('liquid-glass','-portrait')
+    await compareWeRead('liquid-glass','-portrait',0.5)
     wereadReading=undefined
   }
   async function stressWeReadApp() {
@@ -177,6 +177,7 @@ app.whenReady().then(async () => {
     await comparePortraitCover()
     await stressWeReadApp()
     console.log('WIDGET_NAVIGATION_EVIDENCE '+evidence)
+    await js("odkTheme.set('instrument')")
     finish(0)
     return
   }
@@ -436,6 +437,7 @@ app.whenReady().then(async () => {
   await comparePortraitCover()
   await stressWeReadApp()
   console.log('WIDGET_NAVIGATION_EVIDENCE ' + evidence)
+  await js("odkTheme.set('instrument')")
   finish(0)
 }).catch(async error => {
   if (win && !win.isDestroyed()) {
