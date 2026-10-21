@@ -12,7 +12,7 @@ Feature: Legible Widget and App interiors
   Scenario: Every Widget retains readable content in a compact window
     Given the shell displays every Home, Desk, and Reading Widget
     When the window is 320 by 480, 480 by 854, 960 by 640, or zoomed to 200 percent
-    Then each Widget keeps a square readable surface with at least 12 pixel supporting text
+    Then each Widget keeps its declared Cell span with at least 12 pixel supporting text
     And all Widget text wraps inside its surface without overlap or clipping
     And the Home page scrolls vertically when the complete grid cannot fit
     And Up and Down keyboard input keeps Home selected and scrolls the focused grid
