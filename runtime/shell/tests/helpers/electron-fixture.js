@@ -9,7 +9,7 @@ function runFixture(file, args = [], { timeout = 120000, spawn = spawnSync } = {
     return spawn(process.execPath, [path.join(__dirname, 'electron-fixture-runner.cjs'), profile,
       path.resolve(__dirname, '..', file), ...args], { stdio: 'inherit', timeout })
   } finally {
-    fs.rmSync(profile, { recursive: true, force: true })
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
   }
 }
 

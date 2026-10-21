@@ -82,4 +82,4 @@ New installations use Pixel; explicit local selection survives restart. There is
 - Put session status/goals before PID/command disclosures. Refresh preserves expansion, focus, and scroll. Usage refresh actions stay beside provider state before optional metric details.
 - A not-started focus dial is neutral; Today has no decorative active dot.
 
-The resident Agent centers one avatar above its name and status capsule. The capsule opens the identity form. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.
+The resident Agent centers the Onee avatar above one capsule that contains its name and status. Its animation follows input, service work, replies, completion, and failures. Reduced motion uses static poses. Hidden and released pages stop animation work. The capsule opens the identity form. Messages use rounded bubbles. One conversation region scrolls above the fixed composer. Show actual messages and service states. Do not copy sample questions from design references.

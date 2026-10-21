@@ -24,7 +24,7 @@ function finish(code, error) {
 function check(name, result) {
   if (!result) failures.push(name)
 }
-const js = source => win.webContents.executeJavaScript(source)
+const js = source => win.webContents.executeJavaScript(source).catch(error => { console.error('Renderer check failed:', source); throw error })
 async function capture(name) {
   const painted = (marked, change) => new Promise((resolve, reject) => {
     const cleanup = () => { clearTimeout(deadline); win.webContents.off('paint', observe) }
@@ -110,7 +110,14 @@ app.whenReady().then(async () => {
       check(where + ': long identity stays compact and accessible', longIdentity.height <= 46 && longIdentity.contained && longIdentity.oneLine && longIdentity.accessible)
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value='Personal Agent';form.requestSubmit()})()`)
       win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
-      await js(`polishUntil(()=>document.querySelector('.agent-state').textContent==='Ready')`)
+      await js(`polishUntil(()=>document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='')`)
+      const restingHistoryTop = await js(`document.querySelector('.agent-conversation').getBoundingClientRect().top`)
+      win.webContents.send('odk-personal-bot-status', { state: 'thinking', jev: {status:'verified'} })
+      await js(`polishUntil(()=>!document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='Thinking…')`)
+      check(where + ': thinking keeps conversation position', await js(`Math.abs(document.querySelector('.agent-conversation').getBoundingClientRect().top-(${restingHistoryTop}))<1`))
+      win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
+      await js(`polishUntil(()=>document.querySelector('.agent-state').hidden)`)
+
       report.push({ theme, width, height, identity, longIdentity, focus, idle, scrolling })
     }
   }

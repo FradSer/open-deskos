@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
+const { capturePaintedPage } = require('./helpers/native-page-capture')
 const { resolvePages } = require('./helpers/pages')
 const { installWidgetGridLayout } = require('./helpers/time-widget-layout')
 const widgetGrid = process.argv.includes('--widget-grid')
@@ -30,24 +31,7 @@ function finish(code, error) {
   app.exit(code)
 }
 
-function capturePaintedFrame() {
-  return new Promise((resolve, reject) => {
-    const contents = win.webContents
-    const [width, height] = win.getContentSize()
-    const cleanup = () => { clearTimeout(timer); contents.removeListener('paint', painted) }
-    const painted = (_event, _dirty, frame) => {
-      const size = frame.getSize()
-      if (frame.isEmpty() || size.width !== width || size.height !== height) return
-      cleanup()
-      resolve(frame.toPNG())
-    }
-    const timer = setTimeout(() => { cleanup(); reject(Error('Preview did not paint its full viewport')) }, 5000)
-    contents.on('paint', painted)
-    // A hidden offscreen window can have valid DOM bounds before Viz has a
-    // capturable surface. Require the native full repaint, not elapsed time.
-    contents.invalidate()
-  })
-}
+async function capturePaintedFrame() { return (await capturePaintedPage(win)).toPNG() }
 
 async function verifyWidgetGrid(win, pageId, theme, width, report) {
   const result = await win.webContents.executeJavaScript(`(() => {
@@ -284,9 +268,9 @@ app.whenReady().then(async () => {
     assert.equal(state.narrative, preview.briefing.items[0].text)
     assert.equal(state.placeholder, false)
     assert.equal(state.paragraphs, 3)
-    assert.equal(await js(`document.querySelectorAll('.agent-update').length`), 2)
-    assert.equal(await js(`document.querySelector('.agent-earlier-updates').open`), false)
-    assert.deepEqual(await js(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), preview.updates)
+    assert.equal(await js(`document.querySelectorAll('.agent-update').length`), 3)
+    assert.equal(await js(`document.querySelector('.agent-earlier-updates')`), null)
+    assert.deepEqual(await js(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), [...preview.remote.messages].reverse().map(message => message.text))
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
     assert.equal(state.messageMetadata, 0, 'conversation messages have no avatars or timestamps')
     assert.equal(state.identityCapsule, true, 'the name and status capsule exposes the existing identity editor')

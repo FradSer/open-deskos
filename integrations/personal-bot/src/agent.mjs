@@ -1,7 +1,7 @@
 import {createJudgmentClient, judgmentInstructions, validateOrdinaryJudgmentAnswers} from './judgment-client.mjs'
 import {configureProviderRuntime} from './provider-endpoints.mjs'
 import { guardReplyTools } from './session-replies.mjs'
-import { remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
+import { remoteTaskNamesInstructions, remoteTaskNamesReviewInstructions, validateRemoteTaskNames, remoteSummaryInstructions, validateRemoteSummary, remoteReviewInstructions, validateRemoteReview } from './remote-conversation.mjs'
 import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
@@ -211,13 +211,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
     if (config.model && !model) throw Error('Configured Pi model unavailable')
     async function inferPlugin(kind, input, signal) {
       const remoteCitationCorrection = () => `Return exactly ${input.records.length} citations. Cite each unique source key exactly once; never duplicate a key across fields. Preserve original keys, revisions, and exact source substrings. Each quote must be nonblank and contain 1 to 512 UTF-16 code units.`
-      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: ['remote','remote_review','judgment'].includes(kind)?JSON.stringify:renderPluginInput,
-        formatCorrection: error => kind==='judgment'?judgmentInstructions:kind==='remote_review'?`Return only status, reason, and citations. Status is passed or needs_review. Reason must be nonblank and contain 1 to 1000 UTF-16 code units. ${remoteCitationCorrection()} Review every update for faithfulness, readability, and attribution only to its own sourceKeys records, not just global citation coverage. Use needs_review for audit dumps, swapped task ownership, unsupported next steps or unarranged promises. Never certify execution or calculations.`:kind==='remote'?`Return only updates and citations. Updates is an array of 1 to ${Math.min(input.records.length,7)} objects with text and sourceKeys only. Each nonblank text has at most 600 UTF-16 code units; the batch total is at most 2000. sourceKeys partition every supplied source exactly once. Use short natural Simplified Chinese assistant updates, one task/topic per message, not audit metadata. ${remoteCitationCorrection()} No actions or extra fields.`:pluginFormatCorrection(kind, error),
-        validate: value => kind === 'judgment' ? validateOrdinaryJudgmentAnswers(value,input.questions) : kind === 'remote' ? validateRemoteSummary(value,input.records) : kind === 'remote_review' ? validateRemoteReview(value,input.records) : kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
+      return generateWithinDeadline({ signal, timeoutMs: (config.env ?? process.env).ODK_AGENT_PLUGIN_TIMEOUT_MS, serialize: ['remote','remote_review','remote_names','remote_names_review','judgment'].includes(kind)?JSON.stringify:renderPluginInput,
+        formatCorrection: error => kind==='remote_names'?remoteTaskNamesInstructions:kind==='remote_names_review'?remoteTaskNamesReviewInstructions:kind==='judgment'?judgmentInstructions:kind==='remote_review'?`Return only status, reason, and citations. Status is passed or needs_review. Reason must be nonblank and contain 1 to 1000 UTF-16 code units. ${remoteCitationCorrection()} Review every update for faithfulness, readability, and attribution only to its own sourceKeys records, not just global citation coverage. Use needs_review for audit dumps, swapped task ownership, unsupported next steps or unarranged promises. Never certify execution or calculations.`:kind==='remote'?`Return only updates and citations. Updates is an array of 1 to ${Math.min(input.records.length,7)} objects with text, taskName and sourceKeys only. Each taskName is a nonblank single-line descriptive name of at most 40 UTF-16 code units, grounded in its own sources. Each nonblank text has at most 600 UTF-16 code units; the batch total is at most 2000. sourceKeys partition every supplied source exactly once. Use short natural Simplified Chinese assistant updates, one task/topic per message, not audit metadata. ${remoteCitationCorrection()} No actions or extra fields.`:pluginFormatCorrection(kind, error),
+        validate: value => kind === 'remote_names' ? validateRemoteTaskNames(value,input.records) : kind === 'remote_names_review' ? validateRemoteReview(value,input.records) : kind === 'judgment' ? validateOrdinaryJudgmentAnswers(value,input.questions) : kind === 'remote' ? validateRemoteSummary(value,input.records) : kind === 'remote_review' ? validateRemoteReview(value,input.records) : kind === 'completion' ? validateCompletion(value, input.receipts) : validateLessons(value, input.receipts),
         create: async () => {
           const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir(), noExtensions: true, noSkills: true, noPromptTemplates: true,
             settingsManager: SettingsManager.inMemory({}), agentsFilesOverride: () => ({ agentsFiles: [] }),
-            appendSystemPromptOverride: () => [], systemPromptOverride: () => kind === 'judgment' ? judgmentInstructions : kind === 'remote' ? remoteSummaryInstructions : kind === 'remote_review' ? remoteReviewInstructions : kind === 'completion' ? `${completionInstructions}\n${hostedCompletionInstructions}` : learningInstructions })
+            appendSystemPromptOverride: () => [], systemPromptOverride: () => kind === 'remote_names' ? remoteTaskNamesInstructions : kind === 'remote_names_review' ? remoteTaskNamesReviewInstructions : kind === 'judgment' ? judgmentInstructions : kind === 'remote' ? remoteSummaryInstructions : kind === 'remote_review' ? remoteReviewInstructions : kind === 'completion' ? `${completionInstructions}\n${hostedCompletionInstructions}` : learningInstructions })
           await loader.reload()
           const { session: worker } = await createSession({ cwd, resourceLoader: loader, modelRuntime, model: model ?? session.model, tools: [], customTools: [], ephemeral: true,
             settingsManager: SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false } }), sessionManager: SessionManager.inMemory(cwd) })
@@ -281,6 +281,13 @@ export async function createPersonalBot(config, { createSession = createDurableA
       agentTasks: tasks,
       attachRemoteContext(provider, read, followup) { remoteContext=provider??(()=>""); remoteHistory=read??remoteHistory;remoteFollowup=followup??remoteFollowup },
       remoteEnabled: !config.childAgent && config.personal?.agentPlugins?.enabled.includes('remote_conversation') === true,
+      nameRemoteTasks: async input => {
+        if(config.childAgent || !config.personal?.agentPlugins?.enabled.includes('remote_conversation'))throw Error('Remote conversation is disabled')
+        const names=await inferPlugin('remote_names',input,lifetime.signal)
+        const review=await inferPlugin('remote_names_review',{records:input.records,names:names.names},lifetime.signal)
+        if(review.status!=='passed')throw Object.assign(Error('Remote task names require review'),{code:'REMOTE_NAMES_REVIEW_REQUIRED'})
+        return names
+      },
       summarizeRemote: async input => {
         if(config.childAgent || !config.personal?.agentPlugins?.enabled.includes('remote_conversation')) throw Error('Remote conversation is disabled')
         const summary=await inferPlugin('remote',input,lifetime.signal)

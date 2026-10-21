@@ -16,8 +16,9 @@ function parseRemoteConversation(value) {
     const sources=[]
     for(const source of item.sources) {
       if(!source || !text(source.key,256) || !text(source.revision,64) || !text(source.machine,256) || !text(source.sessionId,256) || !text(source.project,4096)
+        || (source.taskName!==undefined && (!text(source.taskName,40) || !source.taskName.trim() || source.taskName!==source.taskName.trim() || /[\r\n\t]/.test(source.taskName)))
         || (source.threadId!==undefined && !sha(source.threadId)) || !['report_only','configured'].includes(source.control))return unavailable()
-      sources.push({...(source.threadId?{threadId:source.threadId}:{}),key:source.key,revision:source.revision,machine:source.machine,sessionId:source.sessionId,project:source.project,control:source.control,
+      sources.push({...(source.taskName?{taskName:source.taskName}:{}),...(source.threadId?{threadId:source.threadId}:{}),key:source.key,revision:source.revision,machine:source.machine,sessionId:source.sessionId,project:source.project,control:source.control,
         ...(source.control==='configured' && ['cm5','mac'].includes(source.target) && text(source.taskId,256)?{target:source.target,taskId:source.taskId}:{}),
         availability:source.availability==='live'?'live':'unavailable',historyTruncated:source.historyTruncated===true})
     }
