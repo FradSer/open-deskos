@@ -330,9 +330,9 @@ async function assertDuplicateRemoteIds() {
 }
 
 async function assertSessionReplies({ geometry = true } = {}) {
-  const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',taskName:'中文识别训练',control:'report_only',availability:'live'}
-  const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'1'.repeat(64),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8',taskName:'外壳模型调整'}
-  const item={id:'a'.repeat(64),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
+  const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d1'.repeat(32),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',taskName:'中文识别训练',control:'report_only',availability:'live'}
+  const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'d2'.repeat(32),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8',taskName:'外壳模型调整'}
+  const item={id:'a1'.repeat(32),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
   const frame={state:'idle',remote:{state:'live',messages:[item],replies:[],total:1}}
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),2,'multiple sessions require explicit reply choices')
@@ -361,7 +361,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
   const owner={id:'12345678-1234-4123-8123-123456789abc',threadId:first.threadId,sessionId:first.sessionId,text:'Keep this draft',replyTo:expected,status:'delivered',at:2000}
-  const completed={...item,id:'2'.repeat(64),at:3000,threadId:first.threadId,text:'合成示例：同一训练会话的后续检查已完成。',sources:[first]}
+  const completed={...item,id:'a2'.repeat(32),at:3000,threadId:first.threadId,text:'合成示例：同一训练会话的后续检查已完成。',sources:[first]}
   const updated={...frame,remote:{...frame.remote,messages:[completed,item],replies:[owner],total:2}}
   publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,30))');publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${owner.id}"]').length`),1,'durable owner replies do not duplicate on reconnect')
