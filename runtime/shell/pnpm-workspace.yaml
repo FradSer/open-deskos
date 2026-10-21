@@ -5,3 +5,4 @@ allowBuilds:
   webgpu: false
 overrides:
   '@modelcontextprotocol/server': 2.3.0
+  vite: 8.2.4
