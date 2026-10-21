@@ -66,7 +66,10 @@ Feature: Independent instrument refinement
     When Home renders
     Then the Pi Widget shows working and idle counts without goals or activity
     And task details remain in the Pi Sessions App
-    And the Pomodoro ring is centered below its heading and state
+    And the Pomodoro ring is centered within its body below its heading and state
+    And the heading, state, dial, and readings stay inside their card
+    And the Year percentage, context, and meter identify the card without a heading
+    And the Pi count, Working capsule, and idle count share the horizontal center
     And each Widget preserves its configured grid span
 
   Scenario: Overview aligns its header by the text baseline
