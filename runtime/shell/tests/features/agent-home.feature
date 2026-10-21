@@ -560,7 +560,8 @@ Scenario: Hidden previews capture the current native viewport
     Given the resident Agent has a Onee avatar and an identity capsule
     When the conversation scrolls in any supported theme or panel size
     Then the capsule overlaps only the lower fifth of the avatar
-    And the avatar frame starts at the top of the conversation scroll track
+    And the visible avatar starts near the top of the conversation scroll track
+    And the avatar frame removes unused SVG padding without shrinking or clipping animation
     And the header has no opaque background or backdrop blur
     And messages scroll behind the header and receive input outside the capsule
     And selected task navigation passes message input outside its readable return button
