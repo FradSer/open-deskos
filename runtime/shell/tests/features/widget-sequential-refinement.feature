@@ -146,4 +146,6 @@ Feature: Independent instrument refinement
     When the card grows from handheld to desktop size
     Then the idle count stays within 12 pixels below the Working capsule
     And the weather glyph appears above its condition and daily range
+    And the glyph and condition share their leading edge
+    And the temperature and daily range scale within the unchanged density band
     And holding rows retain aligned values and subtle separators

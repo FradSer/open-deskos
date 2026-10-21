@@ -155,7 +155,7 @@ html[data-theme='liquid-glass'] .widget .futu-holding + .futu-holding {
 }
 
 html[data-theme='liquid-glass'] .w-weather-content {
-  --w-weather-reading: 40cqi;
+  --w-weather-reading: 50cqi;
   gap: clamp(4px, 2cqi, 8px);
 }
 
@@ -177,8 +177,7 @@ html[data-theme='liquid-glass'] .w-weather-support {
 }
 
 html[data-theme='liquid-glass'] .w-weather-glyph {
-  justify-self: end;
-  margin-inline-end: var(--odk-space-2);
+  justify-self: start;
   grid-column: 1;
   grid-row: 1;
   width: 24px;
@@ -191,6 +190,14 @@ html[data-theme='liquid-glass'] .w-weather-body {
 
 html[data-theme='liquid-glass'] .w-weather-range {
   grid-row: 3;
+}
+
+html[data-theme='liquid-glass'] .w-weather-range-value {
+  font-size: clamp(28px, 18cqi, 52px);
+}
+
+html[data-theme='liquid-glass'] [data-widget='odk.tile.weather'][data-reading-length='4'] .w-weather-range-value {
+  font-size: clamp(18px, 10cqi, 32px);
 }
 
 html[data-theme='liquid-glass'] .hydra-head > svg {

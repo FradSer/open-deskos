@@ -117,7 +117,7 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
           if (temperature.top - city.bottom > 12 || temperature.top < city.bottom) findings.push({ kind: 'detached-city-temperature' });
           const glyph = card.querySelector('.w-weather-glyph').getBoundingClientRect();
           const condition = card.querySelector('.w-weather-body').getBoundingClientRect();
-          if (glyph.bottom > condition.top || Math.abs(glyph.left - condition.left) > 1) findings.push({ kind: 'ungrouped-weather-support' });
+          if (glyph.bottom > condition.top || Math.abs(glyph.left - condition.left) > 1) findings.push({ kind: 'ungrouped-weather-support', glyph: glyph.toJSON(), condition: condition.toJSON(), temperature: temperature.toJSON(), font: getComputedStyle(card.querySelector('.w-weather-value')).fontSize });
         }
         if (card.dataset.widget === 'odk.tile.year' && parseFloat(getComputedStyle(card.querySelector('.year-pct')).fontSize) > box.width * .5) findings.push({ kind: 'oversized-reference-percentage' });
         if (card.dataset.widget === 'odk.tile.weread') {
