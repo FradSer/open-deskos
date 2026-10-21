@@ -11,8 +11,10 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { app, BrowserWindow, ipcMain } = require('electron')
-ipcMain.handle('odk-remote-link-state', () => ({ state: 'disconnected', sequence: 0 }))
 const { resolvePages } = require('./helpers/pages')
+const { installPiPageCompatibilityFixture } = require('./helpers/pi-page-compatibility.cjs')
+const { installGeometryFixtures } = require('./helpers/live-fixtures')
+installGeometryFixtures(ipcMain)
 
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-overview-markdown-'))
 app.setPath('userData', profile)
@@ -52,15 +54,18 @@ for (const [channel, value] of Object.entries({
   'odk-user-apps-list': { ok: true, apps: [] },
   'odk-camera-frame': { state: 'unavailable' },
   'odk-app-manager-list': { apps: [] },
-})) ipcMain.handle(channel, () => value)
+})) {
+  ipcMain.removeHandler(channel)
+  ipcMain.handle(channel, () => value)
+}
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 app.whenReady().then(async () => {
   // The desk's own window size and its current theme, so a capture reads the way
   // the reported surface reads.
-  const win = new BrowserWindow({ show: false, frame: false, width: 1920, height: 1280, useContentSize: true, offscreen: true,
-    webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } })
+  const win = new BrowserWindow({ show: false, frame: false, width: 1920, height: 1280, useContentSize: true,
+    webPreferences: { preload: path.resolve(__dirname, '../src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true } })
   const results = []
   // A renderer exception is a failure of the surface, not of a probe. The
   // harness reports it with the failed step instead of losing it in the console.
@@ -70,6 +75,7 @@ app.whenReady().then(async () => {
     if (details.level === 'error' || details.level === 3) rendererErrors.push(String(details.message || ''))
   })
   try {
+    await installPiPageCompatibilityFixture(win)
     await win.loadFile(path.resolve(__dirname, '../src/renderer/index.html'))
     const pages = await resolvePages(win)
     const surface = pages.surface('pi-sessions')
@@ -100,6 +106,7 @@ app.whenReady().then(async () => {
       contained: node.scrollWidth <= node.clientWidth + 1 && node.clientHeight > 0,
       lines: Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)),
       fontSize: parseFloat(getComputedStyle(node).fontSize),
+      lineClamp: getComputedStyle(node).webkitLineClamp,
     })`
 
     const rows = await js(`return (() => {
@@ -138,10 +145,10 @@ app.whenReady().then(async () => {
       rows.plainGoal.strong.length === 0 && rows.plainGoal.code.length === 0 &&
       rows.plainActivity.strong.length === 0 && rows.plainActivity.code.length === 0, { goal: rows.plainGoal, activity: rows.plainActivity })
     // The reported shape: one long CJK answer whose whole sentence is emphasised
-    // reads as one emphasised paragraph that wraps, not as asterisks around it.
+    // keeps its full text in one emphasised run, within the one-line summary.
     check('a long emphasised answer renders as one emphasised run', rows.reportedActivity.strong.join('|') === CJK_EMPHASIS &&
       rows.reportedActivity.text === `读了设备端和 NAS 端两条路径的当前代码。结论先说：${CJK_EMPHASIS}` &&
-      !rows.reportedActivity.text.includes('**') && rows.reportedActivity.lines > 1, rows.reportedActivity)
+      !rows.reportedActivity.text.includes('**') && rows.reportedActivity.lines === 1 && rows.reportedActivity.lineClamp === '1', rows.reportedActivity)
     check('the reported goal keeps its emphasised run', rows.reportedGoal.strong.join('|') === CJK_GOAL &&
       rows.reportedGoal.text === `Refresh ${CJK_GOAL}`, rows.reportedGoal)
     // The row stays a compact summary with its own typography contract: the goal
