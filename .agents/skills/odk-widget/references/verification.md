@@ -38,6 +38,7 @@ Assert the primary reading's visual priority against supporting readings after f
 Use component-specific comparisons of text size, weight, and occupied space; presence and containment alone cannot establish hierarchy.
 Include compact Cells, long values, and each inherited theme in the affected surface harness.
 Apply the same hierarchy contract to independent replacement surfaces.
+When a component needs a deliberate type-role exception, reconcile its feature contract with the shared contract before changing the gate.
 Test the absence of removed headings as well as the presence of useful ones.
 Enforce heading decisions in shared harnesses across themes and compact Cells, including independent surfaces that share the visual contract.
 Do not substitute fixture values for real readings when presenting device screenshots.

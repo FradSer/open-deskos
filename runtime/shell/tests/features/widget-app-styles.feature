@@ -116,7 +116,9 @@ Feature: Legible Widget and App interiors
     When the user reads the Home instruments
     Then the Widget surface is one neutral tone above the desktop ground
     And headings remain at least 16 pixels at reference and handheld sizes
-    And primary figures use regular text weight with tabular digits
+    And primary figures use tabular digits
+    And the Weather primary figure uses the bundled bold display face
+    And other primary figures use regular text weight
     And the Pi heading, count, and task share one left edge
     And status colors remain on data rather than the Widget frame
 
