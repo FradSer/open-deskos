@@ -1,7 +1,7 @@
 ---
 name: odk-widget
 description: >-
-  Design and develop Open DeskOS CM5 Widgets and Apps on the Linux Electron runtime. Use whenever a request creates,
+  Design and develop Open DeskOS Widgets and Apps in the shared Linux, Windows, and macOS Electron Shell. Use whenever a request creates,
   redesigns, styles, refactors, debugs, or verifies a built-in tile/page/app/status plugin or an installable user Widget/App,
   including responsive layout, typography, icons, themes, truthful states, accessibility, density, and renderer interaction.
 metadata:
@@ -43,7 +43,8 @@ Use its ownership and evidence gates when a source change affects a Widget or Ap
 - Render truthful loading, empty, unavailable, unauthorized, stale, malformed, and error states. Never present them as live data.
 - Built-in plugins use only `DESIGN.md` semantic `--odk-*` tokens.
 - Installable packages cannot inherit Shell custom properties. Define a small local palette from the design values.
-- Use color for functional state. Inactive surfaces use black/charcoal, transparent subrows, and structural outlines. Do not add glow or decorative tinted cards.
+- Use color for functional state. Follow the selected theme material, including Liquid Glass, with a readable fallback.
+- Do not add unrelated glow, decorative tint, or another visual system.
 - Keep primary readings, row values, and actionable states at least 14px in `secondary-strong` or brighter.
 - Reserve 12px `secondary` for non-data captions. Keep all supporting text at least 12px.
 - Use tabular numerals for changing values. Montserrat display numerals may use `letter-spacing: -0.02em`; Pixel/Zpix resets to `normal`.
@@ -59,7 +60,7 @@ For a bug, describe the failed visible state and add a failing test through a pu
 Then implement, pass the test, and refactor.
 
 Cover reachable success, loading, empty, unavailable, unauthorized, stale, malformed, and recoverable error states.
-Include long English/CJK, compact/widescreen sizes, and Instrument/Pixel/Border Beam themes where inherited.
+Include long English/CJK, compact/widescreen sizes, and Instrument/Pixel/Border Beam/Liquid Glass themes where inherited.
 Interactive Apps also cover keyboard, touch, reduced motion, and screen-reader feedback.
 State the available action and what remains usable when a dependency fails.
 
@@ -76,6 +77,11 @@ Project guides override general advice.
 Read [design](references/design.md) for information, layout, typography, color, writing, accessibility, icons, and implementation patterns.
 For composition changes, reconcile current user constraints before changing shared geometry.
 Use existing product contracts and nearby implementations.
+Record a creation contract before editing: source, availability, identity, App entry, lifecycle, layout, typography, theme, recovery, and evidence.
+Resolve title and icon choices per Widget; neither is mandatory.
+Keep useful headings at the shared inset and center readings below them.
+Omit redundant headings without leaving an empty header or removing the accessible App name.
+Preserve accepted spans, page order, and the retained Overview unless the user changes them.
 Preserve source meaning and recovery behavior.
 For installable packages, follow the selected platform guide.
 Define local CSS variables from the current `DESIGN.md` palette inside the package.
@@ -92,7 +98,9 @@ Apply the preview consistency and capability checks in the verification referenc
 
 Follow [verification](references/verification.md) for the applicable commands and isolation rules.
 Built-ins require `tests/widget-app-styles.cjs` and `tests/widget-density.cjs` where applicable.
-Run affected tests before shared gates.
+Run affected tests before applicable shared gates.
+Use the verification tiers to avoid repeated unrelated checks.
+Verify the exact candidate on the affected host before claiming device acceptance.
 Report unverified device and assistive-technology acceptance.
 Do not relax density profiles to pass.
 

@@ -1,10 +1,14 @@
 # Widget and App verification
 
-Read this before verification. Runtime acceptance requires an isolated environment on the real CM5 through SSH.
+Read this before verification. Use isolated harnesses for source and renderer checks.
+CM5 is the reference host; Windows and macOS share the Shell.
+Verify platform-sensitive changes on each affected real host before claiming its acceptance.
 Inspect harness behavior before execution.
-Do not show foreground windows, steal focus, use production credentials, or affect production services.
+In isolated harnesses, do not show foreground windows, steal focus, use production credentials, or affect production services.
 Report a blocker when isolation is unavailable.
-Deployment and service operations require separate authorization.
+Deployment, activation, service operations, and live hardware capture require separate authorization.
+An authorized device capture uses the active interactive session and preserves user input.
+A Windows SSH process in Session 0 does not prove interactive Session 1 rendering.
 
 ## Evidence and difficult states
 
@@ -13,7 +17,9 @@ For plugin replacement claims, also apply [plugin replacement](plugin-replacemen
 Separate source checks, DOM assertions, rendered geometry, operational health, and user acceptance.
 A successful component or process does not establish the user's completed task.
 A fixture pass does not prove live-source recovery or physical input.
-Capture needed images on CM5 and transfer them to the development machine's `/tmp/`.
+Capture device evidence on the affected host; transfer it to the task evidence directory.
+Record the candidate identity, active release, source authority, and measurement time.
+A running service does not establish fresh data or correct model output.
 Label fixture images as examples.
 Screenshots support explanation; they do not replace runtime assertions.
 
@@ -27,6 +33,9 @@ Derive summary facts and component readings from one consistent fixture snapshot
 Populate conversation previews with representative messages, not a transcript of test actions.
 Assert decoded images, visible readings, font readiness, and cross-surface consistency before capture.
 Capture each supported theme and the applicable reference and compact dimensions.
+Assert actual heading visibility, accessible names, header insets, reading containment, and retained layout spans.
+Test the absence of removed headings as well as the presence of useful ones.
+Do not substitute fixture values for real readings when presenting device screenshots.
 
 When a component lacks a data channel, identify any preview-only display as simulated.
 Record the missing product capability separately; a populated preview does not implement it.
@@ -37,11 +46,19 @@ For Shell Home success previews, use [the isolated harness](../../../../runtime/
 Its synthetic Camera frame needs no hardware capture or external image provider.
 Use the failure harness separately for unavailable states and interaction recovery.
 
+## Native capture
+
+DOM readiness and a paint event do not prove that a native image contains the current frame.
+Use `tests/helpers/native-page-capture.js` for the shared Electron capture handshake.
+Wait for its acknowledgement, then capture and inspect the actual frame.
+Keep native fonts, scale, zoom, gutters, and viewport dimensions in the evidence.
+Do not repair capture failures with blind sleeps, repeated full runs, relaxed assertions, or GPU bypasses.
+
 ## Difficult states
 
 Use deterministic success, unavailable, malformed, slow, unauthorized, empty, corrupt-cache, and stale-cache fixtures for external data.
 Include long English/CJK, extreme values, missing units, and partial readings.
-Check Instrument, Pixel, and Border Beam themes where inherited.
+Check Instrument, Pixel, Border Beam, and Liquid Glass themes where inherited.
 Exercise keyboard, touch, reduced motion, and screen-reader feedback for interactive Apps.
 Check focus, wrapping, overflow, actual text sizes, and reachable recovery controls.
 Remove temporary stress routes.
@@ -118,6 +135,16 @@ Use the rerun to narrow the investigation; clear the gate only with a successful
 Run from `runtime/shell`.
 Start with affected tests, then applicable shared gates.
 
+| Tier | Required evidence |
+| --- | --- |
+| Focused repair | Reproduce the defect; run affected deterministic tests and a representative renderer check |
+| Shared interface delivery | Run applicable composition, theme, density, navigation, build, and release checks once on the final candidate |
+| Device acceptance | Check the activated candidate and relevant real services or input on the affected host |
+
+Do not repeat unrelated full suites for every spacing edit.
+Keep physical input, microphone, live-model behavior, and learning experiments separate when they exercise different boundaries.
+After an external failure, check health and use bounded retries; record a persistent blocker instead of restarting unrelated steps.
+
 | Built-in | Installable package |
 | --- | --- |
 | `node --test tests/<focused>.test.js` | `node --test tests/user-app*.test.js` |
@@ -127,6 +154,8 @@ Start with affected tests, then applicable shared gates.
 | `pnpm exec electron tests/widget-density.cjs` | `bash tests/smoke.sh` |
 | `bash tests/smoke.sh` | |
 
-Use `pnpm e2e` for composition, navigation, interaction, themes, or shared surfaces.
+Use `pnpm e2e` for applicable shared composition, navigation, interaction, or theme delivery.
+For Widget composition, also use `tests/home-preview.cjs --widget-grid` and the affected surface harness.
+Keep complete-gate failures open until the complete applicable command passes.
 Report passed commands, candidate identity, test scope, and unverified device/assistive-technology checks.
 For separately authorized deployment, provide outcome criteria, affected dependencies, and recovery requirements to the deployment workflow.
