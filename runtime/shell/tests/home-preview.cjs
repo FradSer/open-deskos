@@ -179,7 +179,7 @@ app.whenReady().then(async () => {
     await js('window.odkShellReady')
     await js(`(async () => {
       const deadline = performance.now() + 5000;
-      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant') || document.querySelector('.quota-tile-value').textContent !== '64%') {
+      while (document.querySelector('.pi-widget-count').textContent !== '3' || !document.querySelector('.agent-message-assistant') || document.querySelector('.quota-tile-value').textContent !== '76%') {
         if (performance.now() > deadline) throw Error('Populated readings did not arrive');
         await new Promise(resolve => setTimeout(resolve, 20));
       }

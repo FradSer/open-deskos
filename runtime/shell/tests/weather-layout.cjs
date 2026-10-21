@@ -73,9 +73,15 @@ function inspect() {
   const boxes = []
   const issues = []
   const primaryFont = parseFloat(getComputedStyle(tile.querySelector('.w-weather-number')).fontSize)
+  const lane = tile.querySelector('.w-weather-hero').getBoundingClientRect().height
   const rangeFont = Math.max(...[...tile.querySelectorAll('.w-weather-range-value')].map(node => parseFloat(getComputedStyle(node).fontSize)))
   if (['live', 'stale'].includes(tile.dataset.state) && primaryFont < rangeFont * 1.5) issues.push(`current temperature loses priority: ${primaryFont}px / range ${rangeFont}px`)
   if (primaryFont < 14) issues.push(`primary reading below 14px: ${primaryFont}`)
+  // A reading that beats its own captions can still under-fill the lane it owns. The
+  // lane's ceiling is what a short numeral may grow into, so its share of the lane is
+  // the readable floor. A longer value spends its lane width on more glyphs and is
+  // judged by the same value's share elsewhere instead.
+  if (['live', 'stale'].includes(tile.dataset.state) && String(tile.querySelector('.w-weather-number').textContent).length <= 2 && primaryFont < lane * 0.6) issues.push(`current temperature under-fills its reading lane: ${primaryFont}px in ${lane}px`)
   const walker = document.createTreeWalker(tile, NodeFilter.SHOW_TEXT)
   while (walker.nextNode()) {
     const node = walker.currentNode
@@ -131,7 +137,7 @@ function inspect() {
   if (pixel && (glyph.width % 24 !== 0 || glyph.height % 24 !== 0)) issues.push('fractional pixel grid')
   if (pixel && getComputedStyle(tile.querySelector('svg')).stroke !== 'none') issues.push('stroked pixel icon')
   return {
-    issues, primaryFont, rangeFont, glyph, reading, head, main, support, range: rect('.w-weather-range'),
+    issues, primaryFont, rangeFont, lane, glyph, reading, head, main, support, range: rect('.w-weather-range'),
     state: tile.dataset.state, place: tile.querySelector('.w-weather-place').textContent,
     badge: tile.querySelector('.w-weather-badge').textContent,
     badgeVisible: tile.querySelector('.w-weather-badge').getClientRects().length > 0,
@@ -256,6 +262,29 @@ async function main() {
     if (!Number.isFinite(floor.fontSize) || floor.fontSize < 14) issues.push(`primary reading below 14px: ${floor.fontSize}`)
     if (issues.length) failures.push({ label, issues })
     runs.push({ label, pressureFixtureOnly: true, ...floor, issues })
+  }
+  // A compact Cell must not shrink the reading: the numeral keeps the share of its own
+  // reading lane that the widest Cell gives it, so the desk's primary answer stays
+  // primary wherever the desk places it. A ratio against supporting captions cannot
+  // establish this, because both can shrink together.
+  const shares = new Map()
+  for (const run of runs) {
+    if (run.pressureFixtureOnly || !['live', 'stale'].includes(run.state) || !run.lane) continue
+    // A value that needs more room fits less by design, so readings of the same length
+    // are the ones that must hold the same share of their lane.
+    const key = `${run.label.split('/')[0]}/${String(run.number).length}`
+    const share = run.primaryFont / run.lane
+    const entry = shares.get(key) || { min: Infinity, max: 0, label: null }
+    if (share < entry.min) { entry.min = share; entry.label = run.label }
+    entry.max = Math.max(entry.max, share)
+    shares.set(key, entry)
+  }
+  for (const [key, entry] of shares) {
+    // A width-fit factor is metric-dependent across fonts and hosts, so the share
+    // tolerance leaves room for glyph variation while a step-down rule fails it.
+    if (entry.min < entry.max * 0.8) {
+      failures.push({ label: `${key}/reading-lane-share`, issues: [`the primary reading keeps ${entry.min.toFixed(3)} of its reading lane, against ${entry.max.toFixed(3)} at its widest Cell: ${entry.label}`] })
+    }
   }
   if (captureDir) fs.writeFileSync(path.join(captureDir, 'report.json'), JSON.stringify({ runs, failures }, null, 2))
   console.log(JSON.stringify(failures, null, 2))

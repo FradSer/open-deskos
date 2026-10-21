@@ -43,8 +43,8 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
   replace('odk-opencode-go-status', { state: 'available', snapshot: { accounts: [{
     id: 'preview-codex', fileName: 'demo-account.json', provider: 'codex', account: 'Demo workspace', plan: 'Demo',
     groups: [{ title: 'Usage', quotas: [
-      { label: 'Five-hour window', remainingPct: 76, resetAt: new Date(now + 7200000).toISOString() },
-      { label: 'Weekly window', remainingPct: 64, resetAt: new Date(now + 172800000).toISOString() },
+      { label: 'Five-hour window', remainingPct: 64, resetAt: new Date(now + 7200000).toISOString(), horizon: 'short' },
+      { label: 'Weekly window', remainingPct: 76, resetAt: new Date(now + 172800000).toISOString(), horizon: 'long' },
     ] }],
   }] } })
   const cover = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400" role="img" aria-label="Synthetic reading cover">

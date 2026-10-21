@@ -36,6 +36,8 @@ Capture each supported theme and the applicable reference and compact dimensions
 Assert actual heading visibility, accessible names, header insets, reading containment, and retained layout spans.
 Assert the primary reading's visual priority against supporting readings after fonts and theme styles settle.
 Use component-specific comparisons of text size, weight, and occupied space; presence and containment alone cannot establish hierarchy.
+Assert the primary reading's share of the lane it may fill; a ratio to captions passes while the numeral under-fills its own container.
+Hold one value's lane share across Cell sizes, so no responsive or theme rule shrinks the primary reading.
 Include compact Cells, long values, and each inherited theme in the affected surface harness.
 Apply the same hierarchy contract to independent replacement surfaces.
 When a component needs a deliberate type-role exception, reconcile its feature contract with the shared contract before changing the gate.

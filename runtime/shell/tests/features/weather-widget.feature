@@ -95,6 +95,7 @@ Feature: Weather instrument on the Home grid
     Then the place steps down to the caption floor while the condition keeps the data floor
     And the sky steps down to one whole unit of the pixel set
     And the range values step down with the cell
+    And the current temperature keeps the lane share a large cell gives it
     And the condition, the sky and the range stay on the tile's own supporting row
     And the reading stays above them without overlapping
 
@@ -332,6 +333,13 @@ Feature: Weather instrument on the Home grid
     And negative and multi-digit readings preserve this hierarchy
     And default and independent Weather surfaces enforce the same hierarchy
     And source and surface process restarts retain every theme and size combination
+
+  Scenario: The primary reading fills the lane it owns
+    Given live or stale weather with a short, negative or three-digit temperature
+    When the tile renders at each supported resolution and theme
+    Then a one or two character temperature covers at least 60 percent of its reading lane
+    And every temperature keeps at least 80 percent of the lane share the same value holds at the widest Cell
+    And only supporting text steps down in a compact Cell
 
   Scenario: Weather geometry uses readable font metrics on each host
     Given Windows and CM5 render the same Weather contract

@@ -43,7 +43,8 @@ Check whether the target skill already covers it:
 
 When a visible defect passed a gate, inspect both its assertions and its theme, Cell, state, and replacement coverage.
 When exit codes disagree with findings, apply the [execution evidence rules](../odk-widget/references/verification.md#fixture-controls-and-execution-scheduling) before changing product assertions.
-For hierarchy defects, require a comparison between primary and supporting readings instead of another presence or overflow check.
+For hierarchy defects, require a comparison between primary and supporting readings, and against the lane the primary reading owns, instead of another presence or overflow check.
+A relative gate passes while the numeral under-fills its own container; compare one value across Cell sizes.
 Reconcile shared and component-specific contracts when a deliberate visual role changes.
 Keep component-specific roles in the owning feature contract; put the reusable decision rule in the shared design and verification references.
 

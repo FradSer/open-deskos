@@ -189,22 +189,42 @@ function resetAt(window, now = new Date()) {
   return null
 }
 
-function codexWindow(label, window, now) {
+function codexWindow(label, window, now, horizon, prefix = '') {
   if (!window) return null
   const remainingPct = remainingPercentFromUsed(window.used_percent)
   if (remainingPct === null) return null
+  const seconds = Number(window.limit_window_seconds)
+  if (Number.isFinite(seconds) && seconds > 0) {
+    if (seconds === 604800) label = prefix ? 'weekly' : 'Weekly limit'
+    else {
+      const [value, unit] = seconds % 86400 === 0 ? [seconds / 86400, 'day']
+        : seconds % 3600 === 0 ? [seconds / 3600, 'hour']
+        : seconds % 60 === 0 ? [seconds / 60, 'minute'] : [seconds, 'second']
+      label = prefix ? `${value} ${unit}${value === 1 ? '' : 's'}` : `${value} ${unit} limit`
+    }
+  }
   return {
-    label,
+    label: prefix + label,
     remainingPct,
     resetAt: resetAt(window, now),
     description: null,
+    horizon,
   }
+}
+
+// The endpoint states each window's own length. A reading has to say whether it
+// covers the allowance for the period or a short burst inside it, so the desk can
+// report the allowance. The slot names the window when the length is absent.
+function codexHorizon(window, fallback) {
+  const seconds = Number(window?.limit_window_seconds)
+  if (Number.isFinite(seconds) && seconds > 0) return seconds >= 86400 ? 'long' : 'short'
+  return fallback
 }
 
 function codexLimitsGroup(rateLimit, now) {
   const quotas = [
-    codexWindow('5 hour limit', rateLimit?.primary_window, now),
-    codexWindow('Weekly limit', rateLimit?.secondary_window, now),
+    codexWindow('5 hour limit', rateLimit?.primary_window, now, codexHorizon(rateLimit?.primary_window, 'short')),
+    codexWindow('Weekly limit', rateLimit?.secondary_window, now, codexHorizon(rateLimit?.secondary_window, 'long')),
   ].filter(Boolean)
   return quotas.length ? { title: 'Codex limits', description: null, quotas } : null
 }
@@ -213,8 +233,8 @@ function codexAdditionalGroups(limits, now) {
   return (Array.isArray(limits) ? limits : []).map((limit) => {
     const name = limit.limit_name || 'Additional limit'
     const quotas = [
-      codexWindow(`${name} · 5 hours`, limit.rate_limit?.primary_window, now),
-      codexWindow(`${name} · weekly`, limit.rate_limit?.secondary_window, now),
+      codexWindow('5 hours', limit.rate_limit?.primary_window, now, codexHorizon(limit.rate_limit?.primary_window, 'short'), `${name} · `),
+      codexWindow('weekly', limit.rate_limit?.secondary_window, now, codexHorizon(limit.rate_limit?.secondary_window, 'long'), `${name} · `),
     ].filter(Boolean)
     return quotas.length ? { title: name, description: null, quotas } : null
   }).filter(Boolean)
