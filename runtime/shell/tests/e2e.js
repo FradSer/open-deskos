@@ -552,7 +552,7 @@ function check(results) {
     ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
     ['three display pages without a Pi App page', results.pageCount === 3],
-    ['one bottom Home handle with three page identities', results.dotCount === 3 && results.visibleHandles === 1],
+    ['page controller exposes every desk page', results.dotCount === results.pageCount && results.visibleHandles === results.dotCount],
     ['no separate User Applications page', results.noUserAppsPage],
     ['page context is tracked', results.pageContext === 'Home · 1/3'],
     ['bundled fonts are loaded', results.fontsLoaded],
