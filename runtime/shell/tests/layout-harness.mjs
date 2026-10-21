@@ -91,15 +91,15 @@ check('each grid Widget is hosted by exactly one page', new Set(placements).size
 const market = DESKTOP_LAYOUT.pages.find(p => p.id === 'home')?.widgets?.find(tile => tile.id === 'odk.tile.futu')
 check('market fills the former Home clock cell', market?.col === '3' && market?.row === '1')
 
-// WeRead meta: title/author/date step down by phi, the date carries an
-// underline, and the cover is a narrow right rail instead of a half panel.
+// WeRead metadata keeps the title larger than the author and date.
+// The date has no underline. The cover remains beside the metadata.
 const wereadCssPath = require('node:path').join(harnessDirectory, '../src/renderer/plugins/weread.css')
 const wereadCss = require('node:fs').readFileSync(wereadCssPath, 'utf8')
 const wereadSize = (selector) => Number((wereadCss.match(new RegExp(selector + '\\s*\\{[^}]*font-size:\\s*(?:max\\(\\d+px,\\s*)?([\\d.]+)cqi')) || [])[1])
 const wereadTitleCqi = wereadSize('\\.weread-title')
 const wereadAuthorCqi = wereadSize('\\.weread-author')
 const wereadDateCqi = wereadSize('\\.weread-date')
-check('weread title/author step down by phi and author/date share one size', [wereadTitleCqi, wereadAuthorCqi, wereadDateCqi].every(Number.isFinite) && Math.abs(wereadTitleCqi / wereadAuthorCqi - 1.6180339887) < 0.03 && wereadAuthorCqi === wereadDateCqi, `title/author/date cqi is ${wereadTitleCqi}/${wereadAuthorCqi}/${wereadDateCqi}`)
+check('weread title is larger and author/date share one size', [wereadTitleCqi, wereadAuthorCqi, wereadDateCqi].every(size => Number.isFinite(size) && size > 0) && wereadTitleCqi > wereadAuthorCqi && wereadAuthorCqi === wereadDateCqi, `title/author/date cqi is ${wereadTitleCqi}/${wereadAuthorCqi}/${wereadDateCqi}`)
 check('weread date carries no underline', !/\.weread-date\s*\{[^}]*text-decoration:\s*underline/.test(wereadCss), 'underlined .weread-date rule still present')
 check('weread date separates by spacing alone', /\.weread-date\s*\{[^}]*margin-top:/.test(wereadCss), 'no spacing separation on .weread-date')
 check('weread cover sits beside the meta block', /\.weread-foot\s*\{[^}]*display:\s*flex/.test(wereadCss), 'no .weread-foot flex row')

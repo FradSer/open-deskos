@@ -182,7 +182,9 @@ Feature: WeRead highlight widget
     Given the reading widget is approximately 1100 pixels wide
     Then the book title is approximately 44 pixels
     And the author and date share an approximately 30 pixel size
-    And the right-side cover is approximately 132 pixels wide with its original aspect ratio
+    And the right-side cover is at most 88 pixels wide outside Liquid Glass
+    And Liquid Glass caps the cover width at 120 pixels
+    And the cover keeps its original aspect ratio in the Widget and App
 
   Scenario: Pixel cover preserves finer book details
     Given the book cover is rendered in the Pixel theme
