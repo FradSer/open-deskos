@@ -268,7 +268,7 @@ app.whenReady().then(async () => {
       assert.deepEqual(results[1].labels, ['H:', 'L:'])
       assert.equal(results[1].place, options.place)
       assert.equal(results[1].controls, 0)
-      assert.match(results[1].font, theme === 'pixel' ? /Zpix/ : theme === 'liquid-glass' ? /-apple-system.*Noto Sans SC/ : /Montserrat/)
+      assert.match(results[1].font, theme === 'pixel' ? /Zpix/ : /Montserrat/)
       assert.equal(results[1].zpixLoaded, true)
       failed = true
       await js('window.odkPlatform.getWeatherStatus({ force: true })')

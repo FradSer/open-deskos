@@ -57,6 +57,7 @@ DOM readiness and a paint event do not prove that a native image contains the cu
 Use `tests/helpers/native-page-capture.js` for the shared Electron capture handshake.
 Wait for its acknowledgement, then capture and inspect the actual frame.
 Keep native fonts, scale, zoom, gutters, and viewport dimensions in the evidence.
+When hosts disagree, inspect selected fonts and glyph metrics before changing geometry or acceptance limits.
 Do not repair capture failures with blind sleeps, repeated full runs, relaxed assertions, or GPU bypasses.
 
 ## Difficult states
