@@ -11,6 +11,9 @@ Trace defects through parents, shared styles, component constraints, and content
 Compare user-approved neighboring surfaces in their actual composition.
 Treat minimum sizes as safeguards, not visual targets.
 
+Before creation or redesign, record a short contract in the existing task or feature file.
+Include source authority, units, freshness, unavailable states, plugin identity, App entry, lifecycle, layout, and recovery.
+State the measured Cell, theme, heading choice, icon choice, and required verification evidence.
 For composition changes, record the latest accepted constraints before editing shared geometry.
 Distinguish fixed spans, aspect ratios, page membership, outer margins, and internal gaps.
 Replace superseded constraints when the user changes them.
@@ -27,6 +30,13 @@ Keep DOM reading order consistent with visual order.
 Use logical properties for direction-aware alignment.
 Group content with space before adding borders or nested surfaces.
 Center primary readings independently of headers and status badges.
+Anchor useful headings at the shared top inset; center the reading within the remaining space.
+Choose headings per surface rather than adding them to every Widget.
+A provider name can identify a quota reading; a year percentage can explain itself.
+Keep an accessible App name when omitting a visible heading.
+Remove the unused header slot instead of hiding text inside reserved space.
+Keep counts, status capsules, and their summaries together.
+Check their gaps and containment across Cell sizes before increasing display numerals.
 Stack metric labels above the value and unit.
 
 ## Typography, color, and copy
@@ -43,8 +53,10 @@ Keep CJK, long words, signs, units, and multi-digit values readable.
 Provide access to full values when truncation is necessary.
 
 Use semantic color for state.
-Inactive surfaces use black/charcoal, transparent rows, and structural outlines.
-Avoid decorative glow and tinted cards.
+Use the selected theme material and its semantic palette.
+The baseline uses black/charcoal, transparent rows, and structural outlines.
+Liquid Glass keeps its accepted material and a readable fallback.
+Avoid unrelated decorative glow, tint, and competing surface treatments.
 Measure rendered contrast, including opacity and backgrounds.
 Normal text requires 4.5:1 contrast; large text and essential control graphics require 3:1.
 Keep a label or icon when color communicates meaning.
@@ -69,6 +81,9 @@ Clean up subscriptions, listeners, animation frames, and resources outside the s
 
 ## Icons
 
+Choose an icon only when it aids recognition or communicates state.
+Do not prefix every heading with an icon.
+Preserve an accepted meaningful icon unless the user changes that requirement.
 Use upstream Pixelarticons artwork for Pixel icons.
 Preserve MIT attribution: Copyright (c) 2019 Gerrit Halfmann.
 Do not use handmade approximations, another pixel set, raster icons, or stroked fallbacks.
@@ -95,11 +110,17 @@ Use existing plugin implementations as examples:
 | Need | Example | Required distinction |
 | --- | --- | --- |
 | Retained design examples | Chatbot (`message` icon), Settings (`settings` icon) | Keep each name and icon; show `Pending` and `Integration not available`; add no controls. These examples do not describe packaged Widgets. |
-| Calendar | `plugins/almanac.js` | Guard date changes; maintain centered one/two-digit days |
-| Clock | `plugins/clock.js` | `--:--` until first tick; update `dateTime` with the reading |
+| Focus timer | `plugins/pomodoro.js` | Keep the heading separate from the centered dial; controls belong to the App |
+| Provider allowance | `plugins/quota-page.js` | Use the actual provider name; preserve unknown readings |
+| Session summary | `plugins/pi-sessions.js` | Keep count, status capsule, and Idle count; retain the accessible App entry |
 | Progress | `plugins/year.js` | Rounded text and precise meter; text carries accessible meaning |
 | Telemetry | `plugins/hydra.js` | Mount a truthful null snapshot; preserve independent cell failures |
 
+Trace registered alternate surfaces before changing a shared visual contract.
+Update affected static markup and harness assertions together.
+Keep behavior-owning replacements independent; do not delegate to the default mount.
+Confirm that each example still exists before copying it.
+Do not restore retired surfaces through outdated examples.
 When alternatives are requested, vary a named structural dimension.
 Keep each alternative functional and compare it against the same requirements.
 Remove the temporary variant selector after selection.

@@ -3,7 +3,7 @@ Feature: Personal Agent home briefing
     Given the resident snapshot contains remote updates, owner turns, and session replies
     When the conversation opens
     Then only the latest twelve timeline items create message nodes
-    And older items remain data until the user scrolls upward or selects Earlier messages
+    And older items remain data until the user scrolls upward or uses Home at the top
     When an earlier batch is added
     Then the previously visible message keeps its screen position
     And existing message nodes and the unsent draft remain unchanged
@@ -35,12 +35,13 @@ Feature: Personal Agent home briefing
     And released status callbacks cannot change the conversation
 
   Scenario: The Agent identity capsule stays on one line
-    Given the Agent uses its default name and Ready status
+    Given the Agent uses its default name and is idle
     When the capsule renders at desktop or compact widths
     Then the complete default name stays on one line
     And the capsule keeps its 44 pixel control height
     When a long name or status is displayed
-    Then each label truncates inside the capsule without wrapping
+    Then the name truncates inside the capsule without wrapping
+    And the status truncates below the capsule without moving the conversation
     And the accessible name retains the complete Agent name and status
 
   Scenario: Text input focus follows the composer capsule
@@ -286,7 +287,7 @@ Feature: Personal Agent home briefing
   Scenario: A late text receipt preserves the final service state
     Given a typed request completes before its receipt arrives
     When the receipt confirms delivery
-    Then the Agent keeps the completed response and Ready state
+    Then the Agent keeps the completed response and quiet idle header
 
   Scenario: The resident microphone stops and starts voice turns
     Given the Agent is recording a voice request
@@ -420,24 +421,24 @@ Scenario: Remote Pi synthesis stays in the same Agent conversation
   Given the reviewed remote conversation capability has retained synthesized Pi reports
   When the Agent page opens or receives an updated service frame
   Then the existing conversation shows each retained synthesis once
-  And source disclosures identify the machine and exact session without granting controls
-  And partial coverage stays in details while stale and unavailable warnings remain visible
+  And task labels identify the work while exact references remain in the service
+  And coverage metadata stays outside the conversation while connection failures remain visible
   And incoming reports do not submit owner messages
 
 Scenario: Personal Agent reports completed tasks as short conversation messages
   Given the resident retains legacy task reports and new assistant updates
   When the conversation receives or reconnects to those messages
   Then each new update appears once in its original order as an assistant bubble
-  And source identifiers and audit labels stay inside a closed Sources disclosure
-  And legacy reports remain complete in one closed Earlier task updates group
-  And partial or unavailable coverage uses a short readable status
+  And source identifiers and audit labels stay outside the conversation
+  And legacy reports remain complete in the same message timeline
+  And unavailable task connections use a short header status
   And the existing conversation is the only scroll region above the fixed composer
   And keyboard focus and the current reading position survive repeated frames
 
 Scenario: Personal Agent keeps provider diagnostics out of the conversation
   Given the resident model is ready with optional Jev disabled or unavailable
   When the Agent receives status changes or reconnects
-  Then the header shows one concise readiness caption without provider labels
+  Then the ready header shows no status caption or provider labels
   And optional provider failures do not create warnings or conversation messages
   And an actual readiness failure remains visible without claiming authentication passed
   And the single scroll region and fixed composer remain usable
@@ -453,16 +454,16 @@ Scenario: Overview refresh uses the weekday indicator without adding chat text
   And explicit owner questions and completed task messages remain available
   And reduced motion keeps a static busy indicator and accessible busy state
 
-Scenario: A calm conversation keeps provenance behind explicit disclosures
+Scenario: A calm conversation keeps provenance outside the message timeline
   Given the Agent receives completed updates and durable owner replies
   When the conversation opens with a ready model
   Then natural message text and one explicit Reply action are the primary content
-  And session identifiers, source references, verification and successful receipts stay in closed details
+  And session identifiers, source references, verification and successful receipts stay outside the message timeline
   And an update with several sessions requires an explicit source choice before replying
   And uncertain or failed delivery remains visible with a useful next step
   And unavailable connections remain visible without repeated provider metadata
   And running subagent identities and avatars remain visible
-  And disclosures, reply references and the fixed composer remain keyboard and touch accessible
+  And task names, reply references and the fixed composer remain keyboard and touch accessible
   And repeated frames preserve the same messages, focus and reading position
   And the compact composer uses a short placeholder with an identity-specific accessible label
 
@@ -508,3 +509,33 @@ Scenario: Hidden previews capture the current native viewport
   Then it first requires a nonempty native frame with the full viewport size
   And it reads current compositor pixels with the original capture rectangle
   And paint failures stop within a deadline without retries
+
+  Scenario: The Personal Agent conversation shows messages and task names
+    Given retained owner turns and remote Pi task updates
+    When the Personal Agent is ready
+    Then its header shows no Ready caption or status dot
+    And messages have concise descriptive task names below their text
+    And task names open the exact task thread and preserve explicit reply selection
+    And no Sources, Conversation details, or Earlier messages disclosures appear
+    And scrolling up loads retained messages without a history button
+    When the agent processes a request
+    Then the header shows Thinking with an accessible status
+    And uncertain delivery and connection failures remain visible
+
+  Scenario: An interrupted composition check cannot report success
+    Given a private Electron fixture has a transient profile cleanup conflict
+    When the composition runner collects its child result
+    Then cleanup retries within a fixed bound
+    And a remaining runner error exits unsuccessfully with its original diagnostic
+
+  Scenario: Durable reply task labels use the complete retained source identity
+    Given two retained messages share an ID and have different source keys and revisions
+    When a durable reply references the second source
+    Then its task label uses the second source name
+    And an ambiguous complete source reference remains unavailable
+
+  Scenario: Keyboard history loading adds an earlier batch
+    Given the conversation has deferred history and keyboard focus
+    When the user presses Home
+    Then another batch mounts without replacing existing nodes
+    And the draft and viewport anchor remain unchanged

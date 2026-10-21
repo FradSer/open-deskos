@@ -219,14 +219,14 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-m
 
 /* Quota Tile */
 .w-quota {
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--odk-space-2);
 }
 
 .quota-tile-body {
   position: relative;
   display: flex;
-  flex: none;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;

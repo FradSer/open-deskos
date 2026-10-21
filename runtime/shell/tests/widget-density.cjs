@@ -142,25 +142,23 @@ async function measureSize(win, width, height) {
       // unavailable fixture (2026-09-18): 10.8% at 1920x1280, 11.2-11.8% across the other
       // resolutions, against 21.8-26.9% with a live reading.
       'odk.tile.weather': WEATHER_PROFILE,
-      'odk.tile.pomodoro': { target: 0.42, tolerance: 0.14, minOccupied: 0.15, maxEmptyBand: 0.36 },
+      // The anchored heading and independently centered dial use the standard band.
+      'odk.tile.pomodoro': DEFAULTS,
       // Live wide Hydra uses the shared reading-density limits. Smaller shapes
       // and unavailable placeholders retain their existing measured profile.
       'odk.tile.hydra': padding.hydraShape === 'wide' && fixtureState === 'live' ? DEFAULTS
         : { target: 0.75, tolerance: 0.18, minOccupied: 0.12, maxEmptyBand: 0.35 },
-      // The wide 2x2 tile measures 23.9% at 1920x1280; keep the existing
-      // 44% centre while including that verified edge without hiding sparsity.
-      // Below the 217px cell the tile declared it reads at, it drops its summary
-      // line rather than letting a smaller cell cut it, and the narrower
-      // composition measures 19.4% in a 204px cell.
-      'odk.tile.pi-sessions': { target: 0.44, tolerance: 0.25, minOccupied: 0.08, maxEmptyBand: 0.32 },
+      // The requested heading-free summary groups one count, its status capsule,
+      // and Idle count. Its narrow, centered envelope is intentional; the
+      // empty-band limit remains unchanged; the multi-row occupied floor applies.
+      // Working and unavailable capsules have different widths, so each fixture
+      // has its own envelope center. The Pi harness checks grouping and access.
+      'odk.tile.pi-sessions': { target: fixtureState === 'live' ? 0.22 : 0.16, tolerance: 0.06, minOccupied: 0.12, maxEmptyBand: 0.32 },
       // The cover is a canvas; density measures the excerpt and source text.
       'odk.tile.weread': WEREAD_PROFILE,
-      // AI usage: the shared fixture answers the quota service as unconfigured,
-      // so every measured band is the placeholder reading and not a live
-      // window. Measured on 2026-10-16: 33.5% at 1920x1280 and 43.3% at the
-      // compact sizes. The profile records that fixture limitation instead of
-      // hiding it; a live account reading still needs its own measurement.
-      'odk.tile.quota': { target: 0.35, tolerance: 0.18, minOccupied: 0.06, maxEmptyBand: 0.35 },
+      // The anchored provider heading and centered allowance use the standard
+      // envelope band. Placeholder text retains the multi-row occupied floor.
+      'odk.tile.quota': { ...DEFAULTS, minOccupied: 0.12 },
     }
     const settings = profiles[widget.id]
     const result = measureDensity(widget.frame, widget.boxes, settings)

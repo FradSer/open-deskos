@@ -70,10 +70,10 @@ function installHomePreviewFixtures(ipcMain, { now = Date.now() } = {}) {
   // Synthetic training and v8 progress illustrate assistant updates, never live reports.
   const prompt = ''
   const reply = ''
-  const source = { key: 'a'.repeat(64), revision: 'b'.repeat(64), machine: 'Synthetic Mac', sessionId: 'synthetic-training', project: '/synthetic/training', control: 'report_only', availability: 'live' }
+  const source = { taskName: '中文识别训练', key: 'a'.repeat(64), revision: 'b'.repeat(64), machine: 'Synthetic Mac', sessionId: 'synthetic-training', project: '/synthetic/training', control: 'report_only', availability: 'live' }
   const updates = ['中文识别训练有新进展：验证集 CER 降到 37.35%，最佳和最后检查点已保存到 Drive。控制器仍依赖 Mac 在线，请暂时保留原终端；独立测试还没做。', 'v8 模型完成：前留白缩到 10 mm，前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。']
   const remote = { state: 'live', total: 3, messages: [
-    ...updates.map((text, index) => ({ id: `synthetic-update-${index}`, text, presentation: 'assistant_update', sources: [{ ...source, ...(index === 1 ? { key: 'c'.repeat(64), sessionId: 'synthetic-v8', project: '/synthetic/v8' } : {}) }], verification: 'reported_unverified', synthesisVerification: 'passed' })).reverse(),
+    ...updates.map((text, index) => ({ id: `synthetic-update-${index}`, text, presentation: 'assistant_update', sources: [{ ...source, ...(index === 1 ? { key: 'c'.repeat(64), sessionId: 'synthetic-v8', project: '/synthetic/v8', taskName: '外壳模型调整' } : {}) }], verification: 'reported_unverified', synthesisVerification: 'passed' })).reverse(),
     { id: 'synthetic-earlier-report', text: 'Synthetic earlier report: source revision and execution audit remain available here.', sources: [source], verification: 'reported_unverified', synthesisVerification: 'passed' },
   ] }
   replace('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'}, transcript: prompt, message: reply, briefing, remote })

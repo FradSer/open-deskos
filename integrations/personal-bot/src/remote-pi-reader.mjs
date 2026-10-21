@@ -123,7 +123,7 @@ export async function attachRemoteConversation({agent,env,stateDir,publish=(_fra
   let reader
   try {
     reader=await createReader({env})
-    const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),publish,thread:source=>reader.thread?.(source)??sessionThread(source)})
+    const remote=new RemoteConversation({file:join(stateDir,'personal-agent','remote-conversation.json'),read:cursor=>reader.read(cursor),synthesize:input=>agent.summarizeRemote(input),nameTasks:agent.nameRemoteTasks?input=>agent.nameRemoteTasks(input):undefined,publish,thread:source=>reader.thread?.(source)??sessionThread(source)})
     const ownerAttempts=new WeakSet()
     agent.attachRemoteContext(()=>remote.context(),(offset,limit,sourceKey)=>sourceKey?remote.reference(sourceKey):remote.snapshot(offset,limit),
       async (params,signal,reply,owner)=>{

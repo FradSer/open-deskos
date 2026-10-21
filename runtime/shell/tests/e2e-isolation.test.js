@@ -519,3 +519,18 @@ for (const fixture of ['clock-main-bootstrap.cjs', 'dashboard-main-bootstrap.cjs
     assert.deepEqual(selected.BrowserWindow.getAllWindows(), [constructed])
   }
 })
+
+
+test('composition startup rejection exits unsuccessfully with its diagnostic', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'e2e.js'), 'utf8')
+  const entry = source.slice(source.lastIndexOf('app.whenReady().then(main)'))
+  const failure = Object.assign(Error('transient fixture directory cleanup failed'), { code: 'ENOTEMPTY' })
+  const exits = [], errors = []
+  await vm.runInNewContext(entry, {
+    app: { whenReady: () => Promise.resolve(), exit: code => exits.push(code) },
+    main: async () => { throw failure },
+    console: { error: (...args) => errors.push(args) },
+  })
+  assert.deepEqual(exits, [1])
+  assert.equal(errors.some(args => args.includes(failure)), true)
+})

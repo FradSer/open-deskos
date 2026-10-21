@@ -30,3 +30,10 @@ Feature: Local bilingual Zpix typography in the Pixel theme
     And both State Bar capsules retain equal 44 pixel heights
     And the text-free page indicator keeps its themed points and active bar
     And the standard Electron E2E command runs both font and page-control verification
+
+  Scenario: Heading-free instruments preserve density with narrow Zpix glyphs
+    Given Pi has no visible heading and Year is a self-explanatory percentage
+    When Pixel renders at the supported Cell sizes
+    Then primary numerals use the content space without clipping any digit
+    And Pi meets the multi-row occupied floor in live and unavailable states
+    And WeRead retains readable line spacing without shrinking its excerpt

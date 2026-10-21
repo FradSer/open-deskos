@@ -105,7 +105,7 @@ async function assertOptionalJudgmentStatus() {
   for(const jev of ['unavailable','disabled','auth_rejected','missing_credential','checking']) {
     publishStatus({state:'idle',jev:{status:jev},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'}})
     await evaluate('new Promise(r=>setTimeout(r,20))')
-    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Ready','ordinary judgment availability does not require Jev authentication')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'','ordinary judgment availability does not require Jev authentication')
     assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null,'optional provider metadata stays out of the conversation')
   }
   publishStatus({state:'idle',jev:{status:'verified'},judgment:{status:'unavailable',provider:'model'}})
@@ -128,7 +128,7 @@ async function assertOptionalJudgmentStatus() {
 }
 
 async function assertJevStartupStatus() {
-  const states = [['checking','Connecting…'],['verified','Ready'],['disabled','Connection unavailable'],['missing_credential','Connection unavailable'],['auth_rejected','Connection unavailable'],['unavailable','Connection unavailable'],[undefined,'Connection unavailable']]
+  const states = [['checking','Connecting…'],['verified',''],['disabled','Connection unavailable'],['missing_credential','Connection unavailable'],['auth_rejected','Connection unavailable'],['unavailable','Connection unavailable'],[undefined,'Connection unavailable']]
   const count=await evaluate(`document.querySelector('.agent-conversation').children.length`)
   for (const [status,caption] of states) {
     for (let repeat=0;repeat<2;repeat++) {
@@ -145,7 +145,7 @@ async function assertJevStartupStatus() {
     await resize(480,854);await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
     publishStatus({state:'idle',jev:{status:'unavailable'},judgment:{status:'ready',provider:'model',model:'synthetic/model'}})
     await evaluate('new Promise(r=>setTimeout(r,20))')
-    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Ready')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'')
     assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null)
   }
   await resize(320,480)
@@ -181,34 +181,39 @@ async function assertNotificationMessagesAreIndependent() {
 async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').placeholder`),'Message…','compact composer uses a single short placeholder')
   assert.match(await evaluate(`document.querySelector('.agent-composer textarea').getAttribute('aria-label')`),/Personal Agent/,'accessible input label retains the agent identity')
-  const source={key:'1a'.repeat(32),revision:'2b'.repeat(32),threadId:'3c'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-session-01a14dfd-6a34-75c3-a1f8-415d50d50e35',project:'/synthetic/training',control:'report_only',availability:'live'}
+  const source={key:'1a'.repeat(32),revision:'2b'.repeat(32),threadId:'3c'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-session-00000000-0000-4000-8000-000000000001',project:'/synthetic/training',taskName:'中文识别训练',control:'report_only',availability:'live'}
   const item={id:'4d'.repeat(32),at:1000,text:'合成示例：中文识别训练有新进展，验证集 CER 降到 37.35%，检查点已保存到 Drive。控制器仍依赖 Mac 在线，请保留原终端；独立测试还没做。',presentation:'assistant_update',sources:[source]}
   const frame={state:'idle',judgment:{status:'ready',provider:'model',model:'synthetic/test'},jev:{status:'disabled'},agents:{state:'live',tasks:[{taskId:'99999999-9999-4999-8999-999999999999',identity:{id:'synthetic-checker',name:'Synthetic design agent',avatar:'code',revision:'9'.repeat(64)},state:'running',updatedAt:new Date().toISOString()}]},remote:{state:'partial',messages:[item],replies:[],heldCount:1,expiredMessages:2}}
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
-  const observed=await evaluate(`(()=>{const article=document.querySelector('[data-remote-id="${item.id}"]'),copy=article.cloneNode(true);copy.querySelectorAll('details').forEach(n=>n.remove());const auth=document.querySelector('.agent-jev-status')?.getBoundingClientRect();return {primary:copy.textContent,details:article.querySelector('.agent-update-sources').textContent,closed:!article.querySelector('.agent-update-sources').open,authVisible:Boolean(auth&&auth.width>0&&auth.height>0)}})()`)
-  assert.doesNotMatch(observed.primary,/Session|synthetic-session|Synthetic Mac|Report only|Source:|Revision:/,'technical provenance is not repeated beside every message')
+  const observed=await evaluate(`(()=>{const article=document.querySelector('[data-remote-id="${item.id}"]');return {primary:article.textContent,details:article.querySelectorAll('details,summary').length,task:article.querySelector('.agent-session-open').textContent}})()`)
+  assert.doesNotMatch(observed.primary,/Session|synthetic-session|Synthetic Mac|Report only|Source:|Revision:/)
   assert.match(observed.primary,/中文识别训练有新进展/);assert.match(observed.primary,/Reply/)
-  assert.match(observed.details,/synthetic-session/);assert.match(observed.details,/Source:/);assert.equal(observed.closed,true)
-  assert.equal(observed.authVisible,false,'provider diagnostics do not appear in the conversation header')
-  assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-child-avatar svg');return Boolean(n&&n.getBoundingClientRect().width>0)})()`),true,'running subagent identities retain a visible avatar')
-  assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').hidden`),true,'informational coverage does not become another conversation message')
+  assert.equal(observed.details,0);assert.equal(observed.task,'中文识别训练')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),true,'ready is quiet')
+  assert.equal(await evaluate(`document.querySelector('.agent-status-dot')`),null)
+  assert.equal(await evaluate(`document.querySelector('.agent-child-avatar svg')!==null`),true)
+  assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage, .agent-history-earlier')`),null)
+  publishStatus({...frame,state:'thinking'});await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking…')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),false)
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
   await evaluate(`document.querySelector('.agent-message-reply').click()`)
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false,'single-source reply retains its exact reference')
   await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
-  const second={...source,key:'5e'.repeat(32),revision:'6f'.repeat(32),threadId:'7a'.repeat(32),sessionId:'synthetic-second-session',project:'/synthetic/v8'}
+  const second={...source,key:'5e'.repeat(32),revision:'6f'.repeat(32),threadId:'7a'.repeat(32),sessionId:'synthetic-second-session',project:'/synthetic/v8',taskName:'外壳模型调整'}
   const multi={...item,id:'8b'.repeat(32),at:2000,text:'合成示例：v8 模型完成，前留白缩到 10 mm、前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。',sources:[source,second]}
   const next={...frame,remote:{...frame.remote,messages:[multi,item]}}
   publishStatus(next);await evaluate('new Promise(r=>setTimeout(r,30))')
-  await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-message-reply').click()`)
+  await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-session-reply').focus({preventScroll:true})`)
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'multi-source Reply never selects the first source implicitly')
-  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-update-sources').open`),true)
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${multi.id}"] .agent-session-open').length`),2)
   await evaluate(`document.querySelector('[data-remote-id="${multi.id}"] .agent-session-reply[data-source-key="${second.key}"]').click()`)
-  assert.match(await evaluate(`document.querySelector('.agent-reply-session').textContent`),/synthetic-second-session/)
+  assert.match(await evaluate(`document.querySelector('.agent-reply-session').textContent`),/外壳模型调整/)
   await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
   const reply={id:'11111111-1111-4111-8111-111111111111',threadId:source.threadId,sessionId:source.sessionId,text:'请继续检查这个结果。',replyTo:{messageId:item.id,sourceKey:source.key,sourceRevision:source.revision},status:'answered',at:3000,answer:'合成示例：已完成检查。'}
   const replies={...next,remote:{...next.remote,replies:[reply]}}
   publishStatus(replies);await evaluate('new Promise(r=>setTimeout(r,30))')
-  assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-reply-status'),d=n.closest('details');return Boolean(d&&!d.open)})()`),true,'successful receipt detail does not repeat a status beside the owner message')
+  assert.equal(await evaluate(`document.querySelector('.agent-reply-status').hidden`),true,'successful receipt does not repeat a status beside the owner message')
   for(const status of ['unknown','failed']){
     publishStatus({...replies,remote:{...replies.remote,replies:[{...reply,status}]}});await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-reply-status'),r=n.getBoundingClientRect();return r.width>0&&r.height>0})()`),true,'uncertain and failed delivery remain visible')
@@ -219,95 +224,57 @@ async function assertSimpleConversation() {
     await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
     for(const [width,height]of [[1920,1280],[480,854],[320,480]]){
       await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
-      const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-message-reply')].every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
-      assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
+      const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {viewport:innerWidth,panel:{left:p.left,right:p.right,width:p.width},overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-session-reply')].filter(n=>getComputedStyle(n).display!=='none').every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
+      assert.ok(geometry.panel.left>=0&&geometry.panel.right<=width, 'Agent fits viewport: '+JSON.stringify(geometry));assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
       fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
+  const longName='Android 客户端连接与设备输入验证'.repeat(3).slice(0,40)
+  publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName:longName}]}]}})
+  await evaluate('new Promise(r=>setTimeout(r,30))')
+  for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+    await resize(width,height)
+    const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
+    assert.equal(named.text,longName,'long task names update in place without changing the source reference')
+    assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
+  }
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
-  assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').hidden`),false,'actual connection failure remains visible')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
 }
 
 async function assertRemoteConversationHistory() {
-  const remote={state:'partial',messages:[{id:'synthetic-remote-update',text:'A remote Pi reports a conclusion. <img src=x onerror=alert(1)>',sources:[{machine:'synthetic-Mac',sessionId:'synthetic-session',project:'/synthetic/project',revision:'a'.repeat(64),control:'report_only',availability:'unavailable'}]}],omitted:8,heldCount:0,hasMore:true}
-  const frame={state:'idle',transcript:'Question 中文',message:'Final response',remote}
-  publishStatus(frame)
-  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  publishStatus(frame)
-  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  const observed=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message-assistant')],remote=all.filter(node=>node.textContent.includes('A remote Pi reports'));return {count:remote.length,text:remote[0]?.textContent,images:remote[0]?.querySelectorAll('img').length,details:remote[0]?.querySelector('details')?.textContent,coverage:document.querySelector('.agent-remote-coverage')?.textContent}})()`)
-  assert.equal(await evaluate(`!!document.querySelector('.agent-earlier-updates') && !document.querySelector('.agent-earlier-updates').open`),true,'legacy reports are retained in a closed Earlier task updates group')
-  assert.equal(observed.count,1,'replayed retained frames do not duplicate the same conversation synthesis')
-  assert.equal(observed.images,0,'remote text is never HTML')
-  assert.match(observed.details,/synthetic-Mac.*synthetic-session.*Report only/)
-  assert.match(observed.coverage,/More task updates.*partial.*8 sources/s)
-  for (const [change, expected] of [
-    [{hasMore:false,omitted:1}, 'Some task updates are not available yet.'],
-    [{hasMore:false,omitted:0,expiredMessages:1}, 'Some earlier task updates have expired.'],
-    [{hasMore:false,omitted:0,total:2}, 'Earlier task updates are available. Ask to see them.'],
-  ]) {
-    publishStatus({...frame,remote:{...remote,...change}})
-    await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
-    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage > [role="status"]').textContent`),expected)
-  }
-  assert.equal(await evaluate(`document.querySelector('.agent-jev-status')`),null,'a long conversation does not grow a provider status line')
-  const updates = ['训练第一轮完成了，我可以帮你对照报告继续看。', 'v8 已完成实现，回归结果还需要确认。']
-  const messages = updates.map((text, index) => ({ ...remote.messages[0], id: `synthetic-short-${index}`, text, presentation: 'assistant_update' }))
-  const updated = { ...frame, remote: { ...remote, messages: [...messages].reverse().concat(remote.messages), heldCount: 1 } }
-  publishStatus(updated)
-  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), updates)
-  assert.equal(await evaluate(`document.querySelector('.agent-update-sources').open`), false)
+  const source={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'session',project:'/synthetic/legacy',control:'report_only',availability:'live'}
+  const legacy={id:'e'.repeat(64),at:1000,text:'Legacy <img src=x onerror=alert(1)> report',sources:[source]}
+  const item={...legacy,id:'f'.repeat(64),at:2000,presentation:'assistant_update',text:'消息链路已恢复。\n设备输入仍待核验。',sources:[{...source,taskName:'Android 客户端连接'}]}
+  const frame={state:'idle',remote:{state:'partial',messages:[item,legacy],hasMore:true,omitted:8,total:4,heldCount:1}}
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.equal(await evaluate(`document.querySelector('.agent-conversation details, .agent-conversation summary, .agent-earlier-updates, .agent-remote-coverage, .agent-history-earlier')`),null,'conversation has messages rather than metadata disclosures')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${legacy.id}"] img')`),null,'remote text remains literal')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${legacy.id}"]').parentElement.className`),'agent-conversation','legacy messages share the same timeline')
+  assert.equal(await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').textContent`),'Android 客户端连接')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-  assert.equal(await evaluate('document.hasFocus()'),true,'the hidden keyboard fixture owns emulated focus')
-  await evaluate(`document.querySelector('.agent-update .agent-update-sources > summary').focus()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
-  await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
-  assert.equal(await evaluate(`document.querySelector('.agent-update .agent-update-sources').open`),true,'Sources opens with the keyboard')
-  for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
-  await evaluate('new Promise(resolve=>setTimeout(resolve,20))')
-  await evaluate(`window.retainedSource=document.querySelector('.agent-update .agent-update-sources > summary'); retainedSource.focus({preventScroll:true}); document.querySelector('.agent-conversation').scrollTop=0`)
-  publishStatus(updated)
-  await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  assert.equal(await evaluate(`document.activeElement===retainedSource && document.querySelectorAll('.agent-update').length===2`),true,'reconnect keeps focus and message identity')
-  for(const theme of ['instrument','pixel','border-beam']) {
-    await evaluate(`window.odkTheme.set(${JSON.stringify(theme)})`)
-    for(const [width,height] of [[1920,1280],[960,640],[320,480]]) {
-      await resize(width,height)
-      const geometry=await evaluate(`(()=>{const region=document.querySelector('.agent-conversation'),summary=region.querySelector('.agent-update .agent-update-sources > summary');return {width:region.clientWidth,overflow:region.scrollWidth-region.clientWidth,touch:summary.getBoundingClientRect().height,font:parseFloat(getComputedStyle(summary).fontSize),composer:document.querySelector('.agent-composer').getBoundingClientRect().bottom}})()`)
-      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-earlier-updates')).overflowY`),'visible','history does not create a second scroll container')
-      assert.ok(geometry.overflow<=1,JSON.stringify(geometry));assert.ok(geometry.touch>=44,JSON.stringify(geometry));assert.ok(geometry.font>=14,JSON.stringify(geometry));assert.ok(geometry.composer<=height,JSON.stringify(geometry))
-
-    }
-  }
-  await evaluate(`document.querySelector('.agent-earlier-updates > summary').click()`);assert.match(await evaluate(`document.querySelector('.agent-earlier-updates').textContent`),/A remote Pi reports/);
-  await evaluate(`document.querySelector('.agent-earlier-updates > summary').click()`);
-  await resize(320,480);await evaluate(`document.querySelector('.agent-conversation').scrollTop=0`);
-  const scrollBefore=await evaluate(`document.querySelector('.agent-conversation').scrollTop`);
-  publishStatus(updated);await evaluate('new Promise(resolve=>setTimeout(resolve,30))');
-  assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'repeated frames retain the reading position');
-  const newer={...updated,remote:{...updated.remote,messages:[{...messages[0],id:'synthetic-short-new',text:'新一轮检查已开始，结果还没有回来。'},...updated.remote.messages]}}
-  publishStatus(newer);await evaluate('new Promise(resolve=>setTimeout(resolve,30))')
-  assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop`),scrollBefore,'a new update does not pull the reader away')
-  assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),false)
-  await evaluate(`document.querySelector('.agent-latest').click()`);assert.equal(await evaluate(`document.querySelector('.agent-latest').hidden`),true);
-  await resize(1920,1280)
+  assert.equal(await evaluate(`document.querySelector('.agent-thread-nav').hidden`),false,'task name opens the exact thread by keyboard')
+  assert.equal(await evaluate(`document.querySelector('.agent-thread-nav span').textContent`),'Android 客户端连接')
+  await evaluate(`document.querySelector('.agent-thread-all').click()`)
+  const button=await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').getBoundingClientRect().height`)
+  assert.ok(button>=44)
+  publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"]').length`),1,'reconnect never duplicates the update')
 }
 
 
 async function assertThreadCoverageRestore() {
-  const source={key:'a2'.repeat(32),revision:'b2'.repeat(32),threadId:'c2'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-coverage-session',project:'/synthetic/coverage',control:'report_only',availability:'live'}
+  const source={key:'a2'.repeat(32),revision:'b2'.repeat(32),threadId:'c2'.repeat(32),taskName:'Task connection',machine:'Synthetic Mac',sessionId:'synthetic-coverage-session',project:'/synthetic/coverage',control:'report_only',availability:'live'}
   const item={id:'d2'.repeat(32),at:9000,text:'Synthetic completed task for coverage checks',presentation:'assistant_update',sources:[source]}
-  for(const remote of [{state:'stale',omitted:0},{state:'partial',omitted:1},{state:'live',omitted:0}]) {
-    const complete=remote.state==='live'
-    publishStatus({state:'idle',remote:{...remote,messages:[item],replies:[],total:1}});await evaluate('new Promise(r=>setTimeout(r,30))')
-    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete)
-    await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click()`)
-    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),true)
-    await evaluate(`document.querySelector('.agent-thread-all').click()`)
-    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'All messages restores the current coverage notice without a new frame')
+  for(const state of ['stale','partial','live','unavailable']) {
+    publishStatus({state:'idle',remote:{state,messages:[item],replies:[],total:1}});await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage')`),null)
+    await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-session-open').click();document.querySelector('.agent-thread-all').click()`)
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[state] || ''))
     await evaluate(`document.querySelector('[data-source-key="${source.key}"]').click();document.querySelector('.agent-reply-cancel').click()`)
-    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage').hidden`),complete,'Cancel reply restores the current coverage notice without a new frame')
+    assert.equal(await evaluate(`document.querySelector('.agent-remote-coverage')`),null,'thread navigation never restores removed metadata')
   }
 }
 
@@ -340,14 +307,17 @@ async function assertThreadProjectionUpdate() {
 async function assertDuplicateRemoteIds() {
   const id='9'.repeat(64)
   const source={key:'8'.repeat(64),revision:'7'.repeat(64),threadId:'6'.repeat(64),machine:'Synthetic Mac',sessionId:'synthetic-legacy-session',project:'/synthetic/legacy',control:'report_only',availability:'live'}
-  const other={...source,key:'5'.repeat(64),revision:'4'.repeat(64),threadId:'3'.repeat(64),sessionId:'synthetic-other-session'}
+  const other={...source,key:'5'.repeat(64),revision:'4'.repeat(64),threadId:'3'.repeat(64),sessionId:'synthetic-other-session',taskName:'Legacy second task'}
   const first={id,at:4000,text:'Synthetic legacy snapshot one',sources:[source]}
   const second={id,at:5000,text:'Synthetic legacy snapshot two',sources:[other]}
   const publish=async messages=>{publishStatus({state:'idle',remote:{state:'live',messages,replies:[],total:messages.length}});await evaluate('new Promise(r=>setTimeout(r,30))')}
   await publish([second,first])
+  const reply={id:'34567890-1234-4123-8123-123456789abc',at:5500,threadId:other.threadId,sessionId:other.sessionId,text:'Follow up on the second task',replyTo:{messageId:id,sourceKey:other.key,sourceRevision:other.revision},status:'delivered'}
+  publishStatus({state:'idle',remote:{state:'live',messages:[second,first],replies:[reply],total:2}});await evaluate('new Promise(r=>setTimeout(r,30))')
+  assert.match(await evaluate(`document.querySelector('[data-reply-id="${reply.id}"]').textContent`),/Legacy second task/,'durable reply labels resolve the complete source identity')
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${id}"]').length`),2,'legacy duplicate IDs preserve distinct immutable source snapshots')
-  await evaluate(`document.querySelector('.agent-earlier-updates').open=true;document.querySelector('[data-source-key="${other.key}"]').click()`)
-  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/synthetic-other/)
+  await evaluate(`document.querySelector('[data-source-key="${other.key}"]').click()`)
+  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/Legacy second task/)
   await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
   const ambiguous={...first,at:6000,text:'Synthetic conflicting snapshot with the same reference'}
   await publish([ambiguous,second,first]);await publish([ambiguous,second,first])
@@ -360,22 +330,22 @@ async function assertDuplicateRemoteIds() {
 }
 
 async function assertSessionReplies({ geometry = true } = {}) {
-  const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d'.repeat(64),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',control:'report_only',availability:'live'}
-  const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'1'.repeat(64),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8'}
-  const item={id:'a'.repeat(64),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
+  const first={key:'b'.repeat(64),revision:'c'.repeat(64),threadId:'d1'.repeat(32),machine:'Synthetic Mac',sessionId:'training-'+ '1'.repeat(220),project:'/synthetic/training',taskName:'中文识别训练',control:'report_only',availability:'live'}
+  const second={...first,key:'e'.repeat(64),revision:'f'.repeat(64),threadId:'d2'.repeat(32),sessionId:'22222222-2222-4222-8222-222222222222',project:'/synthetic/v8',taskName:'外壳模型调整'}
+  const item={id:'a1'.repeat(32),at:1000,text:'合成示例：训练与 v8 模型都有新的完成结果。',presentation:'assistant_update',verification:'reported_unverified',synthesisVerification:'passed',sources:[first,second]}
   const frame={state:'idle',remote:{state:'live',messages:[item],replies:[],total:1}}
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,30))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),2,'multiple sessions require explicit reply choices')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true,'incoming updates do not silently select a target')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] .agent-message-reply').click();document.querySelector('[data-source-key="${second.key}"]').focus()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${second.key}"]').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
-  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/22222222/)
+  assert.match(await evaluate(`document.querySelector('.agent-reply-context').textContent`),/外壳模型调整/)
   await evaluate(`document.querySelector('textarea').value='Keep this draft';document.querySelector('.agent-reply-cancel').focus()`)
   for(const type of ['keyDown','char','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,...(type==='char'?{text:'\r'}:{})})
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'Keep this draft')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
-  await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+  await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${first.key}"]').click()`)
   textAccepted=false
   await evaluate(`document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
   const expected={messageId:item.id,sourceKey:first.key,sourceRevision:first.revision}
@@ -391,7 +361,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'')
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
   const owner={id:'12345678-1234-4123-8123-123456789abc',threadId:first.threadId,sessionId:first.sessionId,text:'Keep this draft',replyTo:expected,status:'delivered',at:2000}
-  const completed={...item,id:'2'.repeat(64),at:3000,threadId:first.threadId,text:'合成示例：同一训练会话的后续检查已完成。',sources:[first]}
+  const completed={...item,id:'a2'.repeat(32),at:3000,threadId:first.threadId,text:'合成示例：同一训练会话的后续检查已完成。',sources:[first]}
   const updated={...frame,remote:{...frame.remote,messages:[completed,item],replies:[owner],total:2}}
   publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,30))');publishStatus(updated);await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelectorAll('[data-reply-id="${owner.id}"]').length`),1,'durable owner replies do not duplicate on reconnect')
@@ -400,7 +370,7 @@ async function assertSessionReplies({ geometry = true } = {}) {
     await evaluate(`window.odkTheme.set('${theme}');document.fonts.ready`)
     for(const [width,height] of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height)
-      await evaluate(`document.querySelector('[data-source-key="${first.key}"]').click()`)
+      await evaluate(`document.querySelector('[data-remote-id="${item.id}"] [data-source-key="${first.key}"]').click()`)
       const geometry=await evaluate(`(()=>{const c=document.querySelector('.agent-composer').getBoundingClientRect(),r=document.querySelector('.agent-reply-context').getBoundingClientRect(),l=document.querySelector('.agent-conversation'),b=document.querySelector('.agent-reply-cancel').getBoundingClientRect();return {composer:c.bottom,reference:r.bottom,composerTop:c.top,touch:b.height,overflow:l.scrollWidth-l.clientWidth,bodyOverflow:document.documentElement.scrollWidth-innerWidth,region:l.clientHeight,panel:document.querySelector('.agent-panel').getBoundingClientRect().height,head:document.querySelector('.agent-head').getBoundingClientRect().height,nav:document.querySelector('.agent-thread-nav').getBoundingClientRect().height,refHeight:r.height,gap:getComputedStyle(document.querySelector('.agent-panel')).gap,flex:getComputedStyle(l).flex}})()`)
       console.log('SESSION_REPLY_GEOMETRY',JSON.stringify({theme,width,...geometry}))
       assert.ok(geometry.composer<=height&&geometry.reference<=geometry.composerTop&&geometry.touch>=44&&geometry.overflow<=1&&geometry.bodyOverflow<=1&&geometry.region>=40,JSON.stringify({theme,width,...geometry}))
@@ -437,6 +407,24 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('#home-summary').closest('[data-page-id="home"]')?.parentElement.id`), 'pages-track', 'Overview belongs to the first paged canvas')
   assert.equal(await evaluate(`document.querySelector('#dots').closest('#status-bar')`), null, 'dots stay below Widgets')
   assert.equal(await evaluate(`document.querySelectorAll('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]').length`), 0, 'separate time and date Widgets are removed')
+  if (process.argv.includes('--short-history-only')) {
+    await resize(1920,5000)
+    const replies=Array.from({length:26},(_,i)=>({id:`${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`,at:i+1,threadId:'a'.repeat(64),sessionId:'short-session',text:`Request ${i}`,answer:`Answer ${i}`,status:'answered',replyTo:{messageId:'b'.repeat(64),sourceKey:'source',sourceRevision:'c'.repeat(64)}}))
+    publishStatus({state:'idle',remote:{state:'live',messages:[],replies:[...replies].reverse(),total:0}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),24)
+    assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight===c.clientHeight})()`),true,'latest batch fits without any scroll range')
+    await evaluate(`document.querySelector('.agent-conversation').dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true}))`)
+    await evaluate('new Promise(r=>setTimeout(r,50))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),48,'top wheel gesture loads history even without actual scrolling')
+    await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
+    await evaluate(`document.querySelector('.agent-conversation').focus({preventScroll:true})`)
+    for(const type of ['keyDown','keyUp'])await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type,key:'Home',code:'Home',windowsVirtualKeyCode:36})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),52,'Home loads the remaining retained batch')
+    assert.equal(sentText.length,0)
+    console.log('PASS short history wheel and keyboard loading without a history button');finish(0);return
+  }
   if (process.argv.includes('--lazy-history-retention-only')) {
     const id = i => `${String(i).padStart(8,'0')}-1111-4111-8111-111111111111`
     const src={key:'source',revision:'a'.repeat(64),machine:'synthetic',sessionId:'session',project:'/synthetic',control:'report_only',availability:'live',threadId:'a'.repeat(64)}
@@ -448,7 +436,7 @@ app.whenReady().then(async () => {
     const before=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
     publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:[{...replies[31],id:id(33),at:400},...replies.slice(1).reverse()],total:8},conversation:{revision:2,turns:[...turns.slice(1),{...turns[7],id:id(109),at:401}]}})
     await evaluate('new Promise(r=>setTimeout(r,30))')
-    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<16)button.click()})()`)
+    await evaluate(`(()=>{let count=0;const c=document.querySelector('.agent-conversation');while(count++<16){c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))}})()`)
     const after=await evaluate(`({reply:!!document.querySelector('[data-reply-id="${replies[0].id}"]'),owner:!!document.querySelector('[data-owner-turn-id="${turns[0].id}"]')})`)
     assert.deepEqual(before,{reply:false,owner:false},'initially deferred old items have no DOM')
     assert.deepEqual(after,{reply:true,owner:true},'later snapshots cannot discard already received deferred history')
@@ -471,7 +459,7 @@ app.whenReady().then(async () => {
       publishStatus({state:'idle',remote:{state:'live',messages:[...messages].reverse(),replies:nextReplies.reverse(),total:8},conversation:{revision:9+batch,turns:nextTurns}})
       await evaluate('new Promise(r=>setTimeout(r,5))')
     }
-    await evaluate(`(()=>{let count=0;const button=document.querySelector('.agent-history-earlier');while(button&&!button.hidden&&count++<64)button.click()})()`)
+    await evaluate(`(()=>{let count=0;const c=document.querySelector('.agent-conversation');while(count++<64){c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))}})()`)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-reply-id]').length`),128,'reply data and DOM keep the existing 128-entry bound')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user[data-owner-turn-id]').length`),128,'owner data and DOM keep the existing 128-entry bound')
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"], [data-owner-turn-id="${turns[0].id}"]')`),false,'entries beyond the original bounds expire')
@@ -499,25 +487,26 @@ app.whenReady().then(async () => {
     publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,40))')
     assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length<=24&&window.createdMessages<=24`),'only twelve logical items create DOM, without mounting then hiding older messages')
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),false,'oldest reply has no DOM before loading')
-    assert.equal(await evaluate(`document.querySelector('.agent-history-earlier').hidden`),false)
+    assert.equal(await evaluate(`document.querySelector('.agent-history-earlier')`),null)
     assert.equal(await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');return c.scrollHeight-c.clientHeight-c.scrollTop<2})()`),true,'opening follows latest without accidentally loading older items')
     messages[0].sources[0].threadId='f'.repeat(64)
     publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
     await evaluate(`document.querySelector('[data-remote-id="${messages[0].id}"] .agent-session-open').click()`)
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]:not([hidden])')`),true,'a deferred reply follows its exact origin into a changed canonical thread')
     await evaluate(`document.querySelector('.agent-thread-all').click()`)
-    await evaluate(`(()=>{document.querySelector('textarea').value='Draft 中文';window.retainedLazyNodes=[...document.querySelectorAll('.agent-message')];const c=document.querySelector('.agent-conversation');c.scrollTop=120;window.lazyAnchor=[...c.querySelectorAll('.agent-message')].find(n=>n.getBoundingClientRect().bottom>c.getBoundingClientRect().top);window.lazyTop=window.lazyAnchor.getBoundingClientRect().top;document.querySelector('.agent-history-earlier').focus({preventScroll:true})})()`)
+    await evaluate(`(()=>{document.querySelector('textarea').value='Draft 中文';window.retainedLazyNodes=[...document.querySelectorAll('.agent-message')];const c=document.querySelector('.agent-conversation');c.scrollTop=120;window.lazyAnchor=[...c.querySelectorAll('.agent-message')].find(n=>n.getBoundingClientRect().bottom>c.getBoundingClientRect().top);window.lazyTop=window.lazyAnchor.getBoundingClientRect().top;c.focus({preventScroll:true})})()`)
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-    win.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter'})
+    await evaluate(`window.beforeHomeLoad=document.querySelectorAll('.agent-message').length`)
+    win.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'})
     await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`window.retainedLazyNodes.every(n=>n.isConnected)&&Math.abs(window.lazyAnchor.getBoundingClientRect().top-window.lazyTop)<1&&document.querySelector('textarea').value==='Draft 中文'`),true,'earlier insertion preserves viewport anchor, existing nodes and draft')
-    assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>24`))
+    assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>window.beforeHomeLoad`),'Home loads an earlier batch through the focused conversation')
     await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');c.scrollTop=0;c.dispatchEvent(new Event('scroll'))})()`)
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>36`),'upward scrolling loads another batch')
-    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-message-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;document.querySelector('.agent-history-earlier').click()`)
+    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-message-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))`)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length>window.beforeCancelLoad`),true,'cancel reply immediately restores all-thread history loading without a new push')
-    await evaluate(`while(!document.querySelector('.agent-history-earlier').hidden)document.querySelector('.agent-history-earlier').click()`)
+    await evaluate(`for(let i=0;i<16;i++){const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))}`)
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),true)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),88,'all three kinds eventually mount exactly once')
     assert.equal(await evaluate(`(()=>{const times=[...document.querySelectorAll('.agent-conversation > .agent-message')].map(n=>{if(n.dataset.remoteId)return ${JSON.stringify(messages)}.find(m=>m.id===n.dataset.remoteId).at;if(n.dataset.replyId)return ${JSON.stringify(replies)}.find(r=>r.id===n.dataset.replyId).at;const answer=/^Answer (\\d+)/.exec(n.querySelector('.agent-message-body').textContent);if(answer)return Number(answer[1])*10+0.5;return ${JSON.stringify(turns)}.find(t=>t.id===n.dataset.ownerTurnId)?.at});return times.every((at,i)=>i===0||at>=times[i-1])})()`),true,'remote updates, owner turns and replies share chronological order')
@@ -631,7 +620,7 @@ app.whenReady().then(async () => {
     const first={state:'thinking',ownerTurnId,transcript:text,message:'',remote:{state:'live',messages:[origin],replies:[queued]}}
     publishStatus(first);await evaluate('new Promise(r=>setTimeout(r,20))')
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message-user').length`),1,'a fresh mount with a combined owner/reply snapshot creates one owner bubble')
-    if (legacy) assert.equal(await evaluate(`Boolean(document.querySelector('.agent-earlier-updates').compareDocumentPosition(document.querySelector('[data-reply-id="${ownerTurnId}"]'))&Node.DOCUMENT_POSITION_FOLLOWING)`),true,'legacy origin history precedes its replayed owner reply')
+    if (legacy) assert.equal(await evaluate(`Boolean(document.querySelector('[data-remote-id="${origin.id}"]').compareDocumentPosition(document.querySelector('[data-reply-id="${ownerTurnId}"]'))&Node.DOCUMENT_POSITION_FOLLOWING)`),true,'legacy origin history precedes its replayed owner reply')
     const final={...first,state:'idle',replyTo:queued.replyTo,threadId,message:answer,remote:{...first.remote,replies:[{...queued,status:'unknown',answer}]}}
     publishStatus(final);publishStatus(final);await evaluate('new Promise(r=>setTimeout(r,20))')
     const restored=await evaluate(`(()=>{const all=[...document.querySelectorAll('.agent-message')];return {owners:all.filter(n=>n.classList.contains('agent-message-user')).length,answers:all.filter(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)}).length,answerThread:all.find(n=>n.querySelector('.agent-message-body')?.textContent===${JSON.stringify(answer)})?.dataset.threadId}})()`)
@@ -1120,7 +1109,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('.agent-composer textarea').value`), '')
   completeBeforeReceipt = true
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Fast turn'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 80))`)
-  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`), 'Ready', 'receipt cannot overwrite a completed status')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`), '', 'receipt cannot overwrite a completed status')
   completeBeforeReceipt = false
   textAccepted = false
   await evaluate(`document.querySelector('.agent-composer textarea').value = 'Keep draft'; document.querySelector('.agent-composer').requestSubmit(); new Promise(r => setTimeout(r, 30))`)

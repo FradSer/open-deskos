@@ -84,7 +84,14 @@ async function verifyWidgetGrid(win, pageId, theme, width, report) {
       const glyphs = card.querySelectorAll('.widget-title > svg,.widget-heading-icon');
       if (glyphs.length) findings.push({ kind: 'automatic-heading-icon', id: card.dataset.widget });
       if (card.dataset.widget === 'odk.tile.hydra' && !card.querySelector('.hydra-head svg[data-tabler="leaf"]')) findings.push({ kind: 'missing-hydra-leaf' });
-      if (card.dataset.widget === 'odk.tile.year' && heading) findings.push({ kind: 'redundant-heading', id: card.dataset.widget });
+      if (['odk.tile.year', 'odk.tile.pi-sessions'].includes(card.dataset.widget) && (heading || card.querySelector('.widget-head'))) findings.push({ kind: 'redundant-heading', id: card.dataset.widget });
+      if (['odk.tile.pomodoro', 'odk.tile.quota'].includes(card.dataset.widget)) {
+        const head = card.querySelector('.widget-head'), style = getComputedStyle(card);
+        const expectedTop = box.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
+        const expectedLeft = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+        if (!head || Math.abs(head.getBoundingClientRect().top - expectedTop) > 1 || Math.abs(head.getBoundingClientRect().left - expectedLeft) > 1) findings.push({ kind: 'unanchored-widget-heading', id: card.dataset.widget });
+        if (heading && heading.getBoundingClientRect().bottom > card.querySelector('.widget-signal').getBoundingClientRect().top) findings.push({ kind: 'heading-overlaps-reading', id: card.dataset.widget });
+      }
       if (card.dataset.widget === 'odk.tile.quota' && heading?.textContent !== 'ChatGPT') findings.push({ kind: 'missing-service-heading', id: card.dataset.widget });
       if (theme === 'liquid-glass') {
         if (card.dataset.widget === 'odk.tile.pi-sessions') {
@@ -266,9 +273,9 @@ app.whenReady().then(async () => {
     assert.equal(state.narrative, preview.briefing.items[0].text)
     assert.equal(state.placeholder, false)
     assert.equal(state.paragraphs, 3)
-    assert.equal(await js(`document.querySelectorAll('.agent-update').length`), 2)
-    assert.equal(await js(`document.querySelector('.agent-earlier-updates').open`), false)
-    assert.deepEqual(await js(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), preview.updates)
+    assert.equal(await js(`document.querySelectorAll('.agent-update').length`), 3)
+    assert.equal(await js(`document.querySelector('.agent-earlier-updates')`), null)
+    assert.deepEqual(await js(`[...document.querySelectorAll('.agent-update .agent-message-body')].map(n=>n.firstChild.textContent)`), [...preview.remote.messages].reverse().map(message => message.text))
     assert.equal(state.repeatedNames, 0, 'Agent name is not repeated inside the conversation')
     assert.equal(state.messageMetadata, 0, 'conversation messages have no avatars or timestamps')
     assert.equal(state.identityCapsule, true, 'the name and status capsule exposes the existing identity editor')

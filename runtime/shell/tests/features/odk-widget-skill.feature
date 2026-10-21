@@ -29,3 +29,19 @@ Feature: Open DeskOS Widget and App design-development skill
     And it consolidates the findings through the same review reference for severity and reporting
     And it classifies introduced regressions separately from pre-existing findings
     And it reports quality without performing Git or deployment operations
+
+  Scenario: Creation preserves the accepted composition and optional headings
+    Given a shared Shell Widget request with retained layout constraints
+    When the agent records the creation contract
+    Then it preserves source authority, App identity, lifecycle, spans, and page order
+    And it decides title and icon use for each surface
+    And omitted headings leave no empty header while accessible App names remain
+    And useful headings stay at the shared inset above independently centered readings
+
+  Scenario: Verification separates shared rendering from host acceptance
+    Given a Widget supports four inherited themes on Linux, Windows, and macOS
+    When the agent verifies the final candidate
+    Then it uses affected checks before applicable shared delivery gates
+    And native captures require current-frame acknowledgement and actual pixels
+    And fixture, host, live-source, and physical-input evidence remain distinct
+    And a focused rerun cannot clear a failed complete gate
