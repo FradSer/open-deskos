@@ -130,6 +130,12 @@ app.whenReady().then(async () => {
     for (const selector of ['.w-weather-number', '.w-weather-unit', '.w-weather-condition', '#w-weather-low', '#w-weather-high']) {
       if (parseFloat(getComputedStyle(tile.querySelector(selector)).fontSize) < 14) throw Error('Weather reading below minimum: ' + selector);
     }
+    if (['live', 'stale'].includes(tile.dataset.state)) {
+      const primary = parseFloat(getComputedStyle(tile.querySelector('.w-weather-number')).fontSize);
+      for (const node of tile.querySelectorAll('.w-weather-range-value')) {
+        if (primary < parseFloat(getComputedStyle(node).fontSize) * 1.5) throw Error('Current temperature loses priority to daily range');
+      }
+    }
     const text = selector => tile.querySelector(selector).textContent;
     const glyph = tile.querySelector('.w-weather-glyph svg');
     return { state: tile.dataset.state, place: text('.w-weather-place'), badge: text('.w-weather-badge'),
@@ -212,7 +218,7 @@ app.whenReady().then(async () => {
       selected()
       await js(`window.odkRendererRuntime.setEnabled(${JSON.stringify(widget)}, true)`)
     }
-    for (const size of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    for (const size of [[1920, 1280], [1920, 1080], [960, 640], [480, 854], [320, 480]]) for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
       await host.setEnabled(id, false)
       fs.rmSync(cacheFile, { force: true })
       options.latitude = 1
@@ -262,7 +268,7 @@ app.whenReady().then(async () => {
       assert.deepEqual(results[1].labels, ['H:', 'L:'])
       assert.equal(results[1].place, options.place)
       assert.equal(results[1].controls, 0)
-      assert.match(results[1].font, theme === 'pixel' ? /Zpix/ : /Montserrat/)
+      assert.match(results[1].font, theme === 'pixel' ? /Zpix/ : theme === 'liquid-glass' ? /-apple-system.*Noto Sans SC/ : /Montserrat/)
       assert.equal(results[1].zpixLoaded, true)
       failed = true
       await js('window.odkPlatform.getWeatherStatus({ force: true })')
@@ -324,7 +330,7 @@ app.whenReady().then(async () => {
     nativeSurfaceAssets.close()
     if (surfaceEntries.length) assert.equal(nativeSurfaceAssets.response({ url: surfaceEntries[0].entryUrl }).status, 410)
   }
-  console.log(JSON.stringify({ ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: 3, sizes: 5, states: 6,
+  console.log(JSON.stringify({ ok: true, actualPreload: true, signedIndependent: !restartVersion || restartVersion !== '1.0.0', themes: 4, sizes: 5, states: 6,
     ...(restartVersion ? { processRestart: true, pid: process.pid, version: executedVersion, consumers: [...baseline.entries()] } : {}),
     ...(surfaceReplacement ? { independentSurface: surfaceRevision !== '1.0.0', developmentLoaded: !signedSurface,
       ...(signedSurface ? { signedSurface: true, capturedSurfaceIntegrity: !surfaceRevision, assetLeaseReleased: true } : {}) } : {}),

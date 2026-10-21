@@ -34,6 +34,10 @@ Populate conversation previews with representative messages, not a transcript of
 Assert decoded images, visible readings, font readiness, and cross-surface consistency before capture.
 Capture each supported theme and the applicable reference and compact dimensions.
 Assert actual heading visibility, accessible names, header insets, reading containment, and retained layout spans.
+Assert the primary reading's visual priority against supporting readings after fonts and theme styles settle.
+Use component-specific comparisons of text size, weight, and occupied space; presence and containment alone cannot establish hierarchy.
+Include compact Cells, long values, and each inherited theme in the affected surface harness.
+Apply the same hierarchy contract to independent replacement surfaces.
 Test the absence of removed headings as well as the presence of useful ones.
 Enforce heading decisions in shared harnesses across themes and compact Cells, including independent surfaces that share the visual contract.
 Do not substitute fixture values for real readings when presenting device screenshots.
@@ -87,6 +91,7 @@ Only documented thin-cell telemetry may use a lower occupied floor.
 A few short rows in an empty card do not qualify.
 Restructure content when these constraints fail.
 Do not widen tolerance or lower a floor to fit the measured output.
+Do not enlarge supporting readings to satisfy density when that change displaces the primary answer.
 Change acceptance criteria only for a changed requirement or justified product constraint.
 
 Wait for Montserrat, Noto Sans SC, and Zpix fonts before measurement.

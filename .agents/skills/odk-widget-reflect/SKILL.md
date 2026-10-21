@@ -25,6 +25,8 @@ Build a short evidence ledger:
 
 Distinguish source inspection, runtime measurement, fixture tests, real-data acceptance, and subjective approval.
 Green tests do not override user dissatisfaction.
+Record the user's primary question and the intended rank of each displayed reading.
+A complete, readable, or dense card can still give the wrong reading visual priority.
 A live process does not prove fresh data; an initialization failure does not reproduce a product bug.
 Never persist account data, credentials, machine-specific dumps, or private transcript content.
 
@@ -38,6 +40,10 @@ Check whether the target skill already covers it:
 - If instructions conflict, reconcile them against current product authority and explicit user constraints.
 - If coverage is missing, add a reusable decision rule or verification gate.
 - If the event is a one-off implementation detail, use it as reasoning evidence rather than a permanent instruction. Persist the underlying decision principle, not the incident narrative.
+
+When a visible defect passed a gate, inspect both its assertions and its theme, Cell, state, and replacement coverage.
+For hierarchy defects, require a comparison between primary and supporting readings instead of another presence or overflow check.
+Keep component-specific roles in the owning feature contract; put the reusable decision rule in the shared design and verification references.
 
 Preserve architecture boundaries and deliberate design decisions.
 Do not turn one Widget's font size, host address, process ID, recovery timing, or temporary workaround into a global default.

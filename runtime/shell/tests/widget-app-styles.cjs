@@ -186,6 +186,13 @@ async function widgetDesignRoles(win) {
         else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
         else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
       }
+      const weather = await win.webContents.executeJavaScript(`(() => {
+        const tile = document.querySelector('[data-widget="odk.tile.weather"]')
+        const current = parseFloat(getComputedStyle(tile.querySelector('.w-weather-number')).fontSize)
+        const range = [...tile.querySelectorAll('.w-weather-range-value')].map(node => parseFloat(getComputedStyle(node).fontSize))
+        return { current, range, priority: range.every(size => size >= 14 && current >= size * 1.5) }
+      })()`)
+      check(`${theme} ${width}: current Weather temperature dominates daily range`, weather.priority, weather)
       if (theme === 'instrument') {
         const tone = await win.webContents.executeJavaScript(`(() => {
           const tiles = [...document.querySelectorAll('[data-page-id="home"] .widget')]

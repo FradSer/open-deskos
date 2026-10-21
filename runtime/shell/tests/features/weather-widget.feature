@@ -79,7 +79,7 @@ Feature: Weather instrument on the Home grid
 
   Scenario: A place-led instrument separates the reading from its supporting group
     Given the Home grid shows weather for Shenzhen
-    When the tile renders in Instrument, Pixel, or Border Beam
+    When the tile renders in Instrument, Pixel, Border Beam, or Liquid Glass
     Then the header names Shenzhen instead of repeating Weather
     And a successful reading has no Live label or refresh time
     And the current temperature holds its own row under the header, with its unit attached
@@ -307,7 +307,7 @@ Feature: Weather instrument on the Home grid
     And a provider failure leaves Wuhan unavailable
 
   Scenario: Linux complete weather comparison has a bounded workload budget
-    Given the complete comparison loads thirty size and theme combinations
+    Given the complete comparison loads forty size and theme combinations
     When it runs on Linux
     Then its fixture has a 75 second aggregate watchdog
     And its child process has a 85 second deadline
@@ -322,3 +322,11 @@ Feature: Weather instrument on the Home grid
     When the active theme calculates the primary temperature size
     Then the primary reading remains at least 14 pixels
     And supporting captions retain their separate readable floor
+
+  Scenario: Current temperature remains the primary Weather reading
+    Given live or stale weather includes a current temperature and a daily range
+    When the Widget renders across four themes and supported Cell sizes
+    Then the current temperature is at least one and a half times the daily range text size
+    And the high and low remain readable supporting values
+    And negative and multi-digit readings preserve this hierarchy
+    And default and independent Weather surfaces enforce the same hierarchy

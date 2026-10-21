@@ -22,6 +22,6 @@ test('default and signed independent Weather preserve the actual rendered Widget
     let result
     try { result = await operation } finally { await closed }
     const report = JSON.parse(result.stdout.trim().split('\n').pop())
-    assert.deepEqual(report, { ok: true, actualPreload: true, signedIndependent: true, themes: 3, sizes: 5, states: 6 })
+    assert.deepEqual(report, { ok: true, actualPreload: true, signedIndependent: true, themes: 4, sizes: 5, states: 6 })
   } finally { await fs.rm(profile, { recursive: true, force: true }) }
 })
