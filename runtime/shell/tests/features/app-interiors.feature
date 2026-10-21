@@ -1,5 +1,19 @@
 Feature: Built-in App interiors
 
+  Scenario: Widget continuations retain their source material
+    Given a display-only Widget opens its App in the right pane
+    Then the outer App card uses the same background, shadow, border, and corner radius
+    And Liquid Glass uses the same SDK material or accessibility fallback
+    And App controls retain their focus and recovery behavior
+
+  Scenario: WeRead continues its reading design inside the App
+    Given a highlight has a title, author, mark date, and cover
+    When its Widget opens the WeRead App
+    Then the excerpt and bottom book row retain their visual hierarchy and typography
+    And book metadata remains legible on the Windows handheld
+    And non-three-by-four covers retain their original aspect ratio on both surfaces
+    And the App retains Refresh and source recovery instructions
+
   Scenario: Existing Renderer replacement preserves built-in views
     Given Pomodoro, Year progress, and Built-in views use registered App surfaces
     When independent definitions replace them through the existing Renderer controller
@@ -38,6 +52,7 @@ Feature: Built-in App interiors
     Given the Pomodoro App has started a session
     When the user returns to Home
     Then the display-only Widget shows the current App timer and its state
+    And an idle session states no Ready label
     And the Widget reads the same session after the App closes
     And releasing the Widget removes its reading subscription
     And its neutral reading does not claim that the session has not started

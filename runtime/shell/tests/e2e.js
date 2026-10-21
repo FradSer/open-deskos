@@ -165,7 +165,7 @@ const DRIVER_SCRIPT = `
     !$('#pages-viewport').inert &&
     !$('#status-bar').inert
   out.widgetStatesAreHonest =
-    $('.w-pomodoro .w-state')?.textContent === 'Ready'
+    $('.w-pomodoro .w-state')?.hidden === true && text('.w-pomodoro .ring-mmss') === '25:00'
   out.widgetsUseFlexibleAnatomy = Boolean(
     $('.w-year .year-signal-line') &&
     $('.w-pomodoro .pomodoro-state') &&
@@ -202,10 +202,15 @@ const DRIVER_SCRIPT = `
   out.dotButtonNotTransformed = dotTransform === 'none' || dotTransform === 'matrix(1, 0, 0, 1, 0, 0)'
   const widgets = [...document.querySelectorAll('.widget')]
   const signalSelector = '.w-state, .year-pct, .widget-status-value, .pi-widget-count, .ring-mmss, .hydra-plant-soil, .weread-text, .weather-temp, .weather-state, .futu-total, .w-settings .widget-status-value'
-  out.widgetsHaveState = widgets.every((widget) => widget.querySelector(signalSelector)?.textContent.trim())
+  out.widgetsHaveState = widgets.every((widget) => {
+    // A dial states its reading without a word, so the first visible signal is the one
+    // that must carry text.
+    const node = [...widget.querySelectorAll(signalSelector)].find((candidate) => !candidate.hidden)
+    return Boolean(node?.textContent.trim())
+  })
   out.timeAndDateWidgetsRemoved = !document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.almanac"]')
   out.overviewDateRetained = Boolean(text('.dash-wd') && text('.dash-date'))
-  out.pomodoroWidgetIsNeutral = text('.ring-mmss') === '25:00' && text('.w-pomodoro .w-state') === 'Ready'
+  out.pomodoroWidgetIsNeutral = text('.ring-mmss') === '25:00' && text('.w-pomodoro .w-state') === '' && $('.w-pomodoro .w-state').hidden === true
   window.dispatchEvent(new Event('offline'))
   out.netIndicatorOffline =
     $('#sb-net').dataset.online === 'false' &&

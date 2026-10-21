@@ -1124,42 +1124,58 @@ body.kiosk {
 }
 
 
-/* Keep the heading at the shared inset and center the dial below it. */
+/* The dial is the whole instrument. No header repeats the App name, and the countdown
+   inside the ring carries the reading. A word appears above the dial only when the dial
+   cannot carry the state itself. */
 .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 16cqi, 100px);
-  gap: var(--odk-space-2);
+  gap: 0;
   position: relative;
-  align-items: stretch;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
   background: var(--odk-surface);
   border-color: var(--odk-stroke);
 }
 
 .w-pomodoro .pomodoro-body {
-  container-type: size;
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   flex: 1;
-  align-items: center;
-  justify-content: center;
+  justify-items: center;
+  align-items: stretch;
+  gap: clamp(4px, 2cqi, 10px);
   min-height: 0;
   margin: 0;
   width: 100%;
   overflow: hidden;
 }
 
+/* The dial owns a lane of its own, and that lane is its size container: the ring takes
+   the smaller of its width share and the lane's whole height, so a stated word never
+   pushes the dial out of the card, and the countdown inside the ring stays bounded by
+   the space the card actually gives it. */
+.pomodoro-lane {
+  --pomodoro-ring: min(92cqi, 100cqb);
+  --pomodoro-time-size: max(14px, calc(var(--pomodoro-ring) * 0.25));
+  container-type: size;
+  display: grid;
+  grid-row: 2;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+}
+
 .pomodoro-ring-wrap {
   position: relative;
   display: grid;
   place-items: center;
+  width: var(--pomodoro-ring);
+  aspect-ratio: 1;
 }
 
 .pomodoro-ring-wrap svg {
   grid-area: 1 / 1;
-  width: min(60cqi, 100cqb);
-  height: auto;
-  flex-shrink: 0;
-  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
   transform: rotate(-90deg);
 }
 
@@ -1189,15 +1205,16 @@ body.kiosk {
   letter-spacing: -0.02em;
 }
 
-.pomodoro-head {
-  position: static;
-  pointer-events: none;
+.pomodoro-state[hidden] {
+  display: none;
 }
 
 .pomodoro-state {
+  grid-row: 1;
+  align-self: center;
   font-size: clamp(12px, 4.5cqi, 16px);
   color: var(--odk-secondary-strong);
-  text-align: end;
+  text-align: center;
 }
 
 
@@ -1506,7 +1523,7 @@ body.kiosk {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: var(--odk-bg);
+  background: var(--odk-surface);
   display: flex;
   flex-direction: column;
 }

@@ -229,7 +229,12 @@
    lane's ceiling. CSS grid snapping follows resize and theme changes immediately,
    without a timer or inline sizes. */
 [data-theme='pixel'] .w-weather-content {
-  --w-weather-glyph: round(nearest, clamp(24px, 20cqi, 48px), 24px);
+  --w-weather-glyph: round(nearest, clamp(48px, 16cqi, 72px), 24px);
+}
+
+/* Long Zpix readings need a larger fit factor to retain their share of the lane. */
+[data-theme='pixel'] [data-widget='odk.tile.weather']:is([data-reading-length='3'], [data-reading-length='4']) .w-weather-content {
+  --w-weather-reading: 36cqi;
 }
 
 [data-theme='pixel'] .w-weather-value,
@@ -250,11 +255,17 @@
   /* The pixel reading keeps the Zpix share of its lane at a compact cell; only the sky
      steps down, so a compact cell does not shrink the primary answer. */
   [data-theme='pixel'] .w-weather-content {
-    /* One grid unit of the pixel set: a stepped-down sky still lands on whole units. */
-    --w-weather-glyph: 24px;
+    /* Keep two whole units of the pixel artwork in a compact Cell. */
+    --w-weather-glyph: 48px;
+  }
+
+  [data-theme='pixel'] .w-weather-place {
+    line-height: 1.35;
   }
 }
 
-[data-theme='pixel'] .w-pomodoro {
-  --pomodoro-time-size: clamp(24px, 15cqi, 100px);
+/* Zpix's narrower advances carry the same ring-derived countdown as the other themes,
+   so one dial reads at one size per card. Only the tracking differs. */
+[data-theme='pixel'] .w-pomodoro .ring-mmss {
+  letter-spacing: normal;
 }

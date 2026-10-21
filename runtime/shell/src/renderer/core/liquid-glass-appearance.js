@@ -5,7 +5,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict'
 
-  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"]'
+  const TARGETS = '#pages-viewport .widget[data-interaction="display-only"], #app-view:not([hidden])'
   const MAX_SURFACES = 10
 
   function createLiquidGlassAppearance(root, doc) {
@@ -59,6 +59,7 @@
       const viewport = doc.getElementById('pages-viewport')?.getBoundingClientRect()
       return [...doc.querySelectorAll(TARGETS)].filter(target => {
         const box = target.getBoundingClientRect()
+        if (root.getComputedStyle?.(target)?.visibility === 'hidden') return false
         if (box.width < 2 || box.height < 2 || box.right <= rootBox.left || box.left >= rootBox.right
           || box.bottom <= rootBox.top || box.top >= rootBox.bottom) return false
         if (target.closest('#pages-viewport') && viewport
@@ -159,7 +160,7 @@
       if (root.ResizeObserver) {
         resizeObserver = new root.ResizeObserver(scheduleReconcile)
         resizeObserver.observe(rootElement)
-        for (const id of ['home-summary', 'pages-viewport']) {
+        for (const id of ['home-summary', 'pages-viewport', 'app-view']) {
           const element = doc.getElementById(id)
           if (element) resizeObserver.observe(element)
         }

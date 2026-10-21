@@ -8,9 +8,10 @@
       app: name, name, appKind: 'ui', source: 'builtin', capabilities: [],
       css: 'plugins/reading-apps.css',
       mount(el, ctx) {
-        el.innerHTML = `<section class="runtime-app reading-app ${id}-app"><header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header><p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
+        el.innerHTML = `<section class="runtime-app reading-app ${id}-app${id === 'weread' ? ' w-weread' : ''}"><header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header><p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
         const status = el.querySelector('.reading-status')
         const content = el.querySelector('.reading-content')
+        if (id === 'weread') content.classList.add('weread-copy')
         const refreshButton = el.querySelector('.reading-refresh')
         let released = false
         let pending = false
@@ -88,29 +89,40 @@
     const available = typeof highlight?.markText === 'string' && highlight.markText.trim().length > 0
     status.textContent = readingStatus(snapshot, available, 'WeRead')
     if (!available) { content.replaceChildren(node('p', 'No highlights available', 'app-detail')); return }
-    const quote = node('blockquote', highlight.markText || '', 'reading-excerpt')
-    const title = node('h3', highlight.title || 'WeRead', 'reading-book-title')
-    const author = node('p', highlight.author || '', 'app-detail')
+    const quote = node('blockquote', highlight.markText || '', 'reading-excerpt weread-text')
+    // Use the Widget's character-based display scale. App overflow remains readable.
+    const columns = Math.max(4, Math.sqrt(Math.max(1, highlight.markText.length)) * 2.2)
+    quote.style.fontSize = `clamp(14px, calc(100cqi / ${columns}), 72px)`
+    quote.tabIndex = 0
+    quote.setAttribute('role', 'region')
+    quote.setAttribute('aria-label', 'Highlight excerpt')
+    const title = node('h3', String(highlight.title || 'WeRead').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim() || 'WeRead', 'reading-book-title weread-title')
+    const author = node('p', highlight.author || '', 'weread-author')
     const metadata = document.createElement('div')
-    metadata.className = 'reading-book-meta'
+    metadata.className = 'reading-book-meta weread-meta'
     metadata.append(title, author)
     if (highlight.createTime) {
       const date = new Date(highlight.createTime < 1e12 ? highlight.createTime * 1000 : highlight.createTime)
       if (Number.isFinite(date.getTime())) {
-        const time = node('time', new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date), 'app-detail')
+        const time = node('time', new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date), 'weread-date')
         time.dateTime = date.toISOString()
         metadata.append(time)
       }
     }
     const book = document.createElement('footer')
-    book.className = 'reading-book'
+    book.className = 'reading-book weread-foot'
+    book.tabIndex = 0
+    book.setAttribute('aria-label', 'Book details')
     book.append(metadata)
-    if (highlight.cover?.startsWith('data:image/')) {
+    const wrap = node('div', '', 'weread-cover-wrap')
+    wrap.hidden = !highlight.cover?.startsWith('data:image/')
+    book.append(wrap)
+    if (!wrap.hidden) {
       const cover = document.createElement('img')
-      cover.className = 'reading-book-cover'
+      cover.className = 'reading-book-cover weread-cover'
       cover.alt = ''
       cover.src = highlight.cover
-      book.append(cover)
+      wrap.append(cover)
     }
     content.replaceChildren(quote, book)
   })

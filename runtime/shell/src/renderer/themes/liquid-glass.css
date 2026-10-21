@@ -68,7 +68,7 @@ html[data-theme='liquid-glass'] #status-bar .sb-pi-status:active:not(:disabled) 
 }
 
 /* Keep the static shape visible until the SDK sets its measured clip path. */
-html[data-theme='liquid-glass'] #home-desk .widget.lg-surface {
+html[data-theme='liquid-glass'] #home-desk :is(.widget, #app-view).lg-surface {
   visibility: inherit;
   box-sizing: border-box;
   color: var(--odk-primary);
@@ -76,7 +76,7 @@ html[data-theme='liquid-glass'] #home-desk .widget.lg-surface {
   border-radius: var(--odk-frame-radius) !important;
 }
 
-html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-desk .widget.lg-surface,
+html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-desk :is(.widget, #app-view).lg-surface,
 html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-summary .dash.lg-surface {
   background: transparent;
   box-shadow: inset 0 0.5px 0 rgba(246, 250, 255, 0.12);

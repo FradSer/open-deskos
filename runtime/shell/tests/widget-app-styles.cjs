@@ -167,7 +167,7 @@ async function widgets(win, label) {
 }
 
 async function widgetDesignRoles(win) {
-  const names = { 'pi-sessions': 'Pi Sessions', pomodoro: 'Pomodoro', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', weread: 'Reading' }
+  const names = { 'pi-sessions': 'Pi Sessions', futu: 'Holdings', year: 'Year progress', weather: 'Shenzhen', quota: 'AI usage', hydra: 'Hydra', weread: 'Reading' }
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     await win.webContents.executeJavaScript(`odkTheme.set('${theme}').then(() => document.fonts.ready)`)
     for (const [width, height] of [[1920, 1280], [1280, 800]]) {
@@ -177,12 +177,13 @@ async function widgetDesignRoles(win) {
           const heading = tile.querySelector('.widget-heading')
           const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
           const style = heading && getComputedStyle(heading)
-          return { id: tile.dataset.widget.slice('odk.tile.'.length), sessionReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pi Sessions' && ['.pi-widget-count', '.pi-widget-live-tag', '.pi-widget-summary'].every(selector => { const r = tile.querySelector(selector)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), sessionReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pi Sessions' && ['.pi-widget-count', '.pi-widget-live-tag', '.pi-widget-summary'].every(selector => { const r = tile.querySelector(selector)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), dialReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pomodoro' && ['.pomodoro-ring-wrap', '.ring-mmss', '.pomodoro-context'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
         })
       })()`)
       for (const row of readings) {
         if (row.id === 'pi-sessions') check(`${theme} ${width}: Pi keeps its reading and accessible App entry without a heading`, row.sessionReading, row)
         else if (row.id === 'year') check(`${theme} ${width}: Year identifies itself through its percentage, context and meter without a heading`, row.yearReading, row)
+        else if (row.id === 'pomodoro') check(`${theme} ${width}: Pomodoro carries its reading in the dial without a heading`, row.dialReading, row)
         else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
         else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
       }
@@ -238,29 +239,34 @@ async function pomodoroCentering(win) {
       const reading = await win.webContents.executeJavaScript(`(() => {
         const tile = document.querySelector('.w-pomodoro')
         const frame = tile.getBoundingClientRect()
-        const dial = tile.querySelector('svg').getBoundingClientRect()
+        const body = tile.querySelector('.pomodoro-body').getBoundingClientRect()
+        const lane = tile.querySelector('.pomodoro-lane').getBoundingClientRect()
+        const state = tile.querySelector('.pomodoro-state')
+        const stateBox = state.hidden ? null : state.getBoundingClientRect()
+        const dial = tile.querySelector('.pomodoro-ring-wrap svg').getBoundingClientRect()
         const ring = tile.querySelector('.ring-track').getBoundingClientRect()
         const time = tile.querySelector('.ring-mmss').getBoundingClientRect()
         const label = tile.querySelector('.pomodoro-context').getBoundingClientRect()
-        const state = tile.querySelector('.pomodoro-state').getBoundingClientRect()
         const center = r => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
-        const body = tile.querySelector('.pomodoro-body').getBoundingClientRect()
-        const head = tile.querySelector('.pomodoro-head').getBoundingClientRect()
         const contained = (r, container) => r.width > 0 && r.height > 0 && r.left >= container.left - 1 && r.right <= container.right + 1 && r.top >= container.top - 1 && r.bottom <= container.bottom + 1
-        const a = center(body), b = center(dial), c = center(time)
+        const a = center(lane), b = center(dial), c = center(time), d = center(ring)
+        // The countdown must stay inside the drawn ring, not only inside its box.
+        const chord = 2 * Math.sqrt(Math.max(0, (ring.width / 2 - 4) ** 2 - (c.y - d.y) ** 2))
         return { centered: Math.abs(a.x-b.x) < 1 && Math.abs(a.y-b.y) < 1 && Math.abs(b.x-c.x) < 1 && Math.abs(b.y-c.y) < 1,
           labelInside: label.top >= time.bottom && label.bottom <= ring.bottom + 1 && label.left >= ring.left && label.right <= ring.right,
-          headerAbove: contained(head, frame) && contained(state, head) && head.bottom <= body.top + 1,
-          dialInside: contained(dial, body) && contained(body, frame),
+          timeInside: time.width <= chord && time.height <= chord,
+          stateAbove: !stateBox || (contained(stateBox, frame) && stateBox.bottom <= dial.top + 1),
+          headerAbsent: !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pomodoro',
+          dialInside: contained(dial, lane) && contained(lane, body) && contained(body, frame),
           offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
       })()`)
-      check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.headerAbove && reading.dialInside, reading)
+      check(`Pomodoro dial carries its reading: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.timeInside && reading.stateAbove && reading.headerAbsent && reading.dialInside, reading)
       const headings = await win.webContents.executeJavaScript(`(() => {
-        return ['odk.tile.pomodoro','odk.tile.quota'].map(id => {
+        return ['odk.tile.quota'].map(id => {
           const tile=document.querySelector('[data-widget="'+id+'"]'),frame=tile.getBoundingClientRect(),style=getComputedStyle(tile);
           const head=tile.querySelector('.widget-head').getBoundingClientRect(),body=tile.querySelector('.widget-signal').getBoundingClientRect();
           const top=frame.top+parseFloat(style.borderTopWidth)+parseFloat(style.paddingTop),left=frame.left+parseFloat(style.borderLeftWidth)+parseFloat(style.paddingLeft);
-          const nodes=id==='odk.tile.quota'?[...tile.querySelector('.quota-tile-body').children].filter(node=>!node.hidden):[tile.querySelector('.pomodoro-ring-wrap')];
+          const nodes=[...tile.querySelector('.quota-tile-body').children].filter(node=>!node.hidden);
           const bounds=nodes.map(node=>node.getBoundingClientRect()),start=Math.min(...bounds.map(r=>r.top)),end=Math.max(...bounds.map(r=>r.bottom));
           return {id,anchored:Math.abs(head.top-top)<1&&Math.abs(head.left-left)<1,above:head.bottom<=body.top+1,centered:Math.abs((start+end-body.top-body.bottom)/2)<1};
         });

@@ -212,7 +212,7 @@ app
       if(app==='year')result.progress=!!root.querySelector('progress');
       if(app==='weather')result.hero=!!root.querySelector('.weather-reading');
       if(app==='hydra')result.plants=!!root.querySelector('.plant-readings');
-      if(app==='weread'){const q=root.querySelector('blockquote');result.reading=${JSON.stringify(sourceState)}==='live'?q&&parseFloat(getComputedStyle(q).lineHeight)/parseFloat(getComputedStyle(q).fontSize)>=1.5:root.querySelector('.reading-status').textContent.length>0;}
+      if(app==='weread'){const q=root.querySelector('blockquote'),source=document.querySelector('.widget.w-weread .weread-text');const leading=n=>{const s=getComputedStyle(n);return parseFloat(s.lineHeight)/parseFloat(s.fontSize)};result.reading=${JSON.stringify(sourceState)}==='live'?!!q&&leading(q)>=1.34&&Math.abs(leading(q)-leading(source))<0.02:root.querySelector('.reading-status').textContent.length>0;}
       if(app==='futu')result.returnLabel=root.querySelector('.reading-head h2')?.textContent==='Daily return';
       if(app==='quota')result.hasQuota=!!root.querySelector('.quota-card');
       return result;

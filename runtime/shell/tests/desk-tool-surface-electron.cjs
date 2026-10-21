@@ -163,9 +163,15 @@ app.whenReady().then(async () => {
             const readings = spec.readings.map((selector,index) => {
               const node = container.querySelector(selector), box = node.getBoundingClientRect(), style = getComputedStyle(node);
               if (node.textContent !== spec.text[index]) throw Error('Tool state changed: ' + spec.id);
+              // A reading the product hides by design still owes its text and class contract;
+              // only a shown reading owes geometry.
+              if (node.hidden) return { text: node.textContent, classes: node.className, hidden: true, width: box.width, height: box.height,
+                left: relative ? box.left-frame.left : box.left, top: relative ? box.top-frame.top : box.top,
+                font: style.fontFamily, fontSize: style.fontSize, weight: style.fontWeight, color: style.color,
+                spacing: style.letterSpacing, animation: style.animationName, transition: style.transitionDuration };
               if (box.width <= 0 || box.height <= 0) throw Error('Tool reading has no geometry');
               if (relative && (box.left < frame.left || box.right > frame.right + 0.1 || box.top < frame.top || box.bottom > frame.bottom + 0.1)) throw Error('Tool reading is clipped');
-              return { text: node.textContent, classes: node.className, width: box.width, height: box.height,
+              return { text: node.textContent, classes: node.className, hidden: false, width: box.width, height: box.height,
                 left: relative ? box.left-frame.left : box.left, top: relative ? box.top-frame.top : box.top,
                 font: style.fontFamily, fontSize: style.fontSize, weight: style.fontWeight, color: style.color,
                 spacing: style.letterSpacing, animation: style.animationName, transition: style.transitionDuration };
