@@ -13,6 +13,7 @@ colors:
   accent-red: "#eb5757"
   accent-green: "#34c759"
   accent-blue: "#025bc2"
+  agent-avatar: "#6d73ff"
 typography:
   body:
     fontFamily: "Noto Sans SC, Montserrat, sans-serif"
