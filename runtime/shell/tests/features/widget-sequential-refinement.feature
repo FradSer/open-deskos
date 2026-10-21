@@ -165,3 +165,11 @@ Feature: Independent instrument refinement
     And its occupied floor follows the multi-row contract and its empty-band limit remains unchanged
     And Pomodoro and provider allowance use the standard envelope band with anchored headings
     And retired Clock, Calendar, and Pre-order remain absent while Year and Pomodoro remain available
+
+  Scenario: Shared harnesses enforce each Widget heading contract
+    Given default and independent Pi surfaces share the current visual contract
+    When Widget harnesses run across four themes and supported compact Cells
+    Then Pi has no visible heading and retains its accessible App name
+    And ChatGPT and Pomodoro headings follow the top and leading inset
+    And their primary readings center below the heading without overlap
+    And a title regression fails the shared gate

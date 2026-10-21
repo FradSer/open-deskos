@@ -248,6 +248,17 @@ async function pomodoroCentering(win) {
           offsets: [a.x-b.x, a.y-b.y, b.x-c.x, b.y-c.y] }
       })()`)
       check(`Pomodoro centered dial and readings: ${theme} ${width}x${height}`, reading.centered && reading.labelInside && reading.headerAbove && reading.dialInside, reading)
+      const headings = await win.webContents.executeJavaScript(`(() => {
+        return ['odk.tile.pomodoro','odk.tile.quota'].map(id => {
+          const tile=document.querySelector('[data-widget="'+id+'"]'),frame=tile.getBoundingClientRect(),style=getComputedStyle(tile);
+          const head=tile.querySelector('.widget-head').getBoundingClientRect(),body=tile.querySelector('.widget-signal').getBoundingClientRect();
+          const top=frame.top+parseFloat(style.borderTopWidth)+parseFloat(style.paddingTop),left=frame.left+parseFloat(style.borderLeftWidth)+parseFloat(style.paddingLeft);
+          const nodes=id==='odk.tile.quota'?[...tile.querySelector('.quota-tile-body').children].filter(node=>!node.hidden):[tile.querySelector('.pomodoro-ring-wrap')];
+          const bounds=nodes.map(node=>node.getBoundingClientRect()),start=Math.min(...bounds.map(r=>r.top)),end=Math.max(...bounds.map(r=>r.bottom));
+          return {id,anchored:Math.abs(head.top-top)<1&&Math.abs(head.left-left)<1,above:head.bottom<=body.top+1,centered:Math.abs((start+end-body.top-body.bottom)/2)<1};
+        });
+      })()`);
+      check(`Widget heading insets and separate readings: ${theme} ${width}x${height}`,headings.every(row=>row.anchored&&row.above&&row.centered),headings)
     }
   }
 }

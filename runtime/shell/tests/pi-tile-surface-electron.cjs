@@ -95,6 +95,7 @@ app.whenReady().then(async () => {
         const value = cases[index]; response = value.response; rejectScan = !!value.reject
         await js('(()=>{for(let i=0;i<3;i++)for(const callback of [...piTileTicks])callback(new Date())})()')
         await wait(`piTileElement.querySelector('.pi-widget-count').textContent===${JSON.stringify(value.count)}&&piTileElement.querySelector('.pi-widget-tag-label').textContent===${JSON.stringify(value.label)}&&piTileElement.querySelector('.pi-widget-summary').textContent===${JSON.stringify(value.summary)}`)
+        assert.equal(await js(`!!piTileElement.querySelector('.widget-head,.widget-heading,.widget-title')`),false,'both default and independent Pi surfaces omit the redundant title')
         const snapshot = await js(`(()=>{const el=piTileElement;return {classes:[...el.classList].sort(),nodes:[...el.querySelectorAll('.pi-widget-body,.pi-widget-body *')].map(node=>({
           tag:node.tagName,text:node.textContent,classes:[...node.classList].sort(),html:node.children.length?null:node.innerHTML,hidden:node.hidden,
         })),summaryHidden:el.querySelector('.pi-widget-summary').hidden}})()`)

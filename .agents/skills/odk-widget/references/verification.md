@@ -35,6 +35,7 @@ Assert decoded images, visible readings, font readiness, and cross-surface consi
 Capture each supported theme and the applicable reference and compact dimensions.
 Assert actual heading visibility, accessible names, header insets, reading containment, and retained layout spans.
 Test the absence of removed headings as well as the presence of useful ones.
+Enforce heading decisions in shared harnesses across themes and compact Cells, including independent surfaces that share the visual contract.
 Do not substitute fixture values for real readings when presenting device screenshots.
 
 When a component lacks a data channel, identify any preview-only display as simulated.

@@ -116,6 +116,9 @@ Use existing plugin implementations as examples:
 | Progress | `plugins/year.js` | Rounded text and precise meter; text carries accessible meaning |
 | Telemetry | `plugins/hydra.js` | Mount a truthful null snapshot; preserve independent cell failures |
 
+Trace registered alternate surfaces before changing a shared visual contract.
+Update affected static markup and harness assertions together.
+Keep behavior-owning replacements independent; do not delegate to the default mount.
 Confirm that each example still exists before copying it.
 Do not restore retired surfaces through outdated examples.
 When alternatives are requested, vary a named structural dimension.
