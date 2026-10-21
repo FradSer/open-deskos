@@ -338,4 +338,5 @@ Feature: Weather instrument on the Home grid
     Then the primary numeral and unit do not overlap the place or condition
     And the primary numeral uses the bundled display font outside Pixel
     And Pixel retains its regular pixel font
+    And its content has two pixels of block clearance without duplicate inline padding
     And deferred profile cleanup cannot replace a failed geometry verdict

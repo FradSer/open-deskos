@@ -106,8 +106,8 @@ async function measureSize(win, width, height) {
       if (!measurement.content.every(matches)) insetIssues.push(`${id}: excerpt inset ${measurement.content.join('/')}, expected ${measurement.expected}`)
     } else if (id === 'odk.tile.weather') {
       if (!measurement.frame.every(matches)) insetIssues.push(`${id}: frame inset ${measurement.frame.join('/')}, expected ${measurement.expected}`)
-      if (measurement.content[1] >= 1 || measurement.content[3] >= 1 || measurement.content[0] > 1 || measurement.content[2] > 1) {
-        insetIssues.push(`${id}: inner clearance ${measurement.content.join('/')}, expected at most 1px on the block axis`)
+      if (measurement.content[1] >= 1 || measurement.content[3] >= 1 || measurement.content[0] !== 2 || measurement.content[2] !== 2) {
+        insetIssues.push(`${id}: inner clearance ${measurement.content.join('/')}, expected 2px on the block axis and no inline padding`)
       }
     } else {
       if (!measurement.frame.every(matches)) insetIssues.push(`${id}: frame inset ${measurement.frame.join('/')}, expected ${measurement.expected}`)

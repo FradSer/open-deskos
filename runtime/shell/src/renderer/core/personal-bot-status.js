@@ -288,10 +288,19 @@
     togglePending = true
     dismissed = false
     try {
-      await window.odkPersonalBot.toggle()
+      const receipt = await window.odkPersonalBot.toggle()
+      if (receipt === false || receipt?.accepted === false) {
+        if (!['error', 'unavailable'].includes(lastState)) {
+          active = true
+          render({ state: 'error', message: 'Unable to control recording', transcript: lastTranscript })
+        }
+        return { accepted: false }
+      }
+      return receipt || { accepted: true }
     } catch {
       active = true
       render({ state: 'error', message: 'Unable to control recording', transcript: lastTranscript })
+      return { accepted: false }
     } finally {
       togglePending = false
     }
