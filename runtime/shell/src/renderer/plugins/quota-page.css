@@ -218,21 +218,26 @@ html[data-theme="pixel"] .quota-card :is(.provider-quota-identity strong, .provi
 html[data-theme="pixel"] .quota-card :is(.provider-quota-card, .provider-quota-meter) { border-radius: 0; }
 
 /* Quota Tile */
+.w-quota {
+  justify-content: center;
+  gap: var(--odk-space-2);
+}
+
 .quota-tile-body {
   position: relative;
   display: flex;
-  flex: 1;
+  flex: none;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
   min-height: 0;
   width: 100%;
-  gap: var(--odk-space-2);
+  gap: var(--odk-space-1);
 }
 
 .quota-tile-value {
   font-family: inherit;
-  font-size: clamp(32px, 40cqi, 128px);
+  font-size: clamp(32px, 32cqi, 112px);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1;

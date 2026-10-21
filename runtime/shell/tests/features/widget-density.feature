@@ -18,7 +18,7 @@ Feature: Widget content density around sixty-two percent
 
   Scenario: Density violations remain actionable
     Given the shell runs at 1920 by 1280, 1920 by 1080, or compact development sizes
-    When the harness inspects all ten declared Widgets
+    When the harness inspects all declared Widgets
     Then every Widget reports its identity, bounds, envelope fill, occupied area, empty band, and target deviation
     And a missing Widget or clipped content fails the harness
     And clipping by any intermediate overflow container is detected even when the original content lies inside the card
@@ -46,3 +46,10 @@ Feature: Widget content density around sixty-two percent
     And the Widget passes the existing content density and containment bounds
     And a theme override does not duplicate the same count rule for viewport widths
     And a three-digit running count remains completely inside its metric row in every theme
+
+  Scenario: Every installed theme uses the same strict density profiles
+    Given Instrument and Liquid Glass render live and unavailable Widget data
+    When the harness measures reference and handheld sizes
+    Then the selected theme has finished loading before measurement
+    And Pomodoro and quota retain their established density profiles
+    And unknown theme names fail before measurement

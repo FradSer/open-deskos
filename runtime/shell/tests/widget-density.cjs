@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
-const { DEFAULTS, WEATHER_PROFILE, WEREAD_PROFILE, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
+const { resolveDensityTheme, DEFAULTS, WEATHER_PROFILE, WEREAD_PROFILE, measureDensity, collectWidgetContent } = require('./helpers/widget-density.js')
 const { installGeometryFixtures } = require('./helpers/live-fixtures.js')
 const { resolvePages } = require('./helpers/pages')
 
@@ -16,8 +16,7 @@ const sizes = (value('--sizes') || '1920x1280,1920x1080,960x640,480x854,320x480'
 })
 const fixtureDate = value('--date') || '2026-09-05T13:12:00'
 if (!Number.isFinite(Date.parse(fixtureDate))) throw new Error(`Invalid fixture date: ${fixtureDate}`)
-const fixtureTheme = value('--date-theme') || value('--theme') || 'instrument'
-if (fixtureTheme && !['instrument', 'border-beam', 'pixel'].includes(fixtureTheme)) throw new Error(`Invalid fixture theme: ${fixtureTheme}`)
+const fixtureTheme = resolveDensityTheme(process.argv)
 const fixtureState = value('--state') || 'unavailable'
 if (!['unavailable', 'live'].includes(fixtureState)) throw new Error(`Invalid fixture state: ${fixtureState}`)
 
@@ -216,7 +215,7 @@ async function main() {
   // measures. Sizes are still set by the harness, and backgroundThrottling stays
   // off so rendering keeps up offscreen.
   const win = new BrowserWindow({ width: sizes[0][0], height: sizes[0][1], frame: false, show: false, useContentSize: true,
-    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
+    webPreferences: { preload: path.join(root, 'src/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, offscreen: true },
   })
   await win.loadFile(path.join(root, 'src/renderer/index.html'))
   win.webContents.debugger.attach('1.3')
@@ -248,7 +247,7 @@ async function main() {
   const runs = []
   for (const [width, height] of sizes) runs.push(await measureSize(win, width, height))
   const ok = runs.every(run => run.missing.length === 0 && run.insetIssues.length === 0 && run.widgets.every(widget => widget.violations.length === 0))
-  const report = { schemaVersion: 1, metric: 'content-envelope / inner-frame', settings: DEFAULTS, fixtureState, fixtureDate, ok, runs }
+  const report = { schemaVersion: 1, metric: 'content-envelope / inner-frame', settings: DEFAULTS, fixtureState, fixtureDate, fixtureTheme, ok, runs }
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`)
   for (const run of runs) {
     for (const widget of run.widgets) {

@@ -1133,11 +1133,14 @@ body.kiosk {
   border-color: var(--odk-stroke);
 }
 
+.w-pomodoro { gap: var(--odk-space-2); }
+
 .w-pomodoro .pomodoro-body {
   container-type: size;
   position: relative;
   display: flex;
-  flex: 1;
+  flex: none;
+  height: 60cqi;
   align-items: center;
   justify-content: center;
   min-height: 0;
@@ -1154,7 +1157,7 @@ body.kiosk {
 
 .pomodoro-ring-wrap svg {
   grid-area: 1 / 1;
-  width: min(90cqi, 100cqb);
+  width: min(60cqi, 100cqb);
   height: auto;
   flex-shrink: 0;
   aspect-ratio: 1;
@@ -1277,7 +1280,7 @@ body.kiosk {
 }
 
 .year-pct-wide {
-  font-size: clamp(40px, 40cqi, 144px);
+  font-size: clamp(40px, 48cqi, 164px);
 }
 
 .w-year .meter {
