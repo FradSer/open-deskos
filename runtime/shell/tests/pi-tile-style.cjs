@@ -57,9 +57,9 @@ const READ = `(() => {
   const count = host.querySelector('.pi-widget-count'), label = host.querySelector('.pi-widget-tag-label'), summary = host.querySelector('.pi-widget-summary');
   const bounds = host.getBoundingClientRect(), reading = count.getBoundingClientRect(), metric = count.parentElement.getBoundingClientRect();
   const capsule = host.querySelector('.pi-widget-live-tag').getBoundingClientRect(), footer = summary.getBoundingClientRect();
-  const heading = (host.querySelector('.widget-title') || host.querySelector('.widget-heading')).getBoundingClientRect();
+  const heading = host.querySelector('.widget-title,.widget-heading,.widget-head');
   return { viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
-    headingClearance: reading.top - heading.bottom,
+    headingAbsent: !heading, accessibleName: host.querySelector('.widget-launch')?.getAttribute('aria-label'),
     cell: Math.round(bounds.width), count: count.textContent, label: label.textContent, idle: summary.textContent, capsuleBelowCount: capsule.top >= reading.bottom + 4, idleBelowCapsule: footer.top >= capsule.bottom + 4,
     details: host.querySelectorAll('.pi-widget-activity,.pi-widget-context,.w-state').length,
     font: parseFloat(getComputedStyle(label).fontSize),
@@ -67,7 +67,7 @@ const READ = `(() => {
     hiddenV: host.scrollHeight - host.clientHeight,
     summaryVisible: summary.getBoundingClientRect().height > 0,
     countContained: reading.left >= metric.left && reading.right <= metric.right,
-    aligned: Math.abs(heading.left - bounds.left - parseFloat(getComputedStyle(host).borderLeftWidth) - parseFloat(getComputedStyle(host).paddingLeft)) < 1 };
+    idleNearCapsule: footer.top - capsule.bottom <= 12 };
 })()`
 
 async function main() {
@@ -109,7 +109,8 @@ async function main() {
   }
   for (const reading of results) {
     const where = `${reading.panel} ${reading.state} ${reading.theme}`
-    assert.ok(reading.headingClearance >= 4, `${where}: heading stays above the count` )
+    assert.equal(reading.headingAbsent, true, `${where}: no redundant visible heading`)
+    assert.match(reading.accessibleName, /Pi Sessions/, `${where}: App entry keeps its accessible name`)
     assert.equal(reading.capsuleBelowCount, true, `${where}: capsule follows the count`)
     assert.equal(reading.idleBelowCapsule, true, `${where}: idle count follows the capsule`)
     assert.equal(reading.details, 0, `${where}: task details belong to the App`)
@@ -117,7 +118,7 @@ async function main() {
     assert.equal(reading.scrollable, false, `${where}: no inner scroll`)
     assert.ok(reading.hiddenV <= 1, `${where}: all readings fit`)
     assert.equal(reading.countContained, true, `${where}: every count digit fits`)
-    assert.equal(reading.aligned, true, `${where}: heading follows the shared inset`)
+    assert.equal(reading.idleNearCapsule, true, `${where}: idle count stays with the count and capsule`)
     assert.equal(reading.summaryVisible, true, `${where}: idle count remains visible`)
   }
   console.log(`PI_TILE_STYLE_PASS ${results.length} cases`)

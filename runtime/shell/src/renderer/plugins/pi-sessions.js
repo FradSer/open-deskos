@@ -209,7 +209,6 @@
     mount(el, ctx) {
       el.innerHTML = `
         <div class="pi-widget-body w-full">
-          <div class="widget-head"><span class="widget-heading">Pi Sessions</span></div>
           <div class="pi-widget-metric-row">
             <span class="pi-widget-count">--</span>
             <span class="pi-widget-live-tag"><span class="pi-indicator-dot" aria-hidden="true"></span><span class="pi-widget-tag-label">Reading</span></span>

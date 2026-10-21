@@ -1123,13 +1123,13 @@ body.kiosk {
 }
 
 
-/* Pomodoro groups its header above a compact, centered focus dial. */
+/* Keep the heading at the shared inset and center the dial below it. */
 .w-pomodoro {
   --pomodoro-time-size: clamp(24px, 16cqi, 100px);
   gap: var(--odk-space-2);
   position: relative;
   align-items: stretch;
-  justify-content: center;
+  justify-content: flex-start;
   background: var(--odk-surface);
   border-color: var(--odk-stroke);
 }
@@ -1138,8 +1138,7 @@ body.kiosk {
   container-type: size;
   position: relative;
   display: flex;
-  flex: none;
-  height: 60cqi;
+  flex: 1;
   align-items: center;
   justify-content: center;
   min-height: 0;
@@ -1624,16 +1623,14 @@ body.kiosk {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: var(--odk-space-2);
   min-height: 0;
   container-type: size;
 }
 
-.pi-widget-body > .widget-head { align-self: stretch; }
-
-.pi-widget-metric-row { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: var(--odk-space-2); }
-.pi-widget-count { font-family: inherit; font-size: clamp(40px, min(48cqi, 45cqb), 160px); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--odk-primary); }
+.pi-widget-metric-row { display: flex; flex: none; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: var(--odk-space-2); }
+.pi-widget-count { font-family: inherit; font-size: clamp(40px, min(56cqi, 52cqb), 160px); font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; color: var(--odk-primary); }
 .pi-widget-wide-count .pi-widget-count { font-size: clamp(32px, min(34cqi, 45cqb), 120px); }
 .pi-widget-summary { flex: none; margin-block-end: 4px; }
 .pi-widget-live-tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--odk-stroke); border-radius: var(--odk-radius-pill); background: var(--odk-elevated); }

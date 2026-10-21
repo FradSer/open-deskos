@@ -41,7 +41,7 @@ app.whenReady().then(async () => {
   try {
     await win.loadFile(path.join(__dirname, '../src/renderer/index.html'))
     await win.webContents.debugger.attach('1.3')
-    for (const theme of ['instrument', 'pixel', 'border-beam']) {
+    for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
       for (const [width, height] of [[1920, 1280], [320, 480]]) {
         await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
         const failures = await win.webContents.executeJavaScript(`(async () => {
@@ -87,7 +87,7 @@ app.whenReady().then(async () => {
             }
             await odkAppPlatform.closeApp()
           }
-          if (document.querySelector('[data-widget="odk.tile.year"], [data-widget="odk.tile.pomodoro"]')) failures.push('retired time or date Widget')
+          if (document.querySelector('[data-widget="odk.tile.clock"], [data-widget="odk.tile.calendar"], [data-widget="odk.tile.almanac"], [data-widget="odk.tile.preorder"]')) failures.push('retired Widget')
           return failures
         })()`)
         assert.deepEqual(failures, [], `${theme} ${width}x${height}`)

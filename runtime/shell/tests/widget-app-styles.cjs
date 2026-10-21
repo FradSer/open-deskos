@@ -177,11 +177,12 @@ async function widgetDesignRoles(win) {
           const heading = tile.querySelector('.widget-heading')
           const r = heading?.getBoundingClientRect(), frame = tile.getBoundingClientRect()
           const style = heading && getComputedStyle(heading)
-          return { id: tile.dataset.widget.slice('odk.tile.'.length), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
+          return { id: tile.dataset.widget.slice('odk.tile.'.length), sessionReading: !heading && !tile.querySelector('.widget-head') && tile.querySelector('.widget-launch')?.getAttribute('aria-label') === 'Open Pi Sessions' && ['.pi-widget-count', '.pi-widget-live-tag', '.pi-widget-summary'].every(selector => { const r = tile.querySelector(selector)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), yearReading: !heading && ['.year-pct', '.year-context', '.meter'].every(selector => { const node = tile.querySelector(selector), r = node?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0 && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }), legacyReading: !heading && !!tile.querySelector('.weread-text') && !!tile.querySelector('.weread-foot'), originalReadingSurface: getComputedStyle(tile).backgroundColor === 'rgba(0, 0, 0, 0)', text: heading?.textContent.trim(), visible: !!r && r.width > 0 && r.height > 0 && style.opacity !== '0', font: parseFloat(style?.fontSize), contained: !!r && r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom }
         })
       })()`)
       for (const row of readings) {
-        if (row.id === 'year') check(`${theme} ${width}: Year identifies itself through its percentage, context and meter without a heading`, row.yearReading, row)
+        if (row.id === 'pi-sessions') check(`${theme} ${width}: Pi keeps its reading and accessible App entry without a heading`, row.sessionReading, row)
+        else if (row.id === 'year') check(`${theme} ${width}: Year identifies itself through its percentage, context and meter without a heading`, row.yearReading, row)
         else if (row.id === 'weread') check(`${theme} ${width}: Reading retains the original excerpt and book details`, row.legacyReading && (theme === 'liquid-glass' || row.originalReadingSurface), row)
         else check(`${theme} ${width}: ${row.id} identifies its instrument with a readable heading`, row.text === names[row.id] && row.visible && row.contained && row.font >= 16, row)
       }
@@ -192,13 +193,12 @@ async function widgetDesignRoles(win) {
           const surface = getComputedStyle(probe).color; probe.remove()
           const values = tiles.flatMap(tile => [...tile.querySelectorAll('.pi-widget-count, .ring-mmss, .futu-ratio, .year-pct, .w-weather-value, .quota-tile-value')])
           const pi = document.querySelector('.w-pi-sessions'), frame = pi.getBoundingClientRect()
-          const heading = pi.querySelector('.widget-head').getBoundingClientRect()
           const count = pi.querySelector('.pi-widget-count').getBoundingClientRect()
           const tag = pi.querySelector('.pi-widget-live-tag').getBoundingClientRect()
           const idle = pi.querySelector('.pi-widget-summary').getBoundingClientRect()
           const centered = rect => Math.abs((rect.left + rect.right - frame.left - frame.right) / 2) < 1
           const contained = rect => rect.width > 0 && rect.height > 0 && rect.left >= frame.left && rect.right <= frame.right && rect.top >= frame.top && rect.bottom <= frame.bottom
-          return { aligned: [count, tag, idle].every(centered) && [heading, count, tag, idle].every(contained) && count.top >= heading.bottom && tag.top >= count.bottom && idle.top >= tag.bottom, tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), regular: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === '400' && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
+          return { aligned: [count, tag, idle].every(centered) && [count, tag, idle].every(contained) && !pi.querySelector('.widget-head') && tag.top >= count.bottom && idle.top >= tag.bottom, tonal: tiles.every(tile => getComputedStyle(tile).backgroundColor === surface), regular: values.length === 6 && values.every(node => getComputedStyle(node).fontWeight === '400' && getComputedStyle(node).fontVariantNumeric.includes('tabular-nums')) }
         })()`)
         check(`${theme} ${width}: tonal surfaces and regular tabular readings`, tone.tonal && tone.regular && tone.aligned, tone)
       }

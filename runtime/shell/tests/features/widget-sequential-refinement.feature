@@ -110,7 +110,7 @@ Feature: Independent instrument refinement
   Scenario: Instruments separate headings from readings
     Given Pi and Hydra render at desktop and handheld sizes
     When their content fills the configured spans
-    Then Pi reserves space below its heading before the working count
+    Then Pi identifies itself through its accessible App entry without a visible heading
     And Hydra groups plant readings without nested card surfaces
 
 
@@ -149,3 +149,19 @@ Feature: Independent instrument refinement
     And the glyph and condition share their leading edge
     And the temperature and daily range scale within the unchanged density band
     And holding rows retain aligned values and subtle separators
+
+  Scenario: Optional headings keep a stable top position
+    Given ChatGPT and Pomodoro have useful visible headings
+    When their square Widgets render in every supported theme
+    Then each heading follows the card top and leading content inset
+    And the reading is centered in the remaining body below the heading
+    And Pi has no visible heading or empty header space
+    And the Pi App entry retains its accessible name
+
+  Scenario: Density follows the requested heading structure
+    Given Pi Sessions has no visible title and groups its count, capsule, and Idle count
+    When the standard unavailable fixture is measured across supported Cells
+    Then its density profile describes the narrow heading-free envelope
+    And its occupied floor follows the multi-row contract and its empty-band limit remains unchanged
+    And Pomodoro and provider allowance use the standard envelope band with anchored headings
+    And retired Clock, Calendar, and Pre-order remain absent while Year and Pomodoro remain available
