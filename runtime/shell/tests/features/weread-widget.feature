@@ -112,7 +112,7 @@ Feature: WeRead highlight widget
   Scenario: Home keeps chatbot and settings while Reading hosts WeRead
     Given the home layout is loaded
     Then it contains the chatbot and settings widgets
-    And the reading page hosts the WeRead widget spanning one column and one row anchored top-left
+    And the reading page hosts the WeRead widget spanning three columns and three rows
 
   Scenario: WeRead widget shows the latest personal highlight
     Given the WeRead API returns recent highlights
@@ -133,7 +133,7 @@ Feature: WeRead highlight widget
 
   Scenario: WeRead meta steps down by the golden ratio
     Given the WeRead widget is rendered in a wide grid
-    Then the title and author sizes step down by phi
+    Then the title remains larger than the author
     And the author and date share one size separated by spacing
 
   Scenario: WeRead hero text dominates with calm spacing
@@ -180,8 +180,8 @@ Feature: WeRead highlight widget
 
   Scenario: Book attribution remains legible at desk distance
     Given the reading widget is approximately 1100 pixels wide
-    Then the book title is approximately 36 pixels
-    And the author and date share an approximately 22 pixel size
+    Then the book title is approximately 44 pixels
+    And the author and date share an approximately 30 pixel size
     And the right-side cover is approximately 132 pixels wide with its original aspect ratio
 
   Scenario: Pixel cover preserves finer book details

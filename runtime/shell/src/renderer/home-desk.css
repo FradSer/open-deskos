@@ -36,6 +36,7 @@
 #pages-viewport { position: relative; inset: auto; min-height: 0; width: 100%; }
 #page-center { position: static; transform: none; min-width: 0; }
 #home-desk .widget[data-interaction="display-only"] { background: var(--odk-surface); }
+html:not([data-theme="liquid-glass"]) #home-desk #app-view[data-source-widget="odk.tile.weread"] { background: transparent; }
 #home-desk .widget-grid { gap: var(--widget-gap); max-width: calc(100% - 2 * var(--desk-side-inset)); }
 #home-desk .page:has(.widget-grid) { padding-block: var(--widget-gap); }
 html[data-fit-canvas="true"] #home-desk .page:has(.widget-grid),

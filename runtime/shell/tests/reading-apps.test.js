@@ -4,11 +4,12 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 
 class Element {
-  constructor() { this.children = []; this.text = ''; this.disabled = false }
+  constructor() { this.children = []; this.text = ''; this.disabled = false; this.style = {}; this.classList = {add() {}} }
   set textContent(text) { this.text = String(text); this.children = [] }
   get textContent() { return this.text + this.children.map(child => child.textContent).join(' ') }
   append(...children) { this.children.push(...children) }
   replaceChildren(...children) { this.text = ''; this.children = children }
+  setAttribute() {}
   addEventListener(event, handler) { this[event] = handler }
 }
 async function renderApp(appId, snapshot) {
@@ -25,7 +26,7 @@ async function renderApp(appId, snapshot) {
   })
   plugins.find(plugin => plugin.appId === appId).mount(el, { trackCleanup() {}, onTick() {} })
   await new Promise(resolve => setImmediate(resolve))
-  return { status: nodes.get('.reading-status').textContent, content: nodes.get('.reading-content').textContent }
+  return { status: nodes.get('.reading-status').textContent, content: nodes.get('.reading-content').textContent, contentNode: nodes.get('.reading-content') }
 }
 
 test('Hydra App marks controller loss and never presents a retained pump as current watering', async () => {
@@ -56,3 +57,12 @@ for (const id of ['weather', 'weread']) {
     assert.match(rendered.status,/unavailable|incomplete/)
   })
 }
+
+
+test('WeRead App keeps its no-cover wrapper and title fallback', async () => {
+  const rendered = await renderApp('weread', {status:'live',highlight:{markText:'A complete excerpt',title:'《 》',author:'Writer'}})
+  const book = rendered.contentNode.children[1]
+  assert.equal(book.children[0].children[0].textContent, 'WeRead')
+  assert.equal(book.children[1].className, 'weread-cover-wrap')
+  assert.equal(book.children[1].hidden, true)
+})

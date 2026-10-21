@@ -1523,7 +1523,7 @@ body.kiosk {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: var(--odk-bg);
+  background: var(--odk-surface);
   display: flex;
   flex-direction: column;
 }
