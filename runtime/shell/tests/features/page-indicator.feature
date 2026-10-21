@@ -31,6 +31,7 @@ Feature: Theme-aware Apple-style page control below the Widgets
     Then exactly one marker exposes aria-current and selected styling
     And the capsule and hit areas remain centered below the Widgets
     And selecting a page does not move or resize the capsule or its neighbors
+    And marker checks wait for the opacity transition to finish
     When the keyboard activates a marker with Enter or Space
     Then the requested page is selected immediately and keyboard focus remains visible
     When Remote input selects an adjacent page

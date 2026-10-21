@@ -76,8 +76,13 @@ async function pointerSelect(win, index) {
     current += Math.sign(index-current)
     await waitFor(win, `document.querySelectorAll('.dot')[${current}].getAttribute('aria-current') === 'page'`)
   }
-  // Marker opacity transitions for 140 ms, so the settled marker is measured.
-  await js(win, 'new Promise(r => setTimeout(r, 180))')
+  await waitFor(win, `(() => {
+    return [...document.querySelectorAll('#dots .dot')].every(dot => {
+      const active = dot.classList.contains('active')
+      return getComputedStyle(dot, '::before').opacity === (active ? '1' : '0')
+        && getComputedStyle(dot, '::after').opacity === (active ? '0' : '1')
+    })
+  })()`)
 }
 async function cancelledSwipe(win) {
   const point = await js(win, '(()=>{const r=document.querySelector(".dot.active").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,id:1}})()')
