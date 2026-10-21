@@ -9,6 +9,8 @@ Preserve these distinctions during responsive changes.
 Rank the primary answer, supporting readings, and metadata before choosing their visual roles.
 Preserve this order through theme overrides and responsive rules.
 Reduce supporting emphasis before reducing the primary reading when space is limited.
+Keep the primary reading's share of its own lane across Cell sizes and themes.
+Size a reading by that lane and by the width its value needs; a longer value steps down for its own glyphs only.
 Keep each reading above its readability floor.
 When the primary reading is unavailable, show that state instead of promoting a supporting value as its substitute.
 Never replace missing evidence with a plausible value.

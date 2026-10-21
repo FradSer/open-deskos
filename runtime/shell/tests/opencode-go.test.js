@@ -61,6 +61,31 @@ test('normalizes Codex primary, weekly, additional, and reset-credit quotas', ()
   assert.equal(card.groups[0].quotas[0].remainingPct, 88)
   assert.equal(card.groups[0].quotas[1].remainingPct, 65)
   assert.equal(card.groups[1].quotas[0].label, 'GPT-5.3-Codex-Spark · 5 hours')
+  // The desk reports the allowance for the period, so each window states its horizon.
+  assert.deepEqual(card.groups[0].quotas.map(quota => quota.horizon), ['short', 'long'])
+  assert.equal(card.groups[1].quotas[0].horizon, 'short')
+})
+
+test('names the Codex window horizon when the provider omits its length', () => {
+  const card = normalizeCodexQuota({ name: 'codex.json' }, {
+    rate_limit: { primary_window: { used_percent: 10 }, secondary_window: { used_percent: 20 } },
+  })
+  assert.deepEqual(card.groups[0].quotas.map(quota => quota.horizon), ['short', 'long'])
+})
+
+test('Codex labels follow supplied durations instead of primary and secondary slots', () => {
+  const card = normalizeCodexQuota({ name: 'codex.json' }, {
+    rate_limit: {
+      primary_window: { used_percent: 20, limit_window_seconds: 604800 },
+      secondary_window: { used_percent: 70, limit_window_seconds: 18000 },
+    },
+    additional_rate_limits: [{ limit_name: 'Extra model', rate_limit: {
+      primary_window: { used_percent: 40, limit_window_seconds: 86400 },
+      secondary_window: { used_percent: 50, limit_window_seconds: 3600 },
+    } }],
+  })
+  assert.deepEqual(card.groups[0].quotas.map(q => [q.label, q.horizon]), [['Weekly limit', 'long'], ['5 hour limit', 'short']])
+  assert.deepEqual(card.groups[1].quotas.map(q => [q.label, q.horizon]), [['Extra model · 1 day', 'long'], ['Extra model · 1 hour', 'short']])
 })
 
 test('normalizes Antigravity grouped quota responses', () => {
