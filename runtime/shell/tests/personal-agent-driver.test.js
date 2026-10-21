@@ -203,3 +203,33 @@ test('Android verification selects the exact package process and its own forward
   assert.throws(() => ownedShellPage([{ ...page, webSocketDebuggerUrl: 'ws://foreign:9229/page' }], 9229))
   assert.ok(!fs.readFileSync(path.join(__dirname, 'personal-agent-parity-gate.mjs'), 'utf8').includes("'--remove-all'"))
 })
+
+test('cross-capability parity preserves busy and unavailable control boundaries', () => {
+  const { compareParity } = require('./helpers/personal-agent-parity')
+  const box = { x: 0, y: 0, w: 100, h: 44 }
+  for (const state of ['idle', 'error', 'starting', 'sending', 'recording', 'transcribing', 'thinking', 'unavailable']) {
+    const busy = ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(state)
+    const reading = voiceInput => ({
+      viewport: { width: 480, height: 853 }, theme: 'instrument', agentPanelPresent: true,
+      requestState: state, panel: box, identity: { box, name: 'Agent', state, label: state },
+      composer: { box, placeholder: 'Message…', insidePanel: true, mode: voiceInput ? 'voice' : 'keyboard' },
+      voiceInput, controls: {
+        mic: { box, hidden: false, disabled: !voiceInput || (busy && state !== 'recording'), label: 'Voice control' },
+        send: { box, hidden: voiceInput, disabled: busy || state === 'unavailable' },
+      }, empty: '', messages: [], children: [], statusPanel: { visible: false }, overflow: [],
+      conversation: { scrollHeight: 100, clientHeight: 100 },
+    })
+    const speaking = reading(true), silent = reading(false)
+    assert.deepEqual(compareParity(speaking, silent), [], state)
+    assert.deepEqual(compareParity(silent, speaking), [], `${state}: capability order is symmetric`)
+    for (const [host, control] of [['voice', 'mic'], ['silent', 'send']]) {
+      const one = structuredClone(speaking), other = structuredClone(silent)
+      const mutated = host === 'voice' ? one : other
+      mutated.controls[control].disabled = !mutated.controls[control].disabled
+      assert.ok(compareParity(one, other).some(row => row.label === `controls.${control}.disabled.${host}Host`), `${state}: wrong ${host} ${control} state must fail`)
+    }
+    const unsupported = structuredClone(silent)
+    unsupported.controls.mic.disabled = false
+    assert.ok(compareParity(speaking, unsupported).some(row => row.label === 'controls.mic.disabled.silentHost'), `${state}: a text-only host cannot enable its microphone`)
+  }
+})
