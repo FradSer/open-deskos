@@ -304,3 +304,9 @@ Feature: Hydra plant and environment Widget on the Desk page
     Then the complete value fits inside its plant panel
     And a later two-digit or unavailable reading clears the width adjustment
     And stale and offline states retain their existing meanings
+
+  Scenario: Native font metrics preserve the wide instrument density
+    Given the wide Hydra instrument renders with each host's native theme fonts
+    When Windows and macOS render normal and full moisture readings
+    Then the original strict density limits pass on both hosts
+    And the three-column strip and Pixel reading scale remain unchanged

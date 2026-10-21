@@ -3067,13 +3067,13 @@ body.kiosk {
 
 @container (min-width: 700px) {
   .hydra-body[data-shape='wide'] .hydra-plant-soil {
-    font-size: 21cqi;
+    font-size: 20cqi;
   }
   .hydra-body[data-shape='wide'] .hydra-plant {
     padding-block: 52px;
   }
   .hydra-body[data-shape='wide'] .hydra-plant-row {
-    min-height: calc(21cqi + 32px);
+    min-height: calc(20cqi + 32px);
   }
   .hydra-body[data-shape='wide'] .hydra-plant-soil-wide {
     font-size: 16cqi;
