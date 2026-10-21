@@ -43,3 +43,9 @@ Feature: A calm and precise desk instrument
     Then Today, Home, Reading, Pi Sessions, Usage, and built-in App views remain available
     And direct keyboard, touch, and Remote navigation retain their established boundaries
     And the desktop footprint and compact scrolling remain unchanged
+
+  Scenario: Plugin identifiers do not create a global ring shadow
+    Given plugin source contains the saved icon identifier "ring"
+    When the shared stylesheet is generated
+    Then no global ring shadow utility is emitted
+    And explicit layout utilities remain available
