@@ -10,7 +10,7 @@ const { VIEWPORTS, parityScript, parityPrepareScript } = require('./helpers/pers
  * Android host prints, so one comparison covers both hosts.
  *
  * Usage: electron tests/personal-agent-parity.cjs --state=<fixture key>
- *        [--viewport=redroid|sony] [--out=<png>]
+ *        [--viewport=redroid|sony] [--voice-input=false] [--out=<png>]
  */
 
 const args = new Map(process.argv.slice(1).filter((value) => value.startsWith('--')).map((value) => {
@@ -28,6 +28,14 @@ if (!viewport) throw new Error('unknown viewport')
 if (process.platform === 'darwin') app.dock.hide()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-agent-parity-'))
 app.setPath('userData', profile)
+let preload = path.join(__dirname, '../src/preload.js')
+if (args.get('voice-input') === 'false') {
+  const source = fs.readFileSync(preload, 'utf8')
+  const declaration = "contextBridge.exposeInMainWorld('odkPersonalBot', {"
+  if (!source.includes(declaration)) throw new Error('Personal Agent preload declaration changed')
+  preload = path.join(profile, 'text-only-preload.cjs')
+  fs.writeFileSync(preload, source.replace(declaration, declaration + '\n  supportsVoiceInput: false,'))
+}
 installGeometryFixtures(ipcMain)
 ipcMain.removeHandler('odk-personal-bot-status')
 ipcMain.handle('odk-personal-bot-status', () => status)
@@ -51,7 +59,7 @@ app.whenReady().then(async () => {
   win = new BrowserWindow({
     width: viewport.width, height: viewport.height, show: false, frame: false, useContentSize: true,
     webPreferences: {
-      preload: path.join(__dirname, '../src/preload.js'), sandbox: true, contextIsolation: true,
+      preload, sandbox: true, contextIsolation: true,
       nodeIntegration: false, offscreen: true, backgroundThrottling: false,
     },
   })

@@ -107,6 +107,7 @@ function parityScript() {
         placeholder: (document.querySelector('.agent-composer textarea') || {}).placeholder || '',
         insidePanel: !!panel && !!composer && composer.getBoundingClientRect().bottom <= panel.getBoundingClientRect().bottom + 1,
       },
+      requestState: status ? status.dataset.state || 'unknown' : 'unknown',
       voiceInput: !!(window.odkPersonalBot && window.odkPersonalBot.supportsVoiceInput !== false),
       controls: {
         mic: { box: box(mic), hidden: !!(mic && mic.hidden), disabled: !!(mic && mic.disabled), label: (mic && mic.getAttribute('aria-label')) || '' },
@@ -154,6 +155,7 @@ function compareParity(electron, android) {
   differences.push(...compareBoxes('identity', electron.identity.box, android.identity.box))
   differences.push(difference('identity.name', electron.identity.name, android.identity.name))
   differences.push(difference('identity.state', electron.identity.state, android.identity.state))
+  differences.push(difference('requestState', electron.requestState, android.requestState))
   differences.push(difference('identity.label', electron.identity.label, android.identity.label))
   differences.push(...compareBoxes('composer', electron.composer.box, android.composer.box))
   differences.push(difference('composer.placeholder', electron.composer.placeholder, android.composer.placeholder))
@@ -172,7 +174,8 @@ function compareParity(electron, android) {
     const silent = electron.voiceInput ? android : electron
     differences.push(difference('composer.mode.voiceHost', speaking.composer.mode, 'voice'))
     differences.push(difference('controls.mic.hidden.voiceHost', speaking.controls.mic.hidden, false))
-    differences.push(difference('controls.mic.disabled.voiceHost', speaking.controls.mic.disabled, false))
+    const busy = state => ['starting', 'sending', 'recording', 'transcribing', 'thinking'].includes(state)
+    differences.push(difference('controls.mic.disabled.voiceHost', speaking.controls.mic.disabled, busy(speaking.requestState) && speaking.requestState !== 'recording'))
     differences.push(difference('controls.mic.label.voiceHost', speaking.controls.mic.label.length > 0, true))
     differences.push(difference('controls.send.hidden.voiceHost', speaking.controls.send.hidden, true))
     differences.push(difference('composer.mode.silentHost', silent.composer.mode, 'keyboard'))
@@ -180,7 +183,7 @@ function compareParity(electron, android) {
     differences.push(difference('controls.mic.disabled.silentHost', silent.controls.mic.disabled, true))
     differences.push(difference('controls.mic.label.silentHost', silent.controls.mic.label.length > 0, true))
     differences.push(difference('controls.send.hidden.silentHost', silent.controls.send.hidden, false))
-    differences.push(difference('controls.send.disabled.silentHost', silent.controls.send.disabled, false))
+    differences.push(difference('controls.send.disabled.silentHost', silent.controls.send.disabled, busy(silent.requestState) || silent.requestState === 'unavailable'))
   }
   differences.push(difference('empty', electron.empty, android.empty))
   differences.push(difference('messageCount', electron.messages.length, android.messages.length))

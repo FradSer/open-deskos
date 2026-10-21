@@ -70,6 +70,9 @@ Feature: Android Shell Host renders the shared Personal Agent
     Given one desk development frame and the shared parity assertion script
     When the Android WebView and Electron render that frame at the same viewport
     Then geometry, copy and visibility agree within the recorded tolerance
+    And each host retains its capability and request-state control boundaries
+    And busy or unavailable requests cannot enable text submission
+    And recording retains its stop control only on a voice-capable host
     And the run stores one screenshot per state
 
   Scenario: An engine below the baseline cannot pass as acceptance
