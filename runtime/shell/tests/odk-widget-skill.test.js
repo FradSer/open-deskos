@@ -116,6 +116,8 @@ test('creation workflow retains composition, optional identity, four themes and 
   assert.match(feature, /Creation preserves the accepted composition and optional headings/)
   assert.match(feature, /Verification separates shared rendering from host acceptance/)
   assert.match(skill, /creation contract/)
+  assert.match(section(skill, '## 3. Shape behavior with BDD'), /existing shared Widget harness/)
+  assert.match(skill, /normal and replacement paths/)
   assert.match(skill, /title and icon choices per Widget/)
   assert.match(skill, /accessible App name/)
   assert.match(skill, /accepted spans, page order, and the retained Overview/)
