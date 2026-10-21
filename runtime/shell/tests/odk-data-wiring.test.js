@@ -68,6 +68,8 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
   const catalogListGate = holdCatalogList ? deferred() : null
   const userAppListenGate = holdUserAppListen ? deferred() : null
   const odkDataListenGate = holdOdkDataListen ? deferred() : null
+  const userAppListenEntered = deferred(), userAppListenClosed = deferred()
+  const odkDataListenEntered = deferred(), odkDataListenClosed = deferred()
   let userAppCloseCount = 0
   let odkDataCloseCount = 0
   let catalogListWaiting = false
@@ -147,9 +149,10 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     './odk-data-control': { listenOdkData: async () => {
       if (odkDataListenGate) {
         odkDataListenWaiting = true
+        odkDataListenEntered.resolve()
         await odkDataListenGate.promise
       }
-      return { close: async () => { odkDataCloseCount += 1 } }
+      return { close: async () => { odkDataCloseCount += 1; odkDataListenClosed.resolve() } }
     } },
     './user-app-store': { createUserAppStore: (options) => { storeOptions.push(options); return installedStore } },
     // The verifier is a construct-only dependency here: nothing is verified
@@ -175,8 +178,9 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
       ...controlModule,
       listenUserAppControl: async () => {
         userAppListenWaiting = true
+        userAppListenEntered.resolve()
         await userAppListenGate.promise
-        return { close: async () => { userAppCloseCount += 1 } }
+        return { close: async () => { userAppCloseCount += 1; userAppListenClosed.resolve() } }
       },
     }
   }
@@ -219,6 +223,10 @@ function wireShell({ installed = [], host: hostOverride, env = {}, startupError 
     nativeWaiting: () => nativeWaiting,
     releaseNative: () => nativeGate?.resolve(),
     releaseCatalogList: () => catalogListGate?.resolve(),
+    userAppListenEntered: userAppListenEntered.promise,
+    userAppListenClosed: userAppListenClosed.promise,
+    odkDataListenEntered: odkDataListenEntered.promise,
+    odkDataListenClosed: odkDataListenClosed.promise,
     releaseUserAppListen: () => userAppListenGate?.resolve(),
     releaseOdkDataListen: () => odkDataListenGate?.resolve(),
     getAsyncListenerCounts: () => ({ userApp: userAppCloseCount, odkData: odkDataCloseCount }),
@@ -392,7 +400,7 @@ test('quit during catalog synchronization prevents later startup resources', asy
   assert.equal(shell.intervalCount(), 0, 'quit startup must not install the service refresh timer')
 })
 
-test('a user-app control listener that finishes after quit closes immediately', async () => {
+test('a user-app control listener that finishes after quit closes immediately', { timeout: 5000 }, async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-startup-'))
   try {
     const shell = wireShell({
@@ -403,11 +411,11 @@ test('a user-app control listener that finishes after quit closes immediately', 
         endpoint: name => name === 'user-app-control' ? path.join(stateDir, 'user-app-control.sock') : null,
       },
     })
-    for (let tick = 0; tick < 20 && !shell.waiting().userApp; tick += 1) await new Promise(resolve => setTimeout(resolve, 0))
+    await shell.userAppListenEntered
     assert.equal(shell.waiting().userApp, true)
     shell.app.emit('before-quit')
     shell.releaseUserAppListen()
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await shell.userAppListenClosed
     assert.deepEqual(shell.getAsyncListenerCounts(), { userApp: 1, odkData: 0 })
     assert.equal(shell.windowLoaded(), false, 'quit startup must not create a window after control listen')
   } finally {
@@ -415,7 +423,7 @@ test('a user-app control listener that finishes after quit closes immediately', 
   }
 })
 
-test('a Open DeskOS Data listener that finishes after quit closes immediately', async () => {
+test('a Open DeskOS Data listener that finishes after quit closes immediately', { timeout: 5000 }, async () => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-data-'))
   try {
     const shell = wireShell({
@@ -426,11 +434,11 @@ test('a Open DeskOS Data listener that finishes after quit closes immediately', 
         odkDataEndpoint: path.join(stateDir, 'odk-data.sock'), endpoint: () => null,
       },
     })
-    for (let tick = 0; tick < 20 && !shell.waiting().odkData; tick += 1) await new Promise(resolve => setTimeout(resolve, 0))
+    await shell.odkDataListenEntered
     assert.equal(shell.waiting().odkData, true)
     shell.app.emit('before-quit')
     shell.releaseOdkDataListen()
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await shell.odkDataListenClosed
     assert.deepEqual(shell.getAsyncListenerCounts(), { userApp: 0, odkData: 1 })
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true })
