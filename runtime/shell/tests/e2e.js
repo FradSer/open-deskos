@@ -22,6 +22,7 @@ process.once('exit', cleanupProfile)
 
 const APP_ROOT = path.resolve(__dirname, '..')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const DRIVER_ONLY = process.argv.includes('--driver-only')
 const OVERALL_TIMEOUT_MS = 60000
 const EXTRA_SIZES = [
   ['user window', 636, 900],
@@ -551,7 +552,7 @@ function check(results) {
     ['network indicator stays beside the clock', results.netIndicatorLeftOfDots],
     ['clock right of dots', results.clockRightOfDots],
     ['four display pages without a Pi App page', results.pageCount === 4],
-    ['one bottom Home handle with four page identities', results.dotCount === 4 && results.visibleHandles === 1],
+    ['one visible page marker for every declared display page', results.visibleHandles === results.dotCount && results.dotCount === results.pageCount],
     ['no separate User Applications page', results.noUserAppsPage],
     ['page context is tracked', results.pageContext === 'Home · 1/4'],
     ['bundled fonts are loaded', results.fontsLoaded],
@@ -955,6 +956,15 @@ async function main() {
   results.remoteNavigationMovesPager = movedToToday && movedToHome && heldAtFirstPage
   results.consecutiveRemoteMovesTwice = consecutiveRemoteMovesTwice
   const driverFailures = check(results)
+  if (DRIVER_ONLY) {
+    clearTimeout(timeout)
+    cleanupPiFixture()
+    win.close()
+    console.log('E2E_DRIVER_RESULT:', JSON.stringify({ ok: driverFailures === 0, driverFailures }))
+    process.exitCode = driverFailures === 0 ? 0 : 1
+    app.exit(process.exitCode)
+    return
+  }
   const motionFailures = await runMotionChecks(win)
   const sweepFailures = await runGeometrySweep(win)
   clearTimeout(timeout)

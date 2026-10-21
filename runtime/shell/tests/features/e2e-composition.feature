@@ -57,3 +57,10 @@ Feature: E2E validates the current declarative desktop
     When the Home fixture loads the desktop before pointer checks
     Then it sets the requested content size and dispatches resize
     And the Overview accepts page swipes without source controls
+
+  Scenario: The desk driver validates page markers without unrelated harnesses
+    Given the Shell starts with its declared display pages
+    When the existing E2E runner uses driver-only mode
+    Then every page has one visible marker on the desk
+    And the driver reports its real failures through its exit status
+    And the default complete E2E still runs all child harnesses
