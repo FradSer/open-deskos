@@ -127,6 +127,16 @@ test('a clarification bound to session A cannot become an unbound instruction to
   assert.equal(turn.getRequestText(),'这是 B 项目')
 })
 
+test('a session handler can defer only a never-attempted unbound owner instruction', async () => {
+  let select=false
+  const turn=createIntentTurn({route:async input=>({intent:'session_continue',...(select?{requestId:input.unresolvedRequests[0].id}:{})}),profile:'personal',tools:[]})
+  await turn.prepare('让原任务读取 README.md。')
+  turn.defer();turn.complete('让原任务读取 README.md。','Which task?')
+  select=true
+  await turn.prepare('SDLC 插件优化')
+  assert.equal(turn.getRequestText(),'让原任务读取 README.md。\n\nSDLC 插件优化')
+})
+
 test('invalid provider answers and failures cannot supply an intent', async () => {
   for (const result of [response('invented'), response('task_query', { type: 'noul' }), response('task_query', { confidence: NaN }), response('task_query', { probabilities: { task_query: 1 } }), { ...response(), model: 'other-model' }]) {
     await assert.rejects(routerFixture(result).route({ text: '查询任务', profile: 'coding' }), /Jev/)

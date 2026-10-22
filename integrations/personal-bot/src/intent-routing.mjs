@@ -188,15 +188,17 @@ export function createIntentTurn({ route, profile, tools, capabilities = undefin
   let unresolved = []
   let requestText = ''
   let boundReply = false
+  let unresolvedHandler = false
   return {
     getIntent: () => intent,
     getTurn: () => turn,
     getRequestText: () => requestText,
+    defer: () => { if(intent==='session_continue' && !boundReply)unresolvedHandler=true },
     clear: () => { intent = null },
     complete: (text, _answer) => {
       previous = { text: text.slice(0, 2048), intent: intent === 'agent_execute' ? 'agent_work' : intent }
-      if(intent==='clarify' && !boundReply) {
-        unresolved=[...unresolved,{id:`request_${turn}`,text}].slice(-6)
+      if((intent==='clarify' || unresolvedHandler) && !boundReply) {
+        unresolved=[...unresolved,{id:`request_${turn}`,text:unresolvedHandler?requestText:text}].slice(-6)
         while(Buffer.byteLength(JSON.stringify(unresolved))>8192)unresolved.shift()
       } else if(intent)unresolved=[]
     },
@@ -204,6 +206,7 @@ export function createIntentTurn({ route, profile, tools, capabilities = undefin
       intent = null
       requestText = text
       boundReply = Boolean(reply)
+      unresolvedHandler = false
       if(boundReply)unresolved=[]
       turn++
       signal?.throwIfAborted()

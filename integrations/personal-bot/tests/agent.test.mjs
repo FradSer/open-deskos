@@ -699,3 +699,22 @@ test('actual owner turns share one internal follow-up identity and supply displa
  assert.equal(owners[0].text,'Continue the displayed roundtrip task.');assert.equal(owners[2].text,'Now inspect its required rounds.')
  const count=owners.length;await assert.rejects(tools.find(tool=>tool.name==='remote_pi_followup').execute('outside',{sourceKey:'displayed-source',sourceRevision:'a'.repeat(64),prompt:'outside'},undefined),/unavailable/);assert.equal(owners.length,count)
 })
+
+test('a handler clarification retains owner scope until a named follow-up attempts delivery once',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'odk-owner-clarification-'));t.after(()=>rm(dir,{recursive:true,force:true}))
+ let tools,listener,turns=0;const routes=[],owners=[]
+ const bot=await createPersonalBot({stateDir:join(dir,'state'),personal:{profile:'personal',memoryFile:join(dir,'memory.json'),skillPaths:[],agentPlugins:{enabled:['completion','remote_conversation'],autoLearn:false}},env:{}},{
+  createIntentRouter:()=>async input=>{routes.push(structuredClone(input.unresolvedRequests));return {intent:'session_continue',...(input.unresolvedRequests.length?{requestId:input.unresolvedRequests[0].id}:{})}},
+  createRuntime:async()=>({getAvailable:async()=>[{provider:'fixture',id:'model'}]}),
+  createSession:async options=>{tools=options.customTools;return {session:{isStreaming:false,bindExtensions:async()=>{},setActiveToolsByName:async()=>{},subscribe:callback=>{listener=callback;return()=>{listener=undefined}},prompt:async()=>{
+   if(++turns===2)await tools.find(tool=>tool.name==='remote_pi_followup').execute('call',{sourceKey:'displayed',sourceRevision:'a'.repeat(64),prompt:'Model text is not owner scope'},undefined)
+   listener({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'The instruction was sent.'}],stopReason:'stop'}})
+  },abort:async()=>{},dispose:async()=>{}}}},
+ });t.after(()=>bot.close())
+ bot.attachRemoteContext(()=>'',undefined,async(_params,_signal,_reply,owner)=>{owners.push(owner.text);throw Error('Delivery attempt failed')})
+ assert.match(await bot.prompt('只读项目 README.md，告诉我项目名称。'),/告诉我任务名称/)
+ await assert.rejects(bot.prompt('SDLC 插件优化'),/Delivery attempt failed/)
+ assert.deepEqual(owners,['只读项目 README.md，告诉我项目名称。\n\nSDLC 插件优化'])
+ await bot.prompt('另一条新的需求')
+ assert.deepEqual(routes.at(-1),[],'an attempted delivery cannot become a deferred request after failure')
+})
