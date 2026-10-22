@@ -6,6 +6,28 @@ This ledger distinguishes previous checks, live results, and work that remains u
 This work includes reviewed commits, pull requests, and merges into `main`.
 Production deployment and physical acceptance require separate host evidence.
 
+## Native Pi configuration verification, 2026-10-22
+
+The candidate starts from upstream `main` at `eb3e5a49`.
+Pi AI, Coding Agent, Durable, env, Code Mode, and Chord use version 1.4.0.
+Native Pi owns models, authentication, and classifier requests.
+The Electron composer exposes `/login`, `/model`, and `/thinking`.
+Explicit login can restore Jev after failed startup authentication.
+The rename procedure preserves state and rejects retired service variable prefixes.
+
+Local verification passed:
+
+- Agent: 1,231 passed, nine skipped; type checking passed.
+- Shell: 2,478 passed, three skipped.
+- Complete E2E, geometry, and Pi configuration interaction checks passed.
+- Android: 31 unit tests passed.
+- Independent review found no remaining blocking issue on the reviewed paths.
+
+Code Terrier submission failed because its local script exceeded the argument size limit.
+Android has no Pi configuration bridge; its configuration controls report unavailable.
+Real OAuth, target-host migration, and physical-device acceptance remain unverified.
+No deployment or activation occurred.
+
 ## Implemented scope
 
 | Requirement | Implementation | Remaining acceptance |
