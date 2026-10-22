@@ -27,7 +27,7 @@ function createPersonalAgentReadingSource({ request = requestLocalControl, signa
     return result
   }
   function parse(entry) {
-    if (!entry || Object.keys(entry).some(key => !['id', 'label', 'kind', 'home'].includes(key))
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).some(key => !['id', 'label', 'kind', 'home'].includes(key))
       || typeof entry.id !== 'string' || !READING_ID.test(entry.id) || entry.kind !== 'service'
       || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 128 || /[\x00-\x1f]/.test(entry.label)) throw Error('invalid resident reading declaration')
     const home = parseHome(entry.home)
@@ -52,8 +52,13 @@ function createPersonalAgentReadingSource({ request = requestLocalControl, signa
         try {
           const response = await ask('producer_list')
           if (!Array.isArray(response.readings) || response.readings.length > 2048) throw Error('invalid producer inventory')
-          const next = response.readings.map(parse)
-          if (new Set(next.map(entry => entry.id)).size !== next.length) throw Error('duplicate resident reading')
+          const counts = new Map()
+          for (const entry of response.readings) if (typeof entry?.id === 'string' && READING_ID.test(entry.id)) counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1)
+          const next = []
+          for (const entry of response.readings) {
+            if (counts.get(entry?.id) !== 1) continue
+            try { next.push(parse(entry)) } catch { /* An incompatible declaration cannot remove healthy siblings. */ }
+          }
           if (current()) declarations = next.map(entry => declarations.find(previous => previous.id === entry.id
             && JSON.stringify(previous) === JSON.stringify(entry)) || entry)
         } catch { if (current()) declarations = [] }

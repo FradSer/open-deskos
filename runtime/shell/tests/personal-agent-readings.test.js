@@ -2,9 +2,37 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { createPersonalAgentReadingSource } = require('../src/personal-agent-readings')
 const { createShellOdkData } = require('../src/odk-data')
+const { integrationURL } = require('./helpers/repo-root')
 
 const contract = 'odk:producer-projection/v1'
 const entry = { id: 'odk.agent.task', label: 'Helper', kind: 'service', home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['state', 'goal'] } }
+
+test('JSON wire inventories isolate incompatible declarations and reject ambiguous identities', async () => {
+  const { createProducerControl, PRODUCER_INTERFACE } = await import(integrationURL('personal-bot/src/producer-readings.mjs', __dirname))
+  const arrayEntry = Object.assign([], { ...entry, id: 'array.entry' })
+  const arrayHome = { ...entry, id: 'array.home', home: Object.assign([], entry.home) }
+  const healthy = { list: () => [entry], read: id => ({ id, state: 'live', value: { state: 'current', goal: 'Current goal' } }) }
+  const incompatible = [{ ...entry, id: 'app.reading', kind: 'app' }, { id: 'no.home', label: 'No Home', kind: 'service' }]
+  for (const bad of [arrayEntry, arrayHome, ...incompatible]) {
+    const providers = [{ list: () => [bad], read: () => { throw Error('Incompatible readings must not be read') } }, healthy]
+    const control = createProducerControl({ ports: () => providers, current: () => true })
+    const source = createPersonalAgentReadingSource({ request: async ({ request }) => JSON.parse(JSON.stringify(await control.dispatch(request))) })
+    await source.refresh()
+    const data = createShellOdkData({ readings: [], serviceReadings: source.readings })
+    assert.deepEqual(data.registry.list().map(e => e.id), [entry.id])
+    assert.equal((await data.registry.read(entry.id)).reading.value.state, 'current')
+    if (incompatible.includes(bad)) {
+      const inventory = await control.dispatch({ command: 'producer_list', interface: PRODUCER_INTERFACE })
+      assert.ok(inventory.readings.some(e => e.id === bad.id), 'control retains its public app and optional Home contract')
+    }
+    await source.close()
+  }
+  const source = createPersonalAgentReadingSource({ request: async () => JSON.parse(JSON.stringify({ interface: contract,
+    readings: [entry, { ...entry, kind: 'app' }, { ...entry, id: 'unrelated.reading' }] })) })
+  await source.refresh()
+  assert.deepEqual(source.readings().map(e => e.id), ['unrelated.reading'])
+  await source.close()
+})
 
 test('declared producer data joins the existing registry without retaining values', async () => {
   let state = 'waiting', reads = 0, online = true
