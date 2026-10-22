@@ -126,3 +126,36 @@ test('every shortened remote projection field marks the source as incomplete', a
     assert.equal((await provider.read('odk.remote.clipped')).value.incomplete, true)
   }
 })
+
+test('invalid producer inventories cannot disable healthy sibling listings or reads', async () => {
+  const entry = { id: 'healthy.reading', label: 'Healthy', kind: 'service' }
+  const healthy = { list: () => [entry], read: id => ({ id, state: 'live', value: { state: 'current' } }) }
+  const circular = { id: 'bad.circular', label: 'Bad', kind: 'service' }; circular.home = circular
+  for (const invalid of [null, [null], [{ ...entry, id: 'bad/id' }], [circular], [{ ...entry, home: { fields: ['state'] } }],
+    [{ ...entry, home: { fields: [() => {}] } }],
+    [{ ...entry, metadata: 1n }],
+    Array.from({ length: 2048 }, (_, i) => ({ id: `bad.${i}`, label: 'x'.repeat(128), kind: 'service' }))]) {
+    const control = createProducerControl({ ports: () => [{ list: () => invalid }, healthy], current: () => true })
+    const inventory = await control.dispatch({ command: 'producer_list', interface: PRODUCER_INTERFACE })
+    assert.deepEqual(inventory.readings, [entry])
+    const result = await control.dispatch({ command: 'producer_read', interface: PRODUCER_INTERFACE, readingId: entry.id })
+    assert.equal(result.reading.value.state, 'current')
+  }
+})
+
+test('individually valid producer inventories retain the aggregate byte limit', async () => {
+  const providers = [0, 1].map(group => ({ list: () => Array.from({ length: 600 }, (_, i) => ({ id: `reading.${group}.${i}`, label: 'x'.repeat(128), kind: 'service' })) }))
+  const control = createProducerControl({ ports: () => providers, current: () => true })
+  assert.equal((await control.dispatch({ command: 'producer_list', interface: PRODUCER_INTERFACE })).error, 'producer-unavailable')
+})
+
+test('conflicting producer identities are unavailable without blocking unrelated readings', async () => {
+  const entry = id => ({ id, label: id, kind: 'service' })
+  const provider = ids => ({ list: () => ids.map(entry), read: id => ({ id, state: 'live', value: { state: 'current' } }) })
+  const selected = [provider(['shared', 'first']), provider(['shared', 'second'])]
+  const control = createProducerControl({ ports: () => selected, current: () => true })
+  const inventory = await control.dispatch({ command: 'producer_list', interface: PRODUCER_INTERFACE })
+  assert.deepEqual(inventory.readings.map(e => e.id), ['first', 'second'])
+  assert.equal((await control.dispatch({ command: 'producer_read', interface: PRODUCER_INTERFACE, readingId: 'shared' })).error, 'unknown-reading')
+  assert.equal((await control.dispatch({ command: 'producer_read', interface: PRODUCER_INTERFACE, readingId: 'second' })).reading.value.state, 'current')
+})

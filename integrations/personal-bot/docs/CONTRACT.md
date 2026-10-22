@@ -28,6 +28,9 @@ The existing Open DeskOS Data registry remains the only data registry.
 The adapter retains declaration metadata, not source values.
 Each value request reads the current producer and refuses a released producer's late result.
 Disabled producers withdraw their declarations at the next service refresh.
+Malformed producer inventories do not block healthy producers.
+Conflicting reading identities remain unavailable, and the aggregate inventory limit still applies.
+The Shell accepts compatible declarations independently after JSON transport.
 Failed reads never substitute an earlier live value.
 Private memory, model context, owner replies, and action grants remain outside these projections.
 Agent configuration failure leaves the resident channel available with the existing configuration report.

@@ -72,19 +72,30 @@ export function createProducerControl({ ports, current }) {
   function catalog() {
     const entries = []
     for (const provider of ports()) {
-      let declarations
-      try { declarations = provider.list() } catch { continue }
-      if (!Array.isArray(declarations)) throw Error('Invalid producer inventory')
-      entries.push(...declarations.map(entry => ({ provider, entry })))
+      try {
+        const declarations = structuredClone(provider.list())
+        if (!Array.isArray(declarations) || Buffer.byteLength(JSON.stringify(declarations)) > 196608) throw Error('Invalid producer inventory')
+        for (const entry of declarations) {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).some(key => !['id', 'label', 'kind', 'home'].includes(key))
+            || typeof entry.id !== 'string' || !ID.test(entry.id) || !['app', 'service'].includes(entry.kind)
+            || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 128 || /[\x00-\x1f]/.test(entry.label)) throw Error('Invalid producer declaration')
+          if (entry.home !== undefined) {
+            const home = entry.home
+            if (!home || typeof home !== 'object' || Array.isArray(home) || Object.keys(home).some(key => !['mode', 'priority', 'icon', 'fields'].includes(key))
+              || !['required', 'optional', 'hidden'].includes(home.mode) || !Number.isInteger(home.priority) || home.priority < 0 || home.priority > 100
+              || !['sessions', 'plants', 'weather', 'mail', 'calendar', 'tasks', 'reading', 'portfolio', 'quota', 'apps', 'status'].includes(home.icon)
+              || !Array.isArray(home.fields) || home.fields.length > 16 || new Set(home.fields).size !== home.fields.length
+              || home.fields.some(field => typeof field !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(field) || ['__proto__', 'prototype', 'constructor'].includes(field))) throw Error('Invalid producer declaration')
+          }
+        }
+        entries.push(...declarations.map(entry => ({ provider, entry })))
+      } catch { /* A malformed provider cannot remove healthy sibling readings. */ }
     }
-    const seen = new Set()
-    for (const { entry } of entries) {
-      if (!entry || typeof entry.id !== 'string' || !ID.test(entry.id) || seen.has(entry.id) || !['app', 'service'].includes(entry.kind)
-        || typeof entry.label !== 'string' || !entry.label.trim() || entry.label.length > 128) throw Error('Invalid producer declaration')
-      seen.add(entry.id)
-    }
-    if (Buffer.byteLength(JSON.stringify(entries.map(({ entry }) => entry))) > 196608) throw Error('Producer inventory too large')
-    return entries
+    const counts = new Map()
+    for (const { entry } of entries) counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1)
+    const unique = entries.filter(({ entry }) => counts.get(entry.id) === 1)
+    if (Buffer.byteLength(JSON.stringify(unique.map(({ entry }) => entry))) > 196608) throw Error('Producer inventory too large')
+    return unique
   }
   return { async dispatch(request) {
     if (!current()) return { ok: false, error: 'runtime-stopped' }

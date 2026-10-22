@@ -9,13 +9,13 @@ Production deployment and physical acceptance require separate host evidence.
 ## Current design implementation
 
 The implementation branch is `codex/personal-agent-design`.
-Its upstream baseline is `42cde10e5853c13b7f8436e7a48f8d5621e9d0e9`.
+Its upstream baseline is `75ee6abf574997f526ff1faf0cb8386e5e9ef962`.
 Overview commit `1a9aed97` supplies the reviewed selection reference.
 This section tracks current work; the evidence sections below retain their original candidate boundaries.
 
 | Work | Owner boundary | Current result |
 | --- | --- | --- |
-| Source projections | Producer plugins, existing registry, authenticated transport | Implemented; replacement and cancellation checks pass |
+| Source projections | Producer plugins, existing registry, authenticated transport | Implemented; replacement, cancellation, and malformed inventory isolation checks pass |
 | Independent Home and Watch | Versioned composition and compatible replacements | Implemented; legacy Watch contracts remain supported |
 | Complete fact selection | Source identity, time, units, verification, bounded batches | Implemented; four-theme all-source rendering passes |
 | Continuing work | Existing task and session references; no second task store | Implemented; fresh references and bounded owner history |
@@ -25,10 +25,10 @@ This section tracks current work; the evidence sections below retain their origi
 | Cross-host capabilities | Public projections and explicit supported operations | Implemented; Android projection remains read-only |
 | Quality and cost | Offline behavior evaluation, semantic reuse, bounded generation | Implemented; eight offline replay scenarios pass |
 
-Independent reviews verified ownership, cancellation, capacity, batch isolation, feedback identity, recurrence, learning evidence, provider withdrawal, and stale acknowledgement repairs.
+Independent reviews verified ownership, cancellation, capacity, batch isolation, feedback identity, recurrence, learning evidence, provider withdrawal, stale acknowledgements, and malformed inventory isolation.
 Checks use isolated state and controlled provider responses.
-The full Personal suite passed 1292 tests, skipped eight gated cases, and had no failures.
-This run includes final capacity and stale acknowledgement regressions.
+The full Personal suite passed 1295 tests, skipped eight gated cases, and had no failures.
+This run includes final capacity, stale acknowledgement, and producer isolation regressions.
 Type checking passes.
 The affected Shell run passes all 74 checks.
 Earlier full-suite fixture failures were repaired and verified at their affected boundaries.

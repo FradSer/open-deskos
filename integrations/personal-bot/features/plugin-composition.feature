@@ -317,3 +317,13 @@ Feature: Personal Bot plugin composition
     When a producer is disabled or unavailable
     Then its reading becomes unavailable without blocking other sources
     And neither a read nor a listing starts generation or a mutation
+
+  Scenario: Invalid producer inventories cannot disable healthy siblings
+    Given independent producers expose public reading declarations
+    When one inventory is malformed, unserializable, or individually oversized
+    Then healthy siblings remain listed and readable
+    And Shell accepts compatible declarations independently after JSON transport
+    And control retains its App and optional Home declaration contracts
+    When producers declare the same reading identity
+    Then the conflicting identity is unavailable
+    And unrelated reading identities remain available
