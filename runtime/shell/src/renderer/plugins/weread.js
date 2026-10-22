@@ -60,19 +60,6 @@
         }
         resizeObserver?.disconnect()
       })
-      const MIN_TEXT_SIZE = 14
-      const MAX_TEXT_SIZE = 72
-      // A full three-by-three reading canvas supports larger display type.
-      const textCeiling = () => el.clientWidth >= 800 && el.clientHeight >= 800 ? 96 : MAX_TEXT_SIZE
-      const FIT_GAP = 28
-      // Fluid hero base: characters per line grow sublinearly with length,
-      // normalized by the copy width so every density converges near its
-      // final size before the shrink-to-fit loop backstops it.
-      const fitBaseSize = (length, width) => {
-        const unit = width > 0 ? width : 900
-        const perLine = Math.max(4, Math.sqrt(Math.max(1, length)) * 2.2)
-        return Math.min(textCeiling(), Math.max(MIN_TEXT_SIZE, unit / perLine))
-      }
       const stripBrackets = (value) => String(value || '').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim()
       const formatDate = (createTime) => {
         if (!createTime) return ''
@@ -86,20 +73,7 @@
         if (!active) return
         const foot = footEl()
         if (!el || !copy || !text || !foot) return
-        const copyStyles = getComputedStyle(copy)
-        const copyGaps = (Number.parseFloat(copyStyles.paddingTop) || 0)
-          + (Number.parseFloat(copyStyles.paddingBottom) || 0)
-        const rowGap = Number.parseFloat(copyStyles.rowGap)
-        const maxH = copy.clientHeight - copyGaps - foot.offsetHeight - (Number.isFinite(rowGap) ? rowGap : FIT_GAP)
-        if (maxH <= 0) return
-        let size = fitBaseSize(text.textContent.length, copy.clientWidth)
-        text.style.fontSize = `${size}px`
-        let guard = 60
-        while (guard-- > 0 && size > MIN_TEXT_SIZE) {
-          if (text.scrollHeight <= maxH) break
-          size = Math.max(MIN_TEXT_SIZE, size - 2)
-          text.style.fontSize = `${size}px`
-        }
+        root.odkWeReadTypography.fit(el, copy, text, foot)
         text.tabIndex = text.scrollHeight > text.clientHeight + 1 ? 0 : -1
       }
       textEl().addEventListener('keydown', event => {
@@ -239,7 +213,7 @@
           title.textContent = state.status === 'error' ? 'Sync unavailable' : 'No highlights'
           author.textContent = ''
           date.textContent = ''
-          text.textContent = state.status === 'error' ? 'Open WeRead and select Refresh.' : 'Save a highlight in WeRead.'
+          text.textContent = state.status === 'error' ? 'Open WeRead and click the reading.' : 'Save a highlight in WeRead.'
         }
         title.title = title.textContent
         author.hidden = !author.textContent

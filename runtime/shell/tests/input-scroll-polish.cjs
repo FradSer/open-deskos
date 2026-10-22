@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { installHomePreviewFixtures } = require('./helpers/home-preview-fixtures')
 const { createAppManagerEndpoint } = require('../src/app-manager-endpoint')
+const { capturePaintedPage } = require('./helpers/native-page-capture')
 
 if (process.platform === 'darwin') app.dock.hide()
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'odk-input-scroll-profile-'))
@@ -26,23 +27,115 @@ function check(name, result) {
 }
 const js = source => win.webContents.executeJavaScript(source).catch(error => { console.error('Renderer check failed:', source); throw error })
 async function capture(name) {
-  const painted = (marked, change) => new Promise((resolve, reject) => {
-    const cleanup = () => { clearTimeout(deadline); win.webContents.off('paint', observe) }
-    const observe = (_event, _dirty, frame) => {
-      const pixel = frame.crop({ x: 0, y: 0, width: 1, height: 1 }).toBitmap()
-      if ([237, 19, 181, 255].every((v, i) => pixel[i] === v) !== marked) return
-      cleanup()
-      resolve(frame)
+  const frame = await capturePaintedPage(win)
+  assert.equal(frame.isEmpty(), false)
+  fs.writeFileSync(path.join(evidence, name + '.png'), frame.toPNG())
+}
+
+async function glassControls() {
+  await js(`(async()=>{await odkTheme.set('liquid-glass');await document.fonts.ready;await polishUntil(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass))})()`)
+  for (const [width,height] of [[1280,800],[1920,1280],[320,480]]) {
+    win.setContentSize(width,height)
+    await js(`(async()=>{
+      await odkRendererRuntime.setEnabled('odk.page.personal-agent',false);
+      await odkRendererRuntime.setEnabled('odk.page.personal-agent',true);
+      await polishUntil(()=>document.querySelector('.agent-composer')?.dataset.mode==='voice'&&document.querySelector('.agent-mic-label')?.textContent==='Tap to talk');
+    })()`)
+    await js(`document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))`)
+    await js(`polishUntil(()=>['sdk','fallback'].includes(document.documentElement.dataset.liquidGlass))`)
+    const inspect = async label => {
+      const result=await js(`(()=>{
+        const widget=document.querySelector('.widget[data-interaction="display-only"]'),edge=getComputedStyle(widget).borderTopColor;
+        return [...document.querySelectorAll('button,input,textarea,select,summary,[role="button"],.agent-composer,#dots')].filter(n=>n.getClientRects().length && !n.matches('.widget-launch,.dot,.agent-composer textarea,input[type="checkbox"],input[type="radio"],input[type="range"]')).map(n=>{const s=getComputedStyle(n);return {name:n.className||n.id||n.tagName,border:s.borderTopWidth,style:s.borderTopStyle,color:s.borderTopColor,edge,image:s.backgroundImage,shadow:s.boxShadow,foreground:s.color,radius:s.borderTopLeftRadius,sdk:n.classList.contains('lg-surface')&&document.documentElement.dataset.liquidGlass==='sdk'}})
+      })()`)
+      for (const row of result) {
+        check(`${width} ${label}: ${row.name} glass frame`,row.border==='1px'&&row.style==='solid'&&(row.image!=='none'||row.sdk)&&row.shadow.includes('inset'))
+      }
+      report.push({width,height,label,controls:result})
     }
-    const deadline = setTimeout(() => { cleanup(); reject(Error('Paint did not settle')) }, 5000)
-    win.webContents.on('paint', observe)
-    js(change).then(() => win.webContents.invalidate()).catch(error => { cleanup(); reject(error) })
-  })
+    await inspect('voice')
+    await capture('glass-voice-'+width)
+    await js(`document.querySelector('.agent-keys').click()`)
+    await inspect('keyboard')
+    await js(`(()=>{const input=document.querySelector('.agent-composer textarea');input.focus();const s=getComputedStyle(input),c=getComputedStyle(document.querySelector('.agent-composer'));if(s.borderTopWidth!=='0px'||s.outlineStyle!=='none'||c.outlineStyle==='none')throw Error('Integrated text focus must use the composer frame')})()`)
+    await capture('glass-keyboard-'+width)
+    await js(`document.querySelector('.agent-identity summary').click()`)
+    await inspect('identity')
+    await js(`document.querySelector('.agent-identity summary').click()`)
+    await js(`document.querySelector('.agent-composer textarea').value='';document.querySelector('.agent-mic').click()`)
+  }
+  win.setContentSize(1280,800)
+  for (const appId of ['pomodoro','weather','futu','pi-sessions','quota']) {
+    await js(`(async()=>{await odkAppPlatform.openApp({appId:${JSON.stringify(appId)}});await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`)
+    const missing=await js(`(()=>{return [...document.querySelectorAll('#app-view button,#app-view input,#app-view select')].filter(n=>n.getClientRects().length&& !n.matches('input[type="checkbox"],input[type="radio"],input[type="range"]')).filter(n=>{const s=getComputedStyle(n);return s.borderTopWidth!=='1px'||s.backgroundImage==='none'||!s.boxShadow.includes('inset')}).map(n=>n.className||n.id)})()`)
+    check(appId+': all App controls share glass frames',missing.length===0)
+    report.push({appId,missing})
+    await capture('glass-app-'+appId)
+    await js('odkAppPlatform.closeApp()')
+  }
+  const handleRect=await js(`(()=>{const r=document.querySelector('#dots').getBoundingClientRect();return {x:Math.ceil(r.x+16),y:Math.ceil(r.y+12),width:Math.floor(r.width-32),height:Math.floor(r.height-24)}})()`)
+  await js(`document.querySelectorAll('#dots .dot').forEach(n=>n.style.visibility='hidden');new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  const material=(await capturePaintedPage(win,handleRect)).toBitmap()
+  let withoutMaterial
   try {
-    await painted(true, `(()=>{const n=document.createElement('div');n.id='polish-paint-marker';n.style.cssText='position:fixed;top:0;left:0;width:2px;height:2px;z-index:2147483647;background:rgb(181,19,237);pointer-events:none';document.body.append(n)})()`)
-    const frame = await painted(false, `document.getElementById('polish-paint-marker').remove()`)
-    fs.writeFileSync(path.join(evidence, name + '.png'), frame.toPNG())
-  } finally { await js(`document.getElementById('polish-paint-marker')?.remove()`) }
+    await js(`document.querySelector('#dots').style.backgroundImage='none';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+    withoutMaterial=(await capturePaintedPage(win,handleRect)).toBitmap()
+  } finally { await js(`document.querySelector('#dots').style.removeProperty('background-image');document.querySelectorAll('#dots .dot').forEach(n=>n.style.removeProperty('visibility'))`) }
+  let materialPixels=0
+  for(let i=0;i<material.length;i+=4)if(material[i]!==withoutMaterial[i]||material[i+1]!==withoutMaterial[i+1]||material[i+2]!==withoutMaterial[i+2])materialPixels++
+  check('page handle material is visible above its legacy pseudo-element',materialPixels>=16)
+  report.push({handleMaterialChangedPixels:materialPixels})
+  await win.webContents.debugger.sendCommand('DOM.enable')
+  await win.webContents.debugger.sendCommand('CSS.enable')
+  const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
+  const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:'.agent-mic'})
+  await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})
+  await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:0,y:0})
+  await js(`polishUntil(()=>!document.querySelector('.agent-mic').matches(':hover'))`)
+  const pointer=await js(`(()=>{
+    const n=document.querySelector('.agent-mic'),s=getComputedStyle(n),probe=document.createElement('i');
+    probe.style.color=s.getPropertyValue('--odk-stroke-focus');document.body.append(probe);
+    const result={hover:matchMedia('(hover: hover)').matches,fine:matchMedia('(pointer: fine)').matches,coarse:matchMedia('(pointer: coarse)').matches,hovered:n.matches(':hover'),edge:s.borderTopColor,focus:getComputedStyle(probe).color};
+    probe.remove();return result;
+  })()`)
+  const normal=pointer.edge
+  report.push({pointer})
+  for (const state of ['hover','active','focus-visible']) {
+    await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[state]})
+    const result=await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return {edge:s.borderTopColor,outline:s.outlineStyle}})()`)
+    const expectedEdge=state==='hover'&&!(pointer.hover&&pointer.fine)?normal:pointer.focus
+    check('voice '+state+' matches pointer capabilities',state==='focus-visible'?result.outline==='solid':result.edge===expectedEdge)
+  }
+  await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:['hover']})
+  win.webContents.send('odk-personal-bot-status',{state:'recording'})
+  await js(`polishUntil(()=>document.querySelector('.agent-mic').dataset.recording==='true')`)
+  check('recording keeps its red semantic edge while hovered',await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return s.borderTopColor===s.color&&s.borderTopColor!==${JSON.stringify(normal)}})()`))
+  await capture('glass-recording')
+  await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})
+  win.webContents.send('odk-personal-bot-status',{state:'thinking'})
+  await js(`polishUntil(()=>document.querySelector('.agent-mic').disabled)`)
+  check('disabled voice keeps its material and edge',await js(`(()=>{const s=getComputedStyle(document.querySelector('.agent-mic'));return parseFloat(s.opacity)<1&&s.borderTopWidth==='1px'})()`))
+  check('busy voice is disabled while thinking',await js(`document.querySelector('.agent-mic').disabled&&document.querySelector('.agent-state').textContent==='Thinking…'`))
+  win.webContents.send('odk-personal-bot-status',{state:'idle'})
+  await js(`polishUntil(()=>!document.querySelector('.agent-mic').disabled)`)
+  for (const attribute of ['aria-pressed','aria-selected']) {
+    const result=await js(`(()=>{const n=document.querySelector('.agent-keys');n.setAttribute('${attribute}','true');const s=getComputedStyle(n),edge=s.getPropertyValue('--odk-stroke-focus').trim();const probe=document.createElement('i');probe.style.color=edge;document.body.append(probe);const expected=getComputedStyle(probe).color;probe.remove();const result=s.borderTopColor===expected&&s.backgroundImage!=='none';n.removeAttribute('${attribute}');return result})()`)
+    check(attribute+': selected control retains its material and highlighted border',result)
+  }
+  check('invalid field retains its red semantic edge',await js(`(()=>{const n=document.querySelector('.agent-identity input');n.closest('details').open=true;n.setAttribute('aria-invalid','true');const s=getComputedStyle(n),probe=document.createElement('i');probe.style.color=s.getPropertyValue('--odk-accent-red');document.body.append(probe);const expected=getComputedStyle(probe).color;probe.remove();const result=s.borderTopColor===expected&&s.backgroundImage!=='none';n.removeAttribute('aria-invalid');n.closest('details').open=false;return result})()`))
+  for (const feature of ['prefers-reduced-transparency','prefers-contrast','forced-colors']) {
+    const value=feature==='prefers-contrast'?'more':feature==='forced-colors'?'active':'reduce'
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:feature,value}]})
+    await js(`polishUntil(()=>matchMedia('(${feature}: ${value})').matches&&document.documentElement.dataset.liquidGlass==='fallback')`)
+    const readable=await js(`(()=>{return [...document.querySelectorAll('.agent-composer,.agent-composer button,.agent-identity summary,#dots')].filter(n=>n.getClientRects().length).every(n=>{const s=getComputedStyle(n);return s.backdropFilter==='none'&&s.boxShadow==='none'&&s.backgroundImage==='none'&&s.borderTopWidth==='1px'&&s.backgroundColor!=='rgba(0, 0, 0, 0)'})})()`)
+    check(feature+': controls have opaque accessible frames',readable)
+    await capture('glass-'+feature)
+  }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
+  fs.writeFileSync(path.join(evidence,'glass-controls.json'),JSON.stringify({report,failures,webGpuFixture:process.argv.includes('--static-glass-fixture')?'unavailable':'native'},null,2))
+  console.log('GLASS_CONTROLS_EVIDENCE '+evidence)
+  assert.deepEqual(failures,[])
+  console.log('GLASS_CONTROLS_PASS')
 }
 
 app.whenReady().then(async () => {
@@ -62,6 +155,13 @@ app.whenReady().then(async () => {
   await js(`window.polishUntil=async f=>{const end=performance.now()+4000;while(!f()){if(performance.now()>end)throw Error('Readiness: '+f);await new Promise(r=>setTimeout(r,20))}};void 0`)
   win.webContents.debugger.attach('1.3')
   await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
+  if (process.argv.includes('--glass-controls-only')) {
+    if(process.argv.includes('--static-glass-fixture')) await js(`Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});void 0`)
+    await glassControls()
+    await js("odkTheme.set('instrument')")
+    finish(0)
+    return
+  }
   check('composer opens on the voice field', await js(`(()=>{const box=document.querySelector('.agent-composer');return box.dataset.mode==='voice'&&document.querySelector('.agent-composer textarea').hidden&&!document.querySelector('.agent-keys').hidden&&document.querySelector('.agent-composer .agent-mic-label').textContent==='Tap to talk'})()`))
   for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
     for (const [width, height] of [[1280, 800], [480, 854], [320, 480]]) {
@@ -72,7 +172,7 @@ app.whenReady().then(async () => {
       await js(`(async()=>{const box=document.querySelector('.agent-composer');if(box.dataset.mode==='voice')document.querySelector('.agent-keys').click();await polishUntil(()=>box.dataset.mode==='keyboard');document.querySelector('.agent-composer textarea').focus()})()`)
       const identity = await js(`(()=>{const name=document.querySelector('.agent-name'),pill=document.querySelector('.agent-identity summary');return {height:pill.getBoundingClientRect().height,nameHeight:name.getBoundingClientRect().height,nameLine:parseFloat(getComputedStyle(name).lineHeight),nameWhole:name.scrollWidth<=name.clientWidth+1}})()`)
       check(where + ': default name is whole on one line', identity.nameHeight <= identity.nameLine + 1 && identity.nameWhole)
-      check(where + ': identity capsule keeps control height', identity.height <= 46)
+      check(where + ': identity capsule keeps control height', identity.height >= 44 && identity.height <= 84)
       const focus = await js(`(()=>{const input=document.querySelector('.agent-composer textarea'),box=input.closest('form'),s=getComputedStyle(box),t=getComputedStyle(input);return {focused:input.matches(':focus-visible'),outline:s.outlineStyle,width:s.outlineWidth,color:s.outlineColor,radius:s.borderTopLeftRadius,inputOutline:t.outlineStyle}})()`)
       check(where + ': outer composer focus follows theme shape', focus.focused && focus.outline === 'solid' && focus.width === '2px' && (theme === 'pixel' ? focus.radius === '0px' : parseFloat(focus.radius) >= 32))
       check(where + ': no rectangular input outline', focus.inputOutline === 'none')
@@ -106,8 +206,8 @@ app.whenReady().then(async () => {
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value=${JSON.stringify(longName)};form.requestSubmit()})()`)
       win.webContents.send('odk-personal-bot-status', { state: 'idle', proposalError: 'Provider response unavailable. '.repeat(30) })
       await js(`polishUntil(()=>document.querySelector('.agent-state').textContent==='Suggestions unavailable')`)
-      const longIdentity = await js(`(()=>{const pill=document.querySelector('.agent-identity summary'),panel=document.querySelector('.agent-panel'),r=pill.getBoundingClientRect(),p=panel.getBoundingClientRect();return {height:r.height,contained:r.left>=p.left&&r.right<=p.right,oneLine:[...pill.querySelectorAll('.agent-name,.agent-state')].every(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),accessible:pill.getAttribute('aria-label').includes(${JSON.stringify(longName)})&&pill.getAttribute('aria-label').includes('Suggestions unavailable')}})()`)
-      check(where + ': long identity stays compact and accessible', longIdentity.height <= 46 && longIdentity.contained && longIdentity.oneLine && longIdentity.accessible)
+      const longIdentity = await js(`(()=>{const pill=document.querySelector('.agent-identity summary'),panel=document.querySelector('.agent-panel'),r=pill.getBoundingClientRect(),p=panel.getBoundingClientRect();return {height:r.height,contained:r.left>=p.left&&r.right<=p.right,below:pill.querySelector('.agent-state').getBoundingClientRect().top>=pill.querySelector('.agent-name').getBoundingClientRect().bottom,oneLine:[...pill.querySelectorAll('.agent-name,.agent-state')].every(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),accessible:pill.getAttribute('aria-label').includes(${JSON.stringify(longName)})&&pill.getAttribute('aria-label').includes('Suggestions unavailable')}})()`)
+      check(where + ': long identity stays compact and accessible', longIdentity.height >= 44 && longIdentity.height <= 84 && longIdentity.contained && longIdentity.below && longIdentity.oneLine && longIdentity.accessible)
       await js(`(()=>{const form=document.querySelector('.agent-identity-form');form.elements.name.value='Personal Agent';form.requestSubmit()})()`)
       win.webContents.send('odk-personal-bot-status', { state: 'idle', jev: {status:'verified'} })
       await js(`polishUntil(()=>document.querySelector('.agent-state').hidden&&document.querySelector('.agent-state').textContent==='')`)
@@ -121,6 +221,8 @@ app.whenReady().then(async () => {
       report.push({ theme, width, height, identity, longIdentity, focus, idle, scrolling })
     }
   }
+  await glassControls()
+  await js("odkTheme.set('instrument')")
   fs.writeFileSync(path.join(evidence, 'report.json'), JSON.stringify({ report, failures }, null, 2))
   console.log('INPUT_SCROLL_EVIDENCE ' + evidence)
   assert.deepEqual(failures, [])

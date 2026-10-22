@@ -1,6 +1,6 @@
 ;(function (root) {
   'use strict'
-  const GLYPHS = {"message": "<svg data-tabler=\"message\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1\" /></svg>", "leaf": "<svg data-tabler=\"leaf\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M5 21c.5 -4.5 2.5 -8 7 -10\" /><path d=\"M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0\" /></svg>", "terminal": "<svg data-tabler=\"terminal-2\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M8 9l3 3l-3 3\" /><path d=\"M13 15l3 0\" /><path d=\"M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12\" /></svg>"}
+  const GLYPHS = {"message": "<svg data-tabler=\"message\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1\" /></svg>", "terminal": "<svg data-tabler=\"terminal-2\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" /><path d=\"M8 9l3 3l-3 3\" /><path d=\"M13 15l3 0\" /><path d=\"M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12\" /></svg>"}
   const CHILD_GLYPHS = {
     agent: GLYPHS.message, code: GLYPHS.terminal,
     book: '<svg data-tabler="book-open" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></svg>',
@@ -31,9 +31,23 @@
       const voiceLabel = $('.agent-mic-label')
       const sendControl = $('.agent-send')
       const state = $('.agent-state')
+      const capsule = $('.agent-identity summary')
+      const reducedMotion = root.matchMedia?.('(prefers-reduced-motion: reduce)')
+      let capsuleMotion
+      function stopCapsuleMotion() { capsuleMotion?.cancel();capsuleMotion = undefined }
+      function animateCapsule() {
+        stopCapsuleMotion()
+        if (reducedMotion?.matches || root.document.hidden) return
+        capsuleMotion = capsule.animate?.([{ opacity: 0.78, transform: 'scale(0.985)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' })
+      }
+      const pauseCapsule = () => { if (root.document.hidden) stopCapsuleMotion() }
+      root.document.addEventListener('visibilitychange', pauseCapsule)
+      reducedMotion?.addEventListener('change', stopCapsuleMotion)
+      ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
       const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+      const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
       let composerMode = 'keyboard'
       let voiceStarted = false
       function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
@@ -68,8 +82,8 @@
         renderVoiceControl()
         if (focus) fieldControl().focus({ preventScroll: true })
       }
-      let identity = { name: 'Personal Agent', icon: 'onee' }
-      try { const saved = JSON.parse(localStorage.getItem('odk.agent.identity')); if (typeof saved?.name === 'string' && saved.name.trim()) identity = { name: saved.name.slice(0, 40), icon: 'onee' } } catch {}
+      let identity = { name: 'Personal Agent' }
+      try { const saved = JSON.parse(localStorage.getItem('odk.agent.identity')); if (typeof saved?.name === 'string' && saved.name.trim()) identity = { name: saved.name.slice(0, 40) } } catch {}
       let released = false
       let scrollIdle
       let revision = 0
@@ -95,9 +109,11 @@
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
       function setState(message, caption = message) {
-        if (state.textContent !== caption) state.textContent = caption
+        const changed = state.textContent !== caption
+        if (changed) state.textContent = caption
         if ($('.agent-status-detail').textContent !== message) $('.agent-status-detail').textContent = message
         state.hidden = !caption
+        if (changed) animateCapsule()
         $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}. View status and edit identity`)
       }
       function applyIdentity() {
@@ -272,10 +288,6 @@
           note.textContent = ambiguous ? 'Reply reference is ambiguous.' : unsupported ? 'Session replies need an updated host.' : ''
           note.hidden = !note.textContent
         }
-        for (const button of conversation.querySelectorAll('.agent-message-reply')) {
-          const article = button.closest('.agent-message')
-          button.disabled = ![...article.querySelectorAll('.agent-session-reply')].some(choice => !choice.disabled)
-        }
       }
       function selectReply(item, source) {
         if (pending || root.odkPersonalBot?.supportsReplyTo !== true || referenceCount(item, source) !== 1) return
@@ -291,7 +303,11 @@
         row.className = 'agent-message-session'
         const label = document.createElement(source.threadId ? 'button' : 'span')
         label.className = 'agent-session-open'
-        label.textContent = taskName(source)
+        label.innerHTML = GLYPHS.terminal
+        const name = document.createElement('span')
+        name.className = 'agent-session-name'
+        name.textContent = taskName(source)
+        label.append(name)
         label.title = taskName(source)
         if (source.threadId) {
           label.type = 'button'
@@ -312,19 +328,6 @@
           row.append(button, note)
         }
         return row
-      }
-      function messageReply(item, recordKey, details) {
-        const button = document.createElement('button')
-        button.type = 'button';button.className = 'agent-message-reply'
-        button.textContent = 'Reply'
-        button.setAttribute('aria-label', item.sources.length === 1 ? 'Reply to this update' : 'Choose a session to reply')
-        button.addEventListener('click', () => {
-          const current = remoteRecords.get(recordKey)
-          if (!current || button.disabled) return
-          if (current.sources.length === 1) selectReply(current, current.sources[0])
-          else details.querySelector('.agent-session-reply:not(:disabled)')?.focus({ preventScroll: true })
-        })
-        return button
       }
       function timelineEntry(article, at, ids) {
         const threads = [...new Set(ids.filter(Boolean))]
@@ -461,13 +464,11 @@
             timeline.delete(remoteMessages.get(first));remoteMessages.get(first)?.remove(); remoteMessages.delete(first);remoteRecords.delete(first)
           }
           const details = document.createElement('div')
-          details.className = 'agent-update-sources'
+          details.className = 'agent-message-actions agent-update-sources'
           details.setAttribute('role','group')
           details.setAttribute('aria-label','Related tasks')
           for (const source of item.sources || []) details.append(sessionLabel(source, item, recordKey))
-          const actions = document.createElement('div');actions.className = 'agent-message-actions'
-          if (item.sources?.length === 1) actions.append(messageReply(item, recordKey, details))
-          actions.append(details);body.append(actions)
+          body.append(details)
         }
         updateReplyChoices()
         renderReplies()
@@ -524,7 +525,7 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : stateLabels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Bot status unknown'
         setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
@@ -551,7 +552,7 @@
         const form = new FormData(event.currentTarget)
         const name = String(form.get('name')).trim()
         if (!name) return
-        identity = { name: name.slice(0, 40), icon: 'onee' }
+        identity = { name: name.slice(0, 40) }
         try { localStorage.setItem('odk.agent.identity', JSON.stringify(identity)) } catch { setState('Identity changed for this window. Storage unavailable.', 'Identity changed for this window') }
         applyIdentity()
         $('.agent-identity').open = false

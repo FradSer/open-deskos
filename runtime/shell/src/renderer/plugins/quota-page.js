@@ -304,15 +304,15 @@
           return
         }
 
-        const usable = (Array.isArray(accounts) ? accounts : [])
+        const windows = (Array.isArray(accounts) ? accounts : [])
           .filter((account) => !account.error)
           .flatMap((account) => (account.groups || []).flatMap((group) => (group.quotas || []).map(quota => ({ ...quota, account }))))
           .filter((quota) => isPercent(quota.remainingPct))
-        const allowance = usable.filter((quota) => quota.horizon === 'long')
-        const windows = allowance.length ? allowance : usable
+        const allowance = windows.filter((quota) => quota.horizon === 'long')
+        const candidates = allowance.length ? allowance : windows
 
-        if (windows.length > 0) {
-          const lowest = windows.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), windows[0])
+        if (candidates.length > 0) {
+          const lowest = candidates.reduce((min, quota) => (quota.remainingPct < min.remainingPct ? quota : min), candidates[0])
           const percent = Math.round(lowest.remainingPct)
           showWindow(lowest.remainingPct < 25 ? 'Low' : 'Available', lowest.label || 'Remaining quota', percent, ({ codex: 'ChatGPT', antigravity: 'Antigravity', xai: 'Grok' })[lowest.account.provider] || 'AI usage')
           return

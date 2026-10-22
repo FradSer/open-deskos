@@ -189,24 +189,42 @@ function resetAt(window, now = new Date()) {
   return null
 }
 
-function codexWindow(window, now, fallbackSeconds, name = '') {
+function codexWindow(label, window, now, horizon, prefix = '') {
   if (!window) return null
   const remainingPct = remainingPercentFromUsed(window.used_percent)
   if (remainingPct === null) return null
-  const reported = Number(window.limit_window_seconds)
-  const seconds = Number.isFinite(reported) && reported > 0 ? reported : fallbackSeconds
-  const [unit, divisor] = seconds % 86400 === 0 ? ['day', 86400]
-    : seconds % 3600 === 0 ? ['hour', 3600] : seconds % 60 === 0 ? ['minute', 60] : ['second', 1]
-  const count = seconds / divisor
-  const period = seconds === 604800 ? 'weekly' : `${count} ${unit}${count === 1 ? '' : 's'}`
-  const label = name ? `${name} · ${period}` : seconds === 604800 ? 'Weekly limit' : `${count} ${unit} limit`
-  return { label, remainingPct, resetAt: resetAt(window, now), description: null, horizon: seconds >= 86400 ? 'long' : 'short' }
+  const seconds = Number(window.limit_window_seconds)
+  if (Number.isFinite(seconds) && seconds > 0) {
+    if (seconds === 604800) label = prefix ? 'weekly' : 'Weekly limit'
+    else {
+      const [value, unit] = seconds % 86400 === 0 ? [seconds / 86400, 'day']
+        : seconds % 3600 === 0 ? [seconds / 3600, 'hour']
+        : seconds % 60 === 0 ? [seconds / 60, 'minute'] : [seconds, 'second']
+      label = prefix ? `${value} ${unit}${value === 1 ? '' : 's'}` : `${value} ${unit} limit`
+    }
+  }
+  return {
+    label: prefix + label,
+    remainingPct,
+    resetAt: resetAt(window, now),
+    description: null,
+    horizon,
+  }
+}
+
+// The endpoint states each window's own length. A reading has to say whether it
+// covers the allowance for the period or a short burst inside it, so the desk can
+// report the allowance. The slot names the window when the length is absent.
+function codexHorizon(window, fallback) {
+  const seconds = Number(window?.limit_window_seconds)
+  if (Number.isFinite(seconds) && seconds > 0) return seconds >= 86400 ? 'long' : 'short'
+  return fallback
 }
 
 function codexLimitsGroup(rateLimit, now) {
   const quotas = [
-    codexWindow(rateLimit?.primary_window, now, 18000),
-    codexWindow(rateLimit?.secondary_window, now, 604800),
+    codexWindow('5 hour limit', rateLimit?.primary_window, now, codexHorizon(rateLimit?.primary_window, 'short')),
+    codexWindow('Weekly limit', rateLimit?.secondary_window, now, codexHorizon(rateLimit?.secondary_window, 'long')),
   ].filter(Boolean)
   return quotas.length ? { title: 'Codex limits', description: null, quotas } : null
 }
@@ -215,8 +233,8 @@ function codexAdditionalGroups(limits, now) {
   return (Array.isArray(limits) ? limits : []).map((limit) => {
     const name = limit.limit_name || 'Additional limit'
     const quotas = [
-      codexWindow(limit.rate_limit?.primary_window, now, 18000, name),
-      codexWindow(limit.rate_limit?.secondary_window, now, 604800, name),
+      codexWindow('5 hours', limit.rate_limit?.primary_window, now, codexHorizon(limit.rate_limit?.primary_window, 'short'), `${name} · `),
+      codexWindow('weekly', limit.rate_limit?.secondary_window, now, codexHorizon(limit.rate_limit?.secondary_window, 'long'), `${name} · `),
     ].filter(Boolean)
     return quotas.length ? { title: name, description: null, quotas } : null
   }).filter(Boolean)

@@ -136,7 +136,7 @@ The desk answers `{"v":1,"type":"personal-agent-ready"}` and then one frame. Eac
 {"v":1,"type":"personal-agent","development":false,"frame":{"state":"idle","transcript":"…","message":"…"}}
 ```
 
-The frame keeps the public fields used by the shared renderer. These include `conversation`, `ownerTurnId`, `replyTo`, `threadId`, `judgment`, `textInput` and `replyInput`. The conversation remains a read-only projection of CM5 history. It grants no dispatch authority. Android sets `voiceInput` to `false`. One frame must fit within 128 KiB.
+The frame keeps the public fields used by the shared renderer. These include `conversation`, `ownerTurnId`, `replyTo`, `threadId`, `judgment`, `textInput`, `replyInput` and `voiceFailure`. The conversation remains a read-only projection of CM5 history. It grants no dispatch authority. Android sets `voiceInput` to `false`. One frame must fit within 128 KiB.
 
 A refused token answers `{"v":1,"type":"error","reason":"token refused"}` and the desk closes the connection.
 

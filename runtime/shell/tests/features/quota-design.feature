@@ -66,12 +66,12 @@ Feature: Read AI quotas with clear provenance and recovery
     And a second account states no window length
     When the AI usage Widget reads the shared subscription service
     Then it names the weekly window and its percentage
-    And a short window from another account cannot replace an available weekly allowance
-    And explicit window duration determines both its label and horizon
-    When no account supplies a longer allowance
-    Then the Widget reports the least remaining usable quota
+    And a short window from another account does not replace the weekly reading
+    And the labels follow each supplied window duration
     And its meter carries that percentage for assistive technology
     And the Widget offers no refresh action of its own
+    When no account states a long window
+    Then it reports the least remaining known quota
     When the user presses the Widget
     Then the App opens and owns the refresh action
 

@@ -1,0 +1,78 @@
+/* Shell owns card geometry and paint. Plugins own only their content. */
+#home-desk {
+  --odk-frame-border: color-mix(in srgb, var(--odk-stroke) 55%, var(--odk-surface));
+  --odk-frame-radius: calc(var(--radius) * 0.72);
+  --odk-frame-fill: var(--odk-surface);
+  --odk-frame-shadow: none;
+  --odk-frame-filter: none;
+}
+
+#home-desk :is(.widget[data-interaction='display-only'], #app-view),
+#home-desk #pages-track > .page-app > :is(.runtime-app, .card, .user-app-frame) {
+  border: 1px solid var(--odk-frame-border);
+  border-radius: var(--odk-frame-paint-radius, var(--odk-frame-radius));
+  outline: 0;
+  background: var(--odk-frame-fill);
+  box-shadow: var(--odk-frame-shadow);
+  backdrop-filter: var(--odk-frame-filter);
+  -webkit-backdrop-filter: var(--odk-frame-filter);
+}
+
+/* An App continuation has one outer frame, independent of its content. */
+#home-desk #app-runtime > :is(.runtime-app, .card, .user-app-frame) {
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#home-desk #app-runtime > :is(.runtime-app, .card)::after { content: none; }
+
+html[data-theme='pixel'] #home-desk { --odk-frame-radius: 0px; }
+html[data-theme='liquid-glass'] #home-desk {
+  --odk-frame-border: var(--odk-glass-edge);
+  --odk-frame-radius: var(--odk-radius-card);
+  --odk-frame-fill: var(--odk-glass-material);
+  --odk-frame-shadow: var(--odk-glass-frame-shadow);
+  --odk-frame-filter: blur(14px) saturate(1.25);
+}
+
+/* Preserve the fallback until the SDK has prepared its measured shape. */
+html[data-theme='liquid-glass'] #home-desk :is(.widget, #app-view).lg-surface {
+  visibility: inherit;
+  box-sizing: border-box;
+  color: var(--odk-primary);
+  border-radius: var(--odk-frame-paint-radius, var(--odk-frame-radius)) !important;
+}
+
+/* The SDK owns the continuous edge. A transparent border preserves layout.
+   The launch target uses the semantic radius, independent of SDK clipping. */
+html[data-theme='liquid-glass'][data-liquid-glass='sdk'] #home-desk :is(.widget, #app-view).lg-surface {
+  --odk-frame-border: transparent;
+  --odk-frame-paint-radius: 0px;
+  --odk-frame-fill: transparent;
+  --odk-frame-shadow: none;
+  --odk-frame-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-theme='liquid-glass'] #home-desk,
+  html[data-theme='liquid-glass'][data-liquid-glass] #home-desk :is(.widget, #app-view).lg-surface {
+    --odk-frame-border: var(--odk-stroke-focus);
+    --odk-frame-paint-radius: var(--odk-frame-radius);
+    --odk-frame-fill: var(--odk-surface);
+    --odk-frame-shadow: none;
+    --odk-frame-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  #home-desk,
+  html[data-theme='liquid-glass'] #home-desk,
+  html[data-theme='liquid-glass'][data-liquid-glass] #home-desk :is(.widget, #app-view).lg-surface {
+    --odk-frame-border: CanvasText;
+    --odk-frame-paint-radius: var(--odk-frame-radius);
+    --odk-frame-fill: Canvas;
+    --odk-frame-shadow: none;
+    --odk-frame-filter: none;
+  }
+}

@@ -48,7 +48,11 @@ async function resize(width, height) {
   await evaluate(`window.dispatchEvent(new Event('resize'))`)
   const deadline = Date.now() + 5000
   while (Date.now() < deadline) {
-    if (await evaluate(`innerWidth === ${width} && innerHeight === ${height} && devicePixelRatio === 1 && __odkGrid?.width === ${width} && __odkGrid?.height === ${height}`)) return
+    if (await evaluate(`innerWidth === ${width} && innerHeight === ${height} && devicePixelRatio === 1 && __odkGrid?.width === ${width} && __odkGrid?.height === ${height}`)) {
+      // The first pass changes --status-h. Measure the desk again after that style reaches layout.
+      await evaluate(`document.fonts.ready.then(()=>new Promise(resolve=>{window.dispatchEvent(new Event('resize'));requestAnimationFrame(()=>requestAnimationFrame(resolve))}))`)
+      return
+    }
     await new Promise(resolve => setTimeout(resolve, 20))
   }
   assert.fail(`Agent viewport did not settle at ${width}x${height}`)
@@ -121,7 +125,7 @@ async function assertOptionalJudgmentStatus() {
       publishStatus({state:'idle',jev:{status:'disabled'},judgment:{status:'ready',provider:'model',model:'synthetic/model-v1'},briefing:{state:'error',generatedAt:1,omittedSources:0,items:[{text:'2 Synthetic sessions',segments:[{text:'2 Synthetic sessions',icon:'sessions'}],sources:[{id:'synthetic.sessions',label:'Synthetic sessions',state:'live'}]}]}})
       await evaluate('new Promise(r=>setTimeout(r,20))')
       assert.match(await evaluate(`document.querySelector('#dash-narrative').textContent`),/2 Synthetic sessions/)
-      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&s.bottom<=c.top,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
+      const layout=await evaluate(`(()=>{const s=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {visible:s.top>=0&&c.top<=s.top&&s.bottom<c.bottom,conversation:c.height,composer:f.bottom,overflow:document.documentElement.scrollWidth-innerWidth}})()`)
       assert.ok(layout.visible&&layout.conversation>=40&&layout.composer<=height&&layout.overflow<=1,JSON.stringify({theme,width,...layout}))
       if(theme==='instrument'&&[1920,320].includes(width)){await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');fs.writeFileSync(path.join(os.tmpdir(),'odk-optional-judgment-'+width+'.png'),(await capturePaintedPage(win)).toPNG())}
     }
@@ -153,7 +157,7 @@ async function assertJevStartupStatus() {
   await resize(320,480)
   publishStatus({state:'idle',jev:{status:'checking'}});await evaluate('new Promise(r=>setTimeout(r,30))')
   const geometry=await evaluate(`(()=>{const h=document.querySelector('.agent-head').getBoundingClientRect(),c=document.querySelector('.agent-conversation').getBoundingClientRect(),f=document.querySelector('.agent-composer').getBoundingClientRect();return {header:h.bottom,conversation:c.top,height:c.height,composer:f.bottom}})()`)
-  assert.ok(geometry.header<=geometry.conversation&&geometry.height>=40&&geometry.composer<=480,JSON.stringify(geometry))
+  assert.ok(geometry.header>geometry.conversation&&geometry.height>=40&&geometry.composer<=480,JSON.stringify(geometry))
   await resize(1920,1280);await evaluate("odkTheme.set('instrument')")
 }
 
@@ -199,7 +203,8 @@ async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Thinking…')
   assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),false)
   publishStatus(frame);await evaluate('new Promise(r=>setTimeout(r,20))')
-  await evaluate(`document.querySelector('.agent-message-reply').click()`)
+  assert.equal(await evaluate(`document.querySelectorAll('[data-remote-id="${item.id}"] .agent-session-reply').length`),1,'single and multiple sources use one Reply per task row')
+  await evaluate(`document.querySelector('.agent-session-reply').click()`)
   assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false,'single-source reply retains its exact reference')
   await evaluate(`document.querySelector('.agent-reply-cancel').click()`)
   const second={...source,key:'5e'.repeat(32),revision:'6f'.repeat(32),threadId:'7a'.repeat(32),sessionId:'synthetic-second-session',project:'/synthetic/v8',taskName:'外壳模型调整'}
@@ -222,26 +227,160 @@ async function assertSimpleConversation() {
   }
   publishStatus(replies);await evaluate('new Promise(r=>setTimeout(r,20))')
   await evaluate(`document.querySelectorAll('.agent-update-sources').forEach(d=>d.open=false)` )
-  for(const theme of ['instrument','pixel','border-beam']){
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
     await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
-    for(const [width,height]of [[1920,1280],[480,854],[320,480]]){
+    for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]){
       await resize(width,height);await evaluate('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))')
       const geometry=await evaluate(`(()=>{const p=document.querySelector('.agent-panel').getBoundingClientRect(),c=document.querySelector('.agent-composer').getBoundingClientRect(),v=document.querySelector('.agent-conversation');return {viewport:innerWidth,panel:{left:p.left,right:p.right,width:p.width},overflow:v.scrollWidth>v.clientWidth+1,composer:c.bottom<=p.bottom&&c.right<=p.right,reply:[...document.querySelectorAll('.agent-session-reply')].filter(n=>getComputedStyle(n).display!=='none').every(n=>n.getBoundingClientRect().height>=44),scroller:getComputedStyle(v).overflowY}})()`)
       assert.ok(geometry.panel.left>=0&&geometry.panel.right<=width, 'Agent fits viewport: '+JSON.stringify(geometry));assert.equal(geometry.overflow,false);assert.equal(geometry.composer,true);assert.equal(geometry.reply,true);assert.equal(geometry.scroller,'auto')
+      await assertSessionActionGeometry(item.id, theme, width)
       fs.writeFileSync(path.join(os.tmpdir(),`odk-simple-agent-${theme}-${width}.png`),(await capturePaintedPage(win)).toPNG())
     }
   }
   const longName='Android 客户端连接与设备输入验证'.repeat(3).slice(0,40)
-  publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName:longName}]}]}})
-  await evaluate('new Promise(r=>setTimeout(r,30))')
-  for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
-    await resize(width,height)
-    const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
-    assert.equal(named.text,longName,'long task names update in place without changing the source reference')
-    assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
+  for(const taskName of [longName,'A']) {
+    publishStatus({...frame,remote:{...frame.remote,messages:[{...item,sources:[{...source,taskName}]}]}})
+    await evaluate('new Promise(r=>setTimeout(r,30))')
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const [width,height]of [[1920,1280],[1280,800],[480,854],[320,480]]) {
+      await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+      await resize(width,height)
+      const named=await evaluate(`(()=>{const c=document.querySelector('.agent-conversation'),n=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open');return {text:n.textContent,overflow:c.scrollWidth-c.clientWidth,height:n.getBoundingClientRect().height}})()`)
+      assert.equal(named.text,taskName,'task names update in place without changing the source reference')
+      assert.ok(named.overflow<=1&&named.height>=44,JSON.stringify(named))
+      await assertSessionActionGeometry(item.id, theme+' task-name', width)
+    }
   }
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const features of [[{name:'prefers-contrast',value:'more'}],[{name:'forced-colors',value:'active'}]]) {
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features})
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    const accessible=await evaluate(`(()=>{const task=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open'),reply=task.parentElement.querySelector('.agent-session-reply'),t=getComputedStyle(task),r=getComputedStyle(reply);task.focus();return t.color===r.color&&t.borderTopWidth==='0px'&&t.backgroundImage==='none'&&t.boxShadow==='none'&&getComputedStyle(task).outlineStyle==='solid'&&task.getBoundingClientRect().height>=44})()`)
+    assert.equal(accessible,true,theme+': high-contrast task labels retain full readable emphasis')
+  }
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
+  for(const [voiceFailure,failure] of Object.entries({microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'})) {
+    publishStatus({...frame,state:'error',transcript:'',voiceFailure,message:'Updated owner wording'});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),failure,'voice failures retain their actual safe cause')
+  }
+  publishStatus({...frame,state:'idle',transcript:'',message:''});await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'','cancelled voice returns to a quiet ready header')
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false,'cancellation leaves text input available')
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
+}
+
+async function assertSessionActionGeometry(id, theme, width) {
+  const plain=`(()=>{const task=document.querySelector('[data-remote-id="${id}"] .agent-session-open'),s=getComputedStyle(task),icon=task.querySelector('svg[aria-hidden="true"]'),name=task.querySelector('.agent-session-name');return !!icon&&!!name&&s.borderTopWidth==='0px'&&s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.backgroundImage==='none'&&s.boxShadow==='none'&&s.backdropFilter==='none'})()`
+  assert.equal(await evaluate(plain),true,theme+': session reference is only an icon and plain text')
+  if(width===1280&&!theme.includes('task-name')) {
+    await win.webContents.debugger.sendCommand('DOM.enable');await win.webContents.debugger.sendCommand('CSS.enable')
+    const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
+    const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:`[data-remote-id="${id}"] .agent-session-open`})
+    try { for(const state of ['hover','active']) {
+      await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[state]})
+      assert.equal(await evaluate(plain),true,theme+': '+state+' keeps the reference unframed')
+    } } finally {await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})}
+  }
+  const geometry = await evaluate(`(()=>{
+    const article=document.querySelector('[data-remote-id="${id}"]'),task=article.querySelector('.agent-session-open'),reply=article.querySelector('.agent-session-reply');
+    const t=task.getBoundingClientRect(),r=reply.getBoundingClientRect(),s=getComputedStyle(task),range=document.createRange();range.selectNodeContents(task.querySelector('.agent-session-name'));const text=range.getBoundingClientRect(),icon=task.querySelector('svg').getBoundingClientRect();
+    const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');canvas.width=canvas.height=1;
+    const rgba=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data]};
+    const rs=getComputedStyle(reply),probe=document.createElement('i');probe.style.color='var(--odk-surface)';document.body.append(probe);const surface=rgba(getComputedStyle(probe).color);probe.remove();
+    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],iconWidth:icon.width,iconGap:text.left-icon.right,center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,replyWidth:r.width,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface};
+  })()`)
+  assert.ok(geometry.iconWidth>=16&&geometry.iconWidth<=20&&geometry.iconGap>=5&&geometry.iconGap<=8, 'Task icon and name stay compact: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44&&geometry.taskWidth>=44&&geometry.replyWidth>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.lines>1||geometry.taskWidth<=Math.max(44,geometry.textWidth+geometry.iconWidth+geometry.iconGap+geometry.padding.reduce((a,b)=>a+b,0))+1,'Task reference must fit its label: '+JSON.stringify({theme,width,...geometry}))
+  const luminance=rgba=>rgba.slice(0,3).map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[0.2126,0.7152,0.0722][i],0)
+  const ink=luminance(geometry.foreground),surface=luminance(geometry.surface),contrast=(Math.max(ink,surface)+0.05)/(Math.min(ink,surface)+0.05)
+  assert.ok(geometry.fontSize>=14&&contrast>=4.5&&ink<luminance(geometry.replyForeground),'Task label must stay readable and secondary to Reply: '+JSON.stringify({theme,width,contrast,...geometry}))
+}
+
+async function assertCapsuleStack() {
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height] of [[1280,800],[480,854],[320,480]]) {
+    await resize(width,height)
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    publishStatus({state:'thinking'})
+    await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
+    const r=await evaluate(`(()=>{const avatar=document.querySelector('.agent-avatar'),identity=document.querySelector('.agent-identity'),name=document.querySelector('.agent-name'),state=document.querySelector('.agent-state'),pill=identity.querySelector('summary'),a=avatar.getBoundingClientRect(),n=name.getBoundingClientRect(),s=state.getBoundingClientRect(),p=pill.getBoundingClientRect();return {front:Number(getComputedStyle(avatar).zIndex)>Number(getComputedStyle(identity).zIndex),nameClear:n.top>=a.bottom+2,below:s.top>=n.bottom,contained:n.left>=p.left&&n.right<=p.right&&s.bottom<=p.bottom,caption:state.textContent,motion:pill.getAnimations().length}})()`)
+    assert.ok(r.front&&r.nameClear&&r.below&&r.contained,theme+' '+width+': avatar in front, name clear, status below '+JSON.stringify(r))
+    assert.equal(r.caption,'Thinking…');assert.equal(r.motion,0,'reduced motion remains static')
+  }
+  await resize(1280,360)
+  await evaluate(`odkTheme.set('instrument');document.fonts.ready`)
+  await evaluate(`document.querySelector('.agent-identity summary').click();new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  const overlap=await evaluate(`(()=>{const a=document.querySelector('.agent-avatar').getBoundingClientRect(),f=document.querySelector('.agent-identity-form').getBoundingClientRect();return {x:Math.ceil(Math.max(a.left,f.left)),y:Math.ceil(Math.max(a.top,f.top)),width:Math.floor(Math.min(a.right,f.right)-Math.max(a.left,f.left)),height:Math.floor(Math.min(a.bottom,f.bottom)-Math.max(a.top,f.top))}})()`)
+  assert.ok(overlap.width>0&&overlap.height>8,'short panel exercises actual editor/avatar overlap')
+  console.log('SHORT_EDITOR_CROP '+JSON.stringify(overlap))
+  const editorPaint=(await capturePaintedPage(win,overlap)).toBitmap()
+  let withoutAvatar
+  try {
+    await evaluate(`document.querySelector('.agent-avatar').style.visibility='hidden';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+    withoutAvatar=(await capturePaintedPage(win,overlap)).toBitmap()
+  } finally { await evaluate(`document.querySelector('.agent-avatar').style.removeProperty('visibility')`) }
+  assert.equal(editorPaint.length,withoutAvatar.length,'editor comparison uses the same native crop')
+  let occluded=0;for(let i=0;i<editorPaint.length;i+=4)if(editorPaint[i]!==withoutAvatar[i]||editorPaint[i+1]!==withoutAvatar[i+1]||editorPaint[i+2]!==withoutAvatar[i+2])occluded++
+  assert.equal(occluded,0,'the opaque editor paints above the avatar on short panels')
+  await evaluate(`document.querySelector('.agent-identity').open=false`)
+  await resize(320,480)
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`(()=>{const a=document.querySelector('.agent-identity summary').getAnimations();window.capsuleMotion=a[0];return a.length===1&&a[0].effect.getTiming().iterations===1&&a[0].effect.getTiming().duration<=300})()`),true,'status changes run one bounded capsule reaction '+JSON.stringify(await evaluate(`({hidden:document.hidden,reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,caption:document.querySelector('.agent-state').textContent,animations:document.querySelector('.agent-identity summary').getAnimations().map(a=>({state:a.playState,timing:a.effect.getTiming()}))})`)))
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations()[0]===window.capsuleMotion`),true,'identical frames preserve the current animation')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'preference change cancels the reaction')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'error'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  await evaluate(`Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'hidden document cancels the reaction')
+  publishStatus({state:'thinking'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'hidden updates remain static')
+  await evaluate(`delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))`)
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  await evaluate(`window.releasedCapsule=document.querySelector('.agent-identity summary');odkRendererRuntime.setEnabled('odk.page.personal-agent',false)`)
+  assert.equal(await evaluate(`releasedCapsule.getAnimations().length`),0,'release cancels the reaction')
+  await evaluate(`odkRendererRuntime.setEnabled('odk.page.personal-agent',true)`)
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'idle'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),true,'idle hides redundant Ready text')
+  await resize(1280,800);await evaluate(`odkTheme.set('liquid-glass');document.fonts.ready`)
+  publishStatus({state:'thinking'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-capsule-stack.png'),await capturePaintedFrame())
+  console.log('AGENT_CAPSULE_STACK_PASS')
+}
+
+async function assertThreadOverlayInput() {
+  const source={key:'a7'.repeat(32),revision:'b7'.repeat(32),threadId:'c7'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-overlay-session',taskName:'Thread check',control:'report_only',availability:'live'}
+  const messages=Array.from({length:16},(_,i)=>({id:(i+1).toString(16).padStart(64,'0'),at:1000+i,presentation:'assistant_update',text:'Thread result '+i+'. '+'Content remains readable. '.repeat(6),sources:[source]}))
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height]of [[1280,800],[320,480]]) {
+    await resize(width,height)
+    await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready})()`)
+    publishStatus({state:'idle',remote:{state:'live',messages,total:messages.length,replies:[]}})
+    await evaluate(`new Promise(r=>setTimeout(r,30))`)
+    await evaluate(`document.querySelector('.agent-session-open').click()`)
+    const band=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),nav=document.querySelector('.agent-thread-nav'),r=nav.getBoundingClientRect(),first=list.querySelector('.agent-message:not([hidden])');list.scrollTop+=first.getBoundingClientRect().top-r.top+20;const x=r.right-24,y=r.top+r.height/2,button=nav.querySelector('button'),b=button.getBoundingClientRect();return {underlay:!!document.elementFromPoint(x,y)?.closest('.agent-conversation'),button:button.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)),surface:(getComputedStyle(button).backgroundColor!=='rgba(0, 0, 0, 0)'||getComputedStyle(button).backgroundImage!=='none')&&getComputedStyle(button).borderTopWidth==='1px',x,y,buttonX:b.x+b.width/2,buttonY:b.y+b.height/2,scrollTop:list.scrollTop,navTop:r.top}})()`)
+    assert.ok(band.underlay&&band.button&&band.surface,theme+' '+width+': thread navigation passes input outside its readable button '+JSON.stringify(band))
+    await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:band.x,y:band.y,deltaX:0,deltaY:80})
+    await evaluate(`new Promise(r=>setTimeout(r,80))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${band.scrollTop}&&Math.abs(document.querySelector('.agent-thread-nav').getBoundingClientRect().top-${band.navTop})<1`),true,theme+' '+width+': native wheel scrolls behind thread navigation')
+    for(const type of ['mousePressed','mouseReleased'])await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,x:band.buttonX,y:band.buttonY})
+    assert.equal(await evaluate(`document.querySelector('.agent-thread-nav').hidden`),true,'native All messages click exits the exact thread')
+  }
 }
 
 async function assertRemoteConversationHistory() {
@@ -506,14 +645,14 @@ app.whenReady().then(async () => {
     await evaluate(`(()=>{const c=document.querySelector('.agent-conversation');c.scrollTop=0;c.dispatchEvent(new Event('scroll'))})()`)
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.ok(await evaluate(`document.querySelectorAll('.agent-message').length>36`),'upward scrolling loads another batch')
-    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-message-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))`)
+    await evaluate(`document.querySelector('[data-remote-id="${messages[7].id}"] .agent-session-reply').click();document.querySelector('.agent-reply-cancel').click();window.beforeCancelLoad=document.querySelectorAll('.agent-message').length;const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))`)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length>window.beforeCancelLoad`),true,'cancel reply immediately restores all-thread history loading without a new push')
     await evaluate(`for(let i=0;i<16;i++){const c=document.querySelector('.agent-conversation');c.scrollTop=81;c.dispatchEvent(new Event('scroll'));c.scrollTop=0;c.dispatchEvent(new Event('scroll'))}`)
     assert.equal(await evaluate(`!!document.querySelector('[data-reply-id="${replies[0].id}"]')`),true)
     assert.equal(await evaluate(`document.querySelectorAll('.agent-message').length`),88,'all three kinds eventually mount exactly once')
     assert.equal(await evaluate(`(()=>{const times=[...document.querySelectorAll('.agent-conversation > .agent-message')].map(n=>{if(n.dataset.remoteId)return ${JSON.stringify(messages)}.find(m=>m.id===n.dataset.remoteId).at;if(n.dataset.replyId)return ${JSON.stringify(replies)}.find(r=>r.id===n.dataset.replyId).at;const answer=/^Answer (\\d+)/.exec(n.querySelector('.agent-message-body').textContent);if(answer)return Number(answer[1])*10+0.5;return ${JSON.stringify(turns)}.find(t=>t.id===n.dataset.ownerTurnId)?.at});return times.every((at,i)=>i===0||at>=times[i-1])})()`),true,'remote updates, owner turns and replies share chronological order')
     const expected=messages[7]
-    await evaluate(`document.querySelector('[data-remote-id="${expected.id}"] .agent-message-reply').click()`)
+    await evaluate(`document.querySelector('[data-remote-id="${expected.id}"] .agent-session-reply').click()`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),false)
     assert.equal(await evaluate(`document.querySelector('textarea').value`),'Draft 中文')
     assert.equal(await evaluate(`([...document.querySelectorAll('.agent-message')].filter(n=>!n.hidden)).every(n=>JSON.parse(n.dataset.threadIds||'[]').includes('${'b'.repeat(64)}'))`),true,'reply selection keeps the exact source thread')
@@ -661,7 +800,7 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--scroll-overlay-only')) {
     const evidence=process.env.ODK_AGENT_SCROLL_EVIDENCE
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true})
-    for(const theme of ['instrument','pixel','border-beam'])for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height]of [[1920,1280],[480,854],[320,480]]) {
       await resize(width,height);await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
       const examples=[['训练进展怎么样？','合成示例：中文识别训练有新进展：验证集 CER 降到 37.35%，最佳和最后检查点已保存到 Drive。控制器仍依赖 Mac 在线，请暂时保留原终端；独立测试还没做。'],['v8 模型有什么变更？','合成示例：v8 模型完成：前留白缩到 10 mm，前两角改为 R12，可编辑模型包已生成。原键盘和触控板位置未改；实体下盖与触控板仍需试装。']]
       for(let i=0;i<8;i++)publishStatus({state:'idle',ownerTurnId:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,transcript:examples[i%2][0],message:examples[i%2][1]})
@@ -723,8 +862,9 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`),'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)')
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'}]})
     assert.equal(await evaluate(`matchMedia('(forced-colors: active)').matches`),true)
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).maskImage`),'none','forced colors retain an unmasked conversation')
     console.log('Scrollbar forced-colors:',await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).scrollbarColor`))
-    console.log('PASS overlay latest control, scroll-only scrollbar, keyboard and reduced motion across three themes and sizes');finish(0);return
+    console.log('PASS overlay latest control, scroll-only scrollbar, keyboard and reduced motion across four themes and sizes');finish(0);return
   }
   if (process.argv.includes('--simple-conversation-only')) {
     await assertSimpleConversation();console.log('PASS calm conversation, explicit source reply, retained receipts and compact themes');finish(0);return
@@ -734,8 +874,8 @@ app.whenReady().then(async () => {
     publishStatus({state:'idle',remote:{state:'live',messages:[{id:'a'.repeat(64),text:'Synthetic completion',presentation:'assistant_update',sources:[source]}],replies:[]}})
     await evaluate('new Promise(r=>setTimeout(r,30))')
     assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'an old single-argument bridge cannot reply')
-    assert.equal(await evaluate(`document.querySelector('.agent-message-reply').disabled`),true,'the simplified primary Reply also refuses an old bridge')
-    await evaluate(`document.querySelector('.agent-message-reply').dispatchEvent(new MouseEvent('click'))`)
+    assert.equal(await evaluate(`document.querySelector('.agent-session-reply').disabled`),true,'the shared task-row Reply refuses an old bridge')
+    await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'))`)
     await evaluate(`document.querySelector('.agent-session-reply').dispatchEvent(new MouseEvent('click'));document.querySelector('textarea').value='Ordinary legacy request';document.querySelector('.agent-composer').requestSubmit();new Promise(r=>setTimeout(r,30))`)
     assert.equal(await evaluate(`document.querySelector('.agent-reply-context').hidden`),true)
     assert.deepEqual(sentText,['Ordinary legacy request']);assert.deepEqual(sentReplyTo,[undefined])
@@ -812,9 +952,13 @@ app.whenReady().then(async () => {
     console.log('ONEE_FLOW_PASS: actual SVG motion, all request phases, completion, error, hidden pause, reduced motion and unchanged CSP')
     finish(0);return
   }
+  if(process.argv.includes('--capsule-only')) { await assertCapsuleStack();finish(0);return }
   if (process.argv.includes('--agent-reference-only')) {
+    await assertCapsuleStack()
     assert.equal(await evaluate(`document.querySelector('.agent-input-avatar')`),null,'the composer does not duplicate the animated avatar')
     assert.equal(await evaluate(`document.querySelector('.agent-identity summary').contains(document.querySelector('.agent-state'))`),true,'name and status share one capsule')
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+    publishStatus({state:'idle'})
     const failures=[]
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       for(const [width,height] of [[1280,800],[1920,1280],[960,640],[480,854],[320,480]]){
@@ -822,8 +966,10 @@ app.whenReady().then(async () => {
         await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));await document.fonts.ready;await new Promise(r=>setTimeout(r,100))})()`)
         const layout=await evaluate(`(()=>{
           const avatar=document.querySelector('.agent-avatar').getBoundingClientRect(),identity=document.querySelector('.agent-identity'),pill=identity.querySelector('summary').getBoundingClientRect(),panel=document.querySelector('.agent-panel').getBoundingClientRect(),conversation=document.querySelector('.agent-conversation').getBoundingClientRect(),composer=document.querySelector('.agent-composer').getBoundingClientRect();
+          const head=document.querySelector('.agent-head'),headStyle=getComputedStyle(head),headBounds=head.getBoundingClientRect();
           const onee=document.querySelector('.agent-avatar .bs-avatar svg'),pillStyle=getComputedStyle(identity.querySelector('summary'));
-          return {onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('summary').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,stacked:pill.top>=avatar.bottom-1,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
+          const bounds=onee.getBBox(),matrix=onee.getScreenCTM(),artTop=new DOMPoint(bounds.x,bounds.y).matrixTransform(matrix).y,artBottom=new DOMPoint(bounds.x,bounds.y+bounds.height).matrixTransform(matrix).y;
+          return {visibleTop:Math.abs(artTop-conversation.top)<=6,artSize:Math.abs(onee.getBoundingClientRect().height-avatar.width)<1,unclipped:getComputedStyle(document.querySelector('.agent-avatar')).overflow==='visible',visibleOverlap:artBottom>pill.top&&artBottom-pill.top<avatar.height*0.25,onee:!!onee&&onee.getAttribute('viewBox')==='-150 -150 300 300'&&onee.querySelectorAll('path[d]').length>=4,sharedCapsule:(pillStyle.backgroundColor!=='rgba(0, 0, 0, 0)'||pillStyle.backgroundImage!=='none')&&pillStyle.borderTopWidth==='1px'&&identity.querySelector('summary').contains(document.querySelector('.agent-state')), centered:Math.abs(avatar.x+avatar.width/2-(panel.x+panel.width/2))<1,topAligned:Math.abs(avatar.top-conversation.top)<1,overlap:avatar.bottom-pill.top>=avatar.height*0.12&&avatar.bottom-pill.top<=avatar.height*0.2,transparent:headStyle.backgroundColor==='rgba(0, 0, 0, 0)'&&headStyle.backgroundImage==='none'&&headStyle.backdropFilter==='none',underlay:conversation.top<=headBounds.top&&conversation.bottom>headBounds.bottom,editor:!identity.hidden&&pill.height>=44,composer:composer.bottom<=panel.bottom&&composer.right<=panel.right&&composer.width>=panel.width-45,conversation:conversation.height>=40&&conversation.bottom<=composer.top,noStateFooter:document.querySelector('.agent-state').closest('.agent-head')!==null};
         })()`)
         for(const [name,ok] of Object.entries(layout))if(!ok)failures.push(theme+' '+width+': '+name)
       }
@@ -835,6 +981,28 @@ app.whenReady().then(async () => {
     await evaluate('new Promise(r=>setTimeout(r,60))')
     const scroll=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),composer=document.querySelector('.agent-composer');window.referenceComposerY=composer.getBoundingClientRect().y;list.scrollTop=0;list.dispatchEvent(new Event('scroll'));return {overflow:list.scrollHeight>list.clientHeight,latest:!document.querySelector('.agent-latest').hidden,fixed:Math.abs(composer.getBoundingClientRect().y-referenceComposerY)<1}})()`)
     assert.ok(scroll.overflow&&scroll.latest&&scroll.fixed,JSON.stringify(scroll))
+    for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
+      await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready;await new Promise(r=>setTimeout(r,40));const list=document.querySelector('.agent-conversation'),first=list.querySelector('.agent-message');list.scrollTop+=first.getBoundingClientRect().top-list.getBoundingClientRect().top+20})()`)
+      assert.match(await evaluate(`getComputedStyle(document.querySelector('.agent-conversation')).maskImage`),/linear-gradient.*rgba\(0, 0, 0, 0\).*rgb\(0, 0, 0\) 32px/,'the conversation has a transparent-to-solid top fade')
+      const underlay=await evaluate(`(()=>{const list=document.querySelector('.agent-conversation'),head=document.querySelector('.agent-head'),r=head.getBoundingClientRect(),x=r.left+8,y=r.top+24,hit=document.elementFromPoint(x,y),pill=document.querySelector('.agent-identity summary'),p=pill.getBoundingClientRect();return {message:!!hit?.closest('.agent-message'),capsule:pill.contains(document.elementFromPoint(p.x+p.width/2,p.y+p.height/2)),x,y,scrollTop:list.scrollTop,header:r.top}})()`)
+      assert.ok(underlay.message&&underlay.capsule,theme+': header allows message input while capsule stays interactive '+JSON.stringify(underlay))
+      const fadeCrop=await evaluate(`(()=>{const r=document.querySelector('.agent-conversation').getBoundingClientRect();return{x:Math.ceil(r.left+4),y:Math.ceil(r.top),width:Math.min(180,Math.floor(r.width-8)),height:32}})()`)
+      const faded=(await capturePaintedPage(win,fadeCrop)).toBitmap()
+      let plain
+      try {
+        await evaluate(`document.querySelector('.agent-conversation').style.maskImage='none'`)
+        plain=(await capturePaintedPage(win,fadeCrop)).toBitmap()
+      } finally {
+        await evaluate(`document.querySelector('.agent-conversation').style.removeProperty('mask-image')`)
+      }
+      let changed=0;for(let i=0;i<faded.length;i+=4)if(faded[i]!==plain[i]||faded[i+1]!==plain[i+1]||faded[i+2]!==plain[i+2])changed++
+      assert.ok(changed>=16,theme+': the native image shows the top fade: '+changed)
+      await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseWheel',x:underlay.x,y:underlay.y,deltaX:0,deltaY:80})
+      await evaluate('new Promise(r=>setTimeout(r,80))')
+      assert.equal(await evaluate(`document.querySelector('.agent-conversation').scrollTop>${underlay.scrollTop}&&Math.abs(document.querySelector('.agent-head').getBoundingClientRect().top-${underlay.header})<1`),true,theme+': native wheel scrolls behind a stationary header')
+    }
+    fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-header-overlay.png'),(await capturePaintedPage(win)).toPNG())
+    await assertThreadOverlayInput()
     await evaluate(`document.querySelector('.agent-latest').click()`)
     assert.equal(await evaluate(`(()=>{const n=document.querySelector('.agent-conversation');return n.scrollHeight-n.clientHeight-n.scrollTop<2})()`),true)
     const summary=await evaluate(`(()=>{const n=document.querySelector('.agent-identity summary');n.focus();return document.activeElement===n})()`)
@@ -847,6 +1015,7 @@ app.whenReady().then(async () => {
     assert.equal(await evaluate(`document.querySelector('.agent-identity').open`),true,await evaluate(`JSON.stringify({active:document.activeElement.outerHTML,focused:document.hasFocus()})`))
     await evaluate(`document.querySelector('.agent-identity-form [name="name"]').value='Mori';document.querySelector('.agent-identity-form').requestSubmit()`)
     assert.equal(await evaluate(`document.querySelector('.agent-name').textContent==='Mori'&&document.activeElement===document.querySelector('.agent-composer .agent-mic')`),true,'saving the identity focuses the default voice field')
+    assert.deepEqual(JSON.parse(await evaluate(`localStorage.getItem('odk.agent.identity')`)),{name:'Mori'},'saving the name does not persist the retired icon selector')
     for(const theme of ['instrument','pixel','border-beam','liquid-glass']){
       await resize(320,480)
       await evaluate(`(async()=>{await odkTheme.set('${theme}');window.dispatchEvent(new Event('resize'));document.querySelector('.agent-identity-form [name="name"]').value='中文'.repeat(20);document.querySelector('.agent-identity-form').requestSubmit();await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));document.querySelector('.agent-identity summary').focus()})()`)
@@ -865,7 +1034,7 @@ app.whenReady().then(async () => {
     publishStatus({state:'idle',proposalError:errorDetail})
     await evaluate('new Promise(r=>setTimeout(r,40))')
     const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity summary');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)
-    assert.ok(statusLayout.height<=64,JSON.stringify(statusLayout))
+    assert.ok(statusLayout.height>=44&&statusLayout.height<=84,JSON.stringify(statusLayout))
     assert.ok(statusLayout.label.includes(statusLayout.name)&&statusLayout.label.includes(statusLayout.status),JSON.stringify(statusLayout))
     assert.equal(statusLayout.detail,errorDetail)
     console.log('AGENT_REFERENCE_PASS')

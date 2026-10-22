@@ -39,7 +39,9 @@ test('signed Weather update rollback and removal preserve separate Electron cons
         assert.equal(report.pid, running.child.pid)
         assert.equal(pids.has(report.pid), false, 'Each acceptance stage needs a separate Electron process')
         pids.add(report.pid)
-        assert.equal(report.consumers.length, 15)
+        assert.deepEqual(report.consumers.map(([key]) => key).sort(),
+          ['1920x1280', '1920x1080', '960x640', '480x854', '320x480']
+            .flatMap(size => ['instrument', 'pixel', 'border-beam', 'liquid-glass'].map(theme => `${size}/${theme}`)).sort())
         assert.ok(report.cache, 'Each actual source must consume the persistent cache')
         assert.equal(report.cache.initialProviderCalls, 0, 'Cache loads before provider acquisition')
         const { initial, snapshot, rendered, health } = report.cache

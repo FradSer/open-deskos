@@ -8,14 +8,13 @@ The [runtime contract](RUNTIME_PLUGIN_REPLACEMENT.md) owns selection and recover
 
 | Identity | App | State | Displayed content | Minimum Readable Cell |
 | --- | --- | --- | --- | --- |
-| `odk.tile.pomodoro` | `Pomodoro` | read-only App state | countdown, focus label, ring, and applicable state word | `186` |
+| `odk.tile.pomodoro` | `Pomodoro` | App session state; `App timer` without a session | live countdown, state word, `Focus`; `--:--` without a session | `186` |
 
-The surface is display-only. It reads the selected App's focus state through `ctx.focus`.
-Running and paused sessions show their actual countdown and state word.
-An idle session hides the state word. It does not show `Ready`.
-Without a focus provider, the Widget shows `--:--` and `App timer` with an empty ring.
-The App owns timer controls. The Widget acquires no provider, connection, or input authority.
-The Widget has no repeated App heading. Its App entry retains the accessible name.
+The surface is display-only. It shows the App timer and state but owns no session or timer controls.
+The Widget does not acquire provider, connection, or input authority.
+The dial shows the App timer. The App state word appears above the dial.
+An idle session has no state word instead of a `Ready` label.
+The Widget has no header that repeats the App name. The App entry keeps its accessible name.
 
 ## Replacement and recovery
 

@@ -149,7 +149,9 @@ const statedWindows = (quotas, index = 0) => ({ state: 'available', snapshot: { 
 }] } })
 
 test('the AI usage Widget reports the allowance its subscription states', () => {
-  const tile = mountTile(statedWindows([['Weekly limit', 58, 'long'], ['5 hour limit', 12, 'short']]))
+  const status = statedWindows([['Weekly limit', 58, 'long'], ['5 hour limit', 12, 'short']])
+  status.snapshot.accounts.push(...statedWindows([['Other short window', 3]], 1).snapshot.accounts)
+  const tile = mountTile(status)
   assert.equal(tile.plugin.kind, 'tile')
   assert.equal(tile.plugin.interaction, 'display-only')
   assert.equal(tile.plugin.opensApp, 'quota')
@@ -158,17 +160,14 @@ test('the AI usage Widget reports the allowance its subscription states', () => 
   assert.equal(tile.text('.quota-tile-value'), '58%')
   assert.equal(tile.text('.quota-tile-context'), 'Weekly limit')
   assert.deepEqual(tile.meter(), { hidden: false, now: '58', spoken: '58% remaining', label: 'Weekly limit', width: '58%', low: false, rule: false })
-  const mixed=statedWindows([['Weekly limit',58,'long'],['5 hour limit',12,'short']])
-  mixed.snapshot.accounts.push(statedWindows([['Short limit',1,'short']],1).snapshot.accounts[0])
-  tile.update(mixed)
-  assert.equal(tile.text('.quota-tile-value'),'58%','another account cannot replace an available weekly allowance with its short window')
-  assert.equal(tile.text('.quota-tile-context'),'Weekly limit')
 })
 
 test('the AI usage Widget falls back to the tightest window an account states', () => {
   // A provider that reports no window length keeps the previous reading: the window
   // that can stop work now is the one the desk reports.
-  const tile = mountTile(statedWindows([['Five hourly window', 76], ['Billing period', 12]]))
+  const status = statedWindows([['Five hourly window', 76], ['Billing period', 12]])
+  status.snapshot.accounts.push(...statedWindows([['Other short window', 18]], 1).snapshot.accounts)
+  const tile = mountTile(status)
   assert.equal(tile.text('.quota-state'), 'Low')
   assert.equal(tile.text('.quota-tile-value'), '12%')
   assert.equal(tile.text('.quota-tile-context'), 'Billing period')

@@ -8,10 +8,6 @@
   padding: 0;
 }
 
-html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
-  background: transparent;
-}
-
 .w-weread .weread-body {
   display: flex;
   flex: 1;
@@ -90,7 +86,7 @@ html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
   margin: 0;
   color: var(--odk-primary);
   max-width: 100%;
-  font-size: max(14px, 3.25cqi);
+  font-size: max(18px, 4cqi);
   font-weight: 700;
   line-height: 1.5;
   white-space: nowrap;
@@ -112,7 +108,7 @@ html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
   margin: 0;
   color: var(--odk-secondary-strong);
   max-width: 100%;
-  font-size: max(14px, 2cqi);
+  font-size: max(16px, 2.75cqi);
   font-weight: 400;
   line-height: 1.5;
   white-space: nowrap;
@@ -125,7 +121,7 @@ html:not([data-theme='liquid-glass']) #home-desk .widget.w-weread {
   margin-top: 0;
   color: var(--odk-secondary-strong);
   max-width: 100%;
-  font-size: max(14px, 2cqi);
+  font-size: max(16px, 2.75cqi);
   font-weight: 400;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;

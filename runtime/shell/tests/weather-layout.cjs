@@ -134,6 +134,7 @@ function inspect() {
   if (rangeHalves[1].getBoundingClientRect().right > rangeHalves[2].getBoundingClientRect().left + 1) issues.push('range halves collide')
   if (rangeHalves[1].getBoundingClientRect().right > tile.getBoundingClientRect().right + 1) issues.push('range escapes the tile')
   const pixel = document.documentElement.dataset.theme === 'pixel'
+  if (glyph.width < (pixel ? 48 : 36) - 0.1 || glyph.height < (pixel ? 48 : 36) - 0.1) issues.push('sky icon too small')
   if (pixel && (glyph.width % 24 !== 0 || glyph.height % 24 !== 0)) issues.push('fractional pixel grid')
   if (pixel && getComputedStyle(tile.querySelector('svg')).stroke !== 'none') issues.push('stroked pixel icon')
   return {

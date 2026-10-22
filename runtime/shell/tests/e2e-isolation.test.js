@@ -149,7 +149,7 @@ test('child runner sets its profile and hides the dock before loading fixture co
   assert.deepEqual(calls, ['hide', ['userData', profile], ['sessionData', profile], 'fixture'])
 })
 
-test('Home fixture establishes its requested viewport after hidden loading', async () => {
+test('Home fixture establishes its requested viewport and settles geometry after hidden loading', async () => {
   const source = fs.readFileSync(path.join(__dirname, 'agent-home.cjs'), 'utf8')
   const start = source.indexOf('  await win.loadFile(')
   const end = source.indexOf('  assert.equal(await evaluate', start)
@@ -161,6 +161,7 @@ test('Home fixture establishes its requested viewport after hidden loading', asy
   let width, height
   const renderer = vm.createContext({
     innerWidth: 1, innerHeight: 1, devicePixelRatio: 1, __odkGrid: { width: 1, height: 1 },
+    requestAnimationFrame(callback) { calls.push('frame'); queueMicrotask(() => callback(0)) },
     document: { fonts: { ready: Promise.resolve() } },
     Event: class { constructor(type) { this.type = type } },
   })
@@ -196,7 +197,7 @@ test('Home fixture establishes its requested viewport after hidden loading', asy
       return vm.runInContext(script, renderer)
     },
   })
-  assert.deepEqual(calls, ['load', 'attach', 'enable', 'zoom', 'size', 'metrics', 'resize', 'settled'])
+  assert.deepEqual(calls, ['load', 'attach', 'enable', 'zoom', 'size', 'metrics', 'resize', 'settled', 'resize', 'frame', 'frame'])
 })
 
 test('first MIC check waits for control receipt without replaying input', async () => {

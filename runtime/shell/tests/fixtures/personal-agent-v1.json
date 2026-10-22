@@ -209,6 +209,42 @@
         ]
       },
       "voiceInput": false
+    },
+    "error-microphone": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "microphone",
+      "voiceInput": false
+    },
+    "error-timeout": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "timeout",
+      "voiceInput": false
+    },
+    "error-unavailable": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "unavailable",
+      "voiceInput": false
+    },
+    "error-protocol": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "protocol",
+      "voiceInput": false
+    },
+    "error-invalid_audio": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "invalid_audio",
+      "voiceInput": false
+    },
+    "error-cleanup": {
+      "state": "error",
+      "message": "Owner wording may change",
+      "voiceFailure": "cleanup",
+      "voiceInput": false
     }
   }
 }

@@ -15,6 +15,7 @@ object PersonalAgentFrame {
     const val MAX_BYTES = 128 * 1024
     val STATES = setOf("idle", "recording", "starting", "sending", "transcribing", "thinking", "unavailable", "error")
 
+    private val VOICE_FAILURES = setOf("microphone", "timeout", "unavailable", "protocol", "invalid_audio", "cleanup")
     private val TEXT_FIELDS = listOf("transcript", "message", "proposalError")
     private val OBJECT_FIELDS = listOf("briefing", "agents", "remote")
 
@@ -23,6 +24,10 @@ object PersonalAgentFrame {
     fun project(status: JSONObject?): JSONObject {
         if (status == null || !STATES.contains(status.optString("state"))) return unavailable("Personal Agent state unavailable")
         val frame = JSONObject().put("state", status.optString("state")).put("voiceInput", false)
+        val voiceFailure = status.opt("voiceFailure")
+        if (status.optString("state") == "error" && voiceFailure is String && voiceFailure in VOICE_FAILURES) {
+            frame.put("voiceFailure", voiceFailure)
+        }
         for (key in TEXT_FIELDS) {
             val value = status.opt(key)
             if (value is String) frame.put(key, value)

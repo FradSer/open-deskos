@@ -93,7 +93,7 @@ Feature: Weather instrument on the Home grid
     Given the Home grid gives the Weather tile a cell whose inner width is 220 pixels or less
     When the tile renders in any state
     Then the place steps down to the caption floor while the condition keeps the data floor
-    And the sky steps down to one whole unit of the pixel set
+    And the sky keeps two whole units of the pixel set
     And the range values step down with the cell
     And the current temperature keeps the lane share a large cell gives it
     And the condition, the sky and the range stay on the tile's own supporting row
@@ -332,6 +332,7 @@ Feature: Weather instrument on the Home grid
     And the high and low remain readable supporting values
     And negative and multi-digit readings preserve this hierarchy
     And default and independent Weather surfaces enforce the same hierarchy
+    And source and surface process restarts retain every theme and size combination
 
   Scenario: The primary reading fills the lane it owns
     Given live or stale weather with a short, negative or three-digit temperature
@@ -348,3 +349,10 @@ Feature: Weather instrument on the Home grid
     And Pixel retains its regular pixel font
     And its content has two pixels of block clearance without duplicate inline padding
     And deferred profile cleanup cannot replace a failed geometry verdict
+
+  Scenario: The supporting sky icon stays readable in compact Cells
+    Given any supported Weather state and theme
+    When the Widget uses a compact or desktop Cell
+    Then its sky icon is at least 36 pixels square
+    And Pixel uses at least two whole 24-pixel grid units
+    And the current temperature remains the primary reading without overflow

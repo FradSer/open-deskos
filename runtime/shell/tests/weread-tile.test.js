@@ -53,6 +53,7 @@ async function mountWith(highlightResult, width = 900, layout = {}) {
   vm.runInContext(registrySource, vm.createContext(sandbox))
   root.odkPlatform = { getWeReadHighlight: layout.read || (() => Promise.resolve(highlightResult)) }
   const contextVM = vm.createContext(sandbox)
+  vm.runInContext(fs.readFileSync('src/renderer/plugins/weread/typography.js', 'utf8'), contextVM)
   vm.runInContext(wereadSource, contextVM)
   if (independent) {
     let selected
@@ -318,7 +319,7 @@ test('excerpt uses the shared widget inset without an oversized horizontal gutte
 
 test('unavailable and empty highlights state the next action without exposing source errors', async () => {
   const failed = await mountWith({ status: 'error', error: 'private-provider-stack', highlight: null })
-  assert.equal(failed.text('.weread-text'), 'Open WeRead and select Refresh.')
+  assert.equal(failed.text('.weread-text'), 'Open WeRead and click the reading.')
   const empty = await mountWith({ status: 'empty', highlight: null })
   assert.equal(empty.text('.weread-text'), 'Save a highlight in WeRead.')
 })

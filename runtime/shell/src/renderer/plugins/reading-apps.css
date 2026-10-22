@@ -1,3 +1,5 @@
+@import url("weread.css");
+
 .reading-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--odk-space-3); }
 .reading-head h2 { margin: 0; }
 .reading-head button { flex: none; min-height: 44px; }
@@ -9,11 +11,6 @@
 .reading-values > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; padding-block: 16px; border-bottom: 1px solid var(--odk-stroke); }
 .reading-values dt { color: var(--odk-secondary-strong); font-size: 14px; }
 .reading-values dd { margin: 0; font-size: 20px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.reading-excerpt { margin: 0 0 24px; font-size: clamp(22px, 4.2cqi, 32px); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.reading-book-title { margin: 0; font-size: 20px; }
-.reading-book { display: flex; align-items: center; gap: 16px; padding-block-start: 16px; border-top: 1px solid var(--odk-stroke); }
-.reading-book-meta { flex: 1; min-width: 0; }
-.reading-book-cover { width: clamp(48px, 12cqi, 132px); max-height: 180px; object-fit: contain; flex: none; }
 .weather-hero { display: grid; justify-items: start; gap: var(--odk-space-3); margin-block: auto; }
 .weather-place { margin: 0; color: var(--odk-secondary-strong); font-size: 24px; font-weight: 400; }
 #app-view .weather-reading { margin: 0; color: var(--odk-primary); font: 700 clamp(64px, 18cqi, 160px)/1 "Montserrat", "Noto Sans SC", "Zpix", sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -24,8 +21,11 @@
 .weather-range dd { font-size: 28px; }
 .plant-readings dd { font-size: clamp(28px, 7cqi, 64px); line-height: 1.25; }
 .environment-readings { padding-block-start: var(--odk-space-4); border-top: 1px solid var(--odk-stroke); margin-block-start: auto; }
-.weread-app .reading-content { gap: var(--odk-space-4); }
-.weread-app .reading-excerpt { margin-block: auto; flex: none; }
-.weread-app .reading-book { flex: none; margin-block-start: var(--odk-space-4); }
 @container (max-width: 300px) { .plant-readings, .environment-readings { grid-template-columns: minmax(0, 1fr); } }
 
+#app-view .runtime-app.weread-app { position: relative; flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; gap: 0; border: 0; border-radius: 0; background: transparent; }
+#app-view .weread-app .reading-status { position: absolute; inset-block-start: 4px; inset-inline-start: var(--odk-widget-inset); z-index: 1; }
+.weread-app:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -4px; }
+#app-view .weread-app .weread-foot { max-height: 50%; overflow-y: auto; align-items: safe center; }
+.weread-app .weread-foot:focus-visible { outline: 2px solid var(--odk-stroke-focus); outline-offset: -2px; }
+.weread-app img.weread-cover { aspect-ratio: auto; }

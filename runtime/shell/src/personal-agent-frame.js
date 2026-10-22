@@ -22,6 +22,11 @@ const PERSONAL_AGENT_STATES = new Set([
   'error',
 ])
 
+const VOICE_FAILURES = new Set(['microphone','timeout','unavailable','protocol','invalid_audio','cleanup'])
+function parseVoiceFailure(status) {
+  return status.state === 'error' && VOICE_FAILURES.has(status.voiceFailure) ? status.voiceFailure : undefined
+}
+
 function personalAgentUnavailable(message) {
   return { state: 'unavailable', message }
 }
@@ -31,6 +36,8 @@ function projectPersonalAgentFrame(status) {
     return personalAgentUnavailable('Personal Agent state unavailable')
   }
   const frame = { state: status.state, voiceInput: false }
+  const voiceFailure = parseVoiceFailure(status)
+  if (voiceFailure) frame.voiceFailure = voiceFailure
   for (const key of ['transcript', 'message', 'proposalError']) {
     if (typeof status[key] === 'string') frame[key] = status[key]
   }
@@ -60,6 +67,7 @@ function projectPersonalAgentFrame(status) {
 
 module.exports = {
   projectPersonalAgentFrame,
+  parseVoiceFailure,
   MAX_PERSONAL_AGENT_FRAME_BYTES,
   PERSONAL_AGENT_STATES,
 }

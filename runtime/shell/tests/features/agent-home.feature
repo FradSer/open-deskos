@@ -34,14 +34,14 @@ Feature: Personal Agent home briefing
     And unavailable transport cannot leave an old task labelled Running
     And released status callbacks cannot change the conversation
 
-  Scenario: The Agent identity capsule stays on one line
+  Scenario: The Agent capsule keeps the name clear above its status
     Given the Agent uses its default name and is idle
     When the capsule renders at desktop or compact widths
     Then the complete default name stays on one line
-    And the capsule keeps its 44 pixel control height
+    And the capsule keeps a touch target of at least 44 pixels
     When a long name or status is displayed
     Then the name truncates inside the capsule without wrapping
-    And the status truncates beside the name inside the same capsule without moving the conversation
+    And the status truncates below the name inside the same capsule without moving the conversation
     And the accessible name retains the complete Agent name and status
 
   Scenario: Text input focus follows the composer capsule
@@ -395,6 +395,9 @@ Feature: Personal Agent home briefing
     And Jump to latest restores the newest message
     And Jump to latest overlays the conversation without moving messages or the composer
     And scroll controls are checked after the native scroll event settles
+    And messages and the scroll track fade into the top edge of the conversation
+    And the fade leaves the avatar, capsule and composer fully visible and interactive
+    And forced colors keep the conversation unmasked
     And the native scrollbar is transparent until scrolling and fades after scrolling stops
     And reduced motion hides the idle scrollbar without a fade
     And narrow windows and long names retain usable input and recovery text
@@ -516,6 +519,14 @@ Scenario: Hidden previews capture the current native viewport
     Then its header shows no Ready caption or status dot
     And messages have concise descriptive task names below their text
     And task names open the exact task thread and preserve explicit reply selection
+    And task names use one small icon and gray text without a border, fill, shadow, or capsule
+    And each single-task reference and its Reply button share a vertical center
+    And single-task and multiple-task messages use the same two-column task row
+    And each task row has exactly one Reply button and one task label
+    And task labels retain their plain text treatment when hovered, pressed, or shown in Liquid Glass
+    And a one-character task name retains a 44-pixel pointer target
+    And task labels retain readable text and keyboard focus in high-contrast modes
+    And long task names wrap without horizontal conversation overflow
     And no Sources, Conversation details, or Earlier messages disclosures appear
     And scrolling up loads retained messages without a history button
     When the agent processes a request
@@ -555,3 +566,24 @@ Scenario: Hidden previews capture the current native viewport
     And reduced motion shows the matching static pose with readable status
     And hidden documents pause playback and released pages stop all animation work
     And the engine loads locally under the unchanged content security policy
+
+  Scenario: Agent identity floats above the conversation
+    Given the resident Agent has a Onee avatar and an identity capsule
+    When the conversation scrolls in any supported theme or panel size
+    Then the capsule overlaps only the lower fifth of the avatar
+    And the avatar paints above the capsule while its name stays below the overlap
+    And the visible avatar starts near the top of the conversation scroll track
+    And the avatar frame removes unused SVG padding without shrinking or clipping animation
+    And the header has no opaque background or backdrop blur
+    And messages scroll behind the header and receive input outside the capsule
+    And selected task navigation passes message input outside its readable return button
+    And the capsule and composer retain keyboard and pointer access
+    And the identity form remains inside the panel
+    And the open form paints above the avatar when they overlap on a short panel
+
+  Scenario: The capsule acknowledges a status change once
+    Given the Agent name and status share one capsule
+    When the service status changes
+    Then the status appears below the name with one short capsule animation
+    And an unchanged status does not restart that animation
+    And hidden documents, reduced motion, and released pages stop capsule animation

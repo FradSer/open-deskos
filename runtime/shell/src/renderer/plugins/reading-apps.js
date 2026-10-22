@@ -8,30 +8,72 @@
       app: name, name, appKind: 'ui', source: 'builtin', capabilities: [],
       css: 'plugins/reading-apps.css',
       mount(el, ctx) {
-        el.innerHTML = `<section class="runtime-app reading-app ${id}-app"><header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header><p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
+        const tapToRefresh = id === 'weread'
+        const header = tapToRefresh ? `<h2 class="sr-only">${name}</h2>` : `<header class="reading-head"><h2 class="sr-only">${name}</h2><button class="button-pill button-secondary reading-refresh" type="button">Refresh</button></header>`
+        el.innerHTML = `<section class="runtime-app reading-app ${id}-app${tapToRefresh ? ' w-weread' : ''}">${header}<p class="reading-status app-detail" role="status"></p><div class="reading-content"></div></section>`
+        const surface = el.querySelector('.reading-app')
         const status = el.querySelector('.reading-status')
         const content = el.querySelector('.reading-content')
+        if (id === 'weread') content.classList.add('weread-copy')
         const refreshButton = el.querySelector('.reading-refresh')
         let released = false
         let pending = false
+        let observer
         ctx.trackCleanup(() => { released = true })
+        const fit = () => {
+          if (!released && tapToRefresh) root.odkWeReadTypography.fit(surface, content, content.querySelector('.weread-text'), content.querySelector('.weread-foot'), document.querySelector?.('.widget.w-weread'))
+        }
+        if (tapToRefresh && typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(fit)
+          observer.observe(surface)
+          ctx.trackCleanup(() => observer.disconnect())
+        }
+        const fitAfterFonts = () => { fit() }
+        if (tapToRefresh && document.fonts) document.fonts.ready.then(fitAfterFonts).catch(() => {})
         const refresh = async () => {
           if (released || pending) return
           pending = true
-          refreshButton.disabled = true
+          if (refreshButton) refreshButton.disabled = true
+          surface.setAttribute('aria-busy', 'true')
           status.textContent = 'Refreshing'
           try {
             const snapshot = await load()
             if (released) return
             render(content, status, snapshot)
+            if (observer) {
+              observer.disconnect()
+              observer.observe(surface)
+              const foot = content.querySelector('.weread-foot')
+              if (foot) observer.observe(foot)
+            }
+            if (tapToRefresh) status.textContent = status.textContent.replaceAll('select Refresh', 'click the reading').replaceAll('Select Refresh', 'Click the reading')
+            fit()
           } catch {
-            if (!released) status.textContent = 'Source unavailable. Select Refresh to try again.'
+            if (!released) status.textContent = tapToRefresh ? 'Source unavailable. Click the reading to try again.' : 'Source unavailable. Select Refresh to try again.'
           } finally {
             pending = false
-            if (!released) refreshButton.disabled = false
+            if (!released) {
+              if (refreshButton) refreshButton.disabled = false
+              surface.setAttribute('aria-busy', 'false')
+            }
           }
         }
-        refreshButton.addEventListener('click', refresh)
+        if (tapToRefresh) {
+          surface.tabIndex = 0
+          surface.setAttribute('role', 'region')
+          surface.setAttribute('aria-label', 'WeRead. Click or press Enter to refresh.')
+          surface.setAttribute('aria-keyshortcuts', 'Enter Space')
+          surface.addEventListener('click', () => {
+            if (root.getSelection?.()?.isCollapsed === false) return
+            refresh()
+          })
+          surface.addEventListener('keydown', event => {
+            if (event.target !== surface || event.repeat || !['Enter', ' '].includes(event.key)) return
+            event.preventDefault()
+            event.stopPropagation()
+            refresh()
+          })
+        } else refreshButton.addEventListener('click', refresh)
         refresh()
         let ticks = 0
         ctx.onTick(() => { if (++ticks % 30 === 0) refresh() })
@@ -88,29 +130,37 @@
     const available = typeof highlight?.markText === 'string' && highlight.markText.trim().length > 0
     status.textContent = readingStatus(snapshot, available, 'WeRead')
     if (!available) { content.replaceChildren(node('p', 'No highlights available', 'app-detail')); return }
-    const quote = node('blockquote', highlight.markText || '', 'reading-excerpt')
-    const title = node('h3', highlight.title || 'WeRead', 'reading-book-title')
-    const author = node('p', highlight.author || '', 'app-detail')
+    const quote = node('blockquote', highlight.markText || '', 'reading-excerpt weread-text')
+    quote.tabIndex = 0
+    quote.setAttribute('role', 'region')
+    quote.setAttribute('aria-label', 'Highlight excerpt')
+    const title = node('h3', String(highlight.title || 'WeRead').replace(/^[\s《〈【『]+|[\s》〉】』]+$/g, '').trim() || 'WeRead', 'reading-book-title weread-title')
+    const author = node('p', highlight.author || '', 'weread-author')
     const metadata = document.createElement('div')
-    metadata.className = 'reading-book-meta'
+    metadata.className = 'reading-book-meta weread-meta'
     metadata.append(title, author)
     if (highlight.createTime) {
       const date = new Date(highlight.createTime < 1e12 ? highlight.createTime * 1000 : highlight.createTime)
       if (Number.isFinite(date.getTime())) {
-        const time = node('time', new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date), 'app-detail')
+        const time = node('time', new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date), 'weread-date')
         time.dateTime = date.toISOString()
         metadata.append(time)
       }
     }
     const book = document.createElement('footer')
-    book.className = 'reading-book'
+    book.className = 'reading-book weread-foot'
+    book.tabIndex = 0
+    book.setAttribute('aria-label', 'Book details')
     book.append(metadata)
-    if (highlight.cover?.startsWith('data:image/')) {
+    const wrap = node('div', '', 'weread-cover-wrap')
+    wrap.hidden = !highlight.cover?.startsWith('data:image/')
+    book.append(wrap)
+    if (!wrap.hidden) {
       const cover = document.createElement('img')
-      cover.className = 'reading-book-cover'
+      cover.className = 'reading-book-cover weread-cover'
       cover.alt = ''
       cover.src = highlight.cover
-      book.append(cover)
+      wrap.append(cover)
     }
     content.replaceChildren(quote, book)
   })

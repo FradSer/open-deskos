@@ -168,6 +168,10 @@ app.whenReady().then(async () => {
       if (text.scrollTop <= 0 || tail.top < region.top - 1 || tail.bottom > region.bottom + 1) throw Error('WeRead excerpt tail is not reachable');
       text.scrollTop = previous;
     }
+    for (const [selector,minimum] of [['.weread-title',18],['.weread-author',16],['.weread-date',16]]) {
+      const node=tile.querySelector(selector);
+      if (!node.hidden && parseFloat(getComputedStyle(node).fontSize)<minimum) throw Error('WeRead metadata is too small: '+selector);
+    }
     if (parseFloat(getComputedStyle(text).fontSize) < 14) throw Error('WeRead excerpt is too small');
     return {
       theme: document.documentElement.dataset.theme,
@@ -313,7 +317,7 @@ app.whenReady().then(async () => {
       if (results[1].scrollable) await checkKeyboardScroll()
       for (const next of [
         { state: { empty: true }, title: 'No highlights', text: 'Save a highlight in WeRead.' },
-        { state: { fail: true }, title: 'Sync unavailable', text: 'Open WeRead and select Refresh.' },
+        { state: { fail: true }, title: 'Sync unavailable', text: 'Open WeRead and click the reading.' },
         { state: {}, title: 'Long English 与中文书名', text: markText },
         { state: { missing: true, rejectedCover: true }, title: 'WeRead', text: markText },
       ]) {

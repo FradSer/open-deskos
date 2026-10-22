@@ -57,6 +57,8 @@ Feature: Android Shell Host renders the shared Personal Agent
     Given the desk publishes recording, transcribing and thinking frames
     When the status panel renders
     Then each state shows its own caption and control availability
+    And validated voice failure codes survive both frame projections independently of owner wording
+    And unknown codes and codes outside error states are dropped
     And a microphone action on this host starts no recording, because it captures no audio
 
   Scenario: A narrow phone uses the compact rules
