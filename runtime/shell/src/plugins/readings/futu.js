@@ -58,7 +58,7 @@ const serviceLabel = (label, id) => (typeof label === 'string' && label.trim() ?
 function createFutuServiceReadings(futu, declarations = {}) {
   return Object.entries(declarations || {}).map(([id, label]) => ({
     id, label: serviceLabel(typeof label === 'object' ? label?.label : label, 'Futu holdings'), kind: 'service',
-    home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['todayChangePercent'] },
+    home: { mode: 'optional', priority: 0, icon: 'portfolio', fields: ['todayChangePercent'] },
     read: async () => {
       const snapshot = futu?.snapshot?.(id)
       const state = snapshot?.state || 'unavailable'

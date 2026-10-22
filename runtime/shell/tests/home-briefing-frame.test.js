@@ -6,6 +6,13 @@ const frame = { state: 'live', generatedAt: 1000, omittedSources: 0, items: [{ t
 test('agent home frame preserves literal bounded text and source provenance', () => {
   assert.deepEqual(parseHomeBriefing(frame), frame)
 })
+test('home coverage survives transport and rejects impossible source counts', () => {
+  const coverage = { totalSources: 70, readSources: 70, failedSources: 2, incompleteSources: 1, selectedSources: 1 }
+  assert.deepEqual(parseHomeBriefing({ ...frame, coverage }).coverage, coverage)
+  for (const patch of [{ readSources: 71 }, { failedSources: -1 }, { selectedSources: 71 }, { incompleteSources: 0.5 }]) {
+    assert.equal(parseHomeBriefing({ ...frame, coverage: { ...coverage, ...patch } }).state, 'unavailable')
+  }
+})
 test('malformed home content is unavailable rather than partially rendered', () => {
   for (const bad of [null, {}, { ...frame, state: 'invented' }, { ...frame, items: Array(5).fill(frame.items[0]) },
     { ...frame, items: [{ ...frame.items[0], text: 'a'.repeat(601) }] }, { ...frame, items: [{ text: 'No evidence', sources: [] }] },

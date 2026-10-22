@@ -1,4 +1,35 @@
 Feature: Personal Agent home briefing
+
+  Scenario: All connected sources can inform Overview
+    Given more than 64 visible data sources with different declared priorities
+    When Overview reads current desk information
+    Then every visible source participates in bounded batches
+    And no source has a reserved display position
+    And one failed source does not exclude healthy sources
+
+  Scenario: Pi Agent activity informs the same selection
+    Given Pi sessions expose goals, activity, and waiting states
+    And resident agents expose running tasks and completion verification
+    When an agent waits, fails, or reports a result
+    Then Overview evaluates that change with all other current facts
+    And reported completion does not establish verified completion
+
+  Scenario: A real model evaluates the complete Overview inventory
+    Given an explicitly authorized live provider and isolated agent state
+    When the live verifier supplies more than 64 sources and Agent state changes
+    Then every source fact reaches a tool-free model session
+    And failed, waiting, and running Agent tasks can enter Overview
+    And connected device readings pass the same selection and binding checks
+    And the verifier records source coverage separately from synthetic scenarios
+    And compact inventories use one request within the input byte budget
+    And independent batches run concurrently within the shared deadline
+
+  Scenario: Fresh facts survive generation failure
+    Given Overview has an earlier generated summary
+    And current source values have changed
+    When summary generation fails
+    Then Overview can show current source-bound facts with an error state
+    And it does not restore a fixed portfolio, weather, and Pi combination
   Scenario: Conversation history mounts in bounded batches
     Given the resident snapshot contains remote updates, owner turns, and session replies
     When the conversation opens
@@ -142,27 +173,28 @@ Feature: Personal Agent home briefing
     And live fact icons use restrained source color while text stays neutral
     And retained facts lose live color during refresh or failure
 
-  Scenario: Plugins declare home coverage
-    Given Futu declares required holdings and another plugin declares hidden data
+  Scenario: Plugins declare fields without reserved home positions
+    Given Futu declares legacy required metadata and another plugin declares hidden data
     When Personal Agent generates the home
-    Then it must include Futu holdings or their actual unavailable state
+    Then current facts compete without category or priority slots
     And hidden readings do not enter generation
-    And optional readings follow declared priority and fields
+    And all other readings participate through their declared fields
 
   Scenario: Compact temperature units
     Given a temperature fact uses degrees Celsius
     When the home renders in Pixel
     Then its unit stays compact without a full pixel cell between the degree and C
 
-  Scenario: Required source name survives model correction
-    Given a generated sentence omits a required plugin name
+  Scenario: Model correction preserves fact identity
+    Given a generated selection contains an unknown or repeated fact selector
     When Personal Agent corrects the response
-    Then the correction includes the exact required name, icon, and source identifier
+    Then the correction uses only the captured fact catalog
+    And no source gains a mandatory position
 
   Scenario: Futu shows only its daily percentage
     Given Futu publishes a daily percentage change
     When Personal Agent generates the home
-    Then Futu contributes only its signed daily percentage
+    Then a selected Futu fact contributes only its signed daily percentage
     And live gains and losses use restrained directional color
     And zero and retained percentages use neutral color
 
@@ -189,7 +221,8 @@ Feature: Personal Agent home briefing
     Given Personal Agent generates a template with plugin field references
     When temperature, session counts, or daily percentage change
     Then the host binds current plugin values into the same template
-    And no second model generation is needed for a value change
+    And ordinary numeric changes need no second model generation
+    And meaningful activity and availability changes require selection again
     And literal generated numbers and unknown field references are rejected
     And a source availability change requires a matching template
 

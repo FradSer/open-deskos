@@ -254,7 +254,7 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
       runtime.mode = 'fail'
       now += 15 * 60 * 1000
       await home.refresh()
-      assert.equal(service.status.briefing.state, 'stale')
+      assert.equal(service.status.briefing.state, 'error')
       assert.deepEqual(service.status.briefing.items, updated.items)
       assert.doesNotMatch(JSON.stringify(service.status.briefing), /private generation detail/)
       const stale = structuredClone(service.status.briefing)
@@ -290,6 +290,24 @@ test('selected Agent preserves Home binding, cached updates, and runtime restart
   assert.deepEqual(reports[1], reports[0])
 })
 
+test('all fact batches and their final selection use the isolated SDK generator', async t => {
+  const seen = new Set()
+  let calls = 0
+  const bot = await generationFixture(t, {}, async (emit, text) => {
+    calls++
+    const request = JSON.parse(text.slice(text.indexOf('{')))
+    assert.ok(Buffer.byteLength(JSON.stringify(request)) <= 48000)
+    for (const variable of request.variables) seen.add(variable.id)
+    const selector = request.variables.findIndex(variable => variable.id === 'source-299')
+    emit({ type: 'message_end', message: assistant(JSON.stringify({ items: [{ sources: [Math.max(0, selector)] }] })) })
+  })
+  const readings = Array.from({ length: 300 }, (_, i) => ({ id: `source-${i}`, label: `Source ${i}`, state: 'live', value: { subject: `Current fact ${i}` } }))
+  const result = await bot.generateBriefing({ readings })
+  assert.equal(seen.size, 300)
+  assert.ok(calls >= 3)
+  assert.deepEqual(result.items[0].readingIds, ['source-299'])
+})
+
 test('home generation uses an isolated zero-tool SDK session and its own schema', async t => {
   let inspected = false
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async emit => {
@@ -310,10 +328,12 @@ test('home generation uses an isolated zero-tool SDK session and its own schema'
 test('Home generation accepts finite source selections and returns the existing bound template',async t=>{
  const bot=await generationFixture(t,{ODK_JEV_PROVIDER:'disabled'},async(emit,text)=>{
   const request=JSON.parse(text.slice(text.indexOf('{')))
-  assert.equal(request.readings[0].id,'weather')
-  assert.deepEqual(request.variables,[{selector:0,id:'weather',icon:'weather',required:true}])
+  assert.equal(request.variables[0].id,'weather')
+  assert.equal(request.variables[0].factId, 'weather:@summary')
+  assert.equal(request.variables[0].text, 'Local weather 25°C overcast in Taipei')
+  assert.equal(request.variables[0].required, undefined)
   assert.equal(JSON.stringify(request.variables).includes('{{'),false)
-  assert.equal(request.previous,undefined)
+  assert.deepEqual(request.previous,[])
   emit?.({type:'message_end',message:assistant(JSON.stringify({items:[{sources:[0]}]}))})
  })
  const readings=[{id:'weather',label:'Local weather',state:'live',value:{temperatureC:25,condition:'overcast',place:'Taipei'},home:{mode:'required',priority:100,icon:'weather',fields:['temperatureC','condition','place']}}]
@@ -323,17 +343,17 @@ test('Home generation accepts finite source selections and returns the existing 
  assert.equal(result.items[0].segments[0].icon,'weather')
 })
 
-test('required home correction names the exact visible coverage contract', async t => {
+test('invalid fact selections retry without restoring required source coverage', async t => {
   let attempts = 0
   const bot = await generationFixture(t, { TYPESAFE_API_KEY: 'fixture-only' }, async (emit, text) => {
     const request = JSON.parse(text.slice(text.indexOf('{')))
     if (++attempts === 2) {
       assert.match(request.formatCorrection, /integer selector/)
-      assert.equal(request.variables[0].required,true)
+      assert.equal(request.variables[0].required,undefined)
       assert.equal(request.variables[0].icon,'portfolio')
-      assert.equal(request.readings[0].label,'Futu holdings')
+      assert.match(request.variables[0].text,/Futu holdings/)
     }
-    const content = attempts === 1 ? '{"items":[]}' : JSON.stringify({items:[{sources:[0]}]})
+    const content = attempts === 1 ? '{"items":[{"sources":[999]}]}' : JSON.stringify({items:[{sources:[0]}]})
     emit?.({ type: 'message_end', message: assistant(content) })
   })
   await bot.generateBriefing({ readings: [{ id: 'futu', label: 'Futu holdings', state: 'live', value: { count: 11 }, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['count'] } }] })
@@ -677,7 +697,7 @@ test('Given no Jev, the ordinary runtime still boots and serves typed judgments 
   assert.equal(result.answers.startup.noul, 0.99)
   assert.deepEqual(await bot.generateBriefing({readings: []}), {items: []})
   assert.equal(await bot.prompt('你好'), 'fixture reply')
-  assert.equal(requests, 3)
+  assert.equal(requests, 2)
 })
 
 

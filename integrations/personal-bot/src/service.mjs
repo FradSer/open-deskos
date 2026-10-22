@@ -105,6 +105,7 @@ export class PersonalBotService {
   publishRemote(remote) {
     if (this.closed) return
     this.remoteFrame = structuredClone(remote)
+    this.home?.invalidate()
     this.status = { ...this.status, ...this.replyFrame, remote: this.remoteFrame }
     for (const listener of this.listeners) listener(this.status)
   }
@@ -112,6 +113,7 @@ export class PersonalBotService {
   publishAgents(tasks) {
     if (this.closed) return
     this.agentFrame = Array.isArray(tasks) ? { state: 'live', tasks: structuredClone(tasks) } : { state: 'unavailable', tasks: [] }
+    this.home?.invalidate()
     this.status = { ...this.status, agents: this.agentFrame }
     for (const listener of this.listeners) listener(this.status)
   }

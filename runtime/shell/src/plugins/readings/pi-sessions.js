@@ -27,7 +27,7 @@ function createPiSessionReadings(piSessions) {
   if (!piSessions?.scan) return []
   return [{
     id: 'odk.app.pi-sessions',
-    home: { mode: 'optional', priority: 70, icon: 'sessions', fields: ['total', 'counts', 'truncated'] },
+    home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['total', 'counts', 'sessions', 'truncated'] },
     label: 'Pi sessions',
     kind: 'app',
     read: async () => {

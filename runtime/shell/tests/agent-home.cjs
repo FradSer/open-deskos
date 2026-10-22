@@ -62,6 +62,57 @@ async function send(briefing) {
   publishStatus({ state: 'idle', message: '', briefing })
   await evaluate(`new Promise(resolve => setTimeout(resolve, 30))`)
 }
+async function assertAllSourceOverview() {
+  const previousView = await evaluate(`({width:innerWidth,height:innerHeight,theme:document.documentElement.dataset.theme})`)
+  const { HomeBriefing } = await import('../../../integrations/personal-bot/src/home-briefing.mjs')
+  const { generateHomeSelection } = await import('../../../integrations/personal-bot/src/home-template.mjs')
+  const { createHomeSourceAccess } = await import('../../../integrations/personal-bot/src/home-sources.mjs')
+  const { parseHomeBriefing } = require('../src/home-briefing-frame')
+  const source = (id, label, icon, value) => ({ id, label, kind: 'app', state: 'live', value,
+    home: { mode: 'optional', priority: 0, icon, fields: Object.keys(value) } })
+  const sources = [source('futu', 'Futu holdings', 'portfolio', { todayChangePercent: 0.02 }),
+    source('weather', 'Weather', 'weather', { temperatureC: 25, condition: 'cloudy' }),
+    source('pi', 'Pi sessions', 'sessions', { total: 1, sessions: [{ project: 'Desk', goal: 'Review release', state: 'waiting', activity: 'Needs input' }] }),
+    source('hydra', 'Hydra plants', 'plants', { plants: [{ name: 'Fern', soilPercent: 55 }] }),
+    source('quota', 'API quota', 'quota', { accounts: [{ name: 'Main', remainingPercent: 2 }] }),
+    source('reading', 'Reading', 'reading', { title: 'A synthetic book' })]
+  const task = { taskId: '00000000-0000-0000-0000-000000000001', identity: { name: 'Release agent' }, state: 'failed',
+    updatedAt: new Date().toISOString(), request: 'Check the release', verification: { status: 'needs_review' } }
+  const access = createHomeSourceAccess({ dataRequest: async (command, options) => command === 'list' ? { readings: sources } : { reading: sources.find(source => source.id === options.id) },
+    runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task], total: 1 }), status: () => task } } }), remote: () => undefined })
+  const seen = new Set()
+  const home = new HomeBriefing({ requireBindings: true, list: access.list, read: access.read, publish() {},
+    generate: input => generateHomeSelection(input.readings, { choose: async request => {
+      for (const variable of request.variables) seen.add(variable.factId)
+      const failed = request.variables.find(variable => variable.factId === `odk.agent.${task.taskId}:state`)
+      const quota = request.variables.find(variable => variable.factId === 'quota:accounts.0.remainingPercent')
+      return { items: [{ sources: [failed.selector, quota.selector] }] }
+    } }) })
+  try {
+    await home.refresh()
+    const frame = parseHomeBriefing(home.frame)
+    assert.equal(frame.state, 'live')
+    assert.equal(frame.coverage.readSources, 7)
+    assert.equal(frame.coverage.selectedSources, 2)
+    assert.ok(seen.has('pi:sessions.0.goal') && seen.has('pi:sessions.0.activity'))
+    assert.match(frame.items[0].text, /failed.*2%/)
+    assert.doesNotMatch(frame.items[0].text, /Futu|Weather/)
+    await resize(1280, 800)
+    for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+      await evaluate(`(async()=>{await odkTheme.set('${theme}');await document.fonts.ready})()`)
+      await send(frame)
+      const result = await evaluate(`(()=>{const n=document.querySelector('#dash-narrative');return {text:n.textContent,coverage:n.getAttribute('aria-description'),overflow:n.scrollWidth>n.clientWidth+1}})()`)
+      assert.equal(result.text, frame.items[0].text)
+      assert.match(result.coverage, /Read 7 of 7/)
+      assert.equal(result.overflow, false, theme)
+      if (theme === 'pixel') fs.writeFileSync(path.join(os.tmpdir(), 'odk-overview-generated.png'), await capturePaintedFrame())
+    }
+  } finally {
+    home.close()
+    await resize(previousView.width, previousView.height)
+    await evaluate(`odkTheme.set(${JSON.stringify(previousView.theme || 'pixel')})`)
+  }
+}
 async function assertOverviewRefreshIndicator({ ownerConversation = false } = {}) {
   const retained = {state:'idle',message:'',jev:{status:'verified'}}
   if (ownerConversation) {
@@ -1041,6 +1092,11 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  if (process.argv.includes('--overview-synthesis-only')) {
+    await assertAllSourceOverview()
+    console.log('PASS synthetic all-source generation, Pi Agent analysis, coverage and four renderer themes')
+    finish(0);return
+  }
   if (process.argv.includes('--overview-refresh-only')) {
     await assertOverviewRefreshIndicator({ownerConversation:true})
     console.log('PASS Overview red dot, refresh spinner and conversation isolation')
@@ -1065,6 +1121,7 @@ app.whenReady().then(async () => {
     finish(0)
     return
   }
+  await assertAllSourceOverview()
   await assertOverviewRefreshIndicator()
   const compactSegments = [{ text: 'You have ' }, { text: '3 active sessions', icon: 'sessions' },
     { text: ' and ' }, { text: '2 plants at 63% moisture', icon: 'plants' },

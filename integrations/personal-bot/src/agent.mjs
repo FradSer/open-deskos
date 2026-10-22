@@ -6,8 +6,8 @@ import { createIntentStore, createIntentRuntime } from './intents.mjs'
 import { createIntentJudge } from './intent-jev.mjs'
 import { createIntentTools } from './intent-tools.mjs'
 import { odkDataRequest } from './odk-data.mjs'
-import { resolveHomeTemplate, homeTemplateVariables, compileHomeSelection } from './home-template.mjs'
-import { generateWithinDeadline } from './proactive-generation-session.mjs'
+import { resolveHomeTemplate, generateHomeSelection, compileHomeSelection } from './home-template.mjs'
+import { generateWithinDeadline, generationDeadlineMs } from './proactive-generation-session.mjs'
 import { homeInstructions, validateHomeBriefing } from './home-briefing.mjs'
 import { Check } from 'typebox/value'
 import { randomUUID } from 'node:crypto'
@@ -300,9 +300,12 @@ export async function createPersonalBot(config, { createSession = createDurableA
       get lastTaskResult() { return structuredClone(lastTaskResult) },
       generationModel: session.model ? `${session.model.provider}/${session.model.id}` : config.model ?? 'default',
       generateBriefing: async ({ signal, ...input }) => {
-        const variables = homeTemplateVariables(input.readings)
-        const selection = await generateWithinDeadline({
-          signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,
+        const duration = generationDeadlineMs((config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS)
+        const deadlineAt = Date.now() + duration
+        const combined = AbortSignal.any([lifetime.signal, AbortSignal.timeout(duration), ...(signal ? [signal] : [])])
+        return generateHomeSelection(input.readings, { now: input.now, previous: input.previous,
+          choose: (request, variables) => generateWithinDeadline({
+          signal: combined, timeoutMs: Math.max(1000, deadlineAt - Date.now()),
           formatCorrection: homeInstructions,
           validate: raw => { validateHomeBriefing(resolveHomeTemplate(compileHomeSelection(raw, variables), input.readings), input.readings, { requireSegments: true }) },
           create: async () => {
@@ -315,8 +318,7 @@ export async function createPersonalBot(config, { createSession = createDurableA
             return generator
           },
           prompt: (generator, text) => sessionAdapter(generator).prompt(text),
-        }, { ...input, previous: undefined, variables: variables.map(({ id, icon }, selector) => ({ selector, id, icon: icon ?? 'status', required: input.readings[selector].home?.mode === 'required' })) })
-        return compileHomeSelection(selection, variables)
+        }, request) })
       },
       generateProposals: async ({ signal, ...input }) => generateWithinDeadline({
         signal, timeoutMs: (config.env ?? process.env).ODK_PROACTIVE_GENERATION_TIMEOUT_MS,

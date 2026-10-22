@@ -14,6 +14,7 @@
     "test:env:ssh": "node --test --test-timeout=60000 tests/acceptance/pi-env-ssh.test.mjs",
     "test:intents:live": "node scripts/test-intents-live.mjs",
     "test:agent:live": "node scripts/test-agent-runtime-live.mjs",
+    "test:overview:live": "node scripts/test-home-briefing-live.mjs",
     "test:proactive:jev:live": "node scripts/test-proactive-jev-live.mjs",
     "test:proactive:docker:live": "node scripts/test-proactive-docker-live.mjs",
     "start": "node src/main.mjs",

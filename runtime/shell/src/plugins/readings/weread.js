@@ -19,7 +19,7 @@ function createWereadReadings(weread) {
   if (!weread?.refresh) return []
   return [{
     id: 'odk.tile.weread',
-    home: { mode: 'optional', priority: 20, icon: 'reading', fields: ['book', 'highlight'] },
+    home: { mode: 'optional', priority: 0, icon: 'reading', fields: ['book', 'highlight'] },
     label: 'WeRead highlight',
     kind: 'tile',
     read: async () => {

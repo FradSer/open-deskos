@@ -7,6 +7,130 @@ import { statusFrames } from '../src/socket.mjs'
 const reading = (value = 2) => ({ id: 'odk.tile.pi-sessions', label: 'Pi Sessions', kind: 'tile', state: 'live', updatedAt: 1000, value: { count: value } })
 const output = { items: [{ text: 'Two sessions are visible.', readingIds: ['odk.tile.pi-sessions'] }] }
 
+test('all visible sources participate without reserved portfolio or priority slots', async t => {
+  const sources = Array.from({ length: 70 }, (_, i) => ({ id: `source-${i}`, label: `Source ${i}`, kind: 'package', state: 'live', value: { count: i },
+    home: { mode: i === 0 ? 'required' : 'optional', priority: 100 - i, icon: 'tasks', fields: ['count'] } }))
+  sources.push({ ...sources[0], id: 'hidden', home: { ...sources[0].home, mode: 'hidden' } })
+  const readIds = new Set()
+  const home = new HomeBriefing({ list: async () => sources, read: async id => { readIds.add(id); return sources.find(s => s.id === id) },
+    generate: async input => {
+      assert.equal(input.readings.length, 70)
+      return { items: [{ text: 'Source 69 count is 69.', readingIds: ['source-69'], segments: [{ text: 'Source 69 count is 69.', icon: 'tasks' }] }] }
+    }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.equal(readIds.size, 70)
+  assert.equal(readIds.has('hidden'), false)
+  assert.equal(home.frame.omittedSources, 0)
+})
+
+test('waiting Agent changes trigger selection even when field types do not change', async t => {
+  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
+  let waiting = 1, calls = 0
+  const source = () => ({ id: 'pi', label: 'Pi sessions', state: 'live', value: { total: 8, counts: { waiting } }, home: { mode: 'optional', priority: 0, icon: 'sessions', fields: ['total', 'counts'] } })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => [source()], read: async () => source(),
+    generate: async ({ readings }) => { calls++; return compileHomeSelection({ items: [{ sources: [0] }] }, homeTemplateVariables(readings)) }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); waiting = 7; await home.refresh()
+  assert.equal(calls, 2)
+  assert.match(home.frame.items[0].text, /7 waiting/)
+})
+
+test('an expired generation failure shows current bound facts instead of old values', async t => {
+  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
+  let now = 1000, count = 2, fail = false
+  const source = () => ({ id: 'tasks', label: 'Tasks', state: 'live', value: { count }, home: { mode: 'optional', priority: 0, icon: 'tasks', fields: ['count'] } })
+  const home = new HomeBriefing({ requireBindings: true, now: () => now, list: async () => [source()], read: async () => source(),
+    generate: async ({ readings }) => { if (fail) throw Error('synthetic failure'); return compileHomeSelection({ items: [{ sources: [0] }] }, homeTemplateVariables(readings)) }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); count = 9; now += 16 * 60000; fail = true; await home.refresh()
+  assert.equal(home.frame.state, 'error')
+  assert.match(home.frame.items[0].text, /9/)
+  assert.doesNotMatch(home.frame.items[0].text, /2/)
+})
+
+test('resident Agent tasks and every remote report page join the shared source inventory', async () => {
+  const { createHomeSourceAccess } = await import('../src/home-sources.mjs')
+  const records = Array.from({ length: 10 }, (_, i) => ({ id: String(i).padStart(64, 'a'), at: 1000 + i, text: `Reported result ${i}`, verification: 'reported_unverified', sources: [{ taskName: `Remote task ${i}`, state: 'settled' }] }))
+  const task = { taskId: '00000000-0000-0000-0000-000000000001', identity: { name: 'Research' }, state: 'running', updatedAt: new Date(1000).toISOString(), request: 'Check the runtime', verification: { status: 'not_run' } }
+  const access = createHomeSourceAccess({ dataRequest: async command => command === 'list' ? { readings: [reading()] } : { reading: reading() },
+    runtime: () => ({ agent: { agentTasks: { list: () => ({ tasks: [task], total: 1 }), status: () => task } } }),
+    remote: () => ({ snapshot: (offset = 0, limit = 8) => ({ state: 'live', messages: records.slice(offset, offset + limit), totalMessages: records.length, nextOffset: offset + limit < records.length ? offset + limit : null }) }) })
+  const entries = await access.list()
+  assert.equal(entries.length, 12)
+  const agent = await access.read(entries.find(entry => entry.id.startsWith('odk.agent.')).id)
+  assert.equal(agent.value.goal, 'Check the runtime')
+  assert.equal(agent.value.state, 'running')
+  assert.equal(agent.value.verification, 'not_run')
+  task.state = 'failed'
+  assert.equal((await access.read(agent.id)).value.state, 'failed')
+  task.state = 'finished'
+  task.response = 'The worker reported a completed check.'
+  assert.equal((await access.read(agent.id)).value.result, task.response)
+  const last = await access.read(entries.at(-1).id)
+  assert.equal(last.value.verification, 'reported_unverified')
+  assert.equal(last.value.report, 'Reported result 9')
+})
+
+test('a slow source has a deadline while every healthy source still participates', async t => {
+  const entries = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, label: `Source ${i}`, state: 'live', value: { count: i } }))
+  let active = 0, maximum = 0
+  const home = new HomeBriefing({ readTimeoutMs: 30, list: async () => entries, read: async (id, signal) => {
+    active++; maximum = Math.max(maximum, active)
+    try {
+      if (id === 's0') return await new Promise((_, reject) => signal.addEventListener('abort', () => reject(Error('timed out')), { once: true }))
+      await new Promise(resolve => setTimeout(resolve, 2))
+      return entries.find(entry => entry.id === id)
+    } finally { active-- }
+  }, generate: async ({ readings }) => {
+    assert.equal(readings.length, 6)
+    assert.equal(readings[0].state, 'unavailable')
+    return { items: [{ text: 'Source 5 count is 5.', readingIds: ['s5'] }] }
+  }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh()
+  assert.equal(home.frame.state, 'live')
+  assert.equal(home.frame.coverage.readSources, 6)
+  assert.equal(home.frame.coverage.failedSources, 1)
+  assert.ok(maximum <= 4)
+})
+
+test('time approaching a declared event triggers selection without a source update', async t => {
+  let now = 1000, calls = 0
+  const source = { id: 'calendar', label: 'Calendar', state: 'live', value: { startsAt: new Date(now + 31 * 60000).toISOString() } }
+  const home = new HomeBriefing({ requireBindings: true, now: () => now, list: async () => [source], read: async () => source,
+    generate: async () => { calls++; return { items: [] } }, publish() {} })
+  t.after(() => home.close())
+  await home.refresh(); now += 2 * 60000; await home.refresh()
+  assert.equal(calls, 2)
+})
+
+test('retained Overview items keep their own coverage when the inventory shrinks', async t => {
+  const { default: { parseHomeBriefing } } = await import('../../../runtime/shell/src/home-briefing-frame.js')
+  const { compileHomeSelection, homeTemplateVariables } = await import('../src/home-template.mjs')
+  let sources = [reading(), { ...reading(), id: 'other', label: 'Other' }], calls = 0, entered, release
+  const ready = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const home = new HomeBriefing({ requireBindings: true, list: async () => sources, read: async id => sources.find(source => source.id === id),
+    generate: async ({ readings }) => {
+      if (++calls === 2) { entered(); await gate }
+      return compileHomeSelection({ items: [{ sources: readings.map((_, index) => index) }] }, homeTemplateVariables(readings))
+    }, publish() {} })
+  t.after(() => { release(); home.close() })
+  await home.refresh()
+  assert.equal(home.frame.coverage.selectedSources, 2)
+  sources = sources.slice(0, 1)
+  const pending = home.refresh()
+  await ready
+  assert.equal(home.frame.state, 'loading')
+  assert.equal(parseHomeBriefing(home.frame).state, 'loading')
+  assert.equal(home.frame.coverage.readSources, 2, 'coverage describes the retained items')
+  release(); await pending
+  assert.equal(home.frame.coverage.readSources, 1)
+  assert.equal(parseHomeBriefing(home.frame).state, 'live')
+})
+
 test('home, proposals and maximally escaped voice text fit the shared transport', () => {
   const service = new PersonalBotService({ record: async () => { throw Error('unused') }, transcribe: async () => '', prompt: async () => '' })
   const sources = Array.from({ length: 8 }, (_, i) => ({ id: `source-${i}-${'a'.repeat(110)}`, label: '\ud800'.repeat(128), state: 'live', updatedAt: Date.now() }))
@@ -26,13 +150,15 @@ test('failed source reads and oversized readings are disclosed independently', a
   const home = new HomeBriefing({ list: async () => [reading(), { id: 'failed', label: 'Failed', kind: 'app' }, { id: 'large', label: 'Large', kind: 'app' }],
     read: async id => {
       if (id === 'failed') throw Error('Unavailable')
-      if (id === 'large') return { id, state: 'live', value: { text: 'a'.repeat(9000) } }
+      if (id === 'large') return { id, state: 'live', value: { text: 'a'.repeat(70000) } }
       return reading()
     }, generate: async value => { input = value; return output }, publish: f => frames.push(f) })
   await home.refresh()
   assert.equal(input.readings[1].state, 'unavailable')
-  assert.equal(input.omittedSources, 1)
-  assert.equal(frames.at(-1).omittedSources, 1)
+  assert.equal(input.omittedSources, 0)
+  assert.equal(input.readings[2].state, 'error')
+  assert.equal(frames.at(-1).omittedSources, 0)
+  assert.equal(frames.at(-1).coverage.failedSources, 2)
   home.close()
 })
 
@@ -107,18 +233,19 @@ test('a source push during confirmation cannot publish captured old data as live
   home.close()
 })
 
-test('unchanged content still updates its omitted source count without regeneration', async () => {
+test('a newly connected error source participates and updates coverage', async () => {
   let large = false, calls = 0
   const frames = []
   const home = new HomeBriefing({ list: async () => large ? [reading(), { id: 'large', label: 'Large', kind: 'app' }] : [reading()],
-    read: async id => id === 'large' ? { id, state: 'live', value: { content: 'a'.repeat(9000) } } : reading(),
+    read: async id => id === 'large' ? { id, state: 'live', value: { content: 'a'.repeat(70000) } } : reading(),
     generate: async () => { calls++; return output }, publish: f => frames.push(f) })
   await home.refresh()
   large = true
   home.invalidate()
   await home.refresh()
-  assert.equal(frames.at(-1).omittedSources, 1)
-  assert.equal(calls, 1)
+  assert.equal(frames.at(-1).omittedSources, 0)
+  assert.equal(frames.at(-1).coverage.failedSources, 1)
+  assert.equal(calls, 2)
   home.close()
 })
 
@@ -206,15 +333,14 @@ test('temperature and Pi count changes replace the prior sentence from fresh rea
   home.close()
 })
 
-test('required home sources cannot be silently omitted, even when unavailable', () => {
+test('legacy required metadata does not reserve a display slot', () => {
   const futu = { id: 'futu-poller', label: 'Futu holdings', state: 'unavailable', value: null, home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['positions', 'totals'] } }
-  assert.throws(() => validateHomeBriefing(output, [reading(), futu]), /Required home source/)
+  assert.equal(validateHomeBriefing(output, [reading(), futu]).length, 1)
   const item = { text: 'Futu holdings are unavailable.', readingIds: [futu.id], segments: [{ text: 'Futu holdings are unavailable.', icon: 'portfolio' }] }
   assert.equal(validateHomeBriefing({ items: [item] }, [futu])[0].sources[0].state, 'unavailable')
-  assert.throws(() => validateHomeBriefing({ items: [{ text: '25°C in Taipei.', readingIds: ['weather', futu.id], segments: [{ text: '25°C in Taipei.', icon: 'portfolio' }] }] }, [futu, { id: 'weather', label: 'Weather', state: 'live' }], { requireSegments: true }), /Required home source/)
 })
 
-test('home policy excludes hidden data and selects declared fields in priority order', async () => {
+test('home policy excludes hidden data and reads declared fields without category order', async () => {
   const entries = [
     { id: 'hidden', label: 'Hidden', home: { mode: 'hidden', priority: 0, icon: 'status', fields: [] } },
     { id: 'weather', label: 'Weather', home: { mode: 'optional', priority: 80, icon: 'weather', fields: ['temperatureC'] } },
@@ -224,22 +350,22 @@ test('home policy excludes hidden data and selects declared fields in priority o
   const home = new HomeBriefing({ list: async () => entries,
     read: async id => { readIds.push(id); return { id, state: 'live', value: { temperatureC: 25, positions: [], private_note: 'excluded' } } },
     generate: async input => {
-      assert.deepEqual(input.readings.map(r => r.id), ['holdings', 'weather'])
-      assert.deepEqual(input.readings[0].value, { positions: [] })
-      assert.deepEqual(input.readings[1].value, { temperatureC: 25 })
+      assert.deepEqual(input.readings.map(r => r.id), ['weather', 'holdings'])
+      assert.deepEqual(input.readings[1].value, { positions: [] })
+      assert.deepEqual(input.readings[0].value, { temperatureC: 25 })
       return { items: [{ text: 'No Futu holdings.', readingIds: ['holdings'], segments: [{ text: 'No Futu holdings.', icon: 'portfolio' }] }] }
     }, publish: () => {} })
   await home.refresh()
-  assert.deepEqual(readIds, ['holdings', 'weather'])
+  assert.deepEqual(readIds, ['weather', 'holdings'])
   assert.equal(home.frame.state, 'live')
   assert.equal(home.frame.omittedSources, 0)
   home.close()
 })
 
-test('oversized required data remains a bounded required error source', async () => {
+test('oversized source data remains a bounded error source', async () => {
   const source = { id: 'holdings', label: 'Holdings', home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['note'] } }
   let called = false
-  const home = new HomeBriefing({ list: async () => [source], read: async () => ({ id: source.id, state: 'live', value: { note: 'a'.repeat(9000) } }),
+  const home = new HomeBriefing({ list: async () => [source], read: async () => ({ id: source.id, state: 'live', value: { note: 'a'.repeat(70000) } }),
     generate: async input => {
       called = true
       assert.equal(input.readings[0].state, 'error')
@@ -253,7 +379,7 @@ test('oversized required data remains a bounded required error source', async ()
   home.close()
 })
 
-test('aggregate input budget reserves room for every required source state', async () => {
+test('readings larger than one model request remain available for fact batching', async () => {
   const entries = Array.from({ length: 7 }, (_, i) => ({ id: `holdings-${i}`, label: `Holdings${i}`, kind: 'app', home: { mode: 'required', priority: 100, icon: 'portfolio', fields: ['note'] } }))
   let called = false
   const home = new HomeBriefing({ list: async () => entries, read: async id => {
@@ -264,7 +390,7 @@ test('aggregate input budget reserves room for every required source state', asy
   }, generate: async input => {
     called = true
     assert.equal(input.readings.length, 7)
-    assert.ok(input.readings.some(reading => reading.state === 'error'))
+    assert.ok(input.readings.every(reading => reading.state === 'live'))
     const text = entries.map(e => e.label).join(', ') + ' data states.'
     return { items: [{ text, segments: [{ text, icon: 'portfolio' }], readingIds: entries.map(e => e.id) }] }
   }, publish: () => {} })
@@ -274,13 +400,13 @@ test('aggregate input budget reserves room for every required source state', asy
   home.close()
 })
 
-test('required coverage and two optional priorities exclude volatile low-priority sources', async () => {
+test('low-priority sources participate alongside all legacy required sources', async () => {
   const entries = Array.from({ length: 4 }, (_, i) => ({ id: `source-${i}`, label: `Source${i}`, home: { mode: i === 0 ? 'required' : 'optional', priority: 100 - i, icon: 'status', fields: ['count'] } }))
   const readIds = []
   const home = new HomeBriefing({ list: async () => entries, read: async id => { readIds.push(id); return { id, state: 'live', value: { count: 1 } } },
-    generate: async input => { assert.equal(input.readings.length, 3); home.invalidate(['source-3']); return { items: [{ text: 'Source0 count is 1.', readingIds: ['source-0'], segments: [{ text: 'Source0 count is 1.', icon: 'status' }] }] } }, publish: () => {} })
+    generate: async input => { assert.equal(input.readings.length, 4); home.invalidate(['source-3']); return { items: [{ text: 'Source0 count is 1.', readingIds: ['source-0'], segments: [{ text: 'Source0 count is 1.', icon: 'status' }] }] } }, publish: () => {} })
   await home.refresh()
-  assert.deepEqual(readIds, ['source-0', 'source-1', 'source-2', 'source-0', 'source-1', 'source-2'])
+  assert.deepEqual(readIds, ['source-0', 'source-1', 'source-2', 'source-3', 'source-0', 'source-1', 'source-2', 'source-3'])
   assert.equal(home.frame.state, 'live')
   home.close()
 })
@@ -331,10 +457,10 @@ test('first startup synthesis failure keeps exact declared source facts visible 
   assert.deepEqual(home.frame.items[0].sources.map(s=>s.id),[source.id]);assert.equal(home.template,null);home.close()
 })
 
-test('source-only fallback refuses facts that cannot fit the unchanged required budget', async () => {
+test('source-only fallback selects complete facts within the display budget', async () => {
   const sources=Array.from({length:3},(_,i)=>({id:'synthetic.s'+i,label:'Synthetic '+String(i)+' '+ 'x'.repeat(110),kind:'app',state:'live',value:{count:2},home:{mode:'required',priority:100,icon:'tasks',fields:['count']}}))
   const home=new HomeBriefing({requireBindings:true,list:async()=>sources,read:async id=>sources.find(s=>s.id===id),generate:async()=>{throw Error('synthetic failure')},publish:()=>{}})
-  await home.refresh();assert.equal(home.frame.state,'error');assert.deepEqual(home.frame.items,[]);home.close()
+  await home.refresh();assert.equal(home.frame.state,'error');assert.equal(home.frame.items.length,1);assert.ok(home.frame.items[0].text.length<=240);home.close()
 })
 
 test('source-only fallback rereads current facts after failed synthesis', async () => {
@@ -390,5 +516,5 @@ test('a re-resolved model template clears source-only provenance before a later 
   sources=[];await home.refresh();assert.equal(home.frame.state,'empty')
   sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'error')
   sources=[source(false)];await home.refresh();assert.equal(home.frame.state,'live');assert.deepEqual(home.frame.items,modelItems)
-  sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'stale');assert.deepEqual(home.frame.items,modelItems)
+  sources=[source(true)];await home.refresh();assert.equal(home.frame.state,'error');assert.match(home.frame.items[0].text,/2 Synthetic sessions/)
 })
