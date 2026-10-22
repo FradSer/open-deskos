@@ -571,6 +571,7 @@ Scenario: Hidden previews capture the current native viewport
     And selected task navigation passes message input outside its readable return button
     And the capsule and composer retain keyboard and pointer access
     And the identity form remains inside the panel
+    And the open form paints above the avatar when they overlap on a short panel
 
   Scenario: The capsule acknowledges a status change once
     Given the Agent name and status share one capsule

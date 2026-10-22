@@ -259,6 +259,23 @@ async function assertCapsuleStack() {
     assert.ok(r.front&&r.nameClear&&r.below&&r.contained,theme+' '+width+': avatar in front, name clear, status below '+JSON.stringify(r))
     assert.equal(r.caption,'Thinking…');assert.equal(r.motion,0,'reduced motion remains static')
   }
+  await resize(1280,360)
+  await evaluate(`odkTheme.set('instrument');document.fonts.ready`)
+  await evaluate(`document.querySelector('.agent-identity summary').click();new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  const overlap=await evaluate(`(()=>{const a=document.querySelector('.agent-avatar').getBoundingClientRect(),f=document.querySelector('.agent-identity-form').getBoundingClientRect();return {x:Math.ceil(Math.max(a.left,f.left)),y:Math.ceil(Math.max(a.top,f.top)),width:Math.floor(Math.min(a.right,f.right)-Math.max(a.left,f.left)),height:Math.floor(Math.min(a.bottom,f.bottom)-Math.max(a.top,f.top))}})()`)
+  assert.ok(overlap.width>0&&overlap.height>8,'short panel exercises actual editor/avatar overlap')
+  console.log('SHORT_EDITOR_CROP '+JSON.stringify(overlap))
+  const editorPaint=(await capturePaintedPage(win,overlap)).toBitmap()
+  let withoutAvatar
+  try {
+    await evaluate(`document.querySelector('.agent-avatar').style.visibility='hidden';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+    withoutAvatar=(await capturePaintedPage(win,overlap)).toBitmap()
+  } finally { await evaluate(`document.querySelector('.agent-avatar').style.removeProperty('visibility')`) }
+  assert.equal(editorPaint.length,withoutAvatar.length,'editor comparison uses the same native crop')
+  let occluded=0;for(let i=0;i<editorPaint.length;i+=4)if(editorPaint[i]!==withoutAvatar[i]||editorPaint[i+1]!==withoutAvatar[i+1]||editorPaint[i+2]!==withoutAvatar[i+2])occluded++
+  assert.equal(occluded,0,'the opaque editor paints above the avatar on short panels')
+  await evaluate(`document.querySelector('.agent-identity').open=false`)
+  await resize(320,480)
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
   await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
   publishStatus({state:'transcribing'})

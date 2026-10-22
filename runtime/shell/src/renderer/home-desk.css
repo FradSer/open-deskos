@@ -76,7 +76,7 @@ html[data-theme='liquid-glass'] #home-desk {
 .agent-identity summary > .agent-name { grid-area: 1 / 1; text-align: center; }
 .agent-identity summary > .agent-state { grid-area: 2 / 1; text-align: center; }
 .agent-identity summary > svg { grid-area: 1 / 2 / span 2; width: 16px; height: 16px; flex: none; transform: rotate(-90deg); color: var(--odk-secondary-strong); }
-.agent-identity[open] { position: static; }
+.agent-identity[open] { position: static; z-index: auto; }
 .agent-identity[open] summary > svg { transform: none; }
 .agent-identity-form { position: absolute; z-index: 3; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(280px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border-radius: 20px; box-shadow: 0 12px 32px color-mix(in srgb, var(--odk-bg) 50%, transparent); background: var(--odk-elevated); border: 1px solid var(--odk-stroke); display: grid; gap: 12px; }
 .agent-status-detail { margin: 0; color: var(--odk-secondary-strong); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
