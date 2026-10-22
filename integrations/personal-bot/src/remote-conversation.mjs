@@ -286,11 +286,12 @@ export class RemoteConversation {
   reference(key) { const message=[...this.data.messages].reverse().find(message=>message.sources.some(source=>source.key===key));return message?{source:message.sources.find(source=>source.key===key),messageId:message.id}:{source:null} }
   context() {
     const tasks=[],seen=new Set();let omittedTasks=0
+    const names=new Map(this.data.messages.flatMap(message=>message.sources.filter(source=>source.taskName).map(source=>[this.thread(source),source.taskName])))
     for(const message of [...this.data.messages].reverse())for(const source of message.sources) {
       const thread=this.thread(source)
       if(seen.has(thread))continue
       seen.add(thread)
-      const task={sourceKey:source.key,taskName:source.taskName??'',sessionId:source.sessionId,project:source.project}
+      const task={sourceKey:source.key,taskName:source.taskName??names.get(thread)??'',sessionId:source.sessionId,project:source.project}
       if(JSON.stringify([...tasks,task]).length>6000){omittedTasks++;continue}
       tasks.push(task)
     }

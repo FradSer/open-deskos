@@ -11,7 +11,12 @@ test('routing context indexes distinct named sessions before repeated recent sum
  const directory=await realpath(await mkdtemp(join(tmpdir(),'odk-remote-index-')));protectProactivePath(directory);t.after(()=>rm(directory,{recursive:true,force:true}))
  const remote=new RemoteConversation({file:join(directory,'remote.json'),read:async()=>({ok:true,records:[],total:0,nextCursor:null}),synthesize:async()=>({}),publish:()=>{}})
  remote.data.messages=Array.from({length:8},(_,i)=>({id:String(i),text:'Repeated recent summary '+i,sources:[{...row(i===0?'older':'recent'),taskName:i===0?'SDLC 插件优化':'Repeated task'}]}))
+ const latest={...row('latest','b'.repeat(64)),sessionId:'older'}
+ remote.data.messages.push({id:'latest',text:'Latest unnamed summary',sources:[latest]})
  const context=remote.context()
+ const index=JSON.parse(context.split('\n')[1])
+ assert.deepEqual(index.tasks.find(task=>task.sessionId==='older'),{sourceKey:'latest',taskName:'SDLC 插件优化',sessionId:'older',project:'/synthetic/project'},'a newer unnamed source keeps its thread\'s known name and latest source key')
+ assert.deepEqual(remote.reference('latest').source,{...row('latest','b'.repeat(64)),sessionId:'older'},'index naming does not change the retained source or revision')
  assert(context.slice(0,8192).includes('SDLC 插件优化'),'an older named session remains visible to initial routing')
  assert(context.indexOf('SDLC 插件优化')<context.indexOf('Repeated recent summary'),'the compact index precedes verbose repeated updates')
 })
