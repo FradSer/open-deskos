@@ -1,4 +1,5 @@
 const net = require('node:net')
+const { parseVoiceFailure } = require('./personal-agent-frame')
 const { parseConversation } = require('./conversation-frame')
 const { parseReplyTo } = require('./personal-bot-reply-reference')
 const { randomUUID } = require('node:crypto')
@@ -167,6 +168,7 @@ function createPersonalBotClient({ socketPath, env = process.env, platform = pro
           ? record.transcript.slice(0, MAX_TRANSCRIPT_CHARACTERS) : ''
         publish({
           state: record.state,
+          ...(parseVoiceFailure(record) ? {voiceFailure:parseVoiceFailure(record)} : {}),
           textInput: record.textInput === true,
           replyInput: record.replyInput === true,
           message: typeof record.message === 'string' ? record.message.slice(0, MAX_MESSAGE_CHARACTERS) : '',

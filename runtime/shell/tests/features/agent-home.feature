@@ -519,13 +519,13 @@ Scenario: Hidden previews capture the current native viewport
     Then its header shows no Ready caption or status dot
     And messages have concise descriptive task names below their text
     And task names open the exact task thread and preserve explicit reply selection
-    And task capsules keep readable horizontal text padding
-    And each single-task capsule and its Reply button share a vertical center
+    And task names use one small icon and gray text without a border, fill, shadow, or capsule
+    And each single-task reference and its Reply button share a vertical center
     And single-task and multiple-task messages use the same two-column task row
     And each task row has exactly one Reply button and one task label
-    And task labels use compact secondary capsules with softer edges than Reply
+    And task labels retain their plain text treatment when hovered, pressed, or shown in Liquid Glass
     And a one-character task name retains a 44-pixel pointer target
-    And task labels retain readable text and full emphasis in high-contrast modes
+    And task labels retain readable text and keyboard focus in high-contrast modes
     And long task names wrap without horizontal conversation overflow
     And no Sources, Conversation details, or Earlier messages disclosures appear
     And scrolling up loads retained messages without a history button

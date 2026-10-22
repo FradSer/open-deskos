@@ -51,7 +51,7 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
 
 /* The visible control owns its frame. Hit layers and integrated text fields
    retain the frame supplied by their Widget, page handle, or composer. */
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, #dots):not(:where(.widget-launch, .dot, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, #dots):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
   border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
   background-color: var(--odk-glass-control-fill);
   background-image: var(--odk-glass-control-material);
@@ -61,7 +61,7 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
   color: var(--odk-control-foreground, var(--odk-primary));
 }
 
-html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary) {
+html[data-theme='liquid-glass'] #personal-agent :is(button, input, select, summary):not(.agent-session-open) {
   border-radius: var(--odk-radius-pill);
 }
 
@@ -88,7 +88,7 @@ html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summar
   }
 }
 
-html[data-theme='liquid-glass'] body :is(button, summary, [role='button'], #dots):not(:where(.widget-launch, .dot)):active:not(:disabled),
+html[data-theme='liquid-glass'] body :is(button, summary, [role='button'], #dots):not(:where(.widget-launch, .dot, .agent-session-open)):active:not(:disabled),
 html[data-theme='liquid-glass'] body :is(button, [role='button'], #dots)[aria-pressed='true'],
 html[data-theme='liquid-glass'] body :is(button, [role='button'], #dots)[aria-selected='true'] {
   border-color: var(--odk-stroke-focus);

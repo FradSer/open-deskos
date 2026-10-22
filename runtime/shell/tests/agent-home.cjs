@@ -253,29 +253,49 @@ async function assertSimpleConversation() {
   for(const theme of ['instrument','pixel','border-beam','liquid-glass']) for(const features of [[{name:'prefers-contrast',value:'more'}],[{name:'forced-colors',value:'active'}]]) {
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features})
     await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
-    const accessible=await evaluate(`(()=>{const task=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open'),reply=task.parentElement.querySelector('.agent-session-reply'),t=getComputedStyle(task),r=getComputedStyle(reply);return t.color===r.color&&t.borderTopWidth==='1px'&&task.getBoundingClientRect().height>=44})()`)
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9})
+    const accessible=await evaluate(`(()=>{const task=document.querySelector('[data-remote-id="${item.id}"] .agent-session-open'),reply=task.parentElement.querySelector('.agent-session-reply'),t=getComputedStyle(task),r=getComputedStyle(reply);task.focus();return t.color===r.color&&t.borderTopWidth==='0px'&&t.backgroundImage==='none'&&t.boxShadow==='none'&&getComputedStyle(task).outlineStyle==='solid'&&task.getBoundingClientRect().height>=44})()`)
     assert.equal(accessible,true,theme+': high-contrast task labels retain full readable emphasis')
   }
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]})
+  for(const [voiceFailure,failure] of Object.entries({microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'})) {
+    publishStatus({...frame,state:'error',transcript:'',voiceFailure,message:'Updated owner wording'});await evaluate('new Promise(r=>setTimeout(r,20))')
+    assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),failure,'voice failures retain their actual safe cause')
+  }
+  publishStatus({...frame,state:'idle',transcript:'',message:''});await evaluate('new Promise(r=>setTimeout(r,20))')
+  assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'','cancelled voice returns to a quiet ready header')
+  assert.equal(await evaluate(`document.querySelector('.agent-send').disabled`),false,'cancellation leaves text input available')
   publishStatus({...frame,remote:{...frame.remote,state:'unavailable'}});await evaluate('new Promise(r=>setTimeout(r,20))')
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
 }
 
 async function assertSessionActionGeometry(id, theme, width) {
+  const plain=`(()=>{const task=document.querySelector('[data-remote-id="${id}"] .agent-session-open'),s=getComputedStyle(task),icon=task.querySelector('svg[aria-hidden="true"]'),name=task.querySelector('.agent-session-name');return !!icon&&!!name&&s.borderTopWidth==='0px'&&s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.backgroundImage==='none'&&s.boxShadow==='none'&&s.backdropFilter==='none'})()`
+  assert.equal(await evaluate(plain),true,theme+': session reference is only an icon and plain text')
+  if(width===1280&&!theme.includes('task-name')) {
+    await win.webContents.debugger.sendCommand('DOM.enable');await win.webContents.debugger.sendCommand('CSS.enable')
+    const {root:dom}=await win.webContents.debugger.sendCommand('DOM.getDocument')
+    const {nodeId}=await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:dom.nodeId,selector:`[data-remote-id="${id}"] .agent-session-open`})
+    try { for(const state of ['hover','active']) {
+      await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[state]})
+      assert.equal(await evaluate(plain),true,theme+': '+state+' keeps the reference unframed')
+    } } finally {await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId,forcedPseudoClasses:[]})}
+  }
   const geometry = await evaluate(`(()=>{
     const article=document.querySelector('[data-remote-id="${id}"]'),task=article.querySelector('.agent-session-open'),reply=article.querySelector('.agent-session-reply');
-    const t=task.getBoundingClientRect(),r=reply.getBoundingClientRect(),s=getComputedStyle(task),range=document.createRange();range.selectNodeContents(task);const text=range.getBoundingClientRect();
+    const t=task.getBoundingClientRect(),r=reply.getBoundingClientRect(),s=getComputedStyle(task),range=document.createRange();range.selectNodeContents(task.querySelector('.agent-session-name'));const text=range.getBoundingClientRect(),icon=task.querySelector('svg').getBoundingClientRect();
     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');canvas.width=canvas.height=1;
     const rgba=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data]};
     const rs=getComputedStyle(reply),probe=document.createElement('i');probe.style.color='var(--odk-surface)';document.body.append(probe);const surface=rgba(getComputedStyle(probe).color);probe.remove();
-    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],textInset:[text.left-t.left,t.right-text.right],center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,replyWidth:r.width,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface,edgeAlpha:rgba(s.borderTopColor)[3],replyEdgeAlpha:rgba(rs.borderTopColor)[3]};
+    return {padding:[parseFloat(s.paddingInlineStart),parseFloat(s.paddingInlineEnd)],iconWidth:icon.width,iconGap:text.left-icon.right,center:Math.abs(t.y+t.height/2-r.y-r.height/2),taskHeight:t.height,replyHeight:r.height,replyWidth:r.width,taskWidth:t.width,textWidth:text.width,lines:range.getClientRects().length,borders:parseFloat(s.borderInlineStartWidth)+parseFloat(s.borderInlineEndWidth),fontSize:parseFloat(s.fontSize),foreground:rgba(s.color),replyForeground:rgba(rs.color),surface};
   })()`)
-  assert.ok(geometry.padding.every(value=>value>=12)&&geometry.textInset.every(value=>value>=12), 'Task text needs capsule padding: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.iconWidth>=16&&geometry.iconWidth<=20&&geometry.iconGap>=5&&geometry.iconGap<=8, 'Task icon and name stay compact: '+JSON.stringify({theme,width,...geometry}))
   assert.ok(geometry.center<=1&&geometry.taskHeight>=44&&geometry.replyHeight>=44&&geometry.taskWidth>=44&&geometry.replyWidth>=44, 'Task and Reply must align: '+JSON.stringify({theme,width,...geometry}))
-  assert.ok(geometry.lines>1||geometry.taskWidth<=Math.max(44,geometry.textWidth+geometry.padding.reduce((a,b)=>a+b,0)+geometry.borders)+1,'Task capsule must fit its label: '+JSON.stringify({theme,width,...geometry}))
+  assert.ok(geometry.lines>1||geometry.taskWidth<=Math.max(44,geometry.textWidth+geometry.iconWidth+geometry.iconGap+geometry.padding.reduce((a,b)=>a+b,0))+1,'Task reference must fit its label: '+JSON.stringify({theme,width,...geometry}))
   const luminance=rgba=>rgba.slice(0,3).map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[0.2126,0.7152,0.0722][i],0)
   const ink=luminance(geometry.foreground),surface=luminance(geometry.surface),contrast=(Math.max(ink,surface)+0.05)/(Math.min(ink,surface)+0.05)
-  assert.ok(geometry.fontSize>=14&&contrast>=4.5&&ink<luminance(geometry.replyForeground)&&geometry.edgeAlpha<geometry.replyEdgeAlpha*0.6,'Task label must stay readable and secondary to Reply: '+JSON.stringify({theme,width,contrast,...geometry}))
+  assert.ok(geometry.fontSize>=14&&contrast>=4.5&&ink<luminance(geometry.replyForeground),'Task label must stay readable and secondary to Reply: '+JSON.stringify({theme,width,contrast,...geometry}))
 }
 
 async function assertCapsuleStack() {

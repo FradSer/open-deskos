@@ -20,6 +20,14 @@ class PersonalAgentFrameTest {
     }
 
     @Test
+    fun invalidOrInactiveVoiceFailuresNeverCross() {
+        for (cause in listOf("unknown", JSONObject().put("code", "microphone"), JSONObject.NULL)) {
+            assertFalse(PersonalAgentFrame.project(JSONObject().put("state", "error").put("voiceFailure", cause)).has("voiceFailure"))
+        }
+        assertFalse(PersonalAgentFrame.project(JSONObject().put("state", "idle").put("voiceFailure", "microphone")).has("voiceFailure"))
+    }
+
+    @Test
     fun aFieldTheRendererDoesNotReadNeverCrosses() {
         val projected = PersonalAgentFrame.project(JSONObject("{\"state\":\"idle\",\"message\":\"\",\"privateNote\":\"do not send me\"}"))
         assertFalse("an unread field must be dropped", projected.has("privateNote"))

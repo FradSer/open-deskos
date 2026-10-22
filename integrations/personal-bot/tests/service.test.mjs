@@ -34,6 +34,8 @@ test('remote capture cancellation rejects stale identities and prevents late tra
  service.reserveRemoteRecording(recording,()=>{})
  assert.equal(await service.cancelRemoteRecording({}),false);assert.equal(service.status.state,'recording')
  assert.equal(await service.cancelRemoteRecording(recording),true);assert.equal(cleanups,1)
+ assert.equal(service.status.state,'idle');assert.equal(service.status.message,'');assert.equal(service.status.voiceFailure,undefined)
+ assert.equal(service.sendText('Continue after cancellation'),true);await service.pending;assert.equal(service.status.state,'idle')
  ready();await new Promise(resolve=>setImmediate(resolve));assert.equal(transcriptions,0)
  await service.toggle();assert.equal(service.status.state,'recording');assert.equal(await service.cancelRemoteRecording(recording),false)
  await service.close()
@@ -53,6 +55,16 @@ test('child activity stays separate from conversation state and clears during se
   assert.deepEqual(service.status.agents, { state: 'unavailable', tasks: [] })
   service.publishAgents(tasks)
   assert.deepEqual(service.status.agents.tasks, [])
+})
+
+test('recording cleanup failure remains an error and blocks a later input until release',async()=>{
+ let failed=true
+ const recording={done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{if(failed)throw Error('private cleanup')}}
+ const {service}=fixture();service.reserveRemoteRecording(recording,()=>{})
+ assert.equal(await service.cancelRemoteRecording(recording),false)
+ assert.equal(service.status.state,'error');assert.equal(service.status.message,'Recording cleanup failed');assert.equal(service.status.voiceFailure,'cleanup')
+ assert.equal(service.sendText('Must not race cleanup'),false)
+ failed=false;await service.close()
 })
 
 test('successful suggestion snapshots clear old errors without hiding later failures', () => {
@@ -272,6 +284,14 @@ test('busy toggle ignored; provider failure safely retryable', async () => {
   await failed.service.toggle()
   assert.equal(failed.service.status.state, 'recording')
   await failed.service.close()
+  let acquired
+  const retry=fixture({record:()=>new Promise(resolve=>{acquired=resolve})}).service
+  retry.setState('error','Microphone unavailable','','microphone')
+  const attempt=retry.toggle()
+  const published=[];retry.subscribe(status=>published.push(status));retry.publishAgents([])
+  assert.equal(published.at(-1).voiceFailure,undefined,'new capture clears the old cause before microphone acquisition')
+  acquired({done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{}})
+  await attempt;assert.equal(retry.status.state,'recording');await retry.close()
 })
 
 test('cleanup failure is contained and produces safe error', async () => {

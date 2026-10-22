@@ -32,10 +32,10 @@ export function createDisplayVoice({send,record,onLevel=(_level)=>{},startTimeou
   lease.cleaning??=Promise.resolve().then(()=>lease.recording.cleanup())
   return lease.cleaning
  }
- const observe=(task,lease)=>{void task.catch(()=>abort(lease)).catch(()=>{})}
- async function abort(lease) {
+ const observe=(task,lease,reason='unavailable')=>{void task.catch(()=>abort(lease,reason)).catch(()=>{})}
+ async function abort(lease,reason='cancelled') {
   if(active===lease){active=undefined;clear(lease)
-   const frame={v:1,type:'voice_cancel',requestId:lease.requestId,...(lease.id?{leaseId:lease.id}:{})}
+   const frame={v:1,type:'voice_cancel',requestId:lease.requestId,...(lease.id?{leaseId:lease.id}:{}),...(reason==='cancelled'?{}:{reason})}
    void Promise.resolve().then(()=>send(frame)).catch(()=>{})
   }
   await cleanup(lease)
@@ -53,13 +53,13 @@ export function createDisplayVoice({send,record,onLevel=(_level)=>{},startTimeou
    let seq=0
    for(let offset=0;offset<bytes.length;offset+=1536) {
     if(active!==lease)return
-    await send({v:1,type:'voice_chunk',requestId:lease.requestId,leaseId:lease.id,seq:seq++,data:bytes.subarray(offset,offset+1536).toString('base64')})
+    try{await send({v:1,type:'voice_chunk',requestId:lease.requestId,leaseId:lease.id,seq:seq++,data:bytes.subarray(offset,offset+1536).toString('base64')})}catch{await abort(lease,'unavailable');return}
    }
    if(active!==lease)return
    lease.phase='finishing'
-   lease.resultTimer=setTimeout(()=>observe(abort(lease),lease),resultTimeoutMs);lease.resultTimer.unref?.()
-   await send({v:1,type:'voice_end',requestId:lease.requestId,leaseId:lease.id,seq})
-  })(),lease)
+   lease.resultTimer=setTimeout(()=>observe(abort(lease,'timeout'),lease),resultTimeoutMs);lease.resultTimer.unref?.()
+   try{await send({v:1,type:'voice_end',requestId:lease.requestId,leaseId:lease.id,seq})}catch{await abort(lease,'unavailable')}
+  })(),lease,'invalid_audio')
  }
  function acquire(lease) {
   lease.phase='acquiring'
@@ -68,9 +68,9 @@ export function createDisplayVoice({send,record,onLevel=(_level)=>{},startTimeou
    if(active!==lease){await cleanup(lease);return}
    lease.phase='recording'
    lease.captureTimer=setTimeout(()=>upload(lease),captureTimeoutMs);lease.captureTimer.unref?.()
-   observe(lease.recording.done.then(()=>upload(lease)),lease)
+   observe(lease.recording.done.then(()=>upload(lease)),lease,'microphone')
    if(lease.stopRequested)upload(lease)
-  }),lease)
+  }),lease,'microphone')
  }
  function onFrame(frame) {
   if(frame?.v===1&&frame.type==='status') {
@@ -82,17 +82,17 @@ export function createDisplayVoice({send,record,onLevel=(_level)=>{},startTimeou
   if(closed||!lease||frame.requestId!==lease.requestId)return true
   if(frame.type==='voice_started') {
    if(lease.phase!=='waiting')return true
-   if(frame.v!==1||frame.accepted!==true||!uuid(frame.leaseId)||!exact(frame,['v','type','requestId','leaseId','accepted'])){observe(abort(lease),lease);return true}
+   if(frame.v!==1||frame.accepted!==true||!uuid(frame.leaseId)||!exact(frame,['v','type','requestId','leaseId','accepted'])){observe(abort(lease,'protocol'),lease);return true}
    clearTimeout(lease.startTimer);lease.id=frame.leaseId;acquire(lease);return true
   }
   if(frame.leaseId!==lease.id)return true
   if(frame.type==='voice_stop') {
-   if(frame.v!==1||!exact(frame,['v','type','requestId','leaseId']))observe(abort(lease),lease)
+   if(frame.v!==1||!exact(frame,['v','type','requestId','leaseId']))observe(abort(lease,'protocol'),lease)
    else upload(lease)
    return true
   }
   const shape=frame.accepted===true?['v','type','requestId','leaseId','accepted']:['v','type','requestId','leaseId','accepted','reason']
-  if(frame.v!==1||!exact(frame,shape)||typeof frame.accepted!=='boolean'||(frame.accepted===false&&!['cancelled','unavailable','timeout','protocol','invalid_audio'].includes(frame.reason))||(frame.accepted===true&&lease.phase!=='finishing')){observe(abort(lease),lease);return true}
+  if(frame.v!==1||!exact(frame,shape)||typeof frame.accepted!=='boolean'||(frame.accepted===false&&!['cancelled','microphone','unavailable','timeout','protocol','invalid_audio'].includes(frame.reason))||(frame.accepted===true&&lease.phase!=='finishing')){observe(abort(lease,'protocol'),lease);return true}
   active=undefined;clear(lease);observe(cleanup(lease),lease);return true
  }
  return {onFrame,async toggle() {
@@ -102,7 +102,7 @@ export function createDisplayVoice({send,record,onLevel=(_level)=>{},startTimeou
   if(!['idle','error'].includes(lastStatus))return false
   const lease={requestId:randomUUID(),id:undefined,phase:'waiting',recording:undefined,cleaning:undefined,startTimer:undefined,captureTimer:undefined,resultTimer:undefined,stopRequested:false}
   active=lease
-  lease.startTimer=setTimeout(()=>observe(abort(lease),lease),startTimeoutMs);lease.startTimer.unref?.()
-  try{await send({v:1,type:'voice_start',requestId:lease.requestId});return true}catch{await abort(lease);return false}
+  lease.startTimer=setTimeout(()=>observe(abort(lease,'timeout'),lease),startTimeoutMs);lease.startTimer.unref?.()
+  try{await send({v:1,type:'voice_start',requestId:lease.requestId});return true}catch{await abort(lease,'unavailable');return false}
  },async close(){closed=true;if(active)await abort(active)}}
 }
