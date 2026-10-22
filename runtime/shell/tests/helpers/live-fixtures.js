@@ -89,4 +89,8 @@ function installGeometryFixtures(ipcMain, { state = 'unavailable', wide = false 
     }))
 }
 
-module.exports = { installGeometryFixtures, NARROW_POSITIONS, WIDE_POSITIONS, WIDE_SESSIONS }
+function personalAgentIdentityScript(name) {
+  return `(async()=>{localStorage.setItem('odk.agent.identity',JSON.stringify({name:${JSON.stringify(name)}}));await odkRendererRuntime.setEnabled('odk.page.personal-agent',false);await odkRendererRuntime.setEnabled('odk.page.personal-agent',true);await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})()`
+}
+
+module.exports = { installGeometryFixtures, personalAgentIdentityScript, NARROW_POSITIONS, WIDE_POSITIONS, WIDE_SESSIONS }

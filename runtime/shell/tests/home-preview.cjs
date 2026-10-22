@@ -248,7 +248,7 @@ app.whenReady().then(async () => {
         paragraphs: document.querySelectorAll('.agent-message').length,
         repeatedNames: document.querySelectorAll('.agent-message-name, .agent-caption').length,
         messageMetadata: document.querySelectorAll('.agent-message time, .agent-message-avatar').length,
-        identityCapsule: document.querySelector('.agent-identity summary').getBoundingClientRect().height >= 44 && document.querySelector('.agent-head .agent-state') !== null,
+        identityCapsule: document.querySelector('.agent-identity .agent-capsule').getBoundingClientRect().height >= 44 && document.querySelector('.agent-head .agent-state') !== null,
         agentBubble: !!bubble && getComputedStyle(bubble).backgroundColor !== 'rgba(0, 0, 0, 0)',
         timerFits: time.width <= dial.width * 0.84 && Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2) < 1,
         timerBounds: { text: time.width, dial: dial.width, centerDelta: Math.abs((time.left + time.right) / 2 - (dial.left + dial.right) / 2), font: getComputedStyle(document.querySelector('.ring-mmss')).fontSize },

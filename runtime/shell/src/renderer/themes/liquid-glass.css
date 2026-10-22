@@ -49,9 +49,9 @@ html[data-theme='liquid-glass'] #liquid-glass-backdrop {
   background-attachment: fixed;
 }
 
-/* Interactive controls own their frames. Integrated fields inherit the
-   composer frame. Widget hit targets and page marks stay transparent. */
-html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
+/* Controls and the read-only Agent capsule share the frame material.
+   Integrated fields inherit the composer frame. Widget hit targets and page marks stay transparent. */
+html[data-theme='liquid-glass'] body :is(button, input, textarea, select, summary, [role='button'], .agent-composer, .agent-capsule):not(:where(.widget-launch, .dot, .agent-session-open, .agent-composer textarea, input[type='checkbox'], input[type='radio'], input[type='range'])) {
   border: 1px solid var(--odk-control-stroke, var(--odk-stroke));
   background-color: var(--odk-glass-control-fill);
   background-image: var(--odk-glass-control-material);
