@@ -523,6 +523,9 @@ Scenario: Hidden previews capture the current native viewport
     And each single-task capsule and its Reply button share a vertical center
     And single-task and multiple-task messages use the same two-column task row
     And each task row has exactly one Reply button and one task label
+    And task labels use compact secondary capsules with softer edges than Reply
+    And a one-character task name retains a 44-pixel pointer target
+    And task labels retain readable text and full emphasis in high-contrast modes
     And long task names wrap without horizontal conversation overflow
     And no Sources, Conversation details, or Earlier messages disclosures appear
     And scrolling up loads retained messages without a history button
