@@ -57,6 +57,31 @@ Feature: Independent resident personal bot
     Then voice status is unavailable
     And reconnecting does not replay the toggle
 
+  Scenario: Provider withdrawal removes existing suggestions
+    Given a current suggestion is visible in an existing Shell frame
+    When the Personal Bot provider is disabled
+    Then the frame receives unavailable status without waiting for another frame load
+    And the suggestion content, controls, and visibility acknowledgements are removed
+    When a replacement publishes status without suggestions
+    Then the previous provider's suggestions remain absent
+    When the replacement publishes a current readable suggestion
+    Then that suggestion can become visible and acknowledge its own identifier
+    And a late failure from the withdrawn provider does not change the replacement's feedback
+
+  Scenario: Read capability withdrawal removes existing suggestions
+    Given a current suggestion is visible
+    When the provider withdraws the suggestion read capability without a proposals array
+    Then the old suggestion content and controls are removed
+    And no old visibility acknowledgement is sent
+
+  Scenario: Atomic provider replacement revokes the previous suggestion view
+    Given a current suggestion is visible in an existing Shell frame
+    When Personal Bot is replaced without an intermediate disabled state
+    And the replacement publishes legacy status without a proposals array
+    Then the previous provider's view is revoked before the frame receives the replacement snapshot
+    And ordinary frame readiness does not revoke the current provider
+    And replacing only Remote Link does not revoke Personal Bot
+
   Scenario: Voice status is bounded and validated
     Given the personal bot service connection is active
     When malformed or oversized status records arrive

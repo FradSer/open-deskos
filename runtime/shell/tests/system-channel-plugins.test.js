@@ -87,6 +87,8 @@ test('default system plugins preserve Remote events and App manager endpoints', 
   f.callbacks.get('mic')()
   assert.deepEqual(f.broadcasts, [
     ['odk-remote-link-state', { state: 'disconnected', sequence: 1 }],
+    ['odk-personal-bot-status', { state: 'unavailable' }],
+    ['odk-personal-bot-status', { state: 'idle' }],
     ['odk-remote-navigation', { direction: 'right' }], ['odk-remote-input', { input: 'primary' }],
     ['odk-personal-bot-mic', undefined],
   ])
@@ -163,6 +165,46 @@ test('smoke composition does not start optional clients', async () => {
 
 
 for (const independent of [false, true]) {
+test(`${independent ? 'independent' : 'default'} frame status revokes an atomically replaced provider without resetting unrelated providers`, async t => {
+  const f = fixture({ independent })
+  t.after(() => f.host.stop())
+  await f.host.start()
+  f.callbacks.get('bot')({ state: 'idle', proposals: [{ id: '00000000-0000-0000-0000-000000000001', status: 'pending', offered: true }] })
+  f.broadcasts.length = 0
+  f.setBot({ ...f.bot, snapshot: () => ({ state: 'idle' }) })
+  const botDefinition = f.host.definition('odk.system.personal-bot')
+  await f.host.replace({ ...botDefinition, manifest: { ...botDefinition.manifest, version: '2.0.0' } })
+  const replacementStates = f.broadcasts.filter(([channel]) => channel === 'odk-personal-bot-status').map(([, status]) => status.state)
+  assert.deepEqual(replacementStates, ['unavailable', 'idle'])
+  f.broadcasts.length = 0
+  for (const callback of f.frames) callback({ send() {} })
+  assert.deepEqual(f.broadcasts.filter(([channel]) => channel === 'odk-personal-bot-status').map(([, status]) => status.state), ['idle'])
+  f.broadcasts.length = 0
+  f.setRemote({ ...f.remote })
+  const remoteDefinition = f.host.definition('odk.transport.remote-link')
+  await f.host.replace({ ...remoteDefinition, manifest: { ...remoteDefinition.manifest, version: '2.0.0' } })
+  assert.deepEqual(f.broadcasts.filter(([channel]) => channel === 'odk-personal-bot-status').map(([, status]) => status.state), ['idle'])
+})
+
+test(`${independent ? 'independent' : 'default'} frame status updates existing renderers after provider withdrawal and replacement`, async t => {
+  const f = fixture({ independent })
+  t.after(() => f.host.stop())
+  const pending = { state: 'idle', proposals: [{ id: '00000000-0000-0000-0000-000000000001', status: 'pending', offered: true }] }
+  f.bot.snapshot = () => pending
+  await f.host.start()
+  f.broadcasts.length = 0
+  f.callbacks.get('bot')(pending)
+  await f.host.setEnabled('odk.system.personal-bot', false)
+  assert.equal(f.host.get(SYSTEM_PORTS.personalBot), null)
+  assert.deepEqual(f.broadcasts.filter(([channel]) => channel === 'odk-personal-bot-status').at(-1)?.[1], { state: 'unavailable' })
+  assert.equal(f.handlers.has('odk-personal-bot-proposal'), false)
+  f.broadcasts.length = 0
+  const replacement = { ...f.bot, snapshot: () => ({ state: 'idle' }) }
+  f.setBot(replacement)
+  await f.host.setEnabled('odk.system.personal-bot', true)
+  assert.deepEqual(f.broadcasts.filter(([channel]) => channel === 'odk-personal-bot-status').at(-1)?.[1], { state: 'idle' })
+})
+
 test(`${independent ? 'independent' : 'default'} notification plugin forwards unchanged identities and becomes inert on disable`, async () => {
   const f = fixture({ independent })
   await f.host.start()

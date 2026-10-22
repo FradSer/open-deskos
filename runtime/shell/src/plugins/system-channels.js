@@ -37,6 +37,7 @@ function define({ id, name, kind = 'system', port, permission, broadcast = false
 }
 
 function createSystemChannelPlugins() {
+  const frameProviders = new WeakMap()
   return [
     {
       manifest: {
@@ -94,9 +95,15 @@ function createSystemChannelPlugins() {
       },
       create(ctx) {
         const broadcast = ctx.capability('broadcast')
-        ctx.onCleanup(ctx.capability('shell.frames').subscribe(frame => {
+        const frames = ctx.capability('shell.frames')
+        const provider = ctx.get(SYSTEM_PORTS.personalBot)
+        if (provider && frameProviders.get(frames) !== provider) broadcast('odk-personal-bot-status', { state: 'unavailable' })
+        frameProviders.set(frames, provider)
+        const publishBotStatus = () => broadcast('odk-personal-bot-status', ctx.get(SYSTEM_PORTS.personalBot)?.snapshot() || { state: 'unavailable' })
+        publishBotStatus()
+        ctx.onCleanup(frames.subscribe(frame => {
           if (ctx.signal.aborted) return
-          broadcast('odk-personal-bot-status', ctx.get(SYSTEM_PORTS.personalBot)?.snapshot() || { state: 'unavailable' })
+          publishBotStatus()
           frame.send('odk-remote-link-state', ctx.get(SYSTEM_PORTS.remoteLink)?.status() || { state: 'disconnected', sequence: 0 })
         }))
         return {}

@@ -386,6 +386,8 @@ Such sources do not establish cancellation support without separate acceptance e
 
 The kernel publishes frame readiness through [frame-ready.js](../src/frame-ready.js).
 The frame status plugin broadcasts Personal Bot status and sends Remote Link status only to the new frame.
+It revokes previous Personal Bot state when the provider changes, then broadcasts the current snapshot to existing frames.
+Ordinary frame readiness and Remote Link replacement retain the current Personal Bot state.
 Optional providers retain the existing unavailable and disconnected fallback states.
 The notification plugin forwards changed reading identities to the current Personal Bot instance.
 Stopping either consumer cancels its retained callbacks without stopping its providers.

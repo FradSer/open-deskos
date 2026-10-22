@@ -58,6 +58,7 @@
   let proposalError = ''
   let proposalCommandError = ''
   let feedbackFocus
+  let proposalEpoch = 0
   let suggestionCapabilities = { read: true, respond: true, acknowledge: true }
   // A transport receipt does not prove that the resident saved its visibility state.
   const visibilityAttempts = new Map()
@@ -95,10 +96,12 @@
   window.addEventListener('pagehide', () => { visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); expandedDisclosures.clear(); document.removeEventListener('visibilitychange', recheckVisibility) })
 
   async function command(value) {
+    const epoch = proposalEpoch
     try {
       const receipt = await window.odkPersonalBot.proposalCommand(value)
       if (!receipt?.accepted) throw Error('Unavailable')
     } catch {
+      if (epoch !== proposalEpoch) return
       if (value.type === 'proposal_presented') return
       proposalCommandError = 'Suggestion response was not delivered. Check the personal bot service; do not repeat an uncertain action.'
       showProposalError()
@@ -208,8 +211,13 @@
     return details
   }
   function renderProposals(status) {
-    if (status.state === 'unavailable') {
+    if (status.state === 'unavailable' || status.proposalCapabilities?.read === false) {
+      proposalEpoch++
       visibility?.disconnect(); observedAdvice.clear(); visibleAdvice.clear(); visibilityAttempts.clear(); proposalSnapshot = ''
+      suggestionCapabilities = { read: false, respond: false, acknowledge: false }
+      proposalError = ''; proposalCommandError = ''; visibilityFailure = false; feedbackFocus = undefined
+      expandedDisclosures.clear()
+      if (proposals) { proposals.replaceChildren(); proposals.hidden = true }
       return
     }
     if (!Array.isArray(status.proposals)) return
@@ -227,6 +235,7 @@
       proposals.setAttribute('aria-label', 'Personal Bot suggestions')
       elements.content.appendChild(proposals)
     }
+    proposals.hidden = !status.proposals.length || !suggestionCapabilities.read
     const snapshot = JSON.stringify([status.proposals, status.proposalHiddenCount, suggestionCapabilities])
     if (snapshot !== proposalSnapshot) {
       proposalSnapshot = snapshot
@@ -464,12 +473,13 @@
     if (!status || !Object.hasOwn(presentation, status.state)) return
     renderProposals(status)
     const idle = ['idle', 'error'].includes(status.state)
-    const userSuggestions = status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
+    const hasSuggestions = suggestionCapabilities.read && Boolean(proposals?.children.length)
+    const userSuggestions = hasSuggestions && status.proposalPopup && status.proposalInteraction && active && !dismissed && !proactive
     if (userSuggestions) {
       surface.dataset.suggestions = 'true'
     }
     if (!idle) surface.dataset.suggestions = 'false'
-    if (idle && !userSuggestions && (status.proposalPopup || (proactive && !surface.hidden))) {
+    if (idle && hasSuggestions && !userSuggestions && (status.proposalPopup || (proactive && !surface.hidden))) {
       if (!proactive) setVisible(false)
       proactive = true
       surface.dataset.proactive = 'true'

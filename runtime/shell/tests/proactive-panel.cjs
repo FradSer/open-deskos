@@ -177,6 +177,19 @@ app.whenReady().then(async () => {
   await run(`document.querySelector('.personal-bot-proposal-sources summary').focus()`)
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' })
   await delay(); assert.equal(await run(`document.querySelector('.personal-bot-proposal-sources').open`), true)
+  for (const theme of ['instrument', 'pixel', 'border-beam', 'liquid-glass']) {
+    await run(`odkTheme.set(${JSON.stringify(theme)})`)
+    for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
+      await send({ state: 'idle', proposals: [{ ...p, action: null, confirmation: '' }], proposalPopup: true })
+      assert.equal(await run(`document.querySelector('.personal-bot-proposals').hidden`), false)
+      const beforeWithdrawal = commands.length
+      await send(revoked)
+      assert.deepEqual(await run(`(() => { const section = document.querySelector('.personal-bot-proposals'); return { hidden: section.hidden, children: section.children.length } })()`), { hidden: true, children: 0 })
+      await send({ state: 'idle' })
+      assert.equal(await run(`document.querySelectorAll('.personal-bot-proposal').length`), 0, `${theme} legacy status retains no withdrawn proposal`)
+      assert.equal(commands.length, beforeWithdrawal, `${theme} withdrawn content sends no acknowledgement`)
+    }
+  }
   await longAdviceVisibility()
   // Populated fixture preview: the capture waits for the current native compositor frame.
   const preview = { ...p, id: 'c311a280-c0b9-4411-96cd-4e1e92385349', action: null, confirmation: '', advice: '检查书桌旁植物的盆土，再决定是否浇水。', reason: '最新土壤湿度为10%，低于你选择的提醒阈值。' }
@@ -195,6 +208,6 @@ app.whenReady().then(async () => {
   assert.equal(await run(`document.querySelector('.agent-state').textContent`), 'Listening…')
   assert.equal(await run(`document.querySelector('.agent-mic').getAttribute('aria-label')`), 'Stop recording')
   assert.equal(await run(`document.getElementById('pages-viewport').inert || document.getElementById('home-desk').inert`), false)
-  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details explicit owner quote selection, viewport visibility acknowledgements, candidate feedback, read-only capabilities and keyboard disclosures')
+  console.log('PROACTIVE_PANEL_CM5_ISOLATED_PASS: 4 themes, 3 sizes, 5 proposal states, focus, touch confirmation, literal untrusted text, service error recovery, uncertain delivery, read-only ride details explicit owner quote selection, viewport visibility acknowledgements, candidate feedback, read-only capabilities, provider withdrawal and keyboard disclosures')
   clearTimeout(timer); win.destroy(); app.exit(0)
 }).catch(error => { console.error(error); app.exit(1) })

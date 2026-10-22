@@ -36,6 +36,45 @@ function fixture() {
 }
 const proposal = () => ({ id: 'e311a280-c0b9-4411-96cd-4e1e92385349', ruleId: 'dry', status: 'pending', offered: true, presented: false, confirmation: '记住 watering：检查盆土', advice: '<script>不可信文本</script>', action: { tool: 'memory_update' }, evidence: [{ readingId: 'hydra', field: 'soil', value: 10, state: 'live', measuredAt: '2026-10-02T10:00:00Z' }] })
 const flatten = node => [node, ...node.children.flatMap(flatten)]
+for (const revoked of [{ state: 'unavailable' }, { state: 'idle', proposalCapabilities: { read: false, respond: false, acknowledge: false } }]) {
+test(`suggestion ${revoked.state === 'unavailable' ? 'provider' : 'read capability'} withdrawal clears old content and observers`, () => {
+  const f = fixture(), p = proposal()
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  const section = f.content.querySelector('.personal-bot-proposals')
+  const advice = flatten(section).find(node => node.className === 'personal-bot-proposal-advice')
+  assert.ok(advice)
+  f.render(revoked)
+  assert.equal(section.children.length, 0)
+  assert.equal(section.hidden, true)
+  assert.equal(f.surface.hidden, true)
+  assert.ok(f.observers.every(observer => observer.nodes.size === 0))
+  f.render({ state: 'starting' })
+  assert.equal(section.children.length, 0, 'legacy replacement status cannot revive the withdrawn view')
+  f.visible(advice)
+  assert.equal(f.commands.length, 0)
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  assert.equal(section.hidden, false)
+  const current = flatten(section).find(node => node.className === 'personal-bot-proposal-advice')
+  assert.notEqual(current, advice)
+  f.visible(current)
+  assert.deepEqual(f.commands.map(command => command.type), ['proposal_presented'])
+})
+}
+
+test('a withdrawn provider command cannot overwrite replacement suggestion feedback', async () => {
+  const f = fixture(), p = { ...proposal(), action: null, confirmation: '' }
+  f.render({ state: 'idle', proposals: [p], proposalPopup: true })
+  let reject
+  f.window.odkPersonalBot.proposalCommand = () => new Promise((_resolve, fail) => { reject = fail })
+  const pending = flatten(f.content).find(node => node.tagName === 'BUTTON' && node.textContent === 'Done').click()
+  f.render({ state: 'unavailable' })
+  f.render({ state: 'idle', proposals: [{ ...p, id: '11111111-1111-4111-8111-111111111111', advice: 'Current provider suggestion' }], proposalPopup: true })
+  reject(Error('Withdrawn provider failure'))
+  await pending
+  assert.equal(f.content.querySelector('.personal-bot-proposal-error'), null)
+  assert.ok(flatten(f.content).some(node => node.textContent === 'Current provider suggestion'))
+})
+
 test('proactive popup is nonmodal and preserves local focus and input authority', () => {
   const f = fixture(); f.render({ state: 'idle', proposals: [proposal()], proposalPopup: true })
   assert.equal(f.surface.hidden, false); assert.equal(f.surface.dataset.proactive, 'true')
