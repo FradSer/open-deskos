@@ -85,7 +85,7 @@ test('a task-name clarification selects an unchanged unresolved owner request ac
   assert.equal(prepared.answer,undefined)
   assert.equal(requests.at(-1).state.unresolvedRequests[0].text,original)
   assert(!JSON.stringify(requests).includes('PRIVATE'))
-  assert.equal(turn.getRequestText(),original+'\n\nSDLC 插件优化的项目。')
+  assert(turn.getRequestText().includes(original));assert.match(turn.getRequestText(),/Current owner clarification \(verbatim\):\nSDLC 插件优化的项目。/)
   assert(prepared.context.includes(original))
   turn.complete('SDLC 插件优化的项目。','Received')
   await turn.prepare('接着核对 Markdown 文件。')
@@ -134,7 +134,14 @@ test('a session handler can defer only a never-attempted unbound owner instructi
   turn.defer();turn.complete('让原任务读取 README.md。','Which task?')
   select=true
   await turn.prepare('SDLC 插件优化')
-  assert.equal(turn.getRequestText(),'让原任务读取 README.md。\n\nSDLC 插件优化')
+  assert(turn.getRequestText().includes('让原任务读取 README.md。'));assert.match(turn.getRequestText(),/Current owner clarification \(verbatim\):\nSDLC 插件优化/)
+})
+
+test('unselected voice and conversation text retains the existing router input size', async () => {
+  const text='a'.repeat(3001)
+  const turn=createIntentTurn({route:async()=>({intent:'conversation'}),profile:'personal',tools:[]})
+  assert.equal((await turn.prepare(text)).answer,undefined)
+  assert.equal(turn.getRequestText(),text)
 })
 
 test('invalid provider answers and failures cannot supply an intent', async () => {

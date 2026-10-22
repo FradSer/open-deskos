@@ -714,7 +714,7 @@ test('a handler clarification retains owner scope until a named follow-up attemp
  bot.attachRemoteContext(()=>'',undefined,async(_params,_signal,_reply,owner)=>{owners.push(owner.text);throw Error('Delivery attempt failed')})
  assert.match(await bot.prompt('只读项目 README.md，告诉我项目名称。'),/告诉我任务名称/)
  await assert.rejects(bot.prompt('SDLC 插件优化'),/Delivery attempt failed/)
- assert.deepEqual(owners,['只读项目 README.md，告诉我项目名称。\n\nSDLC 插件优化'])
+ assert.equal(owners.length,1);assert(owners[0].includes('只读项目 README.md，告诉我项目名称。'));assert.match(owners[0],/Current owner clarification \(verbatim\):\nSDLC 插件优化/)
  await bot.prompt('另一条新的需求')
  assert.deepEqual(routes.at(-1),[],'an attempted delivery cannot become a deferred request after failure')
 })

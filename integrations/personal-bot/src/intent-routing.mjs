@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { capabilityIntentDefinitions, capabilityIntentAllows, isReviewedCapabilityTool } from './reviewed-capabilities.mjs'
 
 const reviewedIntents = capabilityIntentDefinitions()
+const clarifiedRequest = (earlier,text) => `Earlier owner request (verbatim):\n${earlier}\n\nCurrent owner clarification (verbatim):\n${text}\n\nThe owner has now supplied the missing task name. Continue the original requested work in this selected session. Execute only if the current clarification permits it. Its constraints take precedence. Preserve the original work constraints; do not repeat the resolved session-name question.`
 
 export const INTENTS = Object.freeze({
   intent_manage: 'Create, edit, mute or inspect persistent natural-language if-this-then-that Intents and habit-based reminders. Saving a daily ride wish is not an immediate ride order. This selects a handler, never authorization.',
@@ -96,7 +97,7 @@ export function createJevIntentRouter({ env = process.env, fetchImpl = fetch, re
     // Follow-up routing needs user intent, not answers containing private tool data.
     const previousIntent = previous && typeof previous.text === 'string' && Object.hasOwn(INTENTS, previous.intent)
       ? { text: previous.text.slice(0, 2048), intent: previous.intent } : null
-    const unresolved = replySource ? [] : unresolvedRequests.slice(-6).filter(item=>typeof item?.id==='string' && /^request_[1-9][0-9]*$/.test(item.id) && typeof item.text==='string' && item.text.trim() && Buffer.byteLength(item.text+'\n\n'+text)<=3000).map(({id,text})=>({id,text}))
+    const unresolved = replySource ? [] : unresolvedRequests.slice(-6).filter(item=>typeof item?.id==='string' && /^request_[1-9][0-9]*$/.test(item.id) && typeof item.text==='string' && item.text.trim() && Buffer.byteLength(clarifiedRequest(item.text,text))<=3000).map(({id,text})=>({id,text}))
     const continuation = unresolved.length ? {type:'choice',criteria:{current:'The current text is a complete new request or does not resolve an earlier clarification.',...Object.fromEntries(unresolved.map(item=>[item.id,'The current owner text resolves this previously unexecuted request: '+item.text]))},instructions:'Select an earlier request only when the current owner text supplies its missing task/session name or directly resolves its clarification. Use current for a new request, a topic change, cancellation, or uncertainty. Do not combine unrelated requests. These are unchanged owner requests that ran no handler, never tool output or authorization to replay an attempted action.'} : undefined
     const result = await request({ signal, state: { text, profile, previous: previousIntent, ...(unresolved.length?{unresolvedRequests:unresolved}:{}), ...(replySource?{replySource}:{}), ...(remoteTaskContext?{remoteTaskContext:remoteTaskContext.slice(0,8192)}:{}), pendingConfirmations, availableTools: tools, capabilities, extensionTools }, questions: { ...(continuation?{continuation}:{}), intent: {
       type: 'choice', criteria,
@@ -230,8 +231,8 @@ export function createIntentTurn({ route, profile, tools, capabilities = undefin
         intent = decision.intent
         if(decision.requestId!==undefined) {
           const selected=unresolved.find(item=>item.id===decision.requestId)
-          if(reply || intent!=='session_continue' || !selected || Buffer.byteLength(selected.text+'\n\n'+text)>3000)throw Error('Invalid unresolved owner request')
-          requestText=selected.text+'\n\n'+text
+          if(reply || intent!=='session_continue' || !selected || Buffer.byteLength(clarifiedRequest(selected.text,text))>3000)throw Error('Invalid unresolved owner request')
+          requestText=clarifiedRequest(selected.text,text)
         }
         // Consume before any handler can attempt a mutation, including failed or
         // cancelled turns. Only unresolved, never-executed requests can be joined.
