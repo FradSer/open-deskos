@@ -57,6 +57,13 @@ test('a display with no local lease stops the central microphone through the exi
  assert.equal(await f.voice.toggle(),true);assert.deepEqual(f.frames,[{v:1,type:'toggle'}]);assert.equal(f.records(),0)
 })
 
+test('microphone acquisition failure reports a bounded cause instead of a normal cancellation',async t=>{
+ const f=await fixture(t,{record:async()=>{throw Error('private device diagnostic')}})
+ await f.accepted();await until(()=>f.frames.some(x=>x.type==='voice_cancel'))
+ assert.equal(f.frames.find(x=>x.type==='voice_cancel').reason,'microphone')
+ assert.ok(!JSON.stringify(f.frames).includes('private device diagnostic'))
+})
+
 test('late acquisition after disconnect only cleans up and cannot upload',async t=>{
  let acquire
  const f=await fixture(t,{record:()=>new Promise(resolve=>{acquire=resolve})});await f.voice.toggle();const id=f.frames[0].requestId

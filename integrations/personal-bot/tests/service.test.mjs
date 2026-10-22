@@ -34,6 +34,8 @@ test('remote capture cancellation rejects stale identities and prevents late tra
  service.reserveRemoteRecording(recording,()=>{})
  assert.equal(await service.cancelRemoteRecording({}),false);assert.equal(service.status.state,'recording')
  assert.equal(await service.cancelRemoteRecording(recording),true);assert.equal(cleanups,1)
+ assert.equal(service.status.state,'idle');assert.equal(service.status.message,'')
+ assert.equal(service.sendText('Continue after cancellation'),true);await service.pending;assert.equal(service.status.state,'idle')
  ready();await new Promise(resolve=>setImmediate(resolve));assert.equal(transcriptions,0)
  await service.toggle();assert.equal(service.status.state,'recording');assert.equal(await service.cancelRemoteRecording(recording),false)
  await service.close()
@@ -53,6 +55,16 @@ test('child activity stays separate from conversation state and clears during se
   assert.deepEqual(service.status.agents, { state: 'unavailable', tasks: [] })
   service.publishAgents(tasks)
   assert.deepEqual(service.status.agents.tasks, [])
+})
+
+test('recording cleanup failure remains an error and blocks a later input until release',async()=>{
+ let failed=true
+ const recording={done:new Promise(()=>{}),stop:async()=>'',cleanup:async()=>{if(failed)throw Error('private cleanup')}}
+ const {service}=fixture();service.reserveRemoteRecording(recording,()=>{})
+ assert.equal(await service.cancelRemoteRecording(recording),false)
+ assert.equal(service.status.state,'error');assert.equal(service.status.message,'Recording cleanup failed')
+ assert.equal(service.sendText('Must not race cleanup'),false)
+ failed=false;await service.close()
 })
 
 test('successful suggestion snapshots clear old errors without hiding later failures', () => {

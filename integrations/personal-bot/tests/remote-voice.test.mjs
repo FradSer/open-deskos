@@ -65,7 +65,24 @@ test('a pending start can be cancelled without its lost lease receipt and late w
  const f=await fixture(t);let release
  const pending=f.handle({type:'voice_start'},f.client,()=>new Promise(resolve=>{release=resolve}))
  await f.handle({type:'voice_cancel'});release();await pending
+ assert.equal(f.audio.length,0);assert.equal(f.service.status.state,'idle');assert.equal(f.service.status.message,'')
+})
+
+test('display microphone failure is distinct from cancellation and admits a later text turn',async t=>{
+ const f=await fixture(t),id=await f.start()
+ await f.handle({type:'voice_cancel',leaseId:id,reason:'microphone'})
+ assert.equal(f.service.status.state,'error');assert.equal(f.service.status.message,'Microphone unavailable')
+ assert.equal(f.audio.length,0);assert.deepEqual(await readdir(f.directory),[])
+ assert.equal(f.service.sendText('Use text instead'),true);await f.service.pending
+ assert.equal(f.service.status.state,'idle')
+})
+
+test('a lost start receipt can report timeout without learning the lease identity',async t=>{
+ const f=await fixture(t);let release
+ const pending=f.handle({type:'voice_start'},f.client,()=>new Promise(resolve=>{release=resolve}))
+ await f.handle({type:'voice_cancel',reason:'timeout'});release();await pending
  assert.equal(f.audio.length,0);assert.equal(f.service.status.state,'error')
+ assert.equal(f.service.status.message,'Recording timed out. Try again.')
 })
 
 test('voice deadlines cancel recording without transcription and successful handoff survives disconnect',async t=>{

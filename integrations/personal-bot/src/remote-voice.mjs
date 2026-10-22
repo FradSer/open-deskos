@@ -27,7 +27,7 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
  async function cancel(lease,reason='cancelled') {
   if(active!==lease)return
   active=undefined;clearTimeout(lease.timer);lease.interrupt()
-  await service.cancelRemoteRecording(lease.recording)
+  await service.cancelRemoteRecording(lease.recording,reason)
   void Promise.resolve().then(()=>lease.send({v:1,type:'voice_result',requestId:lease.requestId,leaseId:lease.id,accepted:false,reason})).catch(()=>{})
  }
 
@@ -75,12 +75,13 @@ export function createRemoteVoice({service,directory,timeoutMs=90000}) {
   const lease=active
   // A stale or foreign request never changes the current recording.
   if(!lease||lease.client!==client||command.requestId!==lease.requestId)return true
-  const pendingCancel=command.type==='voice_cancel'&&exact(command,['v','type','requestId'])
+  const pendingCancel=command.type==='voice_cancel'&&command.leaseId===undefined&&exact(command,['v','type','requestId',...(command.reason===undefined?[]:['reason'])])
   if(!pendingCancel&&command.leaseId!==lease.id)return true
   if(command.v!==1){await cancel(lease,'protocol');return true}
   if(command.type==='voice_cancel') {
-   if(!pendingCancel&&!exact(command,['v','type','requestId','leaseId'])){await cancel(lease,'protocol');return true}
-   await cancel(lease);return true
+   const names=['v','type','requestId',...(command.leaseId===undefined?[]:['leaseId']),...(command.reason===undefined?[]:['reason'])]
+   if(!exact(command,names) || command.reason!==undefined&&!['microphone','unavailable','timeout','protocol','invalid_audio'].includes(command.reason)){await cancel(lease,'protocol');return true}
+   await cancel(lease,command.reason ?? 'cancelled');return true
   }
   if(lease.phase!=='receiving'){await cancel(lease,'protocol');return true}
   if(command.type==='voice_chunk') {
