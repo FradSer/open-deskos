@@ -8,6 +8,8 @@ Feature: Optional Liquid Glass theme
     And transparent Widget launch targets and page marks use their existing container frame
     When a control is focused, pressed, disabled, selected, busy, invalid, or recording
     Then its state remains visible without removing its glass edge
+    And hover highlights appear only with a fine pointer that supports hover
+    And a coarse touch pointer keeps the resting glass edge during forced hover
     And reduced transparency, increased contrast, and forced colors retain readable controls
 
   Scenario: Select and restore Liquid Glass without changing Shell behavior
