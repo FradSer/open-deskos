@@ -82,7 +82,7 @@ app.whenReady().then(async () => {
     assert.equal(home.label,'Page controller')
     assert.equal(home.count,home.total,'Every page marker must be visible below the Widgets')
     assert.ok(home.height>=44 && home.width>=28,JSON.stringify(home))
-    assert.equal(home.capsule,true,'The page controller keeps its capsule')
+    assert.equal(home.capsule,false,'The page controller keeps only unframed page markers')
     assert.ok(home.bar[0]>=16 && home.bar[1]>=6 && home.bar[1]<=10,JSON.stringify(home))
     assert.equal(home.points,true,'Every other page keeps its point')
     await input('Emulation.setEmulatedMedia',{features:[{name:'forced-colors',value:'active'}]})

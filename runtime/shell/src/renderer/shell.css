@@ -266,18 +266,8 @@ body.kiosk {
   height: var(--odk-status-control-h);
   gap: 0;
   padding-inline: 4px;
-  border-radius: var(--odk-radius-pill);
 }
 
-#dots::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--odk-page-control-stroke, transparent);
-  border-radius: inherit;
-  background: var(--odk-surface);
-  pointer-events: none;
-}
 
 .dot {
   appearance: none;

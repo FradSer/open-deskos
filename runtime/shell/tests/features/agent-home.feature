@@ -560,6 +560,9 @@ Scenario: Hidden previews capture the current native viewport
     And refused input cannot celebrate an earlier answer
     And completion follows observed work for the same service turn
     And new task reports get one reaction without replaying retained reports
+    And the thinking phase uses its own thinking animation before public output arrives
+    And a streaming reply uses the replying animation and Replying caption together
+    And a running child uses the working animation and Working caption together
     And repeated status frames do not restart an unchanged animation
     And input never waits for an animation to finish
     And the composer does not duplicate the animated avatar
@@ -577,6 +580,8 @@ Scenario: Hidden previews capture the current native viewport
     And the header has no opaque background or backdrop blur
     And messages scroll behind the header and receive input outside the capsule
     And selected task navigation passes message input outside its readable return button
+    And the disclosure arrow centers vertically with the name when status text is hidden
+    And the arrow centers beside the name and status group when status text is visible
     And the capsule and composer retain keyboard and pointer access
     And the identity form remains inside the panel
     And the open form paints above the avatar when they overlap on a short panel

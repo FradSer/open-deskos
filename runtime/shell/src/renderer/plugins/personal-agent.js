@@ -46,8 +46,14 @@
       ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
-      const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
+      const stateLabels = { idle: 'Ready', thinking: 'Thinking…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
       const voiceFailures = {microphone:'Microphone unavailable',timeout:'Recording timed out. Try again.',unavailable:'Recording connection lost. Try again.',protocol:'Recording transfer failed. Try again.',invalid_audio:'Recording audio is invalid. Try again.',cleanup:'Recording cleanup failed'}
+      function captionFor(status) {
+        if (root.odkPersonalAgentAvatar.phaseFor(status) === 'working') return 'Working…'
+        if (status.state === 'thinking') return root.odkPersonalAgentAvatar.phaseFor(status) === 'replying' ? 'Replying…' : 'Thinking…'
+        if (status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure)) return voiceFailures[status.voiceFailure]
+        return stateLabels[status.state] || 'Personal Bot status unknown'
+      }
       let composerMode = 'keyboard'
       let voiceStarted = false
       function voiceAvailable() { return root.odkPersonalBot?.supportsVoiceInput !== false }
@@ -64,7 +70,7 @@
                 : 'Start voice request')
         voiceLabel.textContent = !ready ? 'Voice unavailable'
           : composerMode === 'keyboard' ? 'Voice'
-            : busy ? stateLabels[lastStatus] || 'Tap to talk'
+            : busy ? captionFor(lastSnapshot || {state:lastStatus})
               : voiceStarted ? 'Type instead'
                 : 'Tap to talk'
         micControl.dataset.recording = String(lastStatus === 'recording')
@@ -525,7 +531,7 @@
           turn.response.setAttribute('aria-busy', String(status.state === 'thinking'))
           if (['idle', 'error'].includes(status.state)) turn.completed = true
         }
-        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '')) : status.state === 'thinking' ? 'Thinking…' : status.state === 'error' && Object.hasOwn(voiceFailures,status.voiceFailure) ? voiceFailures[status.voiceFailure] : stateLabels[status.state] || 'Personal Bot status unknown'
+        const caption = status.state === 'idle' ? (readyCaption || ({unavailable:'Task updates unavailable',stale:'Task updates may be out of date'}[status.remote?.state] || '') || (root.odkPersonalAgentAvatar.phaseFor(status) === 'working' ? captionFor(status) : '')) : captionFor(status)
         setState(status.proposalError || caption || 'Ready', status.proposalError ? 'Suggestions unavailable' : caption)
         sendControl.disabled = busy || status.state === 'unavailable' || pending
 
