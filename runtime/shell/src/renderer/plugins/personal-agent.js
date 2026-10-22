@@ -31,6 +31,19 @@
       const voiceLabel = $('.agent-mic-label')
       const sendControl = $('.agent-send')
       const state = $('.agent-state')
+      const capsule = $('.agent-identity summary')
+      const reducedMotion = root.matchMedia?.('(prefers-reduced-motion: reduce)')
+      let capsuleMotion
+      function stopCapsuleMotion() { capsuleMotion?.cancel();capsuleMotion = undefined }
+      function animateCapsule() {
+        stopCapsuleMotion()
+        if (reducedMotion?.matches || root.document.hidden) return
+        capsuleMotion = capsule.animate?.([{ opacity: 0.78, transform: 'scale(0.985)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' })
+      }
+      const pauseCapsule = () => { if (root.document.hidden) stopCapsuleMotion() }
+      root.document.addEventListener('visibilitychange', pauseCapsule)
+      reducedMotion?.addEventListener('change', stopCapsuleMotion)
+      ctx.trackCleanup?.(() => { stopCapsuleMotion();root.document.removeEventListener('visibilitychange', pauseCapsule);reducedMotion?.removeEventListener('change', stopCapsuleMotion) })
       const avatar = root.odkPersonalAgentAvatar.mount($('.agent-avatar'))
       const busyStates = ['starting', 'sending', 'recording', 'transcribing', 'thinking']
       const stateLabels = { idle: 'Ready', thinking: 'Working…', recording: 'Listening…', starting: 'Preparing microphone…', sending: 'Submitting…', transcribing: 'Transcribing…', unavailable: 'Personal Bot unavailable', error: 'Request failed. You can try again.' }
@@ -95,9 +108,11 @@
       setComposerMode(voiceAvailable() ? 'voice' : 'keyboard')
       let pending = false
       function setState(message, caption = message) {
-        if (state.textContent !== caption) state.textContent = caption
+        const changed = state.textContent !== caption
+        if (changed) state.textContent = caption
         if ($('.agent-status-detail').textContent !== message) $('.agent-status-detail').textContent = message
         state.hidden = !caption
+        if (changed) animateCapsule()
         $('.agent-identity summary').setAttribute('aria-label', `${identity.name}${caption ? ', ' + caption : ''}. View status and edit identity`)
       }
       function applyIdentity() {

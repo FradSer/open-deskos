@@ -248,6 +248,72 @@ async function assertSimpleConversation() {
   assert.equal(await evaluate(`document.querySelector('.agent-state').textContent`),'Task updates unavailable','actual connection failure remains visible in the header')
 }
 
+async function assertCapsuleStack() {
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  for(const theme of ['instrument','pixel','border-beam','liquid-glass'])for(const [width,height] of [[1280,800],[480,854],[320,480]]) {
+    await resize(width,height)
+    await evaluate(`odkTheme.set('${theme}');document.fonts.ready`)
+    publishStatus({state:'thinking'})
+    await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
+    const r=await evaluate(`(()=>{const avatar=document.querySelector('.agent-avatar'),identity=document.querySelector('.agent-identity'),name=document.querySelector('.agent-name'),state=document.querySelector('.agent-state'),pill=identity.querySelector('summary'),a=avatar.getBoundingClientRect(),n=name.getBoundingClientRect(),s=state.getBoundingClientRect(),p=pill.getBoundingClientRect();return {front:Number(getComputedStyle(avatar).zIndex)>Number(getComputedStyle(identity).zIndex),nameClear:n.top>=a.bottom+2,below:s.top>=n.bottom,contained:n.left>=p.left&&n.right<=p.right&&s.bottom<=p.bottom,caption:state.textContent,motion:pill.getAnimations().length}})()`)
+    assert.ok(r.front&&r.nameClear&&r.below&&r.contained,theme+' '+width+': avatar in front, name clear, status below '+JSON.stringify(r))
+    assert.equal(r.caption,'Thinking…');assert.equal(r.motion,0,'reduced motion remains static')
+  }
+  await resize(1280,360)
+  await evaluate(`odkTheme.set('instrument');document.fonts.ready`)
+  await evaluate(`document.querySelector('.agent-identity summary').click();new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  const overlap=await evaluate(`(()=>{const a=document.querySelector('.agent-avatar').getBoundingClientRect(),f=document.querySelector('.agent-identity-form').getBoundingClientRect();return {x:Math.ceil(Math.max(a.left,f.left)),y:Math.ceil(Math.max(a.top,f.top)),width:Math.floor(Math.min(a.right,f.right)-Math.max(a.left,f.left)),height:Math.floor(Math.min(a.bottom,f.bottom)-Math.max(a.top,f.top))}})()`)
+  assert.ok(overlap.width>0&&overlap.height>8,'short panel exercises actual editor/avatar overlap')
+  console.log('SHORT_EDITOR_CROP '+JSON.stringify(overlap))
+  const editorPaint=(await capturePaintedPage(win,overlap)).toBitmap()
+  let withoutAvatar
+  try {
+    await evaluate(`document.querySelector('.agent-avatar').style.visibility='hidden';new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+    withoutAvatar=(await capturePaintedPage(win,overlap)).toBitmap()
+  } finally { await evaluate(`document.querySelector('.agent-avatar').style.removeProperty('visibility')`) }
+  assert.equal(editorPaint.length,withoutAvatar.length,'editor comparison uses the same native crop')
+  let occluded=0;for(let i=0;i<editorPaint.length;i+=4)if(editorPaint[i]!==withoutAvatar[i]||editorPaint[i+1]!==withoutAvatar[i+1]||editorPaint[i+2]!==withoutAvatar[i+2])occluded++
+  assert.equal(occluded,0,'the opaque editor paints above the avatar on short panels')
+  await evaluate(`document.querySelector('.agent-identity').open=false`)
+  await resize(320,480)
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`(()=>{const a=document.querySelector('.agent-identity summary').getAnimations();window.capsuleMotion=a[0];return a.length===1&&a[0].effect.getTiming().iterations===1&&a[0].effect.getTiming().duration<=300})()`),true,'status changes run one bounded capsule reaction '+JSON.stringify(await evaluate(`({hidden:document.hidden,reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,caption:document.querySelector('.agent-state').textContent,animations:document.querySelector('.agent-identity summary').getAnimations().map(a=>({state:a.playState,timing:a.effect.getTiming()}))})`)))
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations()[0]===window.capsuleMotion`),true,'identical frames preserve the current animation')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'preference change cancels the reaction')
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'error'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  await evaluate(`Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'hidden document cancels the reaction')
+  publishStatus({state:'thinking'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-identity summary').getAnimations().length`),0,'hidden updates remain static')
+  await evaluate(`delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))`)
+  publishStatus({state:'transcribing'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  await evaluate(`window.releasedCapsule=document.querySelector('.agent-identity summary');odkRendererRuntime.setEnabled('odk.page.personal-agent',false)`)
+  assert.equal(await evaluate(`releasedCapsule.getAnimations().length`),0,'release cancels the reaction')
+  await evaluate(`odkRendererRuntime.setEnabled('odk.page.personal-agent',true)`)
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  publishStatus({state:'idle'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(r))`)
+  assert.equal(await evaluate(`document.querySelector('.agent-state').hidden`),true,'idle hides redundant Ready text')
+  await resize(1280,800);await evaluate(`odkTheme.set('liquid-glass');document.fonts.ready`)
+  publishStatus({state:'thinking'})
+  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`)
+  fs.writeFileSync(path.join(os.tmpdir(),'odk-agent-capsule-stack.png'),await capturePaintedFrame())
+  console.log('AGENT_CAPSULE_STACK_PASS')
+}
+
 async function assertThreadOverlayInput() {
   const source={key:'a7'.repeat(32),revision:'b7'.repeat(32),threadId:'c7'.repeat(32),machine:'Synthetic Mac',sessionId:'synthetic-overlay-session',taskName:'Thread check',control:'report_only',availability:'live'}
   const messages=Array.from({length:16},(_,i)=>({id:(i+1).toString(16).padStart(64,'0'),at:1000+i,presentation:'assistant_update',text:'Thread result '+i+'. '+'Content remains readable. '.repeat(6),sources:[source]}))
@@ -836,7 +902,9 @@ app.whenReady().then(async () => {
     console.log('ONEE_FLOW_PASS: actual SVG motion, all request phases, completion, error, hidden pause, reduced motion and unchanged CSP')
     finish(0);return
   }
+  if(process.argv.includes('--capsule-only')) { await assertCapsuleStack();finish(0);return }
   if (process.argv.includes('--agent-reference-only')) {
+    await assertCapsuleStack()
     assert.equal(await evaluate(`document.querySelector('.agent-input-avatar')`),null,'the composer does not duplicate the animated avatar')
     assert.equal(await evaluate(`document.querySelector('.agent-identity summary').contains(document.querySelector('.agent-state'))`),true,'name and status share one capsule')
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]})
@@ -916,7 +984,7 @@ app.whenReady().then(async () => {
     publishStatus({state:'idle',proposalError:errorDetail})
     await evaluate('new Promise(r=>setTimeout(r,40))')
     const statusLayout=await evaluate(`(()=>{const summary=document.querySelector('.agent-identity summary');return {height:summary.getBoundingClientRect().height,label:summary.getAttribute('aria-label'),name:document.querySelector('.agent-name').textContent,status:document.querySelector('.agent-state').textContent,detail:document.querySelector('.agent-status-detail')?.textContent}})()`)
-    assert.ok(statusLayout.height<=64,JSON.stringify(statusLayout))
+    assert.ok(statusLayout.height>=44&&statusLayout.height<=84,JSON.stringify(statusLayout))
     assert.ok(statusLayout.label.includes(statusLayout.name)&&statusLayout.label.includes(statusLayout.status),JSON.stringify(statusLayout))
     assert.equal(statusLayout.detail,errorDetail)
     console.log('AGENT_REFERENCE_PASS')

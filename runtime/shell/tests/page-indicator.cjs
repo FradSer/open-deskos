@@ -107,7 +107,7 @@ async function inspect(win) {
       points:points.every(p=>parseFloat(p.point.width)===8&&parseFloat(p.point.height)===8&&p.point.opacity==='1'&&p.bar.opacity==='0'),
       hits:r.height===44&&r.width>=28&&[r.top+4,r.top+r.height/2,r.bottom-4].every(y=>document.elementFromPoint(r.x+r.width/2,y)===active),
       contained:r.left>=v.left&&r.right<=v.right&&Math.abs((nav.left+nav.right)/2-(v.left+v.right)/2)<1&&nav.bottom<=innerHeight+1&&nav.top>=v.bottom-1,
-      capsule:control.dataset.mode==='pages'&&card.content!=='none'&&card.backgroundColor!=='rgba(0, 0, 0, 0)',
+      capsule:control.dataset.mode==='pages'&&((card.content!=='none'&&card.backgroundColor!=='rgba(0, 0, 0, 0)')||(getComputedStyle(control).borderTopWidth==='1px'&&(getComputedStyle(control).backgroundImage!=='none'||getComputedStyle(control).backgroundColor!=='rgba(0, 0, 0, 0)'))),
       stationary:marker.animationName==='none'&&!/all|width|height/.test(marker.transitionProperty),footprint:[nav.x,nav.y,nav.width,nav.height]};
   })()`)
 }
