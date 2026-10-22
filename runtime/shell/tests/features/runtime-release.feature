@@ -45,6 +45,14 @@ Feature: Immutable runtime release deployment
     When composition validation runs
     Then the candidate passes with both required components present
 
+  Scenario: Shared reading typography does not declare a plugin
+    Given a candidate contains the current built-in renderer plugins
+    And the shared reading typography script loads before its consumers
+    When composition validation runs
+    Then all plugin entry modules declare manifest schema version 1
+    And the shared typography helper lives in the WeRead support directory
+    And the candidate passes without exempting any plugin from validation
+
   Scenario: A candidate missing a required component is rejected
     Given a candidate without the voice integration
     When composition validation runs

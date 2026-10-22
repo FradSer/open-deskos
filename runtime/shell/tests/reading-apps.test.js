@@ -29,7 +29,7 @@ async function renderApp(appId, snapshot, options = {}) {
     getComputedStyle: () => ({paddingTop:'0',paddingBottom:'0',rowGap:'20'}),
   }
   const context = vm.createContext(sandbox)
-  vm.runInContext(fs.readFileSync('src/renderer/plugins/weread-typography.js', 'utf8'), context)
+  vm.runInContext(fs.readFileSync('src/renderer/plugins/weread/typography.js', 'utf8'), context)
   vm.runInContext(fs.readFileSync('src/renderer/plugins/reading-apps.js', 'utf8'), context)
   const cleanups = []
   plugins.find(plugin => plugin.appId === appId).mount(el, { trackCleanup(fn) {cleanups.push(fn)}, onTick() {} })
