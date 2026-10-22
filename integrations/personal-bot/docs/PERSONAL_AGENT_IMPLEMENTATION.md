@@ -46,6 +46,10 @@ Capacity recovery requires an obsolete topic update or removal and restart; unkn
 The branch is prepared for pull-request review.
 Live models, physical input, target-device acceptance, and deployment remain unverified.
 
+Personal Bot commands: `node --test --test-timeout=120000 --test-concurrency=4 tests/*.test.mjs`, `pnpm typecheck`, and `pnpm test:proactive:evaluate`.
+Shell commands: `pnpm e2e` and `electron tests/hydra-style.cjs --capture-dir=/tmp/odk-hydra-shared-frame-preview`.
+Android command: `./gradlew testDebugUnitTest --tests com.odk.shell.link.PersonalAgentFrameTest`.
+
 ## Implemented scope
 
 | Requirement | Implementation | Remaining acceptance |
